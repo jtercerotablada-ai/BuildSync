@@ -17,6 +17,7 @@ import {
   cascadeDependentDates,
   type CascadeShift,
 } from "@/lib/dependency-cascade";
+import { startOfTodayUtc } from "@/lib/date-only";
 
 const updateTaskSchema = z.object({
   name: z.string().trim().min(1).optional(),
@@ -337,10 +338,22 @@ export async function PATCH(
             ? new Date(data.dueDate)
             : null
           : existingTask.dueDate;
+      // Compare CALENDAR DAYS, not raw instants. Task dates reach the DB at
+      // three different precisions — UTC midnight from the date-only surfaces
+      // (list/gantt/timeline/calendar), local midnight and local noon from the
+      // My Tasks calendar — so two writes that mean the same day can differ by
+      // hours and make a legitimate same-day start/due look inverted. Only the
+      // day is meaningful for this invariant.
+      const effectiveStartDay = effectiveStartDate
+        ? startOfTodayUtc(effectiveStartDate)
+        : null;
+      const effectiveDueDay = effectiveDueDate
+        ? startOfTodayUtc(effectiveDueDate)
+        : null;
       if (
-        effectiveStartDate &&
-        effectiveDueDate &&
-        effectiveStartDate > effectiveDueDate
+        effectiveStartDay &&
+        effectiveDueDay &&
+        effectiveStartDay > effectiveDueDay
       ) {
         return NextResponse.json(
           { error: "startDate must be on or before dueDate" },

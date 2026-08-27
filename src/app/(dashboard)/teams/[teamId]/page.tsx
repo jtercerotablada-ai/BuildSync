@@ -66,6 +66,9 @@ import {
   TeamGoalsWidget,
 } from "@/components/teams";
 import type { TeamWorkSectionHandle } from "@/components/teams/team-work-section";
+// Same store the team header's star uses — see useTeamStar for why the
+// cover star and the header star must not keep separate books.
+import { useTeamStar } from "@/components/teams/team-header";
 
 interface TeamMember {
   id: string;
@@ -129,7 +132,7 @@ export default function TeamOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [starred, setStarred] = useState(false);
+  const { isStarred: starred, toggleStar } = useTeamStar(teamId);
 
   // Inline description editing
   const [editingDesc, setEditingDesc] = useState(false);
@@ -160,18 +163,6 @@ export default function TeamOverviewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
-  // Star state (localStorage — mirrors the goal-detail pattern).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem("teams.starred");
-      const list: string[] = raw ? JSON.parse(raw) : [];
-      setStarred(list.includes(teamId));
-    } catch {
-      // ignore
-    }
-  }, [teamId]);
-
   // "Invite teammate" entry point (Home People widget + header menu) routes
   // through /teams and lands here with a pending invite intent — consume it
   // once on mount and auto-open the invite dialog. The intent rides in
@@ -180,21 +171,6 @@ export default function TeamOverviewPage() {
   useEffect(() => {
     if (consumeTeamInvite()) setShowInvite(true);
   }, []);
-
-  function toggleStar() {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem("teams.starred");
-      const list: string[] = raw ? JSON.parse(raw) : [];
-      const next = list.includes(teamId)
-        ? list.filter((id) => id !== teamId)
-        : [...list, teamId];
-      localStorage.setItem("teams.starred", JSON.stringify(next));
-      setStarred(next.includes(teamId));
-    } catch {
-      toast.error("Couldn't update star");
-    }
-  }
 
   const myMembership = currentUserId
     ? team?.members.find((m) => m.user.id === currentUserId)

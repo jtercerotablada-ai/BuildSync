@@ -230,14 +230,22 @@ function buildTaskWhere(
   return and.length === 1 ? and[0] : { AND: and };
 }
 
+/**
+ * The non-blank values of a filter. A blank value means the user hasn't
+ * finished the filter yet — it must NOT become `{ in: [""] }` or a JS
+ * `want = [""]`, both of which match nothing and blanked the whole chart the
+ * moment "Add filter" was clicked. Every branch, SQL or in-memory, decides
+ * "is this filter finished?" through this one place.
+ */
+function filterValues(v: Filter["value"]): string[] {
+  return (Array.isArray(v) ? v : v != null ? [String(v)] : [])
+    .map((x) => String(x))
+    .filter((x) => x.trim() !== "");
+}
+
 function taskFilterToWhere(f: Filter): Prisma.TaskWhereInput | null {
   const v = f.value;
-  // A blank value means the user hasn't finished the filter yet — it must NOT
-  // become `{ in: [""] }`, which matches nothing and blanked the whole chart
-  // the moment "Add filter" was clicked.
-  const asArray = (Array.isArray(v) ? v : v != null ? [String(v)] : []).filter(
-    (x) => String(x).trim() !== ""
-  );
+  const asArray = filterValues(v);
 
   switch (f.field) {
     case "assignee":
@@ -366,25 +374,21 @@ function applyPostFilters(
     for (const f of postFilters) {
       if (f.field === "dueStatus") {
         const status = computeDueStatus(row);
-        const want = Array.isArray(f.value)
-          ? f.value
-          : f.value != null
-          ? [String(f.value)]
-          : [];
+        const want = filterValues(f.value);
+        // Unfinished filter — skip it, the same way the Prisma path returns a
+        // null clause instead of one that matches nothing.
+        if (want.length === 0) continue;
         const match = want.includes(status);
         if (f.operator === "isNot" ? match : !match) return false;
       } else if (f.field === "portfolio") {
         const pids = row.projectId ? maps.projectPortfolios.get(row.projectId) ?? [] : [];
-        const want = Array.isArray(f.value)
-          ? f.value
-          : f.value != null
-          ? [String(f.value)]
-          : [];
+        const want = filterValues(f.value);
         if (f.operator === "isSet") {
           if (pids.length === 0) return false;
         } else if (f.operator === "isNotSet") {
           if (pids.length > 0) return false;
         } else {
+          if (want.length === 0) continue;
           const match = pids.some((p) => want.includes(p));
           if (f.operator === "isNot" ? match : !match) return false;
         }
@@ -402,6 +406,9 @@ function matchCfFilter(raw: unknown, f: Filter): boolean {
   const isSet = raw !== undefined && raw !== null && raw !== "";
   if (f.operator === "isSet") return isSet;
   if (f.operator === "isNotSet") return !isSet;
+  // A value-taking operator with no value yet is an unfinished filter: it
+  // constrains nothing rather than rejecting every row.
+  if (filterValues(f.value).length === 0) return true;
   if (!isSet) return false;
 
   const num = toNumber(raw);
@@ -1213,9 +1220,7 @@ function recordFilterToWhere(
   const v = f.value;
   // Blank values are dropped: a filter the user hasn't given a value to yet is
   // incomplete, not a clause that matches nothing.
-  const asArray = (Array.isArray(v) ? v : v != null ? [String(v)] : []).filter(
-    (x) => String(x).trim() !== ""
-  );
+  const asArray = filterValues(v);
 
   if (f.field === "status") {
     if (asArray.length === 0) return null;
@@ -1250,16 +1255,14 @@ function applyRecordPostFilters(rows: RecordRow[], filters: Filter[]): RecordRow
   return rows.filter((row) => {
     for (const f of postFilters) {
       const pids = row.portfolioIds;
-      const want = Array.isArray(f.value)
-        ? f.value
-        : f.value != null
-        ? [String(f.value)]
-        : [];
+      const want = filterValues(f.value);
       if (f.operator === "isSet") {
         if (pids.length === 0) return false;
       } else if (f.operator === "isNotSet") {
         if (pids.length > 0) return false;
       } else {
+        // Unfinished filter — not applied, matching the Prisma path.
+        if (want.length === 0) continue;
         const match = pids.some((p) => want.includes(p));
         if (f.operator === "isNot" ? match : !match) return false;
       }

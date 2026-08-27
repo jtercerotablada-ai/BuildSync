@@ -147,7 +147,7 @@ function TextNumberCell({
       ? value
       : "";
 
-  function commit() {
+  function commit({ fromBlur = false }: { fromBlur?: boolean } = {}) {
     if (numeric) {
       const trimmed = draft.trim();
       if (trimmed === "") {
@@ -156,8 +156,16 @@ function TextNumberCell({
       }
       const n = Number(trimmed);
       // A value that doesn't parse used to close the editor and vanish
-      // without a word. Stay in the cell and say what's wrong instead.
+      // without a word. Stay in the cell and say what's wrong instead —
+      // but only while the cell still has focus. On blur the user has
+      // already moved on, so keeping the editor open would strand an
+      // unfocused red input with no way back out; discard and close.
       if (!Number.isFinite(n)) {
+        if (fromBlur) {
+          setInvalid(false);
+          setEditing(false);
+          return;
+        }
         setInvalid(true);
         return;
       }
@@ -189,7 +197,7 @@ function TextNumberCell({
             setDraft(e.target.value);
             if (invalid) setInvalid(false);
           }}
-          onBlur={commit}
+          onBlur={() => commit({ fromBlur: true })}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit();
             if (e.key === "Escape") {

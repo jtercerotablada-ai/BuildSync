@@ -930,7 +930,14 @@ export function TimelineView({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          // The API rejects an inverted range with a precise reason
+          // ("startDate must be on or before dueDate"); swallowing it left
+          // the user re-trying the same drag with no idea which edge was
+          // wrong.
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error || "");
+        }
         // Glide dependents along too — the server returns every task its
         // cascade rescheduled, so their bars move without waiting for the
         // refresh.
@@ -958,14 +965,15 @@ export function TimelineView({
           notifyTaskMutated(s.taskId);
         }
         router.refresh();
-      } catch {
+      } catch (error) {
         // Roll back only the failed bar.
         setOptimisticDates((prev) => {
           const next = { ...prev };
           delete next[taskId];
           return next;
         });
-        toast.error("Failed to update dates");
+        const reason = error instanceof Error ? error.message : "";
+        toast.error(reason || "Failed to update dates");
       } finally {
         patchesInFlightRef.current -= 1;
       }

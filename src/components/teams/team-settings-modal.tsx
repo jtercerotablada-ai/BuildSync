@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  Shield,
   Mail,
   Lock,
   Users,
@@ -42,7 +41,6 @@ interface TeamSettingsModalProps {
     name: string;
     description?: string | null;
     privacy: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
-    hasAdmin?: boolean;
     workspace?: {
       name: string;
     } | null;
@@ -137,6 +135,45 @@ export function TeamSettingsModal({
     }
   };
 
+  // Same three outcomes InviteTeamModal reports: an existing user is added
+  // to the team outright, an invitation email goes out, or the invitation is
+  // saved but delivery failed (HTTP 201 + `warning`). Both invite controls
+  // below only checked res.ok, so the failed-delivery case toasted "Invited"
+  // and the user waited for mail that was never sent.
+  const sendInvite = async () => {
+    const address = inviteEmail.trim();
+    if (!address) {
+      toast.error("Please enter an email");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/teams/${team.id}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: address }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to invite user");
+      }
+      if (data?.success) {
+        toast.success("Added to the team");
+      } else if (data?.warning) {
+        toast.warning(data.warning);
+      } else {
+        toast.success(`Invitation sent to ${address}`);
+      }
+      setInviteEmail("");
+      // Refresh member list
+      const membersRes = await fetch(`/api/teams/${team.id}/members`);
+      if (membersRes.ok) setMembers(await membersRes.json());
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to invite user"
+      );
+    }
+  };
+
   const handleDelete = async () => {
     // Cascades: team messages, custom fields and knowledge entries are deleted
     // with it. Its projects and goals are only detached (SetNull).
@@ -200,35 +237,12 @@ Its messages, knowledge entries and custom fields are deleted permanently. Its p
           {/* TAB: General */}
           {activeTab === "general" && (
             <div className="space-y-6">
-              {/* Admin Warning Banner */}
-              {!team.hasAdmin && (
-                <div className="flex items-start gap-3 p-3 bg-gray-50 border rounded-lg">
-                  <Shield className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700">
-                      {team.name} does not have a team admin.
-                    </p>
-                    <button className="text-sm text-[#a8893a] hover:underline" onClick={() => toast.info('Team admins can manage team settings, members, and permissions.')}>
-                      What's a team admin?
-                    </button>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/teams/${team.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ hasAdmin: true }),
-                      });
-                      if (res.ok) {
-                        toast.success('You are now a team admin');
-                        onSave?.();
-                      }
-                    } catch { toast.error('Failed to become admin'); }
-                  }}>
-                    Become team admin
-                  </Button>
-                </div>
-              )}
+              {/* A "<Team> does not have a team admin" banner lived here,
+                  gated on a `hasAdmin` flag no API or table ever returns —
+                  so it showed on EVERY team, including ones with a lead,
+                  and its "Become team admin" button PATCHed a key the route
+                  schema strips, then toasted success. Removed until team
+                  admin is a real role. */}
 
               {/* Organization (read-only) */}
               {team.workspace?.name && (
@@ -333,48 +347,11 @@ Its messages, knowledge entries and custom fields are deleted permanently. Its p
                     className="flex-1"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter' && inviteEmail.trim()) {
-                        try {
-                          const res = await fetch(`/api/teams/${team.id}/invite`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email: inviteEmail.trim() }),
-                          });
-                          if (res.ok) {
-                            toast.success(`Invited ${inviteEmail.trim()}`);
-                            setInviteEmail("");
-                            // Refresh member list
-                            const membersRes = await fetch(`/api/teams/${team.id}/members`);
-                            if (membersRes.ok) setMembers(await membersRes.json());
-                          } else {
-                            const data = await res.json();
-                            toast.error(data.error || 'Failed to invite user');
-                          }
-                        } catch { toast.error('Failed to invite user'); }
-                      }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inviteEmail.trim()) sendInvite();
                     }}
                   />
-                  <Button size="sm" onClick={async () => {
-                    if (!inviteEmail.trim()) { toast.error('Please enter an email'); return; }
-                    try {
-                      const res = await fetch(`/api/teams/${team.id}/invite`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: inviteEmail.trim() }),
-                      });
-                      if (res.ok) {
-                        toast.success(`Invited ${inviteEmail.trim()}`);
-                        setInviteEmail("");
-                        // Refresh member list
-                        const membersRes = await fetch(`/api/teams/${team.id}/members`);
-                        if (membersRes.ok) setMembers(await membersRes.json());
-                      } else {
-                        const data = await res.json();
-                        toast.error(data.error || 'Failed to invite user');
-                      }
-                    } catch { toast.error('Failed to invite user'); }
-                  }}>
+                  <Button size="sm" onClick={sendInvite}>
                     Send invite
                   </Button>
                 </div>

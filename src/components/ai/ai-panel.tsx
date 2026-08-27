@@ -76,6 +76,16 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
       if (!focusable || focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      // While a request is in flight the input is disabled, which makes the
+      // browser blur it and leave focus on <body> — outside the panel, where
+      // neither of the wrap-around checks below match and Tab would walk into
+      // the header behind the backdrop. Pull focus back in first.
+      if (!active || !panelRef.current?.contains(active)) {
+        e.preventDefault();
+        first.focus();
+        return;
+      }
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();
@@ -91,6 +101,13 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
       previouslyFocusedRef.current?.focus();
     };
   }, [isOpen]);
+
+  // Once the answer lands the input is enabled again, but focus was dropped
+  // when it went disabled — put the caret back so the next question can be
+  // typed straight away.
+  useEffect(() => {
+    if (isOpen && !isLoading) inputRef.current?.focus();
+  }, [isOpen, isLoading]);
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;

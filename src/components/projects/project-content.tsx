@@ -377,17 +377,27 @@ export function ProjectContent({
   // to be a raw localStorage key, so a project starred at the office was
   // unstarred on the laptop and the toast fired twice in development
   // (the state updater it lived in is double-invoked by StrictMode).
-  const { value: starredProjects, setValue: setStarredProjects } = useUiState<
-    Record<string, boolean>
-  >("project.starred", {});
+  // One map holds every project's star, so a write here replaces the whole
+  // key: toggling against the pre-hydration `{}` default would persist a map
+  // containing only this project and drop the user's other favorites.
+  const {
+    value: starredProjects,
+    setValue: setStarredProjects,
+    isHydrated: starsHydrated,
+  } = useUiState<Record<string, boolean>>("project.starred", {});
   const isStarred = starredProjects[project.id] === true;
 
   const toggleStar = () => {
+    if (!starsHydrated) return;
     const next = !isStarred;
-    const updated = { ...starredProjects };
-    if (next) updated[project.id] = true;
-    else delete updated[project.id];
-    setStarredProjects(updated);
+    // Functional form so the merge is against the freshest map rather than
+    // whatever this render closed over.
+    setStarredProjects((prev) => {
+      const updated = { ...prev };
+      if (next) updated[project.id] = true;
+      else delete updated[project.id];
+      return updated;
+    });
     toast.success(next ? "Added to favorites" : "Removed from favorites");
   };
 
@@ -993,6 +1003,7 @@ export function ProjectContent({
               size="icon"
               className={cn("h-8 w-8", isStarred && "text-[#a8893a]")}
               onClick={toggleStar}
+              disabled={!starsHydrated}
             >
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
             </Button>

@@ -1511,6 +1511,7 @@ export default function PortfolioDetailPage() {
                 updates={updates}
                 updatesLoading={updatesLoading}
                 onPost={handlePostUpdate}
+                canPost={canEditPortfolio}
               />
             </TabsContent>
 

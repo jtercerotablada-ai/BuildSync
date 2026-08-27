@@ -335,7 +335,11 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
       </Dialog>
 
       {/* Search Dialog */}
-      <SearchDialog open={showSearch} onOpenChange={setShowSearch} />
+      <SearchDialog
+        open={showSearch}
+        onOpenChange={setShowSearch}
+        basePath={basePath}
+      />
 
       {/* AI Panel */}
       <AIPanel isOpen={isAIPanelOpen} onClose={closeAIPanel} />

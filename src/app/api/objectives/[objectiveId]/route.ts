@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { GoalProgressService } from "@/lib/goal-progress";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyWorkspaceAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
@@ -198,7 +199,14 @@ export async function PATCH(
     // Verify user has access to this objective's workspace
     const existingObj = await prisma.objective.findUnique({
       where: { id: objectiveId },
-      select: { workspaceId: true, ownerId: true, teamId: true },
+      select: {
+        workspaceId: true,
+        ownerId: true,
+        teamId: true,
+        // Needed after the write to roll progress up the tree — and to
+        // recompute the OLD parent when a goal is re-parented away from it.
+        parentId: true,
+      },
     });
     if (!existingObj) {
       return NextResponse.json({ error: "Objective not found" }, { status: 404 });
@@ -320,6 +328,31 @@ export async function PATCH(
         },
       },
     });
+
+    // Roll the change up the ancestor chain. The library knew how to do this
+    // all along; the route simply never called it, so moving a child's number
+    // left every parent showing a stale roll-up until something else happened
+    // to recompute it. Re-parenting also has to refresh the workspace the goal
+    // LEFT, or the old parent keeps counting a child it no longer has.
+    if (
+      data.progress !== undefined ||
+      data.progressSource !== undefined ||
+      data.parentId !== undefined
+    ) {
+      try {
+        await GoalProgressService.recalculateProgress(objectiveId);
+        if (
+          data.parentId !== undefined &&
+          existingObj.parentId &&
+          existingObj.parentId !== data.parentId
+        ) {
+          await GoalProgressService.recalculateProgress(existingObj.parentId);
+        }
+      } catch (err) {
+        // A roll-up failure must not fail the edit the user just made.
+        console.error("[objective PATCH] progress roll-up failed:", err);
+      }
+    }
 
     return NextResponse.json(objective);
   } catch (error) {

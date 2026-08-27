@@ -421,6 +421,25 @@ interface DonutLabelProps {
   outerRadius?: number | string;
   value?: number;
   percent?: number;
+  /** The slice's own fill — recharts passes the Cell's colour through. */
+  fill?: string;
+  payload?: { color?: string };
+}
+
+/**
+ * Pick a legible ink for a slice. The palette runs from navy through
+ * yellow (#eab308) and lime (#84cc16); a fixed white label all but
+ * disappears on the bright ones, so switch to near-black there.
+ */
+function labelInkFor(fill: string | undefined): string {
+  const hex = (fill || "").replace("#", "");
+  if (hex.length !== 6) return "#ffffff";
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  if (!isFinite(r) || !isFinite(g) || !isFinite(b)) return "#ffffff";
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+  return luminance > 150 ? "#0f172a" : "#ffffff";
 }
 
 function renderDonutLabel(props: DonutLabelProps) {
@@ -438,7 +457,7 @@ function renderDonutLabel(props: DonutLabelProps) {
     <text
       x={x}
       y={y}
-      fill="#ffffff"
+      fill={labelInkFor(props.fill || props.payload?.color)}
       fontSize={10}
       textAnchor="middle"
       dominantBaseline="central"

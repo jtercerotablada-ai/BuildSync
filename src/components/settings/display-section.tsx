@@ -169,7 +169,12 @@ export function DisplaySection() {
         </div>
         <div className="grid grid-cols-2 gap-3 md:gap-4 max-w-lg">
           {languages.map((l) => {
-            const isActive = !l.disabled && language === l.value;
+            // Unlike the theme cards (whose default "light" is enabled),
+            // the stored language can be a disabled one. Gating the
+            // selection on `!disabled` would leave an "es" user with no
+            // card marked at all, which reads as a broken control — so a
+            // disabled card still shows as the current choice, greyed out.
+            const isActive = language === l.value;
             return (
               <button
                 key={l.value}
@@ -182,8 +187,9 @@ export function DisplaySection() {
                   isActive
                     ? "border-black bg-black/5"
                     : l.disabled
-                      ? "border-gray-100 cursor-not-allowed opacity-50"
-                      : "border-muted hover:border-black/30"
+                      ? "border-gray-100"
+                      : "border-muted hover:border-black/30",
+                  l.disabled && "cursor-not-allowed opacity-50"
                 )}
               >
                 <span

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -29,6 +29,62 @@ import { useUiState } from "@/hooks/use-ui-state";
 import { InviteTeamModal } from "./invite-team-modal";
 import { TeamSettingsModal } from "./team-settings-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+
+/**
+ * Starring a team is a per-user preference, so it belongs in server-backed
+ * uiState — it follows the user across devices instead of dying with a
+ * browser profile.
+ *
+ * Both surfaces that draw a star for the same team share this hook: this
+ * header (rendered on Members / All work / Messages / Calendar / Knowledge)
+ * and the Overview cover. They used to keep two independent stores, so
+ * starring on one tab left the other showing a hollow star.
+ */
+export function useTeamStar(teamId: string) {
+  const {
+    value: starredTeams,
+    setValue: setStarredTeams,
+    isHydrated,
+  } = useUiState<Record<string, boolean>>("starredTeams", {});
+
+  // One-time fold of the old browser-local store — an array of team ids
+  // under "teams.starred", written by the Overview cover before both
+  // surfaces agreed — so nobody's existing stars disappear. Removing the
+  // key makes this a no-op on every later mount.
+  useEffect(() => {
+    if (!isHydrated || typeof window === "undefined") return;
+    let legacy: unknown;
+    try {
+      const raw = localStorage.getItem("teams.starred");
+      if (!raw) return;
+      legacy = JSON.parse(raw);
+      localStorage.removeItem("teams.starred");
+    } catch {
+      return;
+    }
+    if (!Array.isArray(legacy) || legacy.length === 0) return;
+    setStarredTeams((prev) => {
+      const next = { ...prev };
+      for (const id of legacy as unknown[]) {
+        if (typeof id === "string") next[id] = true;
+      }
+      return next;
+    });
+  }, [isHydrated, setStarredTeams]);
+
+  const isStarred = !!starredTeams[teamId];
+
+  const toggleStar = useCallback(() => {
+    setStarredTeams((prev) => {
+      const next = { ...prev };
+      if (next[teamId]) delete next[teamId];
+      else next[teamId] = true;
+      return next;
+    });
+  }, [teamId, setStarredTeams]);
+
+  return { isStarred, toggleStar };
+}
 
 interface TeamMember {
   id: string;
@@ -61,24 +117,39 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Every page that renders this header holds the team in its own client
+  // state, loaded once with fetch(), so router.refresh() — which only re-runs
+  // server components — never repainted a rename saved in the settings
+  // dialog. Re-read the team here and render our copy on top of the prop.
+  const [edited, setEdited] = useState<{
+    teamId: string;
+    name: string;
+    description: string | null;
+    avatar: string | null;
+    privacy: TeamHeaderProps["team"]["privacy"];
+  } | null>(null);
+  const view = edited && edited.teamId === team.id ? { ...team, ...edited } : team;
+
+  const reloadTeam = async () => {
+    try {
+      const res = await fetch(`/api/teams/${team.id}`);
+      if (!res.ok) return;
+      const fresh = await res.json();
+      setEdited({
+        teamId: team.id,
+        name: fresh.name,
+        description: fresh.description ?? null,
+        avatar: fresh.avatar ?? null,
+        privacy: fresh.privacy,
+      });
+    } catch {
+      // Keep showing the last known values rather than blanking the header.
+    }
+  };
   // Starring lived in a local useState, so it reset every time the user
   // moved between the team's tabs (each page remounts this header) and
-  // never survived a reload. It is a per-user preference — keep it in
-  // uiState, keyed by team.
-  const { value: starredTeams, setValue: setStarredTeams } = useUiState<
-    Record<string, boolean>
-  >("starredTeams", {});
-  const isStarred = !!starredTeams[team.id];
-
-  const toggleStar = () => {
-    const next = { ...starredTeams };
-    if (isStarred) {
-      delete next[team.id];
-    } else {
-      next[team.id] = true;
-    }
-    setStarredTeams(next);
-  };
+  // never survived a reload.
+  const { isStarred, toggleStar } = useTeamStar(team.id);
 
   // Deleting a team cascades to its messages, custom fields and knowledge
   // entries; its projects AND goals are only DETACHED (both FKs are
@@ -123,11 +194,11 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
           <div className="flex items-center gap-3">
             {/* Team Avatar */}
             <div className="w-8 h-8 rounded-lg bg-white border border-black flex items-center justify-center">
-              {team.avatar ? (
-                <img src={team.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
+              {view.avatar ? (
+                <img src={view.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
               ) : (
                 <span className="text-sm font-medium text-black">
-                  {team.name.charAt(0).toUpperCase()}
+                  {view.name.charAt(0).toUpperCase()}
                 </span>
               )}
             </div>
@@ -136,7 +207,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1 text-base font-semibold hover:bg-gray-100 px-2 py-1 rounded transition-colors">
-                  {team.name}
+                  {view.name}
                   <ChevronDown className="h-4 w-4 text-gray-400" />
                 </button>
               </DropdownMenuTrigger>
@@ -147,7 +218,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                     didn't give us enough of the team to open it. */}
                 <DropdownMenuItem
                   onSelect={(e) => {
-                    if (!team.privacy) {
+                    if (!view.privacy) {
                       router.push(`/teams/${team.id}/members`);
                       return;
                     }
@@ -253,18 +324,18 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         onClose={() => setShowInviteModal(false)}
       />
 
-      {team.privacy && (
+      {view.privacy && (
         <TeamSettingsModal
           team={{
             id: team.id,
-            name: team.name,
-            description: team.description,
-            privacy: team.privacy,
-            workspace: team.workspace,
+            name: view.name,
+            description: view.description,
+            privacy: view.privacy,
+            workspace: view.workspace,
           }}
           open={showSettings}
           onClose={() => setShowSettings(false)}
-          onSave={() => router.refresh()}
+          onSave={reloadTeam}
         />
       )}
 
@@ -272,14 +343,14 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         title="Delete team"
-        description={`"${team.name}" and everything scoped to it will be permanently deleted. This cannot be undone.`}
+        description={`"${view.name}" and everything scoped to it will be permanently deleted. This cannot be undone.`}
         consequences={[
           "Team messages, knowledge entries and custom fields are deleted",
           "Members lose access; their tasks are not deleted",
           "The team's projects and goals stay, but lose their team",
         ]}
         confirmLabel="Delete team"
-        requireText={team.name}
+        requireText={view.name}
         onConfirm={deleteTeam}
       />
     </>

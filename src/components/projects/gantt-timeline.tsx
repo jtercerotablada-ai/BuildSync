@@ -486,7 +486,13 @@ function GanttBar({
   // range gets its edge rendered at the timeline edge (rather than off-
   // screen with no visual feedback).
   const visibleStart = start < rangeStart ? rangeStart : start;
-  const visibleEnd = end > rangeEnd ? rangeEnd : end;
+  // rangeEnd is the EXCLUSIVE right edge of the canvas — the last column the
+  // header draws is the day before it. Clamp to that day so the inclusive
+  // `+ 1` below lands on a real column instead of pushing the bar's edge one
+  // day-column past the chart, the month grid and the today line.
+  const lastColumn = new Date(rangeEnd);
+  lastColumn.setDate(lastColumn.getDate() - 1);
+  const visibleEnd = end > lastColumn ? lastColumn : end;
 
   if (visibleEnd < visibleStart) {
     // entirely outside window

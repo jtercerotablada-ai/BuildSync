@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Bell,
@@ -129,6 +129,11 @@ function formatRelativeTime(date: Date): string {
 
 export default function InboxPage() {
   const router = useRouter();
+  // The portal re-exports this very component at /portal/inbox, so any
+  // destination that exists in both shells has to be prefixed with the one
+  // the user is actually in.
+  const pathname = usePathname();
+  const shellPrefix = pathname?.startsWith("/portal") ? "/portal" : "";
   // Persisted "default tab" (context-menu → Set as default). We seed
   // activeTab from it once uiState hydrates (see effect below).
   const {
@@ -150,6 +155,10 @@ export default function InboxPage() {
   // independent of the current tab/filter/page. Drives the Activity
   // badge so it never shows archived rows.
   const [serverUnreadCount, setServerUnreadCount] = useState(0);
+  // False until a fetch has actually reported a count. Until then the 0
+  // above is a placeholder, and broadcasting it would blank the header
+  // bell the moment the inbox mounts.
+  const [hasServerCount, setHasServerCount] = useState(false);
   // Opaque cursor for the next (older) page; null when no more.
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -224,6 +233,7 @@ export default function InboxPage() {
         setHasLoadedMore(false);
         if (!Array.isArray(data) && typeof data.unreadCount === "number") {
           setServerUnreadCount(data.unreadCount);
+          setHasServerCount(true);
         }
       }
     } catch (error) {
@@ -246,6 +256,7 @@ export default function InboxPage() {
       const data = await res.json();
       if (!Array.isArray(data) && typeof data.unreadCount === "number") {
         setServerUnreadCount(data.unreadCount);
+        setHasServerCount(true);
       }
     } catch (error) {
       console.error("Error refreshing unread count:", error);
@@ -285,6 +296,7 @@ export default function InboxPage() {
         setHasLoadedMore(true);
         if (!Array.isArray(data) && typeof data.unreadCount === "number") {
           setServerUnreadCount(data.unreadCount);
+          setHasServerCount(true);
         }
       }
     } catch (error) {
@@ -410,9 +422,11 @@ export default function InboxPage() {
   // row looking read until the next poll put it back.
   const markAsRead = async (id: string) => {
     // Only the badge for rows that were actually unread (and non-archived)
-    // may move — otherwise the count drifts.
+    // may move — otherwise the count drifts. Archiving never marks a row
+    // read, so an unread row on the Archive tab is outside the server's
+    // count and reading it must leave the badge (and the bell) alone.
     const target = notifications.find((n) => n.id === id);
-    const wasUnread = !!target && !target.read;
+    const wasUnread = !!target && !target.read && !isArchivedScope;
     setNotifications((cur) =>
       cur.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
@@ -581,7 +595,9 @@ export default function InboxPage() {
       // Team invitations ("You were added to X") carry only teamId, and
       // teamId used to be honoured for mentions alone — so those rows
       // fell through to a bare return and clicking them went nowhere.
-      router.push(`/teams/${notification.teamId}`);
+      // This page is also mounted at /portal/inbox, and the portal has its
+      // own team route, so keep the click inside the shell it came from.
+      router.push(`${shellPrefix}/teams/${notification.teamId}`);
     }
   };
 
@@ -595,8 +611,9 @@ export default function InboxPage() {
   // already moved. Broadcasting from one place covers every mutation and
   // every optimistic rollback.
   useEffect(() => {
+    if (!hasServerCount) return;
     notifyUnreadChanged(serverUnreadCount);
-  }, [serverUnreadCount]);
+  }, [serverUnreadCount, hasServerCount]);
 
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
 
@@ -842,6 +859,16 @@ export default function InboxPage() {
                         `${n.sender.name}: ${n.title} - ${n.preview}`
                     )
                     .join("\n");
+                  // The list only ever holds the pages the user has loaded,
+                  // so a narrow period can legitimately match nothing. Asking
+                  // the API with an empty body would only come back as a
+                  // validation error, which reads like a broken summary.
+                  if (!summaryText) {
+                    setAiSummary(
+                      `No notifications in the ${periodLabel}. Try a wider period, or load more notifications first.`
+                    );
+                    return;
+                  }
                   const res = await fetch("/api/ai/assist", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -857,9 +884,16 @@ export default function InboxPage() {
                     // Only network failures used to surface anything. A 429, or
                     // a 503 because ANTHROPIC_API_KEY isn't set, left the summary
                     // null and the button simply blinked back to "View summary".
+                    // Show the route's own wording only where the user can act
+                    // on it (wait, ask an admin, shorten the input); a request
+                    // validation message would just be noise inside the card.
                     const err = await res.json().catch(() => null);
+                    const actionable =
+                      res.status === 429 ||
+                      res.status === 503 ||
+                      res.status === 413;
                     setAiSummary(
-                      err?.error ||
+                      (actionable && err?.error) ||
                         `Could not generate summary (${res.status}). Please try again.`
                     );
                   }
@@ -946,12 +980,17 @@ export default function InboxPage() {
             ) : filteredNotifications.length === 0 ? (
               // Archive used to render the raw `notifications` array, so the
               // Filter button sitting right above it was completely inert on
-              // this tab.
-              filterType !== "all" ? (
-                <EmptyFiltered onClear={() => setFilterType("all")} />
-              ) : (
-                <EmptyArchive />
-              )
+              // this tab. Pagination has to stay reachable while the filter
+              // empties the loaded page, or older archived rows that match it
+              // can never be pulled in.
+              <div className="px-6 py-4">
+                {filterType !== "all" ? (
+                  <EmptyFiltered onClear={() => setFilterType("all")} />
+                ) : (
+                  <EmptyArchive />
+                )}
+                {loadMoreButton}
+              </div>
             ) : (
               <div className="px-6 py-4 space-y-1">
                 {filteredNotifications.map((notification) => (

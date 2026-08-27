@@ -165,6 +165,15 @@ interface Section {
   tasks: Task[];
 }
 
+/** Value accepted by saveInlineEdit. Text/date fields pass a string,
+ *  the Status dropdown a boolean or null, and the "dateRange" field
+ *  both date edges at once so they reach the API in one PATCH. */
+type InlineEditValue =
+  | string
+  | boolean
+  | null
+  | { startDate: string | null; dueDate: string | null };
+
 interface ListViewProps {
   sections: Section[];
   onTaskClick: (taskId: string) => void;
@@ -507,7 +516,14 @@ export function ListView({
       dragSourceSectionRef.current = null;
       isDraggingRef.current = false;
 
-      if (!over) return;
+      // Released over no droppable (page header, toolbar, margin).
+      // handleDragOver may already have moved the row into another
+      // section optimistically, and nothing here will PATCH or
+      // refresh, so roll back or the phantom move stays on screen.
+      if (!over) {
+        setLocalSections(sections);
+        return;
+      }
       const activeId = active.id as string;
       const overId = over.id as string;
 
@@ -525,7 +541,10 @@ export function ListView({
           }
         }
       }
-      if (!destSectionId) return;
+      if (!destSectionId) {
+        setLocalSections(sections); // same phantom-move rollback as above
+        return;
+      }
 
       // Position the dragged task at the row it was dropped ON, for BOTH
       // same-section reorders and cross-section moves. handleDragOver has
@@ -778,19 +797,25 @@ export function ListView({
   const saveInlineEdit = async (
     taskId: string,
     field: string,
-    value: string | boolean | null
+    value: InlineEditValue
   ) => {
     cancelEditing();
     const body: Record<string, unknown> = {};
     if (field === "name") {
       if (typeof value !== "string" || !value.trim()) return;
       body.name = value.trim();
+    } else if (field === "dateRange") {
+      // Both edges of the Asana-style range travel in ONE request.
+      // The API validates startDate <= dueDate against whichever edge
+      // is still STORED, so splitting this into two PATCHes gets the
+      // first one rejected whenever the whole range moves later — and
+      // the edge it carried is silently dropped.
+      if (typeof value !== "object" || value === null) return;
+      body.startDate = value.startDate;
+      body.dueDate = value.dueDate;
     } else if (field === "dueDate") {
       body.dueDate = value || null;
     } else if (field === "startDate") {
-      // Asana-style range: the picker calls this alongside dueDate
-      // so we accept null to clear the start when the user removes
-      // the left edge of the range.
       body.startDate = value || null;
     } else if (field === "priority") {
       body.priority = value;
@@ -807,10 +832,17 @@ export function ListView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!response.ok) throw new Error("Failed to update");
+      if (!response.ok) {
+        // Prefer the server's reason (e.g. "startDate must be on or
+        // before dueDate") — it tells the user which edge to move.
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to update task");
+      }
       router.refresh();
-    } catch {
-      toast.error("Failed to update task");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update task"
+      );
     }
   };
 
@@ -1592,13 +1624,14 @@ interface SortableTaskRowProps {
   setEditingValue: (v: string) => void;
   startEditing: (taskId: string, field: string, currentValue: string) => void;
   cancelEditing: () => void;
-  // Widened to string | boolean | null so the Status dropdown can
-  // pass a boolean (completed toggle) or null (clear taskStatus)
-  // through the same plumbing as name/dueDate/priority text edits.
+  // Widened to InlineEditValue so the Status dropdown can pass a
+  // boolean (completed toggle) or null (clear taskStatus), and the
+  // date picker a whole range, through the same plumbing as
+  // name/priority text edits.
   saveInlineEdit: (
     taskId: string,
     field: string,
-    value: string | boolean | null
+    value: InlineEditValue
   ) => Promise<void>;
   /** Custom field columns to render to the right of Status, before
    *  the "+" placeholder. */
@@ -1883,8 +1916,8 @@ function SortableTaskRow({
 
         {/* Due Date — Asana-style range picker. Opens a popover with
             two date fields (start + due) instead of a single native
-            date input. Persists both edges through saveInlineEdit so
-            the row instantly reflects "May 14 – 27" when set. */}
+            date input. Persists both edges through saveInlineEdit in
+            one request so the row instantly reflects "May 14 – 27". */}
         <div onClick={(e) => e.stopPropagation()}>
           <DueDatePicker
             startDate={task.startDate ? dueDateToLocalMidnight(task.startDate) : null}
@@ -1892,8 +1925,10 @@ function SortableTaskRow({
             onChange={(start, due) => {
               const startStr = start ? format(start, "yyyy-MM-dd") : null;
               const dueStr = due ? format(due, "yyyy-MM-dd") : null;
-              saveInlineEdit(task.id, "startDate", startStr);
-              saveInlineEdit(task.id, "dueDate", dueStr);
+              saveInlineEdit(task.id, "dateRange", {
+                startDate: startStr,
+                dueDate: dueStr,
+              });
             }}
             trigger={
               <div className="cursor-pointer hover:bg-slate-100 rounded px-1 -mx-1">

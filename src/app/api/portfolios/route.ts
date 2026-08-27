@@ -95,6 +95,12 @@ export async function GET(req: Request) {
                 budget: true,
                 currency: true,
                 tasks: {
+                  // Only top-level tasks, matching how goal roll-ups measure a
+                  // project (src/lib/goal-progress.ts) and how the portfolio
+                  // detail route counts. Counting subtasks here made the list
+                  // card and the portfolio it opens report different
+                  // percentages for the same project.
+                  where: { parentTaskId: null },
                   select: { id: true, completed: true, dueDate: true },
                 },
               },

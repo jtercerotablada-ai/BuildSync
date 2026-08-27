@@ -116,9 +116,11 @@ export function SearchDialog({
     onOpenChange(false);
     switch (item.type) {
       case "task":
-        // Carry the task id in the URL the same way the inbox does, so the
-        // destination can open that task instead of dropping the user on a
-        // board of hundreds of cards with nothing selected.
+        // Carry the task id in the URL the same way the inbox's links do.
+        // Nothing reads `task` yet, so today the user still lands on the
+        // board with nothing selected; the shape is here so that whenever
+        // the destination views learn to open a task, both entry points
+        // start working at once.
         if (item.extra?.projectId) {
           router.push(
             `${basePath}/projects/${item.extra.projectId}?task=${item.id}`
@@ -134,7 +136,9 @@ export function SearchDialog({
         router.push(`${basePath}/teams/${item.id}`);
         break;
       case "user":
-        router.push(`${basePath}/profile/${item.id}`);
+        // Deliberately NOT prefixed: /profile/[userId] exists only in the
+        // internal app, so a "/portal" prefix here would 404 the portal user.
+        router.push(`/profile/${item.id}`);
         break;
     }
   }

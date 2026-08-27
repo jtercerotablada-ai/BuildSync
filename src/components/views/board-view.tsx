@@ -262,7 +262,12 @@ export function BoardView({
       dragSourceSectionRef.current = null;
       isDraggingRef.current = false;
 
+      // Released over no droppable (board header, toolbar, margin).
+      // handleDragOver may already have moved the card into another
+      // column optimistically, and nothing here will persist or
+      // refresh, so roll back or the phantom move stays on screen.
       if (!over) {
+        setLocalSections(sections);
         return;
       }
 
@@ -281,7 +286,10 @@ export function BoardView({
           }
         }
       }
-      if (!destSectionId) return;
+      if (!destSectionId) {
+        setLocalSections(sections); // same phantom-move rollback as above
+        return;
+      }
 
       // Position the card at the row it was dropped ON, for BOTH same-column
       // reorders and cross-column moves. handleDragOver already inserted a

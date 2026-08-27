@@ -2302,9 +2302,15 @@ export default function MyTasksPage() {
       if (!ok) return false;
     }
 
-    const updatedTasks = tasks.map(applyOptimistic);
-    setTasks(updatedTasks);
-    organizeTasks(updatedTasks, groupType);
+    // The confirmation above can sit open for as long as the user reads
+    // it, and background refetches keep committing fresh task lists in
+    // the meantime. Writing back a `tasks` array captured before the
+    // dialog opened would undo every one of those (a checkbox ticked a
+    // moment earlier visibly un-ticks itself), so fold the change into
+    // whatever list is current and let the effect on `tasks` re-derive
+    // the sections from what actually committed — the same reason
+    // handleInlineFieldPatch is written this way.
+    setTasks((prev) => prev.map(applyOptimistic));
 
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
@@ -4451,9 +4457,18 @@ function ListDndProvider({
   // into its old bucket behind the dialog that is still asking about the
   // move. Hold the drop preview until the answer comes back.
   const awaitingMoveConfirmRef = useRef(false);
+  // The last `sections` the sync below had to skip because the guard was
+  // up. The effect only runs again when the parent hands us a NEW array,
+  // so without parking it here that update would be lost for good —
+  // including the page's own optimistic re-grouping of the very move we
+  // are waiting on. Replayed once the guard comes down.
+  const skippedSectionsRef = useRef<SmartSection[] | null>(null);
 
   useEffect(() => {
-    if (awaitingMoveConfirmRef.current) return;
+    if (awaitingMoveConfirmRef.current) {
+      skippedSectionsRef.current = sections;
+      return;
+    }
     setLocalSections(sections);
   }, [sections]);
 
@@ -4648,13 +4663,20 @@ function ListDndProvider({
       } finally {
         awaitingMoveConfirmRef.current = false;
       }
+      // Replay whatever the sync effect had to skip while the guard was
+      // up (see skippedSectionsRef) — it is newer than this callback's
+      // `sections` closure, so it also serves as the revert target.
+      const skippedSections = skippedSectionsRef.current;
+      skippedSectionsRef.current = null;
+
       // The move was declined (refused destination, or the user
       // cancelled the reassignment confirmation) — put the row back and
       // don't renumber a destination it never joined.
       if (moved === false) {
-        setLocalSections(sections);
+        setLocalSections(skippedSections ?? sections);
         return;
       }
+      if (skippedSections) setLocalSections(skippedSections);
       const destSection = localSections.find((s) => s.id === destSectionId);
       if (destSection) {
         const orderedIds = destSection.tasks.map((t) => t.id);

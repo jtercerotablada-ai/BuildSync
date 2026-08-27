@@ -146,6 +146,9 @@ function GoalsPageContent() {
   const myUserId = (session?.user as { id?: string } | undefined)?.id;
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
+  // Background re-fetch (e.g. after a Kanban status change): the page stays
+  // mounted, only the header shows that something is in flight.
+  const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -218,11 +221,19 @@ function GoalsPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterMode, selectedPeriod, myUserId, sessionStatus]);
 
-  async function fetchObjectives(signal?: AbortSignal) {
+  async function fetchObjectives(
+    signal?: AbortSignal,
+    opts?: { silent?: boolean }
+  ) {
     // Re-enter the loading state on every run. The filter/period effect calls
     // this again on each change, and without it the previous result stayed on
     // screen — fully rendered and clickable — until the new list arrived.
-    setLoading(true);
+    // A `silent` refresh keeps the page mounted instead: the board already
+    // shows the new state optimistically, and swapping in the full-page
+    // spinner would remount the views and throw away their scroll position.
+    const silent = opts?.silent === true;
+    if (silent) setRefreshing(true);
+    else setLoading(true);
     // An aborted request has been superseded by a newer one, which owns the
     // loading flag from here on; clearing it in `finally` would hide the
     // spinner while the newer fetch is still running.
@@ -261,7 +272,10 @@ function GoalsPageContent() {
       console.error("Error fetching objectives:", error);
       toast.error("Failed to load objectives");
     } finally {
-      if (!aborted) setLoading(false);
+      if (!aborted) {
+        if (silent) setRefreshing(false);
+        else setLoading(false);
+      }
     }
   }
 
@@ -368,7 +382,15 @@ function GoalsPageContent() {
     <div className="flex-1 flex flex-col h-full bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b">
-        <h1 className="text-lg md:text-xl font-semibold text-black">Goals</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg md:text-xl font-semibold text-black">Goals</h1>
+          {refreshing && (
+            <Loader2
+              className="h-4 w-4 animate-spin text-gray-400"
+              aria-label="Refreshing goals"
+            />
+          )}
+        </div>
         <Button
           variant="ghost"
           size="sm"
@@ -662,7 +684,7 @@ function GoalsPageContent() {
         ) : selectedView === "kanban" ? (
           <GoalsKanbanView
             objectives={filteredObjectives}
-            onStatusChange={() => fetchObjectives()}
+            onStatusChange={() => fetchObjectives(undefined, { silent: true })}
           />
         ) : selectedView === "cards" ? (
           <GoalsCardsView objectives={filteredObjectives} />
