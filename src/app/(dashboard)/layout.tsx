@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { LanguageProvider } from "@/components/ttc/language-provider";
 import "leaflet/dist/leaflet.css";
 
 export default async function DashboardLayout({
@@ -16,13 +15,11 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // LanguageProvider is required by every page that uses `useTranslation`
-  // — most notably the calculators under /knowledge/calculators/*, which
-  // share the i18n strings with the marketing site. Without it the page
-  // crashes on first render ("This page couldn't load").
-  return (
-    <LanguageProvider>
-      <DashboardShell>{children}</DashboardShell>
-    </LanguageProvider>
-  );
+  // LanguageProvider used to wrap this tree because the calculators under
+  // /knowledge/calculators/* called useTranslation. Those pages are gone
+  // (calculators are not a SaaS surface), and nothing else under (dashboard)
+  // uses the i18n hooks — the product UI is English-only. Dropping it also
+  // removes one of the duplicate GET /api/users/preferences requests that
+  // fired on every dashboard page load.
+  return <DashboardShell>{children}</DashboardShell>;
 }
