@@ -486,13 +486,23 @@ export default function GoalDetailPage() {
         body: JSON.stringify(newKR),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Surface the API's reason (e.g. start and target being equal)
+        // — a bare "Couldn't add the key result" left the user retrying
+        // the exact same payload with nothing to correct.
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
       await fetchObjective();
       setAddKROpen(false);
       setNewKR({ name: "", targetValue: 100, startValue: 0, unit: "" });
     } catch (error) {
       console.error("Error adding key result:", error);
-      toast.error("Couldn't add the key result");
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Couldn't add the key result"
+      );
     } finally {
       setSaving(false);
     }
@@ -1602,10 +1612,20 @@ export default function GoalDetailPage() {
                 />
               </div>
             </div>
+            {newKR.targetValue === newKR.startValue && (
+              <p className="text-sm text-gray-500">
+                Target must differ from the start value — there is no range to
+                measure progress against.
+              </p>
+            )}
             <Button
               className="w-full"
               onClick={handleAddKeyResult}
-              disabled={saving || !newKR.name.trim()}
+              disabled={
+                saving ||
+                !newKR.name.trim() ||
+                newKR.targetValue === newKR.startValue
+              }
             >
               {saving ? (
                 <>

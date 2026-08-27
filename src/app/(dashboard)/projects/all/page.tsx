@@ -150,6 +150,39 @@ export default function ProjectsPage() {
     "list"
   );
 
+  // One-shot carry-over of the choice this page used to keep in
+  // localStorage under the same name. Without it, everyone who had
+  // picked Grid or Gantt silently landed back on List after the move to
+  // server-backed prefs. The preferences GET is read directly (rather
+  // than trusting the hook's default) so a value already saved on
+  // another device wins over this browser's stale copy; the legacy key
+  // is dropped either way, so this runs at most once per browser.
+  useEffect(() => {
+    let legacy: string | null = null;
+    try {
+      legacy = localStorage.getItem(VIEW_UI_STATE_KEY);
+      localStorage.removeItem(VIEW_UI_STATE_KEY);
+    } catch {
+      // Private mode / storage disabled — nothing to migrate.
+    }
+    if (legacy !== "grid" && legacy !== "list" && legacy !== "gantt") return;
+    const carried = legacy as View;
+    let canceled = false;
+    fetch("/api/users/preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (canceled || !data) return;
+        if (data.uiState?.[VIEW_UI_STATE_KEY] === undefined) setView(carried);
+      })
+      .catch(() => {
+        // Offline — the legacy key is gone, so the user just keeps the
+        // default until they pick a view again.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [setView]);
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);

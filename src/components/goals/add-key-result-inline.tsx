@@ -31,6 +31,7 @@ export function AddKeyResultInline({
 }) {
   const [mode, setMode] = useState<"idle" | "editing">("idle");
   const [name, setName] = useState("");
+  const [start, setStart] = useState<number>(0);
   const [target, setTarget] = useState<number>(100);
   const [format, setFormat] = useState<
     "NUMBER" | "PERCENTAGE" | "CURRENCY" | "BOOLEAN"
@@ -43,8 +44,15 @@ export function AddKeyResultInline({
     if (mode === "editing") nameRef.current?.focus();
   }, [mode]);
 
+  // A key result whose target equals its start has no range to measure,
+  // and the API refuses to store one. Start is editable here (it isn't
+  // only ever 0) precisely so drive-to-zero targets — "Open RFIs: 12 → 0"
+  // — can be created from this row instead of dead-ending in a 400.
+  const noRange = target === start;
+
   function reset() {
     setName("");
+    setStart(0);
     setTarget(100);
     setFormat("NUMBER");
     setUnit("");
@@ -57,6 +65,8 @@ export function AddKeyResultInline({
       nameRef.current?.focus();
       return;
     }
+    // Enter reaches save() even while the button is disabled.
+    if (noRange) return;
     setSaving(true);
     try {
       const res = await fetch(
@@ -67,8 +77,8 @@ export function AddKeyResultInline({
           body: JSON.stringify({
             name: trimmed,
             targetValue: target,
-            startValue: 0,
-            currentValue: 0,
+            startValue: start,
+            currentValue: start,
             unit: unit || undefined,
             format,
           }),
@@ -122,7 +132,22 @@ export function AddKeyResultInline({
           disabled={saving}
           className="font-medium"
         />
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-gray-500 mb-0.5 block">
+              Start
+            </label>
+            <Input
+              type="number"
+              step="any"
+              value={start}
+              onChange={(e) =>
+                setStart(parseFloat(e.target.value) || 0)
+              }
+              disabled={saving}
+              className="h-8 text-sm"
+            />
+          </div>
           <div>
             <label className="text-[10px] uppercase tracking-wider text-gray-500 mb-0.5 block">
               Target
@@ -179,6 +204,12 @@ export function AddKeyResultInline({
             />
           </div>
         </div>
+        {noRange && (
+          <p className="text-xs text-gray-500">
+            Target must differ from the start value — there is no range to
+            measure progress against.
+          </p>
+        )}
         <div className="flex items-center justify-end gap-2 pt-1">
           <Button
             variant="ghost"
@@ -192,7 +223,7 @@ export function AddKeyResultInline({
           <Button
             size="sm"
             onClick={save}
-            disabled={saving || !name.trim()}
+            disabled={saving || !name.trim() || noRange}
             className="bg-black hover:bg-gray-900 text-white"
           >
             {saving ? (

@@ -358,7 +358,11 @@ export function MessagesView({
   // whether the reader has scrolled down past them and needs the
   // "New messages" pill instead of a silent swap.
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const [hasNewAbove, setHasNewAbove] = useState(false);
+  // Id of the arrival the pill is advertising (null = no pill). We
+  // keep the id, not just a flag, so clicking the pill can land on
+  // that exact message: pinned rows render above the newest one, so
+  // "scroll to the top" is not where a new message is.
+  const [newAboveId, setNewAboveId] = useState<string | null>(null);
   // Asana's Messages tab: the composer is a collapsed bar at the top
   // that expands in place; the feed below mixes messages and status
   // updates, newest first.
@@ -379,6 +383,18 @@ export function MessagesView({
     return () => {
       canceled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope.type, scopeKey]);
+
+  // Moving between two feeds of the same kind (team A → team B) is a
+  // param-only navigation: the router reuses this component instance
+  // and `loading` never flips back to true, so nothing remounts the
+  // scroll container. Without this the pill — and the previous feed's
+  // scroll offset — would carry over and point at a message that
+  // isn't in the feed now on screen.
+  useEffect(() => {
+    setNewAboveId(null);
+    scrollContainerRef.current?.scrollTo({ top: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope.type, scopeKey]);
 
@@ -479,21 +495,22 @@ export function MessagesView({
           }
 
           // Detect if the user got new messages they haven't scrolled
-          // to yet. Compare last-message-id; if it changed and the
-          // reader is scrolled away, surface the "new messages" pill.
-          const lastLocalId = prev[prev.length - 1]?.id;
-          const lastResultId = result[result.length - 1]?.id;
+          // to yet. This has to key on an *arrival* — a newest row we
+          // have never held before — and not on "the newest id
+          // changed": deleting the newest message also changes it,
+          // which announced new messages that never existed.
+          const newest = result[result.length - 1];
           if (
-            lastLocalId !== lastResultId &&
-            lastResultId &&
-            !lastResultId.startsWith("temp-")
+            newest &&
+            !newest.id.startsWith("temp-") &&
+            !prev.some((p) => p.id === newest.id)
           ) {
             // Newest-first feed: the new message lands at the top, so
             // only flag it as unseen when the reader has scrolled down
             // away from there.
             const c = scrollContainerRef.current;
             if (c && c.scrollTop > 80) {
-              setHasNewAbove(true);
+              setNewAboveId(newest.id);
             }
           }
 
@@ -603,7 +620,7 @@ export function MessagesView({
     const c = scrollContainerRef.current;
     if (!c) return;
     const onScroll = () => {
-      if (c.scrollTop < 80) setHasNewAbove(false);
+      if (c.scrollTop < 80) setNewAboveId(null);
     };
     c.addEventListener("scroll", onScroll);
     // Run once to initialize.
@@ -613,13 +630,22 @@ export function MessagesView({
 
   // Newest-first feed (Asana): new items land at the top, right under
   // the composer — never yank a reader mid-scroll, the pill takes them
-  // up when they ask for it.
-  const scrollToTop = useCallback(() => {
-    const c = scrollContainerRef.current;
-    if (!c) return;
-    c.scrollTo({ top: 0, behavior: "smooth" });
-    setHasNewAbove(false);
-  }, []);
+  // up when they ask for it. Go to the announced message itself rather
+  // than to the top of the feed, because pinned messages sort above
+  // everything: with a pin present, the top of the list is not the new
+  // message. Fall back to the top when that row is gone (deleted, or
+  // pushed out of the fetched window).
+  const scrollToNew = useCallback(() => {
+    const el = newAboveId
+      ? document.getElementById(`message-${newAboveId}`)
+      : null;
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    setNewAboveId(null);
+  }, [newAboveId]);
 
   // ── Generic state updater across roots + replies ───────
   // Reactions, edits, deletes, and attachment ops can target either
@@ -1481,10 +1507,10 @@ export function MessagesView({
     <div className="flex-1 flex flex-col bg-white relative">
       {/* A poll dropped a teammate's message in at the top while the
           reader was further down the thread. */}
-      {hasNewAbove && (
+      {newAboveId && (
         <button
           type="button"
-          onClick={scrollToTop}
+          onClick={scrollToNew}
           className="absolute top-3 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1e1f21] text-white text-xs font-medium shadow-lg hover:bg-black"
         >
           <ArrowUp className="w-3.5 h-3.5" />

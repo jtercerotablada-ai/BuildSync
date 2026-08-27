@@ -165,7 +165,24 @@ const MAX_LEN = {
   placeholder: 200,
   helpText: 500,
   unit: 40,
+  coverImageUrl: 2048,
 } as const;
+
+/** The cover URL is stored in the settings bag, where the API types it as
+ *  `z.string().url().max(2048)`. A bare `^https?://` prefix test accepts values
+ *  that schema rejects — "https://" on its own, or a signed URL past the length
+ *  cap — and because the cover rides along on every later save, one accepted-
+ *  then-rejected value turns into a permanent 400 on Save. Check it the way the
+ *  server does, before it can be stored. */
+function isValidCoverUrl(value: string): boolean {
+  if (value.length > MAX_LEN.coverImageUrl) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 let _idCounter = 0;
 function nextFieldId() {
@@ -595,6 +612,14 @@ export function FormBuilderDialog({
         msg: `Confirmation message is too long (max ${MAX_LEN.confirmationMessage})`,
       };
     }
+    // Every save re-sends the cover, so a bad value stored by an older build
+    // blocks the whole form. Name the control that can clear it.
+    if (coverImageUrl && !isValidCoverUrl(coverImageUrl)) {
+      return {
+        ok: false,
+        msg: `The cover image URL isn't a valid link (max ${MAX_LEN.coverImageUrl} characters) — open the cover to fix or remove it`,
+      };
+    }
     const dataFields = fields.filter((f) => f.type !== "HEADING");
     if (dataFields.length === 0) {
       return { ok: false, msg: "Add at least one field" };
@@ -678,7 +703,7 @@ export function FormBuilderDialog({
       };
     }
     return { ok: true as const, msg: "" };
-  }, [name, description, confirmationMessage, fields]);
+  }, [name, description, confirmationMessage, fields, coverImageUrl]);
 
   // ── Save ───────────────────────────────────────────────────────
   async function handleSave() {
@@ -743,10 +768,15 @@ export function FormBuilderDialog({
   //    closes the cover modal on success. ─────────────────────────
   async function saveCoverImage() {
     const url = coverInput.trim();
-    if (url && !/^https?:\/\//i.test(url)) {
-      toast.error("Use an https:// URL");
+    if (url && !isValidCoverUrl(url)) {
+      toast.error(
+        url.length > MAX_LEN.coverImageUrl
+          ? `That URL is too long (max ${MAX_LEN.coverImageUrl} characters)`
+          : "Use a complete https:// image URL"
+      );
       return;
     }
+    const previousCover = coverImageUrl;
     setCoverImageUrl(url || null);
     setCoverModalOpen(false);
     if (initial?.id) {
@@ -769,6 +799,10 @@ export function FormBuilderDialog({
         }
         toast.success(url ? "Cover image saved" : "Cover image removed");
       } catch {
+        // This PATCH is the only thing that persists the cover, so keeping the
+        // rejected value on screen would show a cover that isn't stored — and
+        // hand it to every later Save, which would then fail too.
+        setCoverImageUrl(previousCover);
         toast.error("Couldn't save the cover image");
       }
     } else {
@@ -1117,6 +1151,7 @@ export function FormBuilderDialog({
                 type="url"
                 value={coverInput}
                 onChange={(e) => setCoverInput(e.target.value)}
+                maxLength={MAX_LEN.coverImageUrl}
                 placeholder="https://images.unsplash.com/photo-…"
               />
               <p className="text-[12px] text-gray-500">
@@ -1124,7 +1159,7 @@ export function FormBuilderDialog({
                 the cover.
               </p>
             </div>
-            {coverInput.trim() && /^https?:\/\//i.test(coverInput.trim()) && (
+            {coverInput.trim() && isValidCoverUrl(coverInput.trim()) && (
               <div className="rounded-lg border border-gray-200 overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

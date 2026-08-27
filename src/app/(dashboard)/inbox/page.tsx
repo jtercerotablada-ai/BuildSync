@@ -174,6 +174,10 @@ export default function InboxPage() {
   // its scope is stale and drop its result instead of appending rows
   // from the wrong tab.
   const scopeGenRef = useRef(0);
+  // True once a fetch has landed successfully for the CURRENT scope. The
+  // error card is only ever right when the scope has never loaded — see
+  // fetchNotifications, where a failed refresh is deliberately silent.
+  const hasLoadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
   // A failed load used to leave the list empty, which the render read as
   // "You're all caught up!" — the inbox claiming to be empty when it had
@@ -224,6 +228,7 @@ export default function InboxPage() {
       if (res.ok) {
         const data = await res.json();
         if (gen !== scopeGenRef.current) return;
+        hasLoadedOnceRef.current = true;
         // New GET shape: { notifications, nextCursor, unreadCount }.
         // Stay tolerant of the legacy bare-array shape during rollout.
         const rows: (Notification & { createdAt: string })[] = Array.isArray(
@@ -244,12 +249,19 @@ export default function InboxPage() {
           setHasServerCount(true);
         }
         setLoadError(false);
-      } else if (gen === scopeGenRef.current) {
+        // This same function is the 30s poll and the visibilitychange
+        // refresh, so a failure here is only an error state while the scope
+        // has never loaded. Once it has, the rows on screen — or a
+        // legitimately empty inbox — are still what the server last said,
+        // and replacing that with an error card would be a lie.
+      } else if (gen === scopeGenRef.current && !hasLoadedOnceRef.current) {
         setLoadError(true);
       }
     } catch (error) {
       console.error("Error fetching notifications:", error);
-      if (gen === scopeGenRef.current) setLoadError(true);
+      if (gen === scopeGenRef.current && !hasLoadedOnceRef.current) {
+        setLoadError(true);
+      }
     } finally {
       if (gen === scopeGenRef.current) setLoading(false);
     }
@@ -338,6 +350,7 @@ export default function InboxPage() {
   // landed — with an "Unarchive" action on rows that were not archived.
   useEffect(() => {
     scopeGenRef.current += 1;
+    hasLoadedOnceRef.current = false;
     setNextCursor(null);
     setHasLoadedMore(false);
     setLoading(true);
@@ -468,7 +481,12 @@ export default function InboxPage() {
   // unread dot and zeroed the badge, and the whole inbox came back unread on
   // the next poll with nothing having said the action failed.
   const markAllAsRead = async () => {
-    const prev = notifications;
+    // Snapshot ONLY what this action changes — the read flag, per id — the way
+    // markAsRead does. Restoring a whole-list snapshot taken before the request
+    // would also undo anything that landed while it was in flight: a "Load
+    // more" page, or a poll refresh. Ids missing from the map are rows that
+    // arrived afterwards and were never flipped, so they are left alone.
+    const prevRead = new Map(notifications.map((n) => [n.id, n.read]));
     const prevUnread = serverUnreadCount;
     // The server only touches NON-archived rows, so flipping the archive
     // list optimistically made those rows look read for 30 seconds until
@@ -487,7 +505,16 @@ export default function InboxPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (error) {
       console.error("Error marking all as read:", error);
-      setNotifications(prev);
+      if (!isArchivedScope) {
+        setNotifications((cur) =>
+          cur.map((n) => {
+            const wasRead = prevRead.get(n.id);
+            return wasRead === undefined ? n : { ...n, read: wasRead };
+          })
+        );
+      }
+      // The optimistic write was an absolute (0), not a delta, so the
+      // absolute is what has to come back; the next poll reconciles it.
       setServerUnreadCount(prevUnread);
       toast.error("Couldn't mark everything as read. Please try again.");
     }

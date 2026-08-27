@@ -168,6 +168,11 @@ export async function PUT(req: Request) {
       data: {
         ...(content !== undefined && { content }),
         ...(isPinned !== undefined && { isPinned }),
+        // `updatedAt` is @updatedAt, and the feed reads it as "this message
+        // was edited". A pin-only PUT must not bump it, or pinning someone
+        // else's message would brand it "(edited)" forever. A real content
+        // edit still gets a fresh stamp.
+        ...(content === undefined ? { updatedAt: message.updatedAt } : {}),
       },
       include: {
         author: {

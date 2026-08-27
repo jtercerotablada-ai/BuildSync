@@ -78,7 +78,14 @@ export function LinkWorkModal({
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    // Abort here too, not only on the next timer tick: between a
+    // keystroke and the 300 ms debounce the previous request is still
+    // in flight, and without this it would land and paint results for
+    // a query the user has already moved on from.
+    return () => {
+      clearTimeout(timer);
+      searchAbortRef.current?.abort();
+    };
   }, [searchQuery]);
 
   const handleSelectWork = (work: WorkItem) => {
