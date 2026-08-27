@@ -25,9 +25,12 @@ export async function PATCH(
     // Verify user has access to this task
     await verifyTaskAccess(userId, taskId);
 
-    // Verify comment exists and belongs to user
-    const existing = await prisma.comment.findUnique({
-      where: { id: commentId },
+    // Scoped to the task in the PATH, not just the id: an unscoped lookup
+    // made the verifyTaskAccess check above decorative — any task the caller
+    // could read acted as a pass-through to their comments in projects they
+    // can no longer open.
+    const existing = await prisma.comment.findFirst({
+      where: { id: commentId, taskId },
       select: { authorId: true },
     });
 
@@ -97,9 +100,12 @@ export async function DELETE(
     // Verify user has access to this task
     await verifyTaskAccess(userId, taskId);
 
-    // Verify comment exists and belongs to user
-    const existing = await prisma.comment.findUnique({
-      where: { id: commentId },
+    // Scoped to the task in the PATH, not just the id: an unscoped lookup
+    // made the verifyTaskAccess check above decorative — any task the caller
+    // could read acted as a pass-through to their comments in projects they
+    // can no longer open.
+    const existing = await prisma.comment.findFirst({
+      where: { id: commentId, taskId },
       select: { authorId: true },
     });
 

@@ -25,10 +25,14 @@ export async function POST(
       );
     }
 
-    // Anyone with read access may follow a task themselves; adding
-    // SOMEONE ELSE as a collaborator requires write access on the task.
+    // Adding SOMEONE ELSE as a collaborator requires write. Following a task
+    // yourself requires the comment bar — not bare read: being a collaborator
+    // is what lets a non-member reply in the thread, so a self-add on read
+    // alone would be a one-click bypass of that gate.
+    const isSelf = collaboratorId === userId;
     const task = await verifyTaskAccess(userId, taskId, {
-      requireWrite: collaboratorId !== userId,
+      requireWrite: !isSelf,
+      requireComment: isSelf,
     });
 
     // The collaborator must be a member of the task's workspace. Without

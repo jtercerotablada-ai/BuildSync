@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import prisma from "@/lib/prisma";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 
 export default async function PortalLayout({
   children,
@@ -23,10 +24,9 @@ export default async function PortalLayout({
     });
 
     if (user) {
-      const membership = await prisma.workspaceMember.findFirst({
-        where: { userId: user.id },
-        select: { role: true },
-      });
+      // Same resolver proxy.ts uses for the JWT role, so the edge gate and
+      // this one can't disagree about which workspace decides the role.
+      const membership = await getPrimaryWorkspaceMembership(user.id);
 
       const role = membership?.role;
       if (role !== "WORKER" && role !== "ADMIN" && role !== "OWNER") {

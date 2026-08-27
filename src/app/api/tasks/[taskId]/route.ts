@@ -64,8 +64,11 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task's workspace
-    await verifyTaskAccess(userId, taskId);
+    // Verify user has access to this task's workspace. The guard resolves the
+    // caller's project access on the way through and hands it back, so the
+    // capabilities shipped to the client below cost no extra queries — and,
+    // more importantly, cannot disagree with what the guard will enforce.
+    const guarded = await verifyTaskAccess(userId, taskId);
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -231,6 +234,22 @@ export async function GET(
       select: { id: true },
     });
 
+    // What may the CALLER do here? The panel used to render the composer, the
+    // attach buttons and a delete on every attachment for anyone who could
+    // open the task, so a read-only member clicked them and got a bare
+    // "HTTP 403" toast. Ship the same capabilities the API enforces so the UI
+    // can stop offering what the server will refuse.
+    const isOwnTask = task.creatorId === userId || task.assigneeId === userId;
+    const isCollaborator = task.collaborators.some((c) => c.userId === userId);
+    const access = guarded.access;
+    const canWrite = access ? access.canWrite || isOwnTask : isOwnTask;
+    const canComment = access
+      ? access.canComment ||
+        access.isWorkspaceManager ||
+        isOwnTask ||
+        isCollaborator
+      : isOwnTask || isCollaborator;
+
     // Resolve collaborator user details
     const collaboratorUserIds = task.collaborators.map((c) => c.userId);
     const collaboratorUsers = collaboratorUserIds.length > 0
@@ -245,6 +264,8 @@ export async function GET(
       isLiked: task.likes.length > 0,
       collaborators: collaboratorUsers,
       hasExternalTracking: submission != null,
+      canWrite,
+      canComment,
     };
 
     return NextResponse.json(taskWithLiked);

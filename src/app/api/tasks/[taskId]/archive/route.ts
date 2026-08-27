@@ -19,9 +19,9 @@ export async function POST(
     }
 
     // Verify user has access to this task's workspace
-    // Archiving hides the task from every view in the project — a mutation,
-    // so it needs write capability and not merely the read access that
-    // opening the task grants (a VIEWER, or any follower, could archive it).
+    // This flips the task's completed state (and fires the completion rules
+    // and goal-progress recalc below) — a mutation, so it needs write
+    // capability, not the read access that merely opening the task grants.
     await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const task = await prisma.task.findUnique({
@@ -97,9 +97,9 @@ export async function DELETE(
     }
 
     // Verify user has access to this task's workspace
-    // Archiving hides the task from every view in the project — a mutation,
-    // so it needs write capability and not merely the read access that
-    // opening the task grants (a VIEWER, or any follower, could archive it).
+    // This flips the task's completed state (and fires the completion rules
+    // and goal-progress recalc below) — a mutation, so it needs write
+    // capability, not the read access that merely opening the task grants.
     await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     await prisma.task.update({

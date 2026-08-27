@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import {
+  pickPrimaryMembership,
+  primaryWorkspacePin,
+} from "@/lib/workspace-roles";
 import crypto from "crypto";
 import { sendInvitationEmail } from "@/lib/email";
 import { WORKSPACE_ROLE_META } from "@/lib/people-types";
@@ -107,11 +111,10 @@ async function resolveCallerWorkspace(
         select: { id: true, name: true, _count: { select: { members: true } } },
       },
     },
-    orderBy: { joinedAt: "asc" },
+    orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
   });
-  if (memberships.length === 0) return null;
-  const chosen =
-    memberships.find((m) => m.workspace._count.members > 1) ?? memberships[0];
+  const chosen = pickPrimaryMembership(memberships, primaryWorkspacePin());
+  if (!chosen) return null;
   return {
     workspaceId: chosen.workspaceId,
     role: chosen.role,

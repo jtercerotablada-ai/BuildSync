@@ -1317,40 +1317,43 @@ function NotificationItem({
   const TypeIcon = meta.icon;
 
   return (
+    // The row was a plain onClick div — unreachable without a mouse. It is NOT
+    // a button either: it contains the star and archive buttons, and ARIA
+    // treats a button's subtree as presentational, which would have silenced
+    // both of them. Container stays a div; the row BODY below is the button.
     <div
-      // A plain onClick div: the whole inbox was unreachable without a mouse
-      // — no tab stop, no Enter/Space, nothing announced to a screen reader.
-      role="button"
-      tabIndex={0}
-      aria-label={notification.title}
       className={cn(
-        "flex items-start gap-3 px-3 rounded-lg cursor-pointer group transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a84c] focus-visible:ring-offset-1",
+        "relative flex items-start gap-3 px-3 rounded-lg group transition-colors",
         compact ? "py-2" : "py-3",
         !notification.read
           ? "bg-[#c9a84c]/5 hover:bg-[#c9a84c]/10"
           : "hover:bg-gray-50"
       )}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return; // inner buttons keep theirs
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
     >
+      {/* The row's own click target: a real button covering the row, but NOT
+          wrapping the star / archive / "See more" buttons — ARIA treats a
+          button's subtree as presentational, so nesting them would have
+          silenced all three for screen readers. */}
+      <button
+        type="button"
+        onClick={onClick}
+        // Terse on purpose: the title, sender, timestamp and preview are all
+        // ordinary text in the row now, so repeating them here would make a
+        // screen reader read every notification twice.
+        aria-label="Open notification"
+        className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a84c] focus-visible:ring-inset"
+      />
       {/* Row actions on hover — star (favorite) + archive/unarchive.
           A favorited star stays visible even when not hovering. */}
       <div
         className={cn(
-          "flex items-center gap-1.5 flex-shrink-0",
+          "relative flex items-center gap-1.5 flex-shrink-0",
           compact ? "mt-0.5" : "mt-1"
         )}
       >
         <button
           className={cn(
-            "transition-opacity",
+            "transition-opacity focus-visible:opacity-100",
             favorited
               ? "opacity-100"
               : "opacity-0 group-hover:opacity-100"
@@ -1371,7 +1374,7 @@ function NotificationItem({
           />
         </button>
         <button
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             onArchive?.();
@@ -1383,7 +1386,7 @@ function NotificationItem({
       </div>
 
       {/* Avatar with type-icon overlay */}
-      <div className="relative flex-shrink-0">
+      <div className="relative flex-shrink-0 pointer-events-none cursor-pointer">
         <div
           className={cn(
             "rounded-full flex items-center justify-center text-white font-medium overflow-hidden",
@@ -1424,8 +1427,10 @@ function NotificationItem({
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
+      {/* Content — clickable for the mouse (so the text is still selectable
+          and the type-badge tooltip still works) while the overlay button
+          above carries the keyboard and screen-reader interaction. */}
+      <div className="relative flex-1 min-w-0 cursor-pointer" onClick={onClick}>
         <div className="flex items-start justify-between gap-2">
           <p
             className={cn(

@@ -29,6 +29,16 @@ export async function POST(
       );
     }
 
+    // Pinning is not caller-scoped like a reaction: it changes what the whole
+    // channel sees at the top. Read access was enough, so a VIEWER could
+    // unpin the team's kickoff announcement.
+    if (!access.canPost) {
+      return NextResponse.json(
+        { error: "You don't have permission to pin messages here." },
+        { status: 403 }
+      );
+    }
+
     if (access.message.parentMessageId) {
       return NextResponse.json(
         { error: "Replies can't be pinned — pin the parent message" },

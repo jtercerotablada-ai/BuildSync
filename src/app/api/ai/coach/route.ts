@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { startOfTodayUtc } from "@/lib/date-only";
 
 /**
  * POST /api/ai/coach
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
 
     // ── Assemble context block ─────────────────────────────────────
     const now = new Date();
+    const overdueBefore = startOfTodayUtc(now);
     const overdueTasks: { project: string; task: string; daysLate: number }[] =
       [];
     let totalOpenTasks = 0;
@@ -109,9 +111,12 @@ export async function POST(req: NextRequest) {
         totalProjectTasks++;
         if (!t.completed) {
           totalOpenTasks++;
-          if (t.dueDate && new Date(t.dueDate) < now) {
+          // Start of TODAY, not "right now": due dates are stored at UTC
+          // midnight, so `< now` called everything due today overdue and then
+          // reported it as "0 days late".
+          if (t.dueDate && new Date(t.dueDate) < overdueBefore) {
             const daysLate = Math.floor(
-              (now.getTime() - new Date(t.dueDate).getTime()) /
+              (overdueBefore.getTime() - new Date(t.dueDate).getTime()) /
                 (1000 * 60 * 60 * 24)
             );
             overdueTasks.push({

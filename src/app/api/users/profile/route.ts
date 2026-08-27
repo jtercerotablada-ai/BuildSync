@@ -68,10 +68,22 @@ export async function PATCH(req: Request) {
     const updateData: Record<string, string | null> = {};
     if (name !== undefined) updateData.name = name?.trim() || null;
     if (image !== undefined) {
-      // User.image is stored INLINE and echoed in every payload that carries
-      // a user. The client downscales, but the API is the actual boundary:
-      // accept only an http(s) URL or a small image data URL.
-      if (image === null || image === "") {
+      // User.image is stored INLINE and is echoed in every payload that
+      // carries a user, so the API — not the client — is the size boundary.
+      //
+      // A value identical to what is already stored is NOT an upload: it is
+      // the settings form echoing the field back while saving a bio. Skipping
+      // validation there keeps a legacy oversized avatar from locking its
+      // owner out of their own profile form; it is replaced, not repaired,
+      // the next time they pick a photo.
+      const current = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { image: true },
+      });
+      const unchanged = current?.image === image;
+      if (unchanged) {
+        // nothing to write
+      } else if (image === null || image === "") {
         updateData.image = null;
       } else if (typeof image !== "string") {
         return NextResponse.json({ error: "Invalid image" }, { status: 400 });

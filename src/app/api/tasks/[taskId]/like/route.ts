@@ -17,6 +17,9 @@ export async function POST(
     }
 
     // Verify user has access to this task's workspace
+    // Read access ON PURPOSE: a reaction is read-adjacent, the same bar
+    // message reactions use. It writes a row, but only the caller's own
+    // like/unlike, and it carries no content.
     await verifyTaskAccess(userId, taskId);
 
     // Check if like already exists

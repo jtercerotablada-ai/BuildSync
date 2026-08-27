@@ -55,7 +55,15 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
       const res = await fetch("/api/users/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, jobTitle, bio, image }),
+        // Only send the image when it actually CHANGED. Echoing the stored
+        // one back on every save meant a legacy oversized avatar failed the
+        // new server-side ceiling and took the whole profile edit with it.
+        body: JSON.stringify({
+          name,
+          jobTitle,
+          bio,
+          ...(image !== (profile?.image || "") ? { image } : {}),
+        }),
       });
 
       if (!res.ok) {

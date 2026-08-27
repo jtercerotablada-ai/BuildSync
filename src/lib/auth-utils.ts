@@ -3,6 +3,10 @@ import { authOptions } from "./auth";
 import prisma from "./prisma";
 import { getLevel, getDepartment } from "./people-types";
 import type { EffectiveAccess } from "./access-control";
+import {
+  pickPrimaryMembership,
+  primaryWorkspacePin,
+} from "./workspace-roles";
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -69,16 +73,12 @@ export async function getEffectiveAccess(
         select: { _count: { select: { members: true } } },
       },
     },
-    orderBy: { joinedAt: "asc" },
+    orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
   });
-  if (memberships.length === 0) return null;
-
-  // Prefer a workspace with more than one member — that's the user's
-  // "real" workspace, not the auto-generated singleton from signup.
-  const realWorkspace = memberships.find(
-    (m) => m.workspace._count.members > 1
-  );
-  const chosen = realWorkspace ?? memberships[0];
+  // One shared pick (see pickPrimaryMembership) — this used to be its own
+  // copy of the heuristic, without the id tiebreak.
+  const chosen = pickPrimaryMembership(memberships, primaryWorkspacePin());
+  if (!chosen) return null;
 
   const position = chosen.user.position;
   return {

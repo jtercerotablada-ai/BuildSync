@@ -156,6 +156,17 @@ export async function POST(
         { status: access.status }
       );
     }
+    // Authoring a reply is authoring: the root POST refuses a VIEWER, and
+    // this route used to accept one because it only checked read access —
+    // so the read-only role was enforced on two of the three ways into the
+    // channel and not the third.
+    if (!access.canPost) {
+      return NextResponse.json(
+        { error: "You don't have permission to post in this thread." },
+        { status: 403 }
+      );
+    }
+
     const rootId = access.message.parentMessageId ?? access.message.id;
     const projectId = access.message.projectId;
     const portfolioId = access.message.portfolioId;

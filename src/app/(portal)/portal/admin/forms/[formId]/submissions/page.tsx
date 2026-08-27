@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -46,10 +47,10 @@ export default async function AdminFormSubmissionsPage({
   const userId = await getCurrentUserId();
   if (!userId) redirect("/auth/signin");
 
-  const currentMember = await prisma.workspaceMember.findFirst({
-    where: { userId },
-    select: { workspaceId: true, role: true },
-  });
+  // The PRIMARY membership, the same one the APIs behind this page resolve.
+  // A bare findFirst returned an arbitrary workspace, so the page could list
+  // one workspace while the API it posts to wrote to another.
+  const currentMember = await getPrimaryWorkspaceMembership(userId);
 
   if (!currentMember || !["OWNER", "ADMIN"].includes(currentMember.role)) {
     redirect("/portal/dashboard");

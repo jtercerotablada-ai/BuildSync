@@ -16,7 +16,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import {
+  getUserWorkspaceId,
+  verifyTaskAccess,
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+} from "@/lib/auth-guards";
 
 const putSchema = z.object({
   tagIds: z.array(z.string().min(1)).max(50),
@@ -41,47 +47,22 @@ export async function PUT(
       );
     }
 
-    // Verify the task is reachable by the caller — for My Tasks the
-    // simplest valid path is: the task is in a project the caller is
-    // a member/owner of, OR the task has no project and the caller is
-    // the creator/assignee. We mirror the read pattern in /api/tasks.
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        projectId: true,
-        creatorId: true,
-        assigneeId: true,
-        project: {
-          select: {
-            ownerId: true,
-            workspaceId: true,
-            members: { select: { userId: true } },
-          },
-        },
-      },
-    });
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
-    }
-    const callerWs = await getUserWorkspaceId(userId);
-    const isCallerInProject =
-      task.project &&
-      (task.project.ownerId === userId ||
-        task.project.members.some((m) => m.userId === userId));
-    const isPersonal =
-      task.projectId === null &&
-      (task.creatorId === userId || task.assigneeId === userId);
-    if (!isCallerInProject && !isPersonal) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    // Replacing a task's tag set is a WRITE. This route used to roll its own
+    // check — "is the caller ANY member of the project" — which let a VIEWER
+    // wipe every tag on any task in a project they can only read, and at the
+    // same time refused a creator/assignee who is not a project member. The
+    // canonical guard decides both correctly.
+    const task = await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     // Validate that every tag id belongs to the caller's workspace.
     // Prevents cross-workspace tagging — Tag is workspace-scoped.
+    // The TASK's workspace, not the caller's primary one: a multi-workspace
+    // caller must not be able to cross-tag.
+    const taskWs = task.project?.workspaceId ?? (await getUserWorkspaceId(userId));
     const tagIds = Array.from(new Set(parsed.data.tagIds));
     if (tagIds.length > 0) {
       const validCount = await prisma.tag.count({
-        where: { id: { in: tagIds }, workspaceId: callerWs },
+        where: { id: { in: tagIds }, workspaceId: taskWs },
       });
       if (validCount !== tagIds.length) {
         return NextResponse.json(
@@ -118,6 +99,10 @@ export async function PUT(
     });
     return NextResponse.json(rows.map((r) => r.tag));
   } catch (err) {
+    if (err instanceof AuthorizationError || err instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(err);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("[task tags PUT] error:", err);
     return NextResponse.json(
       { error: "Failed to update task tags" },

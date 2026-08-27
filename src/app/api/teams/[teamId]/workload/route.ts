@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { startOfTodayUtc } from "@/lib/date-only";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
@@ -114,7 +115,7 @@ export async function GET(
     const memberWorkloads = members.map((m) => {
       const own = openTasks.filter((t) => t.assigneeId === m.userId);
       const overdue = own.filter(
-        (t) => t.dueDate && new Date(t.dueDate) < now
+        (t) => t.dueDate && new Date(t.dueDate) < startOfTodayUtc()
       );
       const completedLast30 = recentlyDone.filter(
         (t) => t.assigneeId === m.userId
@@ -154,7 +155,7 @@ export async function GET(
         totalProjects: projects.length,
         totalOpenTasks: openTasks.length,
         totalOverdueTasks: openTasks.filter(
-          (t) => t.dueDate && new Date(t.dueDate) < now
+          (t) => t.dueDate && new Date(t.dueDate) < startOfTodayUtc()
         ).length,
         totalCompletedLast30Days: recentlyDone.length,
         maxOpenPerMember: maxOpen,

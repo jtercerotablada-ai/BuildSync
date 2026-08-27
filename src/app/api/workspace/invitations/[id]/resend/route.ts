@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 import { sendInvitationEmail } from "@/lib/email";
 import { WORKSPACE_ROLE_META } from "@/lib/people-types";
 import type { WorkspaceRole } from "@prisma/client";
@@ -14,6 +15,26 @@ import type { WorkspaceRole } from "@prisma/client";
  *
  * Access: workspace OWNER or ADMIN in the invitation's workspace.
  */
+
+/**
+ * No ?workspaceId in the URL — resolve the caller's PRIMARY workspace, the
+ * same one GET /api/workspace/invitations lists from. A bare findFirst here
+ * returned an arbitrary membership, so "Resend" on a row the list had just
+ * rendered looked the invitation up in a different workspace and 404'd.
+ */
+async function resolveFallbackMember(userId: string) {
+  const membership = await getPrimaryWorkspaceMembership(userId);
+  if (!membership) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true },
+  });
+  return {
+    workspaceId: membership.workspaceId,
+    role: membership.role as string,
+    user: { name: user?.name ?? null, email: user?.email ?? null },
+  };
+}
 
 export async function POST(
   req: Request,
@@ -44,14 +65,7 @@ export async function POST(
             user: { select: { name: true, email: true } },
           },
         })
-      : await prisma.workspaceMember.findFirst({
-          where: { userId },
-          select: {
-            workspaceId: true,
-            role: true,
-            user: { select: { name: true, email: true } },
-          },
-        });
+      : await resolveFallbackMember(userId);
     if (
       !currentMember ||
       !["OWNER", "ADMIN"].includes(currentMember.role)

@@ -117,6 +117,9 @@ interface TaskAttachment {
   size: number;
   mimeType: string;
   createdAt: string;
+  /** Who uploaded it — everyone may remove their OWN file, only writers may
+   *  remove someone else's. */
+  uploaderId?: string | null;
 }
 
 interface TaskComment {
@@ -245,6 +248,11 @@ interface TaskDetail {
   /** True when a form submission created this task, so it has a public
    *  tracking page a comment can be shared to. */
   hasExternalTracking?: boolean;
+  /** What the CALLER may do, resolved server-side by the same rule the API
+   *  enforces. Undefined only while the detail is still loading — treat that
+   *  as "allowed" so nothing flickers disabled for the common case. */
+  canWrite?: boolean;
+  canComment?: boolean;
   activities?: TaskActivity[];
   attachments?: TaskAttachment[];
   collaborators?: TaskCollaborator[];
@@ -324,8 +332,18 @@ export function TaskDetailPanel({
   const [pendingCommentFiles, setPendingCommentFiles] = useState<File[]>([]);
   const [postingComment, setPostingComment] = useState(false);
   // Comments are internal unless the author opts in — see the visibility
-  // note in POST /api/tasks/[taskId]/comments.
+  // note in POST /api/tasks/[taskId]/comments. It MUST return to false after
+  // every post and on every task switch: a sticky checkbox turns one
+  // deliberate "send this to the client" into a standing publish of every
+  // note typed afterwards, which is the exact leak the flag exists to stop.
   const [shareWithSubmitter, setShareWithSubmitter] = useState(false);
+  // Server-resolved capabilities. The panel stays mounted across taskId
+  // changes and its header renders outside the loading gate, so an ungated
+  // read of taskDetail would hand task B the capabilities of task A for the
+  // length of the fetch. Fail closed until the answer for THIS task is in.
+  const capsKnown = taskDetail?.id === taskId;
+  const canWrite = capsKnown && taskDetail?.canWrite !== false;
+  const canComment = capsKnown && taskDetail?.canComment !== false;
   const [commentViewer, setCommentViewer] = useState<{
     files: TaskAttachment[];
     index: number;
@@ -393,6 +411,8 @@ export function TaskDetailPanel({
     setStagedMentions([]);
     setPendingCommentFiles([]);
     setEditingCommentId(null);
+    // Never carry a "send this to the client" opt-in into another task.
+    setShareWithSubmitter(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
@@ -513,12 +533,20 @@ export function TaskDetailPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        // Surface the server's reason. Every field edit in the panel goes
+        // through here, so swallowing the body turned a permissions refusal
+        // into a blank "Failed to update task".
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed to update task");
+      }
       await fetchTaskDetail();
       onUpdate?.();
       router.refresh();
-    } catch {
-      toast.error("Failed to update task");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update task"
+      );
     }
   }
 
@@ -575,7 +603,12 @@ export function TaskDetailPanel({
         `/api/tasks/${taskId}/attachments/${attachmentId}`,
         { method: "DELETE" }
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // Surface the server's reason. Throwing `HTTP 403` showed the user a
+        // toast that read literally "HTTP 403".
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `Couldn't remove the attachment`);
+      }
       toast.success("Attachment removed");
       await fetchTaskDetail();
       onUpdate?.();
@@ -832,6 +865,8 @@ export function TaskDetailPanel({
 
       setNewComment("");
       setStagedMentions([]);
+      // One opt-in publishes ONE comment.
+      setShareWithSubmitter(false);
       setPendingCommentFiles([]);
       if (commentFileInputRef.current) commentFileInputRef.current.value = "";
       await fetchTaskDetail();
@@ -938,8 +973,12 @@ export function TaskDetailPanel({
       <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0">
         <button
           onClick={handleToggleComplete}
+          disabled={!canWrite}
+          title={
+            canWrite ? undefined : "You have view-only access to this task"
+          }
           className={cn(
-            "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[13px] font-medium border transition-colors",
+            "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[13px] font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
             taskDetail?.completed
               ? "bg-[#e6f4ea] text-[#207544] border-transparent hover:bg-[#d6ecde]"
               : "text-[#6f7782] border-[#e8e8e8] hover:bg-[#f3f4f6] hover:text-[#1e1f21]"
@@ -984,8 +1023,8 @@ export function TaskDetailPanel({
           </div>
           <ActionIconButton
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            title="Attach file"
+            disabled={uploading || !canWrite}
+            title={canWrite ? "Attach file" : "You can't add files to this task"}
           >
             {uploading ? (
               <Loader2 className="h-[15px] w-[15px] animate-spin" />
@@ -1017,12 +1056,16 @@ export function TaskDetailPanel({
               </ActionIconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[240px]">
-              <DropdownMenuItem onClick={handleAddSubtaskFromMenu}>
+              <DropdownMenuItem
+                onClick={handleAddSubtaskFromMenu}
+                disabled={!canWrite}
+              >
                 <ListPlus className="mr-2 h-4 w-4 text-[#6f7782]" />
                 <span className="flex-1">Add subtask</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => fileInputRef.current?.click()}
+                disabled={!canWrite}
               >
                 <Paperclip className="mr-2 h-4 w-4 text-[#6f7782]" />
                 <span className="flex-1">Attach files</span>
@@ -1079,7 +1122,10 @@ export function TaskDetailPanel({
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-              <DropdownMenuItem onClick={handleDuplicateTask}>
+              <DropdownMenuItem
+                onClick={handleDuplicateTask}
+                disabled={!canWrite}
+              >
                 <Copy className="mr-2 h-4 w-4 text-[#6f7782]" />
                 <span>Duplicate task</span>
               </DropdownMenuItem>
@@ -1090,6 +1136,7 @@ export function TaskDetailPanel({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={handleDeleteTask}
+                disabled={!canWrite}
                 className="text-[#c91111] focus:text-[#c91111] focus:bg-[#fbe9e9]"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -1825,9 +1872,11 @@ export function TaskDetailPanel({
               </h4>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                disabled={uploading || !canWrite}
                 className="flex items-center justify-center h-4 w-4 rounded text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50"
-                title="Add attachment"
+                title={
+                  canWrite ? "Add attachment" : "You can't add files to this task"
+                }
               >
                 {uploading ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -1898,14 +1947,17 @@ export function TaskDetailPanel({
                         >
                           <Download className="h-3 w-3" />
                         </button>
-                        <button
-                          onClick={() => handleAttachmentDelete(a.id)}
-                          className="p-1 text-[#9aa0a6] hover:text-[#1e1f21]"
-                          aria-label="Remove attachment"
-                          title="Remove"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        {(canWrite ||
+                          (!!a.uploaderId && a.uploaderId === sessionUser?.id)) && (
+                          <button
+                            onClick={() => handleAttachmentDelete(a.id)}
+                            className="p-1 text-[#9aa0a6] hover:text-[#1e1f21]"
+                            aria-label="Remove attachment"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                     </li>
                   );
@@ -2380,11 +2432,13 @@ export function TaskDetailPanel({
                   if (!postingComment) handleAddComment();
                 }}
                 placeholder={
-                  pendingCommentFiles.length > 0
+                  !canComment
+                    ? "You have view-only access to this task"
+                    : pendingCommentFiles.length > 0
                     ? "Caption (optional)…"
                     : "Add a comment… @ to mention"
                 }
-                disabled={postingComment}
+                disabled={postingComment || !canComment}
                 className="w-full text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21] leading-5 max-h-24 overflow-y-auto"
               />
               <input
@@ -2398,7 +2452,7 @@ export function TaskDetailPanel({
               <button
                 type="button"
                 onClick={() => commentFileInputRef.current?.click()}
-                disabled={postingComment}
+                disabled={postingComment || !canComment}
                 className="flex items-center justify-center h-6 w-6 rounded text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50"
                 title="Attach file"
               >
@@ -2409,6 +2463,7 @@ export function TaskDetailPanel({
                 onClick={handleAddComment}
                 disabled={
                   postingComment ||
+                  !canComment ||
                   (!newComment.trim() && pendingCommentFiles.length === 0)
                 }
                 className="h-6 px-2.5 text-[12px] font-medium rounded bg-[#1e1f21] text-white hover:bg-[#000] disabled:opacity-40 disabled:cursor-not-allowed flex items-center"

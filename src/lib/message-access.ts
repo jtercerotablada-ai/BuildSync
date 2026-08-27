@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { resolveProjectAccess } from "@/lib/project-access";
+import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 
 /**
  * Shared access helpers for the polymorphic `Message` model.
@@ -49,6 +50,14 @@ export type MessageAccess =
       //   / portfolio OWNER+EDITOR) — used to allow delete-anyone.
       isAuthor: boolean;
       isAdmin: boolean;
+      /**
+       * May the caller AUTHOR here (post a reply)? Read access is not enough:
+       * POST /api/projects/:id/messages already refuses a VIEWER, but the
+       * reply route only checked `ok`, so the same VIEWER could post
+       * unlimited replies under any existing message in the channel. One flag
+       * so the two entry points cannot drift.
+       */
+      canPost: boolean;
     }
   | { ok: false; status: number; error: string };
 
@@ -122,7 +131,9 @@ export async function loadMessageWithAccess(
     // access grew, moderation authority did not.
     const member = msg.project.members.find((m) => m.userId === userId);
     const isAdmin = access.isOwner || member?.role === "ADMIN";
-    return { ok: true, message: msg, isAuthor, isAdmin };
+    // Same predicate as POST /api/projects/[projectId]/messages.
+    const canPost = access.canComment || access.isWorkspaceManager;
+    return { ok: true, message: msg, isAuthor, isAdmin, canPost };
   }
 
   // Portfolio-scoped message
@@ -154,7 +165,10 @@ export async function loadMessageWithAccess(
     // Portfolio moderation: owner or OWNER/EDITOR member.
     const isAdmin =
       isOwner || member?.role === "OWNER" || member?.role === "EDITOR";
-    return { ok: true, message: msg, isAuthor, isAdmin };
+    // PortfolioRole is OWNER | EDITOR | VIEWER — there is no COMMENTER, so
+    // the write bar is the same set that may moderate. A VIEWER reads.
+    const canPost = isAdmin;
+    return { ok: true, message: msg, isAuthor, isAdmin, canPost };
   }
 
   // Workspace-scoped announcement (projectId and portfolioId both null).
@@ -180,5 +194,8 @@ export async function loadMessageWithAccess(
     message: msg,
     isAuthor,
     isAdmin: isAuthor,
+    // Workspace announcements: any contributor of that workspace may reply;
+    // the view-only roles may not.
+    canPost: !NON_CONTRIBUTOR_ROLES.has(wsMember.role),
   };
 }

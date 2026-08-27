@@ -44,6 +44,11 @@ function toYmd(d: Date): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+/** Add whole calendar days, DST-safe (unlike `+ n * 86400000`). */
+function addDays(d: Date, days: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
+}
+
 /** Inverse of toYmd: a "YYYY-MM-DD" string back to LOCAL midnight of that
  *  calendar day (never `new Date(str)`, which parses as UTC and shifts the
  *  day for viewers west of UTC). */
@@ -278,8 +283,11 @@ export function CalendarView({
       const anchor = grabDay ?? oldDue;
       const deltaDays = Math.round((dropDay.getTime() - anchor.getTime()) / DAY);
       if (deltaDays === 0) return;
-      body.dueDate = toYmd(new Date(oldDue.getTime() + deltaDays * DAY));
-      body.startDate = toYmd(new Date(oldStart.getTime() + deltaDays * DAY));
+      // Shift in CALENDAR days, not milliseconds: a drag across a DST
+      // boundary is 23 or 25 hours, and `+ n * 86400000` then lands the task
+      // a day off the cell it was dropped on.
+      body.dueDate = toYmd(addDays(oldDue, deltaDays));
+      body.startDate = toYmd(addDays(oldStart, deltaDays));
     } else if (oldStart && !oldDue) {
       body.startDate = toYmd(dropDay);
     } else {

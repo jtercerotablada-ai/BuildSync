@@ -1030,10 +1030,17 @@ model Comment {
   guestEmail String?
   source     CommentSource     @default(INTERNAL)
   // When INTERNAL_NOTE, the comment is hidden from the public
-  // tracking page — useful for "checking with senior PE" notes
-  // the engineer doesn't want the architect to see. Defaults to
-  // EXTERNAL so the architect sees responses by default.
-  visibility CommentVisibility @default(EXTERNAL)
+  // tracking page — the "checking with the senior PE" notes the
+  // engineer does not want the architect to read.
+  //
+  // The default USED to be EXTERNAL, on the theory that a reply
+  // should reach the architect. But the task panel never set the
+  // field, so every internal note on a form-created task was
+  // published on that submitter's tracking URL with nothing in
+  // the UI saying so. Failing CLOSED is the only safe default for
+  // a client-visible flag: the tracking reply route sets EXTERNAL
+  // explicitly, and the panel offers an opt-in checkbox.
+  visibility CommentVisibility @default(INTERNAL_NOTE)
 
   task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)

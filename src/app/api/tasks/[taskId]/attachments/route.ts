@@ -99,6 +99,13 @@ export async function POST(
     // Attaching to YOUR OWN comment is part of commenting, so a COMMENTER
     // keeps it. Everything else — a loose file on the task, or a file on
     // someone else's comment — is a write.
+    //
+    // Deliberate and worth stating: a comment-bound file DOES appear in the
+    // task's Attachments list and the project's Files tab, so a COMMENTER can
+    // put a file there by attaching it to a comment of their own. That is
+    // participation, not a bypass — they can already post the same file's
+    // contents as a comment — and hiding comment attachments from the file
+    // list would cost more than the distinction is worth.
     await verifyTaskAccess(userId, taskId, {
       requireWrite: !attachingToOwnComment,
       requireComment: attachingToOwnComment,

@@ -53,6 +53,12 @@ export async function GET(req: Request) {
       categories: categories.map((c) => c.category).filter(Boolean),
     });
   } catch (error) {
+    // getUserWorkspaceId THROWS for a caller with no membership; without this
+    // branch that answered 500 where the old code answered 404.
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching knowledge entries:", error);
     return NextResponse.json(
       { error: "Failed to fetch knowledge entries" },

@@ -873,19 +873,54 @@ async function runTaskQuery(
   const chronological =
     isDateDim || CHRONOLOGICAL_CHART_TYPES.includes(config.chartType as ChartType);
   if (chronological) {
-    // A time series is truncated from the OLD end, not the new one. Sorting
-    // ascending and taking the FIRST `limit` buckets showed the twelve oldest
-    // months on record and stopped — "Tasks completed by month" on a project
-    // with two years of history rendered 2024 and looked like work had
-    // stopped. Keep the most RECENT window instead.
+    // Ascending order, then a WINDOW anchored on today.
+    //
+    // Three separate things were wrong here. It sorted with a key re-derived
+    // from the human LABEL (day/week labels carry no year, so "Dec 30" sorted
+    // before "Jan 2"), it kept the FIRST `limit` buckets — the twelve OLDEST
+    // months on record, so a project with two years of history rendered 2024
+    // and looked like work had stopped — and a line chart over a NON-date
+    // dimension took the same path, where the bucket key is a cuid.
+    //
+    // Sort on the bucket KEY for real date dimensions and on the label for
+    // everything else; then keep the `limit` buckets ENDING at today when the
+    // series reaches today, so a schedule of future due dates shows the near
+    // term rather than the far end of the plan.
     const undated = rowsOut.filter((r) => r.__sortKey === "__nodate");
     const dated = rowsOut
       .filter((r) => r.__sortKey !== "__nodate")
-      .sort((a, b) => a.__sortKey.localeCompare(b.__sortKey));
+      .sort((a, b) =>
+        isDateDim
+          ? a.__sortKey.localeCompare(b.__sortKey)
+          : String(a.name).localeCompare(String(b.name))
+      );
     const room = Math.max(0, limit - undated.length);
+    let window: typeof dated;
+    if (room === 0) {
+      // slice(-0) is slice(0) — it returns EVERYTHING. Be explicit.
+      window = [];
+    } else if (!isDateDim || dated.length <= room) {
+      window = dated.slice(0, room);
+    } else {
+      const todayKey = dateBucketKey(new Date(), grain ?? "month");
+      // Index of the last bucket at or before today; -1 when the whole series
+      // is in the future.
+      let cut = -1;
+      for (let i = 0; i < dated.length; i++) {
+        if (dated[i].__sortKey <= todayKey) cut = i;
+        else break;
+      }
+      // End AT today's bucket, then spend whatever room is left going
+      // forward. Clamping the window to end at today (without this second
+      // step) threw away an entire forward schedule: two months of history
+      // plus eleven months of planned work rendered as two bars.
+      const end = cut === -1 ? room : Math.min(dated.length, cut + 1);
+      const start = Math.max(0, end - room);
+      window = dated.slice(start, Math.min(dated.length, start + room));
+    }
     // "No date" is pinned ahead of the window so it can never masquerade as
-    // the latest period on a time axis.
-    rowsOut = [...undated, ...dated.slice(-room)];
+    // a period on a time axis.
+    rowsOut = [...undated, ...window];
   } else {
     rowsOut.sort((a, b) => b.__primary - a.__primary);
     rowsOut = rowsOut.slice(0, limit);

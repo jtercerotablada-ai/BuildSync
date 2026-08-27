@@ -202,7 +202,10 @@ export function FilesView({ projectId }: FilesViewProps) {
         setFiles((prev) => prev.filter((f) => f.id !== file.id));
         toast.success(isLink(file) ? "Link removed" : "File deleted");
       } else {
-        toast.error("Failed to delete");
+        // Show the server's reason — "Failed to delete" gave a read-only
+        // member no idea why the button did nothing.
+        const body = await res.json().catch(() => null);
+        toast.error(body?.error || "Failed to delete");
       }
     } catch {
       toast.error("Failed to delete");

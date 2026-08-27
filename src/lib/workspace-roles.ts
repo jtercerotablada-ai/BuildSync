@@ -73,3 +73,52 @@ export function isNonContributorRole(
 ): boolean {
   return typeof role === "string" && NON_CONTRIBUTOR_ROLES.has(role);
 }
+
+/**
+ * WHICH WORKSPACE IS "THE USER'S"?
+ *
+ * A user typically holds two memberships: the singleton workspace signup
+ * creates for them, and the firm workspace they were invited to. Four separate
+ * copies of this pick had grown (getUserWorkspaceId, getEffectiveAccess,
+ * pickPrimaryWorkspaceRole, resolveCallerWorkspace), and a fifth family of
+ * routes skipped it entirely with a bare `findFirst`, which returns whichever
+ * row the database feels like. Two copies drift; five is how a user ends up
+ * reading one workspace and writing another.
+ *
+ * The rule, in order:
+ *   1. PRIMARY_WORKSPACE_ID, when set AND the caller is a member of it. A firm
+ *      that runs on ONE workspace should say so rather than rely on a
+ *      heuristic — set it to the same id as CONTACT_INBOX_WORKSPACE_ID.
+ *   2. The first workspace with more than one member (memberships must arrive
+ *      ordered joinedAt asc, id asc — the id keeps equal timestamps from
+ *      flapping the pick between requests).
+ *   3. The oldest membership.
+ *
+ * Pure and dependency-free so the Edge bundle can hold it too.
+ */
+export interface PickableMembership {
+  workspaceId: string;
+  workspace: { _count: { members: number } };
+}
+
+export function pickPrimaryMembership<T extends PickableMembership>(
+  memberships: T[],
+  pinnedWorkspaceId?: string | null
+): T | null {
+  if (memberships.length === 0) return null;
+  if (pinnedWorkspaceId) {
+    const pinned = memberships.find(
+      (m) => m.workspaceId === pinnedWorkspaceId
+    );
+    if (pinned) return pinned;
+  }
+  return (
+    memberships.find((m) => m.workspace._count.members > 1) ?? memberships[0]
+  );
+}
+
+/** The configured pin, if any. Empty string and whitespace count as unset. */
+export function primaryWorkspacePin(): string | null {
+  const raw = process.env.PRIMARY_WORKSPACE_ID;
+  return raw && raw.trim() ? raw.trim() : null;
+}

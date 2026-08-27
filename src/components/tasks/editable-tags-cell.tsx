@@ -82,7 +82,11 @@ export function EditableTagsCell({
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch("/api/tags");
+        // Scope the library to the TASK's workspace, so every tag offered
+        // here is one PUT /api/tasks/:id/tags will accept.
+        const res = await fetch(
+          `/api/tags?taskId=${encodeURIComponent(taskId)}`
+        );
         if (res.ok && !cancelled) {
           const data = (await res.json()) as Tag[];
           setAllTags(Array.isArray(data) ? data : []);
@@ -153,7 +157,7 @@ export function EditableTagsCell({
       const res = await fetch("/api/tags", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, color }),
+        body: JSON.stringify({ name, color, taskId }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as {

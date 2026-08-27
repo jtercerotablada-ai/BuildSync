@@ -1,7 +1,11 @@
 import prisma from "@/lib/prisma";
 import type { Position, WorkspaceRole } from "@prisma/client";
 import { resolveProjectAccess } from "@/lib/project-access";
-import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
+import {
+  NON_CONTRIBUTOR_ROLES,
+  pickPrimaryMembership,
+  primaryWorkspacePin,
+} from "@/lib/workspace-roles";
 
 /**
  * Verify user is a member of the workspace. Returns the membership record.
@@ -43,8 +47,8 @@ export async function getUserWorkspaceId(userId: string): Promise<string> {
   if (memberships.length === 0) {
     throw new AuthorizationError("No workspace found");
   }
-  const real = memberships.find((m) => m.workspace._count.members > 1);
-  return (real ?? memberships[0]).workspaceId;
+  const picked = pickPrimaryMembership(memberships, primaryWorkspacePin());
+  return (picked ?? memberships[0]).workspaceId;
 }
 
 /**
@@ -62,11 +66,15 @@ export async function getUserWorkspaceId(userId: string): Promise<string> {
  * jwt callback can never drift apart.
  */
 export function pickPrimaryWorkspaceRole(
-  memberships: { role: string; workspace: { _count: { members: number } } }[]
+  memberships: {
+    role: string;
+    workspaceId: string;
+    workspace: { _count: { members: number } };
+  }[]
 ): string | null {
-  if (memberships.length === 0) return null;
-  const real = memberships.find((m) => m.workspace._count.members > 1);
-  return (real ?? memberships[0]).role;
+  return (
+    pickPrimaryMembership(memberships, primaryWorkspacePin())?.role ?? null
+  );
 }
 
 /**
@@ -95,9 +103,8 @@ export async function getPrimaryWorkspaceMembership(userId: string): Promise<{
     },
     orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
   });
-  if (memberships.length === 0) return null;
-  const picked =
-    memberships.find((m) => m.workspace._count.members > 1) ?? memberships[0];
+  const picked = pickPrimaryMembership(memberships, primaryWorkspacePin());
+  if (!picked) return null;
   return {
     workspaceId: picked.workspaceId,
     role: picked.role,
@@ -112,6 +119,7 @@ export async function getPrimaryWorkspaceRole(
     where: { userId },
     select: {
       role: true,
+      workspaceId: true,
       workspace: { select: { _count: { select: { members: true } } } },
     },
     // id is the deterministic tiebreak: the role is now recomputed on every
@@ -314,7 +322,28 @@ export async function verifyTaskAccess(
     if (!hasPersonalTie) {
       throw new AuthorizationError("You don't have access to this task");
     }
-    return task;
+    // ...and then apply the SAME capability flags the project branch does.
+    // This used to return unconditionally, so on a personal task a follower —
+    // who has no capability by any measure — could archive it, delete its
+    // attachments, even delete the task. verifyBulkTaskAccess already got
+    // this right ("only the creator or assignee may touch it"); the two
+    // disagreed, so /api/tasks/bulk refused what DELETE /api/tasks/:id let
+    // through.
+    if (opts.requireWrite && !isOwnTask) {
+      throw new AuthorizationError(
+        "You don't have permission to modify this task"
+      );
+    }
+    // A follower on a personal task IS the intended audience for a reply.
+    if (opts.requireComment && !isOwnTask && !isCollaborator) {
+      throw new AuthorizationError(
+        "You don't have permission to comment on this task"
+      );
+    }
+    // `access: null` — a task with no project has no project access to speak
+    // of. Callers that need to know what the caller may do here read the
+    // personal rules directly (creator/assignee writes, followers comment).
+    return { ...task, access: null };
   }
 
   const access = await resolveProjectAccess(task.project, userId);
@@ -337,13 +366,61 @@ export async function verifyTaskAccess(
   // Commenting is a lower bar than writing — the COMMENTER project role
   // exists for exactly this — but it is still a bar: a VIEWER could post on
   // any task they could open.
-  if (opts.requireComment && !access.canComment && !isOwnTask) {
+  //
+  // Three escapes, each deliberate:
+  //   • isWorkspaceManager — workspace OWNER/ADMIN and Position level 4+ are
+  //     NOT in canWrite/canComment, yet POST /api/projects/:id/messages
+  //     explicitly admits them ("or workspace leadership"). Without this the
+  //     firm's owner could post in a project's channel and be refused on a
+  //     task in the same project, in the same minute.
+  //   • isOwnTask — the creator/assignee already escapes requireWrite.
+  //   • isCollaborator — a follower is an EXPLICIT grant: adding someone else
+  //     as one requires write, and this route notifies collaborators of every
+  //     new comment. Refusing their reply is a notification that leads to a
+  //     403. Self-adding as a follower now requires comment capability too
+  //     (see the collaborators route), so a VIEWER cannot bootstrap through
+  //     this door.
+  if (
+    opts.requireComment &&
+    !access.canComment &&
+    !access.isWorkspaceManager &&
+    !isOwnTask &&
+    !isCollaborator
+  ) {
     throw new AuthorizationError(
       "You don't have permission to comment on this task"
     );
   }
 
-  return task;
+  // The personal-tie escapes above (follower, creator, assignee) live on rows
+  // that OUTLIVE offboarding: removing someone from a workspace deletes their
+  // WorkspaceMember row and nothing else, so a TaskCollaborator row from last
+  // year would otherwise still buy comment capability — and, on a task with a
+  // tracking page, the ability to publish text to the client. Anyone leaning
+  // on a personal tie must still hold a contributor seat in the task's
+  // workspace.
+  if (
+    opts.requireComment &&
+    !access.canComment &&
+    !access.isWorkspaceManager
+  ) {
+    const seat = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: { userId, workspaceId: task.project.workspaceId },
+      },
+      select: { role: true },
+    });
+    if (!seat || NON_CONTRIBUTOR_ROLES.has(seat.role)) {
+      throw new AuthorizationError(
+        "You don't have permission to comment on this task"
+      );
+    }
+  }
+
+  // Hand the resolved access back: GET /api/tasks/:id needs exactly this to
+  // tell the client what to render, and resolving it again there cost a
+  // second project lookup plus its membership queries on every task open.
+  return { ...task, access };
 }
 
 /**
@@ -488,14 +565,6 @@ export class NotFoundError extends Error {
  * Get the workspace role for a user (e.g. OWNER, ADMIN, MEMBER, WORKER, CLIENT).
  * Returns "GUEST" if no membership is found.
  */
-export async function getUserRole(userId: string): Promise<string> {
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId },
-    select: { role: true },
-  });
-  return member?.role || "GUEST";
-}
-
 /* NON_CONTRIBUTOR_ROLES now lives in @/lib/workspace-roles (imported at the top
    of this file). It moved out because src/proxy.ts needs the identical list for
    its default-deny /api/ gate and, being Edge middleware, cannot import this
@@ -533,11 +602,10 @@ export async function requireWorkspaceContributor(
     },
     orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
   });
-  if (memberships.length === 0) {
+  const effective = pickPrimaryMembership(memberships, primaryWorkspacePin());
+  if (!effective) {
     throw new AuthorizationError("No workspace found");
   }
-  const effective =
-    memberships.find((m) => m.workspace._count.members > 1) ?? memberships[0];
   if (NON_CONTRIBUTOR_ROLES.has(effective.role)) {
     throw new AuthorizationError(
       "Your role is view-only and can't modify workspace content"

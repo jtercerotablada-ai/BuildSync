@@ -65,10 +65,16 @@ export async function GET(req: Request) {
     const overdueBefore = startOfTodayUtc(now);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    // Snap to whole UTC days like every other counter here. Built from
+    // `new Date(now)` these carried the current TIME, so a task due today was
+    // excluded from "this week" before mid-day and included after — the same
+    // report answering differently at 09:00 and 23:00.
+    const startOfWeek = new Date(
+      overdueBefore.getTime() - now.getUTCDay() * 24 * 60 * 60 * 1000
+    );
+    const endOfWeek = new Date(
+      startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000
+    );
 
     // Calculate 6 months ago for tasksCompletedByMonth
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
@@ -333,10 +339,10 @@ export async function GET(req: Request) {
 
     // Process tasks by status (existing)
     const upcoming = tasksByStatus.filter(
-      (t) => !t.completed && t.dueDate && new Date(t.dueDate) >= now
+      (t) => !t.completed && t.dueDate && new Date(t.dueDate) >= overdueBefore
     ).length;
     const overdue = tasksByStatus.filter(
-      (t) => !t.completed && t.dueDate && new Date(t.dueDate) < now
+      (t) => !t.completed && t.dueDate && new Date(t.dueDate) < overdueBefore
     ).length;
     const noDate = tasksByStatus.filter((t) => !t.completed && !t.dueDate).length;
     const completed = tasksByStatus.filter((t) => t.completed).length;

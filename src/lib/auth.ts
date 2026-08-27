@@ -137,6 +137,7 @@ export const authOptions: NextAuthOptions = {
           workspaceMembers: {
             select: {
               role: true,
+              workspaceId: true,
               workspace: { select: { _count: { select: { members: true } } } },
             },
             // Matches getPrimaryWorkspaceRole exactly; id is the deterministic
