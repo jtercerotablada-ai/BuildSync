@@ -38,6 +38,7 @@
 
 import prisma from "@/lib/prisma";
 import { getLevel } from "@/lib/people-types";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 export type ProjectRole = "ADMIN" | "EDITOR" | "COMMENTER" | "VIEWER";
 
@@ -154,6 +155,28 @@ export async function resolveProjectAccess(
   // because PUBLIC alone granted read. It no longer does — PUBLIC is scoped to
   // the project's own workspace now — so the lookup must run for every
   // non-owner/non-member viewer, PUBLIC included.
+  // Resolve the viewer's workspace role ONCE. Both IMPLICIT grants — the
+  // workspace-wide PUBLIC grant here and the team grant below — are gated on it.
+  //
+  // A NON-CONTRIBUTOR (GUEST / CLIENT — see NON_CONTRIBUTOR_ROLES) gets neither.
+  // Those roles are default-denied across the whole /api/ surface by
+  // src/proxy.ts, but callers of this rule include a server component that
+  // serializes budget, member emails, tasks and view prefs straight into the
+  // response — so an implicit read grant here handed a read-only role the
+  // internal cockpit's contents. They have no client-facing surface at all any
+  // more, so there is nothing this could legitimately be granting.
+  //
+  // `level >= 4` sits behind the same check on purpose: Position is independent
+  // of WorkspaceRole, so a GUEST carrying an executive Position would otherwise
+  // become a workspace manager and read PRIVATE projects too.
+  //
+  // EXPLICIT grants are untouched: a non-contributor who OWNS the project or
+  // holds a real ProjectMember row still passes, via isOwner/isMember above.
+  // True only when the viewer holds a CONTRIBUTOR membership in the project's
+  // workspace. Deliberately not the negation of viewerIsNonContributor: a user
+  // with NO membership row at all is not a non-contributor either, and the team
+  // branch below must refuse them too (see its comment).
+  let viewerIsContributor = false;
   if (!isOwner && !isMember) {
     const membership = await prisma.workspaceMember.findUnique({
       where: {
@@ -161,7 +184,8 @@ export async function resolveProjectAccess(
       },
       include: { user: { select: { position: true } } },
     });
-    if (membership) {
+    viewerIsContributor = !!membership && !isNonContributorRole(membership.role);
+    if (viewerIsContributor && membership) {
       viewerWorkspaceIds.push(project.workspaceId);
       const level = getLevel(membership.user.position);
       isWorkspaceManager =
@@ -175,8 +199,19 @@ export async function resolveProjectAccess(
   // even without an explicit ProjectMember row. Explicit membership and
   // ownership take precedence for the role, so we only consult the team for
   // users who are neither — a deliberately-restricted VIEWER stays a VIEWER.
+  //
+  // Requires a CONTRIBUTOR membership in the project's workspace, for two
+  // reasons. A non-contributor must not get in: isTeamMember feeds canWrite, so
+  // an ungated team grant would let a read-only role AUTHOR content, flatly
+  // contradicting NON_CONTRIBUTOR_ROLES. And a viewer with NO membership row
+  // must not get in either: removing someone from a workspace deletes only
+  // their WorkspaceMember row (DELETE /api/workspace/members), leaving their
+  // TeamMember rows behind — so an offboarded user with a stale team row would
+  // otherwise keep read AND write on every project shared with that team.
+  // Joining a team requires workspace membership, so a TeamMember without one
+  // is always stale.
   let isTeamMember = false;
-  if (!isOwner && !isMember) {
+  if (!isOwner && !isMember && viewerIsContributor) {
     // The caller may not have selected teamId; fetch just that scalar when so
     // (undefined = not selected, null = selected-but-no-team).
     let teamId = project.teamId;

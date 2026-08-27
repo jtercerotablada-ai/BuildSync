@@ -16,12 +16,12 @@ import { PROJECT_ROLE_META } from "@/lib/people-types";
 import type { ProjectRole } from "@prisma/client";
 
 /**
- * Clients never enter a project through the Share dialog. They are given a
- * scoped, revocable project link (/p/<token>) instead.
+ * Clients never enter a project through the Share dialog. There is no
+ * client-facing surface any more, so there is nowhere else to send them
+ * either — this guard simply refuses.
  *
- * Why this guard exists: `src/proxy.ts` only redirects workspace role CLIENT
- * away from /projects/*, so anyone landing on the internal project page with
- * any other workspace role sees the firm's cost basis (Project.budget is
+ * Why this guard exists: anyone landing on the internal project page sees
+ * the firm's cost basis (Project.budget is
  * serialized on every tab), staff hours, internal notes, the team's private
  * messages and other clients' portfolios. This route used to put clients
  * exactly there.
@@ -30,11 +30,11 @@ import type { ProjectRole } from "@prisma/client";
  * dialog only ever sends a ProjectRole (ADMIN/EDITOR/COMMENTER/VIEWER) plus
  * a userId or email. "Is this person a client?" is therefore answered from
  * server state: an existing CLIENT workspace membership, or a still-PENDING
- * CLIENT invitation minted by /api/admin/clients.
+ * CLIENT invitation (the admin screen that minted those is gone).
  */
 const CLIENT_INVITE_ERROR =
-  "Clients are given a project link, not workspace access. " +
-  "Use “Client access” on the project page.";
+  "This address belongs to a client. Clients have no access to BuildSync — " +
+  "invite staff only.";
 
 const addMemberSchema = z
   .object({

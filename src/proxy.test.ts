@@ -11,7 +11,7 @@ import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
  * a signed-in CLIENT that fails it gets a 403 at the edge, before any route
  * handler runs. Two failure modes matter, and they pull in opposite directions:
  *
- *   - TOO NARROW silently breaks the client portal (a screen stops loading).
+ *   - TOO NARROW silently breaks a non-contributor's own self-service screens.
  *   - TOO WIDE re-opens the privilege-escalation chain that starts at
  *     POST /api/projects.
  *
@@ -19,21 +19,13 @@ import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
  * the function is pure string matching on purpose.
  */
 describe("isClientApi", () => {
-  describe("allows the client portal's own surface", () => {
+  describe("allows the self-service surface a non-contributor still has", () => {
     it.each([
-      // Exact matches.
-      "/api/client",
+      // All that is left now that the client portal and the password-less
+      // share link are both removed.
       "/api/users/profile",
       "/api/users/preferences",
       "/api/users/password",
-      // Prefix matches — every route the (client) tree actually calls.
-      "/api/client/projects",
-      "/api/client/documents",
-      "/api/client/approvals",
-      "/api/client/messages",
-      // Nested/dynamic segments must pass too, not just the collection root.
-      "/api/client/projects/proj_123",
-      "/api/client/messages/msg_456/read",
       // Invitation round-trip from /invite/[token].
       "/api/invite/abc123",
       "/api/invite/abc123/accept",
@@ -41,11 +33,10 @@ describe("isClientApi", () => {
       expect(isClientApi(pathname)).toBe(true);
     });
 
-    it("ignores the query string boundary by matching the pathname only", () => {
-      // proxy.ts passes request.nextUrl.pathname, which never carries `?...`.
-      // Asserted so a future refactor that starts passing a full URL fails here
-      // rather than in production.
-      expect(isClientApi("/api/client/messages")).toBe(true);
+    it("no longer allows the removed client-portal API", () => {
+      expect(isClientApi("/api/client")).toBe(false);
+      expect(isClientApi("/api/client/projects")).toBe(false);
+      expect(isClientApi("/api/client/messages/msg_456/read")).toBe(false);
     });
   });
 
@@ -68,14 +59,6 @@ describe("isClientApi", () => {
   });
 
   describe("prefix-vs-exact correctness", () => {
-    it("does not let a longer route ride in on the /api/client exact entry", () => {
-      // "/api/client" is in clientApiExact, NOT clientApiPrefixes, precisely so
-      // that a sibling route starting with the same characters stays internal.
-      // A `startsWith("/api/client")` bug would pass all of these.
-      expect(isClientApi("/api/clients")).toBe(false);
-      expect(isClientApi("/api/client-secrets")).toBe(false);
-      expect(isClientApi("/api/clientele")).toBe(false);
-    });
 
     it("does not let a longer route ride in on the /api/users exact entries", () => {
       expect(isClientApi("/api/users")).toBe(false);
@@ -113,7 +96,7 @@ describe("isClientApi", () => {
     });
 
     it("denies page paths — the gate only ever consults this for /api/", () => {
-      expect(isClientApi("/client/dashboard")).toBe(false);
+      expect(isClientApi("/projects/all")).toBe(false);
       expect(isClientApi("/home")).toBe(false);
     });
   });
@@ -248,25 +231,24 @@ describe("isApiForbiddenForRole", () => {
       },
     );
 
-    it("lets the portal surface through for every non-contributor role", () => {
-      // /api/client/* passing the EDGE gate is not a grant of client data to a
-      // GUEST: each handler re-checks ClientProjectAccess via verifyClientAccess
-      // (src/lib/auth-guards.ts:370), and a GUEST holds no such row.
+    it("denies the removed client-portal API for every non-contributor role", () => {
+      // The portal is gone, so these are ordinary internal routes now and the
+      // default-deny gate must cover them like any other.
       for (const role of NON_CONTRIBUTOR_ROLES) {
-        expect(isApiForbiddenForRole(role, "/api/client")).toBe(false);
-        expect(isApiForbiddenForRole(role, "/api/client/projects")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/api/client")).toBe(true);
+        expect(isApiForbiddenForRole(role, "/api/client/projects")).toBe(true);
       }
     });
   });
 
   describe("scope: /api/ only, and roles outside the set", () => {
     it("never fires on page paths, even for a non-contributor", () => {
-      // Page routing for these roles is handled by the redirect rules, not
-      // here. CLIENT has a portal to be sent to; GUEST does not.
+      // This gate is /api/-only by design. The page tier is covered by
+      // resolveProjectAccess refusing to count a non-contributor membership.
       for (const role of NON_CONTRIBUTOR_ROLES) {
         expect(isApiForbiddenForRole(role, "/home")).toBe(false);
         expect(isApiForbiddenForRole(role, "/projects/all")).toBe(false);
-        expect(isApiForbiddenForRole(role, "/client/dashboard")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/settings")).toBe(false);
       }
     });
 
@@ -287,54 +269,6 @@ describe("isApiForbiddenForRole", () => {
       expect(isApiForbiddenForRole("guest", "/api/projects")).toBe(false);
       expect(isApiForbiddenForRole("Client", "/api/projects")).toBe(false);
     });
-  });
-});
-
-/**
- * The client share link route.
- *
- * /p/<token> is reached by a building owner who has no account and never
- * will. If it is not public the middleware bounces them to /login and the
- * whole feature is dead on arrival; if the prefix is too greedy it opens
- * something else by accident. The token itself is validated in
- * @/lib/client-link/access — this only pins the edge decision.
- */
-describe("isPublicRoute — client share links", () => {
-  const token = "a".repeat(64);
-
-  it("lets a share link through without a session", () => {
-    expect(isPublicRoute(`/p/${token}`)).toBe(true);
-  });
-
-  it("is public regardless of how malformed the token is", () => {
-    // The page must 404 on a bad token, not redirect to /login — a redirect
-    // would tell a prober that the path exists but they are unauthenticated.
-    expect(isPublicRoute("/p/not-a-real-token")).toBe(true);
-    expect(isPublicRoute("/p/")).toBe(true);
-  });
-
-  it("does not open any other route by prefix", () => {
-    // The trailing slash in the "/p/" prefix is what keeps these private.
-    expect(isPublicRoute("/portal")).toBe(false);
-    expect(isPublicRoute("/portal/admin")).toBe(false);
-    expect(isPublicRoute("/profile/abc")).toBe(false);
-    expect(isPublicRoute("/projects/all")).toBe(false);
-    expect(isPublicRoute("/p")).toBe(false);
-  });
-
-  it("opens the reply endpoint — and ONLY it — under /api/p/", () => {
-    // The client reply box POSTs here with the token as its credential.
-    expect(isPublicRoute(`/api/p/${token}/messages`)).toBe(true);
-    // The trailing slash keeps every other /api route private.
-    expect(isPublicRoute("/api/p")).toBe(false);
-    expect(isPublicRoute("/api/projects")).toBe(false);
-    expect(isPublicRoute("/api/portfolios")).toBe(false);
-  });
-
-  it("keeps the authenticated app behind the wall", () => {
-    expect(isPublicRoute("/dashboard")).toBe(false);
-    expect(isPublicRoute("/my-tasks")).toBe(false);
-    expect(isPublicRoute("/api/projects")).toBe(false);
   });
 });
 

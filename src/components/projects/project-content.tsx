@@ -73,7 +73,6 @@ import { NotesView } from "@/components/views/notes-view";
 import { WorkloadView } from "@/components/views/workload-view";
 import { ProjectTeamView } from "@/components/views/project-team-view";
 import { ProjectOverview } from "@/components/projects/project-overview";
-import { ClientAccessPanel } from "@/components/projects/client-access-panel";
 import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
 import { ProjectShareDialog } from "@/components/projects/project-share-dialog";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
@@ -1562,14 +1561,6 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               project={project}
               onManageMembers={() => setMembersDialogOpen(true)}
               onTaskClick={handleTaskClick}
-              // Same gate as the share-links API (project owner or ADMIN
-              // member), so the panel never appears for someone whose every
-              // action in it would 403.
-              clientAccessSlot={
-                canManageMembers ? (
-                  <ClientAccessPanel projectId={project.id} />
-                ) : null
-              }
             />
           )}
           {baseView === "list" && (

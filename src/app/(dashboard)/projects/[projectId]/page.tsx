@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
 import { getLevel } from "@/lib/people-types";
 import { canReadProject } from "@/lib/project-access";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 // Shared task shape for both the project's own tasks and the tasks
 // multi-homed INTO it — keeps the two queries structurally identical.
@@ -175,29 +176,53 @@ export default async function ProjectPage({
     project.team && project.team.workspaceId === project.workspaceId
       ? project.team
       : null;
-  const isProjectTeamMember =
-    sharedTeam?.members.some((m) => m.userId === user.id) ?? false;
+  // Resolve the viewer's standing in the PROJECT's workspace ONCE, before any
+  // grant is computed — both IMPLICIT grants below (team sharing, and the
+  // workspace-wide PUBLIC grant) are gated on it.
+  //
+  // A NON-CONTRIBUTOR (GUEST / CLIENT — see NON_CONTRIBUTOR_ROLES) gets neither.
+  // This page is a server component: past the gate below it serializes budget,
+  // member emails, every task and the view prefs into the response, and a
+  // read-only role has no business receiving any of it. `level >= 4` has to sit
+  // behind the same check — Position is independent of WorkspaceRole, so a
+  // GUEST carrying an executive Position would otherwise become a workspace
+  // manager and read PRIVATE projects too.
+  //
+  // EXPLICIT grants are deliberately untouched: a non-contributor who owns the
+  // project or holds a real ProjectMember row still gets in. Only the "everyone
+  // in the workspace / everyone on the team" shortcuts are withdrawn.
+  //
+  // Mirrors the identical condition in resolveProjectAccess — the two copies
+  // existing at all is the drift hazard project-access.ts warns about, kept
+  // only because this page resolves membership inline.
+  const viewerMembership = await prisma.workspaceMember.findUnique({
+    where: {
+      userId_workspaceId: {
+        userId: user.id,
+        workspaceId: project.workspaceId,
+      },
+    },
+    include: { user: { select: { position: true } } },
+  });
+  // CONTRIBUTOR membership, not merely "has a row": a viewer with NO membership
+  // at all must be refused by the team branch too. Removing someone from a
+  // workspace deletes only their WorkspaceMember row and leaves their
+  // TeamMember rows behind, so an offboarded user with a stale team row would
+  // otherwise keep reading every project shared with that team.
+  const viewerIsContributor =
+    !!viewerMembership && !isNonContributorRole(viewerMembership.role);
 
-  // Resolve the viewer's standing in the PROJECT's workspace. This lookup used
-  // to be skipped whenever the project was PUBLIC — which is exactly how a
-  // signed-in user of a DIFFERENT workspace could open it. PUBLIC is now
-  // scoped to the owning workspace, so the membership must be known first.
+  const isProjectTeamMember =
+    viewerIsContributor &&
+    (sharedTeam?.members.some((m) => m.userId === user.id) ?? false);
+
   let isWorkspaceManager = false;
   const viewerWorkspaceIds: string[] = [];
   if (!isProjectOwner && !isProjectMember && !isProjectTeamMember) {
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: user.id,
-          workspaceId: project.workspaceId,
-        },
-      },
-      include: { user: { select: { position: true } } },
-    });
-    if (membership) {
+    if (viewerIsContributor && viewerMembership) {
       viewerWorkspaceIds.push(project.workspaceId);
-      const role = membership.role;
-      const level = getLevel(membership.user.position);
+      const role = viewerMembership.role;
+      const level = getLevel(viewerMembership.user.position);
       isWorkspaceManager = role === "OWNER" || role === "ADMIN" || level >= 4;
     }
   }

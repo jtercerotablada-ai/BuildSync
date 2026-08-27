@@ -288,7 +288,7 @@ export async function POST(
       //    The project members API now refuses to bind a project onto a
       //    client's invitation, but rows minted BEFORE that fix can still
       //    be sitting PENDING, and this is where they would land.
-      //    Clients get a scoped project link (/p/<token>) instead.
+      //    (There is no client-facing surface any more.)
       let redirect = "/home";
       let boundProjectId: string | null = null;
       const isClientInvitation = invitation.role === "CLIENT";

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { sendClientMessageNotification } from "@/lib/email";
-import { isClientTaggedMessage } from "@/lib/client-link/projection";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { persistMentionsForNewMessage } from "@/lib/mentions";
 import { resolveProjectAccess } from "@/lib/project-access";
@@ -280,50 +278,6 @@ export async function POST(
       }
     }
 
-    // @cliente → ping the addresses stored on the project's ACTIVE share
-    // links. Fire-and-forget: a mail failure must never fail the send, and
-    // the notification deliberately carries no portal URL (only the mint
-    // moment ever has the plaintext token).
-    if (isClientTaggedMessage(created.content)) {
-      void (async () => {
-        try {
-          const [links, project] = await Promise.all([
-            prisma.projectShareLink.findMany({
-              where: {
-                projectId,
-                revokedAt: null,
-                expiresAt: { gt: new Date() },
-                email: { not: null },
-              },
-              select: { email: true },
-            }),
-            prisma.project.findUnique({
-              where: { id: projectId },
-              select: { name: true },
-            }),
-          ]);
-          const authorName = created.author?.name || "Tercero Tablada";
-          for (const email of new Set(links.map((l) => l.email!))) {
-            // Per-recipient try/catch: sendClientMessageNotification now
-            // throws on a Resend error (BS-06), so one bad or rejected
-            // address must not abort the remaining recipients.
-            try {
-              await sendClientMessageNotification(email, {
-                projectName: project?.name ?? "your project",
-                authorName,
-              });
-            } catch (err) {
-              console.error(
-                "[messages POST] client notification failed:",
-                err,
-              );
-            }
-          }
-        } catch (err) {
-          console.error("[messages POST] client notification failed:", err);
-        }
-      })();
-    }
 
     return NextResponse.json(
       {

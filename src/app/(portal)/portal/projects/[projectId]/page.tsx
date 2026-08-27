@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 import { ProjectContent } from "@/components/projects/project-content";
 
 interface ProjectPageProps {
@@ -104,6 +105,12 @@ export default async function PortalProjectPage({
   const isOwner = project.ownerId === user.id;
   const isMember = project.members.some((m) => m.userId === user.id);
 
+  // The membership's ROLE is load-bearing, not just its existence. A
+  // NON-CONTRIBUTOR (GUEST / CLIENT — see NON_CONTRIBUTOR_ROLES) must not get
+  // the workspace-wide grant: this is a server component that renders the same
+  // <ProjectContent> as the internal cockpit, budget and member emails
+  // included, and those roles have no client-facing surface at all any more.
+  // Matches the rule in @/lib/project-access and the (dashboard) project page.
   let isInProjectWorkspace = false;
   if (!isOwner && !isMember) {
     const workspaceMember = await prisma.workspaceMember.findUnique({
@@ -113,9 +120,10 @@ export default async function PortalProjectPage({
           workspaceId: project.workspaceId,
         },
       },
-      select: { userId: true },
+      select: { role: true },
     });
-    isInProjectWorkspace = !!workspaceMember;
+    isInProjectWorkspace =
+      !!workspaceMember && !isNonContributorRole(workspaceMember.role);
   }
 
   const hasAccess =

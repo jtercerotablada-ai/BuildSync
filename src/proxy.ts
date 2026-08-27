@@ -25,17 +25,6 @@ const publicPrefixes = [
   // Marketing: /services and every /services/<slug> detail page.
   // Safe as a prefix — the authenticated app has no /services route.
   "/services",
-  // Password-less client project links: /p/<token>. The visitor is a
-  // building owner with no account, so there is no session to check here;
-  // the token IS the credential and the page re-validates it (unknown,
-  // revoked and expired all 404) on every request via resolveShareLink.
-  // The trailing slash keeps this from ever matching a future /projects
-  // or /portal route by prefix.
-  "/p/",
-  // The share link's ONE write endpoint (the client reply box). Same trust
-  // model as the page: the token in the path is the credential, and the
-  // route 404s identically for unknown/revoked/expired links.
-  "/api/p/",
   // Public form submission: /forms/<formId> and its render/submit/track API.
   // The whole point is an external submitter (architect, owner, property
   // manager) with NO account — behind the auth wall the link bounced to
@@ -44,8 +33,8 @@ const publicPrefixes = [
   // on form.visibility, the track handler on a signed token, and every
   // INTERNAL verb here (form PATCH/DELETE, submissions, export) still calls
   // getCurrentUserId → 401 and re-checks project access → 403 in-handler.
-  // Same trust model as /p/ above: the middleware only stops being a
-  // redirect; the handler remains the real gate.
+  // The middleware only stops being a redirect; the handler remains the
+  // real gate.
   "/forms/",
   "/api/forms/",
   // Workspace invitation landing: /invite/<token> and its resolve/accept API.
@@ -96,15 +85,11 @@ export function isPublicRoute(pathname: string): boolean {
    NON_CONTRIBUTOR_ROLES in @/lib/workspace-roles, currently {GUEST, CLIENT} —
    is denied here, at the edge.
 
-   The list is named for the client portal because that is the only UI a
-   non-contributor role has: there is no (guest) route group, no guest layout
-   and no guest-only endpoint anywhere in src/app. GUEST therefore adds no
-   entries — it inherits this list unchanged, which for a GUEST means the three
-   /api/users/* self-service routes plus /api/invite/ (accepting an invitation
-   addressed to their own email). The /api/client/* entries are inert for a
-   GUEST rather than a grant: each of those handlers re-checks
-   ClientProjectAccess via verifyClientAccess (src/lib/auth-guards.ts:370), and
-   a GUEST holds no such row, so they 403 in the handler.
+   A non-contributor now has NO UI at all: the client portal and the
+   password-less share link were both removed, so what remains is pure
+   self-service — the three /api/users/* routes plus /api/invite/ (accepting an
+   invitation addressed to their own email). Everything else under /api/ is
+   denied at the edge.
 
    WHY THIS EXISTS: the role gate below has always been PAGE-only, while
    config.matcher runs middleware over /api/* too — and no API handler checks
@@ -116,23 +101,18 @@ export function isPublicRoute(pathname: string): boolean {
    with them minting a full internal MEMBER account on an email they control.
 
    ALLOWLIST, NOT BLOCKLIST: internal routes are added constantly and a
-   blocklist silently exposes each new one. The portal's surface is small and
-   stable.
+   blocklist silently exposes each new one. The self-service surface is tiny
+   and stable.
 
    /api/auth/* is deliberately absent: it is a publicPrefix and returns at
    isPublicRoute() before this gate ever runs. */
 const clientApiPrefixes = [
-  // Portal data. Each handler still re-checks ClientProjectAccess via
-  // verifyClientAccess (src/lib/auth-guards.ts:370) — this only stops being a
-  // 403; it grants nothing.
-  "/api/client/",
   // Accepting an invitation addressed to THEIR OWN email; the handler returns
   // 409 for any other address. This does NOT make a pre-existing rogue MEMBER
   // invitation safe — those must be revoked in the database.
   "/api/invite/",
 ];
 const clientApiExact = [
-  "/api/client",
   "/api/users/profile",
   "/api/users/preferences",
   "/api/users/password",
@@ -170,9 +150,11 @@ export function isClientApi(pathname: string): boolean {
  * Contributors (OWNER / ADMIN / MEMBER / WORKER) and users with no role yet
  * (null, mid-onboarding) fall through untouched.
  *
- * SCOPE: /api/ only. Page routing for these roles is unchanged and is handled
- * by the redirect rules below — deliberately, because CLIENT has a portal to
- * be sent to and GUEST does not.
+ * SCOPE: /api/ only. Neither role has any UI left to be redirected TO — the
+ * client portal and the share link are both gone — so the page tier is covered
+ * instead by resolveProjectAccess, which refuses to count a non-contributor
+ * membership as "in this workspace" (see @/lib/project-access). That is what
+ * keeps the server-rendered project page, budget and all, away from them.
  */
 export function isApiForbiddenForRole(
   role: string | null | undefined,
@@ -401,28 +383,12 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  // CLIENT role users accessing internal dashboard should be sent to
-  // their client portal. The actual internal dashboard lives under
-  // `/home`, `/my-tasks`, `/projects`, etc. (no `/dashboard` route
-  // exists). Match the (dashboard) group's actual root path.
-  if (
-    userRole === "CLIENT" &&
-    (pathname === "/home" ||
-      pathname.startsWith("/my-tasks") ||
-      pathname.startsWith("/projects") ||
-      pathname.startsWith("/inbox") ||
-      pathname.startsWith("/reporting") ||
-      pathname.startsWith("/portfolios") ||
-      pathname.startsWith("/goals") ||
-      pathname.startsWith("/teams"))
-  ) {
-    return NextResponse.redirect(new URL("/client/dashboard", request.url));
-  }
-
-  // WORKER role users accessing client portal should be redirected to portal
-  if (userRole === "WORKER" && pathname.startsWith("/client")) {
-    return NextResponse.redirect(new URL("/portal", request.url));
-  }
+  // The CLIENT-role redirect to /client/dashboard and the /client route gate
+  // are gone with the client portal itself. CLIENT is still a WorkspaceRole and
+  // still a NON_CONTRIBUTOR_ROLE, so such a user is denied the whole internal
+  // /api/ surface by isApiForbiddenForRole above — they simply have no UI now.
+  // The enum value is deliberately kept (dropping it is a destructive
+  // migration), and production currently holds zero CLIENT members.
 
   // Prevent non-admin/owner users from accessing admin routes.
   // Redirect target is `/home` — there is NO `/dashboard` route in this
@@ -432,15 +398,6 @@ export async function proxy(request: NextRequest) {
   if (
     pathname.startsWith("/portal") &&
     userRole !== "WORKER" &&
-    userRole !== "ADMIN" &&
-    userRole !== "OWNER"
-  ) {
-    return NextResponse.redirect(new URL("/home", request.url));
-  }
-
-  if (
-    pathname.startsWith("/client") &&
-    userRole !== "CLIENT" &&
     userRole !== "ADMIN" &&
     userRole !== "OWNER"
   ) {

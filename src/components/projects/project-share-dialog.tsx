@@ -120,11 +120,14 @@ interface Props {
 //
 // STAFF ONLY — there is deliberately no client option here, and none must be
 // added. ProjectRole has no CLIENT member; a client is a WORKSPACE role, and
-// this dialog grants workspace access. src/proxy.ts only redirects workspace
-// role CLIENT away from /projects/*, so a client admitted through this box
+// this dialog grants workspace access. A client admitted through this box
 // would land on the internal cockpit and see the project budget, staff hours,
-// internal notes and the team's private messages. Clients get a scoped,
-// revocable project link (/p/<token>) instead.
+// internal notes and the team's private messages.
+//
+// There is no client-facing surface at all any more: both the account-based
+// portal (/client/*) and the password-less share link (/p/<token>) were
+// removed. So there is nowhere to send a client instead — this box must simply
+// keep refusing them.
 //
 // The API refuses client invitations regardless of what this UI sends — see
 // the CLIENT_INVITE_ERROR guards in
@@ -518,8 +521,8 @@ export function ProjectShareDialog({
               {/* Steer staff away from using this box for clients — the API
                   rejects them, so say so before they type an email. */}
               <p className="text-xs text-gray-500">
-                Invites give access to the internal project. Clients get a
-                project link instead.
+                Invites give access to the internal project, with its budget,
+                hours and private messages. Not for clients.
               </p>
 
               <label className="flex items-start gap-2 cursor-pointer select-none pt-1">

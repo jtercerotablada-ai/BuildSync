@@ -439,20 +439,6 @@ export class NotFoundError extends Error {
 }
 
 /**
- * Verify a CLIENT user has access to a specific project via ClientProjectAccess.
- * Returns the access record with permission flags.
- */
-export async function verifyClientAccess(userId: string, projectId: string) {
-  const access = await prisma.clientProjectAccess.findUnique({
-    where: { userId_projectId: { userId, projectId } },
-  });
-  if (!access) {
-    throw new AuthorizationError("You don't have access to this project");
-  }
-  return access;
-}
-
-/**
  * Get the workspace role for a user (e.g. OWNER, ADMIN, MEMBER, WORKER, CLIENT).
  * Returns "GUEST" if no membership is found.
  */
