@@ -10,6 +10,7 @@ import {
   getErrorStatus,
 } from "@/lib/auth-guards";
 import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
+import { resolveTaskPlacements } from "@/lib/task-placement";
 
 const reorderSchema = z.object({
   sectionId: z.string().min(1),
@@ -56,37 +57,80 @@ export async function POST(req: Request) {
     // could drop them into a column of a project they cannot write to, or
     // even read, where they then render for every real member and fire that
     // project's workflow rules.
-    await verifySectionWritable(userId, sectionId, {
+    const destSection = await verifySectionWritable(userId, sectionId, {
       expectWorkspaceId: workspaceId,
     });
+
+    // A column mixes tasks HOMED in this project with tasks merely multi-homed
+    // into it, and they render identically — so the destination must be
+    // written to a different column per task. Writing Task.sectionId for a
+    // guest re-homed it and made it vanish from its own project's board.
+    const { placements, unrelated } = await resolveTaskPlacements(
+      orderedTaskIds,
+      destSection.projectId,
+    );
+    // An id that is neither homed here nor linked here is SKIPPED, not
+    // rejected. The client sends the whole column, so failing the batch would
+    // let one bad row make a column permanently un-draggable — and a row like
+    // that is exactly what the bug being fixed here used to produce. Skipping
+    // writes nothing for it (so it is also the safe answer for a hand-crafted
+    // request) while the rest of the column still renumbers.
+    if (unrelated.length > 0) {
+      console.warn(
+        `[tasks reorder] skipping ${unrelated.length} task(s) not in project ${destSection.projectId}: ${unrelated.join(", ")}`,
+      );
+    }
+    const placementByTask = new Map(placements.map((p) => [p.taskId, p]));
+    const homeIds = new Set(
+      placements.filter((p) => p.kind === "home").map((p) => p.taskId),
+    );
 
     // Snapshot which tasks are entering this section for the first
     // time (their old sectionId differs from the destination) so we
     // can fire workflow rules AFTER the transaction commits. Tasks
     // that were already in this section and just reordered don't
     // re-fire rules — that would compound side effects on every
-    // drag inside the same column.
+    // drag inside the same column. Guests are excluded: their home
+    // sectionId is not what changed.
     const preMove = await prisma.task.findMany({
-      where: { id: { in: orderedTaskIds } },
+      where: { id: { in: [...homeIds] } },
       select: { id: true, sectionId: true, projectId: true },
     });
     const incomingTasks = preMove.filter((t) => t.sectionId !== sectionId);
 
-    // Atomic renumber. Index in orderedTaskIds becomes the position,
-    // and we also nail the sectionId in case any task is being moved
-    // into this section from elsewhere as part of the same gesture.
+    // Atomic renumber. Index in orderedTaskIds becomes the position for HOME
+    // tasks; guests only get their per-project link repointed, because
+    // Task.position belongs to their own project's ordering and TaskProject
+    // has no position column (see lib/task-placement.ts).
     await prisma.$transaction(
-      orderedTaskIds.map((taskId, position) =>
-        prisma.task.update({
-          where: { id: taskId },
-          data: { sectionId, position },
-        })
-      )
+      orderedTaskIds.flatMap((taskId, position) => {
+        const placement = placementByTask.get(taskId);
+        if (!placement) return []; // skipped: not in this project
+        return [
+          placement.kind === "home"
+            ? prisma.task.update({
+                where: { id: taskId },
+                data: { sectionId, position },
+              })
+            : prisma.taskProject.update({
+                where: { id: placement.linkId },
+                data: { sectionId },
+              }),
+        ];
+      })
     );
 
     // Fire workflow rules for each task that just crossed sections.
     // Engine is fire-and-forget — failures get logged inside and
     // never break the reorder response.
+    //
+    // Guests are deliberately absent. This loop passed the task's HOME
+    // projectId with the destination sectionId, and a rule's trigger section
+    // is pinned to its own project, so for a guest it could never match — it
+    // was already inert. Firing the DESTINATION project's rules on a guest
+    // would be a new behaviour with real side effects (auto-assign,
+    // auto-complete) reaching into another project, so it stays out of a
+    // corruption fix.
     for (const t of incomingTasks) {
       if (!t.projectId) continue;
       await executeRulesOnSectionChange(

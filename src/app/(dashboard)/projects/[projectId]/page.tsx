@@ -222,7 +222,21 @@ export default async function ProjectPage({
   // section recorded on their TaskProject link (fallback: first section).
   const firstSectionId = project.sections[0]?.id ?? null;
   const multiHomedTasks = await prisma.task.findMany({
-    where: { parentTaskId: null, taskProjects: { some: { projectId } } },
+    // `projectId: { not: projectId }` is defence in depth: a task that is both
+    // homed here AND carries a guest link here would otherwise render twice in
+    // the same column — once from sections.include.tasks and once from here —
+    // giving two cards the same React key. The write side keeps the two
+    // mutually exclusive; this makes a stale link harmless rather than visible.
+    // The OR is not decoration: `projectId: { not: projectId }` compiles to
+    // SQL `"projectId" <> $1`, which is UNKNOWN — and therefore excluding —
+    // for rows where projectId IS NULL. A projectless personal task added to
+    // this project as a guest would silently drop off the board. Spelling out
+    // the null arm keeps three-valued logic from eating it.
+    where: {
+      parentTaskId: null,
+      taskProjects: { some: { projectId } },
+      OR: [{ projectId: null }, { projectId: { not: projectId } }],
+    },
     orderBy: { position: "asc" },
     include: {
       ...TASK_INCLUDE,

@@ -293,6 +293,9 @@ export async function PATCH(
     // Prepare update data
     const updateData: Record<string, unknown> = {};
     const activities: { type: string; data: Record<string, unknown> }[] = [];
+    // Set when this PATCH re-homes the task into a project it was a guest of;
+    // the link is consumed inside the update transaction, never before it.
+    let consumeGuestLinkForProjectId: string | null = null;
 
     if (data.name !== undefined && data.name !== existingTask.name) {
       updateData.name = data.name;
@@ -325,6 +328,22 @@ export async function PATCH(
       // can't edit (or merely can't see).
       if (data.projectId) {
         await verifyProjectAccess(userId, data.projectId, { requireWrite: true });
+        // Re-homing INTO a project the task was merely a guest of must consume
+        // the guest link, or the task is both home and guest of the same
+        // project: the project page renders it once from sections.include.tasks
+        // and again from multiHomedBySection — two cards with the same React
+        // key in one column, and the id twice in the drag SortableContext.
+        // POST /api/tasks/[taskId]/projects already 409s "task already lives in
+        // this project", so home-XOR-guest is the intended invariant.
+        //
+        // Recorded here, EXECUTED inside the update transaction below. Deleting
+        // it now would commit before the request can still be rejected — the
+        // sectionId branch further down can return 400, verifySectionWritable
+        // can throw, the update itself can fail — and the task would then be
+        // neither re-homed nor a guest any more: it would silently vanish from
+        // that project's board. That is the exact failure this patch exists to
+        // remove, so the link only dies if the re-home actually lands.
+        consumeGuestLinkForProjectId = data.projectId;
       }
 
       updateData.projectId = data.projectId;
@@ -352,7 +371,22 @@ export async function PATCH(
       });
     }
 
-    if (data.sectionId !== undefined && data.sectionId !== existingTask.sectionId && updateData.sectionId === undefined) {
+    // Validate a supplied destination section when it CHANGES, or whenever the
+    // project is changing in the same request. That second case matters:
+    // PATCH { projectId: B, sectionId: <the task's CURRENT section in A> }
+    // leaves sectionId "unchanged", so keying the check purely on change let it
+    // slip past both this guard and the auto-assign fallback above — committing
+    // projectId=B with sectionId still in A, i.e. the very split this patch
+    // exists to prevent. It is deliberately NOT validated when a caller merely
+    // echoes the current sectionId with no project move, so an isOwnTask editor
+    // updating some other field is not newly rejected.
+    const projectIsChanging =
+      data.projectId !== undefined && data.projectId !== existingTask.projectId;
+    if (
+      data.sectionId !== undefined &&
+      (data.sectionId !== existingTask.sectionId || projectIsChanging) &&
+      updateData.sectionId === undefined
+    ) {
       // Require WRITE on the project that owns the destination section.
       // verifyTaskAccess above only authorizes the TASK — and it passes on
       // isOwnTask alone — so proving the section merely sits in the caller's
@@ -367,9 +401,39 @@ export async function PATCH(
         // project OWNER has canWrite in any workspace — including the personal
         // one every account gets at onboarding.
         const callerWorkspaceId = await getUserWorkspaceId(userId);
-        await verifySectionWritable(userId, data.sectionId, {
+        const destSection = await verifySectionWritable(userId, data.sectionId, {
           expectWorkspaceId: callerWorkspaceId,
         });
+        // `sectionId` sets the task's HOME section, so the destination must
+        // belong to the task's own project. Accepting a section from another
+        // project left projectId=A with sectionId in B: the task disappeared
+        // from A's board (which renders columns via sections.include.tasks)
+        // while every projectId-scoped query still counted it in A. Moving a
+        // task between projects goes through `projectId` above, which
+        // re-homes it properly; putting it on ANOTHER project's board without
+        // moving it is what the TaskProject link is for.
+        const homeProjectId = data.projectId ?? existingTask.projectId;
+        if (homeProjectId && destSection.projectId !== homeProjectId) {
+          return NextResponse.json(
+            { error: "Section does not belong to this task's project" },
+            { status: 400 }
+          );
+        }
+        if (!homeProjectId) {
+          // A projectless personal task given a section joins that section's
+          // project, rather than becoming a projectId=null row that renders on
+          // the board but is invisible to every projectId-scoped query. Same
+          // rule POST /api/tasks applies.
+          updateData.projectId = destSection.projectId;
+          // This is a re-home too, so it owes the same guest-link cleanup as
+          // the projectId branch: a projectless task CAN already be a guest
+          // (POST /api/tasks/[taskId]/projects only rejects the task's own home
+          // project, and null is never equal to it). Without this the task ends
+          // up homed in AND a guest of the same project, which the detail panel
+          // renders as "Projects 2" with the home project also listed as an
+          // extra — and excluded from its own home-project picker.
+          consumeGuestLinkForProjectId = destSection.projectId;
+        }
       }
       updateData.sectionId = data.sectionId;
       activities.push({
@@ -441,6 +505,13 @@ export async function PATCH(
     // so we never leave the schedule half-shifted if cascade throws.
     let cascadeShifts: CascadeShift[] = [];
     const task = await prisma.$transaction(async (tx) => {
+      // Consume the guest link in the SAME transaction as the re-home, so a
+      // failure leaves the task a guest rather than nowhere.
+      if (consumeGuestLinkForProjectId) {
+        await tx.taskProject.deleteMany({
+          where: { taskId, projectId: consumeGuestLinkForProjectId },
+        });
+      }
       const updated = await tx.task.update({
         where: { id: taskId },
         data: updateData,

@@ -9,6 +9,7 @@ import {
   executeRulesOnTaskCompleted,
 } from "@/lib/workflow-engine";
 import { notifyTaskCompleted } from "@/lib/task-notifications";
+import { resolveTaskPlacements } from "@/lib/task-placement";
 
 const bulkSchema = z.object({
   taskIds: z.array(z.string()).min(1),
@@ -148,20 +149,61 @@ export async function POST(req: Request) {
         }
         // Require WRITE on the project that owns the destination section.
         // Same-workspace alone is not authorization — see verifySectionWritable.
-        await verifySectionWritable(userId, value, {
+        const destSection = await verifySectionWritable(userId, value, {
           expectWorkspaceId: workspaceId,
         });
+        // A selection can mix tasks HOMED in this project with tasks merely
+        // multi-homed into it. Writing Task.sectionId for a guest re-homed it
+        // and made it vanish from its own project's board — see
+        // lib/task-placement.ts.
+        const { placements, unrelated } = await resolveTaskPlacements(
+          taskIds,
+          destSection.projectId,
+        );
+        // Skipped, not rejected — same reasoning as /api/tasks/reorder: one
+        // bad row must not fail the whole selection, and skipping writes
+        // nothing for it.
+        if (unrelated.length > 0) {
+          console.warn(
+            `[tasks bulk move_section] skipping ${unrelated.length} task(s) not in project ${destSection.projectId}: ${unrelated.join(", ")}`,
+          );
+        }
+        const homeIds = placements
+          .filter((p) => p.kind === "home")
+          .map((p) => p.taskId);
+        const guestLinkIds = placements
+          .filter((p): p is { taskId: string; kind: "guest"; linkId: string } =>
+            p.kind === "guest"
+          )
+          .map((p) => p.linkId);
+
         // Snapshot prior sections so we can fire section-change workflow
         // rules only for tasks that actually moved (audit: bulk move never
-        // fired rules, contradicting "rules fire from any view").
+        // fired rules, contradicting "rules fire from any view"). Guests are
+        // excluded — their home sectionId is not what changed, and the rule
+        // lookup below is keyed on the home project.
         const beforeMove = await prisma.task.findMany({
-          where: { id: { in: taskIds } },
+          where: { id: { in: homeIds } },
           select: { id: true, sectionId: true, projectId: true },
         });
-        await prisma.task.updateMany({
-          where: { id: { in: taskIds } },
-          data: { sectionId: value },
-        });
+        await prisma.$transaction([
+          ...(homeIds.length
+            ? [
+                prisma.task.updateMany({
+                  where: { id: { in: homeIds } },
+                  data: { sectionId: value },
+                }),
+              ]
+            : []),
+          ...(guestLinkIds.length
+            ? [
+                prisma.taskProject.updateMany({
+                  where: { id: { in: guestLinkIds } },
+                  data: { sectionId: value },
+                }),
+              ]
+            : []),
+        ]);
         for (const t of beforeMove) {
           if (t.projectId && t.sectionId !== value) {
             await executeRulesOnSectionChange(
@@ -171,7 +213,9 @@ export async function POST(req: Request) {
             );
           }
         }
-        return NextResponse.json({ success: true, count: taskIds.length });
+        // Report what actually moved, not what was asked for — the toast
+        // shows this number.
+        return NextResponse.json({ success: true, count: placements.length });
       }
 
       default:
