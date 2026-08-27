@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { canReadContactInbox } from "@/lib/contact-inbox";
 
-async function verifyAdmin(userId: string) {
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId },
-    select: { workspaceId: true, role: true },
-  });
-
-  if (!member || !["OWNER", "ADMIN"].includes(member.role)) {
-    return null;
-  }
-
-  return member;
-}
+/**
+ * ContactSubmission is a GLOBAL table, so this endpoint must gate on the
+ * FIRM's workspace, not on the caller's role in whatever workspace they
+ * happen to belong to. The previous `findFirst` + role check passed for any
+ * self-registered account (onboarding makes every signup the OWNER of their
+ * own workspace) and then returned every lead the firm had ever received.
+ * See src/lib/contact-inbox.ts.
+ */
 
 // GET /api/admin/submissions - List all ContactSubmission records with pagination
 export async function GET(req: Request) {
@@ -23,8 +20,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const admin = await verifyAdmin(userId);
-    if (!admin) {
+    if (!(await canReadContactInbox(userId))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -72,8 +68,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const admin = await verifyAdmin(userId);
-    if (!admin) {
+    if (!(await canReadContactInbox(userId))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

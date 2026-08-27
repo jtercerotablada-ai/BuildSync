@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { canReadContactInbox } from "@/lib/contact-inbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -31,12 +32,12 @@ export default async function AdminSubmissionsPage() {
   const userId = await getCurrentUserId();
   if (!userId) redirect("/auth/signin");
 
-  const currentMember = await prisma.workspaceMember.findFirst({
-    where: { userId },
-    select: { workspaceId: true, role: true },
-  });
-
-  if (!currentMember || !["OWNER", "ADMIN"].includes(currentMember.role)) {
+  // This page reads the GLOBAL ContactSubmission table directly, so it must
+  // gate on the FIRM's workspace — not on the caller's role in whatever
+  // workspace findFirst happened to return. Self-signup makes every new user
+  // the OWNER of their own workspace, so the old check let any account on the
+  // internet read every lead. See src/lib/contact-inbox.ts.
+  if (!(await canReadContactInbox(userId))) {
     redirect("/portal/dashboard");
   }
 
