@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 /**
  * Shared access helpers for the polymorphic `Message` model.
@@ -27,6 +28,7 @@ export interface MessageAccessParent {
     ownerId: string | null;
     visibility: string;
     workspaceId: string;
+    teamId: string | null;
     members: { userId: string; role: string }[];
   } | null;
   portfolio: {
@@ -75,6 +77,7 @@ export async function loadMessageWithAccess(
           ownerId: true,
           visibility: true,
           workspaceId: true,
+          teamId: true,
           members: { select: { userId: true, role: true } },
         },
       },
@@ -96,27 +99,29 @@ export async function loadMessageWithAccess(
 
   const isAuthor = msg.authorId === userId;
 
-  // Project-scoped message
+  // Project-scoped message. Delegate the read decision to the ONE canonical
+  // rule the project page uses (resolveProjectAccess) instead of a bespoke
+  // copy. The old inline check was wrong in both directions: it let
+  // `visibility === "PUBLIC"` grant read to any authenticated user of ANY
+  // workspace (a cross-tenant leak — PUBLIC means "everyone in THIS
+  // workspace", never "everyone with an account"), and it never admitted the
+  // project's team members or workspace managers, so people who CAN open the
+  // project were 403'd on its messages. resolveProjectAccess fixes both:
+  // it scopes PUBLIC to the project's own workspace and grants team members
+  // and workspace managers.
   if (msg.project) {
-    const member = msg.project.members.find((m) => m.userId === userId);
-    const isOwner = msg.project.ownerId === userId;
-    const isMember = !!member;
-    let allowed = isOwner || isMember || msg.project.visibility === "PUBLIC";
-    if (!allowed && msg.project.visibility === "WORKSPACE") {
-      const wsMember = await prisma.workspaceMember.findUnique({
-        where: {
-          userId_workspaceId: {
-            userId,
-            workspaceId: msg.project.workspaceId,
-          },
-        },
-      });
-      if (wsMember) allowed = true;
-    }
-    if (!allowed) {
+    const access = await resolveProjectAccess(msg.project, userId);
+    if (!access.ok) {
+      // The message row exists; withhold it with 403 (the prior contract)
+      // rather than 404. resolveProjectAccess masks project EXISTENCE with
+      // 404, but here the caller already holds a messageId.
       return { ok: false, status: 403, error: "Forbidden" };
     }
-    const isAdmin = isOwner || member?.role === "ADMIN";
+    // Moderation (delete-anyone) is unchanged: project owner or an explicit
+    // project ADMIN. Deliberately NOT widened to workspace managers — read
+    // access grew, moderation authority did not.
+    const member = msg.project.members.find((m) => m.userId === userId);
+    const isAdmin = access.isOwner || member?.role === "ADMIN";
     return { ok: true, message: msg, isAuthor, isAdmin };
   }
 
@@ -125,8 +130,25 @@ export async function loadMessageWithAccess(
     const member = msg.portfolio.members.find((m) => m.userId === userId);
     const isOwner = msg.portfolio.ownerId === userId;
     const isMember = !!member;
-    const isPublic = msg.portfolio.privacy === "PUBLIC";
-    if (!isOwner && !isMember && !isPublic) {
+    // Membership of the portfolio's OWN workspace is required for EVERY
+    // caller — the blanket check the canonical GET /api/portfolios/
+    // [portfolioId] runs via verifyWorkspaceAccess. This closes two paths at
+    // once: PUBLIC granting any authenticated user of any workspace (the
+    // cross-tenant leak), and an owner/member whose WorkspaceMember row was
+    // removed on offboarding but whose PortfolioMember row survives (it does
+    // NOT cascade) keeping access. PUBLIC then means "everyone in THIS
+    // workspace", never "everyone with an account".
+    const wsMember = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId,
+          workspaceId: msg.portfolio.workspaceId,
+        },
+      },
+    });
+    const allowed =
+      !!wsMember && (isOwner || isMember || msg.portfolio.privacy === "PUBLIC");
+    if (!allowed) {
       return { ok: false, status: 403, error: "Forbidden" };
     }
     // Portfolio moderation: owner or OWNER/EDITOR member.
@@ -135,7 +157,24 @@ export async function loadMessageWithAccess(
     return { ok: true, message: msg, isAuthor, isAdmin };
   }
 
-  // Workspace-scoped fallback (rare). Only the author touches these.
+  // Workspace-scoped announcement (projectId and portfolioId both null).
+  // Gate on membership of the message's OWN workspace: without it any
+  // authenticated user of any workspace could pin / react / reply on another
+  // tenant's announcement through the generic /api/messages/[id]/* routes,
+  // which check only loadMessageWithAccess. This is the same cross-tenant
+  // class as the project and portfolio branches above — the third parent the
+  // rewrite must not leave open. Mirrors the workspace scoping that
+  // /api/workspace/messages enforces on its own PUT/DELETE.
+  const wsMember = msg.workspaceId
+    ? await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: { userId, workspaceId: msg.workspaceId },
+        },
+      })
+    : null;
+  if (!wsMember) {
+    return { ok: false, status: 404, error: "Not found" };
+  }
   return {
     ok: true,
     message: msg,

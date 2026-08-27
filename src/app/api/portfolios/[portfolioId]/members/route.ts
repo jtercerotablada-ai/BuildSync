@@ -173,11 +173,22 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Callers must be able to read the portfolio.
+    // Callers must be able to read the portfolio. Membership of its OWN
+    // workspace is required for EVERY caller — the blanket check the canonical
+    // GET /api/portfolios/[portfolioId] (and this file's own POST/PATCH/DELETE
+    // via verifyWorkspaceAccess) run, which this GET skipped. Without it a
+    // PUBLIC portfolio leaked the entire workspace staff directory (name,
+    // email, job title, position) to any authenticated user of any OTHER
+    // workspace.
     const isCallerMember = portfolio.members.some((m) => m.user.id === userId);
     const isOwner = portfolio.ownerId === userId;
     const isPublic = portfolio.privacy === "PUBLIC";
-    if (!isCallerMember && !isOwner && !isPublic) {
+    const wsMember = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: { userId, workspaceId: portfolio.workspaceId },
+      },
+    });
+    if (!wsMember || (!isCallerMember && !isOwner && !isPublic)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

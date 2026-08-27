@@ -304,10 +304,20 @@ export async function POST(
           ]);
           const authorName = created.author?.name || "Tercero Tablada";
           for (const email of new Set(links.map((l) => l.email!))) {
-            await sendClientMessageNotification(email, {
-              projectName: project?.name ?? "your project",
-              authorName,
-            });
+            // Per-recipient try/catch: sendClientMessageNotification now
+            // throws on a Resend error (BS-06), so one bad or rejected
+            // address must not abort the remaining recipients.
+            try {
+              await sendClientMessageNotification(email, {
+                projectName: project?.name ?? "your project",
+                authorName,
+              });
+            } catch (err) {
+              console.error(
+                "[messages POST] client notification failed:",
+                err,
+              );
+            }
           }
         } catch (err) {
           console.error("[messages POST] client notification failed:", err);

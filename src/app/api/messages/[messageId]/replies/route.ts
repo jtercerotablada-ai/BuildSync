@@ -159,6 +159,12 @@ export async function POST(
     const rootId = access.message.parentMessageId ?? access.message.id;
     const projectId = access.message.projectId;
     const portfolioId = access.message.portfolioId;
+    // Carry the parent's workspace scope onto the reply too. Project and
+    // portfolio replies route by projectId / portfolioId (workspaceId is null
+    // there), but a reply to a workspace announcement has both of those null —
+    // without workspaceId, loadMessageWithAccess's workspace gate can't scope
+    // the reply and would 404 even its own author.
+    const workspaceId = access.message.workspaceId;
 
     const body = await req.json();
     const parsed = replyCreateSchema.safeParse(body);
@@ -173,6 +179,7 @@ export async function POST(
       data: {
         projectId,
         portfolioId,
+        workspaceId,
         authorId: userId,
         content: parsed.data.content.trim(),
         parentMessageId: rootId,

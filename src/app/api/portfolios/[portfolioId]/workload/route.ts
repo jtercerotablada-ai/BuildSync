@@ -53,8 +53,22 @@ export async function GET(
     }
     const isOwner = portfolio.ownerId === userId;
     const isMember = portfolio.members.some((m) => m.userId === userId);
-    const isPublic = portfolio.privacy === "PUBLIC";
-    if (!isOwner && !isMember && !isPublic) {
+    // Membership of the portfolio's OWN workspace is required for EVERY
+    // caller — the blanket check the canonical GET /api/portfolios/
+    // [portfolioId] runs via verifyWorkspaceAccess, which this endpoint
+    // skipped. Closes both PUBLIC granting any authenticated user of any
+    // workspace (cross-tenant read of every open task + assignee) and an
+    // offboarded owner/member whose PortfolioMember row survived (it does NOT
+    // cascade on WorkspaceMember delete). PUBLIC = "everyone in THIS
+    // workspace".
+    const wsMember = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: { userId, workspaceId: portfolio.workspaceId },
+      },
+    });
+    const allowed =
+      !!wsMember && (isOwner || isMember || portfolio.privacy === "PUBLIC");
+    if (!allowed) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

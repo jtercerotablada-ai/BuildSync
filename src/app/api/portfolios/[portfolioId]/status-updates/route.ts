@@ -36,9 +36,22 @@ async function assertPortfolioAccess(portfolioId: string, userId: string) {
   const member = portfolio.members.find((m) => m.userId === userId) ?? null;
   const isOwner = portfolio.ownerId === userId;
   const isMember = !!member;
-  const isPublic = portfolio.privacy === "PUBLIC";
 
-  if (isOwner || isMember || isPublic) {
+  // Membership of the portfolio's OWN workspace is required for EVERY caller
+  // — the blanket check the canonical GET /api/portfolios/[portfolioId] runs
+  // via verifyWorkspaceAccess. Closes both PUBLIC granting any authenticated
+  // user of any workspace (cross-tenant read + POST of status updates) and an
+  // offboarded owner/member whose PortfolioMember row survived (no cascade on
+  // WorkspaceMember delete). PUBLIC = "everyone in THIS workspace".
+  const wsMember = await prisma.workspaceMember.findUnique({
+    where: {
+      userId_workspaceId: { userId, workspaceId: portfolio.workspaceId },
+    },
+  });
+  const allowed =
+    !!wsMember && (isOwner || isMember || portfolio.privacy === "PUBLIC");
+
+  if (allowed) {
     return { ok: true as const, portfolio, member };
   }
 

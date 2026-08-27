@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import { Resend, type CreateEmailOptions } from "resend";
 
 function getResend() {
   const apiKey = process.env.RESEND_API_KEY;
@@ -6,6 +6,32 @@ function getResend() {
     throw new Error("RESEND_API_KEY is not configured");
   }
   return new Resend(apiKey);
+}
+
+/**
+ * Send through Resend AND surface a failed send.
+ *
+ * resend.emails.send() does NOT throw on an API-level failure — an
+ * unverified sending domain, an invalid `from`, a 4xx or a 429 all resolve
+ * to `{ data: null, error }`. Every call site here used to `await` the
+ * promise and drop that object, so a rejected send was indistinguishable
+ * from a delivered one — including verification links, password resets and
+ * portal invites.
+ *
+ * Routing every send through here means no site can forget the check: on a
+ * Resend error we log the real cause and throw, so a best-effort caller's
+ * own catch records it and a critical flow (verification / reset / invite)
+ * fails loudly instead of reporting success.
+ */
+async function sendResendEmail(payload: CreateEmailOptions) {
+  const { data, error } = await getResend().emails.send(payload);
+  if (error) {
+    console.error("[email] Resend rejected the send:", error);
+    throw new Error(
+      `Email send failed: ${error.message || error.name || "unknown Resend error"}`,
+    );
+  }
+  return data;
 }
 
 const FROM = process.env.EMAIL_FROM || "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. <noreply@ttcivilstructural.com>";
@@ -21,7 +47,7 @@ export async function sendVerificationEmail(email: string, token: string) {
   const verifyUrl = `${APP_URL}/onboarding?token=${token}`;
 
   try {
-    await getResend().emails.send({
+    await sendResendEmail({
       from: FROM,
       to: email,
       subject: "Verify your TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. email",
@@ -61,7 +87,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   const resetUrl = `${APP_URL}/reset-password?token=${token}`;
 
   try {
-    await getResend().emails.send({
+    await sendResendEmail({
       from: FROM,
       to: email,
       subject: "Reset your TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. password",
@@ -147,7 +173,7 @@ export async function sendInvitationEmail(params: InvitationEmailParams) {
   const safeNote = personalMessage ? escapeHtml(personalMessage) : null;
 
   try {
-    await getResend().emails.send({
+    await sendResendEmail({
       from: FROM,
       to: email,
       subject: `${inviterName} invited you to ${workspaceName} on BuildSync`,
@@ -292,7 +318,7 @@ export async function sendTaskAssignedEmail(
     : null;
 
   try {
-    await getResend().emails.send({
+    await sendResendEmail({
       from: FROM,
       to: toEmail,
       subject: `${assignerName} assigned you: ${taskName}`,
@@ -412,7 +438,7 @@ export async function sendFormSubmissionEmail(
     .join("");
 
   try {
-    await getResend().emails.send({
+    await sendResendEmail({
       from: FROM,
       to: toEmail,
       subject: `New submission · ${formName}`,
@@ -528,7 +554,7 @@ export async function sendFormSubmitterReceiptEmail(
     : "";
 
   try {
-    await getResend().emails.send({
+    await sendResendEmail({
       from: FROM,
       to: toEmail,
       subject: `Receipt · ${formName}`,
@@ -597,7 +623,7 @@ export async function sendClientPortalLinkEmail(
     timeZone: "UTC",
   });
   try {
-    await getResend().emails.send({
+    await sendResendEmail({
       from: FROM,
       to: email,
       subject: `Your project portal — ${projectName}`,
@@ -642,7 +668,7 @@ export async function sendClientMessageNotification(
   params: { projectName: string; authorName: string }
 ) {
   const { projectName, authorName } = params;
-  await getResend().emails.send({
+  await sendResendEmail({
     from: FROM,
     to: email,
     subject: `New message from ${authorName} — ${projectName}`,
@@ -687,7 +713,7 @@ export async function sendClientReplyNotification(
   const { projectId, projectName, label, content } = params;
   const url = `${APP_URL}/projects/${projectId}?view=messages`;
   const preview = content.length > 400 ? `${content.slice(0, 400)}…` : content;
-  await getResend().emails.send({
+  await sendResendEmail({
     from: FROM,
     to: email,
     subject: `${label || "Your client"} replied — ${projectName}`,
