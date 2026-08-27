@@ -21,8 +21,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = createSectionSchema.parse(body);
 
-    // Verify user has access to the project
-    await verifyProjectAccess(userId, data.projectId);
+    // Creating a column is a WRITE. Without requireWrite this only proved the
+    // caller could READ the project, so a VIEWER/COMMENTER could add columns.
+    await verifyProjectAccess(userId, data.projectId, { requireWrite: true });
 
     // Get the next position for the section within this project
     const lastSection = await prisma.section.findFirst({

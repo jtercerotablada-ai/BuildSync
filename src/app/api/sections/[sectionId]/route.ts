@@ -32,7 +32,11 @@ export async function PATCH(
     if (!existingSection) {
       return NextResponse.json({ error: "Section not found" }, { status: 404 });
     }
-    await verifyProjectAccess(userId, existingSection.projectId);
+    // Renaming and reordering a column are WRITES. Without requireWrite this
+    // only proved the caller could READ the project.
+    await verifyProjectAccess(userId, existingSection.projectId, {
+      requireWrite: true,
+    });
 
     const body = await req.json();
     const data = updateSectionSchema.parse(body);
@@ -111,8 +115,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Section not found" }, { status: 404 });
     }
 
-    // Verify user has access to the project
-    await verifyProjectAccess(userId, section.projectId);
+    // Deleting a column HARD-DELETES every task in it (below) — the most
+    // destructive verb in the project surface. Without requireWrite this only
+    // proved the caller could READ the project, so any VIEWER/COMMENTER could
+    // permanently destroy a whole column of work.
+    await verifyProjectAccess(userId, section.projectId, { requireWrite: true });
 
     // Delete tasks in this section first, then the section
     await prisma.$transaction([
