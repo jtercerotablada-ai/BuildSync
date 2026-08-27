@@ -337,3 +337,47 @@ describe("isPublicRoute — client share links", () => {
     expect(isPublicRoute("/api/projects")).toBe(false);
   });
 });
+
+/*
+ * Public form submission and workspace invitation are both reached by someone
+ * with NO account — an external submitter holding a form link, or an invitee
+ * holding an emailed token. Behind the auth wall the middleware bounced them to
+ * /login and the whole flow died. These pin that the edge lets them through,
+ * and only them; the handlers stay the real gate for the internal verbs.
+ */
+describe("isPublicRoute — public forms", () => {
+  const formId = "clabc123";
+
+  it("opens the form page and its render/submit/track API", () => {
+    expect(isPublicRoute(`/forms/${formId}`)).toBe(true);
+    expect(isPublicRoute(`/api/forms/${formId}`)).toBe(true);
+    expect(isPublicRoute(`/api/forms/${formId}/submit`)).toBe(true);
+    expect(isPublicRoute(`/api/forms/${formId}/track/sub1`)).toBe(true);
+    expect(isPublicRoute(`/api/forms/${formId}/track/sub1/reply`)).toBe(true);
+  });
+
+  it("does not open a lookalike route by prefix", () => {
+    // The trailing slash keeps the bare collection (list/create) and any
+    // future /formsomething route private.
+    expect(isPublicRoute("/forms")).toBe(false);
+    expect(isPublicRoute("/api/forms")).toBe(false);
+    expect(isPublicRoute("/formstudio")).toBe(false);
+  });
+});
+
+describe("isPublicRoute — workspace invitations", () => {
+  const token = "invite-tok-123";
+
+  it("opens the invite landing page and its resolve/accept API", () => {
+    expect(isPublicRoute(`/invite/${token}`)).toBe(true);
+    expect(isPublicRoute(`/api/invite/${token}`)).toBe(true);
+    expect(isPublicRoute(`/api/invite/${token}/accept`)).toBe(true);
+  });
+
+  it("does not open a lookalike route by prefix", () => {
+    expect(isPublicRoute("/invite")).toBe(false);
+    expect(isPublicRoute("/api/invite")).toBe(false);
+    // /api/workspace/invitations is the internal admin surface, not this.
+    expect(isPublicRoute("/api/workspace/invitations")).toBe(false);
+  });
+});

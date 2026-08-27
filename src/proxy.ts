@@ -36,6 +36,28 @@ const publicPrefixes = [
   // model as the page: the token in the path is the credential, and the
   // route 404s identically for unknown/revoked/expired links.
   "/api/p/",
+  // Public form submission: /forms/<formId> and its render/submit/track API.
+  // The whole point is an external submitter (architect, owner, property
+  // manager) with NO account — behind the auth wall the link bounced to
+  // /login and the entire flow (submit + receipt email + tracking link)
+  // died. Opening the prefix grants no new access: the submit handler gates
+  // on form.visibility, the track handler on a signed token, and every
+  // INTERNAL verb here (form PATCH/DELETE, submissions, export) still calls
+  // getCurrentUserId → 401 and re-checks project access → 403 in-handler.
+  // Same trust model as /p/ above: the middleware only stops being a
+  // redirect; the handler remains the real gate.
+  "/forms/",
+  "/api/forms/",
+  // Workspace invitation landing: /invite/<token> and its resolve/accept API.
+  // The visitor is being invited, so by definition has no session yet — the
+  // token in the path is the credential. The accept handler re-validates it
+  // on every request (unknown → 404, non-pending → 410, expired → 410) and
+  // owns all the branching (create account / sign in / email mismatch). Note
+  // /api/invite/ already sat in clientApiPrefixes below, but that is the
+  // read-only-role allowlist, a different gate — it never exempted these from
+  // the session redirect, which is why the invite flow was unreachable.
+  "/invite/",
+  "/api/invite/",
 ];
 
 // TTC public pages (marketing / informational) - no auth required.
