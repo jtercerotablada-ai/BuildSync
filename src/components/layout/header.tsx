@@ -92,23 +92,6 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           <Menu className="h-[18px] w-[18px]" />
         </button>
 
-        {/* Brand mark on desktop (the mobile logo sits centered below). The
-            header is always light (bg-white), so the dark monogram is correct.
-            Links back to the dashboard home. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <button
-          type="button"
-          aria-label="Tercero Tablada — Home"
-          onClick={() => router.push("/home")}
-          className="hidden md:flex items-center justify-center h-8 w-8 flex-shrink-0"
-        >
-          <img
-            src="/ttc/img/logo-icon-dark.svg"
-            alt="Tercero Tablada"
-            className="h-7 w-7"
-          />
-        </button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

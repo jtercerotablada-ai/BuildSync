@@ -66,6 +66,8 @@ export const company = {
     lockupSize: { w: 2172, h: 827 },
     dark: '/ttc/img/logo-square.png',
     light: '/ttc/img/logo-white.png',
+    /** Intrinsic size of both monogram marks (square), for correct aspect. */
+    markSize: { w: 1254, h: 1254 },
   },
 } as const;
 

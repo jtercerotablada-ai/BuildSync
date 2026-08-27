@@ -182,7 +182,7 @@ body:has(.mp)::before {
     --mp-header-h: 100px;
   }
   .mp-header__lockup {
-    height: clamp(58px, 3.4vw, 68px);
+    height: clamp(46px, 3.2vw, 54px);
   }
   .mp-tool__plate {
     --plate-h: clamp(46px, 3vw, 58px);
@@ -781,10 +781,10 @@ body:has([data-mp-dark-hero])
   color: inherit;
   flex: none;
 }
-/* The lockup is a 2172×827 bitmap; height drives it and width follows the
-   intrinsic ratio, so it never distorts and reserves its box before load. */
+/* The mark is a 1254×1254 square monogram; height drives it and width follows
+   the intrinsic ratio (so it stays square and reserves its box before load). */
 .mp-header__lockup {
-  height: clamp(34px, 3.8vw, 58px);
+  height: clamp(38px, 4.2vw, 48px);
   width: auto;
   object-fit: contain;
   flex: none;
@@ -3852,7 +3852,7 @@ a.mp-info__value:hover {
     --mp-pad: 1rem;
   }
   .mp-header__lockup {
-    height: 26px;
+    height: 32px;
   }
 }
 

@@ -151,23 +151,25 @@ export function SiteHeader() {
             className="mp-header__logo"
             aria-label={`${company.name} — home`}
           >
-            {/* The real horizontal lockup already contains the wordmark and
-                the tagline — do not pair the monogram with typed text. */}
+            {/* Compact square monogram (no wordmark) — the two are swapped by
+                header state: the dark mark on the light/stuck header, the white
+                mark on the dark hero. (.mp-header__lockup keeps its name; it
+                now carries the mark, not the horizontal lockup.) */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={company.logo.lockupDark}
+              src={company.logo.dark}
               alt=""
-              width={company.logo.lockupSize.w}
-              height={company.logo.lockupSize.h}
+              width={company.logo.markSize.w}
+              height={company.logo.markSize.h}
               className="mp-header__lockup mp-header__lockup--dark"
               aria-hidden="true"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={company.logo.lockupLight}
+              src={company.logo.light}
               alt=""
-              width={company.logo.lockupSize.w}
-              height={company.logo.lockupSize.h}
+              width={company.logo.markSize.w}
+              height={company.logo.markSize.h}
               className="mp-header__lockup mp-header__lockup--light"
               aria-hidden="true"
             />
