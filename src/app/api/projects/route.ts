@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getLevel } from "@/lib/people-types";
+import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 import { getTemplateById } from "@/lib/templates-data";
 import { readJson, jsonErrorResponse } from "@/lib/http";
 
@@ -150,39 +150,11 @@ export async function GET(req: Request) {
     //
     // We fetch each WorkspaceMember row and build a visibility
     // clause specific to that workspace, then OR them.
-    const memberships = await prisma.workspaceMember.findMany({
-      where: { userId },
-      include: {
-        user: { select: { position: true } },
-      },
-    });
-
-    if (memberships.length === 0) {
+    // Shared with /api/mentions and /api/search — see @/lib/project-visibility.
+    const visibilityClauses = await buildProjectVisibilityClauses(userId);
+    if (!visibilityClauses) {
       return NextResponse.json([]);
     }
-
-    const visibilityClauses = memberships.map((m) => {
-      const role = m.role;
-      const level = getLevel(m.user.position);
-      // L4+ rules vary by role: OWNER and ADMIN always see all
-      // workspace projects; MEMBER/WORKER/GUEST need Position
-      // level >= 4 OR explicit project membership.
-      const isWorkspaceLeadership = role === "OWNER" || role === "ADMIN";
-      const seesAllInWorkspace = isWorkspaceLeadership || level >= 4;
-
-      if (seesAllInWorkspace) {
-        return { workspaceId: m.workspaceId };
-      }
-
-      return {
-        workspaceId: m.workspaceId,
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId } } },
-          { visibility: "PUBLIC" as const },
-        ],
-      };
-    });
 
     const where: Prisma.ProjectWhereInput = {
       AND: [

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import {
+  buildProjectVisibilityClauses,
+  taskPrivacyClause,
+  teamVisibilityClause,
+} from "@/lib/project-visibility";
 
 // GET /api/search?q=query - Unified search across tasks, projects, teams, users
 export async function GET(req: Request) {
@@ -18,12 +23,23 @@ export async function GET(req: Request) {
       return NextResponse.json({ tasks: [], projects: [], teams: [], users: [] });
     }
 
-    // Get user's workspaces
+    // Scoping by workspace alone listed the NAMES of projects the caller
+    // cannot open — PRIVATE ones, and archived ones the sidebar hides — plus
+    // their tasks. Use the same visibility rule the project list and mentions
+    // use, and drop archived projects and other people's private tasks.
+    const visibilityClauses = await buildProjectVisibilityClauses(userId);
+    if (!visibilityClauses) {
+      return NextResponse.json({ tasks: [], projects: [], teams: [], users: [] });
+    }
+    const visibleProject = {
+      isArchived: false,
+      OR: visibilityClauses,
+    };
+
     const userWorkspaces = await prisma.workspaceMember.findMany({
       where: { userId },
       select: { workspaceId: true },
     });
-
     const workspaceIds = userWorkspaces.map((w) => w.workspaceId);
 
     // Search in parallel
@@ -32,9 +48,8 @@ export async function GET(req: Request) {
       prisma.task.findMany({
         where: {
           name: { contains: query, mode: "insensitive" },
-          project: {
-            workspaceId: { in: workspaceIds },
-          },
+          project: visibleProject,
+          ...taskPrivacyClause(userId),
         },
         select: {
           id: true,
@@ -49,7 +64,7 @@ export async function GET(req: Request) {
       // Projects
       prisma.project.findMany({
         where: {
-          workspaceId: { in: workspaceIds },
+          ...visibleProject,
           name: { contains: query, mode: "insensitive" },
         },
         select: {
@@ -65,6 +80,7 @@ export async function GET(req: Request) {
         where: {
           workspaceId: { in: workspaceIds },
           name: { contains: query, mode: "insensitive" },
+          ...teamVisibilityClause(userId),
         },
         select: {
           id: true,

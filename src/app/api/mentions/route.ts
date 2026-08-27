@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
-import { getLevel } from "@/lib/people-types";
+import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 
 // GET /api/mentions - Get comments mentioning the current user
 export async function GET(req: Request) {
@@ -21,36 +21,12 @@ export async function GET(req: Request) {
     // everyone else only sees projects they own, are a member of, or PUBLIC.
     // Scoping mentions by workspace alone leaked comment text (and a 404 link)
     // for @-mentions in PRIVATE projects the user isn't a member of.
-    const memberships = await prisma.workspaceMember.findMany({
-      where: { userId },
-      include: {
-        user: { select: { position: true } },
-      },
-    });
-
-    if (memberships.length === 0) {
+    // Shared with GET /api/projects and /api/search — see
+    // @/lib/project-visibility.
+    const projectVisibilityClauses = await buildProjectVisibilityClauses(userId);
+    if (!projectVisibilityClauses) {
       throw new AuthorizationError("No workspace found");
     }
-
-    const projectVisibilityClauses = memberships.map((m) => {
-      const role = m.role;
-      const level = getLevel(m.user.position);
-      const isWorkspaceLeadership = role === "OWNER" || role === "ADMIN";
-      const seesAllInWorkspace = isWorkspaceLeadership || level >= 4;
-
-      if (seesAllInWorkspace) {
-        return { workspaceId: m.workspaceId };
-      }
-
-      return {
-        workspaceId: m.workspaceId,
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId } } },
-          { visibility: "PUBLIC" as const },
-        ],
-      };
-    });
 
     // Search for comments that contain the user's ID in a data-user-id attribute
     // The mention format is: <span data-user-id="userId">@Name</span>

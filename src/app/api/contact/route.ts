@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -12,6 +13,18 @@ const FROM = process.env.EMAIL_FROM || "TERCERO TABLADA CIVIL AND STRUCTURAL ENG
 
 export async function POST(request: Request) {
   try {
+    // Unauthenticated and it sends email through the firm's Resend domain, so
+    // it is a spam relay without a bound — both into Juan's inbox and against
+    // the sending domain's reputation. Same limiter the auth routes use.
+    const ip = clientIp(request.headers);
+    const limited = rateLimit(`contact:${ip}`, 5, 15 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Too many messages. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } }
+      );
+    }
+
     const body = await request.json();
     const { name, email, phone, service, message, files } = body;
 

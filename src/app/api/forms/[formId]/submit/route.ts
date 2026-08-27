@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { uploadFile } from "@/lib/storage";
 import {
   type FormField,
@@ -68,6 +69,31 @@ export async function POST(
   try {
     const { formId } = await params;
 
+    // Unauthenticated, and it both SENDS EMAIL (submitter receipt + firm
+    // notification, through the firm's own sending domain) and CREATES a Task +
+    // FormSubmission row per call. Without a bound, anyone holding a PUBLIC
+    // form URL can loop it to deliver attacker-chosen text to arbitrary
+    // addresses and bury the project in junk.
+    // (See the note in @/lib/rate-limit: this is per-instance on serverless, so
+    // it slows a naive source rather than stopping a distributed one.)
+    //
+    // Keyed by USER when signed in: a whole office shares one public IP, so a
+    // per-IP bucket would let three engineers filing intake forms lock each
+    // other out. Anonymous traffic — the abusable path — stays per-IP.
+    const submitterUserId = await getCurrentUserId();
+    const submitLimit = submitterUserId
+      ? rateLimit(`form-submit:u:${submitterUserId}`, 30, 10 * 60 * 1000)
+      : rateLimit(`form-submit:${clientIp(req.headers)}`, 10, 10 * 60 * 1000);
+    if (!submitLimit.ok) {
+      return NextResponse.json(
+        { error: "Too many submissions. Please try again in a few minutes." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(submitLimit.retryAfter) },
+        }
+      );
+    }
+
     const form = await prisma.form.findUnique({
       where: { id: formId },
       include: {
@@ -88,7 +114,6 @@ export async function POST(
     }
 
     // ── Visibility enforcement ────────────────────────────────
-    const submitterUserId = await getCurrentUserId();
     if (form.visibility === "ORGANIZATION" && !submitterUserId) {
       return NextResponse.json(
         {

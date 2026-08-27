@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   Plus,
   Bold,
@@ -44,7 +45,14 @@ import { Input } from '@/components/ui/input';
 import DOMPurify from 'dompurify';
 import { cn } from '@/lib/utils';
 
-const STORAGE_KEY = 'buildsync-private-notepad';
+// SCOPED BY USER. This was a single global key, so on a shared office browser
+// user B signing in after user A was shown A's private note — and the moment B
+// typed one character the combined body was saved to B's account under
+// /api/workspace/notes, disclosing A's note and overwriting B's. The server
+// note is the source of truth; this cache only exists to survive a refresh
+// inside the 2s save debounce, so a per-user key costs nothing.
+const STORAGE_KEY_PREFIX = 'buildsync-private-notepad';
+const storageKeyFor = (userId: string) => `${STORAGE_KEY_PREFIX}:${userId}`;
 const NOTEPAD_TITLE = '__home_private_notepad__';
 
 // Emoji picker data
@@ -69,6 +77,18 @@ const emojiCategories = [
 
 // Size / Remove handled by WidgetContainer — no props needed.
 export function PrivateNotepadWidget() {
+  // No session (or not resolved yet) ⇒ no local cache at all. Falling back to
+  // an unscoped key is exactly the bug above, so we simply skip the cache.
+  const { data: session, status: sessionStatus } = useSession();
+  const storageKey = session?.user?.id ? storageKeyFor(session.user.id) : null;
+  // The callbacks below are deliberately dependency-free (they are the base of
+  // a long useCallback chain), so they read the key through a ref: a plain
+  // closure would capture the FIRST render's value, which is null until the
+  // session resolves, and silently disable the cache for the whole page load.
+  const storageKeyRef = useRef<string | null>(storageKey);
+  useEffect(() => {
+    storageKeyRef.current = storageKey;
+  }, [storageKey]);
   const [content, setContent] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
@@ -138,6 +158,9 @@ export function PrivateNotepadWidget() {
 
   // Load saved content from API (with localStorage fallback for offline / unauthenticated)
   useEffect(() => {
+    // Wait for the session: loading the note before it resolves would read the
+    // cache under a null key and drop edits made inside the save debounce.
+    if (sessionStatus === 'loading') return;
     let cancelled = false;
     (async () => {
       let apiFailed = false;
@@ -158,7 +181,10 @@ export function PrivateNotepadWidget() {
             // right before a refresh (inside the 2s debounce). Prefer it when
             // it's newer than the server note so those keystrokes survive.
             let content = serverContent;
-            const cached = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+            const cached =
+              typeof window !== 'undefined' && storageKey
+                ? localStorage.getItem(storageKey)
+                : null;
             if (cached) {
               try {
                 const data = JSON.parse(cached);
@@ -190,7 +216,10 @@ export function PrivateNotepadWidget() {
       if (cancelled) return;
 
       // Fall back to localStorage if API failed or no note exists yet
-      const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+      const saved =
+        typeof window !== 'undefined' && storageKey
+          ? localStorage.getItem(storageKey)
+          : null;
       if (saved) {
         try {
           const data = JSON.parse(saved);
@@ -212,7 +241,8 @@ export function PrivateNotepadWidget() {
       setIsLoaded(true);
     })();
     return () => { cancelled = true; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus]);
 
   // The skeleton early-return keeps the editor unmounted while loading, so
   // push the loaded note into it once it exists (one-shot).
@@ -229,10 +259,11 @@ export function PrivateNotepadWidget() {
     if (content === lastSavedContentRef.current) return;
 
     // Always cache locally so the note isn't lost if the API call fails
-    if (typeof window !== 'undefined') {
+    const storageKey = storageKeyRef.current;
+    if (typeof window !== 'undefined' && storageKey) {
       try {
         localStorage.setItem(
-          STORAGE_KEY,
+          storageKey,
           JSON.stringify({ content, savedAt: new Date().toISOString() })
         );
       } catch {
@@ -376,13 +407,16 @@ export function PrivateNotepadWidget() {
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
       // Synchronous cache — a refresh inside the 2s debounce must not lose keystrokes
-      try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ content: newContent, savedAt: new Date().toISOString() })
-        );
-      } catch {
-        // ignore
+      const storageKey = storageKeyRef.current;
+      if (storageKey) {
+        try {
+          localStorage.setItem(
+            storageKey,
+            JSON.stringify({ content: newContent, savedAt: new Date().toISOString() })
+          );
+        } catch {
+          // ignore
+        }
       }
     }
   }, []);
