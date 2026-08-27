@@ -144,7 +144,7 @@ export function AddKeyResultInline({
               onChange={(e) =>
                 setStart(parseFloat(e.target.value) || 0)
               }
-              disabled={saving}
+              disabled={saving || format === "BOOLEAN"}
               className="h-8 text-sm"
             />
           </div>
@@ -159,7 +159,7 @@ export function AddKeyResultInline({
               onChange={(e) =>
                 setTarget(parseFloat(e.target.value) || 0)
               }
-              disabled={saving}
+              disabled={saving || format === "BOOLEAN"}
               className="h-8 text-sm"
             />
           </div>
@@ -169,9 +169,18 @@ export function AddKeyResultInline({
             </label>
             <Select
               value={format}
-              onValueChange={(v) =>
-                setFormat(v as typeof format)
-              }
+              onValueChange={(v) => {
+                const next = v as typeof format;
+                setFormat(next);
+                // A Yes / No key result is measured 0 → 1; keeping the
+                // numeric default of 100 makes the row read "No / Yes"
+                // and progress never reaches 100%.
+                if (next === "BOOLEAN") {
+                  setStart(0);
+                  setTarget(1);
+                  setUnit("");
+                }
+              }}
               disabled={saving}
             >
               <SelectTrigger className="h-8 text-sm">
@@ -199,7 +208,7 @@ export function AddKeyResultInline({
               }
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
-              disabled={saving}
+              disabled={saving || format === "BOOLEAN"}
               className="h-8 text-sm"
             />
           </div>

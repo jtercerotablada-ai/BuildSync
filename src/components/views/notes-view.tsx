@@ -306,7 +306,16 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
   const [fmt, setFmt] = useState<FmtState>(DEFAULT_FMT);
 
   // Menus / popovers
-  const [blockMenu, setBlockMenu] = useState<(MenuPos & { fromSlash: boolean; query: string; index: number }) | null>(null);
+  const [blockMenu, setBlockMenu] = useState<
+    | (MenuPos & {
+        fromSlash: boolean;
+        query: string;
+        index: number;
+        anchorEl: HTMLElement | null;
+        gap: number;
+      })
+    | null
+  >(null);
   const [linkPop, setLinkPop] = useState<(MenuPos & { url: string }) | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -999,9 +1008,16 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
 
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
 
-  const openBlockMenuAt = useCallback((pos: MenuPos, fromSlash: boolean) => {
-    setBlockMenu({ ...pos, fromSlash, query: "", index: 0 });
-  }, []);
+  // `anchorEl` is the element the menu hangs under (the "+" buttons); slash
+  // menus pass null because their anchor is the live caret, which is
+  // re-measured from the selection. `gap` is the px below the anchor, kept so
+  // a re-anchor after a scroll reproduces the offset the menu opened with.
+  const openBlockMenuAt = useCallback(
+    (pos: MenuPos, fromSlash: boolean, anchorEl: HTMLElement | null, gap: number) => {
+      setBlockMenu({ ...pos, fromSlash, query: "", index: 0, anchorEl, gap });
+    },
+    []
+  );
 
   const pickBlockItem = useCallback(
     (item: { action: BlockAction }) => {
@@ -1035,8 +1051,49 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
         setLinkPop(null);
       }
     };
+    // Both popovers are position:fixed at a caret/button rect captured when
+    // they opened, so a scroll or resize would leave them floating away from
+    // their anchor. The block menu follows its anchor instead of closing:
+    // scrolls fire for every scroller in the page — including the editor
+    // scrolling the caret into view while the user types the "/" query, and
+    // note-body scrolls that don't move the toolbar "+" at all — so dismissing
+    // on them would kill the menu the user is actively driving.
+    const onReflow = () => {
+      setBlockMenu((m) => {
+        if (!m) return m;
+        let rect: DOMRect | null = null;
+        if (m.fromSlash) {
+          const sel = window.getSelection();
+          const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+          if (range && editorRef.current?.contains(range.commonAncestorContainer)) {
+            const r = range.getBoundingClientRect();
+            // A collapsed range in an empty node measures as all zeros; that
+            // would fling the menu to the top-left, so keep the last position.
+            if (r.width || r.height || r.left || r.top) rect = r;
+            else return m;
+          }
+        } else if (m.anchorEl?.isConnected) {
+          rect = m.anchorEl.getBoundingClientRect();
+        }
+        // Anchor is gone (caret left the editor, trigger unmounted) — there is
+        // nothing left to point at, so closing is the only honest option.
+        if (!rect) return null;
+        const y = rect.bottom + m.gap;
+        // Scrolls elsewhere in the page leave the anchor where it was; keeping
+        // the same object then avoids a re-render per scroll event.
+        if (rect.left === m.x && y === m.y) return m;
+        return { ...m, x: rect.left, y };
+      });
+      setLinkPop(null);
+    };
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    window.addEventListener("scroll", onReflow, true);
+    window.addEventListener("resize", onReflow);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
+    };
   }, [blockMenu, linkPop]);
 
   const updateSlashQuery = useCallback(() => {
@@ -1113,7 +1170,7 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
           const sel = window.getSelection();
           if (!sel || sel.rangeCount === 0) return;
           const rect = sel.getRangeAt(0).getBoundingClientRect();
-          openBlockMenuAt({ x: rect.left, y: rect.bottom + 6 }, true);
+          openBlockMenuAt({ x: rect.left, y: rect.bottom + 6 }, true, null, 6);
         }, 0);
       }
     },
@@ -1268,8 +1325,9 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
               closeBlockMenu();
               return;
             }
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            openBlockMenuAt({ x: rect.left, y: rect.bottom + 4 }, false);
+            const trigger = e.currentTarget as HTMLElement;
+            const rect = trigger.getBoundingClientRect();
+            openBlockMenuAt({ x: rect.left, y: rect.bottom + 4 }, false, trigger, 4);
           }}
         />
         <Sep />
@@ -1529,9 +1587,10 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
                           closeBlockMenu();
                           return;
                         }
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const trigger = e.currentTarget as HTMLElement;
+                        const rect = trigger.getBoundingClientRect();
                         editorRef.current?.focus();
-                        openBlockMenuAt({ x: rect.left, y: rect.bottom + 4 }, false);
+                        openBlockMenuAt({ x: rect.left, y: rect.bottom + 4 }, false, trigger, 4);
                       }}
                       className="absolute -left-8 top-0 flex h-6 w-6 items-center justify-center rounded-[4px] text-[#55585D] hover:bg-[#F7F7F7]"
                     >
@@ -1628,7 +1687,18 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
         <div
           data-bs-popover
           className="fixed z-50 w-56 rounded-[8px] border border-[#E0E1E3] bg-white py-1 shadow-lg"
-          style={{ left: blockMenu.x, top: blockMenu.y }}
+          style={{
+            left: Math.max(8, Math.min(blockMenu.x, window.innerWidth - 232)),
+            // Anchored at the caret, so on the last line of a long note the
+            // bottom items would fall off-screen with no way to scroll to them.
+            // The clamp uses the full item count, not the filtered one: a
+            // height that shrinks with the "/" query would move the menu out
+            // from under the caret between keystrokes.
+            top: Math.max(
+              8,
+              Math.min(blockMenu.y, window.innerHeight - (30 + BLOCK_ITEMS.length * 30) - 8)
+            ),
+          }}
         >
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-[#9A9C9F]">Insert</p>
           {filteredBlocks.length === 0 && (

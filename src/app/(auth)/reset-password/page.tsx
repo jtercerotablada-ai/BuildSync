@@ -10,12 +10,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/co
 import { CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { validatePassword } from "@/lib/password-policy";
 
+// Scores exactly the four rules validatePassword enforces, so the meter can
+// never call a password "Good" that the API then rejects.
+// See src/lib/password-policy.ts.
 function getPasswordStrength(password: string): number {
   let score = 0;
   if (password.length >= 8) score++;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+  if (/[A-Z]/.test(password)) score++;
   if (/\d/.test(password)) score++;
-  if (/[^a-zA-Z0-9]/.test(password)) score++;
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
   return score;
 }
 
@@ -149,7 +152,7 @@ function ResetPasswordForm() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
+                placeholder="8+ characters, 1 uppercase, 1 number, 1 symbol"
                 required
               />
               <button

@@ -41,46 +41,88 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
  * starring on one tab left the other showing a hollow star.
  */
 export function useTeamStar(teamId: string) {
-  const {
-    value: starredTeams,
-    setValue: setStarredTeams,
-    isHydrated,
-  } = useUiState<Record<string, boolean>>("starredTeams", {});
+  const { value: starredTeams, setValue: setStarredTeams } = useUiState<
+    Record<string, boolean>
+  >("starredTeams", {});
 
   // One-time fold of the old browser-local store — an array of team ids
   // under "teams.starred", written by the Overview cover before both
-  // surfaces agreed — so nobody's existing stars disappear. Removing the
+  // surfaces agreed — so nobody's existing stars disappear. Dropping the
   // key makes this a no-op on every later mount.
+  //
+  // The preferences GET is read directly rather than folding into the hook's
+  // value: `isHydrated` flips as soon as the localStorage cache is applied,
+  // while the server request is still in flight, so folding then would run
+  // against an empty map — hiding the stars saved on another device for the
+  // rest of the session and re-starring teams that were un-starred there.
+  // The legacy key is only dropped once we have something to fold it into,
+  // so an offline visit can still migrate on the next mount.
   useEffect(() => {
-    if (!isHydrated || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
     let legacy: unknown;
     try {
       const raw = localStorage.getItem("teams.starred");
       if (!raw) return;
       legacy = JSON.parse(raw);
-      localStorage.removeItem("teams.starred");
     } catch {
+      try {
+        localStorage.removeItem("teams.starred");
+      } catch {
+        // Storage disabled — nothing to clean up.
+      }
       return;
     }
-    if (!Array.isArray(legacy) || legacy.length === 0) return;
-    setStarredTeams((prev) => {
-      const next = { ...prev };
-      for (const id of legacy as unknown[]) {
-        if (typeof id === "string") next[id] = true;
+    const legacyIds = Array.isArray(legacy)
+      ? (legacy as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    const dropLegacy = () => {
+      try {
+        localStorage.removeItem("teams.starred");
+      } catch {
+        // Storage disabled — the fold above is idempotent anyway.
       }
-      return next;
-    });
-  }, [isHydrated, setStarredTeams]);
+    };
+    if (legacyIds.length === 0) {
+      dropLegacy();
+      return;
+    }
+    let canceled = false;
+    fetch("/api/users/preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (canceled || !data) return;
+        const server = (data.uiState?.starredTeams ?? {}) as Record<
+          string,
+          boolean
+        >;
+        const merged = { ...server };
+        let changed = false;
+        for (const id of legacyIds) {
+          // `undefined` only — a stored `false` is a deliberate un-star.
+          if (merged[id] === undefined) {
+            merged[id] = true;
+            changed = true;
+          }
+        }
+        if (changed) setStarredTeams(merged);
+        dropLegacy();
+      })
+      .catch(() => {
+        // Offline — keep the legacy key and try again on the next mount.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [setStarredTeams]);
 
-  const isStarred = !!starredTeams[teamId];
+  // An un-star is stored as an explicit `false`, never as a missing key: PATCH
+  // /api/users/preferences merges object-valued uiState keys one level deep,
+  // so a deleted key is restored from the stored map and the un-star would
+  // never reach the server.
+  const isStarred = starredTeams[teamId] === true;
 
   const toggleStar = useCallback(() => {
-    setStarredTeams((prev) => {
-      const next = { ...prev };
-      if (next[teamId]) delete next[teamId];
-      else next[teamId] = true;
-      return next;
-    });
+    setStarredTeams((prev) => ({ ...prev, [teamId]: prev[teamId] !== true }));
   }, [teamId, setStarredTeams]);
 
   return { isStarred, toggleStar };

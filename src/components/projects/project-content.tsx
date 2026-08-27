@@ -60,7 +60,11 @@ import {
 } from "@/lib/project-views";
 import { useUiState } from "@/hooks/use-ui-state";
 import { isThisWeek } from "date-fns";
-import { dueDateToLocalMidnight, daysFromToday } from "@/lib/date-only";
+import {
+  dueDateToLocalMidnight,
+  daysFromToday,
+  startOfLocalDay,
+} from "@/lib/date-only";
 import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
 import { TimelineView } from "@/components/views/timeline-view";
@@ -234,7 +238,15 @@ function groupOf(
     case "created_at": {
       if (!task.createdAt)
         return { key: "c:none", label: "Unknown", order: 99 };
-      const daysSince = -daysFromToday(task.createdAt);
+      // createdAt is a real timestamp, not a UTC-midnight date-only value, so
+      // it must be bucketed by its LOCAL calendar day — daysFromToday reads
+      // the UTC day and would file last night's task under "Today" while the
+      // Creation-date column (formatted locally) prints yesterday.
+      const daysSince = Math.round(
+        (startOfLocalDay().getTime() -
+          startOfLocalDay(new Date(task.createdAt)).getTime()) /
+          86400000
+      );
       if (daysSince <= 0) return { key: "c:today", label: "Today", order: 0 };
       if (daysSince === 1)
         return { key: "c:yesterday", label: "Yesterday", order: 1 };
@@ -391,13 +403,11 @@ export function ProjectContent({
     if (!starsHydrated) return;
     const next = !isStarred;
     // Functional form so the merge is against the freshest map rather than
-    // whatever this render closed over.
-    setStarredProjects((prev) => {
-      const updated = { ...prev };
-      if (next) updated[project.id] = true;
-      else delete updated[project.id];
-      return updated;
-    });
+    // whatever this render closed over. Removing the star has to be written
+    // as `false` instead of dropping the key: PATCH /api/users/preferences
+    // merges object-valued uiState keys one level deep, so an absent key is
+    // restored from the stored map and the un-star would never persist.
+    setStarredProjects((prev) => ({ ...prev, [project.id]: next }));
     toast.success(next ? "Added to favorites" : "Removed from favorites");
   };
 

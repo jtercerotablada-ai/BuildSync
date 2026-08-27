@@ -308,6 +308,7 @@ export async function PATCH(
       where: { id: taskId },
       select: {
         name: true,
+        description: true,
         completed: true,
         projectId: true,
         sectionId: true,
@@ -389,10 +390,16 @@ export async function PATCH(
 
     if (data.description !== undefined) {
       updateData.description = data.description;
-      activities.push({
-        type: "TASK_DESCRIPTION_CHANGED",
-        data: {},
-      });
+      // Only log a real edit. The editor seeds its textarea with "" for a task
+      // that has no description, so a focus-then-blur arrives as "" against a
+      // stored null — which used to append a "changed the description" row on
+      // every pass through the field and drowned the rest of the feed.
+      if ((data.description ?? "") !== (existingTask.description ?? "")) {
+        activities.push({
+          type: "TASK_DESCRIPTION_CHANGED",
+          data: {},
+        });
+      }
     }
 
     if (data.completed !== undefined && data.completed !== existingTask.completed) {
@@ -639,15 +646,15 @@ export async function PATCH(
       return updated;
     });
 
-    // Create activity logs
-    for (const activity of activities) {
-      await prisma.activity.create({
-        data: {
+    // Create activity logs — one round trip, not one per entry.
+    if (activities.length > 0) {
+      await prisma.activity.createMany({
+        data: activities.map((activity) => ({
           type: activity.type as "TASK_CREATED" | "TASK_COMPLETED" | "TASK_UNCOMPLETED" | "TASK_ASSIGNED" | "TASK_UNASSIGNED" | "TASK_MOVED" | "TASK_RENAMED" | "TASK_DESCRIPTION_CHANGED" | "DUE_DATE_CHANGED" | "COMMENT_ADDED" | "ATTACHMENT_ADDED" | "CUSTOM_FIELD_CHANGED" | "SUBTASK_ADDED" | "DEPENDENCY_ADDED",
           taskId,
           userId,
           data: activity.data as object,
-        },
+        })),
       });
     }
 

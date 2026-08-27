@@ -342,7 +342,8 @@ export function AddFieldFlow({
                       />
                       <button
                         onClick={() => handleRemoveOption(option.id)}
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        disabled={options.length <= 1}
+                        className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:hover:text-gray-400"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -366,7 +367,7 @@ export function AddFieldFlow({
                   <Label className="text-sm">
                     Source <span className="text-black">*</span>
                   </Label>
-                  <div className="grid grid-cols-4 gap-2 mt-2">
+                  <div className="grid grid-cols-2 gap-2 mt-2">
                     {referenceSourceOptions.map((source) => {
                       const Icon = source.icon;
                       const isSelected = referenceSource === source.id;

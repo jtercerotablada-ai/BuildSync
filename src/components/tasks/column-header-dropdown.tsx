@@ -235,11 +235,37 @@ const ColumnDropdown = forwardRef<
   }
 >(function ColumnDropdown({ config, callbacks, hasContextItems, onClose }, ref) {
   const [openSub, setOpenSub] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [align, setAlign] = useState<"left" | "right">("left");
+
+  // The narrow columns at the right end of the grid (110px) are far thinner
+  // than this 220px menu, so anchoring it at their left edge runs it off the
+  // scroll container and grows the table's horizontal scrollbar. Same
+  // measure-then-flip the submenus already do, in a layout effect so the side
+  // is settled before the browser paints.
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.right > window.innerWidth - 8) setAlign("right");
+  }, []);
+
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      menuRef.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref]
+  );
 
   return (
     <div
-      ref={ref}
-      className="absolute left-0 top-[calc(100%+4px)] bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 py-1.5 z-50 min-w-[220px] animate-in fade-in slide-in-from-top-1 duration-150"
+      ref={setRefs}
+      className={cn(
+        "absolute top-[calc(100%+4px)] bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 py-1.5 z-50 min-w-[220px] animate-in fade-in slide-in-from-top-1 duration-150",
+        align === "right" ? "right-0" : "left-0"
+      )}
     >
       {/* Edit field — Asana shows this as the FIRST item for every
           column (and as "Editar campo" en español). For built-in

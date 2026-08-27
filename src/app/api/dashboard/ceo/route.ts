@@ -327,11 +327,18 @@ export async function GET(request: Request) {
     // utilization figure here and the per-member load further down. Each
     // used to scan the whole open-task set on its own — one with `distinct`,
     // one pulling every row into memory just to tally it in JS.
-    const openTaskCounts = await prisma.task.groupBy({
-      by: ["assigneeId"],
-      where: { ...taskWhere, completedAt: null, assigneeId: { not: null } },
-      _count: { _all: true },
-    });
+    const [openTaskCounts, pendingSignatures] = await Promise.all([
+      prisma.task.groupBy({
+        by: ["assigneeId"],
+        where: { ...taskWhere, completedAt: null, assigneeId: { not: null } },
+        _count: { _all: true },
+      }),
+      // The "P.E. Sign Queue" tile: approvals still waiting on someone. It
+      // used to be hardcoded to 0, so Home always claimed an empty queue.
+      prisma.task.count({
+        where: { ...taskWhere, completedAt: null, taskType: "APPROVAL" },
+      }),
+    ]);
     const loadByUser = new Map<string, number>();
     for (const row of openTaskCounts) {
       if (row.assigneeId) loadByUser.set(row.assigneeId, row._count._all);
@@ -425,7 +432,7 @@ export async function GET(request: Request) {
         // Hide totalBudget from L1–L3.
         totalBudget: isFinanceAllowed ? totalBudget : 0,
         currency,
-        pendingSignatures: 0, // Placeholder
+        pendingSignatures,
         teamUtilization: utilization,
       },
       team,

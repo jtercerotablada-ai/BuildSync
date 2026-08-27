@@ -46,6 +46,7 @@ import type {
   FilterField,
 } from "@/components/tasks/filter-panel";
 import type { SortState, SortField } from "@/components/tasks/sort-panel";
+import { BUILTIN_FIELDS } from "@/lib/field-types";
 import type {
   GroupConfig,
   GroupField,
@@ -217,7 +218,7 @@ export function OptionsDrawer({
           onViewNameChange={onViewNameChange}
           hiddenColumnsCount={hiddenColumns.size}
           activeFilterCount={activeFilters.filter(isCompleteFilter).length}
-          hasSort={sort.field !== "none"}
+          hasSort={sort.field !== "none" || !!sort.columnId}
           activeGroupsCount={groups.filter((g) => g.field !== "none").length}
         />
       )}
@@ -668,7 +669,7 @@ function SortView({
       </div>
 
       <div className="overflow-y-auto flex-1">
-        {sort.field !== "none" && (
+        {(sort.field !== "none" || sort.columnId) && (
           <div className="px-5 pb-3">
             <p className="text-[11px] font-medium uppercase tracking-wider text-gray-400 mb-2">
               Active
@@ -676,7 +677,11 @@ function SortView({
             <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-[#c9a84c]/10">
               <ArrowUpDown className="w-3.5 h-3.5 text-[#a8893a]" />
               <span className="flex-1 text-[13px] text-gray-800">
-                {SORT_FIELDS.find((f) => f.field === sort.field)?.label || sort.field}
+                {/* A column-header sort leaves `field` at "none" and carries the
+                    column in `columnId` — resolve its label so it is clearable here. */}
+                {sort.columnId
+                  ? BUILTIN_FIELDS.find((f) => f.id === sort.columnId)?.label || "Column"
+                  : SORT_FIELDS.find((f) => f.field === sort.field)?.label || sort.field}
               </span>
               <span className="text-[11px] text-gray-500 uppercase">
                 {sort.direction}

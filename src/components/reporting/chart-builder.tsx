@@ -322,6 +322,9 @@ export function ChartBuilder({
   const [customFields, setCustomFields] = useState<
     { id: string; name: string; type: string }[]
   >([]);
+  // Widening the scope past a single project empties customFields, so a chart
+  // already grouped by cf:<id> would lose its dropdown label. Remember names.
+  const cfLabelsRef = useRef<Record<string, string>>({});
 
   // Live-preview state.
   const [preview, setPreview] = useState<ChartQueryResponse | null>(null);
@@ -408,6 +411,7 @@ export function ChartBuilder({
               };
             }
           ).filter((d: { id: string }) => d.id);
+          for (const d of defs) cfLabelsRef.current[d.id] = d.name;
           setCustomFields(defs);
         } else if (!cancelled) {
           setCustomFields([]);
@@ -526,6 +530,12 @@ export function ChartBuilder({
       if (!MULTI_SERIES_CHART_TYPES.includes(chartType)) {
         next.breakdown = undefined;
       }
+      // Donut and number cards render a single measure. Keeping the extras
+      // around made the engine emit m0/m1, which the ring silently ignored
+      // (and which cost it its slice colours).
+      if (chartType === "donut" || chartType === "number") {
+        next.measures = c.measures.slice(0, 1);
+      }
       // Chronological types want a date dimension by default (only tasks
       // have a date dimension). Nudge the user there if we can.
       if (
@@ -552,9 +562,19 @@ export function ChartBuilder({
       for (const cf of customFields) {
         base.push({ value: `cf:${cf.id}`, label: cf.name });
       }
+      const selected = config.dimension?.field;
+      if (
+        selected?.startsWith("cf:") &&
+        !base.some((o) => o.value === selected)
+      ) {
+        base.push({
+          value: selected,
+          label: cfLabelsRef.current[selected.slice(3)] ?? "Custom field",
+        });
+      }
     }
     return base;
-  }, [config.entity, customFields]);
+  }, [config.entity, customFields, config.dimension?.field]);
 
   const measureOptions = useMemo<CatalogOption[]>(() => {
     const base = [...measuresForEntity(config.entity)];
@@ -565,12 +585,21 @@ export function ChartBuilder({
           base.push({ value: `cf:${cf.id}`, label: cf.name });
         }
       }
+      for (const m of config.measures) {
+        if (m.field.startsWith("cf:") && !base.some((o) => o.value === m.field)) {
+          base.push({
+            value: m.field,
+            label: cfLabelsRef.current[m.field.slice(3)] ?? "Custom field",
+          });
+        }
+      }
     }
     return base;
-  }, [config.entity, customFields]);
+  }, [config.entity, customFields, config.measures]);
 
   const isNumberCard = config.chartType === "number";
   const isMultiSeries = MULTI_SERIES_CHART_TYPES.includes(config.chartType);
+  const isDonut = config.chartType === "donut";
   const dimField = config.dimension?.field;
   const isDateDim = dimField === "date";
 
@@ -916,7 +945,7 @@ export function ChartBuilder({
                   </div>
                 );
               })}
-              {!isNumberCard && !isMultiSeries && config.measures.length < 4 && (
+              {!isNumberCard && !isMultiSeries && !isDonut && config.measures.length < 4 && (
                 <button
                   type="button"
                   onClick={addMeasure}

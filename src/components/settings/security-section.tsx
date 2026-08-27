@@ -105,7 +105,13 @@ export function SecuritySection({ hasPassword }: SecuritySectionProps) {
       )}
 
       {hasPassword && (
-        <div className="grid gap-4 max-w-md">
+        <form
+          className="grid gap-4 max-w-md"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSave();
+          }}
+        >
           <div className="space-y-2">
             <Label htmlFor="currentPassword">Current password</Label>
             <div className="relative">
@@ -198,12 +204,12 @@ export function SecuritySection({ hasPassword }: SecuritySectionProps) {
           </div>
 
           <Button
-            onClick={handleSave}
+            type="submit"
             disabled={saving || !currentPassword || !newPassword || !confirmPassword}
           >
             {saving ? "Saving..." : "Change password"}
           </Button>
-        </div>
+        </form>
       )}
     </div>
   );

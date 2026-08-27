@@ -59,7 +59,11 @@ function LoginForm() {
       <CardContent className="space-y-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 text-sm text-black bg-white border border-black rounded-md">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-md"
+            >
               {error}
             </div>
           )}

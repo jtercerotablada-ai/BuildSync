@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useState,
   useRef,
   useCallback,
@@ -5016,6 +5017,20 @@ function MyTasksTimeCell({
     }
   }
 
+  // A personal to-do has no project, so there is no TIME_TRACKING field to
+  // write to and every edit ended in an error toast. Render it read-only
+  // instead of offering an editor that can only fail.
+  if (!ttv?.fieldId && !task.project?.id) {
+    return (
+      <span
+        className="block w-full text-left text-[13px] text-slate-300 tabular-nums px-1 py-0.5"
+        title="Time tracking is stored on the task's project — this task isn't in one"
+      >
+        —
+      </span>
+    );
+  }
+
   if (editing) {
     return (
       <input
@@ -6560,6 +6575,24 @@ function CalendarView({
     return () => obs.disconnect();
   }, [weekCount]);
 
+  // Every row is ~6x taller in Weeks zoom, so each week's offset moves with
+  // it — keeping the raw scrollTop across a zoom flip drops the user months
+  // from where they were reading. Re-anchor on the week that was at the top.
+  const topWeekIdxRef = useRef(0);
+  const prevZoomRef = useRef(zoom);
+  useLayoutEffect(() => {
+    if (prevZoomRef.current === zoom) return;
+    prevZoomRef.current = zoom;
+    const el = scrollRef.current;
+    if (!el) return;
+    const HEADER_PX = 32;
+    // This must be the exact inverse of the scroll listener below, which
+    // derives the index from `scrollTop - HEADER_PX`. Writing anything else
+    // makes the listener read a different week back than the one we anchored
+    // on, so every toggle walks the calendar further from where it started.
+    el.scrollTop = HEADER_PX + (weekOffsets[topWeekIdxRef.current] ?? 0);
+  }, [zoom, weekOffsets]);
+
   // ── Track which month is most visible ─────────────────────────
   // With dynamic row heights, week N is no longer at `N * ROW_PX` —
   // we walk the prefix-sum offsets to find which week's top edge
@@ -6580,6 +6613,7 @@ function CalendarView({
         if (weekOffsets[i] <= target) idx = i;
         else break;
       }
+      topWeekIdxRef.current = idx;
       const midDate = allDays[idx * 7 + 3];
       if (midDate) {
         const next = {

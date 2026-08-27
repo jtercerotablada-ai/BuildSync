@@ -48,6 +48,12 @@ export default function SettingsPage() {
     }
   }, []);
 
+  // Keep the URL in sync so a refresh, bookmark or Back lands on the same tab.
+  const selectTab = (id: SettingsTab) => {
+    setActiveTab(id);
+    window.history.replaceState(null, "", `?tab=${id}`);
+  };
+
   useEffect(() => {
     async function fetchProfile() {
       try {
@@ -88,7 +94,7 @@ export default function SettingsPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
               className={cn(
                 "flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0",
                 isActive
@@ -113,7 +119,7 @@ export default function SettingsPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => selectTab(tab.id)}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors text-left",
                   isActive

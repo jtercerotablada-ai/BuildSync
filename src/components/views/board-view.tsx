@@ -128,7 +128,10 @@ export function BoardView({
   const router = useRouter();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [addingTaskInSection, setAddingTaskInSection] = useState<string | null>(null);
-  const [newTaskName, setNewTaskName] = useState("");
+  // Drafts are kept per section rather than in one shared string, so
+  // moving the composer to another column never throws away what was
+  // already typed in the first one — it is still there when you go back.
+  const [taskDrafts, setTaskDrafts] = useState<Record<string, string>>({});
   const [mobileColumnIndex, setMobileColumnIndex] = useState(0);
   // Prevents held/double Enter from POSTing the same quick-add task twice.
   const isAddingTaskRef = useRef(false);
@@ -330,14 +333,19 @@ export function BoardView({
     [localSections, sections, router, persistReorder, reorderDisabled]
   );
 
+  const setTaskDraft = (sectionId: string, value: string) =>
+    setTaskDrafts((prev) => ({ ...prev, [sectionId]: value }));
+
   // ---- CREATE TASK ----
   // After a successful create the input stays open and clears its
   // value so the user can batch-add tasks (Asana / my-tasks UX).
-  // Escape or click-outside (handled at the column level) closes it.
+  // Only Enter (or the mobile submit) creates — Escape closes and
+  // discards, and losing focus leaves the draft alone.
   const handleAddTaskSubmit = async (sectionId: string) => {
-    if (!newTaskName.trim()) {
+    const name = (taskDrafts[sectionId] ?? "").trim();
+    if (!name) {
       setAddingTaskInSection(null);
-      setNewTaskName("");
+      setTaskDraft(sectionId, "");
       return;
     }
     if (isAddingTaskRef.current) return;
@@ -348,7 +356,7 @@ export function BoardView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newTaskName.trim(),
+          name,
           projectId,
           sectionId,
           // Leave project tasks unassigned (Asana parity).
@@ -358,9 +366,14 @@ export function BoardView({
       if (!res.ok) throw new Error();
       toast.success("Task created");
       router.refresh();
-      // Keep the input open for consecutive creation — only clear the
-      // value, don't close the input.
-      setNewTaskName("");
+      // Keep the input open for consecutive creation — only clear this
+      // section's draft, don't close the input. Anything typed while the
+      // POST was in flight survives.
+      setTaskDrafts((prev) =>
+        (prev[sectionId] ?? "").trim() === name
+          ? { ...prev, [sectionId]: "" }
+          : prev
+      );
     } catch {
       toast.error("Failed to create task");
     } finally {
@@ -400,8 +413,11 @@ export function BoardView({
   const mobileActiveSection = localSections[mobileColumnIndex];
 
   const handleMobileAddTask = async () => {
-    if (!newTaskName.trim() || !mobileActiveSection) {
-      setNewTaskName("");
+    const name = mobileActiveSection
+      ? (taskDrafts[mobileActiveSection.id] ?? "").trim()
+      : "";
+    if (!name || !mobileActiveSection) {
+      if (mobileActiveSection) setTaskDraft(mobileActiveSection.id, "");
       setAddingTaskInSection(null);
       return;
     }
@@ -412,7 +428,7 @@ export function BoardView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newTaskName.trim(),
+          name,
           projectId,
           sectionId: mobileActiveSection.id,
           assigneeId: null,
@@ -421,7 +437,7 @@ export function BoardView({
       if (!res.ok) throw new Error();
       toast.success("Task created");
       router.refresh();
-      setNewTaskName("");
+      setTaskDraft(mobileActiveSection.id, "");
       setAddingTaskInSection(null);
     } catch {
       toast.error("Failed to create task");
@@ -553,20 +569,30 @@ export function BoardView({
             <div className="mobile-task-card">
               <input
                 type="text"
-                value={newTaskName}
-                onChange={(e) => setNewTaskName(e.target.value)}
+                value={
+                  mobileActiveSection
+                    ? taskDrafts[mobileActiveSection.id] ?? ""
+                    : ""
+                }
+                onChange={(e) => {
+                  if (mobileActiveSection)
+                    setTaskDraft(mobileActiveSection.id, e.target.value);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleMobileAddTask();
                   if (e.key === "Escape") {
                     setAddingTaskInSection(null);
-                    setNewTaskName("");
+                    if (mobileActiveSection)
+                      setTaskDraft(mobileActiveSection.id, "");
                   }
                 }}
                 onBlur={() => {
-                  if (!newTaskName.trim()) {
-                    setAddingTaskInSection(null);
-                    setNewTaskName("");
-                  }
+                  // Only an empty composer closes itself. A draft is never
+                  // discarded and never auto-created on focus loss.
+                  const draft = mobileActiveSection
+                    ? taskDrafts[mobileActiveSection.id] ?? ""
+                    : "";
+                  if (!draft.trim()) setAddingTaskInSection(null);
                 }}
                 placeholder="Task name"
                 className="w-full text-sm outline-none bg-transparent"
@@ -578,7 +604,6 @@ export function BoardView({
               onClick={() => {
                 if (mobileActiveSection) {
                   setAddingTaskInSection(mobileActiveSection.id);
-                  setNewTaskName("");
                 } else {
                   // No sections yet — create one first (previously this tap
                   // was a silent no-op on mobile, with no way to add a
@@ -618,16 +643,13 @@ export function BoardView({
               onTaskClick={onTaskClick}
               projectId={projectId}
               isAddingTask={addingTaskInSection === section.id}
-              newTaskName={addingTaskInSection === section.id ? newTaskName : ""}
-              onStartAddTask={() => {
-                setAddingTaskInSection(section.id);
-                setNewTaskName("");
-              }}
-              onNewTaskNameChange={setNewTaskName}
+              newTaskName={taskDrafts[section.id] ?? ""}
+              onStartAddTask={() => setAddingTaskInSection(section.id)}
+              onNewTaskNameChange={(value) => setTaskDraft(section.id, value)}
               onSubmitTask={() => handleAddTaskSubmit(section.id)}
               onCancelAddTask={() => {
                 setAddingTaskInSection(null);
-                setNewTaskName("");
+                setTaskDraft(section.id, "");
               }}
             />
           ))}
@@ -868,6 +890,11 @@ function BoardColumn({
                   if (e.key === "Escape") onCancelAddTask();
                 }}
                 onBlur={() => {
+                  // Blur never creates a task — a click meant to abandon the
+                  // composer (a card, the column header, another app) must not
+                  // POST something the user never confirmed. Only an empty
+                  // composer tidies itself away; a draft stays put, and it is
+                  // kept per section so it is still here on the way back.
                   if (!newTaskName.trim()) onCancelAddTask();
                 }}
                 placeholder="Write a task name"

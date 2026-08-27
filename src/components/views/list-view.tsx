@@ -1797,10 +1797,19 @@ function SortableTaskRow({
       >
         {/* Checkbox - select or complete (icon swaps per task type) */}
         <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+          {/* Dragging is disabled while a filter/sort/search is active, so the
+              grip stays faint and explains itself instead of looking broken. */}
           <GripVertical
-            className="h-3.5 w-3.5 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            className={cn(
+              "h-3.5 w-3.5 text-slate-300 opacity-0 transition-opacity flex-shrink-0",
+              reorderDisabled
+                ? "group-hover:opacity-30 cursor-not-allowed"
+                : "group-hover:opacity-100"
+            )}
             aria-hidden
-          />
+          >
+            {reorderDisabled && <title>Clear filters and sorting to reorder</title>}
+          </GripVertical>
           {someSelected ? (
             <Checkbox
               checked={selectedTasks.has(task.id)}

@@ -198,6 +198,12 @@ export function Sidebar({
   const [resizing, setResizing] = useState(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(sidebarWidth);
+  // The live drag writes the basis straight to the element and only commits
+  // to useUiState on mouseup: the setter re-renders every subscriber in the
+  // tree and re-serialises the whole ui-state cache, which is far too much
+  // work to run on each mousemove.
+  const asideRef = useRef<HTMLElement>(null);
+  const dragWidth = useRef(sidebarWidth);
 
   const startResize = useCallback(
     (e: React.MouseEvent) => {
@@ -206,6 +212,7 @@ export function Sidebar({
       e.preventDefault();
       resizeStartX.current = e.clientX;
       resizeStartWidth.current = sidebarWidth;
+      dragWidth.current = sidebarWidth;
       setResizing(true);
     },
     [sidebarWidth]
@@ -227,13 +234,16 @@ export function Sidebar({
   useEffect(() => {
     if (!resizing) return;
     const onMove = (e: MouseEvent) => {
-      setStoredWidth(
-        clampSidebarWidth(
-          resizeStartWidth.current + (e.clientX - resizeStartX.current)
-        )
+      const w = clampSidebarWidth(
+        resizeStartWidth.current + (e.clientX - resizeStartX.current)
       );
+      dragWidth.current = w;
+      if (asideRef.current) asideRef.current.style.flex = `0 0 ${w}px`;
     };
-    const stop = () => setResizing(false);
+    const stop = () => {
+      setResizing(false);
+      setStoredWidth(dragWidth.current);
+    };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", stop);
     const prevCursor = document.body.style.cursor;
@@ -319,6 +329,7 @@ export function Sidebar({
   return (
     <TooltipProvider delayDuration={300}>
       <aside
+        ref={asideRef}
         style={{
           // Size the rail on desktop via an explicit flex-basis. A plain
           // width (w-*) collapses to 0 here: the aside sits in a flex row
@@ -326,7 +337,11 @@ export function Sidebar({
           // width/auto-basis item down. A fixed basis with no grow/shrink
           // holds. This is ignored on mobile, where the aside is
           // position:fixed and sized by the w-* classes below.
-          flex: collapsed ? "0 0 4rem" : `0 0 ${sidebarWidth}px`,
+          // Mid-drag the live width lives in the ref (see the resize effect),
+          // so an unrelated re-render doesn't snap the rail back.
+          flex: collapsed
+            ? "0 0 4rem"
+            : `0 0 ${resizing ? dragWidth.current : sidebarWidth}px`,
         }}
         className={cn(
           "relative flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] overflow-hidden",

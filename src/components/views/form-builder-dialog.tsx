@@ -74,6 +74,7 @@ import {
   BadgeCheck,
   FileText,
 } from "lucide-react";
+import { useUiState } from "@/hooks/use-ui-state";
 
 /**
  * Form Builder dialog — single unified source for creating / editing
@@ -265,9 +266,16 @@ export function FormBuilderDialog({
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [coverModalOpen, setCoverModalOpen] = useState(false);
   const [coverInput, setCoverInput] = useState("");
-  // Favorites persist in localStorage so they survive reloads. Per-
-  // user, per-form. Mirrors Asana's ⭐ star on the form editor.
-  const [isFavorite, setIsFavorite] = useState(false);
+  // Favorites are per-user, per-form (mirrors Asana's ⭐ star on the form
+  // editor). Stored in server-backed uiState rather than localStorage so they
+  // follow the user to another device and don't show up for the next person
+  // to log in on a shared machine.
+  const { value: favoriteForms, setValue: setFavoriteForms } = useUiState<
+    Record<string, boolean>
+  >("favoriteForms", {});
+  // Un-favoriting is stored as an explicit `false` (see toggleFavorite), so
+  // only `=== true` counts as a favorite.
+  const isFavorite = !!initial?.id && favoriteForms[initial.id] === true;
   const [deleting, setDeleting] = useState(false);
   const [submissionsOpen, setSubmissionsOpen] = useState(false);
 
@@ -325,16 +333,6 @@ export function FormBuilderDialog({
         visibility: initial.visibility,
         coverImageUrl: hydratedCover,
       };
-      // Favorites are per-user, per-form, in localStorage.
-      if (typeof window !== "undefined") {
-        try {
-          const raw = localStorage.getItem("buildsync-fav-forms");
-          const set = new Set<string>(raw ? JSON.parse(raw) : []);
-          setIsFavorite(set.has(initial.id));
-        } catch {
-          setIsFavorite(false);
-        }
-      }
     } else {
       // New form defaults — mirror Asana exactly. A fresh form drops
       // the user into the editor with title empty (placeholder),
@@ -364,7 +362,6 @@ export function FormBuilderDialog({
       setVisibility("PUBLIC");
       setCoverImageUrl(null);
       setCoverInput("");
-      setIsFavorite(false);
       pristineRef.current = {
         name: "",
         description: "",
@@ -659,6 +656,13 @@ export function FormBuilderDialog({
         if (f.options.some((o) => !o.trim())) {
           return { ok: false, msg: `"${f.label}" has an empty option` };
         }
+        // The public form keys answers by the option's text, so two identical
+        // options behave as one: ticking either ticks both and the submitted
+        // answer can never say which was meant.
+        const trimmed = f.options.map((o) => o.trim());
+        if (new Set(trimmed).size !== trimmed.length) {
+          return { ok: false, msg: `"${f.label}" has duplicate options` };
+        }
       }
       // The submission → task mapping only reads dueDate off a DATE field, so
       // a mapping left behind by a type change would render a "→ dueDate"
@@ -812,26 +816,85 @@ export function FormBuilderDialog({
     }
   }
 
-  // ── Favorites: persisted per-user in localStorage. Toggle adds /
-  //    removes the form id from the set. ───────────────────────────
-  function toggleFavorite() {
-    if (!initial?.id || typeof window === "undefined") return;
+  // One-time fold of the old browser-local list so nobody's existing
+  // favorites disappear. Dropping the key makes this a no-op afterwards.
+  //
+  // The preferences GET is read directly rather than folding into the hook's
+  // value: `isHydrated` flips as soon as the localStorage cache is applied,
+  // while the server request is still in flight, so folding then would run
+  // against an empty map — hiding favorites saved on another device for the
+  // rest of the session and re-favoriting forms un-starred there. The legacy
+  // key is only dropped once we have something to fold it into, so an offline
+  // visit can still migrate on the next mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let legacy: unknown;
     try {
       const raw = localStorage.getItem("buildsync-fav-forms");
-      const set = new Set<string>(raw ? JSON.parse(raw) : []);
-      if (set.has(initial.id)) {
-        set.delete(initial.id);
-        setIsFavorite(false);
-        toast.success("Removed from favorites");
-      } else {
-        set.add(initial.id);
-        setIsFavorite(true);
-        toast.success("Added to favorites");
-      }
-      localStorage.setItem("buildsync-fav-forms", JSON.stringify(Array.from(set)));
+      if (!raw) return;
+      legacy = JSON.parse(raw);
     } catch {
-      toast.error("Couldn't update favorites");
+      try {
+        localStorage.removeItem("buildsync-fav-forms");
+      } catch {
+        // Storage disabled — nothing to clean up.
+      }
+      return;
     }
+    const legacyIds = Array.isArray(legacy)
+      ? (legacy as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    const dropLegacy = () => {
+      try {
+        localStorage.removeItem("buildsync-fav-forms");
+      } catch {
+        // Storage disabled — the fold above is idempotent anyway.
+      }
+    };
+    if (legacyIds.length === 0) {
+      dropLegacy();
+      return;
+    }
+    let canceled = false;
+    fetch("/api/users/preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (canceled || !data) return;
+        const server = (data.uiState?.favoriteForms ?? {}) as Record<
+          string,
+          boolean
+        >;
+        const merged = { ...server };
+        let changed = false;
+        for (const id of legacyIds) {
+          // `undefined` only — a stored `false` is a deliberate un-favorite.
+          if (merged[id] === undefined) {
+            merged[id] = true;
+            changed = true;
+          }
+        }
+        if (changed) setFavoriteForms(merged);
+        dropLegacy();
+      })
+      .catch(() => {
+        // Offline — keep the legacy key and try again on the next mount.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [setFavoriteForms]);
+
+  // ── Favorites: toggle flips the form id in the user's set. The removal is
+  //    written as `false` rather than by deleting the key, because PATCH
+  //    /api/users/preferences merges object-valued uiState keys one level
+  //    deep — an absent key is restored from the stored map, so a delete
+  //    would never persist. ──
+  function toggleFavorite() {
+    const formId = initial?.id;
+    if (!formId) return;
+    const nowFavorite = !isFavorite;
+    setFavoriteForms((prev) => ({ ...prev, [formId]: nowFavorite }));
+    toast.success(nowFavorite ? "Added to favorites" : "Removed from favorites");
   }
 
   // ── Delete: confirms, soft-deletes (closes the form so submissions are

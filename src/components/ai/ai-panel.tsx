@@ -136,13 +136,25 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
     setInput('');
     setIsLoading(true);
 
+    // The panel renders a thread, so the model has to see it. The route takes a
+    // single user message, so the prior turns ride along in `text`; 'qa' mode
+    // keeps the reply an answer instead of a rewrite of the transcript.
+    const priorTurns = messages
+      .slice(-6)
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n\n');
+    const conversation = priorTurns
+      ? `${priorTurns}\n\nUser: ${input}`.slice(-8000)
+      : input;
+
     try {
       const res = await fetch('/api/ai/assist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: 'Answer the following question helpfully and concisely. You are TT AI Assistant, an assistant for project management.',
-          text: input,
+          prompt: 'You are TT AI Assistant, an assistant for project management. Answer the last User message in the conversation below helpfully and concisely.',
+          text: conversation,
+          mode: 'qa',
         }),
       });
 

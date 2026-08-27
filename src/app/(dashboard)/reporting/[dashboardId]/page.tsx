@@ -144,19 +144,19 @@ const widgetCategories = {
     label: "Resources",
     widgets: [
       { id: "tasks-assignee-status", name: "Tasks by assignee and status", chartType: "stacked" as CatalogChartType, isNew: true },
-      { id: "upcoming-by-assignee", name: "Upcoming tasks this week by assignee", chartType: "lollipop" as CatalogChartType },
-      { id: "tasks-month-project", name: "Tasks this month by project", chartType: "bar" as CatalogChartType },
+      { id: "upcoming-by-assignee", name: "Upcoming tasks this week by assignee", chartType: "horizontal-bar" as CatalogChartType },
+      { id: "tasks-month-project", name: "Tasks this month by project", chartType: "horizontal-bar" as CatalogChartType },
       { id: "custom-field-total", name: "Total tasks", chartType: "number" as CatalogChartType },
       { id: "projects-by-owner", name: "Projects by owner", chartType: "horizontal-bar" as CatalogChartType },
       { id: "projects-by-portfolio", name: "Projects by portfolio", chartType: "donut" as CatalogChartType },
-      { id: "tasks-by-creator", name: "Tasks by creator", chartType: "bar" as CatalogChartType },
+      { id: "tasks-by-creator", name: "Tasks by creator", chartType: "horizontal-bar" as CatalogChartType },
     ],
   },
   workStatus: {
     label: "Work status",
     widgets: [
       { id: "overdue-by-project", name: "Overdue tasks by project", chartType: "donut" as CatalogChartType },
-      { id: "upcoming-by-project", name: "Upcoming tasks by project", chartType: "bar" as CatalogChartType },
+      { id: "upcoming-by-project", name: "Upcoming tasks by project", chartType: "horizontal-bar" as CatalogChartType },
       { id: "goals-by-status", name: "Goals by status", chartType: "donut" as CatalogChartType },
     ],
   },
@@ -337,6 +337,16 @@ function catalogWidgetData(
       return { type: "bar-chart", data: [] };
   }
 }
+
+// Catalog widgets carry no filter object, so their footer caption is derived
+// from what the entry actually counts. Anything not listed counts tasks.
+const catalogEntityLabel: Record<string, string> = {
+  "projects-by-status": "Projects",
+  "projects-by-owner": "Projects",
+  "projects-by-portfolio": "Projects",
+  "projects-most-completed": "Projects",
+  "goals-by-status": "Goals",
+};
 
 // ─── Dashboard configs (virtual defaults) ─────────────────────────
 
@@ -992,10 +1002,10 @@ export default function DashboardPage() {
         {/* KPI row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
           {[
-            { title: `${kpiPrefix}Completed tasks`, value: bundle.kpis.completed, filter: "1 filter" },
-            { title: `${kpiPrefix}Incomplete tasks`, value: bundle.kpis.incomplete, filter: "1 filter" },
-            { title: `${kpiPrefix}Overdue tasks`, value: bundle.kpis.overdue, filter: "1 filter", danger: true },
-            { title: `${kpiPrefix}Total tasks`, value: bundle.kpis.total, filter: "No filters" },
+            { title: `${kpiPrefix}Completed tasks`, value: bundle.kpis.completed },
+            { title: `${kpiPrefix}Incomplete tasks`, value: bundle.kpis.incomplete },
+            { title: `${kpiPrefix}Overdue tasks`, value: bundle.kpis.overdue, danger: true },
+            { title: `${kpiPrefix}Total tasks`, value: bundle.kpis.total },
           ].map((kpi) => (
             <div key={kpi.title} className="bg-white rounded-lg border p-3 md:p-4 hover:shadow-md transition-shadow">
               <h3 className="text-xs md:text-sm text-slate-600 leading-tight">{kpi.title}</h3>
@@ -1007,10 +1017,6 @@ export default function DashboardPage() {
               >
                 {kpi.value}
               </p>
-              <div className="flex items-center justify-center gap-1 mt-2 md:mt-3 text-[10px] md:text-xs text-slate-400">
-                <Filter className="w-3 h-3" />
-                <span>{kpi.filter}</span>
-              </div>
             </div>
           ))}
         </div>
@@ -1210,6 +1216,9 @@ function SortableWidget({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    // Without this the transform's stacking context lets later grid cards
+    // paint over the one being dragged.
+    zIndex: isDragging ? 50 : undefined,
   };
 
   return (
@@ -1409,7 +1418,11 @@ function CatalogWidgetBody({
   bundle: ReportBundle;
   height: number;
 }) {
+  const routeParams = useParams();
   const resolved = catalogWidgetData(catalogId, bundle);
+  const footerSummary = `${catalogEntityLabel[catalogId] ?? "Tasks"} ${
+    routeParams?.dashboardId === "my-impact" ? "in my work" : "in workspace"
+  }`;
 
   const emptyState = (
     <div className="flex items-center justify-center text-slate-400" style={{ height }}>
@@ -1496,7 +1509,7 @@ function CatalogWidgetBody({
   return (
     <>
       {body}
-      <WidgetFooter filterSummary="Tasks in workspace" />
+      <WidgetFooter filterSummary={footerSummary} />
     </>
   );
 }

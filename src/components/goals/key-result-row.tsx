@@ -87,6 +87,9 @@ export function KeyResultRow({
   // finish typing a decimal or a negative.
   const [value, setValue] = useState(String(kr.currentValue));
   const [saving, setSaving] = useState(false);
+  // Disabling a focused input makes the browser fire blur, so Enter would
+  // otherwise re-enter the save handler through onBlur and PATCH twice.
+  const savingRef = useRef(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const valueInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,12 +109,14 @@ export function KeyResultRow({
   }, [mode]);
 
   async function saveName() {
+    if (savingRef.current) return;
     const trimmed = name.trim();
     if (!trimmed || trimmed === kr.name) {
       setName(kr.name);
       setMode("idle");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       const res = await fetch(
@@ -130,11 +135,13 @@ export function KeyResultRow({
       toast.error("Couldn't rename key result");
       setName(kr.name);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
 
   async function saveValue() {
+    if (savingRef.current) return;
     const parsed = parseFloat(value);
     if (Number.isNaN(parsed)) {
       // Empty or half-typed ("2.", "-") — keep the stored value.
@@ -147,6 +154,7 @@ export function KeyResultRow({
       setMode("idle");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       const res = await fetch(
@@ -168,6 +176,7 @@ export function KeyResultRow({
       toast.error("Couldn't update value");
       setValue(String(kr.currentValue));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }

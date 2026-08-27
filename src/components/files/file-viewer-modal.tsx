@@ -429,6 +429,12 @@ function FilePreviewSurface({
     panY: number;
   } | null>(null);
   const [dragging, setDragging] = useState(false);
+  // A bare <img>/<iframe>/<video> gives the user nothing while the bytes are
+  // in flight and nothing but a broken glyph when they never arrive, which is
+  // the common case here: big scans over a slow line, or a stale blob URL.
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">(
+    "loading"
+  );
   const mt = file.mimeType;
   const isImage = mt.startsWith("image/");
   const isPdf = mt === "application/pdf";
@@ -491,6 +497,50 @@ function FilePreviewSurface({
     }
   }, [clampPan, isImage, onPanChange]);
 
+  useEffect(() => {
+    setLoadState("loading");
+  }, [file.url]);
+
+  const spinner = (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <Loader2 className="h-8 w-8 animate-spin text-white/60" />
+    </div>
+  );
+
+  const downloadFallback = (headline: string, sub: string) => (
+    <div
+      className="text-center text-white max-w-md px-6"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="w-20 h-24 rounded-md bg-white/10 border border-white/20 flex flex-col items-center justify-center mx-auto mb-4">
+        <span className="text-[11px] font-mono font-bold tracking-wider text-white/80">
+          {(file.name.split(".").pop() ?? "FILE").toUpperCase().slice(0, 4)}
+        </span>
+      </div>
+      <p className="text-base font-medium mb-1">{headline}</p>
+      <p className="text-sm text-white/60 mb-5">{sub}</p>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await downloadFile(file.url, file.name);
+          } catch (err) {
+            toast.error(
+              err instanceof Error ? err.message : "Couldn't download file"
+            );
+          }
+        }}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#c9a84c] hover:bg-[#a8893a] text-black font-medium text-sm transition-colors"
+      >
+        <Download className="h-4 w-4" />
+        Download {formatBytes(file.size)}
+      </button>
+      {/* Backdrop is the only way to close from here; keep it as a no-op so
+          eslint doesn't complain about unused prop. */}
+      <button type="button" className="hidden" onClick={onClickBackdrop} />
+    </div>
+  );
+
   if (isImage) {
     const endDrag = (e: React.PointerEvent<HTMLImageElement>) => {
       if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
@@ -498,15 +548,26 @@ function FilePreviewSurface({
       dragRef.current = null;
       setDragging(false);
     };
+    if (loadState === "failed") {
+      return downloadFallback(
+        "This image couldn't be loaded.",
+        "The file may have been moved or its link has expired."
+      );
+    }
     return (
-      // eslint-disable-next-line @next/next/no-img-element
+      <>
+      {loadState === "loading" && spinner}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         ref={imgRef}
         src={file.url}
         alt={file.name}
+        onLoad={() => setLoadState("ready")}
+        onError={() => setLoadState("failed")}
         className={cn(
           "max-w-[95vw] max-h-[80vh] object-contain duration-150 select-none",
           !dragging && "transition-transform",
+          loadState !== "ready" && "opacity-0",
           zoom > 1 && (dragging ? "cursor-grabbing" : "cursor-grab")
         )}
         style={{
@@ -546,28 +607,47 @@ function FilePreviewSurface({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       />
+      </>
     );
   }
 
   if (isPdf) {
     return (
-      <iframe
-        src={`${file.url}#toolbar=1&navpanes=0`}
-        title={file.name}
-        className="w-[95vw] h-[85vh] bg-white rounded-md shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
+      <>
+        {loadState === "loading" && spinner}
+        <iframe
+          src={`${file.url}#toolbar=1&navpanes=0`}
+          title={file.name}
+          className="w-[95vw] h-[85vh] bg-white rounded-md shadow-2xl"
+          onLoad={() => setLoadState("ready")}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </>
     );
   }
 
   if (isVideo) {
+    if (loadState === "failed") {
+      return downloadFallback(
+        "This video couldn't be played.",
+        "The file may have been moved or its format isn't supported here."
+      );
+    }
     return (
-      <video
-        src={file.url}
-        controls
-        className="max-w-[95vw] max-h-[85vh] rounded-md shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
+      <>
+        {loadState === "loading" && spinner}
+        <video
+          src={file.url}
+          controls
+          className={cn(
+            "max-w-[95vw] max-h-[85vh] rounded-md shadow-2xl",
+            loadState !== "ready" && "opacity-0"
+          )}
+          onLoadedData={() => setLoadState("ready")}
+          onError={() => setLoadState("failed")}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </>
     );
   }
 
@@ -591,54 +671,25 @@ function FilePreviewSurface({
 
   if (isOffice) {
     return (
-      <iframe
-        src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
-          file.url
-        )}`}
-        title={file.name}
-        className="w-[95vw] h-[85vh] bg-white rounded-md shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
+      <>
+        {loadState === "loading" && spinner}
+        <iframe
+          src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
+            file.url
+          )}`}
+          title={file.name}
+          className="w-[95vw] h-[85vh] bg-white rounded-md shadow-2xl"
+          onLoad={() => setLoadState("ready")}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </>
     );
   }
 
   // Unknown / unsupported — show download CTA
-  return (
-    <div
-      className="text-center text-white max-w-md px-6"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="w-20 h-24 rounded-md bg-white/10 border border-white/20 flex flex-col items-center justify-center mx-auto mb-4">
-        <span className="text-[11px] font-mono font-bold tracking-wider text-white/80">
-          {(file.name.split(".").pop() ?? "FILE").toUpperCase().slice(0, 4)}
-        </span>
-      </div>
-      <p className="text-base font-medium mb-1">
-        Preview not available for this file type.
-      </p>
-      <p className="text-sm text-white/60 mb-5">
-        Download it to open in the original application.
-      </p>
-      <button
-        type="button"
-        onClick={async () => {
-          try {
-            await downloadFile(file.url, file.name);
-          } catch (err) {
-            toast.error(
-              err instanceof Error ? err.message : "Couldn't download file"
-            );
-          }
-        }}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#c9a84c] hover:bg-[#a8893a] text-black font-medium text-sm transition-colors"
-      >
-        <Download className="h-4 w-4" />
-        Download {formatBytes(file.size)}
-      </button>
-      {/* Backdrop is the only way to close from here; keep it as a no-op so
-          eslint doesn't complain about unused prop. */}
-      <button type="button" className="hidden" onClick={onClickBackdrop} />
-    </div>
+  return downloadFallback(
+    "Preview not available for this file type.",
+    "Download it to open in the original application."
   );
 }
 

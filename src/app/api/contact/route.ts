@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { escapeHtml } from "@/lib/comment-format";
+
+const contactSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .max(200)
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email address"),
+  phone: z.string().trim().max(40).nullable().optional(),
+  service: z.string().trim().min(1, "Service is required").max(120),
+  message: z.string().trim().min(1, "Message is required").max(5000),
+  files: z.array(z.record(z.string(), z.unknown())).max(10).nullable().optional(),
+});
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -26,24 +43,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, service, message, files } = body;
-
-    // Validate required fields
-    if (!name || !email || !service || !message) {
+    const parsed = contactSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Name, email, service, and message are required" },
+        { error: parsed.error.issues[0]?.message || "Invalid submission" },
         { status: 400 }
       );
     }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email address" },
-        { status: 400 }
-      );
-    }
+    const { name, email, phone, service, message, files } = parsed.data;
 
     // Save contact submission to database
     const submission = await prisma.contactSubmission.create({
@@ -53,7 +60,8 @@ export async function POST(request: Request) {
         phone: phone || null,
         service,
         message,
-        files: files || null,
+        // Nullable Json column: no attachments means SQL NULL, not JSON null.
+        files: (files ?? Prisma.DbNull) as Prisma.InputJsonValue,
       },
     });
 
@@ -76,14 +84,14 @@ export async function POST(request: Request) {
     <div style="padding:32px 24px">
       <h1 style="margin:0 0 16px;font-size:20px;color:#0f172a">New Contact Submission</h1>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="padding:8px 0;color:#64748b;font-weight:600">Name:</td><td style="padding:8px 0;color:#0f172a">${name}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;font-weight:600">Email:</td><td style="padding:8px 0;color:#0f172a">${email}</td></tr>
-        ${phone ? `<tr><td style="padding:8px 0;color:#64748b;font-weight:600">Phone:</td><td style="padding:8px 0;color:#0f172a">${phone}</td></tr>` : ""}
-        <tr><td style="padding:8px 0;color:#64748b;font-weight:600">Service:</td><td style="padding:8px 0;color:#0f172a">${service}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;font-weight:600">Name:</td><td style="padding:8px 0;color:#0f172a">${escapeHtml(name)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;font-weight:600">Email:</td><td style="padding:8px 0;color:#0f172a">${escapeHtml(email)}</td></tr>
+        ${phone ? `<tr><td style="padding:8px 0;color:#64748b;font-weight:600">Phone:</td><td style="padding:8px 0;color:#0f172a">${escapeHtml(phone)}</td></tr>` : ""}
+        <tr><td style="padding:8px 0;color:#64748b;font-weight:600">Service:</td><td style="padding:8px 0;color:#0f172a">${escapeHtml(service)}</td></tr>
       </table>
       <div style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:8px">
         <p style="margin:0 0 4px;color:#64748b;font-size:12px;font-weight:600">Message:</p>
-        <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.5;white-space:pre-wrap">${message}</p>
+        <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.5;white-space:pre-wrap">${escapeHtml(message)}</p>
       </div>
     </div>
   </div>

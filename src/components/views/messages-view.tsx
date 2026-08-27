@@ -198,6 +198,21 @@ function buildEndpoints(scope: MessageScope): ScopeEndpoints {
   };
 }
 
+// Marker written by use-ui-state.ts after every confirmed preferences
+// fetch: the last user id the server acknowledged on this browser. Read
+// here so scopes that render without a session prop (portfolios) can
+// still key their draft to a user instead of to the machine.
+const LAST_USER_KEY = "buildsync-last-user-id";
+
+function readLastUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(LAST_USER_KEY);
+  } catch {
+    return null;
+  }
+}
+
 interface MessagesViewProps {
   // New preferred API — explicit scope.
   scope?: MessageScope;
@@ -268,6 +283,42 @@ export function MessagesView({
   const [loading, setLoading] = useState(true);
   const [newContent, setNewContent] = useState("");
   const [sending, setSending] = useState(false);
+  // The composer unmounts whenever the user steps away (opens a task,
+  // switches view), which used to discard a half-written message with no
+  // warning. Mirror the text per scope so it comes back — but keyed by
+  // the signed-in user as well: nothing wipes this on sign-out, so an
+  // unscoped key would hand the next person to log in on a shared office
+  // machine someone else's unsent message, ready to post under their own
+  // name. Identity comes from the caller's session when it passes one,
+  // and otherwise from the same last-confirmed-user marker useUiState
+  // scopes its cache with. With no user to key on we don't persist.
+  const draftUserId = currentUser?.id || readLastUserId();
+  const draftKey = draftUserId
+    ? `bs-msg-draft:${draftUserId}:${scope.type}:${scopeKey}`
+    : null;
+  const writeDraft = useCallback(
+    (text: string) => {
+      if (!draftKey) return;
+      try {
+        if (text) localStorage.setItem(draftKey, text);
+        else localStorage.removeItem(draftKey);
+      } catch {
+        // storage unavailable — drafts just don't survive navigation
+      }
+    },
+    [draftKey]
+  );
+  useEffect(() => {
+    if (!draftKey) {
+      setNewContent("");
+      return;
+    }
+    try {
+      setNewContent(localStorage.getItem(draftKey) ?? "");
+    } catch {
+      setNewContent("");
+    }
+  }, [draftKey, scopeKey]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1106,6 +1157,7 @@ export function MessagesView({
     };
     setMessages((prev) => [...prev, optimistic]);
     setNewContent("");
+    writeDraft("");
     setPendingFiles([]);
     setMentionUserIds([]);
     setSending(true);
@@ -1143,6 +1195,7 @@ export function MessagesView({
       // can retry without re-selecting files.
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setNewContent(content);
+      writeDraft(content);
       setPendingFiles(files);
       setMentionUserIds(effectiveMentions);
       toast.error(err instanceof Error ? err.message : "Failed to send");
@@ -1160,6 +1213,7 @@ export function MessagesView({
     uploadFileToMessage,
     mentionUserIds,
     members,
+    writeDraft,
   ]);
 
   // ── Pending file selection ─────────────────────────────
@@ -1586,7 +1640,10 @@ export function MessagesView({
                   <MentionTextarea
                     textareaRef={inputRef}
                     value={newContent}
-                    onChange={setNewContent}
+                    onChange={(v) => {
+                      setNewContent(v);
+                      writeDraft(v);
+                    }}
                     members={members}
                     onMentionAdd={(member) =>
                       setMentionUserIds((prev) =>
@@ -2450,6 +2507,21 @@ function MentionTextarea({
     if (t) setHighlight(0);
   };
 
+  // The caret can leave the @ context without a change event — a click
+  // back into the line, ArrowLeft, Home. Left open, the picker swallowed
+  // the next Enter and inserted a mention instead of sending.
+  const syncTrigger = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    const t = detectTrigger(el.value, el.selectionStart ?? el.value.length);
+    setTrigger((prev) => {
+      if (!prev && !t) return prev;
+      if (prev && t && prev.atIndex === t.atIndex && prev.query === t.query) {
+        return prev;
+      }
+      return t;
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (trigger && matches.length > 0) {
       if (e.key === "ArrowDown") {
@@ -2515,6 +2587,8 @@ function MentionTextarea({
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onSelect={syncTrigger}
+        onBlur={() => setTrigger(null)}
         placeholder={placeholder}
         rows={rows}
         maxLength={maxLength}

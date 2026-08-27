@@ -72,6 +72,7 @@ import {
   formatRelativeTime as sharedFormatRelativeTime,
   getTimeRemaining as sharedGetTimeRemaining,
 } from "@/lib/date-utils";
+import { useUiState } from "@/hooks/use-ui-state";
 
 interface KeyResult {
   id: string;
@@ -206,7 +207,12 @@ export default function GoalDetailPage() {
   const [description, setDescription] = useState("");
   const [comment, setComment] = useState("");
   const [isLiked, setIsLiked] = useState(false);
-  const [isStarred, setIsStarred] = useState(false);
+  const { value: starredGoals, setValue: setStarredGoals } = useUiState<
+    Record<string, boolean>
+  >("starredGoals", {});
+  // An un-star is stored as an explicit `false`, never as a missing key —
+  // see toggleStar — so only `=== true` counts as starred.
+  const isStarred = starredGoals[objectiveId] === true;
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [parentPickerOpen, setParentPickerOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -371,39 +377,92 @@ export default function GoalDetailPage() {
     }
   }
 
-  // "Star" is a local follow indicator — surfaces this goal in the
-  // user's bookmark list. We keep it in localStorage until a real
-  // GoalFollow model is added. Likes (ObjectiveLike) are a separate
-  // social signal and stay backed by the database.
+  // "Star" is a follow indicator — surfaces this goal in the user's
+  // bookmark list. Kept in per-user uiState (not localStorage) until a real
+  // GoalFollow model is added, so it follows the user across devices and
+  // never shows up for whoever logs in next on a shared workstation. Likes
+  // (ObjectiveLike) are a separate social signal and stay backed by the DB.
+  //
+  // One-time fold of the old browser-local array so nobody's existing stars
+  // disappear; dropping the key makes this a no-op on every later mount.
+  //
+  // The preferences GET is read directly rather than folding into the hook's
+  // value: `isHydrated` flips as soon as the localStorage cache is applied,
+  // while the server request is still in flight, so folding then would run
+  // against an empty map — hiding the stars saved on another device for the
+  // rest of the session and re-starring goals that were un-starred there.
+  // The legacy key is only dropped once we have something to fold it into,
+  // so an offline visit can still migrate on the next mount.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let legacy: unknown;
     try {
       const raw = localStorage.getItem("goals.starred");
-      const list: string[] = raw ? JSON.parse(raw) : [];
-      setIsStarred(list.includes(objectiveId));
+      if (!raw) return;
+      legacy = JSON.parse(raw);
     } catch {
-      // ignore
+      try {
+        localStorage.removeItem("goals.starred");
+      } catch {
+        // Storage disabled — nothing to clean up.
+      }
+      return;
     }
-  }, [objectiveId]);
+    const legacyIds = Array.isArray(legacy)
+      ? (legacy as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    const dropLegacy = () => {
+      try {
+        localStorage.removeItem("goals.starred");
+      } catch {
+        // Storage disabled — the fold above is idempotent anyway.
+      }
+    };
+    if (legacyIds.length === 0) {
+      dropLegacy();
+      return;
+    }
+    let canceled = false;
+    fetch("/api/users/preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (canceled || !data) return;
+        const server = (data.uiState?.starredGoals ?? {}) as Record<
+          string,
+          boolean
+        >;
+        const merged = { ...server };
+        let changed = false;
+        for (const id of legacyIds) {
+          // `undefined` only — a stored `false` is a deliberate un-star.
+          if (merged[id] === undefined) {
+            merged[id] = true;
+            changed = true;
+          }
+        }
+        if (changed) setStarredGoals(merged);
+        dropLegacy();
+      })
+      .catch(() => {
+        // Offline — keep the legacy key and try again on the next mount.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [setStarredGoals]);
 
   function toggleStar() {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem("goals.starred");
-      const list: string[] = raw ? JSON.parse(raw) : [];
-      const next = list.includes(objectiveId)
-        ? list.filter((id) => id !== objectiveId)
-        : [...list, objectiveId];
-      localStorage.setItem("goals.starred", JSON.stringify(next));
-      setIsStarred(next.includes(objectiveId));
-      toast.success(
-        next.includes(objectiveId)
-          ? "Added to starred goals"
-          : "Removed from starred"
-      );
-    } catch {
-      toast.error("Couldn't update star");
-    }
+    const nowStarred = !isStarred;
+    setStarredGoals((prev) => ({
+      // A removal has to be written as `false`: PATCH /api/users/preferences
+      // merges object-valued uiState keys one level deep, so an absent key is
+      // restored from the stored map and the un-star would never persist.
+      ...prev,
+      [objectiveId]: nowStarred,
+    }));
+    toast.success(
+      nowStarred ? "Added to starred goals" : "Removed from starred"
+    );
   }
 
   async function fetchObjective() {

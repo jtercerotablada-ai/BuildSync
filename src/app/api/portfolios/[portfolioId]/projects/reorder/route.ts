@@ -57,6 +57,14 @@ export async function PATCH(
       select: { projectId: true },
     });
     const existingIds = new Set(existing.map((e) => e.projectId));
+    // A partial list would renumber the supplied rows 1..n and leave the
+    // omitted ones on their old positions — i.e. duplicates.
+    if (new Set(data.projectIds).size !== existingIds.size) {
+      return NextResponse.json(
+        { error: "The full list of portfolio projects is required" },
+        { status: 400 }
+      );
+    }
     for (const id of data.projectIds) {
       if (!existingIds.has(id)) {
         return NextResponse.json(

@@ -21,14 +21,21 @@ interface TeamMembersWidgetProps {
   members: Member[];
 }
 
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+// Someone who joined by email invite and never set a display name would
+// otherwise sit here as a bare "?"; the members list already falls back to
+// the email's first two characters, so match it.
+function getInitials(name: string | null, email?: string | null): string {
+  const source = name?.trim() || email?.trim();
+  if (!source) return "?";
+  if (name?.trim()) {
+    return source
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  }
+  return source.slice(0, 2).toUpperCase();
 }
 
 export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
@@ -59,7 +66,7 @@ export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
             >
               <AvatarImage src={member.user.image || undefined} />
               <AvatarFallback className="text-sm bg-white text-black border border-black">
-                {getInitials(member.user.name)}
+                {getInitials(member.user.name, member.user.email)}
               </AvatarFallback>
             </Avatar>
           ))}

@@ -752,8 +752,10 @@ function FieldInput({
             <SelectValue placeholder={field.placeholder || "Choose…"} />
           </SelectTrigger>
           <SelectContent>
-            {(field.options || []).map((opt) => (
-              <SelectItem key={opt} value={opt}>
+            {/* Keyed by index: a form saved before duplicate options were
+                rejected can still carry two identical entries. */}
+            {(field.options || []).map((opt, i) => (
+              <SelectItem key={i} value={opt}>
                 {opt}
               </SelectItem>
             ))}
@@ -785,11 +787,11 @@ function FieldInput({
             invalidCls
           )}
         >
-          {(field.options || []).map((opt) => {
+          {(field.options || []).map((opt, i) => {
             const checked = selected.includes(opt);
             return (
               <label
-                key={opt}
+                key={i}
                 className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
               >
                 <Checkbox

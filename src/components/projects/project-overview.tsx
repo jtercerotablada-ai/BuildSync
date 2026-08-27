@@ -360,6 +360,14 @@ export function ProjectOverview({
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [goals, setGoals] = useState<ConnectedGoal[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(true);
+  // A failed feed request used to be indistinguishable from an empty one —
+  // the panels claimed "no updates yet" on projects that have plenty.
+  const [feedErrors, setFeedErrors] = useState({
+    updates: false,
+    activity: false,
+    goals: false,
+  });
+  const [feedReloadKey, setFeedReloadKey] = useState(0);
 
   // Track which description value the local state was last seeded
   // from, so we only pull updates from the server when the user is
@@ -963,8 +971,18 @@ export function ProjectOverview({
           const data = (await objRes.json()) as ConnectedGoal[];
           setGoals(Array.isArray(data) ? data : []);
         }
+        if (!canceled) {
+          setFeedErrors({
+            updates: !updRes.ok,
+            activity: !actRes.ok,
+            goals: !objRes.ok,
+          });
+        }
       } catch (err) {
         console.error("[ProjectOverview] feed load failed:", err);
+        if (!canceled) {
+          setFeedErrors({ updates: true, activity: true, goals: true });
+        }
       } finally {
         if (!canceled) setLoadingFeed(false);
       }
@@ -974,7 +992,7 @@ export function ProjectOverview({
     return () => {
       canceled = true;
     };
-  }, [project.id]);
+  }, [project.id, feedReloadKey]);
 
   const currentStatus =
     STATUS_VISUAL[project.status as ProjectStatusKey] ||
@@ -1301,7 +1319,20 @@ export function ProjectOverview({
               </button>
             )}
           </div>
-          {goals.length === 0 ? (
+          {goals.length === 0 && feedErrors.goals ? (
+            <div className="border border-slate-200 rounded-lg p-6 bg-white">
+              <p className="text-sm text-slate-500 text-center">
+                Couldn&apos;t load connected goals.{" "}
+                <button
+                  type="button"
+                  onClick={() => setFeedReloadKey((k) => k + 1)}
+                  className="text-[#a8893a] hover:text-[#8a7028] font-medium"
+                >
+                  Retry
+                </button>
+              </p>
+            </div>
+          ) : goals.length === 0 ? (
             /* Empty state — Asana's inline combobox lives right in the card:
                type a goal to connect it, or create a new one. */
             <div className="border border-slate-200 rounded-lg p-6 bg-white">
@@ -1878,6 +1909,17 @@ export function ProjectOverview({
             </div>
             {loadingFeed ? (
               <p className="text-sm text-slate-400">Loading…</p>
+            ) : feedErrors.updates ? (
+              <p className="text-sm text-slate-500">
+                Couldn&apos;t load status updates.{" "}
+                <button
+                  type="button"
+                  onClick={() => setFeedReloadKey((k) => k + 1)}
+                  className="text-[#a8893a] hover:text-[#8a7028] font-medium"
+                >
+                  Retry
+                </button>
+              </p>
             ) : statusUpdates.length === 0 ? (
               <p className="text-sm text-slate-400">
                 No status updates yet. Post the first one above.
@@ -2034,6 +2076,17 @@ export function ProjectOverview({
 
             {loadingFeed ? (
               <p className="text-sm text-slate-400">Loading…</p>
+            ) : feedErrors.activity ? (
+              <p className="text-sm text-slate-500">
+                Couldn&apos;t load activity.{" "}
+                <button
+                  type="button"
+                  onClick={() => setFeedReloadKey((k) => k + 1)}
+                  className="text-[#a8893a] hover:text-[#8a7028] font-medium"
+                >
+                  Retry
+                </button>
+              </p>
             ) : activities.length === 0 ? (
               <p className="text-sm text-slate-400">
                 No activity yet. Tasks, members, and status updates will show

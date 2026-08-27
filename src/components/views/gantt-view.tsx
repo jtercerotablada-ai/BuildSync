@@ -1903,6 +1903,12 @@ export function GanttView({
                       setNewSectionName("");
                     }
                   }}
+                  onBlur={() => {
+                    // Same rule as the board composer: blur neither creates
+                    // nor discards. An empty input tidies itself away; a
+                    // draft stays open until Enter or Escape decides it.
+                    if (!newSectionName.trim()) setAddingSection(false);
+                  }}
                   placeholder="Section name"
                   className="flex-1 text-sm border border-[#c9a84c] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-[#c9a84c]"
                 />

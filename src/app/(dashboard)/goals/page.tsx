@@ -54,6 +54,7 @@ import {
   GOAL_TEMPLATE_CATEGORY_LABEL,
   type GoalTemplate,
 } from "@/lib/goal-templates-data";
+import { useUiState } from "@/hooks/use-ui-state";
 
 interface KeyResult {
   id: string;
@@ -109,8 +110,14 @@ interface Objective {
 type FilterMode = "all" | "my" | "team";
 type ViewType = "list" | "kanban" | "cards" | "tree";
 
-const VIEW_STORAGE_KEY = "goals.view";
-const FILTER_STORAGE_KEY = "goals.filter";
+// Server-backed per-user prefs (uiState), not localStorage — the choice
+// follows the user across devices and doesn't greet whoever logs in next
+// on a shared workstation. The legacy localStorage keys keep their old
+// names so the one-time carry-over below can find them.
+const VIEW_UI_STATE_KEY = "goalsView";
+const FILTER_UI_STATE_KEY = "goalsFilter";
+const LEGACY_VIEW_STORAGE_KEY = "goals.view";
+const LEGACY_FILTER_STORAGE_KEY = "goals.filter";
 
 const PERIODS = [
   "All",
@@ -152,8 +159,12 @@ function GoalsPageContent() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [filterMode, setFilterMode] = useState<FilterMode>("all");
-  const [selectedView, setSelectedView] = useState<ViewType>("list");
+  const { value: filterMode, setValue: setFilterMode } = useUiState<FilterMode>(
+    FILTER_UI_STATE_KEY,
+    "all"
+  );
+  const { value: selectedView, setValue: setSelectedView } =
+    useUiState<ViewType>(VIEW_UI_STATE_KEY, "list");
   const [selectedPeriod, setSelectedPeriod] = useState("All");
   // Status filter — client-side filter on top of fetched objectives.
   // "all" shows everything; otherwise only objectives whose status
@@ -172,30 +183,51 @@ function GoalsPageContent() {
   // Strategy map onboarding state — only used when tree view + empty list.
   const [showStrategyOnboarding, setShowStrategyOnboarding] = useState(true);
 
-  // Restore the user's last view + filter choice on mount. Stored in
-  // localStorage so the view sticks across navigation, not just tab
-  // switches inside this page.
+  // One-shot carry-over of the view + filter this page used to keep in
+  // localStorage. The preferences GET is read directly (rather than trusting
+  // the hook's default) so a value already saved on another device wins over
+  // this browser's stale copy; the legacy keys are dropped either way, so
+  // this runs at most once per browser.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const storedView = localStorage.getItem(VIEW_STORAGE_KEY) as ViewType | null;
-    if (storedView && ["list", "kanban", "cards", "tree"].includes(storedView)) {
-      setSelectedView(storedView);
+    let legacyView: string | null = null;
+    let legacyFilter: string | null = null;
+    try {
+      legacyView = localStorage.getItem(LEGACY_VIEW_STORAGE_KEY);
+      legacyFilter = localStorage.getItem(LEGACY_FILTER_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_VIEW_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_FILTER_STORAGE_KEY);
+    } catch {
+      // Private mode / storage disabled — nothing to migrate.
     }
-    const storedFilter = localStorage.getItem(FILTER_STORAGE_KEY) as FilterMode | null;
-    if (storedFilter && ["all", "my", "team"].includes(storedFilter)) {
-      setFilterMode(storedFilter);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(VIEW_STORAGE_KEY, selectedView);
-  }, [selectedView]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(FILTER_STORAGE_KEY, filterMode);
-  }, [filterMode]);
+    const carriedView = ["list", "kanban", "cards", "tree"].includes(
+      legacyView ?? ""
+    )
+      ? (legacyView as ViewType)
+      : null;
+    const carriedFilter = ["all", "my", "team"].includes(legacyFilter ?? "")
+      ? (legacyFilter as FilterMode)
+      : null;
+    if (!carriedView && !carriedFilter) return;
+    let canceled = false;
+    fetch("/api/users/preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (canceled || !data) return;
+        if (carriedView && data.uiState?.[VIEW_UI_STATE_KEY] === undefined) {
+          setSelectedView(carriedView);
+        }
+        if (carriedFilter && data.uiState?.[FILTER_UI_STATE_KEY] === undefined) {
+          setFilterMode(carriedFilter);
+        }
+      })
+      .catch(() => {
+        // Offline — the legacy keys are gone, so the user just keeps the
+        // defaults until they pick a view again.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [setSelectedView, setFilterMode]);
 
   // The home Goals widget deep-links here with ?new=1 to open the create
   // dialog directly. Strip the param after opening so a refresh (or

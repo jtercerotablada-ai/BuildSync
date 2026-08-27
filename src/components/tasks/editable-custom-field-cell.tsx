@@ -189,7 +189,28 @@ export function EditableCustomFieldCell({
           value={draftText}
           disabled={saving}
           onChange={(e) => setDraftText(e.target.value)}
-          onBlur={() => {
+          onPaste={(e) => {
+            if (type === "TEXT") return;
+            // A number input drops the whole paste unless it is a bare float,
+            // so "$1,250.00" straight out of a spreadsheet arrives as empty.
+            const text = e.clipboardData.getData("text");
+            const cleaned = text.replace(/[^0-9.-]/g, "");
+            // Nothing numeric in there — let the browser reject it so the
+            // blur handler below reports it instead of silently clearing.
+            if (cleaned !== text.trim() && /[0-9]/.test(cleaned)) {
+              e.preventDefault();
+              setDraftText(cleaned);
+            }
+          }}
+          onBlur={(e) => {
+            // A number input reports badInput when what the user typed isn't a
+            // valid float; its value then reads back as "", so committing here
+            // would silently clear the field instead of rejecting the edit.
+            if (type !== "TEXT" && e.currentTarget.validity.badInput) {
+              setEditing(false);
+              toast.error("Enter a number");
+              return;
+            }
             setEditing(false);
             const raw = draftText.trim();
             if (raw === "" && (optimistic == null || optimistic === "")) {
