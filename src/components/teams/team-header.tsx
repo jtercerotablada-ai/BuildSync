@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { InviteTeamModal } from "./invite-team-modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface TeamMember {
   id: string;
@@ -51,6 +52,31 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   const router = useRouter();
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isStarred, setIsStarred] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Deleting a team cascades to its messages, custom fields and knowledge
+  // entries; its projects AND goals are only DETACHED (both FKs are
+  // onDelete: SetNull). This used to fire straight from the dropdown, one row
+  // under "Settings", with no confirmation at all.
+  const deleteTeam = async () => {
+    try {
+      const res = await fetch(`/api/teams/${team.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed");
+      }
+      toast.success("Team deleted");
+      setShowDeleteConfirm(false);
+      router.push("/teams");
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message !== "Failed"
+          ? error.message
+          : "Failed to delete team"
+      );
+    }
+  };
 
   const tabs = [
     { id: "overview", label: "Overview", icon: LayoutGrid, href: `/teams/${team.id}` },
@@ -100,16 +126,9 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-black"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/teams/${team.id}`, { method: "DELETE" });
-                      if (!res.ok) throw new Error("Failed");
-                      toast.success("Team deleted");
-                      router.push("/teams");
-                      router.refresh();
-                    } catch {
-                      toast.error("Failed to delete team");
-                    }
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowDeleteConfirm(true);
                   }}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -190,6 +209,21 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         teamId={team.id}
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
+      />
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete team"
+        description={`"${team.name}" and everything scoped to it will be permanently deleted. This cannot be undone.`}
+        consequences={[
+          "Team messages, knowledge entries and custom fields are deleted",
+          "Members lose access; their tasks are not deleted",
+          "The team's projects and goals stay, but lose their team",
+        ]}
+        confirmLabel="Delete team"
+        requireText={team.name}
+        onConfirm={deleteTeam}
       />
     </>
   );

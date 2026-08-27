@@ -135,6 +135,10 @@ export async function GET(
         confirmationMessage: f.confirmationMessage,
         notifyOnSubmission: f.notifyOnSubmission,
         visibility: f.visibility,
+        // The editor hydrates its cover image from here. Omitting it meant the
+        // Home forms widget opened every form with an empty cover and the next
+        // Save PATCHed settings.coverImageUrl back to null — a silent wipe.
+        settings: f.settings,
         createdAt: f.createdAt.toISOString(),
         updatedAt: f.updatedAt.toISOString(),
       });
@@ -290,6 +294,11 @@ export async function PATCH(
       confirmationMessage: form.confirmationMessage,
       notifyOnSubmission: form.notifyOnSubmission,
       visibility: form.visibility,
+      // The client REPLACES its in-memory row with this response (workflow
+      // view's handleFormSaved). Dropping the settings bag here meant the
+      // second save in one visit re-sent coverImageUrl: null and wiped the
+      // cover — the same bug as the editor GET, one layer down.
+      settings: form.settings ?? null,
       createdAt: form.createdAt.toISOString(),
       updatedAt: form.updatedAt.toISOString(),
       submissionCount: form._count.submissions,

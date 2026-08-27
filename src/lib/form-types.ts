@@ -76,6 +76,10 @@ export interface FormField {
 }
 
 export interface FormRow {
+  /** Open-ended settings bag (currently `coverImageUrl`). TYPED on purpose:
+   *  it used to travel untyped, so any response shape that forgot it silently
+   *  wiped the cover on the next save. */
+  settings?: { coverImageUrl?: string | null } | null;
   id: string;
   name: string;
   description: string | null;

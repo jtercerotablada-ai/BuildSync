@@ -223,9 +223,10 @@ export function FormBuilderDialog({
       setNotifyOnSubmission(initial.notifyOnSubmission);
       setVisibility(initial.visibility);
       // Cover image lives inside the open-ended settings JSON so we
-      // don't need a schema migration. Cast carefully because TS
-      // doesn't know the shape of FormRow.settings.
-      const settings = (initial as unknown as { settings?: { coverImageUrl?: string } }).settings;
+      // don't need a schema migration. FormRow types the bag, so any API
+      // response shape that forgets to return it is a compile error rather
+      // than a silent cover wipe on the next save.
+      const settings = initial.settings;
       setCoverImageUrl(settings?.coverImageUrl || null);
       setCoverInput(settings?.coverImageUrl || "");
       // Favorites are per-user, per-form, in localStorage.

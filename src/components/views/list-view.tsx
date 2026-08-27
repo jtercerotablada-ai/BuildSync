@@ -175,6 +175,10 @@ interface ListViewProps {
    *  is disabled in that state — otherwise persisting the filtered/sorted
    *  view would overwrite the real task positions. */
   reorderDisabled?: boolean;
+  /** Unfiltered task count per section id. The rendered `sections` are the
+   *  FILTERED ones, so their length understates what deleting a section
+   *  actually destroys — same prop Board view uses for its confirm. */
+  rawSectionCounts?: Record<string, number>;
 }
 
 // Asana's enum-chip palette, measured in the real app: solid fills,
@@ -202,6 +206,7 @@ export function ListView({
   onAddTask,
   projectId,
   reorderDisabled = false,
+  rawSectionCounts,
 }: ListViewProps) {
   const router = useRouter();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -724,10 +729,17 @@ export function ListView({
     }
   };
 
-  const handleDeleteSection = async (sectionId: string, taskCount: number) => {
-    const msg = taskCount > 0
-      ? `Delete this section and its ${taskCount} task${taskCount > 1 ? "s" : ""}? This cannot be undone.`
-      : "Delete this empty section?";
+  const handleDeleteSection = async (
+    sectionId: string,
+    sectionName: string,
+    taskCount: number
+  ) => {
+    // taskCount must be the RAW count: the visible rows are filtered, and the
+    // server deletes every task in the section (completed, hidden, sub-tasks).
+    const msg =
+      taskCount > 0
+        ? `Delete "${sectionName}" and all ${taskCount} of its task${taskCount > 1 ? "s" : ""} (completed and hidden ones included, plus their sub-tasks)? This cannot be undone.`
+        : `Delete "${sectionName}"?`;
     if (!confirm(msg)) return;
     try {
       const response = await fetch(`/api/sections/${sectionId}`, { method: "DELETE" });
@@ -1020,7 +1032,13 @@ export function ListView({
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => handleDeleteSection(section.id, section.tasks.length)}
+                    onClick={() =>
+                      handleDeleteSection(
+                        section.id,
+                        section.name,
+                        rawSectionCounts?.[section.id] ?? section.tasks.length
+                      )
+                    }
                     className="text-black"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />

@@ -710,7 +710,7 @@ function BoardColumn({
     const count = rawTaskCount ?? section.tasks.length;
     const msg =
       count > 0
-        ? `Delete "${section.name}" and all ${count} of its task${count > 1 ? "s" : ""} (including completed and hidden tasks and their sub-tasks)? This cannot be undone.`
+        ? `Delete "${section.name}" and all ${count} of its task${count > 1 ? "s" : ""} (completed and hidden ones included, plus their sub-tasks)? This cannot be undone.`
         : `Delete "${section.name}"?`;
     if (!confirm(msg)) return;
     try {

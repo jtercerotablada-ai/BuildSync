@@ -268,6 +268,21 @@ export default async function ProjectPage({
       taskProjects: { where: { projectId }, select: { sectionId: true } },
     },
   });
+  // What DELETE /api/sections/:id actually removes: every task carrying that
+  // sectionId — sub-tasks included, guest (multi-homed) tasks excluded, since
+  // those keep their HOME section id. The rendered section.tasks list is
+  // neither (it hides sub-tasks and adds guests), so the delete confirm needs
+  // this number rather than a row count.
+  const sectionTaskCounts = Object.fromEntries(
+    (
+      await prisma.task.groupBy({
+        by: ["sectionId"],
+        where: { sectionId: { in: project.sections.map((s) => s.id) } },
+        _count: { _all: true },
+      })
+    ).map((g) => [g.sectionId as string, g._count._all])
+  ) as Record<string, number>;
+
   const multiHomedBySection = new Map<
     string,
     ReturnType<typeof serializeProjectTask>[]
@@ -334,5 +349,11 @@ export default async function ProjectPage({
     })),
   };
 
-  return <ProjectContent project={serializedProject} currentView={view} />;
+  return (
+    <ProjectContent
+      project={serializedProject}
+      currentView={view}
+      sectionTaskCounts={sectionTaskCounts}
+    />
+  );
 }

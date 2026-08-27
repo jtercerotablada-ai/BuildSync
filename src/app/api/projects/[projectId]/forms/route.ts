@@ -53,6 +53,15 @@ const createFormSchema = z.object({
   confirmationMessage: z.string().max(2000).nullable().optional(),
   notifyOnSubmission: z.boolean().optional(),
   visibility: z.enum(["PUBLIC", "ORGANIZATION"]).optional(),
+  // Open-ended settings bag (coverImageUrl today). Accepted here so a form
+  // created through this route keeps its cover instead of silently dropping
+  // it, and echoed back so the client's stored row round-trips.
+  settings: z
+    .object({
+      coverImageUrl: z.string().url().max(2048).nullable().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 async function assertProjectAccess(projectId: string, userId: string) {
@@ -208,6 +217,10 @@ export async function POST(
         confirmationMessage: p.confirmationMessage ?? null,
         notifyOnSubmission: p.notifyOnSubmission ?? true,
         visibility: p.visibility ?? "PUBLIC",
+        settings:
+          p.settings != null
+            ? (p.settings as unknown as object)
+            : undefined,
       },
     });
 
@@ -224,6 +237,7 @@ export async function POST(
         confirmationMessage: form.confirmationMessage,
         notifyOnSubmission: form.notifyOnSubmission,
         visibility: form.visibility,
+        settings: form.settings ?? null,
         createdAt: form.createdAt.toISOString(),
         updatedAt: form.updatedAt.toISOString(),
         submissionCount: 0,

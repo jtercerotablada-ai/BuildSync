@@ -135,7 +135,15 @@ export function TeamSettingsModal({
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this team? This action cannot be undone.")) {
+    // Cascades: team messages, custom fields and knowledge entries are deleted
+    // with it. Its projects and goals are only detached (SetNull).
+    if (
+      !confirm(
+        `Delete "${team.name}"?
+
+Its messages, knowledge entries and custom fields are deleted permanently. Its projects and goals stay but lose their team. This cannot be undone.`
+      )
+    ) {
       return;
     }
 

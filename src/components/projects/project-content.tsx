@@ -265,6 +265,9 @@ const PROJECT_TYPE_COLOR: Record<string, string> = {
 interface ProjectContentProps {
   project: Project;
   currentView: string;
+  /** Real per-section task counts from the server (sub-tasks included,
+   *  multi-homed guests excluded) — what deleting a section destroys. */
+  sectionTaskCounts?: Record<string, number>;
 }
 
 // Monochrome + gold palette for status badges. Gold = active/positive,
@@ -356,7 +359,11 @@ const VIEW_ICONS: Record<string, LucideIcon> = {
   workload: Gauge,
 };
 
-export function ProjectContent({ project, currentView }: ProjectContentProps) {
+export function ProjectContent({
+  project,
+  currentView,
+  sectionTaskCounts,
+}: ProjectContentProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -1570,6 +1577,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onAddTask={handleAddTask}
               projectId={project.id}
               reorderDisabled={hasActiveFilters}
+              rawSectionCounts={sectionTaskCounts}
             />
           )}
           {baseView === "board" && (
@@ -1579,9 +1587,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onAddTask={handleAddTask}
               projectId={project.id}
               reorderDisabled={hasActiveFilters}
-              rawSectionCounts={Object.fromEntries(
-                project.sections.map((s) => [s.id, s.tasks.length])
-              )}
+              rawSectionCounts={sectionTaskCounts}
             />
           )}
           {baseView === "timeline" && (
