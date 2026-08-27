@@ -220,7 +220,20 @@ function isAttachment(v: unknown): v is FormAttachment {
   );
 }
 
-export function formatAnswerForText(value: FormAnswerValue): string {
+export function formatAnswerForText(
+  value: FormAnswerValue,
+  field?: FormField
+): string {
+  const text = formatAnswerValue(value);
+  // A NUMBER answer is stored bare, so "500" on its own tells the reader
+  // nothing — carry the field's unit through to wherever it's displayed.
+  if (text && field?.type === "NUMBER" && field.unit) {
+    return `${text} ${field.unit}`;
+  }
+  return text;
+}
+
+function formatAnswerValue(value: FormAnswerValue): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
@@ -297,7 +310,7 @@ export function buildTaskFromSubmission(
     // Render as a labeled block. mapTo:"description" still gets the
     // label so the answer's intent is obvious (a paragraph with no
     // label tends to look like the description was empty).
-    descriptionParts.push(`${field.label}:\n${formatAnswerForText(raw)}`);
+    descriptionParts.push(`${field.label}:\n${formatAnswerForText(raw, field)}`);
   }
 
   // Fall back to the form's name when no field is mapTo: "name".

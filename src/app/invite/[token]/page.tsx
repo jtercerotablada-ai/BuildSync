@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { validatePassword } from "@/lib/password-policy";
 import {
   WORKSPACE_ROLE_META,
   POSITION_META,
@@ -329,6 +330,15 @@ export default function InvitePage() {
             toast.error("Choose a password");
             return;
           }
+          /* Check the SERVER's rule here, not a looser copy of it. The field
+             asked for 8 characters while the accept route also demands an
+             uppercase letter, a digit and a symbol, so a new hire got bounced
+             one rule at a time on the first screen of the product. */
+          const pwCheck = validatePassword(signUpPassword);
+          if (!pwCheck.valid) {
+            toast.error(pwCheck.message);
+            return;
+          }
           accept({ password: signUpPassword, name: signUpName });
         }}
         className="space-y-3"
@@ -369,6 +379,12 @@ export default function InvitePage() {
               className="w-full pl-9 pr-3 py-2 text-sm border rounded-md outline-none focus:border-[#c9a84c]"
             />
           </div>
+          {/* Spell the whole rule out up front — the field used to advertise
+              the length only, so the rest arrived as server errors. */}
+          <p className="text-[11px] text-slate-400">
+            At least 8 characters, with one uppercase letter, one number and
+            one special character.
+          </p>
           <p className="text-[11px] text-slate-400">
             We'll create your account with{" "}
             <span className="font-mono">{invitation.email}</span>.

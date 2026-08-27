@@ -5,27 +5,34 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils"
 
+// Radix resolves a tooltip's delay from the nearest provider. Wrapping every
+// Tooltip in its own provider would therefore silently override the provider a
+// screen mounts around a group of tooltips, so we track our own provider in
+// context and only supply a fallback when a Tooltip is used outside of one.
+const TooltipProviderContext = React.createContext(false)
+
 function TooltipProvider({
-  delayDuration = 0,
+  delayDuration = 300,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delayDuration={delayDuration}
-      {...props}
-    />
+    <TooltipProviderContext.Provider value={true}>
+      <TooltipPrimitive.Provider
+        data-slot="tooltip-provider"
+        delayDuration={delayDuration}
+        {...props}
+      />
+    </TooltipProviderContext.Provider>
   )
 }
 
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return (
-    <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-    </TooltipProvider>
-  )
+  const hasProvider = React.useContext(TooltipProviderContext)
+  const root = <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+
+  return hasProvider ? root : <TooltipProvider>{root}</TooltipProvider>
 }
 
 function TooltipTrigger({

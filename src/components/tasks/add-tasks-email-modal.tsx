@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Mail, X, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 
 interface AddTasksEmailModalProps {
   open: boolean;
@@ -16,26 +17,42 @@ interface AddTasksEmailModalProps {
 export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalProps) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const loadEmail = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await fetch("/api/my-tasks/inbound-email");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      // A 200 with no address is just as unusable as a failed request —
+      // without this the pill rendered as an empty grey box.
+      if (!data.email) throw new Error("No address returned");
+      setEmail(data.email);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (open && !email) {
-      setLoading(true);
-      fetch("/api/my-tasks/inbound-email")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.email) setEmail(data.email);
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
+      loadEmail();
     }
-  }, [open, email]);
+  }, [open, email, loadEmail]);
 
-  function handleCopy() {
+  async function handleCopy() {
     if (!email) return;
-    navigator.clipboard.writeText(email);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy the address");
+    }
   }
 
   return (
@@ -61,33 +78,47 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
           </p>
 
           {/* Email pill */}
-          <button
-            onClick={handleCopy}
-            className="group relative w-full h-14 flex items-center justify-center bg-[#f3f4f6] rounded-lg hover:bg-[#ebedf0] transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-black/10"
-          >
-            {loading ? (
-              <span className="text-[14px] text-gray-400">Loading...</span>
-            ) : (
-              <>
-                <span className="text-[18px] font-medium text-gray-800 select-all">
-                  {email}
-                </span>
-                <span className="absolute right-4 flex items-center gap-1.5 text-[12px] text-gray-400 group-hover:text-gray-600 transition-colors">
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-[#a8893a]" />
-                      <span className="text-[#a8893a]">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </span>
-              </>
-            )}
-          </button>
+          {error ? (
+            <div className="w-full h-14 flex items-center justify-center gap-3 bg-[#f3f4f6] rounded-lg px-4">
+              <span className="text-[14px] text-gray-600">
+                Couldn&apos;t load your address.
+              </span>
+              <button
+                onClick={loadEmail}
+                className="text-[13px] font-medium text-[#a8893a] hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleCopy}
+              className="group relative w-full h-14 flex items-center justify-center bg-[#f3f4f6] rounded-lg hover:bg-[#ebedf0] transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-black/10"
+            >
+              {loading ? (
+                <span className="text-[14px] text-gray-400">Loading...</span>
+              ) : (
+                <>
+                  <span className="text-[18px] font-medium text-gray-800 select-all">
+                    {email}
+                  </span>
+                  <span className="absolute right-4 flex items-center gap-1.5 text-[12px] text-gray-400 group-hover:text-gray-600 transition-colors">
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-[#a8893a]" />
+                        <span className="text-[#a8893a]">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Instructions */}
           <ul className="space-y-2.5 pl-1">
@@ -103,17 +134,6 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
               </li>
             ))}
           </ul>
-
-          {/* Learn more link */}
-          <div>
-            <a
-              href="#"
-              className="text-[13px] text-[#a8893a] hover:text-[#a8893a] hover:underline transition-colors"
-              onClick={(e) => e.preventDefault()}
-            >
-              Learn more
-            </a>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

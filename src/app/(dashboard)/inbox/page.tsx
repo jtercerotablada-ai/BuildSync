@@ -32,6 +32,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useUiState } from "@/hooks/use-ui-state";
 import { notifyUnreadChanged } from "@/lib/notifications-refresh";
@@ -172,6 +174,7 @@ export default function InboxPage() {
   // from the wrong tab.
   const scopeGenRef = useRef(0);
   const [loading, setLoading] = useState(true);
+  const [confirmArchiveAllOpen, setConfirmArchiveAllOpen] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "unread" | "mentions" | "assignments">("all");
   const [sortOrder, setSortOrder] = useState<"recent" | "oldest" | "unread">("recent");
   const [density, setDensity] = useState<"detailed" | "compact">("detailed");
@@ -497,6 +500,10 @@ export default function InboxPage() {
   // Server-side archive-all — one PATCH archives EVERY non-archived row
   // for the caller (not just the loaded page), then we refetch to get
   // the fresh list + server unreadCount.
+  // It empties the whole inbox in one click with no undo, so every entry
+  // point goes through the confirmation below rather than calling this
+  // directly. A failure has to say so: the optimistic rollback alone just
+  // makes every notification reappear, which reads as a rendering glitch.
   const archiveAll = async () => {
     const prev = notifications;
     setNotifications([]);
@@ -508,9 +515,11 @@ export default function InboxPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchNotifications();
+      setConfirmArchiveAllOpen(false);
     } catch (error) {
       console.error("Error archiving notifications:", error);
       setNotifications(prev);
+      toast.error("Couldn't archive notifications. Please try again.");
     }
   };
 
@@ -700,7 +709,7 @@ export default function InboxPage() {
                   <Check className="w-4 h-4 mr-2" />
                   Mark all as read
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={archiveAll}>
+                <DropdownMenuItem onClick={() => setConfirmArchiveAllOpen(true)}>
                   <Archive className="w-4 h-4 mr-2" />
                   Archive all
                 </DropdownMenuItem>
@@ -799,8 +808,17 @@ export default function InboxPage() {
           setFilterType(type as "all" | "unread" | "mentions" | "assignments");
         }}
         onMarkAllRead={markAllAsRead}
-        onArchiveAll={archiveAll}
+        onArchiveAll={() => setConfirmArchiveAllOpen(true)}
         isArchivedScope={isArchivedScope}
+      />
+
+      <ConfirmDialog
+        open={confirmArchiveAllOpen}
+        onOpenChange={setConfirmArchiveAllOpen}
+        title="Archive all notifications?"
+        description="Every notification in your inbox is moved to Archive. This can't be undone from here."
+        confirmLabel="Archive all"
+        onConfirm={archiveAll}
       />
 
       {/* ─── Content Area ─── */}
@@ -960,7 +978,7 @@ export default function InboxPage() {
 
                 {activeTab !== "favorites" && (
                   <button
-                    onClick={archiveAll}
+                    onClick={() => setConfirmArchiveAllOpen(true)}
                     className="text-[13px] text-gray-500 hover:text-[#a8893a] hover:underline mt-2 mb-8 px-1"
                   >
                     Archive all notifications

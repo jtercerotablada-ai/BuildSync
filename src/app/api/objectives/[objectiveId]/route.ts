@@ -103,6 +103,12 @@ export async function GET(
         statusUpdates: {
           orderBy: { createdAt: "desc" },
           take: 10,
+          // Without the author the activity feed has nothing to attribute a
+          // row to and falls back to the goal owner, so every comment reads as
+          // if the owner wrote it.
+          include: {
+            author: { select: { id: true, name: true, image: true } },
+          },
         },
         _count: {
           select: {
@@ -149,6 +155,25 @@ export async function GET(
       select: { id: true },
     });
 
+    // Comments and check-ins share one table, so the include's cap above is
+    // spent on whichever rows are newest — a busy review week of comments
+    // would push the goal's whole status history out of the feed. Give the
+    // check-ins their own cap and merge, so both are always represented.
+    const recentCheckIns = await prisma.objectiveStatusUpdate.findMany({
+      where: { objectiveId, status: { not: null } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: {
+        author: { select: { id: true, name: true, image: true } },
+      },
+    });
+    const feedById = new Map(
+      [...objective.statusUpdates, ...recentCheckIns].map((u) => [u.id, u])
+    );
+    const statusUpdates = [...feedById.values()].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
+
     // Calculate progress based on source
     let calculatedProgress = objective.progress;
 
@@ -167,6 +192,7 @@ export async function GET(
 
     return NextResponse.json({
       ...objective,
+      statusUpdates,
       progress: calculatedProgress,
       likedByMe: !!myLike,
     });

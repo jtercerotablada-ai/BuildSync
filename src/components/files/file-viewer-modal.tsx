@@ -14,7 +14,7 @@
  * current index and the user can ←/→ through every attachment
  * without having to close + reopen the modal each time.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   X,
@@ -64,6 +64,9 @@ export function FileViewerModal({
   const [index, setIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const current = files[index];
 
@@ -71,7 +74,12 @@ export function FileViewerModal({
   useEffect(() => {
     setZoom(1);
     setRotation(0);
+    setPan({ x: 0, y: 0 });
   }, [index]);
+
+  // A fitted image has nothing to pan to, so any offset from an earlier
+  // zoom is ignored until the user zooms back in.
+  const effectivePan = zoom > 1 ? pan : { x: 0, y: 0 };
 
   const goPrev = useCallback(() => {
     setIndex((i) => (i > 0 ? i - 1 : files.length - 1));
@@ -99,8 +107,35 @@ export function FileViewerModal({
       } else if (e.key === "0") {
         setZoom(1);
         setRotation(0);
+        setPan({ x: 0, y: 0 });
       } else if (e.key.toLowerCase() === "r") {
         setRotation((r) => (r + 90) % 360);
+      } else if (e.key === "Tab") {
+        // Keep Tab inside the viewer — the page behind is covered by an
+        // opaque overlay, so focus landing there is focus lost.
+        const root = containerRef.current;
+        if (!root) return;
+        // The preview surface itself is focusable (a PDF iframe, a video or
+        // audio player), so it has to be a stop in this list — leave it out
+        // and Tab just cycles the toolbar while the actual file stays
+        // keyboard-unreachable.
+        const focusables = Array.from(
+          root.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, video[controls], audio[controls], [contenteditable], [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => el.offsetParent !== null);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        const inside = !!active && root.contains(active);
+        if (e.shiftKey && (!inside || active === first)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (!inside || active === last)) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", handler);
@@ -116,10 +151,25 @@ export function FileViewerModal({
     };
   }, []);
 
+  // Move focus into the viewer on open and hand it back to whatever opened
+  // it on close, so a keyboard user doesn't resume behind the overlay.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, []);
+
   if (!current) return null;
 
   return (
     <div
+      ref={containerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`File preview: ${current.name}`}
+      tabIndex={-1}
       className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex flex-col animate-in fade-in duration-150"
       onClick={onClose}
     >
@@ -254,9 +304,11 @@ export function FileViewerModal({
           <ExternalLink className="h-4 w-4" />
         </a>
         <button
+          ref={closeButtonRef}
           onClick={onClose}
           className="h-8 w-8 inline-flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-md"
           title="Close (Esc)"
+          aria-label="Close file preview"
         >
           <X className="h-4 w-4" />
         </button>
@@ -274,6 +326,8 @@ export function FileViewerModal({
           file={current}
           zoom={zoom}
           rotation={rotation}
+          pan={effectivePan}
+          onPanChange={setPan}
           onClickBackdrop={onClose}
         />
 
@@ -355,13 +409,26 @@ function FilePreviewSurface({
   file,
   zoom,
   rotation,
+  pan,
+  onPanChange,
   onClickBackdrop,
 }: {
   file: ViewerFile;
   zoom: number;
   rotation: number;
+  pan: { x: number; y: number };
+  onPanChange: (pan: { x: number; y: number }) => void;
   onClickBackdrop: () => void;
 }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const mt = file.mimeType;
   const isImage = mt.startsWith("image/");
   const isPdf = mt === "application/pdf";
@@ -386,18 +453,98 @@ function FilePreviewSurface({
     return officeMimes.includes(mt);
   }, [mt]);
 
+  // Once the image is scaled past its container the interesting part is
+  // usually off-screen, so dragging is the only way to reach a corner of a
+  // marked-up drawing. Travel is capped at the overflow so the image can
+  // never be dragged out of sight. After a quarter turn the on-screen axes
+  // are swapped, so the horizontal extent comes from the layout height and
+  // the vertical one from the layout width.
+  const clampPan = useCallback(
+    (next: { x: number; y: number }) => {
+      const el = imgRef.current;
+      const box = el?.parentElement;
+      if (!el || !box) return next;
+      const quarterTurned = (rotation / 90) % 2 === 1;
+      const spanX = (quarterTurned ? el.offsetHeight : el.offsetWidth) * zoom;
+      const spanY = (quarterTurned ? el.offsetWidth : el.offsetHeight) * zoom;
+      const maxX = Math.max(0, (spanX - box.clientWidth) / 2);
+      const maxY = Math.max(0, (spanY - box.clientHeight) / 2);
+      return {
+        x: Math.min(maxX, Math.max(-maxX, next.x)),
+        y: Math.min(maxY, Math.max(-maxY, next.y)),
+      };
+    },
+    [rotation, zoom]
+  );
+
+  // Zooming out or rotating shrinks that cap, and neither goes through the
+  // drag handler. Without re-clamping here the stored offset stays at the
+  // old scale and the picture renders parked past its own edge — a black
+  // band on one side — until the next drag snaps it back.
+  const panRef = useRef(pan);
+  panRef.current = pan;
+  useEffect(() => {
+    if (!isImage) return;
+    const clamped = clampPan(panRef.current);
+    if (clamped.x !== panRef.current.x || clamped.y !== panRef.current.y) {
+      onPanChange(clamped);
+    }
+  }, [clampPan, isImage, onPanChange]);
+
   if (isImage) {
+    const endDrag = (e: React.PointerEvent<HTMLImageElement>) => {
+      if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+      dragRef.current = null;
+      setDragging(false);
+    };
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        ref={imgRef}
         src={file.url}
         alt={file.name}
-        className="max-w-[95vw] max-h-[80vh] object-contain transition-transform duration-150 select-none"
+        className={cn(
+          "max-w-[95vw] max-h-[80vh] object-contain duration-150 select-none",
+          !dragging && "transition-transform",
+          zoom > 1 && (dragging ? "cursor-grabbing" : "cursor-grab")
+        )}
         style={{
-          transform: `scale(${zoom}) rotate(${rotation}deg)`,
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+          // While zoomed the gesture is ours; otherwise the browser can claim
+          // it for its own scroll/pinch mid-drag.
+          touchAction: zoom > 1 ? "none" : undefined,
         }}
         draggable={false}
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => {
+          if (zoom <= 1) return;
+          // A second finger coming down to pinch must not take over the drag
+          // already in flight — its coordinates would yank the image sideways.
+          if (dragRef.current) return;
+          e.preventDefault();
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+          dragRef.current = {
+            pointerId: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            panX: pan.x,
+            panY: pan.y,
+          };
+          setDragging(true);
+        }}
+        onPointerMove={(e) => {
+          const start = dragRef.current;
+          if (!start || start.pointerId !== e.pointerId) return;
+          onPanChange(
+            clampPan({
+              x: start.panX + (e.clientX - start.x),
+              y: start.panY + (e.clientY - start.y),
+            })
+          );
+        }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
       />
     );
   }

@@ -1,0 +1,16 @@
+-- A goal's comment box and its check-in dialog write to the SAME table, and
+-- ObjectiveStatusUpdate.status was NOT NULL — so a comment was stored with the
+-- goal's current status stamped onto it, and the activity feed reported it as
+-- "posted a check-in" with a status colour. The goal's history claimed
+-- check-ins that nobody made.
+--
+-- Widening the column (dropping NOT NULL) is additive: every existing row keeps
+-- the status it has, and nothing that reads the column breaks. New comments
+-- write NULL, which is what lets the feed tell a comment from a check-in.
+--
+-- Historical rows are left alone on purpose: the two kinds are genuinely
+-- indistinguishable in the old data, and guessing would rewrite history rather
+-- than correct it.
+--
+-- Run with:  npx prisma db execute --file prisma/sql/2026-08-27-objective-comment-vs-checkin.sql --schema prisma/schema.prisma
+ALTER TABLE "ObjectiveStatusUpdate" ALTER COLUMN "status" DROP NOT NULL;

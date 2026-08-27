@@ -321,6 +321,10 @@ export function TaskDetailPanel({
   // lets the shared onBlur handler tell the two apart.
   const cancelSubtaskEditRef = useRef(false);
 
+  // Panel root — the Escape handler below uses it to tell "focus is inside
+  // this panel" from "focus is in a portalled menu on top of it".
+  const panelRef = useRef<HTMLDivElement>(null);
+
   // ── File attachment upload ────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -428,6 +432,36 @@ export function TaskDetailPanel({
     return () => window.removeEventListener(TASK_MUTATED_EVENT, handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
+
+  // Every other overlay in the app closes on Escape; this one — the most
+  // used of them — only had the small ✕. Close on Escape, but stand back
+  // whenever something inside owns the key: an inline editor (Escape there
+  // reverts the field), a dropdown / popover / dialog (Radix closes its own
+  // layer, and its focus lives in a portal outside the panel), or one of the
+  // file viewers stacked on top. The viewers listen on `window`, which fires
+  // AFTER this document listener, so checking defaultPrevented is not enough.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (viewerIndex !== null || commentViewer) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && active !== document.body) {
+        const tag = active.tagName;
+        if (
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          active.isContentEditable
+        ) {
+          return;
+        }
+        if (panelRef.current && !panelRef.current.contains(active)) return;
+      }
+      onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, viewerIndex, commentViewer]);
 
   // Load the home project's sections so the Section row can move the task.
   useEffect(() => {
@@ -955,6 +989,7 @@ export function TaskDetailPanel({
         />
       )}
       <div
+        ref={panelRef}
         className={cn(
           presentation === "centered"
             ? "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-[560px] max-h-[88vh] border border-[#e8e8e8] bg-white rounded-2xl flex flex-col overflow-hidden shadow-2xl text-[#1e1f21] animate-in fade-in zoom-in-95 duration-200"

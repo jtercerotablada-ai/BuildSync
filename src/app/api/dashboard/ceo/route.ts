@@ -173,7 +173,12 @@ export async function GET(request: Request) {
             endDate: true,
             updatedAt: true,
             owner: { select: { id: true, name: true, image: true } },
-            _count: { select: { tasks: true } },
+            // Root tasks only, on BOTH sides of the ratio below. PMI's
+            // ProjectMinimal.taskCount is a root-level contract and
+            // Projects > All counts the same way, so leaving subtasks in
+            // here made Home show a different "% complete" for the very
+            // same project.
+            _count: { select: { tasks: { where: { parentTaskId: null } } } },
           },
           orderBy: { updatedAt: "desc" },
         }),
@@ -185,7 +190,7 @@ export async function GET(request: Request) {
         // metric to zero / "—" on the home page.
         prisma.task.groupBy({
           by: ["projectId"],
-          where: { ...taskWhere, completedAt: { not: null } },
+          where: { ...taskWhere, parentTaskId: null, completedAt: { not: null } },
           _count: { _all: true },
         }),
 
@@ -318,24 +323,30 @@ export async function GET(request: Request) {
         ACTIVE_GATES.includes(p.gate as (typeof ACTIVE_GATES)[number])
     ).length;
 
+    // One grouped count of in-flight work per assignee serves both the
+    // utilization figure here and the per-member load further down. Each
+    // used to scan the whole open-task set on its own — one with `distinct`,
+    // one pulling every row into memory just to tally it in JS.
+    const openTaskCounts = await prisma.task.groupBy({
+      by: ["assigneeId"],
+      where: { ...taskWhere, completedAt: null, assigneeId: { not: null } },
+      _count: { _all: true },
+    });
+    const loadByUser = new Map<string, number>();
+    for (const row of openTaskCounts) {
+      if (row.assigneeId) loadByUser.set(row.assigneeId, row._count._all);
+    }
+
     // Team utilization — naive: % of visible members with at least
     // 1 in-flight task.
     const memberIds = workspaceMembers.map((m) => m.userId);
-    const activeAssignees =
-      memberIds.length > 0
-        ? await prisma.task.findMany({
-            where: {
-              ...taskWhere,
-              completedAt: null,
-              assigneeId: { in: memberIds },
-            },
-            select: { assigneeId: true },
-            distinct: ["assigneeId"],
-          })
-        : [];
     const utilization =
       memberIds.length > 0
-        ? Math.round((activeAssignees.length / memberIds.length) * 100)
+        ? Math.round(
+            (memberIds.filter((id) => (loadByUser.get(id) ?? 0) > 0).length /
+              memberIds.length) *
+              100
+          )
         : 0;
 
     // Compliance projects (recert / permit) within 60 days.
@@ -373,20 +384,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Per-member load — only over the visible task set.
-    const loadByUser = new Map<string, number>();
-    const taskAssignees = await prisma.task.findMany({
-      where: { ...taskWhere, completedAt: null, assigneeId: { not: null } },
-      select: { assigneeId: true },
-    });
-    for (const t of taskAssignees) {
-      if (t.assigneeId) {
-        loadByUser.set(
-          t.assigneeId,
-          (loadByUser.get(t.assigneeId) ?? 0) + 1
-        );
-      }
-    }
+    // Per-member load — only over the visible task set (loadByUser above).
     const team = workspaceMembers
       .map((m) => ({
         id: m.user.id,

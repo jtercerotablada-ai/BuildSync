@@ -44,8 +44,12 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // Root tasks only, matching /api/teams/:id/workload. Counting subtasks
+    // as their own assignments listed each one next to its parent and summed
+    // the parent's TIME_TRACKING estimate twice, so the same engineer showed a
+    // different load here than on Team > Workload.
     const tasks = await prisma.task.findMany({
-      where: { projectId, completed: false },
+      where: { projectId, parentTaskId: null, completed: false },
       select: {
         id: true,
         name: true,

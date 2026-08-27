@@ -5,11 +5,15 @@ import { createToken } from "@/lib/tokens";
 import { sendVerificationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
+  // Hoisted so the catch below can tell an authenticated caller (who is
+  // owed a real failure) from an anonymous one (who only ever gets the
+  // enumeration-safe message).
+  let userId: string | undefined;
   try {
     let email: string | null = null;
 
     // Try to get email from session first
-    const userId = await getCurrentUserId();
+    userId = await getCurrentUserId();
     if (userId) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -65,13 +69,37 @@ export async function POST(req: Request) {
     }
 
     const token = await createToken(`email-verify:${email}`);
-    await sendVerificationEmail(email, token);
+    try {
+      await sendVerificationEmail(email, token);
+    } catch (error) {
+      console.error("Error sending verification email:", error);
+      // The mail never left. Telling an authenticated user "sent" would
+      // leave them waiting for a message that isn't coming, so surface the
+      // failure — anonymous callers still get the generic message, since a
+      // distinct status here would reveal that the address is registered.
+      if (userId) {
+        return NextResponse.json(
+          {
+            error:
+              "Could not send the verification email. Try again in a minute.",
+          },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json({ message: genericMsg });
+    }
 
     return NextResponse.json({
       message: userId ? "Verification email sent" : genericMsg,
     });
   } catch (error) {
     console.error("Error resending verification:", error);
+    if (userId) {
+      return NextResponse.json(
+        { error: "Could not send the verification email. Please try again." },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
       { message: "If that email exists, a verification link has been sent" }
     );

@@ -776,15 +776,18 @@ function BoardColumn({
         </div>
 
         <div className="flex items-center gap-0.5">
+          {/* focus-visible keeps these in step with the hover reveal: without
+              it a keyboard user tabs onto a fully transparent button and the
+              focus ring vanishes for two stops per column. */}
           <button
             onClick={onStartAddTask}
-            className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           >
             <Plus className="w-4 h-4 text-slate-400" />
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+              <button className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 transition-opacity">
                 <MoreHorizontal className="w-4 h-4 text-slate-400" />
               </button>
             </DropdownMenuTrigger>

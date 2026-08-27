@@ -82,14 +82,17 @@ export function KeyResultRow({
 }) {
   const [mode, setMode] = useState<"idle" | "editName" | "editValue">("idle");
   const [name, setName] = useState(kr.name);
-  const [value, setValue] = useState(kr.currentValue);
+  // Held as the raw string the user typed: a controlled number input that
+  // parses on every keystroke can never hold "2." or "-" long enough to
+  // finish typing a decimal or a negative.
+  const [value, setValue] = useState(String(kr.currentValue));
   const [saving, setSaving] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const valueInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setName(kr.name);
-    setValue(kr.currentValue);
+    setValue(String(kr.currentValue));
   }, [kr.name, kr.currentValue, kr.id]);
 
   useEffect(() => {
@@ -132,7 +135,15 @@ export function KeyResultRow({
   }
 
   async function saveValue() {
-    if (value === kr.currentValue) {
+    const parsed = parseFloat(value);
+    if (Number.isNaN(parsed)) {
+      // Empty or half-typed ("2.", "-") — keep the stored value.
+      setValue(String(kr.currentValue));
+      setMode("idle");
+      return;
+    }
+    if (parsed === kr.currentValue) {
+      setValue(String(kr.currentValue));
       setMode("idle");
       return;
     }
@@ -143,11 +154,11 @@ export function KeyResultRow({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ currentValue: value }),
+          body: JSON.stringify({ currentValue: parsed }),
         }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const delta = value - kr.currentValue;
+      const delta = parsed - kr.currentValue;
       toast.success(
         `Updated ${delta > 0 ? `+${delta}` : delta}${kr.unit ? " " + kr.unit : ""}`
       );
@@ -155,7 +166,7 @@ export function KeyResultRow({
       setMode("idle");
     } catch {
       toast.error("Couldn't update value");
-      setValue(kr.currentValue);
+      setValue(String(kr.currentValue));
     } finally {
       setSaving(false);
     }
@@ -248,15 +259,16 @@ export function KeyResultRow({
               ref={valueInputRef}
               type="number"
               step="any"
+              inputMode="decimal"
               value={value}
-              onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setValue(e.target.value)}
               onBlur={saveValue}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   saveValue();
                 } else if (e.key === "Escape") {
-                  setValue(kr.currentValue);
+                  setValue(String(kr.currentValue));
                   setMode("idle");
                 }
               }}

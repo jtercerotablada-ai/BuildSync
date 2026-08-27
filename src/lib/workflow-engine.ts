@@ -185,19 +185,39 @@ async function runAction(
       return;
     }
 
-    case "ADD_COLLABORATORS":
+    case "ADD_COLLABORATORS": {
       // Idempotent: skipDuplicates on the unique (taskId, userId)
       // index prevents re-adding the same collaborator if the rule
       // fires more than once.
       if (!action.userIds || action.userIds.length === 0) return;
+      // Re-checked at execution time like SET_ASSIGNEE: an id validated when
+      // the rule was saved may have left the workspace, and adding them kept
+      // sending that task's notifications to someone who is gone — while a
+      // deleted user's FK violation made the whole action fail silently.
+      const checked = await Promise.all(
+        action.userIds.map(async (uid) => ({
+          uid,
+          ok: await isMemberOfTaskWorkspace(ctx.taskId, uid),
+        }))
+      );
+      const allowed = checked.filter((c) => c.ok).map((c) => c.uid);
+      for (const c of checked) {
+        if (!c.ok) {
+          console.warn(
+            `[workflow-engine] ADD_COLLABORATORS skipped: ${c.uid} is not in the task's workspace`
+          );
+        }
+      }
+      if (allowed.length === 0) return;
       await prisma.taskCollaborator.createMany({
-        data: action.userIds.map((uid) => ({
+        data: allowed.map((uid) => ({
           taskId: ctx.taskId,
           userId: uid,
         })),
         skipDuplicates: true,
       });
       return;
+    }
 
     case "ADD_COMMENT": {
       if (!action.content?.trim()) return;

@@ -38,6 +38,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -1090,149 +1095,144 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
         </div>
       </div>
 
-      {/* ───────────── Add-task modal ───────────── */}
-      {addOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-          onClick={() => setAddOpen(false)}
+      {/* ───────────── Add-task modal ─────────────
+          Radix Dialog rather than a bare fixed overlay: it brings the
+          Escape key, the focus trap, the body scroll lock and the
+          enter/exit animation the hand-rolled version never had. */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent
+          showCloseButton={false}
+          aria-describedby={undefined}
+          className="w-[420px] gap-0 rounded-[10px] border-[#E0E1E3] bg-white p-4 shadow-xl sm:max-w-[420px]"
         >
-          <div
-            className="w-[420px] rounded-[10px] border border-[#E0E1E3] bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-[#1E1F21]">
-              Add task
-            </h3>
-            <div className="mt-3 space-y-2.5">
-              <label className="block">
-                <span className="text-[11px] text-[#6B6D70]">Name</span>
-                <input
-                  autoFocus
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] px-2 text-[13px] text-[#1E1F21] outline-none focus:border-[#C6C9CD]"
-                  placeholder="Task name"
-                />
-              </label>
-              <label className="block">
-                <span className="text-[11px] text-[#6B6D70]">Assignee</span>
-                <select
-                  value={form.assigneeId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, assigneeId: e.target.value }))
-                  }
-                  className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] bg-white px-2 text-[13px] text-[#1E1F21] outline-none focus:border-[#C6C9CD]"
+          <DialogTitle className="text-sm font-semibold text-[#1E1F21]">
+            Add task
+          </DialogTitle>
+          <div className="mt-3 space-y-2.5">
+            <label className="block">
+              <span className="text-[11px] text-[#6B6D70]">Name</span>
+              <input
+                autoFocus
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] px-2 text-[13px] text-[#1E1F21] outline-none focus:border-[#c9a84c]"
+                placeholder="Task name"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[11px] text-[#6B6D70]">Assignee</span>
+              <select
+                value={form.assigneeId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, assigneeId: e.target.value }))
+                }
+                className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] bg-white px-2 text-[13px] text-[#1E1F21] outline-none focus:border-[#c9a84c]"
                 >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex gap-2">
-                <label className="block flex-1">
-                  <span className="text-[11px] text-[#6B6D70]">
-                    Start date
-                  </span>
-                  <input
-                    type="date"
-                    value={form.startDate}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, startDate: e.target.value }))
-                    }
-                    className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] px-2 text-[12px] text-[#1E1F21] outline-none focus:border-[#C6C9CD]"
-                  />
-                </label>
-                <label className="block flex-1">
-                  <span className="text-[11px] text-[#6B6D70]">
-                    Due date
-                  </span>
-                  <input
-                    type="date"
-                    value={form.dueDate}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, dueDate: e.target.value }))
-                    }
-                    className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] px-2 text-[12px] text-[#1E1F21] outline-none focus:border-[#C6C9CD]"
-                  />
-                </label>
-              </div>
-              <label className="block">
-                <span className="text-[11px] text-[#6B6D70]">Project</span>
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex gap-2">
+              <label className="block flex-1">
+                <span className="text-[11px] text-[#6B6D70]">
+                  Start date
+                </span>
                 <input
-                  disabled
-                  value={project?.name ?? ""}
-                  className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] bg-[#F7F7F7] px-2 text-[13px] text-[#6B6D70]"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, startDate: e.target.value }))
+                  }
+                  className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] px-2 text-[12px] text-[#1E1F21] outline-none focus:border-[#c9a84c]"
+                />
+              </label>
+              <label className="block flex-1">
+                <span className="text-[11px] text-[#6B6D70]">
+                  Due date
+                </span>
+                <input
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, dueDate: e.target.value }))
+                  }
+                  className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] px-2 text-[12px] text-[#1E1F21] outline-none focus:border-[#c9a84c]"
                 />
               </label>
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setAddOpen(false)}
-                className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!form.name.trim() || saving}
-                onClick={() => void submitTask()}
-                className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
-              >
-                {saving ? "Creating…" : "Create task"}
-              </button>
-            </div>
+            <label className="block">
+              <span className="text-[11px] text-[#6B6D70]">Project</span>
+              <input
+                disabled
+                value={project?.name ?? ""}
+                className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] bg-[#F7F7F7] px-2 text-[13px] text-[#6B6D70]"
+              />
+            </label>
           </div>
-        </div>
-      )}
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setAddOpen(false)}
+              className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!form.name.trim() || saving}
+              onClick={() => void submitTask()}
+              className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
+            >
+              {saving ? "Creating…" : "Create task"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ───────────── Feedback modal ───────────── */}
-      {feedbackOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-          onClick={() => setFeedbackOpen(false)}
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogContent
+          showCloseButton={false}
+          aria-describedby={undefined}
+          className="w-[420px] gap-0 rounded-[10px] border-[#E0E1E3] bg-white p-4 shadow-xl sm:max-w-[420px]"
         >
-          <div
-            className="w-[420px] rounded-[10px] border border-[#E0E1E3] bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-[#1E1F21]">
-              Send feedback
-            </h3>
-            <textarea
-              autoFocus
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              className="mt-3 h-28 w-full resize-none rounded-[6px] border border-[#E0E1E3] p-2 text-[13px] text-[#1E1F21] outline-none placeholder:text-[#9A9C9F] focus:border-[#C6C9CD]"
-              placeholder="Share your feedback…"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setFeedbackOpen(false)}
-                className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!feedbackText.trim()}
-                onClick={() => {
-                  setFeedbackOpen(false);
-                  setFeedbackText("");
-                  toast.success("Thanks for your feedback!");
-                }}
-                className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
-              >
-                Send
-              </button>
-            </div>
+          <DialogTitle className="text-sm font-semibold text-[#1E1F21]">
+            Send feedback
+          </DialogTitle>
+          <textarea
+            autoFocus
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            className="mt-3 h-28 w-full resize-none rounded-[6px] border border-[#E0E1E3] p-2 text-[13px] text-[#1E1F21] outline-none placeholder:text-[#9A9C9F] focus:border-[#c9a84c]"
+            placeholder="Share your feedback…"
+          />
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setFeedbackOpen(false)}
+              className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!feedbackText.trim()}
+              onClick={() => {
+                setFeedbackOpen(false);
+                setFeedbackText("");
+                toast.success("Thanks for your feedback!");
+              }}
+              className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
+            >
+              Send
+            </button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       <style>{`
         .bs-workload-scroll { scrollbar-width: none; }

@@ -4,8 +4,8 @@
  * Notes view — Asana's full-page note editor, cloned 1:1.
  *
  * Layout: 50px formatting toolbar, notes-list gutter button, a centered
- * ~600px document (editable title + rich-text body), template chips on an
- * empty note, and a floating "Send feedback" button.
+ * ~600px document (editable title + rich-text body) and template chips on an
+ * empty note.
  *
  * Storage: MANY notes per project (ProjectNote rows) via
  * /api/projects/[id]/notes[/noteId]. The notes-list panel switches between
@@ -313,8 +313,6 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
   const [matches, setMatches] = useState<Range[]>([]);
   const [matchIdx, setMatchIdx] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState("");
 
   // ── Save machinery: contentRef always holds the latest title/body so the
   // unmount flush works after editorRef detaches. Sanitizes at save time.
@@ -1592,15 +1590,6 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
           </div>
         </div>
 
-        {/* Send feedback */}
-        <button
-          type="button"
-          onClick={() => setFeedbackOpen(true)}
-          className="absolute bottom-3 right-6 z-20 h-[31px] w-[100px] rounded-[8px] border border-[#C6C9CD] bg-white text-[10px] text-[#55585D] underline hover:bg-[#F7F7F7]"
-        >
-          Send feedback
-        </button>
-
         {/* Search popover */}
         {searchOpen && (
           <div
@@ -1689,52 +1678,6 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
           >
             Apply
           </button>
-        </div>
-      )}
-
-      {/* ───────────── Feedback modal ───────────── */}
-      {feedbackOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-          onClick={() => setFeedbackOpen(false)}
-        >
-          <div
-            className="w-[420px] rounded-[10px] border border-[#E0E1E3] bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-[#1E1F21]">Send feedback</h3>
-            <p className="mt-1 text-xs text-[#6B6D70]">
-              Tell us what you&apos;d like to improve about notes.
-            </p>
-            <textarea
-              autoFocus
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              className="mt-3 h-28 w-full resize-none rounded-[6px] border border-[#E0E1E3] p-2 text-[13px] text-[#1E1F21] outline-none placeholder:text-[#9A9C9F] focus:border-[#C6C9CD]"
-              placeholder="Share your feedback…"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setFeedbackOpen(false)}
-                className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!feedbackText.trim()}
-                onClick={() => {
-                  setFeedbackOpen(false);
-                  setFeedbackText("");
-                  toast.success("Thanks for your feedback!");
-                }}
-                className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
-              >
-                Send
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

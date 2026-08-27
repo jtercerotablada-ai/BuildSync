@@ -7,17 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { validatePassword } from "@/lib/password-policy";
 
 interface SecuritySectionProps {
   hasPassword: boolean;
 }
 
+// The meter used to score rules of its own (lowercase+uppercase as one
+// point, no uppercase requirement), so it could call a password "Strong"
+// that the server then rejected. It now scores exactly the four rules
+// validatePassword enforces — see src/lib/password-policy.ts.
 function getPasswordStrength(password: string): number {
   let score = 0;
   if (password.length >= 8) score++;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+  if (/[A-Z]/.test(password)) score++;
   if (/\d/.test(password)) score++;
-  if (/[^a-zA-Z0-9]/.test(password)) score++;
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
   return score;
 }
 
@@ -34,6 +39,7 @@ export function SecuritySection({ hasPassword }: SecuritySectionProps) {
   const [saving, setSaving] = useState(false);
 
   const strength = getPasswordStrength(newPassword);
+  const pwCheck = validatePassword(newPassword);
 
   async function handleSave() {
     if (newPassword !== confirmPassword) {
@@ -41,8 +47,10 @@ export function SecuritySection({ hasPassword }: SecuritySectionProps) {
       return;
     }
 
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
+    // The gate was length-only while /api/users/password enforces the full
+    // rule, so a password the meter approved came back rejected.
+    if (!pwCheck.valid) {
+      toast.error(pwCheck.message);
       return;
     }
 
@@ -156,8 +164,10 @@ export function SecuritySection({ hasPassword }: SecuritySectionProps) {
                     />
                   ))}
                 </div>
+                {/* Name the rule that is still missing while the user types,
+                    instead of letting them find out at submit. */}
                 <p className="text-xs text-muted-foreground">
-                  {strengthLabels[strength]}
+                  {pwCheck.valid ? strengthLabels[strength] : pwCheck.message}
                 </p>
               </div>
             )}

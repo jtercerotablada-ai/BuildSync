@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { uploadFile } from "@/lib/storage";
+import { uploadFile, deleteFile } from "@/lib/storage";
 import {
   type FormField,
   type FormSubmissionPayload,
@@ -66,6 +66,20 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ formId: string }> }
 ) {
+  // Blobs written by this request. Nothing points at them until the
+  // submission row commits, so any bail-out afterwards has to delete them
+  // or the firm pays to store files no screen will ever show.
+  const uploadedBlobUrls: string[] = [];
+  const discardUploads = async () => {
+    const urls = uploadedBlobUrls.splice(0);
+    for (const url of urls) {
+      try {
+        await deleteFile(url);
+      } catch {
+        /* best effort — the request is already failing */
+      }
+    }
+  };
   try {
     const { formId } = await params;
 
@@ -131,6 +145,10 @@ export async function POST(
     // submission could forge {name,url,size} objects that become owner-
     // attributed attachments pointing at arbitrary URLs.
     const realUploadFieldIds = new Set<string>();
+    // Files staged from the multipart body. They are uploaded only after the
+    // submission passes validation, so a request that is going to be rejected
+    // never writes a blob in the first place.
+    const pendingUploads = new Map<string, File[]>();
     const fields = (form.fields as unknown as FormField[]) || [];
     const contentType = req.headers.get("content-type") || "";
 
@@ -149,11 +167,10 @@ export async function POST(
           );
         }
       }
-      // Upload every attachment file to Vercel Blob. Each ATTACHMENT
-      // field can carry multiple files (typical RFI: marked-up
-      // drawing + 2-3 site photos), all under the same multipart
-      // key `attachment:<fieldId>`. formData.getAll() collects all
-      // values for that key.
+      // Stage every attachment file. Each ATTACHMENT field can carry
+      // multiple files (typical RFI: marked-up drawing + 2-3 site
+      // photos), all under the same multipart key `attachment:<fieldId>`.
+      // formData.getAll() collects all values for that key.
       const attachmentFieldIds = new Set<string>();
       for (const key of formData.keys()) {
         if (key.startsWith("attachment:")) {
@@ -161,39 +178,10 @@ export async function POST(
         }
       }
       for (const fieldId of attachmentFieldIds) {
-        const files = formData.getAll(`attachment:${fieldId}`);
-        const uploaded: Array<{
-          name: string;
-          url: string;
-          size: number;
-          mimeType: string;
-        }> = [];
-        for (const v of files) {
-          if (!(v instanceof File) || v.size === 0) continue;
-          try {
-            const { url } = await uploadFile(v, `forms/${form.id}`);
-            uploaded.push({
-              name: v.name,
-              url,
-              size: v.size,
-              mimeType: v.type,
-            });
-          } catch (err) {
-            return NextResponse.json(
-              {
-                error:
-                  err instanceof Error
-                    ? err.message
-                    : "Attachment upload failed",
-              },
-              { status: 400 }
-            );
-          }
-        }
-        if (uploaded.length > 0) {
-          answers[fieldId] = uploaded;
-          realUploadFieldIds.add(fieldId);
-        }
+        const files = formData
+          .getAll(`attachment:${fieldId}`)
+          .filter((v): v is File => v instanceof File && v.size > 0);
+        if (files.length > 0) pendingUploads.set(fieldId, files);
       }
     } else {
       const body = await req.json().catch(() => null);
@@ -217,9 +205,10 @@ export async function POST(
       if (!isFieldVisible(f, answers, fieldsById)) continue;
       const v = answers[f.id];
       const empty =
-        v == null ||
-        (typeof v === "string" && v.trim() === "") ||
-        (Array.isArray(v) && v.length === 0);
+        !pendingUploads.has(f.id) &&
+        (v == null ||
+          (typeof v === "string" && v.trim() === "") ||
+          (Array.isArray(v) && v.length === 0));
       if (empty) {
         return NextResponse.json(
           { error: `Field "${f.label}" is required` },
@@ -228,8 +217,73 @@ export async function POST(
       }
     }
 
+    // ── Format validation ─────────────────────────────────────
+    // The public form checks these in the browser, but the browser is not
+    // the boundary: this endpoint is unauthenticated and reachable directly,
+    // and a malformed address here becomes the submitter's receipt email and
+    // the identity shown on the task.
+    for (const f of fields) {
+      if (f.type !== "EMAIL" && f.type !== "NUMBER") continue;
+      if (!isFieldVisible(f, answers, fieldsById)) continue;
+      const v = answers[f.id];
+      if (typeof v !== "string" || v.trim() === "") continue;
+      if (f.type === "EMAIL" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) {
+        return NextResponse.json(
+          { error: `Field "${f.label}" must be a valid email address` },
+          { status: 400 }
+        );
+      }
+      if (f.type === "NUMBER" && !Number.isFinite(Number(v.trim()))) {
+        return NextResponse.json(
+          { error: `Field "${f.label}" must be a number` },
+          { status: 400 }
+        );
+      }
+    }
+
     // ── Prune answers from hidden fields ──────────────────────
     answers = pruneHiddenAnswers(fields, answers);
+
+    // ── Upload staged attachments ─────────────────────────────
+    // Only now, with the submission known to be valid, and only for fields
+    // the submitter could actually see — files attached to a branch that
+    // got hidden again are dropped rather than stored.
+    for (const [fieldId, files] of pendingUploads) {
+      const field = fieldsById.get(fieldId);
+      if (!field || field.type !== "ATTACHMENT") continue;
+      if (!isFieldVisible(field, answers, fieldsById)) continue;
+      const uploaded: Array<{
+        name: string;
+        url: string;
+        size: number;
+        mimeType: string;
+      }> = [];
+      for (const v of files) {
+        try {
+          const { url } = await uploadFile(v, `forms/${form.id}`);
+          uploadedBlobUrls.push(url);
+          uploaded.push({
+            name: v.name,
+            url,
+            size: v.size,
+            mimeType: v.type,
+          });
+        } catch (err) {
+          await discardUploads();
+          return NextResponse.json(
+            {
+              error:
+                err instanceof Error ? err.message : "Attachment upload failed",
+            },
+            { status: 400 }
+          );
+        }
+      }
+      if (uploaded.length > 0) {
+        answers[fieldId] = uploaded;
+        realUploadFieldIds.add(fieldId);
+      }
+    }
 
     // ── Resolve target section ────────────────────────────────
     let targetSectionId = form.defaultSectionId;
@@ -258,6 +312,7 @@ export async function POST(
       }
     }
     if (!targetSectionId) {
+      await discardUploads();
       return NextResponse.json(
         {
           error:
@@ -385,6 +440,10 @@ export async function POST(
       return { submissionId: submission.id, taskId: createdTask.id };
     });
 
+    // Committed — the submission and its task now own those blobs, so a
+    // later failure (notifications, rules) must not delete them.
+    uploadedBlobUrls.length = 0;
+
     // ── Workflow rules for the landing section ────────────────
     // Intake forms are the single most common reason to build a rule
     // ("new request lands in Triage → assign the engineer"), and they
@@ -409,7 +468,7 @@ export async function POST(
     for (const f of fields) {
       if (f.type === "HEADING") continue;
       const v = answers[f.id];
-      const text = formatAnswerForText(v);
+      const text = formatAnswerForText(v, f);
       if (text) {
         previewAnswers.push({ label: f.label, value: text });
         if (f.type === "EMAIL" && typeof v === "string" && !submitterEmail) {
@@ -522,6 +581,7 @@ export async function POST(
     );
   } catch (err) {
     console.error("[form submit] error:", err);
+    await discardUploads();
     return NextResponse.json(
       { error: "Failed to submit form" },
       { status: 500 }

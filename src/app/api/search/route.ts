@@ -42,7 +42,10 @@ export async function GET(req: Request) {
     });
     const workspaceIds = userWorkspaces.map((w) => w.workspaceId);
 
-    // Search in parallel
+    // Search in parallel. Every query below carries an explicit orderBy with
+    // an id tiebreak: without one, `take` lets Postgres return any N of the
+    // matching rows, so typing the same thing into the palette twice could
+    // surface a different set and read as flaky search.
     const [tasks, projects, teams, users] = await Promise.all([
       // Tasks
       prisma.task.findMany({
@@ -58,6 +61,7 @@ export async function GET(req: Request) {
             select: { id: true, name: true, color: true },
           },
         },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
         take: 5,
       }),
 
@@ -72,6 +76,7 @@ export async function GET(req: Request) {
           name: true,
           color: true,
         },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
         take: 5,
       }),
 
@@ -86,6 +91,7 @@ export async function GET(req: Request) {
           id: true,
           name: true,
         },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
         take: 3,
       }),
 
@@ -112,6 +118,7 @@ export async function GET(req: Request) {
           email: true,
           image: true,
         },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
         take: 5,
       }),
     ]);

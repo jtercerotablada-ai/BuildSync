@@ -110,7 +110,7 @@ export default function TeamCalendarPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
@@ -118,14 +118,17 @@ export default function TeamCalendarPage() {
 
   if (!team) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-gray-500">
+      <div className="flex items-center justify-center h-full text-gray-500">
         Team not found
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    // h-full, not h-screen: the dashboard shell already caps <main> at the
+    // viewport minus the topbar, so a 100vh child overflows it by exactly
+    // that much and hides the calendar's last row behind an outer scrollbar.
+    <div className="h-full min-h-0 flex flex-col bg-white">
       <TeamHeader team={team} activeTab="calendar" />
 
       {/* CalendarView is flex-col h-full; give it the remaining height. */}

@@ -111,9 +111,17 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
         body: JSON.stringify({}),
       });
       const data = await res.json();
+      // A 429 or a 500 body carries `error`, not `message` — without this
+      // check the fallback string fired and the user got a green toast for
+      // a mail that was never sent.
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send verification email");
+      }
       toast.success(data.message || "Verification email sent");
-    } catch {
-      toast.error("Failed to send verification email");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to send verification email"
+      );
     } finally {
       setResending(false);
     }

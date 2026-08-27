@@ -229,7 +229,11 @@ export async function GET(req: Request) {
         },
       },
       orderBy,
-      ...(take ? { take } : {}),
+      // Safety bound on the fully-hydrated shape (owner + every member +
+      // every root task, per project). Without a cap one call could pull the
+      // entire workspace; 500 is far above any realistic project count, and
+      // ?limit still narrows it further for widgets.
+      take: take ?? 500,
     });
 
     return NextResponse.json(projects);

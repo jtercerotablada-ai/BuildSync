@@ -218,8 +218,17 @@ export async function PATCH(
         }
         const options = (field.options as unknown as { id: string }[]) || [];
         const validIds = new Set(options.map((o) => o.id));
-        const filtered = (raw as string[]).filter((id) => validIds.has(id));
-        coerced = filtered;
+        // Unknown ids used to be filtered out silently, so a selection could
+        // come back with options missing and no explanation — and an
+        // all-invalid selection stored [] while a genuinely empty one deletes
+        // the row. Refuse it the way DROPDOWN already does.
+        if ((raw as string[]).some((id) => !validIds.has(id))) {
+          return NextResponse.json(
+            { error: "Option not in this field's list" },
+            { status: 400 }
+          );
+        }
+        coerced = raw as string[];
         break;
       }
       case "PEOPLE": {
@@ -229,27 +238,61 @@ export async function PATCH(
             { status: 400 }
           );
         }
-        // Accept legacy string ids OR { id, name, image } objects and
-        // normalize to the denormalized shape the cell renders.
-        coerced = raw
-          .map((v) =>
-            typeof v === "string" ? { id: v, name: null, image: null } : v
+        // Accept legacy string ids OR { id, name, image } objects, but keep
+        // only the id: the name and image the client sent were stored
+        // verbatim, so anyone could write an arbitrary person — with an
+        // arbitrary label — into a cell. Resolve each id against the
+        // workspace instead and take the display data from the DB.
+        const peopleIds = Array.from(
+          new Set(
+            raw
+              .map((v) => {
+                if (typeof v === "string") return v;
+                if (
+                  !!v &&
+                  typeof v === "object" &&
+                  typeof (v as { id?: unknown }).id === "string"
+                ) {
+                  return (v as { id: string }).id;
+                }
+                return null;
+              })
+              .filter((id): id is string => !!id)
           )
-          .filter(
-            (v): v is { id: string; name?: unknown; image?: unknown } =>
-              !!v &&
-              typeof v === "object" &&
-              typeof (v as { id?: unknown }).id === "string"
-          )
-          .map((o) => ({
-            id: o.id,
-            name: typeof o.name === "string" ? o.name : null,
-            image: typeof o.image === "string" ? o.image : null,
-          }));
+        );
+        const peopleWorkspaceId =
+          task?.project?.workspaceId ?? field.workspaceId;
+        const members = await prisma.workspaceMember.findMany({
+          where: {
+            workspaceId: peopleWorkspaceId,
+            userId: { in: peopleIds },
+          },
+          select: { user: { select: { id: true, name: true, image: true } } },
+        });
+        const byId = new Map(members.map((m) => [m.user.id, m.user]));
+        if (peopleIds.some((id) => !byId.has(id))) {
+          return NextResponse.json(
+            { error: "Some of those people aren't in this workspace" },
+            { status: 400 }
+          );
+        }
+        coerced = peopleIds.map((id) => {
+          const u = byId.get(id)!;
+          return { id: u.id, name: u.name ?? null, image: u.image ?? null };
+        });
         break;
       }
       case "TEXT": {
-        coerced = String(raw).slice(0, 4000);
+        const text = String(raw);
+        // This used to slice at 4000 and answer 200, so a long pasted note
+        // looked saved and lost its tail on the next load. Say no instead.
+        if (text.length > 4000) {
+          return NextResponse.json(
+            { error: "Value is too long (4000 characters max)" },
+            { status: 400 }
+          );
+        }
+        coerced = text;
         break;
       }
       // Fase 3 — Asana-parity types. Accept the JSON shape verbatim

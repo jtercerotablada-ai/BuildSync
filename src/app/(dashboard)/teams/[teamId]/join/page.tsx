@@ -5,6 +5,7 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import { JoinTeamButton } from "@/components/teams/join-team-button";
+import { teamPrivacyMeta } from "@/lib/team-privacy";
 
 /**
  * Public-ish team invite landing page.
@@ -89,7 +90,7 @@ export default async function TeamJoinPage({
               <p className="text-xs text-muted-foreground">
                 {team._count.members} member
                 {team._count.members === 1 ? "" : "s"} ·{" "}
-                {team.privacy.toLowerCase().replace("_", " ")}
+                {teamPrivacyMeta(team.privacy).label}
               </p>
             </div>
           </div>

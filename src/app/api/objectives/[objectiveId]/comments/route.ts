@@ -44,7 +44,10 @@ export async function POST(
       data: {
         objectiveId,
         authorId: userId,
-        status: objective.status,
+        // No status: this is a comment. Stamping the goal's current status
+        // here is what made the activity feed report check-ins that never
+        // happened.
+        status: null,
         summary: data.text,
       },
       include: {

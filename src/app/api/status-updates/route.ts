@@ -14,7 +14,13 @@ export async function GET(req: Request) {
 
     const workspaceId = await getUserWorkspaceId(userId);
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    // Clamp the caller-supplied limit (house pattern, see /api/notifications).
+    // Unclamped it reaches Prisma's `take` raw: NaN is a validation error the
+    // generic catch turns into a 500, and a negative reads from the end.
+    const limit = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || "10", 10) || 10, 1),
+      100
+    );
 
     const statusUpdates = await prisma.statusUpdate.findMany({
       where: {

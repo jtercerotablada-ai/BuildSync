@@ -76,6 +76,11 @@ export async function POST(req: NextRequest) {
           },
         },
         statusUpdates: {
+          // Plain comments live in this table too, with a null status. Without
+          // this filter the three newest rows are usually chatter, the real
+          // check-in history is pushed out of the prompt window, and the model
+          // is told the goal's latest statuses are all "null".
+          where: { status: { not: null } },
           orderBy: { createdAt: "desc" },
           take: 3,
           select: { status: true, summary: true, createdAt: true },

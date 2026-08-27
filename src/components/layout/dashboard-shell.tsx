@@ -200,7 +200,12 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
       const res = await fetch("/api/portfolios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newPortfolio),
+        // Send what the guard above actually validated: the raw state still
+        // carried the user's leading/trailing spaces into the stored name.
+        body: JSON.stringify({
+          name: newPortfolio.name.trim(),
+          description: newPortfolio.description.trim(),
+        }),
       });
 
       if (res.ok) {
@@ -249,7 +254,11 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
           onCreateProject={() => setShowCreateGallery(true)}
           basePath={basePath}
         />
-        <main className="flex-1 overflow-auto bg-background transition-[margin] duration-200 ease-out w-full pb-16 md:pb-0">
+        {/* The bottom padding has to clear the mobile nav, whose real height
+            is its 56px row PLUS the home-indicator inset it pads itself with.
+            A flat pb-16 (64px) left the last row of every list tucked under
+            the translucent bar on notched iPhones, unscrollable. */}
+        <main className="flex-1 overflow-auto bg-background w-full pb-[calc(4rem_+_env(safe-area-inset-bottom,0px))] md:pb-0">
           {children}
         </main>
       </div>

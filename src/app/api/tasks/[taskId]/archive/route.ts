@@ -36,28 +36,32 @@ export async function POST(
     // For now, we'll mark the task as completed and delete it
     // In a full implementation, you'd have an 'archived' field
     // and move it to an archive section
-    await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        completed: true,
-        completedAt: new Date(),
-      },
-    });
-
-    // Create activity log
-    await prisma.activity.create({
-      data: {
-        type: "TASK_COMPLETED",
-        taskId,
-        userId,
-        data: { archived: true },
-      },
-    });
-
+    //
     // Archiving completes the task, so it owes the same side effects as
-    // any other completion: goal rollups and "when a task is completed"
-    // rules. Only on the false→true transition.
+    // any other completion: an activity row, goal rollups and "when a task
+    // is completed" rules. All of it — the write included — only on the
+    // false→true transition: re-archiving an already-complete task used to
+    // stamp a fresh completedAt, which reshuffles it to the top of every
+    // "recently completed" list even though nothing changed.
     if (!task.completed) {
+      await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          completed: true,
+          completedAt: new Date(),
+        },
+      });
+
+      // Create activity log
+      await prisma.activity.create({
+        data: {
+          type: "TASK_COMPLETED",
+          taskId,
+          userId,
+          data: { archived: true },
+        },
+      });
+
       await GoalProgressService.recalculateForTask(taskId).catch((err) =>
         console.error("[tasks archive] goal recalc failed:", err)
       );
@@ -102,13 +106,41 @@ export async function DELETE(
     // capability, not the read access that merely opening the task grants.
     await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
-    await prisma.task.update({
+    const task = await prisma.task.findUnique({
       where: { id: taskId },
-      data: {
-        completed: false,
-        completedAt: null,
-      },
+      select: { id: true, completed: true },
     });
+
+    if (!task) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    // Unarchiving re-opens the task, so it owes the mirror image of what POST
+    // does: the TASK_UNCOMPLETED activity row and a goal recalc, which this
+    // handler used to skip entirely — leaving goal rollups counting a task
+    // that is no longer complete. Only on the true→false transition.
+    if (task.completed) {
+      await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          completed: false,
+          completedAt: null,
+        },
+      });
+
+      await prisma.activity.create({
+        data: {
+          type: "TASK_UNCOMPLETED",
+          taskId,
+          userId,
+          data: { archived: false },
+        },
+      });
+
+      await GoalProgressService.recalculateForTask(taskId).catch((err) =>
+        console.error("[tasks archive] goal recalc failed:", err)
+      );
+    }
 
     return NextResponse.json({ archived: false });
   } catch (error) {

@@ -25,19 +25,45 @@ import {
   Target,
   Lock,
   Globe,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Privacy has three values in the schema (the team settings modal offers
+// all three). Collapsing it to a Private/Public ternary told the whole
+// firm that a "membership by request" team was open to anyone. Labels and
+// icons match the settings modal and the create-team screen.
+const PRIVACY_META = {
+  PUBLIC: { label: "Public", icon: Globe },
+  REQUEST_TO_JOIN: { label: "Membership by request", icon: Mail },
+  PRIVATE: { label: "Private", icon: Lock },
+} as const;
 
 interface Team {
   id: string;
   name: string;
   description: string | null;
   color: string | null;
-  privacy: "PUBLIC" | "PRIVATE";
+  privacy: keyof typeof PRIVACY_META;
   _count: {
     objectives: number;
     members: number;
   };
+}
+
+function PrivacyBadge({ privacy }: { privacy: Team["privacy"] }) {
+  // Fall back to Public for any value the API grows later, rather than
+  // rendering a blank badge.
+  const meta = PRIVACY_META[privacy] ?? PRIVACY_META.PUBLIC;
+  const Icon = meta.icon;
+  return (
+    <>
+      <Icon className="h-3 w-3 text-gray-400 flex-shrink-0" />
+      <span className="text-[10px] text-gray-500 uppercase tracking-wider truncate">
+        {meta.label}
+      </span>
+    </>
+  );
 }
 
 export default function TeamsPage() {
@@ -197,14 +223,7 @@ export default function TeamsPage() {
                       {t.name}
                     </p>
                     <div className="flex items-center gap-1 mt-0.5">
-                      {t.privacy === "PRIVATE" ? (
-                        <Lock className="h-3 w-3 text-gray-400" />
-                      ) : (
-                        <Globe className="h-3 w-3 text-gray-400" />
-                      )}
-                      <span className="text-[10px] text-gray-500 uppercase tracking-wider">
-                        {t.privacy === "PRIVATE" ? "Private" : "Public"}
-                      </span>
+                      <PrivacyBadge privacy={t.privacy} />
                     </div>
                   </div>
                 </div>

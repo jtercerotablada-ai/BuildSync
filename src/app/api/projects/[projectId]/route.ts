@@ -4,6 +4,14 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getProjectAccess, resolveProjectAccess } from "@/lib/project-access";
 
+// Schedule dates arrive as ISO strings. Validate them at the edge so a
+// malformed one comes back as a 400 naming the field, instead of reaching
+// Prisma as an `Invalid Date` and falling through to the generic 500. An
+// empty string is still accepted: the handler below reads it as "no date".
+const dateString = z
+  .string()
+  .refine((s) => s === "" || !Number.isNaN(Date.parse(s)), "Invalid date");
+
 const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional().nullable(),
@@ -12,8 +20,8 @@ const updateProjectSchema = z.object({
   status: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK", "ON_HOLD", "COMPLETE"]).optional(),
   visibility: z.enum(["PRIVATE", "WORKSPACE", "PUBLIC"]).optional(),
   isArchived: z.boolean().optional(),
-  startDate: z.string().optional().nullable(),
-  endDate: z.string().optional().nullable(),
+  startDate: dateString.optional().nullable(),
+  endDate: dateString.optional().nullable(),
   // Engineering firm extensions — mirrors the create schema in route.ts
   type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"]).optional().nullable(),
   gate: z.enum(["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"]).optional().nullable(),
@@ -95,7 +103,10 @@ export async function GET(
     const access = await resolveProjectAccess(project, userId);
 
     if (!access.ok) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      // Forward the resolver's own status and message (404 "Project not
+      // found"), the way PATCH does below. A 403 "Access denied" confirmed the
+      // id exists, which is exactly the probing the 404 is there to prevent.
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
     // Flatten the portfolio join into a plain [{ id, name }] list the
@@ -217,22 +228,16 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: {
-        members: true,
-      },
-    });
+    // Same canonical resolution as PATCH. The inline "owner or project ADMIN"
+    // rule this replaced left out workspace managers, so the firm's workspace
+    // owner could edit and share a colleague's project but never delete it.
+    const access = await getProjectAccess(projectId, userId);
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    // Only owner or admin can delete
-    const member = project.members.find((m) => m.userId === userId);
-    const canDelete = project.ownerId === userId || member?.role === "ADMIN";
-
-    if (!canDelete) {
+    if (!access.canManage) {
       return NextResponse.json(
         { error: "You don't have permission to delete this project" },
         { status: 403 }

@@ -1085,16 +1085,26 @@ export function GanttView({
     [bounds]
   );
 
+  // Pointer events, not mouse events: the bars advertise grab and resize
+  // affordances but a touch never produced a single mousemove, so dragging
+  // and resizing were silently dead on a tablet. Capturing the pointer also
+  // keeps the drag alive when the finger or cursor leaves the bar.
   const handleDragStart = useCallback(
     (
-      e: React.MouseEvent,
+      e: React.PointerEvent,
       taskId: string,
       handle: "left" | "right" | "move",
       task: Task
     ) => {
-      e.preventDefault();
+      // Primary button only — pointerdown also fires for right-click.
+      if (e.button !== 0) return;
+      // preventDefault suppresses the browser's own text selection and
+      // native image drag on a mouse press; a touch is already held by
+      // `touch-none`, and cancelling there risks the tap that opens the task.
+      if (e.pointerType !== "touch") e.preventDefault();
       e.stopPropagation();
       if (!task.dueDate) return;
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       didDragRef.current = false;
       setDragState({
         taskId,
@@ -1111,7 +1121,7 @@ export function GanttView({
   useEffect(() => {
     if (!dragState || !bounds) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const dx = e.clientX - dragState.startX;
       let snappedDays = Math.round(pixelsToDays(dx));
       // Clamp handle overshoot in the PREVIEW too, mirroring the commit
@@ -1135,7 +1145,7 @@ export function GanttView({
       setDragState((prev) => (prev ? { ...prev, deltaX: snappedPx } : prev));
     };
 
-    const handleMouseUp = async (e: MouseEvent) => {
+    const handlePointerUp = async (e: PointerEvent) => {
       const deltaX = e.clientX - dragState.startX;
       const deltaDays = Math.round(pixelsToDays(deltaX));
       if (deltaDays === 0) {
@@ -1225,11 +1235,27 @@ export function GanttView({
       }
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    // A cancelled pointer (the browser taking over the gesture, a call
+    // interrupting the touch) must drop the drag instead of leaving the
+    // ghost bar pinned to the last position.
+    const handlePointerCancel = () => setDragState(null);
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+    document.addEventListener("pointercancel", handlePointerCancel);
+    // Hold the drag cursor for the whole page: without it the cursor flips
+    // back to the default the moment the pointer leaves the bar.
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor =
+      dragState.handle === "move" ? "grabbing" : "ew-resize";
+    document.body.style.userSelect = "none";
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+      document.removeEventListener("pointercancel", handlePointerCancel);
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
     };
   }, [dragState, pixelsToDays, router, bounds]);
 
@@ -2251,14 +2277,14 @@ export function GanttView({
                               {position &&
                                 (isMilestone ? (
                                   <div
-                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform z-10"
+                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing touch-none hover:scale-110 transition-transform z-10"
                                     style={{ left: markerLeft }}
                                     // Markers used to be click-only, so a
                                     // milestone that slipped could not be
                                     // rescheduled on the chart at all. "move"
                                     // shifts only dueDate when there is no
                                     // startDate, which is the milestone case.
-                                    onMouseDown={(e) =>
+                                    onPointerDown={(e) =>
                                       handleDragStart(e, task.id, "move", task)
                                     }
                                     onClick={() => {
@@ -2278,9 +2304,9 @@ export function GanttView({
                                   </div>
                                 ) : isApproval ? (
                                   <div
-                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform z-10"
+                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing touch-none hover:scale-110 transition-transform z-10"
                                     style={{ left: markerLeft }}
-                                    onMouseDown={(e) =>
+                                    onPointerDown={(e) =>
                                       handleDragStart(e, task.id, "move", task)
                                     }
                                     onClick={() => {
@@ -2307,7 +2333,7 @@ export function GanttView({
                                       // and steal mousedown/click wherever an
                                       // arrow crosses it, making drags feel
                                       // stuck.
-                                      "absolute rounded cursor-grab active:cursor-grabbing group/bar z-10",
+                                      "absolute rounded cursor-grab active:cursor-grabbing touch-none group/bar z-10",
                                       "hover:ring-2 hover:ring-[#335FB5]/50",
                                       "transition-shadow",
                                       selectedTaskId === task.id &&
@@ -2326,7 +2352,7 @@ export function GanttView({
                                       backgroundColor: barColor,
                                     }}
                                     title={`${task.name} · ${dueRangeText(task)}`}
-                                    onMouseDown={(e) =>
+                                    onPointerDown={(e) =>
                                       handleDragStart(e, task.id, "move", task)
                                     }
                                     onClick={() => {
@@ -2342,8 +2368,8 @@ export function GanttView({
                                         the task a duration). */}
                                     {!isDueOnly && (
                                       <div
-                                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
-                                        onMouseDown={(e) =>
+                                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize touch-none opacity-0 transition-opacity group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
+                                        onPointerDown={(e) =>
                                           handleDragStart(
                                             e,
                                             task.id,
@@ -2355,10 +2381,10 @@ export function GanttView({
                                     )}
                                     <div
                                       className={cn(
-                                        "absolute right-0 top-0 bottom-0 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10",
+                                        "absolute right-0 top-0 bottom-0 cursor-ew-resize touch-none opacity-0 transition-opacity group-hover/bar:opacity-100 bg-black/20 rounded-r z-10",
                                         isDueOnly ? "w-1" : "w-2"
                                       )}
-                                      onMouseDown={(e) =>
+                                      onPointerDown={(e) =>
                                         handleDragStart(
                                           e,
                                           task.id,

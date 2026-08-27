@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Folder, Loader2 } from "lucide-react";
+import { AlertCircle, Folder, Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Project {
   id: string;
@@ -13,31 +13,63 @@ interface Project {
 }
 
 export default function PortalProjectsPage() {
-  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed request used to fall through to the empty state, telling the
+  // reader their firm has no projects at all. Failure and emptiness are
+  // different answers and need different screens.
+  const [loadError, setLoadError] = useState(false);
+
+  const fetchProjects = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/projects");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error("Unexpected response");
+      setProjects(data);
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+      setProjects([]);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchProjects() {
-      try {
-        const res = await fetch("/api/projects");
-        if (res.ok) {
-          const data = await res.json();
-          setProjects(data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch projects:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchProjects();
-  }, []);
+  }, [fetchProjects]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Projects</h1>
+          <div className="text-center py-16 border border-gray-200 rounded-lg bg-white">
+            <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 mb-4">
+              Couldn&apos;t load your projects.
+            </p>
+            <Button
+              variant="outline"
+              onClick={fetchProjects}
+              className="gap-1.5"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -49,7 +81,10 @@ export default function PortalProjectsPage() {
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Projects</h1>
           <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-lg bg-white">
             <Folder className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No projects found</p>
+            <p className="text-gray-500">No projects yet</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Projects shared with you will show up here.
+            </p>
           </div>
         </div>
       </div>

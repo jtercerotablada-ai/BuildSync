@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import {
   ArrowUpDown,
   ArrowUp,
@@ -440,8 +440,10 @@ function DropdownSubmenu({
   const [subPosition, setSubPosition] = useState<"right" | "left">("right");
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Determine if submenu should flip to left
-  useEffect(() => {
+  // Determine if submenu should flip to left. Measured in a layout effect so the
+  // side is settled before the browser paints — a plain effect renders one frame
+  // on the default side and then snaps across.
+  useLayoutEffect(() => {
     if (!isOpen || !itemRef.current) return;
     const rect = itemRef.current.getBoundingClientRect();
     const spaceRight = window.innerWidth - rect.right;
@@ -500,8 +502,11 @@ function DropdownSubmenu({
           onMouseEnter={handleSubMouseEnter}
           onMouseLeave={handleSubMouseLeave}
           className={cn(
-            "absolute top-0 bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 py-1.5 z-[60] min-w-[220px] animate-in fade-in slide-in-from-left-1 duration-150",
-            subPosition === "right" ? "left-full ml-1" : "right-full mr-1"
+            "absolute top-0 bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 py-1.5 z-[60] min-w-[220px] animate-in fade-in duration-150",
+            // Slide away from the parent menu, whichever side we ended up on.
+            subPosition === "right"
+              ? "left-full ml-1 slide-in-from-left-1"
+              : "right-full mr-1 slide-in-from-right-1"
           )}
         >
           {children}

@@ -19,6 +19,15 @@ import {
 } from "@/lib/dependency-cascade";
 import { startOfTodayUtc } from "@/lib/date-only";
 
+// Schedule dates arrive as ISO strings. Validate them at the edge so a
+// malformed one comes back as a 400 naming the field, instead of reaching
+// Prisma as an `Invalid Date` and falling through to the generic 500. An
+// empty string is still accepted: the handler below reads it as "no date",
+// which is how the client clears a schedule field.
+const dateString = z
+  .string()
+  .refine((s) => s === "" || !Number.isNaN(Date.parse(s)), "Invalid date");
+
 const updateTaskSchema = z.object({
   name: z.string().trim().min(1).optional(),
   description: z.string().optional().nullable(),
@@ -29,8 +38,8 @@ const updateTaskSchema = z.object({
   projectId: z.string().optional().nullable(),
   sectionId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
-  dueDate: z.string().optional().nullable(),
-  startDate: z.string().optional().nullable(),
+  dueDate: dateString.optional().nullable(),
+  startDate: dateString.optional().nullable(),
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional().nullable(),
   taskStatus: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK"]).optional().nullable(),
   myTaskSection: z.enum(["RECENTLY_ASSIGNED", "DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),

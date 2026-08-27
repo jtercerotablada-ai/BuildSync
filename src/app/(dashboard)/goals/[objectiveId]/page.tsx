@@ -135,7 +135,8 @@ interface Objective {
   }[];
   statusUpdates?: {
     id: string;
-    status: string;
+    /** Null for a plain comment; a real status for a check-in. */
+    status: string | null;
     summary: string;
     createdAt: string;
     author?: {
@@ -208,6 +209,9 @@ export default function GoalDetailPage() {
   const [isStarred, setIsStarred] = useState(false);
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [parentPickerOpen, setParentPickerOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   // ── Members state ──────────────────────────────────────────
   // Loaded after the objective itself so the UI can render a stack
@@ -243,6 +247,34 @@ export default function GoalDetailPage() {
       toast.success("Confidence updated");
     } catch {
       toast.error("Couldn't update confidence");
+    }
+  }
+
+  async function handleRename() {
+    if (!objective) return;
+    // Trim before comparing and sending: a name of only spaces passes the
+    // server's min(1) check and would leave the goal titled with blanks in
+    // the list, the widget and every breadcrumb.
+    const name = renameDraft.trim();
+    if (!name || name === objective.name) {
+      setRenameOpen(false);
+      return;
+    }
+    setRenaming(true);
+    try {
+      const res = await fetch(`/api/objectives/${objective.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setObjective({ ...objective, name });
+      setRenameOpen(false);
+      toast.success("Goal updated");
+    } catch {
+      toast.error("Couldn't rename the goal");
+    } finally {
+      setRenaming(false);
     }
   }
 
@@ -616,20 +648,8 @@ export default function GoalDetailPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem onClick={() => {
-              const newName = prompt('Objective name:', objective.name);
-              if (newName && newName !== objective.name) {
-                fetch(`/api/objectives/${objective.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ name: newName }),
-                }).then(res => {
-                  if (!res.ok) throw new Error();
-                  setObjective({ ...objective, name: newName });
-                  toast.success('Goal updated');
-                }).catch(() => {
-                  toast.error("Couldn't rename the goal");
-                });
-              }
+              setRenameDraft(objective.name);
+              setRenameOpen(true);
             }}>
               <Edit2 className="h-4 w-4 mr-2" />
               Edit objective
@@ -1271,7 +1291,7 @@ export default function GoalDetailPage() {
                     kind: "checkin";
                     id: string;
                     createdAt: string;
-                    status: string;
+                    status: string | null;
                     summary: string;
                     author: { name: string | null; image: string | null } | null;
                   }
@@ -1341,7 +1361,12 @@ export default function GoalDetailPage() {
                   {items.map((item) => {
                     if (item.kind === "checkin") {
                       const author = item.author;
-                      const statusOption = getStatusOption(item.status);
+                      // A row with no status is a comment someone left, not a
+                      // check-in — say so, and leave off the status dot.
+                      const isCheckIn = item.status != null;
+                      const statusOption = isCheckIn
+                        ? getStatusOption(item.status as string)
+                        : null;
                       return (
                         <div key={item.id} className="flex items-start gap-3">
                           <Avatar className="h-8 w-8 border border-black flex-shrink-0">
@@ -1356,19 +1381,21 @@ export default function GoalDetailPage() {
                                 {author?.name || "Someone"}
                               </span>{" "}
                               <span className="text-gray-600">
-                                posted a check-in
+                                {isCheckIn ? "posted a check-in" : "commented"}
                               </span>{" "}
                               <span className="text-gray-400">
                                 · {formatRelativeTime(item.createdAt)}
                               </span>
                             </p>
                             <div className="mt-1 inline-flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-lg max-w-full">
-                              <div
-                                className={cn(
-                                  "h-3 w-3 rounded-full flex-shrink-0 mt-1",
-                                  statusOption.color
-                                )}
-                              />
+                              {statusOption && (
+                                <div
+                                  className={cn(
+                                    "h-3 w-3 rounded-full flex-shrink-0 mt-1",
+                                    statusOption.color
+                                  )}
+                                />
+                              )}
                               <p className="text-sm text-gray-700 break-words whitespace-pre-wrap">
                                 {item.summary}
                               </p>
@@ -1493,6 +1520,46 @@ export default function GoalDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Rename Objective Dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit objective</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Objective name</Label>
+              <Input
+                autoFocus
+                maxLength={200}
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleRename();
+                  }
+                }}
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleRename}
+              disabled={renaming || !renameDraft.trim()}
+            >
+              {renaming ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Key Result Dialog */}
       <Dialog open={addKROpen} onOpenChange={setAddKROpen}>

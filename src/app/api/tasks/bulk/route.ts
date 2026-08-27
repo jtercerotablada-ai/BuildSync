@@ -100,18 +100,90 @@ export async function POST(req: Request) {
         });
       }
 
-      case "incomplete":
-        await prisma.task.updateMany({
-          where: { id: { in: taskIds } },
-          data: { completed: false, completedAt: null },
+      case "incomplete": {
+        // Mirror the single-task PATCH, which recalculates goal progress in
+        // BOTH directions and logs TASK_UNCOMPLETED. Without this, un-checking
+        // from a multi-select left every linked goal stuck on the higher
+        // percentage until something unrelated recalculated it. Only rows that
+        // were actually completed are touched, so we don't write audit entries
+        // for tasks that were already open.
+        const toReopen = await prisma.task.findMany({
+          where: { id: { in: taskIds }, completed: true },
+          select: { id: true },
         });
+        if (toReopen.length > 0) {
+          await prisma.task.updateMany({
+            where: { id: { in: toReopen.map((t) => t.id) } },
+            data: { completed: false, completedAt: null },
+          });
+        }
+        for (const t of toReopen) {
+          try {
+            await prisma.activity.create({
+              data: { type: "TASK_UNCOMPLETED", taskId: t.id, userId, data: {} },
+            });
+          } catch (e) {
+            console.error("[bulk incomplete] activity failed:", e);
+          }
+          try {
+            await GoalProgressService.recalculateForTask(t.id);
+          } catch (e) {
+            console.error("[bulk incomplete] goal recalc failed:", e);
+          }
+        }
         return NextResponse.json({ success: true, count: taskIds.length });
+      }
 
-      case "delete":
+      case "delete": {
+        // Deleting a task moves a goal's denominator exactly like completing
+        // one does, so the objectives it feeds have to be recalculated. Their
+        // ids must be collected BEFORE the delete: the join rows go with the
+        // tasks, so afterwards there is nothing left to look them up by.
+        const doomed = await prisma.task.findMany({
+          where: { id: { in: taskIds } },
+          select: { projectId: true },
+        });
+        const doomedProjectIds = [
+          ...new Set(
+            doomed
+              .map((t) => t.projectId)
+              .filter((id): id is string => id !== null)
+          ),
+        ];
+        const [objectiveTasks, keyResultTasks, objectiveProjects] =
+          await Promise.all([
+            prisma.objectiveTask.findMany({
+              where: { taskId: { in: taskIds } },
+              select: { objectiveId: true },
+            }),
+            prisma.keyResultTask.findMany({
+              where: { taskId: { in: taskIds } },
+              select: { keyResult: { select: { objectiveId: true } } },
+            }),
+            doomedProjectIds.length
+              ? prisma.objectiveProject.findMany({
+                  where: { projectId: { in: doomedProjectIds } },
+                  select: { objectiveId: true },
+                })
+              : Promise.resolve([] as { objectiveId: string }[]),
+          ]);
+        const affectedObjectiveIds = new Set<string>([
+          ...objectiveTasks.map((o) => o.objectiveId),
+          ...keyResultTasks.map((k) => k.keyResult.objectiveId),
+          ...objectiveProjects.map((o) => o.objectiveId),
+        ]);
         await prisma.task.deleteMany({
           where: { id: { in: taskIds } },
         });
+        for (const objectiveId of affectedObjectiveIds) {
+          try {
+            await GoalProgressService.recalculateProgress(objectiveId);
+          } catch (e) {
+            console.error("[bulk delete] goal recalc failed:", e);
+          }
+        }
         return NextResponse.json({ success: true, count: taskIds.length });
+      }
 
       case "assign":
         if (!value) {

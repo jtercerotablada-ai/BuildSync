@@ -188,6 +188,13 @@ export function CalendarView({
   const [newTaskName, setNewTaskName] = useState("");
   const [creatingInline, setCreatingInline] = useState(false);
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
+  // The composer is a single shared input that moves between days, so an
+  // in-flight create has to remember which day it belongs to: by the time
+  // the POST resolves the user may already have opened the composer on
+  // another day, and clearing the state then would wipe that one.
+  const addingForDateRef = useRef<string | null>(null);
+  addingForDateRef.current = addingForDate;
+  const committingDateRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (addingForDate && newTaskInputRef.current) {
@@ -324,11 +331,16 @@ export function CalendarView({
       setNewTaskName("");
       return;
     }
+    const forKey = forDate.toDateString();
     // Re-entrancy guard: Enter sets creatingInline=true and disables the
     // input, which blurs it and fires the blur-commit — without this guard
-    // that second call creates a duplicate task.
-    if (creatingInline) return;
+    // that second call creates a duplicate task. Scoped to the day being
+    // saved: a quick-add started on ANOTHER day is a different task and
+    // must not be dropped just because the previous POST is still open.
+    if (creatingInline && committingDateRef.current === forKey) return;
+    committingDateRef.current = forKey;
     setCreatingInline(true);
+    let created = false;
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -345,6 +357,7 @@ export function CalendarView({
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
+      created = true;
       toast.success(
         `Created "${name}" for ${forDate.toLocaleDateString("en-US")}`
       );
@@ -353,8 +366,15 @@ export function CalendarView({
       toast.error(e instanceof Error ? e.message : "Couldn't create task");
     } finally {
       setCreatingInline(false);
-      setAddingForDate(null);
-      setNewTaskName("");
+      if (committingDateRef.current === forKey) committingDateRef.current = null;
+      // Only tear the composer down if it is still the one we just saved:
+      // blurring into another day opens a fresh input there, and closing it
+      // would swallow the click and everything typed since. On failure the
+      // day and the typed name stay put so the create can be retried.
+      if (addingForDateRef.current === forKey && created) {
+        setAddingForDate(null);
+        setNewTaskName("");
+      }
     }
   }
 
@@ -1051,7 +1071,12 @@ export function CalendarView({
                           }
                         }}
                         onBlur={() => commitInlineTask(week[addingDayIndex])}
-                        disabled={creatingInline}
+                        // Only the day being saved goes inert — a composer
+                        // reopened on another day mid-save must stay typable.
+                        disabled={
+                          creatingInline &&
+                          committingDateRef.current === addingForDate
+                        }
                         placeholder="Task name…"
                         className="w-full px-1.5 py-[3px] text-[11px] leading-snug bg-transparent border-none outline-none placeholder:text-gray-400"
                       />

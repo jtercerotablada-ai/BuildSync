@@ -8,14 +8,23 @@ import { readJson, jsonErrorResponse } from "@/lib/http";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
 import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
 
+// Schedule dates arrive as ISO strings. Validate them at the edge so a
+// malformed one comes back as a 400 naming the field, instead of reaching
+// Prisma as an `Invalid Date` and falling through to the generic 500. An
+// empty string is still accepted: the handlers below read it as "no date",
+// which is how the client clears a schedule field.
+const dateString = z
+  .string()
+  .refine((s) => s === "" || !Number.isNaN(Date.parse(s)), "Invalid date");
+
 const createTaskSchema = z.object({
   name: z.string().min(1, "Task name is required"),
   description: z.string().optional().nullable(),
   projectId: z.string().optional().nullable(),
   sectionId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
-  dueDate: z.string().optional().nullable(),
-  startDate: z.string().optional().nullable(),
+  dueDate: dateString.optional().nullable(),
+  startDate: dateString.optional().nullable(),
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional(),
   parentTaskId: z.string().optional().nullable(),
   taskType: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),

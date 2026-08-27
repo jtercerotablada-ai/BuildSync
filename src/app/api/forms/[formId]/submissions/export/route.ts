@@ -96,12 +96,18 @@ export async function GET(
     const dataFields = fields.filter((f) => f.type !== "HEADING");
 
     // ── Header row ────────────────────────────────────────────
+    // A NUMBER field's unit goes in the column heading, not in the cells:
+    // dropping it entirely leaves a bare "500" nobody can read, but writing
+    // "500 psf" in the cell turns the column into text and breaks SUM/AVG
+    // in the spreadsheet this file exists to be opened in.
     const header = [
       "Submission ID",
       "Submitted at",
       "Submitter email",
       "Task ID",
-      ...dataFields.map((f) => f.label),
+      ...dataFields.map((f) =>
+        f.type === "NUMBER" && f.unit ? `${f.label} (${f.unit})` : f.label
+      ),
     ];
 
     // ── Data rows ─────────────────────────────────────────────

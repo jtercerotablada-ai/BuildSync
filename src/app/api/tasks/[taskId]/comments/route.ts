@@ -152,10 +152,14 @@ export async function POST(
 
     // When replying, the parent comment must belong to THIS task — otherwise
     // a reply could be grafted onto a comment on another task/workspace.
+    // Threads are flat: a reply to a reply is re-parented onto the thread root,
+    // because the GET above reads exactly one level of replies and anything
+    // deeper would be accepted, stored, and then never rendered anywhere.
+    let threadParentId: string | null = null;
     if (parentId) {
       const parent = await prisma.comment.findFirst({
         where: { id: parentId, taskId },
-        select: { id: true },
+        select: { id: true, parentId: true },
       });
       if (!parent) {
         return NextResponse.json(
@@ -163,6 +167,7 @@ export async function POST(
           { status: 404 }
         );
       }
+      threadParentId = parent.parentId ?? parent.id;
     }
 
     // ── Normalize the content SERVER-SIDE (never trust client HTML) ──
@@ -217,7 +222,7 @@ export async function POST(
         content: storedContent,
         taskId,
         authorId: currentUser.id,
-        parentId,
+        parentId: threadParentId,
         visibility,
       },
       include: {

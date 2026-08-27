@@ -1547,8 +1547,17 @@ model KeyResultTask {
 }
 
 model ObjectiveStatusUpdate {
-  id        String          @id @default(cuid())
-  status    ObjectiveStatus
+  id String @id @default(cuid())
+
+  /// NULL means "this is a plain comment, not a check-in".
+  ///
+  /// The comment box on a goal writes to this same table, and the column used
+  /// to be required — so every casual question someone typed was stored with
+  /// the goal's CURRENT status attached, and the activity feed then reported
+  /// it as "posted a check-in" with a status colour. The goal's history
+  /// claimed check-ins nobody ever made. Widening the column is what lets a
+  /// comment be a comment; the check-in route still always sets a status.
+  status    ObjectiveStatus?
   summary   String
   createdAt DateTime        @default(now())
 

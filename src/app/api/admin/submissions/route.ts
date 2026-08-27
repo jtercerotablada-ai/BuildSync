@@ -25,8 +25,14 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    // Clamp both (house pattern, see /api/notifications). Unclamped they reach
+    // Prisma's skip/take raw: NaN is a validation error the generic catch turns
+    // into a 500, and a negative page/limit reads from the end of the table.
+    const page = Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1);
+    const limit = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || "20", 10) || 20, 1),
+      100
+    );
     const status = searchParams.get("status"); // NEW, REVIEWED, CONTACTED
     const skip = (page - 1) * limit;
 

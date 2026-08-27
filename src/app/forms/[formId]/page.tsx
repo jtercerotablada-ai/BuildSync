@@ -45,6 +45,26 @@ import {
  *  (typical RFI: marked-up drawing + 2-3 site photos). */
 type LocalAttachment = { file: File; previewUrl: string };
 
+/** Per-file ceiling enforced by lib/storage.ts on the server. Mirrored
+ *  here so an oversized file is caught at pick time, not after the
+ *  submitter has filled in the whole form and waited out the upload. */
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/** Same shape the browser's own type=email check enforced before this form
+ *  went noValidate. Deliberately loose — we only reject addresses that can
+ *  never route (no @, no dot, spaces); the receipt email is the real proof. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** An explicit `behavior: "smooth"` on scrollIntoView wins over the CSS
+ *  `scroll-behavior` the reduced-motion media query sets, so the OS setting
+ *  has to be read here instead. */
+function scrollBehavior(): ScrollBehavior {
+  return typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
+}
+
 export default function PublicFormPage() {
   const params = useParams<{ formId: string }>();
   const search = useSearchParams();
@@ -61,6 +81,11 @@ export default function PublicFormPage() {
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  // Validation messages from the last submit attempt, keyed by field id —
+  // requiredness AND the format rules (email, number). Every problem is
+  // marked at once instead of the submitter discovering them a toast at a
+  // time.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirmationText, setConfirmationText] = useState<string | null>(null);
   // Signed URL the submitter can use to track status + reply later.
   // Returned by the submit API; surfaced on the thank-you screen +
@@ -120,7 +145,17 @@ export default function PublicFormPage() {
     );
   }, [form, answers, fieldsById]);
 
+  function clearFieldError(fieldId: string) {
+    setFieldErrors((prev) => {
+      if (prev[fieldId] === undefined) return prev;
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
+  }
+
   function setAnswer(fieldId: string, value: FormAnswerValue) {
+    clearFieldError(fieldId);
     setAnswers((prev) => {
       const next = { ...prev, [fieldId]: value };
       // When the user changes a SELECT/MULTI_SELECT, prune answers
@@ -159,9 +194,21 @@ export default function PublicFormPage() {
 
   function addAttachments(fieldId: string, files: FileList | null) {
     if (!files || files.length === 0) return;
+    const picked = Array.from(files);
+    const tooBig = picked.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
+    if (tooBig.length > 0) {
+      toast.error(
+        tooBig.length === 1
+          ? `${tooBig[0].name} exceeds the 10MB limit`
+          : `${tooBig.length} files exceed the 10MB limit and weren't added`
+      );
+    }
+    const accepted = picked.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
+    if (accepted.length === 0) return;
+    clearFieldError(fieldId);
     setAttachments((prev) => {
       const existing = prev[fieldId] || [];
-      const incoming: LocalAttachment[] = Array.from(files).map((file) => ({
+      const incoming: LocalAttachment[] = accepted.map((file) => ({
         file,
         previewUrl: URL.createObjectURL(file),
       }));
@@ -187,15 +234,19 @@ export default function PublicFormPage() {
     e.preventDefault();
     if (!form) return;
 
-    // Client-side required check honoring branching.
+    // Client-side validation honoring branching. Collect EVERY problem in
+    // one pass — stopping at the first one meant a long intake form was
+    // filled in by trial and error, one submit per missing answer.
+    // Format rules live here too, not on the inputs: the form is noValidate,
+    // so nothing else rejects "daniela@ttcivil" before it becomes the
+    // submitter's contact address on the created task.
+    const problems: { field: FormField; message: string }[] = [];
     for (const f of visibleFields) {
-      if (!f.required) continue;
       if (f.type === "HEADING") continue;
       if (f.type === "ATTACHMENT") {
         const list = attachments[f.id] || [];
-        if (list.length === 0) {
-          toast.error(`"${f.label}" is required`);
-          return;
+        if (f.required && list.length === 0) {
+          problems.push({ field: f, message: "This field is required." });
         }
         continue;
       }
@@ -205,11 +256,44 @@ export default function PublicFormPage() {
         (typeof v === "string" && v.trim() === "") ||
         (Array.isArray(v) && v.length === 0);
       if (empty) {
-        toast.error(`"${f.label}" is required`);
-        return;
+        if (f.required) {
+          problems.push({ field: f, message: "This field is required." });
+        }
+        continue;
+      }
+      // An answered field still has to be well-formed. Optional fields are
+      // checked too — a typo'd optional email is just as dead an address.
+      const text = typeof v === "string" ? v.trim() : "";
+      if (f.type === "EMAIL" && !EMAIL_PATTERN.test(text)) {
+        problems.push({ field: f, message: "Enter a valid email address." });
+      } else if (f.type === "NUMBER" && !Number.isFinite(Number(text))) {
+        problems.push({ field: f, message: "Enter a number." });
       }
     }
 
+    if (problems.length > 0) {
+      setFieldErrors(
+        Object.fromEntries(problems.map((p) => [p.field.id, p.message]))
+      );
+      toast.error(
+        problems.length === 1
+          ? `"${problems[0].field.label}" — ${problems[0].message}`
+          : `${problems.length} fields need your attention`
+      );
+      // Take the submitter to the first one instead of leaving them to hunt
+      // for it after the toast disappears.
+      const first = problems[0].field;
+      const container = document.getElementById(`form-field-${first.id}`);
+      container?.scrollIntoView({
+        behavior: scrollBehavior(),
+        block: "center",
+      });
+      const control = document.getElementById(first.id);
+      if (control instanceof HTMLElement) control.focus({ preventScroll: true });
+      return;
+    }
+
+    setFieldErrors({});
     setSubmitting(true);
     try {
       // If any attachments are pending, send multipart; otherwise
@@ -373,6 +457,7 @@ export default function PublicFormPage() {
               // Asana parity: "Add another response" — reset form.
               setAnswers({});
               setAttachments({});
+              setFieldErrors({});
               setSubmitted(false);
               setConfirmationText(null);
               setTrackingUrl(null);
@@ -425,8 +510,17 @@ export default function PublicFormPage() {
           </header>
         )}
 
+        {/* noValidate: one validator, one look. With native validation on,
+            six of the field types showed the browser's own bubble on the
+            first empty one while SELECT / MULTI_SELECT / ATTACHMENT could
+            only be caught by the pass in handleSubmit — two unrelated error
+            UIs for the same rule, and the collected pass never ran until
+            the native ones were satisfied. Everything the browser used to
+            check, including EMAIL and NUMBER format, is re-implemented in
+            handleSubmit — turning this off must not lose a rule. */}
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="bg-white rounded-lg border shadow-sm p-6 space-y-5"
         >
           {visibleFields.map((field) =>
@@ -438,7 +532,11 @@ export default function PublicFormPage() {
                 {field.label}
               </h2>
             ) : (
-              <div key={field.id} className="space-y-1.5">
+              <div
+                key={field.id}
+                id={`form-field-${field.id}`}
+                className="space-y-1.5"
+              >
                 <label
                   htmlFor={field.id}
                   className="text-sm font-medium text-slate-700 flex items-center gap-1"
@@ -467,6 +565,7 @@ export default function PublicFormPage() {
                   field={field}
                   value={answers[field.id] ?? null}
                   attachmentList={attachments[field.id] || []}
+                  error={fieldErrors[field.id] ?? null}
                   onChange={(v) => setAnswer(field.id, v)}
                   onAddAttachments={(files) =>
                     addAttachments(field.id, files)
@@ -475,6 +574,14 @@ export default function PublicFormPage() {
                     removeAttachmentAt(field.id, idx)
                   }
                 />
+                {fieldErrors[field.id] && (
+                  <p
+                    id={`form-field-${field.id}-error`}
+                    className="text-[11px] text-rose-600"
+                  >
+                    {fieldErrors[field.id]}
+                  </p>
+                )}
               </div>
             )
           )}
@@ -513,6 +620,7 @@ function FieldInput({
   field,
   value,
   attachmentList,
+  error,
   onChange,
   onAddAttachments,
   onRemoveAttachmentAt,
@@ -520,10 +628,23 @@ function FieldInput({
   field: FormField;
   value: FormAnswerValue;
   attachmentList: LocalAttachment[];
+  error: string | null;
   onChange: (v: FormAnswerValue) => void;
   onAddAttachments: (files: FileList | null) => void;
   onRemoveAttachmentAt: (index: number) => void;
 }) {
+  // Controls carry aria-required rather than the native `required`: the
+  // form is noValidate, so requiredness is announced to screen readers but
+  // enforced in one place (handleSubmit) for every field type alike.
+  // Red outline on the control the submitter still has to fix.
+  const invalid = error != null;
+  const invalidCls = invalid
+    ? "border-rose-400 focus-visible:ring-rose-400"
+    : undefined;
+  // Point at the message the parent renders, so a screen reader reads
+  // "enter a valid email address" and not just "invalid entry".
+  const errorId = invalid ? `form-field-${field.id}-error` : undefined;
+
   switch (field.type) {
     case "TEXT":
       return (
@@ -532,7 +653,10 @@ function FieldInput({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          required={field.required}
+          aria-required={field.required || undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={errorId}
+          className={invalidCls}
         />
       );
 
@@ -544,7 +668,10 @@ function FieldInput({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder || "you@example.com"}
-          required={field.required}
+          aria-required={field.required || undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={errorId}
+          className={invalidCls}
         />
       );
 
@@ -555,9 +682,11 @@ function FieldInput({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          required={field.required}
+          aria-required={field.required || undefined}
           rows={4}
-          className="resize-none"
+          aria-invalid={invalid || undefined}
+          aria-describedby={errorId}
+          className={cn("resize-none", invalidCls)}
         />
       );
 
@@ -568,7 +697,10 @@ function FieldInput({
           type="date"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
-          required={field.required}
+          aria-required={field.required || undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={errorId}
+          className={invalidCls}
         />
       );
 
@@ -581,7 +713,10 @@ function FieldInput({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          required={field.required}
+          aria-required={field.required || undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={errorId}
+          className={invalidCls}
         />
       );
 
@@ -595,7 +730,10 @@ function FieldInput({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder || "Full name"}
-          required={field.required}
+          aria-required={field.required || undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={errorId}
+          className={invalidCls}
         />
       );
 
@@ -605,7 +743,12 @@ function FieldInput({
           value={typeof value === "string" ? value : ""}
           onValueChange={onChange}
         >
-          <SelectTrigger id={field.id}>
+          <SelectTrigger
+            id={field.id}
+            aria-invalid={invalid || undefined}
+            aria-describedby={errorId}
+            className={invalidCls}
+          >
             <SelectValue placeholder={field.placeholder || "Choose…"} />
           </SelectTrigger>
           <SelectContent>
@@ -625,7 +768,23 @@ function FieldInput({
         ? (value as string[])
         : [];
       return (
-        <div className="space-y-2 border rounded-md p-2.5 bg-slate-50/40">
+        // The checkbox group is the "control" here: it carries the field id
+        // so the wrapper <label htmlFor> and handleSubmit's focus-the-first-
+        // problem step land on something, and tabIndex -1 makes it focusable
+        // programmatically without adding a tab stop.
+        <div
+          id={field.id}
+          role="group"
+          tabIndex={-1}
+          aria-label={field.label}
+          aria-required={field.required || undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={errorId}
+          className={cn(
+            "space-y-2 border rounded-md p-2.5 bg-slate-50/40 focus:outline-none",
+            invalidCls
+          )}
+        >
           {(field.options || []).map((opt) => {
             const checked = selected.includes(opt);
             return (
@@ -687,7 +846,10 @@ function FieldInput({
           )}
           <label
             htmlFor={field.id}
-            className="flex items-center gap-2 text-sm border border-dashed rounded-md px-3 py-2 cursor-pointer hover:bg-slate-50 text-slate-600"
+            className={cn(
+              "flex items-center gap-2 text-sm border border-dashed rounded-md px-3 py-2 cursor-pointer hover:bg-slate-50 text-slate-600",
+              invalidCls
+            )}
           >
             <Upload className="h-4 w-4 text-slate-400" />
             <span>
@@ -701,6 +863,9 @@ function FieldInput({
               multiple
               className="sr-only"
               accept={field.accept?.join(",")}
+              aria-required={field.required || undefined}
+              aria-invalid={invalid || undefined}
+              aria-describedby={errorId}
               onChange={(e) => {
                 onAddAttachments(e.target.files);
                 // Reset value so the same file can be re-added if

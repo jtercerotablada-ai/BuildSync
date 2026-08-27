@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderCommentContent } from "@/components/tasks/comment-content";
+import { toast } from "sonner";
 import {
   Loader2,
   AlertCircle,
@@ -221,7 +222,9 @@ export function TrackingPageClient({
       // Re-fetch immediately so the new comment shows up.
       await fetchData(false);
     } catch (err) {
-      alert(
+      // A native alert() blocks the page and looks nothing like the rest of
+      // the product; the public form pages report the same failures by toast.
+      toast.error(
         err instanceof Error ? err.message : "Failed to post reply."
       );
     } finally {
@@ -490,6 +493,16 @@ export function TrackingPageClient({
                       </li>
                     ))}
                   </ul>
+                )}
+                {/* Attaching a file without typing anything left the Send
+                    button greyed out with no explanation. A reply always
+                    carries text (the server stores the comment body), so
+                    say so instead of failing silently. */}
+                {replyFiles.length > 0 && !replyText.trim() && (
+                  <p className="mt-2 text-[11px] text-amber-700">
+                    Add a short message to send{" "}
+                    {replyFiles.length === 1 ? "this file" : "these files"}.
+                  </p>
                 )}
                 <div className="flex items-center justify-between gap-2 mt-2">
                   <div className="flex items-center gap-2 text-[11px] text-slate-400">

@@ -37,8 +37,6 @@ import {
   Settings,
   UserPlus,
   Star,
-  Globe,
-  Lock,
   Plus,
   Check,
   Image as ImageIcon,
@@ -56,6 +54,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { consumeTeamInvite } from "@/lib/team-invite";
+import { teamPrivacyMeta } from "@/lib/team-privacy";
 import { toast } from "sonner";
 import {
   InviteTeamModal,
@@ -311,7 +310,8 @@ export default function TeamOverviewPage() {
   }
 
   const teamInitial = team.name.charAt(0).toUpperCase();
-  const PrivacyIcon = team.privacy === "PRIVATE" ? Lock : Globe;
+  const privacy = teamPrivacyMeta(team.privacy);
+  const PrivacyIcon = privacy.icon;
   const cover = coverColorFor(team);
   const memberCount = team._count.members;
 
@@ -458,7 +458,7 @@ export default function TeamOverviewPage() {
                 <span className="text-white/50">·</span>
                 <span className="inline-flex items-center gap-1">
                   <PrivacyIcon className="h-2.5 w-2.5" />
-                  {team.privacy === "PRIVATE" ? "Private" : "Public"}
+                  {privacy.label}
                 </span>
               </p>
               <h1 className="text-xl md:text-2xl font-bold text-white truncate drop-shadow-sm">

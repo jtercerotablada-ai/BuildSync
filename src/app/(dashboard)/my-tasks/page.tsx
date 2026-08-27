@@ -301,12 +301,80 @@ interface PersonalSection {
 // the ids organizeTasks emitted before this change so section-collapse
 // persistence + drag maps keep working, and so the DB `myTaskSection`
 // enum back-compat mapping below still resolves.
+/** The default name of the "Do today" bucket. Auto-promotion is keyed on the
+ *  section ID, which survives a rename — so a user who repurposes the bucket
+ *  ("Blocked — waiting on client") would otherwise keep receiving every
+ *  due task into it. Promotion stands down when the name no longer means
+ *  today. */
+const DO_TODAY_SECTION_ID = "do-today";
+const DO_TODAY_DEFAULT_NAME = "Do today";
+
 const DEFAULT_PERSONAL_SECTIONS: PersonalSection[] = [
   { id: "recently-assigned", name: "Recently assigned", order: 0 },
   { id: "do-today", name: "Do today", order: 1 },
   { id: "do-next-week", name: "Do next week", order: 2 },
   { id: "do-later", name: "Do later", order: 3 },
 ];
+
+/**
+ * Which personal section does this task belong in?
+ *
+ * ONE implementation, because there are three callers that must agree: the
+ * List's "sections" grouping, buildPersonalSections (which feeds Board and
+ * Calendar), and the detail panel's Section dropdown. When they disagreed the
+ * same task showed up in two different buckets depending on which view you
+ * were looking at.
+ *
+ * `dropOverride` is the in-flight drag placement; `map` is the persisted
+ * uiState placement; `task.myTaskSection` is the older DB record of the same
+ * thing. All three count as the user having filed the task themselves.
+ */
+function resolvePersonalSectionId(
+  task: { id: string; dueDate: string | null; completed: boolean; myTaskSection: string | null },
+  opts: {
+    dropOverride?: string;
+    map: Record<string, string>;
+    validIds: Set<string>;
+    fallbackId: string;
+    promoteToDoToday: boolean;
+  }
+): string {
+  const explicit =
+    opts.dropOverride ??
+    opts.map[task.id] ??
+    (task.myTaskSection ? ENUM_TO_SECTION_ID[task.myTaskSection] : undefined);
+
+  let sid = explicit;
+  if (!sid || !opts.validIds.has(sid)) sid = opts.fallbackId;
+
+  // A task nobody ever filed rises into "Do today" once its due date lands,
+  // so an unattended list stops quietly aging past its own deadlines.
+  //
+  // Three rules keep it from becoming annoying. It only moves work TOWARD
+  // today — nothing is ever pushed further out, because the one thing a task
+  // list must never do is hide work someone is about to be late on. It never
+  // touches a task the user placed themselves, or dragging one out of "Do
+  // today" would spring straight back. And a completed task is never
+  // promoted: it cannot be work anyone is about to be late on.
+  if (
+    opts.promoteToDoToday &&
+    !explicit &&
+    !task.completed &&
+    sid !== DO_TODAY_SECTION_ID &&
+    task.dueDate &&
+    daysFromToday(task.dueDate) <= 0
+  ) {
+    return DO_TODAY_SECTION_ID;
+  }
+  return sid;
+}
+
+/** Promotion stands down when the "Do today" bucket is missing or has been
+ *  renamed to mean something else. */
+function canPromoteToDoToday(sections: { id: string; name: string }[]): boolean {
+  const doToday = sections.find((s) => s.id === DO_TODAY_SECTION_ID);
+  return !!doToday && doToday.name.trim() === DO_TODAY_DEFAULT_NAME;
+}
 
 // Bridge between the stable default section ids and the DB
 // `myTaskSection` enum. Used to (a) seed a task's section from its
@@ -1280,16 +1348,16 @@ export default function MyTasksPage() {
       personalSections.forEach((s) => buckets.set(s.id, []));
       const fallbackId = personalSections[0]?.id ?? "recently-assigned";
 
+      const promoteToDoToday = canPromoteToDoToday(personalSections);
+
       activeTasks.forEach((task) => {
-        let sid = sectionOverrides?.[task.id] ?? taskSectionMap[task.id];
-        // No explicit uiState mapping → seed from the DB enum for
-        // back-compat with tasks the user placed before this model.
-        if (!sid && task.myTaskSection) {
-          sid = ENUM_TO_SECTION_ID[task.myTaskSection];
-        }
-        // Unmapped or pointing at a section the user has since deleted →
-        // Recently assigned (matches Asana's "newly assigned lands here").
-        if (!sid || !validIds.has(sid)) sid = fallbackId;
+        const sid = resolvePersonalSectionId(task, {
+          dropOverride: sectionOverrides?.[task.id],
+          map: taskSectionMap,
+          validIds,
+          fallbackId,
+          promoteToDoToday,
+        });
         if (!buckets.has(sid)) buckets.set(sid, []);
         buckets.get(sid)!.push(task);
       });
@@ -1985,12 +2053,14 @@ export default function MyTasksPage() {
     const validIds = new Set(personalSections.map((s) => s.id));
     personalSections.forEach((s) => buckets.set(s.id, []));
     const fallbackId = personalSections[0]?.id ?? "recently-assigned";
+    const promoteToDoToday = canPromoteToDoToday(personalSections);
     taskList.forEach((task) => {
-      let sid = taskSectionMap[task.id];
-      if (!sid && task.myTaskSection) {
-        sid = ENUM_TO_SECTION_ID[task.myTaskSection];
-      }
-      if (!sid || !validIds.has(sid)) sid = fallbackId;
+      const sid = resolvePersonalSectionId(task, {
+        map: taskSectionMap,
+        validIds,
+        fallbackId,
+        promoteToDoToday,
+      });
       if (!buckets.has(sid)) buckets.set(sid, []);
       buckets.get(sid)!.push(task);
     });
@@ -3561,14 +3631,12 @@ export default function MyTasksPage() {
           onAttachmentsChange={() => setAttachmentsVersion((v) => v + 1)}
           // Personal-section dropdown (Asana parity: sits by Assignee).
           personalSections={personalSections}
-          currentSectionId={
-            taskSectionMap[selectedTask.id] ??
-            (selectedTask.myTaskSection
-              ? ENUM_TO_SECTION_ID[selectedTask.myTaskSection]
-              : null) ??
-            personalSections[0]?.id ??
-            "recently-assigned"
-          }
+          currentSectionId={resolvePersonalSectionId(selectedTask, {
+            map: taskSectionMap,
+            validIds: new Set(personalSections.map((s) => s.id)),
+            fallbackId: personalSections[0]?.id ?? "recently-assigned",
+            promoteToDoToday: canPromoteToDoToday(personalSections),
+          })}
           onMoveToSection={(sectionId) =>
             moveTaskToPersonalSection(selectedTask.id, sectionId)
           }
@@ -5239,6 +5307,10 @@ function TaskRow({
                 "text-[13px] truncate",
                 task.completed ? "line-through text-gray-400" : "text-gray-900"
               )}
+              // The row is select-none, so a truncated name can't even be
+              // selected to read it — the native tooltip is the only way to
+              // see the full text without opening the task.
+              title={nameDraft}
               onDoubleClick={(e) => {
                 // Asana parity: double-click jumps into rename. Single
                 // click stays as "open panel" via the row onClick.
@@ -5279,10 +5351,18 @@ function TaskRow({
         .filter((colId) => !hiddenColumns.has(colId))
         .map((colId) => {
           if (colId === "dueDate") {
+            const dueLabel = formatDueColumnLabel(
+              task.startDate,
+              task.dueDate,
+              dueDateInfo.text
+            );
             return (
               <div key="dueDate" className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
-                <span className={cn("text-[13px] truncate", dueDateInfo.className)}>
-                  {formatDueColumnLabel(task.startDate, task.dueDate, dueDateInfo.text)}
+                <span
+                  className={cn("text-[13px] truncate", dueDateInfo.className)}
+                  title={dueLabel}
+                >
+                  {dueLabel}
                 </span>
               </div>
             );
@@ -5297,7 +5377,11 @@ function TaskRow({
                   <div className="flex items-center">
                     <div className="flex -space-x-1.5">
                       {collabs.slice(0, 3).map((c) => (
-                        <Avatar key={c.user.id} className="w-5 h-5 ring-1 ring-white">
+                        <Avatar
+                          key={c.user.id}
+                          className="w-5 h-5 ring-1 ring-white"
+                          title={c.user.name ?? undefined}
+                        >
                           <AvatarImage src={c.user.image || undefined} />
                           <AvatarFallback className="text-[10px] bg-gray-100 text-gray-600">
                             {c.user.name?.charAt(0) || "?"}
@@ -5306,7 +5390,14 @@ function TaskRow({
                       ))}
                     </div>
                     {collabs.length > 3 && (
-                      <span className="ml-1 text-[11px] text-gray-400">
+                      <span
+                        className="ml-1 text-[11px] text-gray-400"
+                        title={collabs
+                          .slice(3)
+                          .map((c) => c.user.name)
+                          .filter(Boolean)
+                          .join(", ")}
+                      >
                         +{collabs.length - 3}
                       </span>
                     )}
@@ -5324,7 +5415,10 @@ function TaskRow({
                       className="w-2 h-2 rounded-sm flex-shrink-0"
                       style={{ backgroundColor: task.project.color }}
                     />
-                    <span className="text-[13px] text-gray-600 truncate">
+                    <span
+                      className="text-[13px] text-gray-600 truncate"
+                      title={task.project.name}
+                    >
                       {task.project.name}
                     </span>
                     {task.project.type && (

@@ -15,6 +15,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from 'sonner';
 
 interface Message {
@@ -41,6 +42,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [conversationTitle, setConversationTitle] = useState('');
+  const [confirmNewChat, setConfirmNewChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +51,10 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
   // onClose identity from the parent must not re-run it and steal focus mid-typing.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // The "new chat" confirmation is a Radix dialog with its own Escape and
+  // focus handling; while it is up this panel must keep its hands off both.
+  const confirmNewChatRef = useRef(false);
+  confirmNewChatRef.current = confirmNewChat;
 
   // Scroll to bottom when new messages
   useEffect(() => {
@@ -65,6 +71,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
     inputRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (confirmNewChatRef.current) return;
       if (e.key === 'Escape') {
         onCloseRef.current();
         return;
@@ -106,7 +113,8 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
   // when it went disabled — put the caret back so the next question can be
   // typed straight away.
   useEffect(() => {
-    if (isOpen && !isLoading) inputRef.current?.focus();
+    if (isOpen && !isLoading && !confirmNewChatRef.current)
+      inputRef.current?.focus();
   }, [isOpen, isLoading]);
 
   const handleSubmit = async () => {
@@ -199,18 +207,21 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/20 z-40"
+        className="fixed inset-0 bg-black/20 z-40 animate-in fade-in duration-200"
         onClick={onClose}
       />
 
-      {/* Panel */}
+      {/* Panel — slides in like the task detail panel instead of popping in.
+          The transition is scoped to `width` (the expand/collapse toggle);
+          `transition-all` also animated everything else the panel restyles
+          while it is open, which is what made it feel sluggish. */}
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="TT AI Assistant"
         className={cn(
-          'fixed top-0 right-0 h-full bg-white shadow-2xl z-50 flex flex-col transition-all duration-300',
+          'fixed top-0 right-0 h-full bg-white shadow-2xl z-50 flex flex-col transition-[width] animate-in slide-in-from-right duration-200',
           isExpanded ? 'w-full md:w-[600px]' : 'w-full md:w-[420px]'
         )}
       >
@@ -221,6 +232,8 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
               <>
                 <button
                   onClick={handleBack}
+                  aria-label="Back to suggestions"
+                  title="Back to suggestions"
                   className="p-1 hover:bg-gray-100 rounded"
                 >
                   <ArrowLeft className="h-5 w-5 text-gray-500" />
@@ -239,12 +252,19 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
 
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
-              <button className="p-2 hover:bg-gray-100 rounded" onClick={() => { setMessages([]); setInput(''); }}>
+              <button
+                className="p-2 hover:bg-gray-100 rounded"
+                aria-label="New chat"
+                title="New chat"
+                onClick={() => setConfirmNewChat(true)}
+              >
                 <Edit3 className="h-4 w-4 text-gray-500" />
               </button>
             )}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
+              aria-label={isExpanded ? 'Collapse panel' : 'Expand panel'}
+              title={isExpanded ? 'Collapse panel' : 'Expand panel'}
               className="p-2 hover:bg-gray-100 rounded"
             >
               {isExpanded ? (
@@ -255,6 +275,8 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
             </button>
             <button
               onClick={onClose}
+              aria-label="Close assistant"
+              title="Close assistant"
               className="p-2 hover:bg-gray-100 rounded"
             >
               <X className="h-5 w-5 text-gray-500" />
@@ -357,6 +379,21 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
           </div>
         </div>
       </div>
+
+      {/* The pencil wipes the whole conversation and nothing here is stored
+          server-side, so there is nothing to go back to. */}
+      <ConfirmDialog
+        open={confirmNewChat}
+        onOpenChange={setConfirmNewChat}
+        title="Start a new chat?"
+        description="This clears the current conversation. It can't be undone."
+        confirmLabel="Start new chat"
+        onConfirm={() => {
+          setMessages([]);
+          setInput('');
+          setConfirmNewChat(false);
+        }}
+      />
     </>
   );
 }

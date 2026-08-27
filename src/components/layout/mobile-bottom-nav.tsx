@@ -17,7 +17,13 @@ export function MobileBottomNav({ onCreateTask, onToggleSidebar, basePath = '' }
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-lg border-t border-gray-200/80" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    // z-40, not z-50: full-screen surfaces (task detail panel, AI panel,
+    // dialogs) sit at z-50 and this nav is the LAST node in the shell, so at
+    // an equal z-index it painted on top of them — covering the bottom ~56px
+    // of the task panel and its comment composer on a phone. z-40 still keeps
+    // the nav above the sidebar's z-30 scrim and (by DOM order) above the
+    // sidebar drawer itself, so the "More" toggle behaves exactly as before.
+    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 backdrop-blur-lg border-t border-gray-200/80" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
         {/* Home */}
         <Link href={`${basePath}/home`} className="flex flex-col items-center justify-center gap-0.5 min-w-[56px] py-1">

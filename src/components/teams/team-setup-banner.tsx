@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { X, FileText, FolderPlus, UserPlus, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUiState } from "@/hooks/use-ui-state";
 
 interface SetupStep {
   id: string;
@@ -25,7 +25,16 @@ interface TeamSetupBannerProps {
 }
 
 export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
-  const [isDismissed, setIsDismissed] = useState(false);
+  // Dismissal is a per-user preference, one entry per team: a team that
+  // deliberately has no linked work would otherwise get this checklist
+  // back on every visit, however often it was dismissed. Local state
+  // died with the component; uiState follows the user across devices.
+  const {
+    value: dismissedTeams,
+    setValue: setDismissedTeams,
+    isHydrated,
+  } = useUiState<Record<string, boolean>>("teamSetupDismissed", {});
+  const isDismissed = !!dismissedTeams[team.id];
 
   // Calculate completed steps
   const steps: SetupStep[] = [
@@ -54,8 +63,14 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
 
   const completedCount = steps.filter((s) => s.completed).length;
 
-  // Don't show if dismissed or all completed
-  if (isDismissed || completedCount === steps.length) {
+  // Don't show if dismissed or all completed. `isHydrated` only means
+  // the local preference cache has been consulted — it flips on mount,
+  // before the server payload lands — so it kills the reload flash on a
+  // device that has already cached this user's prefs, but on a fresh
+  // browser the banner can still appear for a moment and then vanish
+  // once the DB value arrives. Removing that last case needs a
+  // "server confirmed" signal from useUiState.
+  if (!isHydrated || isDismissed || completedCount === steps.length) {
     return null;
   }
 
@@ -88,7 +103,10 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
 
         {/* Dismiss button */}
         <button
-          onClick={() => setIsDismissed(true)}
+          onClick={() =>
+            setDismissedTeams({ ...dismissedTeams, [team.id]: true })
+          }
+          aria-label="Dismiss setup checklist"
           className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
         >
           <X className="h-5 w-5" />

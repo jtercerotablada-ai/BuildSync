@@ -72,12 +72,20 @@ export async function GET(request: NextRequest) {
       return new NextResponse("Invalid token", { status: 403 });
     }
 
-    // Fetch tasks assigned to this user that have a due date
+    // Fetch tasks assigned to this user that have a due date.
+    // Windowed and capped: an unbounded feed handed the subscriber every
+    // task they had ever been assigned, so years of finished work kept
+    // reappearing in their calendar. A quarter back and a year ahead is
+    // what a calendar client can usefully show.
+    const windowStart = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const windowEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     const tasks = await prisma.task.findMany({
       where: {
         assigneeId: uid,
-        dueDate: { not: null },
+        dueDate: { gte: windowStart, lte: windowEnd },
       },
+      orderBy: { dueDate: "asc" },
+      take: 1000,
       select: {
         id: true,
         name: true,

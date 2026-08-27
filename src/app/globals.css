@@ -360,3 +360,39 @@
 .tt-grid-header > * {
   background-color: var(--header-band);
 }
+
+/* ==========================================
+   REDUCED MOTION
+   ==========================================
+   Honour the OS "reduce motion" setting across the whole product. The
+   dashboard leans on Tailwind's animate-* / transition-* utilities for
+   every dropdown, dialog, drawer and skeleton, and those fire
+   unconditionally — for a motion-sensitive engineer that is nausea, and
+   for everyone else this block is invisible. Durations are collapsed to
+   a hair rather than removed so animation/transition end events still
+   fire and nothing waits forever on a callback that never arrives. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Tap feedback is a transform, not a transition — collapsing the
+     duration would only make it snap. Remove the movement itself. */
+  .mobile-card:active,
+  .mobile-task-card:active,
+  .active\:scale-95:active {
+    transform: none !important;
+  }
+
+  /* Spinners are the deliberate exception: they mean "still working", so
+     a frozen one reads as a hung screen. Keep them turning, just calmer. */
+  .animate-spin {
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
