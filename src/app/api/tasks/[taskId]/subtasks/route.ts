@@ -71,7 +71,11 @@ export async function POST(
     }
 
     // Verify user has access to parent task
-    await verifyTaskAccess(userId, taskId);
+    // Creating/editing a subtask writes a task row that inherits the parent's
+    // projectId and sectionId, so it lands on that project's board. Gate it on
+    // WRITE, not mere read — requireWrite still admits the task's own
+    // creator/assignee, so working on your own task is unaffected.
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const body = await req.json();
     const { name, assigneeId, dueDate } = createSubtaskSchema.parse(body);

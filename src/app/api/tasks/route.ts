@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, verifyProjectAccess, verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { getUserWorkspaceId, verifyProjectAccess, verifyTaskAccess, verifySectionWritable, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { readJson, jsonErrorResponse } from "@/lib/http";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
 import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
@@ -274,11 +274,44 @@ export async function POST(req: Request) {
       await verifyProjectAccess(userId, data.projectId, { requireWrite: true });
     }
 
+    // A client-supplied sectionId is a DESTINATION exactly like projectId, and
+    // must cost the same. Without this the gate above could be skipped outright
+    // by omitting projectId and naming only a section: the task was created
+    // with projectId=null and the caller's section id written verbatim, and the
+    // project page loads its columns as sections:{include:{tasks}} filtered
+    // only by parentTaskId — so it rendered on that project's board for every
+    // real member, created by someone with no access to it at all. Naming a
+    // section of a DIFFERENT project than data.projectId was equally accepted
+    // and left the row incoherent (projectId=A, sectionId in B).
+    if (data.sectionId) {
+      // expectWorkspaceId keeps the destination inside the caller's own
+      // workspace: write access alone does not, since a project OWNER has
+      // canWrite in any workspace (including their personal singleton).
+      const callerWorkspaceId = await getUserWorkspaceId(userId);
+      const section = await verifySectionWritable(userId, data.sectionId, {
+        expectWorkspaceId: callerWorkspaceId,
+      });
+      if (data.projectId && data.projectId !== section.projectId) {
+        return NextResponse.json(
+          { error: "Section does not belong to the target project" },
+          { status: 400 }
+        );
+      }
+      // A task's section must belong to the task's own project. Callers that
+      // name only a section (none ship today, but the shape is accepted) get
+      // the owning project rather than a projectId=null orphan.
+      data.projectId = section.projectId;
+    }
+
     // When creating a subtask, the caller must have access to the parent —
     // otherwise a new task could be grafted under a parent in another
     // workspace, polluting that task's subtree.
     if (data.parentTaskId) {
-      await verifyTaskAccess(userId, data.parentTaskId);
+      // The new subtask inherits the parent's projectId/sectionId below, so
+      // this is a write onto the parent's project — gate it on WRITE, matching
+      // POST /api/tasks/[taskId]/subtasks. requireWrite still admits the
+      // parent task's creator/assignee.
+      await verifyTaskAccess(userId, data.parentTaskId, { requireWrite: true });
     }
 
     // Auto-assign to the creator ONLY for projectless personal tasks (the

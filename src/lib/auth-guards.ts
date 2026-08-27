@@ -137,6 +137,64 @@ export async function assertSectionInWorkspace(
 }
 
 /**
+ * Assert the caller may WRITE into the project that owns `sectionId`, and
+ * return the section with its projectId.
+ *
+ * Use this — not assertSectionInWorkspace — whenever a request body names a
+ * DESTINATION section for a task (task PATCH, /api/tasks/reorder,
+ * /api/tasks/bulk move_section).
+ *
+ * WHY: assertSectionInWorkspace only proves the section lives in the caller's
+ * workspace. That is not authorization. The task-side gate does not close the
+ * gap either — verifyTaskAccess(requireWrite) passes on isOwnTask alone, so a
+ * caller who merely CREATED a task could move it into a section of a project
+ * they cannot write to, and in fact cannot even read: the project page loads
+ * its columns as `sections: { include: { tasks } }` filtered only by
+ * parentTaskId, so the smuggled task then renders on that project's board for
+ * every real member, and any workflow rule bound to the destination stage
+ * fires on it. Moving a task by `projectId` has always required write on the
+ * target (see the projectId branch of task PATCH); moving it by `sectionId`
+ * is the same act and must cost the same.
+ *
+ * Throws NotFoundError (404) when the section is unknown or its project is
+ * unreadable — verifyProjectAccess masks existence — and AuthorizationError
+ * (403) when the caller can read but not write.
+ */
+export async function verifySectionWritable(
+  userId: string,
+  sectionId: string,
+  opts: { expectWorkspaceId?: string } = {},
+) {
+  const section = await prisma.section.findUnique({
+    where: { id: sectionId },
+    select: {
+      id: true,
+      projectId: true,
+      project: { select: { workspaceId: true } },
+    },
+  });
+  if (!section || !section.project) {
+    throw new NotFoundError("Section not found");
+  }
+  // The write check ALONE is not a workspace bound: canWrite is granted to a
+  // project's OWNER no matter which workspace that project lives in, and every
+  // user owns a personal workspace from onboarding. So this must ADD to the
+  // workspace check the callers used to do, never replace it — otherwise a
+  // caller could move a firm task into a section of their own personal
+  // workspace, where it vanishes from the firm's board (the project page
+  // renders columns via sections.include.tasks) while still counting as the
+  // firm's task.
+  if (
+    opts.expectWorkspaceId &&
+    section.project.workspaceId !== opts.expectWorkspaceId
+  ) {
+    throw new NotFoundError("Section not found");
+  }
+  await verifyProjectAccess(userId, section.projectId, { requireWrite: true });
+  return { id: section.id, projectId: section.projectId };
+}
+
+/**
  * Assert a client-supplied userId is a member of `workspaceId`. Use before
  * linking an arbitrary user to a resource (collaborator, assignee) so the
  * endpoint can't leak or attach out-of-workspace users — audit SEC-03.

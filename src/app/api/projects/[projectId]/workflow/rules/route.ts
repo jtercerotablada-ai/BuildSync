@@ -66,6 +66,15 @@ export async function validateRuleTargets(
       if (!targetAccess.ok) {
         return "You don't have access to the target project";
       }
+      // READ on the target is not enough. Firing this action writes a
+      // TaskProject row into the target, and the project page merges those
+      // rows onto its board — so a rule author who can merely SEE a project
+      // could push tasks onto it on every trigger, repeatedly, without ever
+      // having write access to it. Same rule as moving a task by projectId
+      // or by sectionId: naming a destination costs write on that destination.
+      if (!targetAccess.canWrite) {
+        return "You need edit access to the target project to add tasks to it";
+      }
     }
   }
 

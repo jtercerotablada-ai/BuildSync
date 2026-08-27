@@ -17,7 +17,12 @@ export async function POST(
     }
 
     // Verify user has access to this task's workspace
-    await verifyTaskAccess(userId, taskId);
+    // Duplicating CREATES a task carrying the original's projectId and
+    // sectionId, so it is a write onto that project's board — a read-only
+    // caller (a task follower, or a VIEWER/COMMENTER member) must not be able
+    // to do it. requireWrite still admits the task's creator/assignee, so
+    // duplicating your own task is unaffected.
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     // Get the original task
     const originalTask = await prisma.task.findUnique({

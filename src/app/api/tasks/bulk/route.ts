@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyBulkTaskAccess, assertSectionInWorkspace, assertUserInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyBulkTaskAccess, verifySectionWritable, assertUserInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { GoalProgressService } from "@/lib/goal-progress";
 import {
   executeRulesOnSectionChange,
@@ -146,9 +146,11 @@ export async function POST(req: Request) {
         if (!value) {
           return NextResponse.json({ error: "Section ID required" }, { status: 400 });
         }
-        // The destination section must live in the caller's workspace —
-        // otherwise tasks can be pointed at a foreign/dangling section.
-        await assertSectionInWorkspace(value, workspaceId);
+        // Require WRITE on the project that owns the destination section.
+        // Same-workspace alone is not authorization — see verifySectionWritable.
+        await verifySectionWritable(userId, value, {
+          expectWorkspaceId: workspaceId,
+        });
         // Snapshot prior sections so we can fire section-change workflow
         // rules only for tasks that actually moved (audit: bulk move never
         // fired rules, contradicting "rules fire from any view").

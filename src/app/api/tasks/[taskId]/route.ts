@@ -3,7 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
-import { verifyTaskAccess, verifyProjectAccess, assertSectionInWorkspace, getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyTaskAccess, verifyProjectAccess, verifySectionWritable, getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import {
   executeRulesOnSectionChange,
   executeRulesOnTaskCompleted,
@@ -353,14 +353,23 @@ export async function PATCH(
     }
 
     if (data.sectionId !== undefined && data.sectionId !== existingTask.sectionId && updateData.sectionId === undefined) {
-      // Prove the destination section belongs to the caller's workspace.
-      // verifyTaskAccess above only authorizes the TASK — it never reads the
-      // body, so without this any writable task could be relocated into an
-      // arbitrary foreign section (and, via the workflow engine, fire that
-      // project's rules). Mirrors the guard /api/tasks/reorder already has.
+      // Require WRITE on the project that owns the destination section.
+      // verifyTaskAccess above only authorizes the TASK — and it passes on
+      // isOwnTask alone — so proving the section merely sits in the caller's
+      // workspace (the previous check) was not authorization: any task you
+      // created could be pushed into a project you cannot write to, or even
+      // read. This is the same act as moving by projectId, which has always
+      // required write on the target a few lines above.
       if (data.sectionId !== null) {
+        // expectWorkspaceId restores the bound the previous
+        // assertSectionInWorkspace call provided: write access alone does not
+        // keep the destination inside the caller's workspace, because a
+        // project OWNER has canWrite in any workspace — including the personal
+        // one every account gets at onboarding.
         const callerWorkspaceId = await getUserWorkspaceId(userId);
-        await assertSectionInWorkspace(data.sectionId, callerWorkspaceId);
+        await verifySectionWritable(userId, data.sectionId, {
+          expectWorkspaceId: callerWorkspaceId,
+        });
       }
       updateData.sectionId = data.sectionId;
       activities.push({

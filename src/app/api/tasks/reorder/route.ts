@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
   verifyBulkTaskAccess,
-  assertSectionInWorkspace,
+  verifySectionWritable,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
@@ -50,10 +50,15 @@ export async function POST(req: Request) {
     // workspace or if the user lacks edit access.
     const workspaceId = await verifyBulkTaskAccess(userId, orderedTaskIds);
 
-    // Confirm the destination section actually belongs to the caller's
-    // workspace. Existence alone is NOT enough — without this a user could
-    // relocate their tasks into an arbitrary foreign section — audit.
-    await assertSectionInWorkspace(sectionId, workspaceId);
+    // Require WRITE on the project that owns the destination section.
+    // Same-workspace (the previous check) is not authorization: a caller who
+    // merely CREATED the tasks — which is all verifyBulkTaskAccess needs —
+    // could drop them into a column of a project they cannot write to, or
+    // even read, where they then render for every real member and fire that
+    // project's workflow rules.
+    await verifySectionWritable(userId, sectionId, {
+      expectWorkspaceId: workspaceId,
+    });
 
     // Snapshot which tasks are entering this section for the first
     // time (their old sectionId differs from the destination) so we
