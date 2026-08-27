@@ -16,18 +16,14 @@ export async function GET(req: Request) {
     const search = searchParams.get("search");
     const category = searchParams.get("category");
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
-
-    if (!workspaceMember) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 404 });
-    }
+    // The same resolver PUT/DELETE use. A bare findFirst returned an
+    // arbitrary membership, so the list and the create could land in the
+    // personal singleton workspace while the update checked the firm one.
+    const workspaceId = await getUserWorkspaceId(userId);
 
     const entries = await prisma.knowledgeEntry.findMany({
       where: {
-        workspaceId: workspaceMember.workspaceId,
+        workspaceId,
         ...(search && {
           OR: [
             { term: { contains: search, mode: "insensitive" } },
@@ -45,7 +41,7 @@ export async function GET(req: Request) {
     // Get unique categories for filtering
     const categories = await prisma.knowledgeEntry.findMany({
       where: {
-        workspaceId: workspaceMember.workspaceId,
+        workspaceId,
         category: { not: null },
       },
       select: { category: true },
@@ -85,14 +81,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
-
-    if (!workspaceMember) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 404 });
-    }
+    // The same resolver PUT/DELETE use. A bare findFirst returned an
+    // arbitrary membership, so the list and the create could land in the
+    // personal singleton workspace while the update checked the firm one.
+    const workspaceId = await getUserWorkspaceId(userId);
 
     const entry = await prisma.knowledgeEntry.create({
       data: {
@@ -100,7 +92,7 @@ export async function POST(req: Request) {
         definition,
         category,
         tags: tags || [],
-        workspaceId: workspaceMember.workspaceId,
+        workspaceId,
         authorId: userId,
       },
     });

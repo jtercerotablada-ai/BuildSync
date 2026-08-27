@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 import { daysFromToday } from "@/lib/date-only";
 
 const createPortfolioSchema = z.object({
@@ -29,10 +30,7 @@ export async function GET(req: Request) {
       : undefined;
 
     // Get user's workspace
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
+    const workspaceMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
@@ -223,10 +221,7 @@ export async function POST(req: Request) {
     const data = createPortfolioSchema.parse(body);
 
     // Get user's workspace
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
+    const workspaceMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 
 // GET /api/workspace/members - Get all workspace members
 export async function GET() {
@@ -11,10 +12,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
+    const workspaceMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
@@ -67,10 +65,7 @@ export async function PUT(req: Request) {
     }
 
     // Check if current user is admin/owner
-    const currentMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true, role: true },
-    });
+    const currentMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!currentMember || !["OWNER", "ADMIN"].includes(currentMember.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -138,10 +133,7 @@ export async function DELETE(req: Request) {
     }
 
     // Check if current user is admin/owner
-    const currentMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true, role: true },
-    });
+    const currentMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!currentMember || !["OWNER", "ADMIN"].includes(currentMember.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });

@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import type { Position, WorkspaceRole } from "@prisma/client";
 import { resolveProjectAccess } from "@/lib/project-access";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 
@@ -37,7 +38,7 @@ export async function getUserWorkspaceId(userId: string): Promise<string> {
       workspaceId: true,
       workspace: { select: { _count: { select: { members: true } } } },
     },
-    orderBy: { joinedAt: "asc" },
+    orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
   });
   if (memberships.length === 0) {
     throw new AuthorizationError("No workspace found");
@@ -66,6 +67,42 @@ export function pickPrimaryWorkspaceRole(
   if (memberships.length === 0) return null;
   const real = memberships.find((m) => m.workspace._count.members > 1);
   return (real ?? memberships[0]).role;
+}
+
+/**
+ * The user's PRIMARY membership - same heuristic as getUserWorkspaceId, but
+ * returning the row so callers that also need the role (and the user's
+ * Position for level gates) don't need a second query.
+ *
+ * Written because ~15 routes resolved the workspace with a bare
+ * `workspaceMember.findFirst({ where: { userId } })`, which returns an
+ * arbitrary row: /api/workspace/knowledge LISTED and CREATED entries in one
+ * workspace while its PUT/DELETE checked another, so an entry you had just
+ * written could not be edited ("Not found"). Same class as audit SEC-06.
+ */
+export async function getPrimaryWorkspaceMembership(userId: string): Promise<{
+  workspaceId: string;
+  role: WorkspaceRole;
+  position: Position | null;
+} | null> {
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId },
+    select: {
+      workspaceId: true,
+      role: true,
+      user: { select: { position: true } },
+      workspace: { select: { _count: { select: { members: true } } } },
+    },
+    orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+  });
+  if (memberships.length === 0) return null;
+  const picked =
+    memberships.find((m) => m.workspace._count.members > 1) ?? memberships[0];
+  return {
+    workspaceId: picked.workspaceId,
+    role: picked.role,
+    position: picked.user.position,
+  };
 }
 
 export async function getPrimaryWorkspaceRole(
@@ -485,7 +522,7 @@ export async function requireWorkspaceContributor(
       role: true,
       workspace: { select: { _count: { select: { members: true } } } },
     },
-    orderBy: { joinedAt: "asc" },
+    orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
   });
   if (memberships.length === 0) {
     throw new AuthorizationError("No workspace found");

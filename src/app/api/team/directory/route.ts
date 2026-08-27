@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 import type { Position, WorkspaceRole } from "@prisma/client";
 
 /**
@@ -63,10 +64,7 @@ const patchSchema = z.object({
 });
 
 async function getCallerWorkspace(userId: string) {
-  return prisma.workspaceMember.findFirst({
-    where: { userId },
-    select: { workspaceId: true, role: true },
-  });
+  return getPrimaryWorkspaceMembership(userId);
 }
 
 export async function GET() {

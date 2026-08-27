@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 import { getLevel } from "@/lib/people-types";
 
 // GET /api/work/search - Search for work items (projects) the caller can link
@@ -21,14 +22,7 @@ export async function GET(req: Request) {
 
     // Resolve the caller's workspace and whether they manage it (OWNER/ADMIN
     // or Position level >= 4) — mirrors resolveProjectAccess.
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: {
-        workspaceId: true,
-        role: true,
-        user: { select: { position: true } },
-      },
-    });
+    const workspaceMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!workspaceMember) {
       return NextResponse.json([]);
@@ -37,7 +31,7 @@ export async function GET(req: Request) {
     const isWorkspaceManager =
       workspaceMember.role === "OWNER" ||
       workspaceMember.role === "ADMIN" ||
-      getLevel(workspaceMember.user?.position) >= 4;
+      getLevel(workspaceMember.position) >= 4;
 
     // Only surface projects the caller can actually READ (owner | member |
     // PUBLIC), unless they manage the workspace. Without this filter the

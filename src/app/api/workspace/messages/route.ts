@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
-import { requireWorkspaceContributor, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { requireWorkspaceContributor, AuthorizationError, NotFoundError, getErrorStatus, getPrimaryWorkspaceMembership} from "@/lib/auth-guards";
 
 // GET /api/workspace/messages - Get workspace messages
 export async function GET(req: Request) {
@@ -16,10 +16,7 @@ export async function GET(req: Request) {
     const cursor = searchParams.get("cursor");
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50") || 50, 1), 100);
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
+    const workspaceMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
@@ -80,10 +77,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Content is required" }, { status: 400 });
     }
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
+    const workspaceMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });

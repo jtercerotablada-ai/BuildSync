@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 import crypto from "crypto";
 
 async function verifyAdmin(userId: string) {
-  const member = await prisma.workspaceMember.findFirst({
-    where: { userId },
-    select: { workspaceId: true, role: true },
-  });
+  // The PRIMARY membership, not an arbitrary one: with a bare findFirst an
+  // OWNER of their personal singleton workspace passed this admin gate and
+  // then managed "workers" in the wrong workspace.
+  const member = await getPrimaryWorkspaceMembership(userId);
 
   if (!member || !["OWNER", "ADMIN"].includes(member.role)) {
     return null;
