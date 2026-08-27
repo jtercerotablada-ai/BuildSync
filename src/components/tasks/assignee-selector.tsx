@@ -39,23 +39,31 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Pause mid-typing and two searches can be in flight at once; without this
+  // the slower, broader one used to land last and replace the results for
+  // what the user had actually finished typing.
+  const fetchIdRef = useRef(0);
 
   // Fetch users when search changes
   useEffect(() => {
     if (!open) return;
 
     const fetchUsers = async () => {
+      const fetchId = ++fetchIdRef.current;
       setLoading(true);
       try {
         const res = await fetch(`/api/users/search?q=${encodeURIComponent(search)}`);
         if (res.ok) {
           const data = await res.json();
+          if (fetchId !== fetchIdRef.current) return;
           setUsers(data);
         }
       } catch (error) {
         console.error('Failed to fetch users:', error);
       } finally {
-        setLoading(false);
+        if (fetchId === fetchIdRef.current) {
+          setLoading(false);
+        }
       }
     };
 
@@ -73,12 +81,15 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
     }
   }, [open]);
 
-  // Update search when value changes
+  // Update search when the assignee actually changes. Keyed on the id, not
+  // the object: the parent hands us a fresh object on every background
+  // refresh, and depending on it wiped whatever was half-typed in the box.
   useEffect(() => {
     if (value) {
       setSearch(value.name || '');
     }
-  }, [value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value?.id]);
 
   const handleSelect = (user: User) => {
     onChange(user);

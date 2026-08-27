@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   FolderKanban,
   FileText,
@@ -9,8 +10,17 @@ import {
   Plus,
   Loader2,
   MoreHorizontal,
+  ExternalLink,
+  Link2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LinkWorkModal } from "./link-work-modal";
 
 interface WorkItem {
@@ -77,6 +87,32 @@ export const TeamWorkSection = forwardRef<
     onWorkChanged?.();
   };
 
+  function copyWorkLink(item: WorkItem) {
+    const url = `${window.location.origin}/${item.type}s/${item.id}`;
+    navigator.clipboard.writeText(url).then(
+      () => toast.success("Link copied"),
+      () => toast.error("Couldn't copy link")
+    );
+  }
+
+  async function removeFromTeam(item: WorkItem) {
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/work?projectId=${item.id}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      toast.success("Removed from team");
+      fetchWork();
+      onWorkChanged?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't remove work");
+    }
+  }
+
   return (
     <div className="bg-white border rounded-xl p-6">
       {/* Header */}
@@ -110,22 +146,59 @@ export const TeamWorkSection = forwardRef<
             const Icon = typeIcons[item.type] ?? FolderKanban;
 
             return (
-              <button
+              /* The row used to be a single <button>, so the "..." was just a
+                 decorative icon inside it: hovering promised a menu and
+                 clicking it only opened the project. The row is now a plain
+                 container with the open action and a real row menu as
+                 siblings, mirroring the All work tab. */
+              <div
                 key={item.id}
-                onClick={() => router.push(`/${item.type}s/${item.id}`)}
-                className="group w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                className="group w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                <div
-                  className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: item.color || "#6b7280" }}
+                <button
+                  onClick={() => router.push(`/${item.type}s/${item.id}`)}
+                  className="flex-1 flex items-center gap-3 min-w-0 text-left"
                 >
-                  <Icon className="h-4 w-4 text-white" />
-                </div>
-                <span className="flex-1 text-sm font-medium text-gray-900 truncate">
-                  {item.name}
-                </span>
-                <MoreHorizontal className="h-4 w-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
+                  <div
+                    className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: item.color || "#6b7280" }}
+                  >
+                    <Icon className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-gray-900 truncate">
+                    {item.name}
+                  </span>
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      aria-label={`Options for ${item.name}`}
+                      className="p-1 rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => router.push(`/${item.type}s/${item.id}`)}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => copyWorkLink(item)}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Copy link
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-black"
+                      onClick={() => removeFromTeam(item)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remove from team
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             );
           })}
         </div>

@@ -71,12 +71,15 @@ export function TeamSettingsModal({
   const [members, setMembers] = useState<{ id: string; role: string; user: { id: string; name: string | null; email: string | null; image: string | null } }[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
 
-  // Reset form when team changes
+  // Reset form when the modal opens or a different team is shown. Depending on
+  // the whole `team` object reset the fields on every parent re-render — the
+  // caller builds it as a fresh literal — which wiped whatever was being typed.
   useEffect(() => {
     setName(team.name);
     setDescription(team.description || "");
     setPrivacy(team.privacy);
-  }, [team]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team.id, open]);
 
   // Fetch real members when the members tab is shown
   useEffect(() => {

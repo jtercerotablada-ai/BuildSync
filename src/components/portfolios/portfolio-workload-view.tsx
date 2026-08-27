@@ -240,6 +240,22 @@ export function PortfolioWorkloadView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredTasks, anchor, windowSize, measure, groupBy]);
 
+  // Tasks with no due date can't be placed on the grid, but they are still
+  // real work on that person's plate. Counting them per row lets the matrix
+  // say so instead of quietly reading as "free".
+  const unscheduledByRow = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of filteredTasks) {
+      if (t.dueDate) continue;
+      const rowId =
+        groupBy === "project"
+          ? t.projectId || NO_PROJECT
+          : t.assigneeId || UNASSIGNED;
+      map.set(rowId, (map.get(rowId) || 0) + 1);
+    }
+    return map;
+  }, [filteredTasks, groupBy]);
+
   // Row descriptors (assignee or project depending on groupBy).
   interface RowMeta {
     id: string;
@@ -295,17 +311,23 @@ export function PortfolioWorkloadView({
   const visibleRows = useMemo(() => {
     const inWindow = new Set<string>();
     for (const t of filteredTasks) {
-      if (!t.dueDate) continue;
+      const rowId =
+        groupBy === "project"
+          ? t.projectId || NO_PROJECT
+          : t.assigneeId || UNASSIGNED;
+      // Undated work has no cell to sit in, but dropping the row entirely
+      // made a loaded-up engineer look available. Keep the row and let the
+      // label carry the unscheduled count.
+      if (!t.dueDate) {
+        inWindow.add(rowId);
+        continue;
+      }
       const d = startOfDay(new Date(t.dueDate));
       const idx = Math.round(
         (d.getTime() - anchor.getTime()) / (24 * 60 * 60 * 1000)
       );
       if (idx < 0 || idx >= windowSize) continue;
-      inWindow.add(
-        groupBy === "project"
-          ? t.projectId || NO_PROJECT
-          : t.assigneeId || UNASSIGNED
-      );
+      inWindow.add(rowId);
     }
     const named = allRows
       .filter((r) => !r.isUnassigned)
@@ -345,6 +367,12 @@ export function PortfolioWorkloadView({
   }, [visibleRows, counts, windowSize]);
 
   const today = startOfDay(new Date());
+  // Capacity is only earned on working days — counting Saturdays and Sundays
+  // as capacity made a 7-day window look 40% roomier than the week really is.
+  const workingDays = useMemo(
+    () => Math.max(days.filter((d) => d.getDay() !== 0 && d.getDay() !== 6).length, 1),
+    [days]
+  );
   const totalPx = windowSize * dayPx;
   const LEFT_PX = 260;
   const TOTAL_COL_PX = 72;
@@ -701,10 +729,10 @@ export function PortfolioWorkloadView({
             {/* Rows */}
             {visibleRows.map((a) => {
               const rowTotal = rowTotals.get(a.id) || 0;
-              // Overload threshold scales with the measure. Tasks: >2/day
-              // avg over the window. Hours: >6h/day avg (≈overbooked).
+              // Overload threshold scales with the measure. Tasks: >2/working
+              // day avg over the window. Hours: >6h/working day (≈overbooked).
               const overloadTotal =
-                measure === "hours" ? windowSize * 6 * 60 : windowSize * 2;
+                measure === "hours" ? workingDays * 6 * 60 : workingDays * 2;
               const rowOverloaded = rowTotal > overloadTotal;
               return (
                 <div
@@ -756,6 +784,14 @@ export function PortfolioWorkloadView({
                       {a.jobTitle && !a.isUnassigned && (
                         <div className="text-[11px] text-gray-500 truncate">
                           {a.jobTitle}
+                        </div>
+                      )}
+                      {(unscheduledByRow.get(a.id) || 0) > 0 && (
+                        <div
+                          className="text-[11px] text-amber-700 truncate"
+                          title="Tasks with no due date, so they don't appear in the grid"
+                        >
+                          +{unscheduledByRow.get(a.id)} unscheduled
                         </div>
                       )}
                     </div>

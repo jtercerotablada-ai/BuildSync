@@ -51,23 +51,31 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Pause mid-typing and two searches can be in flight at once; without this
+  // the slower, broader one used to land last and replace the results for
+  // what the user had actually finished typing.
+  const fetchIdRef = useRef(0);
 
   // Fetch projects when search changes
   useEffect(() => {
     if (!open) return;
 
     const fetchProjects = async () => {
+      const fetchId = ++fetchIdRef.current;
       setLoading(true);
       try {
         const res = await fetch(`/api/projects?q=${encodeURIComponent(search)}`);
         if (res.ok) {
           const data = await res.json();
+          if (fetchId !== fetchIdRef.current) return;
           setProjects(data);
         }
       } catch (error) {
         console.error('Failed to fetch projects:', error);
       } finally {
-        setLoading(false);
+        if (fetchId === fetchIdRef.current) {
+          setLoading(false);
+        }
       }
     };
 

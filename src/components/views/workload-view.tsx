@@ -91,6 +91,9 @@ const SUB_ROW_H = 36;
 const SCROLLBAR_H = 16;
 const DAYS_BEFORE_TODAY = 30;
 const TOTAL_DAYS = 121;
+// One ‹ / › press = one week, and the same step the window grows by when
+// a press runs off the end of the canvas.
+const NUDGE_DAYS = 7;
 // Today sits ~10 day-columns from the timeline's left edge on load.
 const TODAY_VIEW_OFFSET = 10;
 
@@ -201,14 +204,22 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   const dayW = ZOOMS.find((z) => z.key === zoom)!.width;
   const zoomLabel = ZOOMS.find((z) => z.key === zoom)!.label;
 
-  // Date window: today-30 … today+90. Computed once per mount.
+  // Date window: opens on today-30 … today+90, but both edges GROW when the
+  // ‹ › buttons are pressed at the end of the canvas. They used to only
+  // scroll inside a hard-coded 121-day box, so on a job longer than three
+  // months the arrows dead-ended and the later work counted as zero load.
   const [today] = useState(() => startOfDay(new Date()));
-  const rangeStart = useMemo(() => addDays(today, -DAYS_BEFORE_TODAY), [today]);
-  const days = useMemo(
-    () => Array.from({ length: TOTAL_DAYS }, (_, i) => addDays(rangeStart, i)),
-    [rangeStart]
+  const [daysBefore, setDaysBefore] = useState(DAYS_BEFORE_TODAY);
+  const [daysAfter, setDaysAfter] = useState(
+    TOTAL_DAYS - DAYS_BEFORE_TODAY - 1
   );
-  const timelineW = TOTAL_DAYS * dayW;
+  const totalDays = daysBefore + daysAfter + 1;
+  const rangeStart = useMemo(() => addDays(today, -daysBefore), [today, daysBefore]);
+  const days = useMemo(
+    () => Array.from({ length: totalDays }, (_, i) => addDays(rangeStart, i)),
+    [rangeStart, totalDays]
+  );
+  const timelineW = totalDays * dayW;
 
   // ── Data fetch ────────────────────────────────────────────────────────
   // Only the FIRST load shows the spinner: reloads (after Add task)
@@ -257,13 +268,13 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
 
   const loadOf = useCallback(
     (taskList: WTask[]): number[] => {
-      const vals = new Array<number>(TOTAL_DAYS).fill(0);
+      const vals = new Array<number>(totalDays).fill(0);
       for (const t of taskList) {
         const span = taskSpan(t, rangeStart);
         if (!span) continue;
         const [i0, j0] = span;
         const i = Math.max(0, i0);
-        const j = Math.min(TOTAL_DAYS - 1, j0);
+        const j = Math.min(totalDays - 1, j0);
         if (i > j) continue;
         const spanDays = j0 - i0 + 1;
         const perDay =
@@ -272,7 +283,20 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
       }
       return vals;
     },
-    [rangeStart, measure]
+    [rangeStart, totalDays, measure]
+  );
+
+  // Dated work that falls entirely outside the visible window contributes
+  // nothing to the load bars, which silently under-reported who is busy
+  // later in the year. Say so out loud instead.
+  const outsideWindowCount = useMemo(
+    () =>
+      visibleTasks.filter((t) => {
+        const span = taskSpan(t, rangeStart);
+        if (!span) return false;
+        return span[1] < 0 || span[0] > totalDays - 1;
+      }).length,
+    [visibleTasks, rangeStart, totalDays]
   );
 
   // Row model — grouping decides the middle rows; total is always first.
@@ -380,8 +404,8 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   useEffect(() => {
     if (didInitialScroll.current || loading) return;
     didInitialScroll.current = true;
-    scrollToDay(DAYS_BEFORE_TODAY - TODAY_VIEW_OFFSET);
-  }, [loading, scrollToDay]);
+    scrollToDay(daysBefore - TODAY_VIEW_OFFSET);
+  }, [loading, scrollToDay, daysBefore]);
 
   const onThumbPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -418,10 +442,37 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
     [timelineW]
   );
 
+  // Growing the window changes scrollWidth, so the compensating scroll has
+  // to wait until the wider canvas is laid out.
+  const pendingGrowthScrollRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (pendingGrowthScrollRef.current == null) return;
+    const el = scrollRef.current;
+    if (el) el.scrollLeft += pendingGrowthScrollRef.current;
+    pendingGrowthScrollRef.current = null;
+    syncThumb();
+  }, [totalDays, syncThumb]);
+
   const nudge = useCallback(
     (dir: 1 | -1) => {
       const el = scrollRef.current;
-      if (el) el.scrollLeft += dir * dayW * 7;
+      if (!el) return;
+      const step = dayW * NUDGE_DAYS;
+      const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+      if (dir === 1 && el.scrollLeft >= maxScroll - 1) {
+        // At the far edge the arrows used to do nothing at all — extend the
+        // window instead so the schedule can be walked past today+90.
+        setDaysAfter((n) => n + NUDGE_DAYS);
+        pendingGrowthScrollRef.current = step;
+        return;
+      }
+      if (dir === -1 && el.scrollLeft <= 1) {
+        // Days prepended at the left push the existing canvas right, so the
+        // unchanged scrollLeft already lands on the newly revealed week.
+        setDaysBefore((n) => n + NUDGE_DAYS);
+        return;
+      }
+      el.scrollLeft += dir * step;
     },
     [dayW]
   );
@@ -456,7 +507,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
     return marks;
   }, [days]);
 
-  const todayIdx = DAYS_BEFORE_TODAY;
+  const todayIdx = daysBefore;
   const showDayNumbers = dayW >= 24;
 
   // ── Add-task modal state ──────────────────────────────────────────────
@@ -560,7 +611,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
         </button>
         <button
           type="button"
-          onClick={() => scrollToDay(DAYS_BEFORE_TODAY - TODAY_VIEW_OFFSET)}
+          onClick={() => scrollToDay(daysBefore - TODAY_VIEW_OFFSET)}
           className="px-1 text-[11px] text-[#44464B] hover:underline"
         >
           Today
@@ -573,6 +624,12 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </button>
+        {outsideWindowCount > 0 && (
+          <span className="ml-3 text-[11px] text-[#6B6D70]">
+            {outsideWindowCount} task{outsideWindowCount === 1 ? "" : "s"}{" "}
+            outside this window
+          </span>
+        )}
 
         {/* Right controls */}
         <div className="ml-auto flex items-center gap-1">
@@ -763,7 +820,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                     strip and sticks to the viewport's left edge while its
                     month is in view (Asana pins the current month). */}
                 {monthMarks.map((m, mi) => {
-                  const nextIdx = monthMarks[mi + 1]?.idx ?? TOTAL_DAYS;
+                  const nextIdx = monthMarks[mi + 1]?.idx ?? totalDays;
                   return (
                     <div key={`m-${m.idx}`}>
                       {/* No overflow-hidden here — it would become the
@@ -959,13 +1016,13 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                               </span>
                             }
                           >
-                            {span && span[1] >= 0 && span[0] < TOTAL_DAYS && (
+                            {span && span[1] >= 0 && span[0] < totalDays && (
                               <div
                                 className="absolute flex items-center overflow-hidden rounded-[4px] border border-[#A5A3E8] bg-[#CBC9F2] px-1.5"
                                 style={{
                                   left: Math.max(0, span[0]) * dayW + 1,
                                   width:
-                                    (Math.min(TOTAL_DAYS - 1, span[1]) -
+                                    (Math.min(totalDays - 1, span[1]) -
                                       Math.max(0, span[0]) +
                                       1) *
                                       dayW -

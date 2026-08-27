@@ -42,11 +42,55 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [conversationTitle, setConversationTitle] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  // Kept in a ref so the modal effect below can depend on isOpen alone — a new
+  // onClose identity from the parent must not re-run it and steal focus mid-typing.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Scroll to bottom when new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // This panel is a modal overlay drawn over a backdrop that swallows clicks, but it
+  // was hand-rolled without any of the modal behaviour: Escape did nothing and Tab
+  // walked focus out into the header and sidebar underneath, where nothing is clickable.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    inputRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [isOpen]);
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;
@@ -87,10 +131,14 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
         };
         setMessages(prev => [...prev, assistantMessage]);
       } else {
+        // The route explains itself (rate limit, missing API key, text too long);
+        // collapsing all of that into "try again" told the user to repeat a call
+        // that could never succeed.
+        const data = await res.json().catch(() => null);
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: 'Sorry, I couldn\'t process your request. Please try again.',
+          content: data?.error || 'Sorry, I couldn\'t process your request. Please try again.',
           timestamp: Date.now(),
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -140,6 +188,10 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
 
       {/* Panel */}
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="TT AI Assistant"
         className={cn(
           'fixed top-0 right-0 h-full bg-white shadow-2xl z-50 flex flex-col transition-all duration-300',
           isExpanded ? 'w-full md:w-[600px]' : 'w-full md:w-[420px]'
@@ -231,15 +283,14 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
                         : 'bg-gray-100 text-gray-900'
                     )}
                   >
-                    {message.role === 'assistant' && (
-                      <p className="text-xs font-semibold text-gray-700 mb-1">
-                        {message.content.split('\n')[0].includes('**')
-                          ? message.content.split('\n')[0].replace(/\*\*/g, '')
-                          : ''}
-                      </p>
-                    )}
+                    {/* The assistant bubble used to lift the first line into a heading
+                        and then print the whole answer underneath, so a reply that opened
+                        with a bold line showed that line twice. Nothing here renders
+                        markdown, so the bold markers are stripped rather than shown raw. */}
                     <p className="text-sm whitespace-pre-wrap">
-                      {message.content}
+                      {message.role === 'assistant'
+                        ? message.content.replace(/\*\*/g, '')
+                        : message.content}
                     </p>
                   </div>
                 </div>
@@ -262,6 +313,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
         <div className="p-4 border-t">
           <div className="flex items-center gap-2 border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-black focus-within:border-transparent">
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}

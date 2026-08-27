@@ -415,24 +415,30 @@ export default function GoalDetailPage() {
         body: JSON.stringify({ status }),
       });
 
-      if (res.ok) {
-        setObjective((prev) => prev ? { ...prev, status: status ?? "ON_TRACK" } : null);
-      }
+      if (!res.ok) throw new Error();
+      setObjective((prev) => prev ? { ...prev, status: status ?? "ON_TRACK" } : null);
     } catch (error) {
       console.error("Error updating status:", error);
+      toast.error("Couldn't update status");
     }
   }
 
   async function handleDescriptionBlur() {
     if (objective && description !== objective.description) {
+      // Keep the saved description on the objective too, otherwise every
+      // subsequent blur still sees a mismatch and re-PATCHes the same text.
+      const next = description;
       try {
-        await fetch(`/api/objectives/${objectiveId}`, {
+        const res = await fetch(`/api/objectives/${objectiveId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description }),
+          body: JSON.stringify({ description: next }),
         });
+        if (!res.ok) throw new Error();
+        setObjective((prev) => prev ? { ...prev, description: next } : null);
       } catch (error) {
         console.error("Error updating description:", error);
+        toast.error("Couldn't save the description");
       }
     }
   }
@@ -448,13 +454,13 @@ export default function GoalDetailPage() {
         body: JSON.stringify(newKR),
       });
 
-      if (res.ok) {
-        await fetchObjective();
-        setAddKROpen(false);
-        setNewKR({ name: "", targetValue: 100, startValue: 0, unit: "" });
-      }
+      if (!res.ok) throw new Error();
+      await fetchObjective();
+      setAddKROpen(false);
+      setNewKR({ name: "", targetValue: 100, startValue: 0, unit: "" });
     } catch (error) {
       console.error("Error adding key result:", error);
+      toast.error("Couldn't add the key result");
     } finally {
       setSaving(false);
     }
@@ -477,13 +483,13 @@ export default function GoalDetailPage() {
         }
       );
 
-      if (res.ok) {
-        await fetchObjective();
-        setUpdateKROpen(false);
-        setSelectedKR(null);
-      }
+      if (!res.ok) throw new Error();
+      await fetchObjective();
+      setUpdateKROpen(false);
+      setSelectedKR(null);
     } catch (error) {
       console.error("Error updating key result:", error);
+      toast.error("Couldn't update the key result");
     } finally {
       setSaving(false);
     }
@@ -498,11 +504,11 @@ export default function GoalDetailPage() {
         { method: "DELETE" }
       );
 
-      if (res.ok) {
-        await fetchObjective();
-      }
+      if (!res.ok) throw new Error();
+      await fetchObjective();
     } catch (error) {
       console.error("Error deleting key result:", error);
+      toast.error("Couldn't delete the key result");
     }
   }
 
@@ -617,10 +623,11 @@ export default function GoalDetailPage() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ name: newName }),
                 }).then(res => {
-                  if (res.ok) {
-                    setObjective({ ...objective, name: newName });
-                    toast.success('Goal updated');
-                  }
+                  if (!res.ok) throw new Error();
+                  setObjective({ ...objective, name: newName });
+                  toast.success('Goal updated');
+                }).catch(() => {
+                  toast.error("Couldn't rename the goal");
                 });
               }
             }}>
@@ -716,7 +723,11 @@ export default function GoalDetailPage() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {STATUS_OPTIONS.map((option) => (
+              {/* STATUS_OPTIONS ends with a null "No status" entry that only
+                  exists so getStatusOption has a fallback. The PATCH schema
+                  doesn't accept null, so offering it here was a menu item that
+                  could never succeed. */}
+              {STATUS_OPTIONS.filter((option) => option.value !== null).map((option) => (
                 <DropdownMenuItem
                   key={option.value || "null"}
                   onClick={() => handleStatusChange(option.value)}

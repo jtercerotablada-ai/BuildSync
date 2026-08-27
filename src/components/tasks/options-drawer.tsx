@@ -92,6 +92,13 @@ const FILTER_OPERATOR_DEFAULTS: Record<FilterField, ActiveFilter["operator"]> = 
   task_type: "is",
 };
 
+// A freshly added filter carries an empty value, and the task list skips those —
+// so counting/styling them as applied told the user the list was filtered when it
+// was not. Same predicate the toolbar badge uses.
+function isCompleteFilter(f: ActiveFilter) {
+  return Boolean(f.value) || f.operator === "is_set" || f.operator === "is_not_set";
+}
+
 const SORT_FIELDS: {
   field: Exclude<SortField, "none">;
   label: string;
@@ -209,7 +216,7 @@ export function OptionsDrawer({
           viewName={viewName}
           onViewNameChange={onViewNameChange}
           hiddenColumnsCount={hiddenColumns.size}
-          activeFilterCount={activeFilters.length}
+          activeFilterCount={activeFilters.filter(isCompleteFilter).length}
           hasSort={sort.field !== "none"}
           activeGroupsCount={groups.filter((g) => g.field !== "none").length}
         />
@@ -551,15 +558,29 @@ function FiltersView({
               {activeFilters.map((f) => {
                 const meta = FILTER_FIELDS.find((opt) => opt.field === f.field);
                 const Icon = meta?.icon || Filter;
+                const complete = isCompleteFilter(f);
                 return (
                   <div
                     key={f.id}
-                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-[#c9a84c]/10"
+                    className={cn(
+                      "flex items-center gap-2.5 px-2 py-1.5 rounded-md",
+                      complete ? "bg-[#c9a84c]/10" : "bg-gray-50"
+                    )}
                   >
-                    <Icon className="w-3.5 h-3.5 text-[#a8893a]" />
+                    <Icon
+                      className={cn(
+                        "w-3.5 h-3.5",
+                        complete ? "text-[#a8893a]" : "text-gray-400"
+                      )}
+                    />
                     <span className="flex-1 text-[13px] text-gray-800 truncate">
                       {meta?.label || f.field}
                     </span>
+                    {!complete && (
+                      <span className="text-[11px] text-gray-400 flex-shrink-0">
+                        Not set
+                      </span>
+                    )}
                     <button
                       onClick={() => handleRemoveFilter(f.id)}
                       className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 hover:bg-white"
@@ -753,7 +774,7 @@ function GroupsView({
     return (
       <>
         <DrawerHeader
-          title="Add subgroup"
+          title="Add group"
           onCloseAction={() => {
             setAdding(false);
             setSearch("");
@@ -844,13 +865,18 @@ function GroupsView({
           );
         })}
 
-        <button
-          onClick={() => setAdding(true)}
-          className="w-full flex items-center gap-2 px-3 py-2.5 mt-1 text-[13px] text-[#a8893a] hover:bg-[#c9a84c]/10 rounded-md transition-colors"
-          disabled={groups.length >= GROUP_FIELDS.length}
-        >
-          + {groups.length === 0 ? "Add group" : "Add subgroup"}
-        </button>
+        {/* Only the first level is offered. Extra levels used to be addable here
+            ("Add subgroup") and were stored and persisted, but the task list reads
+            groups[0] only and has no nested-bucket renderer, so the second level
+            never changed a single row. */}
+        {groups.length === 0 && (
+          <button
+            onClick={() => setAdding(true)}
+            className="w-full flex items-center gap-2 px-3 py-2.5 mt-1 text-[13px] text-[#a8893a] hover:bg-[#c9a84c]/10 rounded-md transition-colors"
+          >
+            + Add group
+          </button>
+        )}
       </div>
     </>
   );

@@ -123,6 +123,7 @@ function TextNumberCell({
 }: Props & { numeric: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [invalid, setInvalid] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -135,16 +136,36 @@ function TextNumberCell({
       ? value
       : "";
 
+  // What the editor starts from. The number branch used to seed the draft
+  // with the FORMATTED display ("$1,200") while the input showed the raw
+  // number, so opening a currency cell and pressing Enter parsed as NaN.
+  const rawText = numeric
+    ? value === null || value === undefined || value === ""
+      ? ""
+      : String(value)
+    : typeof value === "string"
+      ? value
+      : "";
+
   function commit() {
-    setEditing(false);
     if (numeric) {
       const trimmed = draft.trim();
-      if (trimmed === "") return onSave(null);
+      if (trimmed === "") {
+        setEditing(false);
+        return onSave(null);
+      }
       const n = Number(trimmed);
-      if (Number.isFinite(n)) onSave(n);
-    } else {
-      onSave(draft.trim() || null);
+      // A value that doesn't parse used to close the editor and vanish
+      // without a word. Stay in the cell and say what's wrong instead.
+      if (!Number.isFinite(n)) {
+        setInvalid(true);
+        return;
+      }
+      setEditing(false);
+      return onSave(n);
     }
+    setEditing(false);
+    onSave(draft.trim() || null);
   }
 
   if (!canEdit) {
@@ -153,33 +174,45 @@ function TextNumberCell({
 
   if (editing) {
     return (
-      <input
-        ref={inputRef}
-        type={numeric ? "number" : "text"}
-        defaultValue={
-          numeric
-            ? typeof value === "number"
-              ? String(value)
-              : ""
-            : typeof value === "string"
-              ? value
-              : ""
-        }
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setEditing(false);
-        }}
-        className="w-full bg-transparent text-sm outline-none border border-black rounded px-1.5 py-0.5"
-      />
+      <div className="w-full">
+        <input
+          ref={inputRef}
+          // Deliberately a text input even for numbers: type="number"
+          // reports a half-typed entry ("1e", "1.2.3") as an empty string,
+          // which the commit below read as "the user cleared this cell"
+          // and wiped the stored value.
+          type="text"
+          inputMode={numeric ? "decimal" : undefined}
+          defaultValue={rawText}
+          aria-invalid={invalid || undefined}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            if (invalid) setInvalid(false);
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              setInvalid(false);
+              setEditing(false);
+            }
+          }}
+          className={`w-full bg-transparent text-sm outline-none border rounded px-1.5 py-0.5 ${
+            invalid ? "border-red-500" : "border-black"
+          }`}
+        />
+        {invalid && (
+          <p className="mt-0.5 text-[11px] text-red-600">Enter a number</p>
+        )}
+      </div>
     );
   }
 
   return (
     <button
       onClick={() => {
-        setDraft(display);
+        setDraft(rawText);
+        setInvalid(false);
         setEditing(true);
       }}
       className="w-full text-left text-sm text-gray-700 hover:bg-gray-100 rounded px-1.5 py-0.5 min-h-[24px] truncate"

@@ -12,9 +12,13 @@ const themes = [
   { value: "system", label: "System", icon: Monitor, disabled: true },
 ];
 
+// The product UI is English-only for now — the dashboard layout intentionally
+// does not mount the language provider, so picking Español used to report
+// success and translate nothing. Keep the preference write path (the public
+// site still reads it) but present Español the way the unfinished themes are.
 const languages = [
-  { value: "en", label: "English" },
-  { value: "es", label: "Español" },
+  { value: "en", label: "English", disabled: false },
+  { value: "es", label: "Español", disabled: true },
 ];
 
 export function DisplaySection() {
@@ -154,28 +158,42 @@ export function DisplaySection() {
 
       {/* Language */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Globe className="h-4 w-4 text-gray-500" />
-          <p className="text-sm font-medium text-gray-700">Language</p>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-gray-500" />
+            <p className="text-sm font-medium text-gray-700">Language</p>
+          </div>
+          <span className="text-[10px] uppercase tracking-wider text-gray-400">
+            Spanish UI coming soon
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-3 md:gap-4 max-w-lg">
           {languages.map((l) => {
-            const isActive = language === l.value;
+            const isActive = !l.disabled && language === l.value;
             return (
               <button
                 key={l.value}
-                onClick={() => handleLanguageChange(l.value as "en" | "es")}
+                onClick={() =>
+                  !l.disabled && handleLanguageChange(l.value as "en" | "es")
+                }
+                disabled={l.disabled}
                 className={cn(
                   "flex items-center justify-between rounded-lg border-2 p-4 transition-colors text-left",
                   isActive
                     ? "border-black bg-black/5"
-                    : "border-muted hover:border-black/30"
+                    : l.disabled
+                      ? "border-gray-100 cursor-not-allowed opacity-50"
+                      : "border-muted hover:border-black/30"
                 )}
               >
                 <span
                   className={cn(
                     "text-sm font-medium",
-                    isActive ? "text-black" : "text-muted-foreground"
+                    isActive
+                      ? "text-black"
+                      : l.disabled
+                        ? "text-gray-400"
+                        : "text-muted-foreground"
                   )}
                 >
                   {l.label}

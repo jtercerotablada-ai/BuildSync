@@ -19,7 +19,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -41,7 +40,6 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { useUiState } from "@/hooks/use-ui-state";
 
 type PortfolioStatus =
   | "ON_TRACK"
@@ -152,6 +150,12 @@ interface Props {
   total: number;
   updates: StatusUpdate[];
   updatesLoading: boolean;
+  /**
+   * Whether the caller may post a status update. The API only accepts posts
+   * from a portfolio OWNER or EDITOR, so showing the composer to a VIEWER
+   * only ever earned them a permission error after they had written it out.
+   */
+  canPost?: boolean;
   onPost: (status: PortfolioStatus, summary: string) => Promise<boolean>;
 }
 
@@ -246,6 +250,7 @@ export function PortfolioProgressView({
   total,
   updates,
   updatesLoading,
+  canPost = true,
   onPost,
 }: Props) {
   const [draft, setDraft] = useState({
@@ -302,7 +307,6 @@ export function PortfolioProgressView({
         <div className="lg:col-span-2 space-y-4">
           {/* Portfolio summary (rule-based) card */}
           <SummaryCard
-            portfolioId={portfolioId}
             portfolioName={portfolioName}
             status={status}
             inProgress={inProgress}
@@ -313,6 +317,7 @@ export function PortfolioProgressView({
           />
 
           {/* Status composer */}
+          {canPost ? (
           <div className="bg-white rounded-lg border">
             <div className="px-4 pt-4 pb-2">
               <h3 className="text-sm font-medium text-black">
@@ -381,6 +386,11 @@ export function PortfolioProgressView({
               </div>
             </div>
           </div>
+          ) : (
+            <div className="bg-white rounded-lg border p-4 text-sm text-gray-500">
+              Only portfolio owners and editors can post status updates.
+            </div>
+          )}
 
           {/* Latest status update card */}
           {updatesLoading ? (
@@ -402,13 +412,12 @@ export function PortfolioProgressView({
           {/* Recent status updates timeline */}
           {rest.length > 0 && (
             <div className="bg-white rounded-lg border">
-              <div className="px-4 py-3 flex items-center justify-between border-b">
+              {/* The list below already renders every update we have, so
+                  there is nothing a "View all" control could open. */}
+              <div className="px-4 py-3 border-b">
                 <h3 className="text-sm font-medium text-black">
                   Recent status updates
                 </h3>
-                <button className="text-xs text-[#a8893a] hover:underline">
-                  View all
-                </button>
               </div>
               <ol className="px-4 py-3 space-y-2">
                 {rest.map((u) => {
@@ -559,7 +568,6 @@ function buildSummary(args: {
 }
 
 function SummaryCard({
-  portfolioId,
   portfolioName,
   status,
   inProgress,
@@ -568,7 +576,6 @@ function SummaryCard({
   total,
   latest,
 }: {
-  portfolioId: string;
   portfolioName: string;
   status: PortfolioStatus;
   inProgress: number;
@@ -578,11 +585,6 @@ function SummaryCard({
   latest: StatusUpdate | null;
 }) {
   const [expanded, setExpanded] = useState(false);
-  // Per-user, per-portfolio "receive periodic updates" preference.
-  const { value: periodicMap, setValue: setPeriodicMap } = useUiState<
-    Record<string, boolean>
-  >("portfolioPeriodicSummary", {});
-  const periodic = !!periodicMap[portfolioId];
 
   const lines = buildSummary({
     portfolioName,
@@ -616,17 +618,8 @@ function SummaryCard({
             </p>
           ))}
       </div>
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-        <label className="inline-flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
-          <Switch
-            checked={periodic}
-            onCheckedChange={(v) =>
-              setPeriodicMap((prev) => ({ ...prev, [portfolioId]: v }))
-            }
-          />
-          Receive periodic updates
-        </label>
-        {rest.length > 0 && (
+      {rest.length > 0 && (
+        <div className="flex items-center justify-end mt-3 pt-3 border-t border-gray-100">
           <Button
             variant="outline"
             size="sm"
@@ -634,8 +627,8 @@ function SummaryCard({
           >
             {expanded ? "Hide summary" : "View summary"}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

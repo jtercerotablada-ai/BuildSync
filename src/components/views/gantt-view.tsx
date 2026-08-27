@@ -3,14 +3,12 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowUpDown,
   Check,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
   Plus,
   Minus,
-  Filter,
   Diamond,
   ThumbsUp,
   Circle,
@@ -99,7 +97,6 @@ interface GanttViewProps {
 }
 
 type ZoomLevel = "day" | "week" | "month" | "quarter";
-type TaskFilter = "all" | "incomplete" | "completed" | "due_this_week";
 
 type DependencyType =
   | "FINISH_TO_START"
@@ -154,14 +151,6 @@ const NAME_COL_W = 254;
 const DUE_COL_W = 120;
 const BLOCKED_COL_W = 200;
 const SIDEBAR_W = NAME_COL_W + DUE_COL_W + BLOCKED_COL_W; // 574
-
-// Row order inside each section (Asana's "Ordenar")
-const PRIORITY_RANK: Record<string, number> = {
-  HIGH: 0,
-  MEDIUM: 1,
-  LOW: 2,
-  NONE: 3,
-};
 
 const ZOOM_ORDER: ZoomLevel[] = ["day", "week", "month", "quarter"];
 const ZOOM_LABELS: Record<ZoomLevel, string> = {
@@ -303,10 +292,6 @@ export function GanttView({
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("month");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
-  const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
-  const [taskSort, setTaskSort] = useState<
-    "manual" | "due" | "name" | "priority"
-  >("manual");
   const [showDependencies, setShowDependencies] = useState(true);
   // Off by default — Asana draws no due-soon rings; still toggleable.
   const [highlightDueSoon, setHighlightDueSoon] = useState(false);
@@ -435,40 +420,14 @@ export function GanttView({
     return m;
   }, [sections]);
 
-  // ---------- Filter + row sort ----------
-  const filteredSections = useMemo(() => {
-    const now = new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const weekEnd = addDays(weekStart, 6);
-    return effectiveSections.map((section) => {
-      let tasks =
-        taskFilter === "all"
-          ? section.tasks
-          : section.tasks.filter((task) => {
-              if (taskFilter === "incomplete") return !task.completed;
-              if (taskFilter === "completed") return task.completed;
-              // due_this_week
-              if (!task.dueDate) return false;
-              const due = dueDateToLocalMidnight(task.dueDate);
-              return due >= weekStart && due <= weekEnd;
-            });
-      if (taskSort !== "manual") {
-        const dueMs = (t: Task) =>
-          t.dueDate
-            ? dueDateToLocalMidnight(t.dueDate).getTime()
-            : Number.MAX_SAFE_INTEGER;
-        tasks = [...tasks].sort((a, b) => {
-          if (taskSort === "due") return dueMs(a) - dueMs(b);
-          if (taskSort === "name") return a.name.localeCompare(b.name);
-          return (
-            (PRIORITY_RANK[a.priority] ?? 3) - (PRIORITY_RANK[b.priority] ?? 3) ||
-            dueMs(a) - dueMs(b)
-          );
-        });
-      }
-      return { ...section, tasks };
-    });
-  }, [effectiveSections, taskFilter, taskSort]);
+  // ---------- Rows ----------
+  // Filtering and sorting belong to the project toolbar rendered directly
+  // above this chart, which already hands down filtered, sorted sections.
+  // This view used to re-apply its OWN filter and sort on top: two "Filter"
+  // buttons one row apart showing different states, and a "Manual (project
+  // order)" option that could never restore an order the shared sort had
+  // already rewritten.
+  const filteredSections = effectiveSections;
 
   // ---------- Name lookup (from the FULL sections prop, so "Blocked by"
   // resolves even when the predecessor is filtered out) ----------
@@ -511,6 +470,12 @@ export function GanttView({
     () => effectiveSections.flatMap((s) => s.tasks),
     [effectiveSections]
   );
+
+  // Search box inside the "Blocked by" menu. The list used to be the first
+  // 15 tasks in board order, so on any real project the task you wanted to
+  // depend on simply wasn't in the menu. Only one menu is open at a time,
+  // so a single query serves every row; it resets whenever a menu opens.
+  const [blockerQuery, setBlockerQuery] = useState("");
 
   // ---------- Inline edit helpers (Asana's Gantt table is editable) ----------
   const [renaming, setRenaming] = useState<{
@@ -1486,76 +1451,6 @@ export function GanttView({
 
           <div className="h-6 w-px bg-slate-200 mx-1" />
 
-          {/* Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant={taskFilter !== "all" ? "secondary" : "ghost"}
-                size="sm"
-              >
-                <Filter className="w-4 h-4 mr-1" />
-                {taskFilter === "all"
-                  ? "Filter"
-                  : taskFilter === "incomplete"
-                    ? "Incomplete"
-                    : taskFilter === "completed"
-                      ? "Completed"
-                      : "Due this week"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTaskFilter("all")}>
-                All tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("incomplete")}>
-                Incomplete tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("completed")}>
-                Completed tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>
-                Due this week
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Sort — Asana's "Ordenar": reorders rows inside each section */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant={taskSort !== "manual" ? "secondary" : "ghost"}
-                size="sm"
-              >
-                <ArrowUpDown className="w-4 h-4 mr-1" />
-                {taskSort === "manual"
-                  ? "Sort"
-                  : taskSort === "due"
-                    ? "Due date"
-                    : taskSort === "name"
-                      ? "Alphabetical"
-                      : "Priority"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {(
-                [
-                  ["manual", "Manual (project order)"],
-                  ["due", "Due date"],
-                  ["name", "Alphabetical"],
-                  ["priority", "Priority"],
-                ] as const
-              ).map(([key, label]) => (
-                <DropdownMenuCheckboxItem
-                  key={key}
-                  checked={taskSort === key}
-                  onCheckedChange={() => setTaskSort(key)}
-                >
-                  {label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           {/* Options */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1837,7 +1732,11 @@ export function GanttView({
                               style={{ width: BLOCKED_COL_W }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <DropdownMenu>
+                              <DropdownMenu
+                                onOpenChange={(open) => {
+                                  if (open) setBlockerQuery("");
+                                }}
+                              >
                                 <DropdownMenuTrigger asChild>
                                   <button className="w-full px-2 py-1 text-xs text-slate-500 text-left truncate hover:bg-slate-100 rounded cursor-pointer">
                                     <span className="truncate" title={blockedTxt}>
@@ -1873,34 +1772,70 @@ export function GanttView({
                                     .length > 0 && (
                                     <div className="my-1 border-t" />
                                   )}
-                                  <div className="px-2 py-1 text-[11px] text-slate-400">
-                                    Add blocker
+                                  <div className="sticky top-0 z-10 bg-white">
+                                    <div className="px-2 py-1 text-[11px] text-slate-400">
+                                      Add blocker
+                                    </div>
+                                    <div className="px-2 pb-1">
+                                      <input
+                                        value={blockerQuery}
+                                        onChange={(e) =>
+                                          setBlockerQuery(e.target.value)
+                                        }
+                                        // Radix's menu typeahead swallows
+                                        // keystrokes that reach the content.
+                                        onKeyDown={(e) => e.stopPropagation()}
+                                        placeholder="Search tasks…"
+                                        className="w-full px-2 py-1 text-xs border rounded outline-none focus:border-slate-400"
+                                      />
+                                    </div>
                                   </div>
-                                  {allTasksFlat
-                                    .filter(
+                                  {(() => {
+                                    const q = blockerQuery.trim().toLowerCase();
+                                    const candidates = allTasksFlat.filter(
                                       (t) =>
                                         t.id !== task.id &&
                                         !(
                                           blockedByDetail.get(task.id) ?? []
                                         ).some(
                                           (b) => b.blockingTaskId === t.id
-                                        )
-                                    )
-                                    .slice(0, 15)
-                                    .map((t) => (
-                                      <DropdownMenuItem
-                                        key={t.id}
-                                        onClick={() =>
-                                          addBlocker(task.id, t.id)
-                                        }
-                                        className="gap-2"
-                                      >
-                                        <Plus className="w-3.5 h-3.5 text-slate-400" />
-                                        <span className="truncate">
-                                          {t.name}
-                                        </span>
-                                      </DropdownMenuItem>
-                                    ))}
+                                        ) &&
+                                        (!q || t.name.toLowerCase().includes(q))
+                                    );
+                                    if (candidates.length === 0) {
+                                      return (
+                                        <div className="px-2 py-2 text-xs text-slate-400">
+                                          {q
+                                            ? "No tasks match your search."
+                                            : "No other tasks to block on."}
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <>
+                                        {candidates.slice(0, 50).map((t) => (
+                                          <DropdownMenuItem
+                                            key={t.id}
+                                            onClick={() =>
+                                              addBlocker(task.id, t.id)
+                                            }
+                                            className="gap-2"
+                                          >
+                                            <Plus className="w-3.5 h-3.5 text-slate-400" />
+                                            <span className="truncate">
+                                              {t.name}
+                                            </span>
+                                          </DropdownMenuItem>
+                                        ))}
+                                        {candidates.length > 50 && (
+                                          <div className="px-2 py-1 text-[11px] text-slate-400">
+                                            +{candidates.length - 50} more —
+                                            refine your search
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
@@ -2316,9 +2251,23 @@ export function GanttView({
                               {position &&
                                 (isMilestone ? (
                                   <div
-                                    className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
+                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform z-10"
                                     style={{ left: markerLeft }}
-                                    onClick={() => handleRowClick(task.id)}
+                                    // Markers used to be click-only, so a
+                                    // milestone that slipped could not be
+                                    // rescheduled on the chart at all. "move"
+                                    // shifts only dueDate when there is no
+                                    // startDate, which is the milestone case.
+                                    onMouseDown={(e) =>
+                                      handleDragStart(e, task.id, "move", task)
+                                    }
+                                    onClick={() => {
+                                      if (didDragRef.current) {
+                                        didDragRef.current = false;
+                                        return;
+                                      }
+                                      handleRowClick(task.id);
+                                    }}
                                     title={`${task.name} — milestone`}
                                   >
                                     <Diamond
@@ -2329,9 +2278,18 @@ export function GanttView({
                                   </div>
                                 ) : isApproval ? (
                                   <div
-                                    className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
+                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform z-10"
                                     style={{ left: markerLeft }}
-                                    onClick={() => handleRowClick(task.id)}
+                                    onMouseDown={(e) =>
+                                      handleDragStart(e, task.id, "move", task)
+                                    }
+                                    onClick={() => {
+                                      if (didDragRef.current) {
+                                        didDragRef.current = false;
+                                        return;
+                                      }
+                                      handleRowClick(task.id);
+                                    }}
                                     title={`${task.name} — approval gate`}
                                   >
                                     <ThumbsUp

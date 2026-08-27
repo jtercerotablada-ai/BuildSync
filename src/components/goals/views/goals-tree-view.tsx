@@ -105,7 +105,15 @@ function TreeRow({
   const hasMaybeChildren =
     ("_count" in objective && objective._count.children > 0) ||
     (children !== null && children.length > 0) ||
-    !("children" in objective); // lazy nodes: don't know yet
+    // lazy nodes: unknown until the fetch lands. Once it comes back empty
+    // `children` is [], and the chevron must go away instead of staying on
+    // offering to expand onto nothing.
+    (!("children" in objective) && children === null);
+
+  // Top-level rows also use the expanded area to list their key results, so
+  // they still need it even when the goal is flat.
+  const hasKeyResults =
+    level === 0 && "keyResults" in objective && objective.keyResults.length > 0;
 
   return (
     <div
@@ -193,7 +201,7 @@ function TreeRow({
       )}
 
       {/* Children */}
-      {expanded && (
+      {expanded && (hasMaybeChildren || hasKeyResults) && (
         <div className="mt-3 pl-6 border-l-2 border-gray-100 space-y-2">
           {loading ? (
             <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
@@ -201,9 +209,13 @@ function TreeRow({
               Loading sub-goals…
             </div>
           ) : children === null || children.length === 0 ? (
-            <p className="text-xs text-gray-400 italic py-1">
-              No sub-goals yet.
-            </p>
+            // Only worth saying when we expected sub-goals; a flat goal used to
+            // carry this panel permanently open with no way to collapse it.
+            hasMaybeChildren ? (
+              <p className="text-xs text-gray-400 italic py-1">
+                No sub-goals yet.
+              </p>
+            ) : null
           ) : (
             children.map((c) => (
               <TreeRow key={c.id} objective={c} level={level + 1} />

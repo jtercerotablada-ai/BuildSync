@@ -11,6 +11,7 @@ import {
   Loader2,
   Building2,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { RelatedWorkPicker } from "./related-work-picker";
@@ -73,6 +74,13 @@ export function LinkedWorkPanel({
   const [loading, setLoading] = useState(true);
   const [linkOpen, setLinkOpen] = useState(false);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  // Unlinking is one stray click away on a hover-only button at the row's
+  // edge, and for a projects-driven goal it rewrites the progress figure,
+  // so the DELETE is held behind a confirmation.
+  const [pendingUnlink, setPendingUnlink] = useState<{
+    type: "project" | "task";
+    connectionId: string;
+  } | null>(null);
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -110,6 +118,12 @@ export function LinkedWorkPanel({
     } finally {
       setUnlinkingId(null);
     }
+  }
+
+  async function confirmUnlink() {
+    if (!pendingUnlink) return;
+    await unlink(pendingUnlink.type, pendingUnlink.connectionId);
+    setPendingUnlink(null);
   }
 
   const isEmpty = projects.length === 0 && tasks.length === 0;
@@ -201,9 +215,14 @@ export function LinkedWorkPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => unlink("project", c.id)}
+                      onClick={() =>
+                        setPendingUnlink({
+                          type: "project",
+                          connectionId: c.id,
+                        })
+                      }
                       disabled={unlinkingId === c.id}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-black disabled:opacity-50"
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 text-gray-400 hover:text-black disabled:opacity-50"
                       aria-label="Unlink project"
                     >
                       {unlinkingId === c.id ? (
@@ -261,9 +280,11 @@ export function LinkedWorkPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => unlink("task", c.id)}
+                      onClick={() =>
+                        setPendingUnlink({ type: "task", connectionId: c.id })
+                      }
                       disabled={unlinkingId === c.id}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-black disabled:opacity-50"
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 text-gray-400 hover:text-black disabled:opacity-50"
                       aria-label="Unlink task"
                     >
                       {unlinkingId === c.id ? (
@@ -290,6 +311,25 @@ export function LinkedWorkPanel({
           await refetch();
           onChanged?.();
         }}
+      />
+
+      <ConfirmDialog
+        open={pendingUnlink !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingUnlink(null);
+        }}
+        title={
+          pendingUnlink?.type === "task"
+            ? "Unlink this task?"
+            : "Unlink this project?"
+        }
+        description={
+          pendingUnlink?.type === "task"
+            ? "The task itself is not deleted — it is only removed from this goal."
+            : "The project itself is not deleted, but this goal's progress will be recalculated without it."
+        }
+        confirmLabel="Unlink"
+        onConfirm={confirmUnlink}
       />
     </div>
   );

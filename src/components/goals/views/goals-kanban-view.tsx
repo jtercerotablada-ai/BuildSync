@@ -3,6 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { ViewObjective } from "./types";
@@ -13,21 +18,44 @@ interface KanbanColumn {
   id: string;
   label: string;
   color: string;
+  /** Statuses whose objectives belong in this column. */
+  statuses: string[];
 }
 
-// Subset of STATUS_OPTIONS that make sense as kanban columns. PARTIAL,
-// MISSED and "No status" are end-of-period / unset and would clutter
-// the board. The colors are driven from the shared palette in
-// goal-utils so a tweak there cascades to every view.
+// Subset of STATUS_OPTIONS that get a column of their own. The colors
+// are driven from the shared palette in goal-utils so a tweak there
+// cascades to every view.
 const KANBAN_STATUSES = ["ON_TRACK", "AT_RISK", "OFF_TRACK", "ACHIEVED", "DROPPED"];
-const COLUMNS: KanbanColumn[] = KANBAN_STATUSES.map((id) => {
+// End-of-period statuses. They stay out of the main run of columns to
+// keep the board about live work, but they cannot be dropped either:
+// objectives marked Partial or Not achieved used to match no column at
+// all and vanished from the board entirely, so they are collected in a
+// trailing column that only appears once something lands in it.
+const CLOSED_OUT_STATUSES = ["PARTIAL", "MISSED"];
+
+function statusMeta(id: string) {
   const opt = STATUS_OPTIONS.find((s) => s.value === id);
-  return {
-    id,
-    label: opt?.label ?? id,
-    color: opt?.hex ?? "#a3a3a3",
-  };
-});
+  return { label: opt?.label ?? id, color: opt?.hex ?? "#a3a3a3" };
+}
+
+const COLUMNS: KanbanColumn[] = KANBAN_STATUSES.map((id) => ({
+  id,
+  ...statusMeta(id),
+  statuses: [id],
+}));
+
+const CLOSED_OUT_COLUMN: KanbanColumn = {
+  id: "CLOSED_OUT",
+  label: "Closed out",
+  color: statusMeta("PARTIAL").color,
+  statuses: CLOSED_OUT_STATUSES,
+};
+
+// Every status a card can be moved to, closed-out ones included.
+const MOVE_OPTIONS = [...KANBAN_STATUSES, ...CLOSED_OUT_STATUSES].map((id) => ({
+  id,
+  ...statusMeta(id),
+}));
 
 /**
  * Kanban view — columns by status. Drag-and-drop intentionally NOT
@@ -48,7 +76,11 @@ export function GoalsKanbanView({
   const [moving, setMoving] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState<string | null>(null);
 
-  async function changeStatus(objectiveId: string, status: string) {
+  async function changeStatus(
+    objectiveId: string,
+    status: string,
+    statusLabel: string
+  ) {
     setMoving(objectiveId);
     try {
       const res = await fetch(`/api/objectives/${objectiveId}`, {
@@ -57,7 +89,9 @@ export function GoalsKanbanView({
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast.success(`Moved to ${status.replace("_", " ").toLowerCase()}`);
+      // Use the palette's label: the raw enum reads wrong for the
+      // end-of-period statuses ("missed" vs "Not achieved").
+      toast.success(`Moved to ${statusLabel.toLowerCase()}`);
       onStatusChange?.();
     } catch {
       toast.error("Couldn't update status");
@@ -67,11 +101,18 @@ export function GoalsKanbanView({
     }
   }
 
+  // The closed-out column is only worth its width once a goal has been
+  // marked Partial or Not achieved.
+  const hasClosedOut = objectives.some((o) =>
+    CLOSED_OUT_STATUSES.includes(o.status)
+  );
+  const boardColumns = hasClosedOut ? [...COLUMNS, CLOSED_OUT_COLUMN] : COLUMNS;
+
   return (
     <div className="p-4 md:p-6 overflow-x-auto">
       <div className="flex gap-3 min-w-fit">
-        {COLUMNS.map((col) => {
-          const cards = objectives.filter((o) => o.status === col.id);
+        {boardColumns.map((col) => {
+          const cards = objectives.filter((o) => col.statuses.includes(o.status));
           return (
             <div
               key={col.id}
@@ -126,6 +167,11 @@ export function GoalsKanbanView({
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                          {/* This column merges two statuses, so the card
+                              has to say which one it carries. */}
+                          {col.id === "CLOSED_OUT" && (
+                            <span>{statusMeta(obj.status).label}</span>
+                          )}
                           <span className="tabular-nums">{obj.progress}%</span>
                           {obj.confidenceScore && (
                             <span className="tabular-nums">
@@ -135,27 +181,34 @@ export function GoalsKanbanView({
                         </div>
                       </div>
 
-                      {/* Move-to picker */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setPickerOpen(
-                            pickerOpen === obj.id ? null : obj.id
-                          );
-                        }}
-                        className="mt-2 w-full text-[10px] text-gray-500 hover:text-black hover:bg-gray-50 rounded py-1 transition-colors border border-dashed"
+                      {/* Move-to picker. Built on the shared Popover so it
+                          closes on outside click and on Escape, and so it
+                          escapes the column's scroll container instead of
+                          being clipped on the bottom card. */}
+                      <Popover
+                        open={pickerOpen === obj.id}
+                        onOpenChange={(open) =>
+                          setPickerOpen(open ? obj.id : null)
+                        }
                       >
-                        Move…
-                      </button>
-                      {pickerOpen === obj.id && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-20 p-1">
-                          {COLUMNS.filter((c) => c.id !== obj.status).map(
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="mt-2 w-full text-[10px] text-gray-500 hover:text-black hover:bg-gray-50 rounded py-1 transition-colors border border-dashed"
+                          >
+                            Move…
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-[var(--radix-popover-trigger-width)] rounded-lg p-1"
+                        >
+                          {MOVE_OPTIONS.filter((c) => c.id !== obj.status).map(
                             (c) => (
                               <button
                                 key={c.id}
                                 type="button"
-                                onClick={() => changeStatus(obj.id, c.id)}
+                                onClick={() => changeStatus(obj.id, c.id, c.label)}
                                 className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50 rounded flex items-center gap-2"
                               >
                                 <span
@@ -166,8 +219,8 @@ export function GoalsKanbanView({
                               </button>
                             )
                           )}
-                        </div>
-                      )}
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   ))
                 )}

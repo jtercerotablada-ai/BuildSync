@@ -232,27 +232,36 @@ function buildTaskWhere(
 
 function taskFilterToWhere(f: Filter): Prisma.TaskWhereInput | null {
   const v = f.value;
-  const asArray = Array.isArray(v) ? v : v != null ? [String(v)] : [];
+  // A blank value means the user hasn't finished the filter yet — it must NOT
+  // become `{ in: [""] }`, which matches nothing and blanked the whole chart
+  // the moment "Add filter" was clicked.
+  const asArray = (Array.isArray(v) ? v : v != null ? [String(v)] : []).filter(
+    (x) => String(x).trim() !== ""
+  );
 
   switch (f.field) {
     case "assignee":
       if (f.operator === "isSet") return { assigneeId: { not: null } };
       if (f.operator === "isNotSet") return { assigneeId: null };
+      if (asArray.length === 0) return null;
       if (f.operator === "isNot") return { assigneeId: { notIn: asArray } };
       return { assigneeId: { in: asArray } };
     case "creator":
       if (f.operator === "isSet") return { creatorId: { not: null } };
       if (f.operator === "isNotSet") return { creatorId: null };
+      if (asArray.length === 0) return null;
       if (f.operator === "isNot") return { creatorId: { notIn: asArray } };
       return { creatorId: { in: asArray } };
     case "project":
       if (f.operator === "isSet") return { projectId: { not: null } };
       if (f.operator === "isNotSet") return { projectId: null };
+      if (asArray.length === 0) return null;
       if (f.operator === "isNot") return { projectId: { notIn: asArray } };
       return { projectId: { in: asArray } };
     case "section":
       if (f.operator === "isSet") return { sectionId: { not: null } };
       if (f.operator === "isNotSet") return { sectionId: null };
+      if (asArray.length === 0) return null;
       if (f.operator === "isNot") return { sectionId: { notIn: asArray } };
       return { sectionId: { in: asArray } };
     case "taskType": {
@@ -271,6 +280,7 @@ function taskFilterToWhere(f: Filter): Prisma.TaskWhereInput | null {
     }
     case "completionStatus": {
       // value 'Completed' | 'Incomplete' (or true/false)
+      if (asArray.length === 0) return null;
       const wantCompleted =
         asArray.includes("Completed") ||
         asArray.includes("completed") ||
@@ -948,9 +958,25 @@ async function runTaskQuery(
     });
   }
 
-  const total = round2(
-    rowsOut.reduce((sum, r) => sum + (r.__primary || 0), 0)
-  );
+  // The grand total (donut center / 'total' in the response) is the primary
+  // measure re-aggregated over the rendered buckets, NOT the sum of each
+  // bucket's aggregate: summing per-bucket AVERAGES (or minima/maxima) put a
+  // large, meaningless figure in the donut hole under the caption "Total".
+  // For count/sum the two are identical, so nothing moves there.
+  const totalValues: number[] = [];
+  for (const r of rowsOut) {
+    const bucket = buckets.get(r.__sortKey);
+    if (!bucket) continue;
+    if (hasBreakdown) {
+      for (const vals of bucket.series.values()) {
+        for (const v of vals) totalValues.push(v);
+      }
+    } else {
+      const vals = bucket.series.get(multiMeasure ? "m0" : "value");
+      if (vals) for (const v of vals) totalValues.push(v);
+    }
+  }
+  const total = aggregate(totalValues, primary.aggregation);
 
   const data: ChartDataRow[] = rowsOut.map(
     ({ __primary, __sortKey, ...rest }) => {
@@ -1185,9 +1211,14 @@ function recordFilterToWhere(
   validStatuses: Set<string>
 ): { status?: unknown; ownerId?: unknown } | null {
   const v = f.value;
-  const asArray = Array.isArray(v) ? v : v != null ? [String(v)] : [];
+  // Blank values are dropped: a filter the user hasn't given a value to yet is
+  // incomplete, not a clause that matches nothing.
+  const asArray = (Array.isArray(v) ? v : v != null ? [String(v)] : []).filter(
+    (x) => String(x).trim() !== ""
+  );
 
   if (f.field === "status") {
+    if (asArray.length === 0) return null;
     const vals = asArray.filter((x) => validStatuses.has(x));
     if (f.operator === "isNot") {
       return vals.length ? { status: { notIn: vals } } : null;

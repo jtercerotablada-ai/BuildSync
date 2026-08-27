@@ -68,6 +68,11 @@ export async function GET(
                   },
                 },
                 tasks: {
+                  // Only top-level tasks, matching how goal roll-ups measure a
+                  // project (src/lib/goal-progress.ts). Counting subtasks here
+                  // made the same project read at a different percentage in the
+                  // portfolio table than in a goal's related work.
+                  where: { parentTaskId: null },
                   select: {
                     id: true,
                     completed: true,

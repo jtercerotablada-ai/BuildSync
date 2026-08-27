@@ -3,13 +3,11 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowUpDown,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
   Plus,
   Minus,
-  Filter,
   Diamond,
   ThumbsUp,
   SlidersHorizontal,
@@ -22,6 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
@@ -42,6 +45,7 @@ import {
 } from "date-fns";
 import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
 import { sectionBarStyle } from "@/lib/section-bar-colors";
+import { notifyTaskMutated } from "@/lib/task-events";
 
 // ============================================
 // TYPES
@@ -111,13 +115,6 @@ const BAR_TOP = (LANE_HEIGHT - BAR_HEIGHT) / 2;
 // outside (Asana's "Para entregar" style), not a full day-wide bar.
 const DUE_ONLY_TICK_W = 8;
 
-// Sort order inside each swimlane (Asana's "Ordenar")
-const PRIORITY_RANK: Record<string, number> = {
-  HIGH: 0,
-  MEDIUM: 1,
-  LOW: 2,
-  NONE: 3,
-};
 const HEADER_HEIGHT = 48; // two 24px sticky header rows (Asana: 49px)
 const FOOTER_ROW_HEIGHT = 44; // add-section row
 
@@ -237,8 +234,6 @@ export function TimelineView({
   // Off by default — Asana draws no due-soon rings; still toggleable.
   const [showDueSoon, setShowDueSoon] = useState(false);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
-  const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week">("all");
-  const [taskSort, setTaskSort] = useState<"start" | "due" | "name" | "priority">("start");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createType, setCreateType] = useState<"TASK" | "MILESTONE">("TASK");
   // Inline add-section (Enter = create, Escape = cancel)
@@ -351,30 +346,16 @@ export function TimelineView({
   }, [sections, optimisticDates]);
 
   // ============================================
-  // FILTER
+  // ROWS
   // ============================================
 
-  const filteredSections = useMemo(() => {
-    const now = new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const weekEnd = addDays(weekStart, 6);
-
-    if (taskFilter === "all") return effectiveSections;
-
-    return effectiveSections.map((section) => ({
-      ...section,
-      tasks: section.tasks.filter((task) => {
-        if (taskFilter === "incomplete") return !task.completed;
-        if (taskFilter === "completed") return task.completed;
-        if (taskFilter === "due_this_week") {
-          if (!task.dueDate) return false;
-          const due = dueDateToLocalMidnight(task.dueDate);
-          return due >= weekStart && due <= weekEnd;
-        }
-        return true;
-      }),
-    }));
-  }, [effectiveSections, taskFilter]);
+  // Filtering and sorting belong to the project toolbar rendered directly
+  // above this chart, which already hands down filtered, sorted sections.
+  // This view used to re-apply its OWN filter and sort on top: two "Filter"
+  // buttons one row apart showing different states, and a "Manual (project
+  // order)" option that could never restore an order the shared sort had
+  // already rewritten.
+  const filteredSections = effectiveSections;
 
   // ============================================
   // ZOOM CONFIGURATION
@@ -729,17 +710,9 @@ export function TimelineView({
               labelOutside,
             },
           ];
-        })
-        .sort((a, b) => {
-          if (taskSort === "due") return a.end - b.end || a.start - b.start;
-          if (taskSort === "name") return a.task.name.localeCompare(b.task.name);
-          if (taskSort === "priority")
-            return (
-              (PRIORITY_RANK[a.task.priority] ?? 3) -
-                (PRIORITY_RANK[b.task.priority] ?? 3) || a.start - b.start
-            );
-          return a.start - b.start || a.end - b.end;
         });
+      // Left in the order it was built so first-fit packing follows the
+      // order the project toolbar handed down.
 
       const laneEnds: number[] = [];
       const laneLabelOutside: boolean[] = [];
@@ -781,7 +754,7 @@ export function TimelineView({
     }
 
     return { bands, totalHeight: top };
-  }, [filteredSections, collapsedSections, taskSort, timelineRange]);
+  }, [filteredSections, collapsedSections, timelineRange]);
 
   // taskId → absolute canvas coordinates for dependency arrows.
   // Y = bandTop + lane*LANE_HEIGHT + BAR_TOP + BAR_HEIGHT/2 (= +20, the
@@ -976,6 +949,14 @@ export function TimelineView({
             return next;
           });
         }
+        // Tell the rest of the app the dates moved. An open task detail
+        // panel keeps its own copy of the task and only refetches on this
+        // event, so without it the panel showed the pre-drag dates until it
+        // was closed and reopened.
+        notifyTaskMutated(taskId);
+        for (const s of shifts) {
+          notifyTaskMutated(s.taskId);
+        }
         router.refresh();
       } catch {
         // Roll back only the failed bar.
@@ -1094,18 +1075,6 @@ export function TimelineView({
 
   const gutterWidth = isMobile ? 120 : 240;
   const { totalWidth } = timelineRange;
-  const FILTER_LABELS: Record<typeof taskFilter, string> = {
-    all: "All",
-    incomplete: "Incomplete",
-    completed: "Completed",
-    due_this_week: "Due this week",
-  };
-  const SORT_LABELS: Record<typeof taskSort, string> = {
-    start: "Start date",
-    due: "Due date",
-    name: "Alphabetical",
-    priority: "Priority",
-  };
 
   // ============================================
   // RENDER
@@ -1238,58 +1207,6 @@ export function TimelineView({
 
           <div className="h-6 w-px bg-slate-200 mx-1 md:mx-2 hidden md:block" />
 
-          {/* Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant={taskFilter !== "all" ? "secondary" : "ghost"} size="sm">
-                <Filter className="w-4 h-4 mr-1" />
-                <span className="hidden md:inline">
-                  {taskFilter === "all" ? "Filter" : FILTER_LABELS[taskFilter]}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTaskFilter("all")}>
-                All tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("incomplete")}>
-                Incomplete tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("completed")}>
-                Completed tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>
-                Due this week
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Sort — Asana's "Ordenar": reorders lanes inside each section */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant={taskSort !== "start" ? "secondary" : "ghost"}
-                size="sm"
-              >
-                <ArrowUpDown className="w-4 h-4 mr-1" />
-                <span className="hidden md:inline">
-                  {taskSort === "start" ? "Sort" : SORT_LABELS[taskSort]}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {(Object.keys(SORT_LABELS) as (typeof taskSort)[]).map((key) => (
-                <DropdownMenuCheckboxItem
-                  key={key}
-                  checked={taskSort === key}
-                  onCheckedChange={() => setTaskSort(key)}
-                >
-                  {SORT_LABELS[key]}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           {/* Options */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1342,32 +1259,92 @@ export function TimelineView({
               style={{ height: HEADER_HEIGHT }}
             />
 
-            {/* One gutter cell per band, height-matched to the band */}
-            {bandLayout.bands.map((band) => (
-              <div
-                key={band.section.id}
-                className="border-b bg-white flex-shrink-0"
-                style={{ height: band.bandHeight }}
-              >
-                <button
-                  className="flex items-center gap-1 px-2 md:px-3 w-full text-left hover:bg-slate-50"
-                  style={{ height: Math.min(band.bandHeight, 36) }}
-                  onClick={() => toggleSection(band.section.id)}
+            {/* One gutter cell per band, height-matched to the band.
+                The count is the number of tasks actually DRAWN: a task
+                with no due date, or one whose dates fall outside the
+                visible window, gets no bar. Counting the whole section
+                here made the header read "8" over three bars, with no way
+                to reach the missing five — hence the pill beside it. */}
+            {bandLayout.bands.map((band) => {
+              const datedIds = new Set(band.datedTasks.map((t) => t.id));
+              const notShown = band.section.tasks.filter(
+                (t) => !datedIds.has(t.id)
+              );
+              return (
+                <div
+                  key={band.section.id}
+                  className="border-b bg-white flex-shrink-0"
+                  style={{ height: band.bandHeight }}
                 >
-                  {band.collapsed ? (
-                    <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  )}
-                  <span className="font-semibold text-xs md:text-sm text-slate-900 truncate">
-                    {band.section.name}
-                  </span>
-                  <span className="text-xs text-slate-400 ml-auto flex-shrink-0 tabular-nums">
-                    {band.section.tasks.length}
-                  </span>
-                </button>
-              </div>
-            ))}
+                  <div
+                    className="flex items-center"
+                    style={{ height: Math.min(band.bandHeight, 36) }}
+                  >
+                    <button
+                      className="flex items-center gap-1 px-2 md:px-3 flex-1 min-w-0 h-full text-left hover:bg-slate-50"
+                      onClick={() => toggleSection(band.section.id)}
+                    >
+                      {band.collapsed ? (
+                        <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      )}
+                      <span className="font-semibold text-xs md:text-sm text-slate-900 truncate">
+                        {band.section.name}
+                      </span>
+                      <span className="text-xs text-slate-400 ml-auto flex-shrink-0 tabular-nums">
+                        {band.datedTasks.length}
+                      </span>
+                    </button>
+                    {notShown.length > 0 && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="mr-1 flex-shrink-0 rounded px-1 py-0.5 text-[10px] tabular-nums text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                            title="Tasks not shown on this timeline"
+                          >
+                            +{notShown.length}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-72 p-0">
+                          <div className="px-3 py-2 border-b text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                            Not shown on the timeline
+                          </div>
+                          <ul className="max-h-80 overflow-y-auto py-1">
+                            {notShown.map((task) => (
+                              <li key={task.id}>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 flex items-center gap-2"
+                                  onClick={() => {
+                                    setSelectedTaskId(task.id);
+                                    onTaskClick(task.id);
+                                  }}
+                                >
+                                  <span
+                                    className={cn(
+                                      "truncate",
+                                      task.completed &&
+                                        "line-through text-slate-400"
+                                    )}
+                                  >
+                                    {task.name}
+                                  </span>
+                                  <span className="ml-auto flex-shrink-0 text-[10px] text-slate-400">
+                                    {task.dueDate ? "Out of range" : "No date"}
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
             {/* Add section — inline input, Enter=create / Escape=cancel */}
             <div
@@ -1485,10 +1462,16 @@ export function TimelineView({
                 />
               )}
 
-              {/* Dependency arrows — rounded orthogonal elbows */}
+              {/* Dependency arrows — rounded orthogonal elbows.
+                  Painted ABOVE the bars (which sit at z-10), the way the
+                  Gantt view does it: underneath, every connector leg that
+                  ran horizontally across an intermediate bar was hidden by
+                  it and the link read as two disconnected stubs. The layer
+                  is pointer-events-none, so it steals nothing from the
+                  bars it crosses. */}
               {showDependencies && dependencies.length > 0 && (
                 <svg
-                  className="absolute left-0 top-0 pointer-events-none z-[5]"
+                  className="absolute left-0 top-0 pointer-events-none z-20"
                   width={totalWidth}
                   height={bandLayout.totalHeight}
                 >
@@ -1650,13 +1633,30 @@ export function TimelineView({
                         );
                         const centerX =
                           (dueOffset + 0.5) * timelineRange.dayWidth;
+                        // centerX comes from the due date, not from the bar
+                        // geometry, so the live drag offset has to be added
+                        // by hand for the marker to follow the cursor.
+                        const markerDelta =
+                          isResizing && dragState!.handle === "move"
+                            ? dragState!.deltaX
+                            : 0;
                         const Icon = isMilestone ? Diamond : ThumbsUp;
                         return (
                           <div
                             key={task.id}
-                            className="absolute flex items-center gap-1.5 cursor-pointer hover:opacity-80 z-10"
-                            style={{ left: centerX - 10, top: laneTop, height: BAR_HEIGHT }}
+                            className="absolute flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:opacity-80 z-10"
+                            style={{
+                              left: centerX - 10 + markerDelta,
+                              top: laneTop,
+                              height: BAR_HEIGHT,
+                            }}
+                            // Markers were click-only, so a milestone that
+                            // slipped could not be rescheduled on the chart.
+                            onMouseDown={(e) =>
+                              handleResizeStart(e, task.id, "move", task)
+                            }
                             onClick={() => {
+                              if (dragMovedRef.current) return;
                               setSelectedTaskId(task.id);
                               onTaskClick(task.id);
                             }}

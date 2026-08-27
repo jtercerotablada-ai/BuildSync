@@ -44,6 +44,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { calculateKRProgress } from "@/lib/goal-utils";
 import { toast } from "sonner";
 import { GoalsCardsView } from "@/components/goals/views/goals-cards-view";
 import { GoalsKanbanView } from "@/components/goals/views/goals-kanban-view";
@@ -141,7 +142,8 @@ export default function GoalsPage() {
 function GoalsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
+  const myUserId = (session?.user as { id?: string } | undefined)?.id;
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -203,14 +205,28 @@ function GoalsPageContent() {
   }, [searchParams, router]);
 
   useEffect(() => {
+    // The "team" mode filters out objectives I own, which needs my user id.
+    // The session is fetched client-side, so on a cold load it can still be
+    // undefined when the objectives response lands — every goal would then
+    // pass `owner.id !== undefined` and my own goals would show under Team.
+    // Wait for the session, and re-run if the id arrives later.
+    if (sessionStatus === "loading") return;
     const controller = new AbortController();
     fetchObjectives(controller.signal);
     return () => controller.abort();
     // Re-fetch whenever filter OR period changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMode, selectedPeriod]);
+  }, [filterMode, selectedPeriod, myUserId, sessionStatus]);
 
   async function fetchObjectives(signal?: AbortSignal) {
+    // Re-enter the loading state on every run. The filter/period effect calls
+    // this again on each change, and without it the previous result stayed on
+    // screen — fully rendered and clickable — until the new list arrived.
+    setLoading(true);
+    // An aborted request has been superseded by a newer one, which owns the
+    // loading flag from here on; clearing it in `finally` would hide the
+    // spinner while the newer fetch is still running.
+    let aborted = false;
     try {
       const params = new URLSearchParams();
       params.set("parentId", "null");
@@ -226,23 +242,26 @@ function GoalsPageContent() {
       }
 
       const res = await fetch(`/api/objectives?${params}`, { signal });
-      if (res.ok) {
-        const data = await res.json();
-        const myUserId = (session?.user as { id?: string } | undefined)?.id;
-        const filtered =
-          filterMode === "team"
-            ? (data as Objective[]).filter(
-                (o) => o.owner?.id !== myUserId
-              )
-            : (data as Objective[]);
-        setObjectives(filtered);
-      }
+      // fetch only rejects on transport failures, so a 401/500 used to leave
+      // the previous (or empty) list on screen as if it had loaded fine.
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const filtered =
+        filterMode === "team"
+          ? (data as Objective[]).filter(
+              (o) => o.owner?.id !== myUserId
+            )
+          : (data as Objective[]);
+      setObjectives(filtered);
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        aborted = true;
+        return;
+      }
       console.error("Error fetching objectives:", error);
       toast.error("Failed to load objectives");
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
   }
 
@@ -625,14 +644,14 @@ function GoalsPageContent() {
                       progressSource: "KEY_RESULTS",
                     }),
                   });
-                  if (res.ok) {
-                    const objective = await res.json();
-                    setObjectives([objective, ...objectives]);
-                    setShowStrategyOnboarding(false);
-                    router.push(`/goals/${objective.id}`);
-                  }
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  const objective = await res.json();
+                  setObjectives([objective, ...objectives]);
+                  setShowStrategyOnboarding(false);
+                  router.push(`/goals/${objective.id}`);
                 } catch (error) {
                   console.error("Error creating goal:", error);
+                  toast.error("Couldn't create goal");
                 }
               } else {
                 setCreateOpen(true);
@@ -965,18 +984,11 @@ function GoalsListView({
               objective.keyResults.length > 0 && (
                 <div className="bg-gray-50/50">
                   {objective.keyResults.map((kr) => {
-                    const progress =
-                      kr.targetValue - kr.startValue === 0
-                        ? 0
-                        : Math.min(
-                            100,
-                            Math.max(
-                              0,
-                              ((kr.currentValue - kr.startValue) /
-                                (kr.targetValue - kr.startValue)) *
-                                100
-                            )
-                          );
+                    // Shared helper, so a zero-range key result (a
+                    // done/not-done one) reads 100% here exactly like it
+                    // does on the goal's own page; the inline copy this
+                    // replaced always showed 0% for those.
+                    const progress = calculateKRProgress(kr);
                     return (
                       // KR sub-row — per-cell border-l matches parent
                       // rows so the column dividers run continuously

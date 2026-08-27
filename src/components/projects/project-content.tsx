@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { notifySidebarRefresh } from "@/lib/open-create-project";
 import { useSession } from "next-auth/react";
@@ -58,6 +58,7 @@ import {
   baseLabelFor,
   RENDERABLE_VIEWS,
 } from "@/lib/project-views";
+import { useUiState } from "@/hooks/use-ui-state";
 import { isThisWeek } from "date-fns";
 import { dueDateToLocalMidnight, daysFromToday } from "@/lib/date-only";
 import { ListView } from "@/components/views/list-view";
@@ -372,31 +373,22 @@ export function ProjectContent({
     "TASK"
   );
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
-  const [isStarred, setIsStarred] = useState(false);
-
-  // Persist the star locally so it survives reloads/navigation (the button
-  // was previously a pure no-op that reset on every mount). Keyed per project.
-  const starKey = `buildsync:starred:${project.id}`;
-  useEffect(() => {
-    try {
-      setIsStarred(localStorage.getItem(starKey) === "1");
-    } catch {
-      /* localStorage unavailable — leave unstarred */
-    }
-  }, [starKey]);
+  // The star rides on the user's account rather than the browser. It used
+  // to be a raw localStorage key, so a project starred at the office was
+  // unstarred on the laptop and the toast fired twice in development
+  // (the state updater it lived in is double-invoked by StrictMode).
+  const { value: starredProjects, setValue: setStarredProjects } = useUiState<
+    Record<string, boolean>
+  >("project.starred", {});
+  const isStarred = starredProjects[project.id] === true;
 
   const toggleStar = () => {
-    setIsStarred((prev) => {
-      const next = !prev;
-      try {
-        if (next) localStorage.setItem(starKey, "1");
-        else localStorage.removeItem(starKey);
-      } catch {
-        /* ignore persistence failure */
-      }
-      toast.success(next ? "Added to favorites" : "Removed from favorites");
-      return next;
-    });
+    const next = !isStarred;
+    const updated = { ...starredProjects };
+    if (next) updated[project.id] = true;
+    else delete updated[project.id];
+    setStarredProjects(updated);
+    toast.success(next ? "Added to favorites" : "Removed from favorites");
   };
 
   const currentEmail = session?.user?.email;

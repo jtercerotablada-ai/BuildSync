@@ -514,7 +514,7 @@ export function CalendarView({
 
   // ── Per-week dynamic height ──────────────────────────────────
   const weekHeights = useMemo(() => {
-    return weeks.map((_, idx) => {
+    return weeks.map((week, idx) => {
       const segs = segmentsByWeek[idx] || [];
       const visibleSegs = segs.filter((s) => s.lane < MAX_LANES);
       const hasOverflowByDay: Record<number, boolean> = {};
@@ -542,11 +542,34 @@ export function CalendarView({
           : columnMaxLane;
         if (columnRow > maxRow) maxRow = columnRow;
       }
-      if (maxRow < 0) return ROW_MIN_PX;
-      const content = DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX;
+      // The inline quick-add input is drawn in the lane BELOW its day's
+      // last bar, but the week used to be sized from the bars alone — so
+      // on a day already carrying two or more stacked bars the input fell
+      // past the week's bottom border and over the next week's day
+      // numbers. Reserve the lane it will occupy.
+      let addingRow = -1;
+      const addingDayIndex = addingForDate
+        ? week.findIndex((d) => d.toDateString() === addingForDate)
+        : -1;
+      if (addingDayIndex >= 0) {
+        let columnMaxLane = -1;
+        for (const s of visibleSegs) {
+          if (
+            s.colStart <= addingDayIndex &&
+            s.colStart + s.colSpan > addingDayIndex &&
+            s.lane > columnMaxLane
+          ) {
+            columnMaxLane = s.lane;
+          }
+        }
+        addingRow = columnMaxLane + 1;
+      }
+      const lastRow = Math.max(maxRow, addingRow);
+      if (lastRow < 0) return ROW_MIN_PX;
+      const content = DAY_HEADER_PX + (lastRow + 1) * LANE_PX + ROW_BOTTOM_PX;
       return Math.max(ROW_MIN_PX, content);
     });
-  }, [weeks, segmentsByWeek]);
+  }, [weeks, segmentsByWeek, addingForDate]);
 
   const weekOffsets = useMemo(() => {
     const offsets: number[] = [];

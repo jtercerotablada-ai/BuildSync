@@ -219,12 +219,19 @@ function GroupRow({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showOptionsMenu]);
 
-  const fieldOptions = GROUP_FIELD_OPTIONS.map((opt) => ({
-    value: opt.field,
-    label: opt.label,
-    icon: opt.icon,
-    disabled: usedFields.includes(opt.field) && opt.field !== group.field,
-  }));
+  const fieldOptions: { value: string; label: string; icon?: typeof Calendar; disabled?: boolean }[] =
+    GROUP_FIELD_OPTIONS.map((opt) => ({
+      value: opt.field,
+      label: opt.label,
+      icon: opt.icon,
+      disabled: usedFields.includes(opt.field) && opt.field !== group.field,
+    }));
+
+  // The "no grouping" row has no entry in the field list, so its trigger used
+  // to fall back to printing the raw "none" token.
+  if (group.field === "none") {
+    fieldOptions.unshift({ value: "none", label: "None", icon: ClipboardList });
+  }
 
   const orderOptions = ORDER_OPTIONS.map((opt) => ({
     value: opt.value,
@@ -233,11 +240,6 @@ function GroupRow({
 
   return (
     <div className="flex items-center gap-2 py-1.5">
-      {/* Drag handle */}
-      <div className="flex items-center justify-center w-5 flex-shrink-0 cursor-grab text-gray-300 hover:text-gray-400">
-        <GripVertical className="w-3.5 h-3.5" />
-      </div>
-
       {/* Field dropdown */}
       <InlineSelect
         value={group.field}
@@ -387,21 +389,6 @@ export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, o
     onClose();
   }
 
-  function handleAddSubgroup() {
-    // Find first unused field
-    const available = GROUP_FIELD_OPTIONS.find((opt) => !usedFields.includes(opt.field));
-    if (!available) return;
-    onGroupsChange([
-      ...groups,
-      {
-        id: `group-${Date.now()}`,
-        field: available.field,
-        order: "custom",
-        hideEmpty: false,
-      },
-    ]);
-  }
-
   function handleUpdateGroup(updated: GroupConfig) {
     onGroupsChange(groups.map((g) => (g.id === updated.id ? updated : g)));
   }
@@ -434,12 +421,6 @@ export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, o
         <div className="flex items-center justify-between px-5 pt-[18px] pb-3">
           <div className="flex items-center gap-3">
             <h3 className="text-[16px] font-semibold text-gray-900">Groups</h3>
-            <button
-              onClick={() => {}}
-              className="text-[12px] text-gray-400 hover:text-gray-500 transition-colors"
-            >
-              Send feedback
-            </button>
           </div>
           <div className="flex items-center gap-2">
             {hasActiveGroups && (
@@ -473,18 +454,10 @@ export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, o
           ))}
         </div>
 
-        {/* Add subgroup */}
-        {groups.length < GROUP_FIELD_OPTIONS.length && (
-          <div className="px-5 pb-4">
-            <button
-              onClick={handleAddSubgroup}
-              className="flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700 transition-colors py-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add subgroup
-            </button>
-          </div>
-        )}
+        {/* There used to be an "Add subgroup" button here. The extra rows were
+            stored and persisted, but the task list only ever reads groups[0] and
+            has no nested-bucket renderer, so the panel kept reporting a second
+            grouping level that never changed a single row on screen. */}
       </div>
     </div>
   );

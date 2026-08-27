@@ -426,6 +426,14 @@ export function ChartBuilder({
     const b = benchmark.trim() === "" ? undefined : Number(benchmark);
     return {
       ...config,
+      // A filter the user hasn't given a value to yet is incomplete, not a
+      // clause. Sending it made the engine match nothing, so the preview went
+      // blank the instant "Add filter" was clicked — and saved that way.
+      filters: config.filters.filter(
+        (f) =>
+          NO_VALUE_OPERATORS.includes(f.operator) ||
+          (f.value != null && String(f.value).trim() !== "")
+      ),
       // Re-assert the locked scope on every derived config so it can never
       // drift from a state update elsewhere (defense in depth alongside the
       // hidden selector). No-op when lockedScope is undefined.
@@ -440,13 +448,14 @@ export function ChartBuilder({
 
   // ── Debounced live preview ──
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runPreview = useCallback((cfg: ChartConfig) => {
+  const runPreview = useCallback((cfg: ChartConfig, signal: AbortSignal) => {
     setPreviewLoading(true);
     setPreviewError(null);
     fetch("/api/reports/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cfg),
+      signal,
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -456,10 +465,15 @@ export function ChartBuilder({
         return res.json();
       })
       .then((data: ChartQueryResponse) => {
+        if (signal.aborted) return;
         setPreview(data);
         setPreviewLoading(false);
       })
       .catch((e: Error) => {
+        // A superseded config aborts its own request. Without this a slow
+        // answer for the PREVIOUS grouping could land last and repaint the
+        // preview with data the form no longer describes.
+        if (signal.aborted || e.name === "AbortError") return;
         setPreviewError(e.message);
         setPreviewLoading(false);
       });
@@ -467,10 +481,15 @@ export function ChartBuilder({
 
   useEffect(() => {
     if (!open) return;
+    const controller = new AbortController();
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => runPreview(effectiveConfig), 350);
+    debounceRef.current = setTimeout(
+      () => runPreview(effectiveConfig, controller.signal),
+      350
+    );
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      controller.abort();
     };
   }, [open, effectiveConfig, runPreview]);
 
@@ -484,6 +503,14 @@ export function ChartBuilder({
     setConfig((c) => ({
       ...c,
       entity,
+      // Burnup/burndown only exist for tasks. Leaving one selected drew a
+      // LineChart across status categories — a confident-looking line that
+      // meant nothing, and it saved to the dashboard that way.
+      chartType:
+        entity !== "tasks" &&
+        (c.chartType === "burnup" || c.chartType === "burndown")
+          ? "column"
+          : c.chartType,
       dimension: { field: dims[0]?.value as Dimension["field"] },
       breakdown: undefined,
       measures: [defaultMeasure(entity)],
@@ -746,17 +773,23 @@ export function ChartBuilder({
                 {CHART_TYPES.map((ct) => {
                   const meta = CHART_TYPE_META[ct];
                   const active = config.chartType === ct;
+                  // Only the task engine can build a burn series.
+                  const unavailable =
+                    config.entity !== "tasks" &&
+                    (ct === "burnup" || ct === "burndown");
                   return (
                     <button
                       key={ct}
                       type="button"
+                      disabled={unavailable}
                       onClick={() => onChartTypeChange(ct)}
-                      title={meta.label}
+                      title={unavailable ? `${meta.label} — tasks only` : meta.label}
                       className={cn(
                         "flex flex-col items-center gap-1 p-2 rounded-lg border transition-all",
                         active
                           ? "border-slate-900 ring-1 ring-slate-900 bg-white"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
+                          : "border-slate-200 hover:border-slate-300 bg-white",
+                        unavailable && "opacity-40 cursor-not-allowed hover:border-slate-200"
                       )}
                     >
                       <meta.Icon />
@@ -946,6 +979,7 @@ export function ChartBuilder({
                 const enumValues = ENUM_FIELD_VALUES[f.field];
                 const projectValued = f.field === "project";
                 const noValue = NO_VALUE_OPERATORS.includes(f.operator);
+                const incomplete = !noValue && String(f.value ?? "").trim() === "";
                 return (
                   <div key={i} className="flex flex-wrap gap-2 items-center">
                     <Select
@@ -1033,31 +1067,39 @@ export function ChartBuilder({
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    {incomplete && (
+                      <p className="w-full text-[11px] text-slate-400">
+                        Pick a value to apply this filter.
+                      </p>
+                    )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Data annotations */}
-            <div className="space-y-3 pt-1">
-              <Label>Data annotations</Label>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Show data labels</span>
-                <Switch checked={showDataLabels} onCheckedChange={setShowDataLabels} />
-              </div>
-              {config.chartType !== "number" && config.chartType !== "donut" && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-slate-600">Benchmark line</span>
-                  <Input
-                    type="number"
-                    className="w-28"
-                    value={benchmark}
-                    onChange={(e) => setBenchmark(e.target.value)}
-                    placeholder="none"
-                  />
+            {/* Data annotations — a number card is one big value: it has
+                neither data labels nor a benchmark line to annotate. */}
+            {!isNumberCard && (
+              <div className="space-y-3 pt-1">
+                <Label>Data annotations</Label>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Show data labels</span>
+                  <Switch checked={showDataLabels} onCheckedChange={setShowDataLabels} />
                 </div>
-              )}
-            </div>
+                {config.chartType !== "donut" && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-slate-600">Benchmark line</span>
+                    <Input
+                      type="number"
+                      className="w-28"
+                      value={benchmark}
+                      onChange={(e) => setBenchmark(e.target.value)}
+                      placeholder="none"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

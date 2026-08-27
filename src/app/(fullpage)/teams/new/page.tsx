@@ -68,6 +68,7 @@ export default function CreateTeamPage() {
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -118,6 +119,11 @@ export default function CreateTeamPage() {
     return () => clearTimeout(debounce);
   }, [memberSearch, selectedMembers]);
 
+  // Point the keyboard highlight back at the first match whenever the results change
+  useEffect(() => {
+    setHighlightIndex(0);
+  }, [searchResults]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -135,6 +141,31 @@ export default function CreateTeamPage() {
     setMemberSearch('');
     setShowDropdown(false);
     inputRef.current?.focus();
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // This input sits inside the form, so Enter used to submit it and create
+      // the team without the teammate the user was in the middle of picking.
+      e.preventDefault();
+      const picked = searchResults[highlightIndex];
+      if (picked) handleAddMember(picked);
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setShowDropdown(true);
+      setHighlightIndex((i) => Math.max(0, Math.min(i + 1, searchResults.length - 1)));
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === 'Escape') {
+      setShowDropdown(false);
+    }
   };
 
   const handleRemoveMember = (userId: string) => {
@@ -306,25 +337,46 @@ export default function CreateTeamPage() {
                         setShowDropdown(true);
                       }}
                       onFocus={() => setShowDropdown(true)}
+                      onKeyDown={handleSearchKeyDown}
                       placeholder={selectedMembers.length === 0 ? 'Add team members by name or email...' : ''}
                       className="flex-1 min-w-[150px] outline-none text-sm bg-transparent"
+                      role="combobox"
+                      aria-expanded={showDropdown && searchResults.length > 0}
+                      aria-controls="member-search-results"
+                      aria-autocomplete="list"
+                      aria-activedescendant={
+                        showDropdown && searchResults[highlightIndex]
+                          ? `member-option-${searchResults[highlightIndex].id}`
+                          : undefined
+                      }
                     />
                   </div>
 
                   {/* Dropdown */}
                   {showDropdown && (memberSearch.trim() || searchLoading) && (
-                    <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border max-h-60 overflow-y-auto">
+                    <div
+                      id="member-search-results"
+                      role="listbox"
+                      className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border max-h-60 overflow-y-auto"
+                    >
                       {searchLoading ? (
                         <div className="p-3 text-sm text-gray-500">Searching...</div>
                       ) : searchResults.length === 0 ? (
                         <div className="p-3 text-sm text-gray-500">No users found</div>
                       ) : (
-                        searchResults.map((user) => (
+                        searchResults.map((user, index) => (
                           <button
                             key={user.id}
+                            id={`member-option-${user.id}`}
+                            role="option"
+                            aria-selected={index === highlightIndex}
                             type="button"
                             onClick={() => handleAddMember(user)}
-                            className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left"
+                            onMouseEnter={() => setHighlightIndex(index)}
+                            className={cn(
+                              'w-full flex items-center gap-3 p-3 text-left',
+                              index === highlightIndex ? 'bg-gray-50' : 'hover:bg-gray-50'
+                            )}
                           >
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={user.image || undefined} />

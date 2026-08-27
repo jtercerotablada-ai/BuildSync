@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { AlertCircle, Loader2, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
 import {
   canAccessSection,
@@ -35,7 +36,7 @@ export function SectionGuard({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { access, loading, error } = useEffectiveAccess();
+  const { access, loading, error, refetch } = useEffectiveAccess();
 
   const allowed = !loading && access && canAccessSection(access, section);
   const denied =
@@ -81,6 +82,34 @@ export function SectionGuard({
             You don't have permission to view this section. Redirecting to
             home…
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // A 404/5xx/network failure leaves access null and denied false, which used
+  // to fall through to the bare `return null` below and paint a blank pane.
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[400px] bg-white px-6">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-full bg-slate-100 mx-auto flex items-center justify-center mb-3">
+            <AlertCircle className="w-6 h-6 text-slate-500" />
+          </div>
+          <h2 className="text-base font-semibold text-slate-900 mb-1">
+            {error === "no-workspace"
+              ? "No workspace yet"
+              : "Couldn't load your access"}
+          </h2>
+          <p className="text-sm text-slate-500 max-w-md mx-auto mb-4">
+            {error === "no-workspace"
+              ? "You don't belong to a workspace yet. Ask an admin to invite you, then try again."
+              : "We couldn't check your permissions for this section. Check your connection and try again."}
+          </p>
+          <Button variant="outline" onClick={refetch} className="gap-1.5">
+            <Loader2 className="w-4 h-4" />
+            Retry
+          </Button>
         </div>
       </div>
     );

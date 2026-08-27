@@ -2101,7 +2101,10 @@ function SortableProjectRow({
               {...attributes}
               {...listeners}
               onClick={(e) => e.stopPropagation()}
-              className="touch-none cursor-grab active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1 -ml-1 text-gray-400 hover:text-gray-700"
+              // Keyboard drag-reorder is wired up (KeyboardSensor), so the
+              // handle has to become visible when it is focused — otherwise
+              // Tab lands on a control nobody can see.
+              className="touch-none cursor-grab active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity p-1 -ml-1 text-gray-400 hover:text-gray-700"
               aria-label="Drag to reorder"
             >
               <GripVertical className="h-4 w-4" />

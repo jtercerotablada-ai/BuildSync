@@ -188,6 +188,13 @@ export function useUiState<T>(key: string, defaultValue: T) {
   const [value, setValueState] = useState<T>(defaultValue);
   const [isHydrated, setIsHydrated] = useState(false);
   const hydratedRef = useRef(false);
+  // Mirror of `value` so setValue can resolve the functional form OUTSIDE
+  // React. It used to resolve inside a setValueState updater and write the
+  // module cache, localStorage, the subscriber fan-out and the debounced
+  // PATCH from in there — an impure updater, which React double-invokes in
+  // development, doubling every one of those writes.
+  const valueRef = useRef<T>(defaultValue);
+  valueRef.current = value;
 
   // Post-hydration: read the cached value (synchronous, no flash since
   // we haven't told React to render anything different yet) + kick off
@@ -223,15 +230,14 @@ export function useUiState<T>(key: string, defaultValue: T) {
 
   const setValue = useCallback(
     (next: T | ((prev: T) => T)) => {
-      setValueState((prev) => {
-        const resolved =
-          typeof next === "function"
-            ? (next as (p: T) => T)(prev)
-            : next;
-        setCachedKey(key, resolved);
-        schedulePatch(key, resolved);
-        return resolved;
-      });
+      const resolved =
+        typeof next === "function"
+          ? (next as (p: T) => T)(valueRef.current)
+          : next;
+      valueRef.current = resolved;
+      setValueState(resolved);
+      setCachedKey(key, resolved);
+      schedulePatch(key, resolved);
     },
     [key]
   );

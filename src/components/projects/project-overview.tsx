@@ -1894,10 +1894,13 @@ export function ProjectOverview({
                   const filledSections =
                     u.sections?.filter((s) => s.content.trim()) ?? [];
                   // There's more to show if the update has structured blocks
-                  // beyond a single summary, or a long legacy summary.
+                  // beyond a single summary, or a long body. An update written
+                  // as ONE long block used to satisfy neither arm, so its
+                  // teaser stayed clamped to three lines with no way to open it.
                   const hasMore =
                     filledSections.length > 1 ||
-                    (filledSections.length === 0 && (u.summary?.length ?? 0) > 140);
+                    (filledSections[0]?.content.length ?? 0) > 140 ||
+                    (u.summary?.length ?? 0) > 140;
                   return (
                     <div
                       key={u.id}

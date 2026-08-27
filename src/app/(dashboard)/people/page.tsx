@@ -298,7 +298,18 @@ export default function PeopleDirectoryPage() {
 
             {/* Members */}
             {sorted.length === 0 ? (
-              <EmptyState />
+              <EmptyState
+                filtered={
+                  !!query.trim() ||
+                  positionFilter !== "ALL" ||
+                  roleFilter !== "ALL"
+                }
+                onClear={() => {
+                  setPositionFilter("ALL");
+                  setRoleFilter("ALL");
+                  setQuery("");
+                }}
+              />
             ) : (
               <div className="space-y-1">
                 {sorted.map((m) => (
@@ -467,19 +478,37 @@ function PersonRow({
   );
 }
 
-function EmptyState() {
+/** `filtered` keeps a search with no matches from claiming the whole
+ *  directory is empty and inviting the user to populate it again. */
+function EmptyState({
+  filtered,
+  onClear,
+}: {
+  filtered: boolean;
+  onClear: () => void;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
       <div className="w-14 h-14 rounded-full bg-[#c9a84c]/10 flex items-center justify-center mb-4">
-        <Users className="w-6 h-6 text-[#a8893a]" />
+        {filtered ? (
+          <Search className="w-6 h-6 text-[#a8893a]" />
+        ) : (
+          <Users className="w-6 h-6 text-[#a8893a]" />
+        )}
       </div>
       <h3 className="text-base font-semibold text-slate-900 mb-1">
-        No one here yet
+        {filtered ? "No one matches your filters" : "No one here yet"}
       </h3>
       <p className="text-sm text-slate-500 max-w-md">
-        Invite people to your firm’s workspace. They’ll show up here with
-        their position and project history.
+        {filtered
+          ? "Try a different name, position or role."
+          : "Invite people to your firm’s workspace. They’ll show up here with their position and project history."}
       </p>
+      {filtered && (
+        <Button variant="outline" size="sm" className="mt-4" onClick={onClear}>
+          Clear filters
+        </Button>
+      )}
     </div>
   );
 }

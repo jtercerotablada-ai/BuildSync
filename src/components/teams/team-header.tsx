@@ -25,7 +25,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useUiState } from "@/hooks/use-ui-state";
 import { InviteTeamModal } from "./invite-team-modal";
+import { TeamSettingsModal } from "./team-settings-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface TeamMember {
@@ -44,6 +46,12 @@ interface TeamHeaderProps {
     name: string;
     avatar?: string | null;
     members?: TeamMember[];
+    // Fed straight through to the settings dialog. Every page that
+    // renders this header passes the raw /api/teams/:id payload, which
+    // carries these; they stay optional so a leaner caller still compiles.
+    description?: string | null;
+    privacy?: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
+    workspace?: { name: string } | null;
   };
   activeTab: "overview" | "members" | "work" | "messages" | "calendar" | "knowledge";
 }
@@ -51,8 +59,26 @@ interface TeamHeaderProps {
 export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   const router = useRouter();
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [isStarred, setIsStarred] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Starring lived in a local useState, so it reset every time the user
+  // moved between the team's tabs (each page remounts this header) and
+  // never survived a reload. It is a per-user preference — keep it in
+  // uiState, keyed by team.
+  const { value: starredTeams, setValue: setStarredTeams } = useUiState<
+    Record<string, boolean>
+  >("starredTeams", {});
+  const isStarred = !!starredTeams[team.id];
+
+  const toggleStar = () => {
+    const next = { ...starredTeams };
+    if (isStarred) {
+      delete next[team.id];
+    } else {
+      next[team.id] = true;
+    }
+    setStarredTeams(next);
+  };
 
   // Deleting a team cascades to its messages, custom fields and knowledge
   // entries; its projects AND goals are only DETACHED (both FKs are
@@ -115,13 +141,28 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem onClick={() => router.push(`/teams/${team.id}/members`)}>
+                {/* "Edit team" and "Settings" were two entries that both
+                    navigated to the members tab. One entry, opening the
+                    settings dialog — or the members tab when the caller
+                    didn't give us enough of the team to open it. */}
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    if (!team.privacy) {
+                      router.push(`/teams/${team.id}/members`);
+                      return;
+                    }
+                    e.preventDefault();
+                    setShowSettings(true);
+                  }}
+                >
                   <Settings className="h-4 w-4 mr-2" />
-                  Edit team
+                  Team settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push(`/teams/${team.id}/members`)}>
+                <DropdownMenuItem
+                  onClick={() => router.push(`/teams/${team.id}/members`)}
+                >
                   <Users className="h-4 w-4 mr-2" />
-                  Settings
+                  Manage members
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -142,7 +183,8 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
               variant="ghost"
               size="icon"
               className={cn("h-8 w-8", isStarred && "text-black")}
-              onClick={() => setIsStarred(!isStarred)}
+              aria-label={isStarred ? "Unstar team" : "Star team"}
+              onClick={toggleStar}
             >
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
             </Button>
@@ -210,6 +252,21 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
       />
+
+      {team.privacy && (
+        <TeamSettingsModal
+          team={{
+            id: team.id,
+            name: team.name,
+            description: team.description,
+            privacy: team.privacy,
+            workspace: team.workspace,
+          }}
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          onSave={() => router.refresh()}
+        />
+      )}
 
       <ConfirmDialog
         open={showDeleteConfirm}

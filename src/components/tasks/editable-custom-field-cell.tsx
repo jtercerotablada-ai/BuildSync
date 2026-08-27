@@ -215,7 +215,11 @@ export function EditableCustomFieldCell({
             }
           }}
           onClick={(e) => e.stopPropagation()}
-          className="h-7 px-1.5 text-[13px] py-0"
+          // In the My-Tasks spreadsheet the row itself owns dnd-kit's drag
+          // listeners, so a pointer drag to select the text already in this cell
+          // started a row drag and kicked the user out of the editor.
+          onPointerDown={(e) => e.stopPropagation()}
+          className="h-7 px-1.5 text-[13px] py-0 select-text"
           type={type === "TEXT" ? "text" : "number"}
         />
       );

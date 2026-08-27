@@ -84,6 +84,9 @@ export function WorkspaceSection() {
   // not an arbitrary findFirst membership. Undefined until the list loads;
   // the API falls back to its own heuristic when we send nothing.
   const [workspaceId, setWorkspaceId] = useState<string | undefined>();
+  // Invitation row whose resend/revoke request is in flight, so the row's
+  // buttons can be disabled instead of accepting repeat clicks.
+  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,10 +103,6 @@ export function WorkspaceSection() {
       if (mRes.ok) {
         const data: MemberRow[] = await mRes.json();
         setMembers(data);
-        if (meUserId) {
-          const me = data.find((m) => m.userId === meUserId);
-          if (me) setMyRole(me.role);
-        }
       }
       if (iRes.ok) {
         const data: InvitationRow[] = await iRes.json();
@@ -116,12 +115,15 @@ export function WorkspaceSection() {
     } finally {
       setLoading(false);
     }
-  }, [meUserId]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  // myRole is derived below rather than inside load(): depending on meUserId
+  // there made load() a new function once the profile arrived, which re-fired
+  // the mount effect and re-ran all three fetches behind a second spinner.
   // Re-derive myRole when members or me arrive
   useEffect(() => {
     if (!meUserId) return;
@@ -154,6 +156,10 @@ export function WorkspaceSection() {
       setInviteRole("MEMBER");
       setInviteOpen(false);
       load();
+    } catch {
+      // A rejected fetch (offline, DNS, aborted request) never reaches the
+      // res.ok branch above, so without this the click produced no feedback.
+      toast.error("Network error — check your connection");
     } finally {
       setInviting(false);
     }
@@ -163,14 +169,21 @@ export function WorkspaceSection() {
     if (!confirm("Revoke this invitation?")) return;
     const qs = new URLSearchParams({ id });
     if (workspaceId) qs.set("workspaceId", workspaceId);
-    const res = await fetch(`/api/workspace/invitations?${qs.toString()}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
-      toast.success("Invitation revoked");
-      setInvitations((prev) => prev.filter((i) => i.id !== id));
-    } else {
-      toast.error("Could not revoke");
+    setBusyInviteId(id);
+    try {
+      const res = await fetch(`/api/workspace/invitations?${qs.toString()}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Invitation revoked");
+        setInvitations((prev) => prev.filter((i) => i.id !== id));
+      } else {
+        toast.error("Could not revoke");
+      }
+    } catch {
+      toast.error("Network error — check your connection");
+    } finally {
+      setBusyInviteId(null);
     }
   }
 
@@ -178,43 +191,58 @@ export function WorkspaceSection() {
     const qs = workspaceId
       ? `?${new URLSearchParams({ workspaceId }).toString()}`
       : "";
-    const res = await fetch(`/api/workspace/invitations/${id}/resend${qs}`, {
-      method: "POST",
-    });
-    if (res.ok) {
-      toast.success("Invitation resent");
-    } else {
-      toast.error("Could not resend");
+    setBusyInviteId(id);
+    try {
+      const res = await fetch(`/api/workspace/invitations/${id}/resend${qs}`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        toast.success("Invitation resent");
+      } else {
+        toast.error("Could not resend");
+      }
+    } catch {
+      toast.error("Network error — check your connection");
+    } finally {
+      setBusyInviteId(null);
     }
   }
 
   async function handleRoleChange(memberUserId: string, role: Role) {
-    const res = await fetch("/api/workspace/members", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: memberUserId, role }),
-    });
-    if (res.ok) {
-      toast.success("Role updated");
-      load();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      toast.error(data.error || "Could not update role");
+    try {
+      const res = await fetch("/api/workspace/members", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: memberUserId, role }),
+      });
+      if (res.ok) {
+        toast.success("Role updated");
+        load();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Could not update role");
+      }
+    } catch {
+      toast.error("Network error — check your connection");
     }
   }
 
   async function handleRemove(memberUserId: string) {
     if (!confirm("Remove this person from the workspace?")) return;
-    const res = await fetch(
-      `/api/workspace/members?userId=${memberUserId}`,
-      { method: "DELETE" }
-    );
-    if (res.ok) {
-      toast.success("Member removed");
-      setMembers((prev) => prev.filter((m) => m.userId !== memberUserId));
-    } else {
-      const data = await res.json().catch(() => ({}));
-      toast.error(data.error || "Could not remove");
+    try {
+      const res = await fetch(
+        `/api/workspace/members?userId=${memberUserId}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        toast.success("Member removed");
+        setMembers((prev) => prev.filter((m) => m.userId !== memberUserId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Could not remove");
+      }
+    } catch {
+      toast.error("Network error — check your connection");
     }
   }
 
@@ -365,7 +393,11 @@ export function WorkspaceSection() {
                         size="sm"
                         className="h-7 text-xs"
                         onClick={() => handleResend(inv.id)}
+                        disabled={busyInviteId === inv.id}
                       >
+                        {busyInviteId === inv.id && (
+                          <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                        )}
                         Resend
                       </Button>
                       <Button
@@ -373,6 +405,7 @@ export function WorkspaceSection() {
                         size="icon"
                         className="h-7 w-7 text-gray-400 hover:text-black"
                         onClick={() => handleRevoke(inv.id)}
+                        disabled={busyInviteId === inv.id}
                         title="Revoke"
                       >
                         <X className="h-3.5 w-3.5" />

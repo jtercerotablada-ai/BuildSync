@@ -37,5 +37,5 @@ export default async function PortalLayout({
     }
   }
 
-  return <DashboardShell variant="ttc" basePath="/portal">{children}</DashboardShell>;
+  return <DashboardShell basePath="/portal">{children}</DashboardShell>;
 }

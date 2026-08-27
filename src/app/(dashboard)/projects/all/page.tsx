@@ -127,7 +127,16 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  // `initialLoad` gates the full-page spinner. Refetches (a new search
+  // term, a retry) keep the previous results on screen instead of
+  // unmounting the whole table, which used to strobe on every keystroke.
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [search, setSearch] = useState("");
+  // The server is queried on a debounced copy of the search box — the
+  // raw value fired one request per character typed.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "ALL">("ALL");
   const [gateFilter, setGateFilter] = useState<ProjectGate | "ALL">("ALL");
   // Default to list view — matches Asana's project browser and is
@@ -147,20 +156,46 @@ export default function ProjectsPage() {
   }, [view]);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     let canceled = false;
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/projects${search ? `?q=${encodeURIComponent(search)}` : ""}`)
-      .then((r) => r.json())
+    fetch(
+      `/api/projects${
+        debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ""
+      }`,
+      { signal: controller.signal }
+    )
+      .then((r) => {
+        // A 401/500 used to fall through to the "No projects yet" empty
+        // state, telling the firm its whole project list was gone.
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
       .then((data) => {
         if (canceled) return;
         setProjects(Array.isArray(data) ? data : []);
+        setLoadError(false);
       })
-      .catch(() => !canceled && setProjects([]))
-      .finally(() => !canceled && setLoading(false));
+      .catch((err) => {
+        if (canceled || (err as Error)?.name === "AbortError") return;
+        setProjects([]);
+        setLoadError(true);
+      })
+      .finally(() => {
+        if (canceled) return;
+        setLoading(false);
+        setInitialLoad(false);
+      });
     return () => {
       canceled = true;
+      controller.abort();
     };
-  }, [search]);
+  }, [debouncedSearch, reloadToken]);
 
   const filtered = useMemo(() => {
     return projects.filter(
@@ -194,7 +229,11 @@ export default function ProjectsPage() {
       {/* Search */}
       <div className="px-4 md:px-8 xl:px-12 2xl:px-16 pb-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          {loading && !initialLoad ? (
+            <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+          ) : (
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          )}
           <Input
             type="search"
             placeholder="Search for a project"
@@ -270,10 +309,31 @@ export default function ProjectsPage() {
       {/* Content — edge-to-edge so the data-dense Grid/List/Gantt
           views get the full page width. Title alone is centered
           via text-center on the h1 above. */}
-      <div className="flex-1 overflow-auto pb-8">
-        {loading ? (
+      <div
+        className={cn(
+          "flex-1 overflow-auto pb-8 transition-opacity",
+          loading && !initialLoad && "opacity-60"
+        )}
+      >
+        {initialLoad ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
+        ) : loadError ? (
+          <div className="flex items-center justify-center px-6 py-16">
+            <div className="w-full max-w-md rounded-2xl border p-10 text-center">
+              <p className="mb-4 text-sm text-gray-600">
+                Couldn&apos;t load your projects.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => setReloadToken((t) => t + 1)}
+                className="gap-1.5"
+              >
+                <Loader2 className="h-4 w-4" />
+                Retry
+              </Button>
+            </div>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full py-16 px-4">

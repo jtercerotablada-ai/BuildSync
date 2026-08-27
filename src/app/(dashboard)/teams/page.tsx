@@ -44,16 +44,26 @@ export default function TeamsPage() {
   const router = useRouter();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     let canceled = false;
     setLoading(true);
+    setLoadError(false);
     fetch("/api/teams/list")
-      .then((r) => r.json())
+      .then((r) => {
+        // A 401/500 used to be parsed as JSON and coerced to [], which
+        // rendered the "No teams yet" empty state and invited the user to
+        // re-create teams that already exist.
+        if (!r.ok) throw new Error("Failed to load teams");
+        return r.json();
+      })
       .then((data) => {
         if (canceled) return;
-        const list = Array.isArray(data) ? data : [];
+        if (!Array.isArray(data)) throw new Error("Unexpected response");
+        const list = data as Team[];
         setTeams(list);
         // "Invite teammate" entry point (Home People widget + header menu)
         // routes here with a pending invite intent. Forward to the actual
@@ -69,12 +79,16 @@ export default function TeamsPage() {
           }
         }
       })
-      .catch(() => !canceled && setTeams([]))
+      .catch(() => {
+        if (canceled) return;
+        setTeams([]);
+        setLoadError(true);
+      })
       .finally(() => !canceled && setLoading(false));
     return () => {
       canceled = true;
     };
-  }, [router]);
+  }, [router, reloadKey]);
 
   const filtered = teams.filter((t) =>
     search.trim()
@@ -121,6 +135,22 @@ export default function TeamsPage() {
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
+        ) : loadError ? (
+          <div className="flex items-center justify-center px-6 py-16">
+            <div className="w-full max-w-md rounded-2xl border p-10 text-center">
+              <p className="mb-4 text-sm text-gray-600">
+                Couldn&apos;t load your teams.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="gap-1.5"
+              >
+                <Loader2 className="h-4 w-4" />
+                Retry
+              </Button>
+            </div>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full py-16">

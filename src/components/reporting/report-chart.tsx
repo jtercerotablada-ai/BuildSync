@@ -58,6 +58,29 @@ function isEmpty(data: ChartDataRow[]): boolean {
 /** A tiny axis-tick font shared by the cartesian charts. */
 const TICK = { fontSize: 11 } as const;
 
+/**
+ * Category labels are ellipsized before they reach an axis. The axes used to
+ * force a tick per bucket at a fixed 100px, so a dozen project or assignee
+ * names came out as an overlapping smear (column) or clipped mid-word
+ * (horizontal bar). recharts hands the tooltip the RAW category value, so the
+ * full name is always one hover away.
+ */
+const MAX_TICK_CHARS = 14;
+
+function truncateTick(v: unknown): string {
+  const s = String(v ?? "");
+  return s.length > MAX_TICK_CHARS ? `${s.slice(0, MAX_TICK_CHARS - 1)}…` : s;
+}
+
+/** Room the category axis needs for its longest (already ellipsized) label. */
+function categoryAxisWidth(data: ChartDataRow[]): number {
+  const longest = data.reduce(
+    (max, row) => Math.max(max, truncateTick(row.name).length),
+    0
+  );
+  return Math.min(160, Math.max(80, Math.round(longest * 6.2)));
+}
+
 export function ReportChart({
   chartType,
   data,
@@ -108,6 +131,8 @@ export function ReportChart({
               dataKey={seriesKeys[0]?.key || "value"}
               paddingAngle={1}
               stroke="none"
+              label={showDataLabels ? renderDonutLabel : false}
+              labelLine={false}
             >
               {data.map((entry, i) => (
                 <Cell key={i} fill={entry.color || "#94a3b8"} />
@@ -196,9 +221,10 @@ export function ReportChart({
           <YAxis
             dataKey="name"
             type="category"
-            width={100}
+            width={categoryAxisWidth(data)}
             tick={TICK}
             interval={0}
+            tickFormatter={truncateTick}
           />
           <Tooltip />
           {benchmark != null && (
@@ -216,7 +242,12 @@ export function ReportChart({
             <LabelList
               dataKey={key}
               content={(props: LabelContentProps) => (
-                <LollipopDot {...props} data={data} valueKey={key} />
+                <LollipopDot
+                  {...props}
+                  data={data}
+                  valueKey={key}
+                  showValue={showDataLabels}
+                />
               )}
             />
           </Bar>
@@ -233,7 +264,14 @@ export function ReportChart({
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
           <XAxis type="number" tick={TICK} allowDecimals={false} />
-          <YAxis dataKey="name" type="category" width={100} tick={TICK} interval={0} />
+          <YAxis
+            dataKey="name"
+            type="category"
+            width={categoryAxisWidth(data)}
+            tick={TICK}
+            interval={0}
+            tickFormatter={truncateTick}
+          />
           <Tooltip />
           {seriesKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
           {benchmark != null && (
@@ -266,12 +304,24 @@ export function ReportChart({
   const stacked = chartType === "stackedBar";
   const single = seriesKeys.length <= 1;
   const primaryKey = seriesKeys[0]?.key || "value";
+  // Tilt the category labels only when they would actually collide — a
+  // two-bucket completion chart still reads best flat.
+  const angled =
+    data.length > 6 || data.some((r) => String(r.name ?? "").length > 10);
 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-        <XAxis dataKey="name" tick={TICK} interval={0} />
+        <XAxis
+          dataKey="name"
+          tick={TICK}
+          interval="preserveStartEnd"
+          tickFormatter={truncateTick}
+          angle={angled ? -30 : 0}
+          textAnchor={angled ? "end" : "middle"}
+          height={angled ? 56 : 30}
+        />
         <YAxis tick={TICK} allowDecimals={false} width={36} />
         <Tooltip />
         {seriesKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
@@ -329,10 +379,12 @@ interface LabelContentProps {
 interface LollipopDotProps extends LabelContentProps {
   data: ChartDataRow[];
   valueKey: string;
+  /** The "Show data labels" switch — the dot itself always renders. */
+  showValue: boolean;
 }
 
 function LollipopDot(props: LollipopDotProps) {
-  const { x, y, width, height, index, data, valueKey } = props;
+  const { x, y, width, height, index, data, valueKey, showValue } = props;
   const nx = Number(x) + Number(width);
   const ny = Number(y) + Number(height) / 2;
   if (!isFinite(nx) || !isFinite(ny) || index == null) return null;
@@ -342,17 +394,57 @@ function LollipopDot(props: LollipopDotProps) {
   return (
     <g>
       <circle cx={nx} cy={ny} r={5} fill={color} />
-      <text
-        x={nx + 9}
-        y={ny}
-        dy={3.5}
-        fontSize={10}
-        fill="#64748b"
-        textAnchor="start"
-      >
-        {value as number | string}
-      </text>
+      {showValue && (
+        <text
+          x={nx + 9}
+          y={ny}
+          dy={3.5}
+          fontSize={10}
+          fill="#64748b"
+          textAnchor="start"
+        >
+          {value as number | string}
+        </text>
+      )}
     </g>
+  );
+}
+
+// ── Donut slice value label ──
+// Drawn at the middle of the ring rather than outside it: at the grid's
+// 200px height an outside label would be clipped by the container.
+interface DonutLabelProps {
+  cx?: number | string;
+  cy?: number | string;
+  midAngle?: number;
+  innerRadius?: number | string;
+  outerRadius?: number | string;
+  value?: number;
+  percent?: number;
+}
+
+function renderDonutLabel(props: DonutLabelProps) {
+  const { cx, cy, midAngle, innerRadius, outerRadius, value, percent } = props;
+  if (midAngle == null || value == null) return null;
+  // A sliver has no room for a number; its value is still in the tooltip.
+  if (percent != null && percent < 0.05) return null;
+  const radius =
+    (Number(innerRadius) + Number(outerRadius)) / 2;
+  const rad = -midAngle * (Math.PI / 180);
+  const x = Number(cx) + radius * Math.cos(rad);
+  const y = Number(cy) + radius * Math.sin(rad);
+  if (!isFinite(x) || !isFinite(y)) return null;
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#ffffff"
+      fontSize={10}
+      textAnchor="middle"
+      dominantBaseline="central"
+    >
+      {formatNumber(value)}
+    </text>
   );
 }
 

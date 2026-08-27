@@ -52,7 +52,14 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
               <Target className="h-4 w-4 mr-2" />
               New objective
             </DropdownMenuItem>
-            <DropdownMenuItem>Connect existing objective</DropdownMenuItem>
+            {/* There is no objective picker yet, so this item had no handler
+                and closed the menu doing nothing. Locked until it exists. */}
+            <DropdownMenuItem disabled className="gap-2">
+              Connect existing objective
+              <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                Coming soon
+              </span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

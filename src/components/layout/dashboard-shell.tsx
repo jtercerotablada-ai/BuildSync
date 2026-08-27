@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { AIPanelProvider, useAIPanel } from "@/contexts/ai-panel-context";
 import { AIPanel } from "@/components/ai/ai-panel";
 import { SearchDialog } from "./search-dialog";
@@ -49,11 +50,10 @@ interface Project {
 
 interface DashboardShellProps {
   children: ReactNode;
-  variant?: "default" | "ttc";
   basePath?: string;
 }
 
-function DashboardShellContent({ children, variant = "default", basePath = "" }: DashboardShellProps) {
+function DashboardShellContent({ children, basePath = "" }: DashboardShellProps) {
   const router = useRouter();
   const { isOpen: isAIPanelOpen, closePanel: closeAIPanel } = useAIPanel();
   // Project creation: gallery is the primary entry (Asana parity).
@@ -79,6 +79,17 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setSidebarCollapsed(true);
       return;
+    }
+
+    // Apply the locally cached preference on this first commit, before the
+    // network. The saved value used to be read only as the API's fallback,
+    // so every page load painted the collapsed 64px rail and then snapped
+    // the content sideways once /api/users/preferences answered.
+    try {
+      const cached = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+      if (cached !== null) setSidebarCollapsed(cached === "true");
+    } catch {
+      // storage disabled — the API call below is still authoritative
     }
 
     // Try API first (DB-persisted), fall back to localStorage
@@ -197,9 +208,16 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
         setShowCreatePortfolio(false);
         setNewPortfolio({ name: "", description: "" });
         router.push(`${basePath}/portfolios/${portfolio.id}`);
+      } else {
+        // A failed create used to leave the dialog sitting there unchanged, so the
+        // user pressed Create again — and ended up with two portfolios whenever the
+        // first request had actually gone through.
+        const err = await res.json().catch(() => null);
+        toast.error(err?.error || "Could not create portfolio");
       }
     } catch (error) {
       console.error("Error creating portfolio:", error);
+      toast.error("Could not create portfolio. Check your connection.");
     } finally {
       setCreatingPortfolio(false);
     }
@@ -215,6 +233,7 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
         onCreateGoal={() => setShowCreateGoal(true)}
         onSearchOpen={() => setShowSearch(true)}
         onToggleSidebar={toggleSidebar}
+        basePath={basePath}
       />
       {/* Sidebar + main below topbar */}
       <div className="flex flex-1 overflow-hidden relative">
@@ -331,10 +350,14 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
   );
 }
 
-export function DashboardShell({ children, variant = "default", basePath = "" }: DashboardShellProps) {
+// There used to be a `variant?: "default" | "ttc"` prop here that the portal layout
+// passed and nothing in this file ever read, so the portal rendered byte-identical
+// chrome while looking like it had its own. Removed so the absence is visible; a real
+// portal skin is a separate product decision, not a prop that pretends to work.
+export function DashboardShell({ children, basePath = "" }: DashboardShellProps) {
   return (
     <AIPanelProvider>
-      <DashboardShellContent variant={variant} basePath={basePath}>{children}</DashboardShellContent>
+      <DashboardShellContent basePath={basePath}>{children}</DashboardShellContent>
     </AIPanelProvider>
   );
 }

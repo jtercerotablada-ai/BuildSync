@@ -52,23 +52,42 @@ export function InviteTeamModal({
     }
 
     setIsLoading(true);
+    const address = email.trim();
 
     try {
       const res = await fetch(`/api/teams/${teamId}/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: address }),
       });
 
+      const data = await res.json().catch(() => null);
+
+      // The route explains exactly what went wrong ("Only team leads or
+      // workspace admins can invite members", "User is already a team
+      // member"). That used to be thrown away for a generic message, so
+      // the user had no idea whether to retry or ask an admin.
       if (!res.ok) {
-        throw new Error("Failed to invite");
+        throw new Error(data?.error || "Error sending invitation");
       }
 
-      toast.success("Invitation sent");
+      // Three different successes: an existing user is added to the team
+      // outright, an invitation email goes out, or the invitation is
+      // saved but the email failed. Saying "Invitation sent" for all
+      // three had people waiting for mail that was never sent.
+      if (data?.success) {
+        toast.success("Added to the team");
+      } else if (data?.warning) {
+        toast.warning(data.warning);
+      } else {
+        toast.success(`Invitation sent to ${address}`);
+      }
       setEmail("");
       onInviteSent?.();
     } catch (error) {
-      toast.error("Error sending invitation");
+      toast.error(
+        error instanceof Error ? error.message : "Error sending invitation"
+      );
     } finally {
       setIsLoading(false);
     }

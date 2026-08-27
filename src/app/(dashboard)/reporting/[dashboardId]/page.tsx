@@ -34,6 +34,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useUiState } from "@/hooks/use-ui-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -339,6 +340,9 @@ function catalogWidgetData(
 
 // ─── Dashboard configs (virtual defaults) ─────────────────────────
 
+/** Matches the `text: z.string().max(4000)` the widgets API enforces. */
+const TEXT_WIDGET_MAX = 4000;
+
 const dashboardConfigs: Record<string, { name: string; iconColor: string }> = {
   "my-organization": { name: "My organization", iconColor: "#000000" },
   "my-impact": { name: "My impact", iconColor: "#000000" },
@@ -356,9 +360,14 @@ export default function DashboardPage() {
   const isDefaultDashboard =
     dashboardId === "my-organization" || dashboardId === "my-impact";
 
-  const [isFavorite, setIsFavorite] = useState(false);
+  // Favorites live in the user's server-backed uiState: the star used to be a
+  // plain useState, so it reset on every navigation and meant nothing.
+  const { value: favoriteDashboards, setValue: setFavoriteDashboards } =
+    useUiState<string[]>("favoriteDashboards", []);
+  const isFavorite = favoriteDashboards.includes(dashboardId);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [reportData, setReportData] = useState<ReportBundle | null>(null);
   const [customDashboard, setCustomDashboard] = useState<{ name: string; iconColor: string } | null>(null);
 
@@ -371,6 +380,7 @@ export default function DashboardPage() {
   >(null);
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
   const [textOpen, setTextOpen] = useState(false);
+  const [textSaving, setTextSaving] = useState(false);
   const [textDraft, setTextDraft] = useState({ id: "", title: "", text: "" });
   const [expandWidget, setExpandWidget] = useState<DashboardWidget | null>(null);
 
@@ -386,12 +396,20 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isDefaultDashboard) return;
     let cancelled = false;
+    setNotFound(false);
     (async () => {
       try {
         const res = await fetch(`/api/dashboards/${dashboardId}`);
-        if (res.ok && !cancelled) {
+        if (cancelled) return;
+        if (res.ok) {
           const d = await res.json();
           setCustomDashboard({ name: d.name, iconColor: d.iconColor || "#000000" });
+        } else if (res.status === 404) {
+          // Deleted, or owned by someone else — the API masks both as 404.
+          // Without this the page rendered a normal, fully interactive empty
+          // dashboard titled "Dashboard" and only failed once you added a
+          // widget to it.
+          setNotFound(true);
         }
       } catch {
         /* ignore */
@@ -433,6 +451,7 @@ export default function DashboardPage() {
   const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
   const [widgetsLoaded, setWidgetsLoaded] = useState(false);
   const skipNextPersistRef = useRef(false);
+  const persistWarnedRef = useRef(false);
 
   // Load widgets on mount — custom dashboards from the widgets API,
   // defaults from uiState (with legacy-string back-compat).
@@ -524,12 +543,26 @@ export default function DashboardPage() {
         /* ignore quota */
       }
     }
-    const t = setTimeout(() => {
-      fetch("/api/users/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uiState: { dashboardWidgets: { [dashboardId]: payload } } }),
-      }).catch(() => {});
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/users/preferences", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uiState: { dashboardWidgets: { [dashboardId]: payload } } }),
+        });
+        // A rejected PATCH (the 32KB uiState cap) resolves normally, so the
+        // old fire-and-forget .catch() never ran: the layout kept working
+        // from localStorage on this machine and was simply missing on every
+        // other one. Warn once per page instead of on every debounced save.
+        if (!res.ok && !persistWarnedRef.current) {
+          persistWarnedRef.current = true;
+          toast.error(
+            "This dashboard layout could not be saved to your account — it may be too large. It will only be available on this device."
+          );
+        }
+      } catch {
+        /* offline — localStorage above still holds the layout */
+      }
     }, 400);
     return () => clearTimeout(t);
   }, [widgets, dashboardId, isDefaultDashboard, widgetsLoaded]);
@@ -693,8 +726,11 @@ export default function DashboardPage() {
   const handleTextSave = async () => {
     const text = textDraft.text.trim();
     const title = textDraft.title.trim() || "Text";
-    setTextOpen(false);
     const configObj = { kind: "text" as const, text };
+    // The dialog used to close BEFORE the request. When the save was rejected
+    // the draft was already unmounted, so a long note was gone for good and
+    // all the user got was an error toast. Close only once it is stored.
+    setTextSaving(true);
 
     // EDIT existing
     if (textDraft.id) {
@@ -709,10 +745,13 @@ export default function DashboardPage() {
           if (!res.ok) throw new Error();
         } catch {
           toast.error("Failed to save text");
+          setTextSaving(false);
           return;
         }
       }
       setWidgets((prev) => prev.map((w) => (w.id === targetId ? { ...w, title, text } : w)));
+      setTextSaving(false);
+      setTextOpen(false);
       return;
     }
 
@@ -727,12 +766,16 @@ export default function DashboardPage() {
         if (!res.ok) throw new Error();
         const row = await res.json();
         setWidgets((prev) => [...prev, ...rowsToWidgets([row])]);
+        setTextOpen(false);
       } catch {
         toast.error("Failed to add text");
       }
+      setTextSaving(false);
       return;
     }
     setWidgets((prev) => [...prev, { id: uid(), kind: "text", title, text, width: 2 }]);
+    setTextSaving(false);
+    setTextOpen(false);
   };
 
   // ── Remove / duplicate / resize ──
@@ -810,6 +853,24 @@ export default function DashboardPage() {
     );
   }
 
+  if (notFound && !isDefaultDashboard) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center h-full bg-white px-6 text-center">
+        <BarChart3 className="w-10 h-10 text-slate-300 mb-3" />
+        <p className="text-sm font-medium text-slate-700 mb-1">
+          This dashboard doesn&apos;t exist
+        </p>
+        <p className="text-xs text-slate-500 mb-4 max-w-sm">
+          It was deleted, or it belongs to someone else. Dashboards are private
+          to the person who created them.
+        </p>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/reporting">Back to Reporting</Link>
+        </Button>
+      </div>
+    );
+  }
+
   const initials =
     session?.user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "U";
 
@@ -837,7 +898,13 @@ export default function DashboardPage() {
             {config.name}
           </h1>
           <button
-            onClick={() => setIsFavorite(!isFavorite)}
+            onClick={() =>
+              setFavoriteDashboards(
+                isFavorite
+                  ? favoriteDashboards.filter((id) => id !== dashboardId)
+                  : [...favoriteDashboards, dashboardId]
+              )
+            }
             className={cn(
               "transition-colors flex-shrink-0",
               isFavorite ? "text-[#a8893a]" : "text-slate-300 hover:text-[#a8893a]"
@@ -855,7 +922,13 @@ export default function DashboardPage() {
             className="bg-black hover:bg-black text-white px-2 md:px-4"
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
-              toast.success("Link copied");
+              // Custom dashboards are owner-scoped: the API answers 404 to
+              // everyone else, so promising a shareable link was a lie.
+              toast.success(
+                isDefaultDashboard
+                  ? "Link copied"
+                  : "Link copied — only you can open this dashboard"
+              );
             }}
           >
             <Share2 className="w-4 h-4 md:mr-2" />
@@ -1039,7 +1112,12 @@ export default function DashboardPage() {
       />
 
       {/* Text widget editor */}
-      <Dialog open={textOpen} onOpenChange={setTextOpen}>
+      <Dialog
+        open={textOpen}
+        onOpenChange={(o) => {
+          if (!textSaving) setTextOpen(o);
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{textDraft.id ? "Edit text" : "Add text"}</DialogTitle>
@@ -1056,13 +1134,28 @@ export default function DashboardPage() {
               onChange={(e) => setTextDraft((d) => ({ ...d, text: e.target.value }))}
               placeholder="Write a note, heading, or context for this dashboard…"
               rows={5}
+              maxLength={TEXT_WIDGET_MAX}
               className="resize-none"
             />
+            {/* The API rejects anything longer, so say so while there is still
+                a draft to shorten. */}
+            <p className="text-[11px] text-slate-400 text-right">
+              {textDraft.text.length}/{TEXT_WIDGET_MAX}
+            </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setTextOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setTextOpen(false)}
+                disabled={textSaving}
+              >
                 Cancel
               </Button>
-              <Button className="bg-slate-900 hover:bg-slate-800 text-white" onClick={handleTextSave}>
+              <Button
+                className="bg-slate-900 hover:bg-slate-800 text-white"
+                onClick={handleTextSave}
+                disabled={textSaving}
+              >
+                {textSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {textDraft.id ? "Save" : "Add text"}
               </Button>
             </div>

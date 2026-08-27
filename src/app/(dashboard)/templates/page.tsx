@@ -157,11 +157,15 @@ export default function TemplatesGalleryPage() {
               <FilePlus2 className="h-4 w-4" />
               New template
             </Button>
+            {/* Neither of these has a destination yet: the AI step does not
+                exist and there is no importer, so both used to drop the user
+                on the same blank project form as "Blank project". */}
             <Button
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => router.push("/projects/new?ai=true")}
+              disabled
+              title="Coming soon"
             >
               <Sparkles className="h-4 w-4" />
               Create with AI
@@ -170,7 +174,8 @@ export default function TemplatesGalleryPage() {
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => router.push("/projects/new")}
+              disabled
+              title="Coming soon"
             >
               <Download className="h-4 w-4" />
               Import

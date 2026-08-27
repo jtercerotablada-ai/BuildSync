@@ -17,6 +17,10 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { requestTeamInvite } from "@/lib/team-invite";
+import {
+  NOTIFICATIONS_UNREAD_EVENT,
+  type NotificationsUnreadDetail,
+} from "@/lib/notifications-refresh";
 import { useEffect, useState } from "react";
 
 interface HeaderProps {
@@ -26,9 +30,15 @@ interface HeaderProps {
   onCreateGoal?: () => void;
   onSearchOpen?: () => void;
   onToggleSidebar?: () => void;
+  // Route prefix of the shell this header sits in ("" for the internal
+  // app, "/portal" for the worker portal) — same prop the Sidebar and the
+  // MobileBottomNav already take. Without it the header's own links were
+  // absolute, so the bell and Settings dropped a portal user into the
+  // internal app while the sidebar's Settings kept them inside it.
+  basePath?: string;
 }
 
-export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCreateGoal, onSearchOpen, onToggleSidebar }: HeaderProps) {
+export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCreateGoal, onSearchOpen, onToggleSidebar, basePath = "" }: HeaderProps) {
   const { data: session } = useSession();
   const { openPanel } = useAIPanel();
   const router = useRouter();
@@ -62,11 +72,25 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
     const onVisible = () => {
       if (typeof document !== "undefined" && !document.hidden) fetchUnread();
     };
+    // The Inbox page keeps its own count and updates it the instant you
+    // mark a row read or archive one. On /inbox both counts are on screen
+    // at once, so waiting for the 30s poll left the bell reading "9+"
+    // directly above a tab badge that had already dropped to 0.
+    const onUnreadChanged = (e: Event) => {
+      const detail = (e as CustomEvent<NotificationsUnreadDetail>).detail;
+      if (typeof detail?.count === "number") {
+        if (!cancelled) setUnreadCount(detail.count);
+      } else {
+        fetchUnread();
+      }
+    };
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener(NOTIFICATIONS_UNREAD_EVENT, onUnreadChanged);
     return () => {
       cancelled = true;
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(NOTIFICATIONS_UNREAD_EVENT, onUnreadChanged);
     };
   }, []);
 
@@ -128,6 +152,9 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
+                // Also unprefixed on purpose — the invite dialog is reached
+                // through the team resolver at /teams, which the portal has
+                // no equivalent of (it only routes /portal/teams/[teamId]).
                 requestTeamInvite();
                 router.push("/teams");
               }}
@@ -185,7 +212,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
         </button>
 
         <Link
-          href="/inbox"
+          href={`${basePath}/inbox`}
           aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
           className="relative flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
@@ -226,6 +253,9 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {/* Deliberately NOT prefixed: /profile only redirects to
+                /profile/[userId], which exists solely in the internal app,
+                so there is no portal-local page to send the user to. */}
             <DropdownMenuItem asChild>
               <Link href="/profile" className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
@@ -233,7 +263,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer">
+              <Link href={`${basePath}/settings`} className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </Link>

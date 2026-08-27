@@ -141,16 +141,17 @@ export default function KnowledgePage() {
   }
 
   async function handleDelete(entry: KnowledgeRow) {
-    if (!confirm(`Delete "${entry.term}"?`)) return;
+    if (!confirm(`Delete "${entry.term}"?`)) return false;
     const res = await fetch(`/api/workspace/knowledge?id=${entry.id}`, {
       method: "DELETE",
     });
     if (res.ok) {
       toast.success("Deleted");
       setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-    } else {
-      toast.error("Could not delete");
+      return true;
     }
+    toast.error("Could not delete");
+    return false;
   }
 
   async function handleView(entry: KnowledgeRow) {
@@ -254,63 +255,66 @@ export default function KnowledgePage() {
         ) : (
           <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((entry) => (
-              <button
+              /* Edit and Delete used to be <span role="button"> nested
+                 INSIDE the card's own <button>, so neither was reachable by
+                 keyboard. They are real buttons now, siblings of the card
+                 button, and the hover reveal also triggers on focus. */
+              <div
                 key={entry.id}
-                onClick={() => handleView(entry)}
-                className="text-left rounded-lg border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition-all group"
+                className="relative rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all group"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-medium text-sm">{entry.term}</h3>
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                    <span
-                      role="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEdit(entry);
-                      }}
-                      className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </span>
-                    <span
-                      role="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(entry);
-                      }}
-                      className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-black"
-                    >
-                      <Trash2 className="h-3 w-3" />
+                <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    aria-label={`Edit ${entry.term}`}
+                    onClick={() => openEdit(entry)}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${entry.term}`}
+                    onClick={() => handleDelete(entry)}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-black"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleView(entry)}
+                  className="w-full text-left p-4"
+                >
+                  <h3 className="font-medium text-sm pr-14">{entry.term}</h3>
+                  <p className="mt-1.5 text-xs text-gray-600 line-clamp-3">
+                    {entry.definition}
+                  </p>
+                  <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {entry.category && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {entry.category}
+                        </Badge>
+                      )}
+                      {entry.tags?.slice(0, 2).map((t) => (
+                        <Badge
+                          key={t}
+                          variant="outline"
+                          className="text-[10px] gap-0.5"
+                        >
+                          <Tag className="h-2.5 w-2.5" />
+                          {t}
+                        </Badge>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                      <Eye className="h-2.5 w-2.5" />
+                      {entry.viewCount}
                     </span>
                   </div>
-                </div>
-                <p className="mt-1.5 text-xs text-gray-600 line-clamp-3">
-                  {entry.definition}
-                </p>
-                <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {entry.category && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        {entry.category}
-                      </Badge>
-                    )}
-                    {entry.tags?.slice(0, 2).map((t) => (
-                      <Badge
-                        key={t}
-                        variant="outline"
-                        className="text-[10px] gap-0.5"
-                      >
-                        <Tag className="h-2.5 w-2.5" />
-                        {t}
-                      </Badge>
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                    <Eye className="h-2.5 w-2.5" />
-                    {entry.viewCount}
-                  </span>
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -418,6 +422,20 @@ export default function KnowledgePage() {
             </div>
           )}
           <DialogFooter>
+            {/* Delete was only ever available on the card's hover overlay,
+                which is mouse-only — this is the keyboard path to it. */}
+            {viewing && (
+              <Button
+                variant="ghost"
+                className="sm:mr-auto text-destructive hover:text-destructive"
+                onClick={async () => {
+                  if (await handleDelete(viewing)) setViewing(null);
+                }}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Delete
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => setViewing(null)}>
               Close
             </Button>
