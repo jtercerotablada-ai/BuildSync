@@ -18,6 +18,10 @@ export async function DELETE(
     }
 
     // Verify user has access to this task
+    // Read access was enough to delete ANY attachment on the task, including
+    // other people's. Editors may delete any; everyone else only their own
+    // upload. The read check runs first so a stranger still gets 404/403 for
+    // the task itself rather than a hint about the attachment.
     await verifyTaskAccess(userId, taskId);
 
     // Verify attachment exists and belongs to task
@@ -30,6 +34,10 @@ export async function DELETE(
 
     if (!attachment) {
       return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
+    }
+
+    if (attachment.uploaderId !== userId) {
+      await verifyTaskAccess(userId, taskId, { requireWrite: true });
     }
 
     // Delete from database

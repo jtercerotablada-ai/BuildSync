@@ -19,7 +19,10 @@ export async function POST(
     }
 
     // Verify user has access to this task's workspace
-    await verifyTaskAccess(userId, taskId);
+    // Archiving hides the task from every view in the project — a mutation,
+    // so it needs write capability and not merely the read access that
+    // opening the task grants (a VIEWER, or any follower, could archive it).
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -94,7 +97,10 @@ export async function DELETE(
     }
 
     // Verify user has access to this task's workspace
-    await verifyTaskAccess(userId, taskId);
+    // Archiving hides the task from every view in the project — a mutation,
+    // so it needs write capability and not merely the read access that
+    // opening the task grants (a VIEWER, or any follower, could archive it).
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     await prisma.task.update({
       where: { id: taskId },

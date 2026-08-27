@@ -273,7 +273,7 @@ export async function assertUserInWorkspace(
 export async function verifyTaskAccess(
   userId: string,
   taskId: string,
-  opts: { requireWrite?: boolean } = {}
+  opts: { requireWrite?: boolean; requireComment?: boolean } = {}
 ) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -331,6 +331,15 @@ export async function verifyTaskAccess(
   if (opts.requireWrite && !access.canWrite && !isOwnTask) {
     throw new AuthorizationError(
       "You don't have permission to modify this task"
+    );
+  }
+
+  // Commenting is a lower bar than writing — the COMMENTER project role
+  // exists for exactly this — but it is still a bar: a VIEWER could post on
+  // any task they could open.
+  if (opts.requireComment && !access.canComment && !isOwnTask) {
+    throw new AuthorizationError(
+      "You don't have permission to comment on this task"
     );
   }
 

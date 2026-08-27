@@ -126,7 +126,9 @@ export async function POST(
     }
 
     // Verify user has access to this task
-    await verifyTaskAccess(currentUser.id, taskId);
+    // canComment (owner | ADMIN | EDITOR | COMMENTER), not bare read: a
+    // VIEWER could post on any task they were able to open.
+    await verifyTaskAccess(currentUser.id, taskId, { requireComment: true });
 
     const body = await req.json();
     const { content, parentId, shareWithSubmitter } =

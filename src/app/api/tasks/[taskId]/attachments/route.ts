@@ -52,7 +52,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task
+    // Read first (so a stranger gets the task's own 404/403), then gate on
+    // capability once we know WHAT is being attached: read access alone used
+    // to be enough to upload files onto anyone's task.
     await verifyTaskAccess(userId, taskId);
 
     const formData = await req.formData();
@@ -79,10 +81,11 @@ export async function POST(
     // If a commentId was supplied, make sure it belongs to this task.
     // Otherwise a malicious client could attach files to any comment
     // by guessing its id.
+    let attachingToOwnComment = false;
     if (commentId) {
       const comment = await prisma.comment.findFirst({
         where: { id: commentId, taskId },
-        select: { id: true },
+        select: { id: true, authorId: true },
       });
       if (!comment) {
         return NextResponse.json(
@@ -90,7 +93,16 @@ export async function POST(
           { status: 404 }
         );
       }
+      attachingToOwnComment = comment.authorId === userId;
     }
+
+    // Attaching to YOUR OWN comment is part of commenting, so a COMMENTER
+    // keeps it. Everything else — a loose file on the task, or a file on
+    // someone else's comment — is a write.
+    await verifyTaskAccess(userId, taskId, {
+      requireWrite: !attachingToOwnComment,
+      requireComment: attachingToOwnComment,
+    });
 
     const { url: fileUrl } = await uploadFile(file, `tasks/${taskId}`);
 
