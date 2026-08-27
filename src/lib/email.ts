@@ -58,7 +58,7 @@ export async function sendVerificationEmail(email: string, token: string) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
       <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</span>
     </div>
     <div style="padding:32px 24px">
@@ -98,7 +98,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
       <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</span>
     </div>
     <div style="padding:32px 24px">
@@ -184,7 +184,7 @@ export async function sendInvitationEmail(params: InvitationEmailParams) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
@@ -329,7 +329,7 @@ export async function sendTaskAssignedEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
@@ -449,7 +449,7 @@ export async function sendFormSubmissionEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
@@ -565,7 +565,7 @@ export async function sendFormSubmitterReceiptEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">

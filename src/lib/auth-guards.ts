@@ -52,6 +52,22 @@ export async function getUserWorkspaceId(userId: string): Promise<string> {
  * membership. Used to populate the JWT so middleware role gates actually
  * fire (audit SEC-05).
  */
+/**
+ * The multi-member heuristic as a PURE function so it can run against
+ * memberships loaded elsewhere — e.g. folded into the NextAuth jwt callback's
+ * existing per-request user query — without a second round trip. `memberships`
+ * MUST already be ordered by joinedAt ascending; the caller's query does that.
+ * Single source of truth for the heuristic so getPrimaryWorkspaceRole and the
+ * jwt callback can never drift apart.
+ */
+export function pickPrimaryWorkspaceRole(
+  memberships: { role: string; workspace: { _count: { members: number } } }[]
+): string | null {
+  if (memberships.length === 0) return null;
+  const real = memberships.find((m) => m.workspace._count.members > 1);
+  return (real ?? memberships[0]).role;
+}
+
 export async function getPrimaryWorkspaceRole(
   userId: string
 ): Promise<string | null> {
@@ -61,11 +77,12 @@ export async function getPrimaryWorkspaceRole(
       role: true,
       workspace: { select: { _count: { select: { members: true } } } },
     },
-    orderBy: { joinedAt: "asc" },
+    // id is the deterministic tiebreak: the role is now recomputed on every
+    // request (BS-05), so equal joinedAt must not let the heuristic's pick
+    // flap request-to-request.
+    orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
   });
-  if (memberships.length === 0) return null;
-  const real = memberships.find((m) => m.workspace._count.members > 1);
-  return (real ?? memberships[0]).role;
+  return pickPrimaryWorkspaceRole(memberships);
 }
 
 /**

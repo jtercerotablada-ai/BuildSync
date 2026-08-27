@@ -3,13 +3,19 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { compare } from "bcryptjs";
 import prisma from "./prisma";
-import { getPrimaryWorkspaceRole } from "./auth-guards";
+import { getPrimaryWorkspaceRole, pickPrimaryWorkspaceRole } from "./auth-guards";
 import { rateLimit } from "./rate-limit";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   session: {
     strategy: "jwt",
+    // 30 days, pinned explicitly (this is NextAuth's own default) so the
+    // token lifetime is visible rather than an invisible framework default.
+    // It bounds how long a stolen token can live; a role change does NOT wait
+    // for it — the jwt callback below re-reads the role on every request
+    // (BS-05).
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",
@@ -110,7 +116,7 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user }) {
       // Fresh sign-in: establish identity + role. No invalidation check
       // needed because the token is being minted right now.
       if (user) {
@@ -121,14 +127,29 @@ export const authOptions: NextAuthOptions = {
 
       if (!token.id) return token;
 
-      // Existing token. Flag it invalid if the password was changed/reset
-      // after the token was issued — otherwise a stateless JWT survives a
-      // password reset for up to its full lifetime, so the reset never
-      // actually logs an attacker out (audit AUTH-03).
+      // Existing token. One query does double duty: the passwordChangedAt
+      // invalidation check AND the workspace memberships used to refresh the
+      // role, so refreshing the role every request costs no extra round trip.
       const dbUser = await prisma.user.findUnique({
         where: { id: token.id },
-        select: { passwordChangedAt: true },
+        select: {
+          passwordChangedAt: true,
+          workspaceMembers: {
+            select: {
+              role: true,
+              workspace: { select: { _count: { select: { members: true } } } },
+            },
+            // Matches getPrimaryWorkspaceRole exactly; id is the deterministic
+            // tiebreak so equal joinedAt can't flap the per-request role pick.
+            orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+          },
+        },
       });
+
+      // Flag the token invalid if the password was changed/reset after it was
+      // issued — otherwise a stateless JWT survives a password reset for up to
+      // its full lifetime, so the reset never actually logs an attacker out
+      // (audit AUTH-03).
       const iatMs = typeof token.iat === "number" ? token.iat * 1000 : 0;
       if (
         dbUser?.passwordChangedAt &&
@@ -139,13 +160,16 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-      // Populate/refresh the workspace role so middleware role gates
-      // (CLIENT/WORKER redirects, admin protection in src/proxy.ts) actually
-      // fire — before this, token.role was never set, so those gates were
-      // dead code (SEC-05).
-      if (trigger === "update" || token.role === undefined) {
-        token.role = await getPrimaryWorkspaceRole(token.id);
-      }
+      // Refresh the workspace role on EVERY request, not just at sign-in or on
+      // an explicit session.update(). The token is a stateless JWT that lives
+      // up to maxAge (30 days), so gating the refresh on trigger === "update"
+      // meant a role change — demoting a MEMBER to CLIENT/GUEST, or promoting a
+      // CLIENT — did not take effect until the user happened to sign out. The
+      // middleware role gates (src/proxy.ts) and the /api default-deny read
+      // this role, so a stale value kept an offboarded user's access live for
+      // up to the full token lifetime (SEC-05 / BS-05). Computed from the query
+      // above via the shared heuristic — no extra round trip.
+      token.role = pickPrimaryWorkspaceRole(dbUser?.workspaceMembers ?? []);
       return token;
     },
   },
