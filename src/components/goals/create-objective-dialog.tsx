@@ -209,7 +209,7 @@ export function CreateObjectiveDialog({
                 placeholder="Enter goal title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="focus-visible:ring-purple-500"
+                className="focus-visible:ring-[#c9a84c]"
                 autoFocus
               />
             </div>

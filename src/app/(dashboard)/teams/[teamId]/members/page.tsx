@@ -139,6 +139,11 @@ export default function TeamMembersPage() {
   const [renameDraft, setRenameDraft] = useState("");
   // The member the "Remove from team" confirmation is open for.
   const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null);
+  // The custom field the "Delete field" confirmation is open for.
+  const [deleteFieldTarget, setDeleteFieldTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   // Inline job-title editing — the id of the member row being edited.
   const [editingJobTitle, setEditingJobTitle] = useState<string | null>(null);
 
@@ -271,20 +276,19 @@ export default function TeamMembersPage() {
     }
   }
 
+  // Throws on failure for the same reason handleRemoveMember does: the
+  // confirmation dialog stays open and shows the API's own reason.
   async function handleDeleteField(fieldId: string) {
-    try {
-      const res = await fetch(`/api/teams/${teamId}/fields/${fieldId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed");
-      }
-      toast.success("Field deleted");
-      refetchFields();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't delete field");
+    const res = await fetch(`/api/teams/${teamId}/fields/${fieldId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Couldn't delete field");
     }
+    setDeleteFieldTarget(null);
+    toast.success("Field deleted");
+    refetchFields();
   }
 
   async function handleRenameField() {
@@ -599,7 +603,9 @@ export default function TeamMembersPage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-black"
-                            onClick={() => handleDeleteField(f.id)}
+                            onClick={() =>
+                              setDeleteFieldTarget({ id: f.id, name: f.name })
+                            }
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete field
@@ -836,6 +842,23 @@ export default function TeamMembersPage() {
         onConfirm={() => {
           if (!removeTarget) return;
           return handleRemoveMember(removeTarget.id);
+        }}
+      />
+
+      {/* Delete-field confirmation */}
+      <ConfirmDialog
+        open={!!deleteFieldTarget}
+        onOpenChange={(open) => !open && setDeleteFieldTarget(null)}
+        title="Delete field"
+        description={
+          deleteFieldTarget
+            ? `"${deleteFieldTarget.name}" is removed from this team, and every member's stored value for it is deleted. This can't be undone.`
+            : undefined
+        }
+        confirmLabel="Delete field"
+        onConfirm={() => {
+          if (!deleteFieldTarget) return;
+          return handleDeleteField(deleteFieldTarget.id);
         }}
       />
     </div>

@@ -64,13 +64,20 @@ export function ConfidenceRing({
         disabled={readOnly}
         className={cn(
           "relative inline-flex items-center justify-center rounded-full",
+          // Read-only rings sit inside card links; a disabled button would
+          // swallow the click instead of letting it reach the anchor.
+          readOnly && "pointer-events-none",
           !readOnly && "cursor-pointer hover:opacity-90 transition-opacity"
         )}
         style={{ width: size, height: size }}
         aria-label={
-          safeScore
-            ? `Confidence ${safeScore} of 10. Click to edit.`
-            : "Set confidence score"
+          readOnly
+            ? safeScore
+              ? `Confidence ${safeScore} of 10`
+              : "Confidence not set"
+            : safeScore
+              ? `Confidence ${safeScore} of 10. Click to edit.`
+              : "Set confidence score"
         }
       >
         <svg

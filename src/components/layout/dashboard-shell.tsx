@@ -326,7 +326,7 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
               />
             </div>
             <Button
-              className="w-full bg-black hover:bg-black"
+              className="w-full bg-black hover:bg-gray-800"
               onClick={handleCreatePortfolio}
               disabled={creatingPortfolio || !newPortfolio.name.trim()}
             >

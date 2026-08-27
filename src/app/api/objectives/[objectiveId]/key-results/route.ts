@@ -5,15 +5,23 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
 import { GoalProgressService } from "@/lib/goal-progress";
 
-const createKeyResultSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  targetValue: z.number(),
-  startValue: z.number().optional(),
-  currentValue: z.number().optional(),
-  unit: z.string().optional(),
-  format: z.enum(["NUMBER", "PERCENTAGE", "CURRENCY", "BOOLEAN"]).optional(),
-});
+const createKeyResultSchema = z
+  .object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    targetValue: z.number(),
+    startValue: z.number().optional(),
+    currentValue: z.number().optional(),
+    unit: z.string().optional(),
+    format: z.enum(["NUMBER", "PERCENTAGE", "CURRENCY", "BOOLEAN"]).optional(),
+  })
+  // A key result whose target equals its start has no range to measure, and
+  // the views disagree about what that means (one reads it as 100%, another
+  // as 0%), so refuse to store one.
+  .refine((d) => d.targetValue !== (d.startValue ?? 0), {
+    message: "Target must differ from the start value",
+    path: ["targetValue"],
+  });
 
 const updateKeyResultSchema = z.object({
   name: z.string().min(1).optional(),
@@ -57,8 +65,8 @@ export async function POST(
         name: data.name,
         description: data.description,
         targetValue: data.targetValue,
-        startValue: data.startValue || 0,
-        currentValue: data.currentValue || data.startValue || 0,
+        startValue: data.startValue ?? 0,
+        currentValue: data.currentValue ?? data.startValue ?? 0,
         unit: data.unit,
         format: data.format || "NUMBER",
         objectiveId,
@@ -139,6 +147,20 @@ export async function PATCH(
         { error: "Key result not found" },
         { status: 404 }
       );
+    }
+
+    // Same zero-range guard as on create, but only when this request is
+    // actually moving the target or the start — editing the name of a key
+    // result that is already zero-range must still work.
+    if (data.targetValue !== undefined || data.startValue !== undefined) {
+      const nextTarget = data.targetValue ?? existing.targetValue;
+      const nextStart = data.startValue ?? existing.startValue;
+      if (nextTarget === nextStart) {
+        return NextResponse.json(
+          { error: "Target must differ from the start value" },
+          { status: 400 }
+        );
+      }
     }
 
     const updateData: Record<string, unknown> = {};

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, X, Folder, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -40,28 +40,46 @@ export function LinkWorkModal({
   const [searchResults, setSearchResults] = useState<WorkItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (query.length < 2) {
+  // Only the newest request may write results: one fetch per pause in
+  // typing, and the previous one is aborted so a slow early response
+  // can't land on top of the answer to what the user actually typed.
+  const searchAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      searchAbortRef.current?.abort();
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
-    try {
-      const res = await fetch(`/api/work/search?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSearchResults(data);
-      } else {
+    const timer = setTimeout(async () => {
+      searchAbortRef.current?.abort();
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+      try {
+        const res = await fetch(
+          `/api/work/search?q=${encodeURIComponent(searchQuery)}`,
+          { signal: controller.signal }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        } else {
+          setSearchResults([]);
+        }
+      } catch {
+        // Superseded by a newer keystroke — that request owns the results.
+        if (controller.signal.aborted) return;
         setSearchResults([]);
+      } finally {
+        if (!controller.signal.aborted) setIsSearching(false);
       }
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleSelectWork = (work: WorkItem) => {
     setSelectedWork(work);
@@ -124,7 +142,7 @@ export function LinkWorkModal({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search projects by name..."
                   className="pl-9"
                   autoFocus

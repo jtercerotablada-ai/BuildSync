@@ -135,6 +135,8 @@ export default function KnowledgePage() {
       toast.success(editing ? "Entry updated" : "Entry created");
       setEditorOpen(false);
       load();
+    } catch {
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }
@@ -142,13 +144,18 @@ export default function KnowledgePage() {
 
   async function handleDelete(entry: KnowledgeRow) {
     if (!confirm(`Delete "${entry.term}"?`)) return false;
-    const res = await fetch(`/api/workspace/knowledge?id=${entry.id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
-      toast.success("Deleted");
-      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-      return true;
+    try {
+      const res = await fetch(`/api/workspace/knowledge?id=${entry.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Deleted");
+        setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+        return true;
+      }
+    } catch {
+      // Falls through to the same message a non-ok reply gets: offline or
+      // aborted, the entry is still there and the user needs to be told.
     }
     toast.error("Could not delete");
     return false;

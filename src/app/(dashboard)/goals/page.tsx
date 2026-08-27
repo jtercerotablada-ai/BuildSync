@@ -362,6 +362,8 @@ function GoalsPageContent() {
     }
   };
 
+  const periodIndex = PERIODS.indexOf(selectedPeriod);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -502,7 +504,8 @@ function GoalsPageContent() {
           <div className="flex items-center bg-white border rounded-md">
             <button
               onClick={() => cyclePeriod("prev")}
-              className="p-1.5 hover:bg-white rounded-l-md border-r"
+              disabled={periodIndex <= 0}
+              className="p-1.5 hover:bg-gray-100 rounded-l-md border-r transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               aria-label="Previous period"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -510,7 +513,7 @@ function GoalsPageContent() {
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-transparent border-none outline-none cursor-pointer max-w-[120px] md:max-w-none"
+              className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-transparent border-none outline-none focus-visible:ring-2 focus-visible:ring-[#c9a84c] cursor-pointer max-w-[120px] md:max-w-none"
             >
               {PERIODS.map((period) => (
                 <option key={period} value={period}>
@@ -520,7 +523,8 @@ function GoalsPageContent() {
             </select>
             <button
               onClick={() => cyclePeriod("next")}
-              className="p-1.5 hover:bg-white rounded-r-md border-l"
+              disabled={periodIndex === PERIODS.length - 1}
+              className="p-1.5 hover:bg-gray-100 rounded-r-md border-l transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               aria-label="Next period"
             >
               <ChevronRight className="w-4 h-4" />

@@ -40,6 +40,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { getStatusOption } from "@/lib/goal-utils";
 
 type PortfolioStatus =
   | "ON_TRACK"
@@ -85,53 +86,19 @@ interface PortfolioGoal {
   period: string | null;
 }
 
-const GOAL_STATUS_META: Record<
-  ObjectiveStatus,
-  { label: string; dot: string; chip: string; bar: string }
-> = {
-  ON_TRACK: {
-    label: "On track",
-    dot: "bg-green-500",
-    chip: "bg-green-100 text-green-800",
-    bar: "bg-green-500",
-  },
-  AT_RISK: {
-    label: "At risk",
-    dot: "bg-amber-500",
-    chip: "bg-amber-100 text-amber-800",
-    bar: "bg-amber-500",
-  },
-  OFF_TRACK: {
-    label: "Off track",
-    dot: "bg-red-500",
-    chip: "bg-red-100 text-red-800",
-    bar: "bg-red-500",
-  },
-  ACHIEVED: {
-    label: "Achieved",
-    dot: "bg-blue-500",
-    chip: "bg-blue-100 text-blue-800",
-    bar: "bg-blue-500",
-  },
-  PARTIAL: {
-    label: "Partial",
-    dot: "bg-violet-500",
-    chip: "bg-violet-100 text-violet-800",
-    bar: "bg-violet-500",
-  },
-  MISSED: {
-    label: "Missed",
-    dot: "bg-gray-500",
-    chip: "bg-gray-200 text-gray-700",
-    bar: "bg-gray-500",
-  },
-  DROPPED: {
-    label: "Dropped",
-    dot: "bg-gray-400",
-    chip: "bg-gray-100 text-gray-600",
-    bar: "bg-gray-400",
-  },
-};
+/**
+ * Goal status colors and labels come from the shared Goals palette so a
+ * goal reads the same inside a portfolio as it does on /goals.
+ */
+function goalStatusMeta(status: ObjectiveStatus) {
+  const option = getStatusOption(status);
+  return {
+    label: option.label,
+    dot: option.color,
+    chip: cn("bg-gray-100", option.textColor),
+    bar: option.color,
+  };
+}
 
 interface Props {
   portfolioId: string;
@@ -891,7 +858,7 @@ function GoalsCard({ portfolioId }: { portfolioId: string }) {
                       <CommandEmpty>No goals available to link.</CommandEmpty>
                       <CommandGroup>
                         {available.map((obj) => {
-                          const m = GOAL_STATUS_META[obj.status];
+                          const m = goalStatusMeta(obj.status);
                           const isLinking = linkingId === obj.id;
                           return (
                             <CommandItem
@@ -941,7 +908,7 @@ function GoalsCard({ portfolioId }: { portfolioId: string }) {
       ) : (
         <ul className="space-y-2.5">
           {goals.map((goal) => {
-            const m = GOAL_STATUS_META[goal.status];
+            const m = goalStatusMeta(goal.status);
             const isRemoving = removingId === goal.id;
             return (
               <li key={goal.id} className="group">

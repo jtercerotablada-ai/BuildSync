@@ -578,6 +578,7 @@ export default function MyTasksPage() {
     col: ListColumn | null;
   }>({ col: null });
   const [calendarFeedLoading, setCalendarFeedLoading] = useState(false);
+  const [calendarFeedError, setCalendarFeedError] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
   /** Confirmation for a drag that would reassign a task's project or
    *  assignee. The whole row is the drag handle and the sensor fires
@@ -1222,13 +1223,20 @@ export default function MyTasksPage() {
   // Calendar feed URL helpers
   async function fetchCalendarFeedUrl() {
     setCalendarFeedLoading(true);
+    setCalendarFeedError(false);
     try {
       const res = await fetch("/api/my-tasks/calendar-feed/url");
       if (res.ok) {
         const data = await res.json();
         setCalendarFeedUrl(data.url);
+      } else {
+        // A non-ok response used to leave the field silently empty under
+        // instructions telling the user to paste a URL that isn't there.
+        setCalendarFeedError(true);
+        toast.error("Failed to generate calendar feed URL");
       }
     } catch {
+      setCalendarFeedError(true);
       toast.error("Failed to generate calendar feed URL");
     } finally {
       setCalendarFeedLoading(false);
@@ -3779,25 +3787,44 @@ export default function MyTasksPage() {
               <p className="text-[13px] text-gray-700">
                 Copy this URL and add it as a calendar subscription. Your tasks with due dates will appear as all-day events that stay in sync automatically.
               </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={calendarFeedLoading ? "Generating..." : calendarFeedUrl}
-                  className="flex-1 text-[12px] bg-white border border-gray-200 rounded-md px-3 py-2 text-gray-600 font-mono select-all"
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(calendarFeedUrl);
-                    toast.success("URL copied to clipboard");
-                  }}
-                  disabled={!calendarFeedUrl}
-                  className="px-3 py-2 text-[13px] font-medium bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
-                >
-                  Copy
-                </button>
-              </div>
+              {calendarFeedError ? (
+                <div className="flex items-center gap-2">
+                  <p className="flex-1 text-[12px] text-red-600">
+                    Could not generate the URL.
+                  </p>
+                  <button
+                    onClick={fetchCalendarFeedUrl}
+                    disabled={calendarFeedLoading}
+                    className="px-3 py-2 text-[13px] font-medium bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={calendarFeedLoading ? "Generating..." : calendarFeedUrl}
+                    className="flex-1 text-[12px] bg-white border border-gray-200 rounded-md px-3 py-2 text-gray-600 font-mono select-all"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(calendarFeedUrl);
+                        toast.success("URL copied to clipboard");
+                      } catch {
+                        toast.error("Couldn't copy the URL");
+                      }
+                    }}
+                    disabled={!calendarFeedUrl}
+                    className="px-3 py-2 text-[13px] font-medium bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

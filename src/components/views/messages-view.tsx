@@ -11,6 +11,7 @@ import {
   Pencil,
   Trash2,
   MessageSquare,
+  ArrowUp,
   Loader2,
   Paperclip,
   X,
@@ -352,11 +353,12 @@ export function MessagesView({
       });
   }, [endpoints.members]);
 
-  // Real-time poll bookkeeping. The scroll container ref lets us
-  // detect "user is at the bottom" so background polls can auto-scroll
-  // without yanking the viewport when the user is reading history.
+  // Real-time poll bookkeeping. The feed is newest-first, so new
+  // messages land at the TOP: the scroll container ref lets us tell
+  // whether the reader has scrolled down past them and needs the
+  // "New messages" pill instead of a silent swap.
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const [hasNewBelow, setHasNewBelow] = useState(false);
+  const [hasNewAbove, setHasNewAbove] = useState(false);
   // Asana's Messages tab: the composer is a collapsed bar at the top
   // that expands in place; the feed below mixes messages and status
   // updates, newest first.
@@ -379,7 +381,6 @@ export function MessagesView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope.type, scopeKey]);
-  const [atBottom, setAtBottom] = useState(true);
 
   // Refs that the poll loop reads — avoids stale closures from the
   // setInterval capturing the first render's state.
@@ -478,8 +479,8 @@ export function MessagesView({
           }
 
           // Detect if the user got new messages they haven't scrolled
-          // to yet. Compare last-message-id; if it changed and we're
-          // not at the bottom, surface the "new messages" pill.
+          // to yet. Compare last-message-id; if it changed and the
+          // reader is scrolled away, surface the "new messages" pill.
           const lastLocalId = prev[prev.length - 1]?.id;
           const lastResultId = result[result.length - 1]?.id;
           if (
@@ -487,15 +488,12 @@ export function MessagesView({
             lastResultId &&
             !lastResultId.startsWith("temp-")
           ) {
-            // Only flag new-below if the user is scrolled up — the
-            // auto-scroll effect handles the at-bottom case.
+            // Newest-first feed: the new message lands at the top, so
+            // only flag it as unseen when the reader has scrolled down
+            // away from there.
             const c = scrollContainerRef.current;
-            if (c) {
-              const distanceFromBottom =
-                c.scrollHeight - c.scrollTop - c.clientHeight;
-              if (distanceFromBottom > 80) {
-                setHasNewBelow(true);
-              }
+            if (c && c.scrollTop > 80) {
+              setHasNewAbove(true);
             }
           }
 
@@ -599,17 +597,13 @@ export function MessagesView({
     };
   }, [fetchMessages]);
 
-  // Track whether the user is at the bottom of the scroll container.
-  // Used by the auto-scroll-on-new-message + new-messages pill logic.
+  // Scrolling back up to the newest message means the pill has done
+  // its job — dismiss it.
   useEffect(() => {
     const c = scrollContainerRef.current;
     if (!c) return;
     const onScroll = () => {
-      const distanceFromBottom =
-        c.scrollHeight - c.scrollTop - c.clientHeight;
-      const isAtBottom = distanceFromBottom < 80;
-      setAtBottom(isAtBottom);
-      if (isAtBottom) setHasNewBelow(false);
+      if (c.scrollTop < 80) setHasNewAbove(false);
     };
     c.addEventListener("scroll", onScroll);
     // Run once to initialize.
@@ -617,15 +611,14 @@ export function MessagesView({
     return () => c.removeEventListener("scroll", onScroll);
   }, [loading]);
 
-  // Auto-scroll on new messages — but only if the user was already
-  // pinned to the bottom. Don't yank them mid-read.
   // Newest-first feed (Asana): new items land at the top, right under
-  // the composer — no chat-style auto-scroll to the bottom.
-  const scrollToBottom = useCallback(() => {
+  // the composer — never yank a reader mid-scroll, the pill takes them
+  // up when they ask for it.
+  const scrollToTop = useCallback(() => {
     const c = scrollContainerRef.current;
     if (!c) return;
-    c.scrollTop = 0;
-    setHasNewBelow(false);
+    c.scrollTo({ top: 0, behavior: "smooth" });
+    setHasNewAbove(false);
   }, []);
 
   // ── Generic state updater across roots + replies ───────
@@ -1486,6 +1479,18 @@ export function MessagesView({
 
   return (
     <div className="flex-1 flex flex-col bg-white relative">
+      {/* A poll dropped a teammate's message in at the top while the
+          reader was further down the thread. */}
+      {hasNewAbove && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1e1f21] text-white text-xs font-medium shadow-lg hover:bg-black"
+        >
+          <ArrowUp className="w-3.5 h-3.5" />
+          New messages
+        </button>
+      )}
       {/* Feed — Asana's Messages: composer bar on top, then messages +
           status updates newest first, education card at the bottom. */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto">
@@ -1906,8 +1911,9 @@ function MessageItem({
           </div>
         </div>
 
-        {/* Hover-only actions */}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 flex-shrink-0">
+        {/* Row actions — revealed on hover, on keyboard focus, and always
+            on touch devices, which have no hover at all. */}
+        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity flex items-center gap-0.5 flex-shrink-0">
           <Popover>
             <PopoverTrigger asChild>
               <button
@@ -2066,7 +2072,7 @@ function MessageItem({
                     </div>
                   </button>
                   {/* Hover action overlay */}
-                  <div className="absolute top-1 right-1 opacity-0 group-hover/att:opacity-100 transition-opacity flex items-center gap-0.5">
+                  <div className="absolute top-1 right-1 opacity-0 group-hover/att:opacity-100 group-focus-within/att:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity flex items-center gap-0.5">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -2153,7 +2159,7 @@ function MessageItem({
             <button
               type="button"
               onClick={() => addFilesInputRef.current?.click()}
-              className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#a8893a]"
+              className="mt-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#a8893a]"
             >
               <Paperclip className="w-3 h-3" />
               Add file

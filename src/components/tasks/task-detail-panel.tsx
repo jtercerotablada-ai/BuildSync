@@ -739,6 +739,17 @@ export function TaskDetailPanel({
     }
   }
 
+  async function handleCopyTaskLink() {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/tasks/${taskId}`
+      );
+      toast.success("Link copied to clipboard");
+    } catch {
+      toast.error("Couldn't copy the link");
+    }
+  }
+
   function handlePrintTask() {
     // Browser's native print dialog — uses the print stylesheet
     // applied at the app shell so headers/sidebars hide cleanly.
@@ -1068,12 +1079,7 @@ export function TaskDetailPanel({
             )}
           </ActionIconButton>
           <ActionIconButton
-            onClick={() => {
-              navigator.clipboard.writeText(
-                `${window.location.origin}/tasks/${taskId}`
-              );
-              toast.success("Link copied to clipboard");
-            }}
+            onClick={handleCopyTaskLink}
             title="Copy link"
           >
             <Link2 className="h-[15px] w-[15px]" />
@@ -1106,12 +1112,7 @@ export function TaskDetailPanel({
                 <span className="flex-1">Attach files</span>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    `${window.location.origin}/tasks/${taskId}`
-                  );
-                  toast.success("Link copied to clipboard");
-                }}
+                onClick={handleCopyTaskLink}
               >
                 <Link2 className="mr-2 h-4 w-4 text-[#6f7782]" />
                 <span className="flex-1">Copy task link</span>

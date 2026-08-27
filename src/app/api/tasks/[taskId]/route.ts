@@ -18,6 +18,7 @@ import {
   type CascadeShift,
 } from "@/lib/dependency-cascade";
 import { startOfTodayUtc } from "@/lib/date-only";
+import { readJson, jsonErrorResponse } from "@/lib/http";
 
 // Schedule dates arrive as ISO strings. Validate them at the edge so a
 // malformed one comes back as a 400 naming the field, instead of reaching
@@ -300,7 +301,7 @@ export async function PATCH(
     // task's own creator/assignee) — not merely share its workspace.
     await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
-    const body = await req.json();
+    const body = await readJson(req);
     const data = updateTaskSchema.parse(body);
 
     const existingTask = await prisma.task.findUnique({
@@ -753,6 +754,8 @@ export async function PATCH(
 
     return NextResponse.json({ ...task, cascadeShifts });
   } catch (error) {
+    const badJson = jsonErrorResponse(error);
+    if (badJson) return badJson;
     if (error instanceof z.ZodError) {
       const zodError = error as z.ZodError;
       return NextResponse.json(

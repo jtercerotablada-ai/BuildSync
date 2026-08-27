@@ -24,6 +24,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { openCreateProjectGallery } from "@/lib/open-create-project";
+import { useUiState } from "@/hooks/use-ui-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -121,7 +122,7 @@ const STATUS_DOT: Record<ProjectStatus, string> = {
 };
 
 type View = "grid" | "list" | "gantt";
-const VIEW_STORAGE_KEY = "projects.view";
+const VIEW_UI_STATE_KEY = "projects.view";
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -141,19 +142,13 @@ export default function ProjectsPage() {
   const [gateFilter, setGateFilter] = useState<ProjectGate | "ALL">("ALL");
   // Default to list view — matches Asana's project browser and is
   // denser for AEC users who want to scan many projects fast.
-  // Grid and Gantt are still one click away.
-  const [view, setView] = useState<View>("list");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(VIEW_STORAGE_KEY) as View | null;
-    if (stored === "grid" || stored === "list" || stored === "gantt") setView(stored);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(VIEW_STORAGE_KEY, view);
-  }, [view]);
+  // Grid and Gantt are still one click away. Server-backed so the
+  // choice follows the user across devices instead of dying with the
+  // browser's localStorage.
+  const { value: view, setValue: setView } = useUiState<View>(
+    VIEW_UI_STATE_KEY,
+    "list"
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);

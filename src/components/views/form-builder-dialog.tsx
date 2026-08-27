@@ -23,7 +23,6 @@ import {
 import {
   Plus,
   X,
-  GripVertical,
   Type,
   AlignLeft,
   Mail,
@@ -80,7 +79,7 @@ import {
  * Form Builder dialog — single unified source for creating / editing
  * forms. Three tabs:
  *
- *   Build    — drag-and-drop field list with per-field config
+ *   Build    — ordered field list with per-field config
  *              (label / required / mapTo / options / unit /
  *              accept / branching show-when)
  *   Settings — default section, default assignee, visibility,
@@ -152,6 +151,21 @@ const MAP_TO_OPTIONS: { value: FormFieldMapTo | "__none__"; label: string }[] = 
   { value: "description", label: "Task description" },
   { value: "dueDate", label: "Task due date (DATE only)" },
 ];
+
+// Mirrors the API's zod caps (src/app/api/forms/[formId]/route.ts). Without
+// them the builder happily edits a form the server will reject, and the
+// rejection arrives as a bare "Invalid payload" with no hint which question
+// is at fault.
+const MAX_FIELDS = 50;
+const MAX_LEN = {
+  name: 120,
+  description: 2000,
+  confirmationMessage: 2000,
+  label: 200,
+  placeholder: 200,
+  helpText: 500,
+  unit: 40,
+} as const;
 
 let _idCounter = 0;
 function nextFieldId() {
@@ -446,9 +460,16 @@ export function FormBuilderDialog({
   }, [open, projectId, pickersLoaded]);
 
   // ── Field operations ───────────────────────────────────────────
-  const addField = useCallback((type: FormFieldType = "TEXT") => {
-    setFields((prev) => [...prev, emptyField(type)]);
-  }, []);
+  const addField = useCallback(
+    (type: FormFieldType = "TEXT") => {
+      if (fields.length >= MAX_FIELDS) {
+        toast.error(`A form can have at most ${MAX_FIELDS} questions`);
+        return;
+      }
+      setFields((prev) => [...prev, emptyField(type)]);
+    },
+    [fields.length]
+  );
 
   // A branching rule stores the controlling option as a literal string. Renaming
   // or deleting that option — or turning the controlling field into a type that
@@ -523,19 +544,26 @@ export function FormBuilderDialog({
     );
   }, []);
 
-  const duplicateField = useCallback((id: string) => {
-    setFields((prev) => {
-      const idx = prev.findIndex((f) => f.id === id);
-      if (idx === -1) return prev;
-      const clone: FormField = {
-        ...prev[idx],
-        id: nextFieldId(),
-        label: `${prev[idx].label} (copy)`,
-        showWhen: prev[idx].showWhen ? { ...prev[idx].showWhen } : undefined,
-      };
-      return [...prev.slice(0, idx + 1), clone, ...prev.slice(idx + 1)];
-    });
-  }, []);
+  const duplicateField = useCallback(
+    (id: string) => {
+      if (fields.length >= MAX_FIELDS) {
+        toast.error(`A form can have at most ${MAX_FIELDS} questions`);
+        return;
+      }
+      setFields((prev) => {
+        const idx = prev.findIndex((f) => f.id === id);
+        if (idx === -1) return prev;
+        const clone: FormField = {
+          ...prev[idx],
+          id: nextFieldId(),
+          label: `${prev[idx].label} (copy)`,
+          showWhen: prev[idx].showWhen ? { ...prev[idx].showWhen } : undefined,
+        };
+        return [...prev.slice(0, idx + 1), clone, ...prev.slice(idx + 1)];
+      });
+    },
+    [fields.length]
+  );
 
   const moveField = useCallback((id: string, dir: "up" | "down") => {
     setFields((prev) => {
@@ -552,13 +580,50 @@ export function FormBuilderDialog({
   // ── Validation ─────────────────────────────────────────────────
   const validation = useMemo(() => {
     if (!name.trim()) return { ok: false, msg: "Form name is required" };
+    if (name.trim().length > MAX_LEN.name) {
+      return { ok: false, msg: `Form name is too long (max ${MAX_LEN.name})` };
+    }
+    if (description.trim().length > MAX_LEN.description) {
+      return {
+        ok: false,
+        msg: `Description is too long (max ${MAX_LEN.description})`,
+      };
+    }
+    if (confirmationMessage.trim().length > MAX_LEN.confirmationMessage) {
+      return {
+        ok: false,
+        msg: `Confirmation message is too long (max ${MAX_LEN.confirmationMessage})`,
+      };
+    }
     const dataFields = fields.filter((f) => f.type !== "HEADING");
     if (dataFields.length === 0) {
       return { ok: false, msg: "Add at least one field" };
     }
+    if (fields.length > MAX_FIELDS) {
+      return {
+        ok: false,
+        msg: `A form can have at most ${MAX_FIELDS} questions`,
+      };
+    }
     const byId = new Map(fields.map((f) => [f.id, f] as const));
     for (const f of fields) {
       if (!f.label.trim()) return { ok: false, msg: "Every field needs a label" };
+      // Point at the offending question by name — the API answers an
+      // over-long value with nothing more useful than "Invalid payload".
+      const tooLong = (
+        [
+          ["label", f.label, MAX_LEN.label],
+          ["placeholder", f.placeholder, MAX_LEN.placeholder],
+          ["help text", f.helpText, MAX_LEN.helpText],
+          ["unit", f.unit, MAX_LEN.unit],
+        ] as const
+      ).find(([, value, max]) => (value?.length ?? 0) > max);
+      if (tooLong) {
+        return {
+          ok: false,
+          msg: `"${f.label.slice(0, 30)}" — ${tooLong[0]} is too long (max ${tooLong[2]})`,
+        };
+      }
       if (f.type === "SELECT" || f.type === "MULTI_SELECT") {
         if (!f.options || f.options.length === 0) {
           return { ok: false, msg: `"${f.label}" needs at least one option` };
@@ -613,7 +678,7 @@ export function FormBuilderDialog({
       };
     }
     return { ok: true as const, msg: "" };
-  }, [name, fields]);
+  }, [name, description, confirmationMessage, fields]);
 
   // ── Save ───────────────────────────────────────────────────────
   async function handleSave() {
@@ -1206,6 +1271,7 @@ function BuildTab(props: {
             id="form-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            maxLength={MAX_LEN.name}
             placeholder="e.g. RFI Request"
             className="text-[18px] font-semibold h-auto py-2"
           />
@@ -1216,6 +1282,7 @@ function BuildTab(props: {
             id="form-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            maxLength={MAX_LEN.description}
             rows={2}
             placeholder="Shown at the top of the public form"
             className="resize-none"
@@ -1249,15 +1316,16 @@ function BuildTab(props: {
               />
             ))}
           </div>
-          {/* Drop-zone hint at the bottom mirroring Asana's
-              "Arrastra otra pregunta aquí" blue band. Clicking it
-              adds a Short Text field as the easiest default. */}
+          {/* Add-question band at the bottom of the list, mirroring
+              Asana's. Clicking it adds a Short Text field as the
+              easiest default. Reordering is click-only (the ▲/▼
+              controls on each row), so this must not offer a drag. */}
           <button
             type="button"
             onClick={() => addField("TEXT")}
             className="mt-3 w-full rounded-lg border-2 border-dashed border-[#c9a84c]/40 bg-[#c9a84c]/5 px-4 py-3 text-[13px] font-medium text-[#a8893a] hover:bg-[#c9a84c]/10 transition-colors"
           >
-            + Drag or add another question here
+            + Add another question
           </button>
         </div>
       </div>
@@ -1374,7 +1442,9 @@ function FieldRow({
       >
         {/* Top row: label + hover actions */}
         <div className="flex items-start gap-2">
-          <div className="flex-shrink-0 flex flex-col items-center pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Reordering lives entirely in these two buttons, so they stay
+              faintly visible instead of appearing only on hover. */}
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 pt-1 opacity-40 group-hover:opacity-100 transition-opacity">
             <button
               type="button"
               onClick={(e) => {
@@ -1382,12 +1452,11 @@ function FieldRow({
                 onMove("up");
               }}
               disabled={index === 0}
-              className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none text-[10px]"
+              className="text-slate-400 hover:text-slate-700 disabled:opacity-40 leading-none text-[10px]"
               aria-label="Move up"
             >
               ▲
             </button>
-            <GripVertical className="w-3 h-3 text-slate-300 my-0.5" />
             <button
               type="button"
               onClick={(e) => {
@@ -1395,7 +1464,7 @@ function FieldRow({
                 onMove("down");
               }}
               disabled={index === total - 1}
-              className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none text-[10px]"
+              className="text-slate-400 hover:text-slate-700 disabled:opacity-40 leading-none text-[10px]"
               aria-label="Move down"
             >
               ▼
@@ -1469,6 +1538,7 @@ function FieldRow({
               <Input
                 value={field.label}
                 onChange={(e) => onUpdate({ label: e.target.value })}
+                maxLength={MAX_LEN.label}
                 placeholder="What's the prompt?"
               />
             </div>
@@ -1526,6 +1596,7 @@ function FieldRow({
                   <Input
                     value={field.placeholder || ""}
                     onChange={(e) => onUpdate({ placeholder: e.target.value })}
+                    maxLength={MAX_LEN.placeholder}
                     placeholder="Hint text"
                   />
                 </div>
@@ -1537,6 +1608,7 @@ function FieldRow({
                     <Input
                       value={field.unit || ""}
                       onChange={(e) => onUpdate({ unit: e.target.value })}
+                      maxLength={MAX_LEN.unit}
                       placeholder="kg, m², $, hours…"
                     />
                   </div>
@@ -1569,6 +1641,7 @@ function FieldRow({
                 <Input
                   value={field.helpText || ""}
                   onChange={(e) => onUpdate({ helpText: e.target.value })}
+                  maxLength={MAX_LEN.helpText}
                   placeholder="Short explanation shown under the field"
                 />
               </div>
@@ -2040,6 +2113,7 @@ function SettingsTab(props: {
         <Textarea
           value={confirmationMessage}
           onChange={(e) => setConfirmationMessage(e.target.value)}
+          maxLength={MAX_LEN.confirmationMessage}
           rows={3}
           placeholder="Shown to the submitter after they hit Submit. Leave empty for the default."
           className="resize-none"

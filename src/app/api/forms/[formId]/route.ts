@@ -224,8 +224,17 @@ export async function PATCH(
     const body = await req.json();
     const parsed = patchSchema.safeParse(body);
     if (!parsed.success) {
+      // The builder shows `error` verbatim in its toast, and a bare
+      // "Invalid payload" gives the editor nothing to act on — name the
+      // offending path the way the create route names its first issue.
+      const issue = parsed.error.issues[0];
       return NextResponse.json(
-        { error: "Invalid payload", details: parsed.error.flatten() },
+        {
+          error: issue
+            ? `${issue.path.join(".") || "payload"}: ${issue.message}`
+            : "Invalid payload",
+          details: parsed.error.flatten(),
+        },
         { status: 400 }
       );
     }

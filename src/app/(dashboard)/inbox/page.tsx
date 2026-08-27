@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   Mail,
   Inbox as InboxIcon,
+  AlertCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -174,6 +175,10 @@ export default function InboxPage() {
   // from the wrong tab.
   const scopeGenRef = useRef(0);
   const [loading, setLoading] = useState(true);
+  // A failed load used to leave the list empty, which the render read as
+  // "You're all caught up!" — the inbox claiming to be empty when it had
+  // simply never been fetched.
+  const [loadError, setLoadError] = useState(false);
   const [confirmArchiveAllOpen, setConfirmArchiveAllOpen] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "unread" | "mentions" | "assignments">("all");
   const [sortOrder, setSortOrder] = useState<"recent" | "oldest" | "unread">("recent");
@@ -238,9 +243,13 @@ export default function InboxPage() {
           setServerUnreadCount(data.unreadCount);
           setHasServerCount(true);
         }
+        setLoadError(false);
+      } else if (gen === scopeGenRef.current) {
+        setLoadError(true);
       }
     } catch (error) {
       console.error("Error fetching notifications:", error);
+      if (gen === scopeGenRef.current) setLoadError(true);
     } finally {
       if (gen === scopeGenRef.current) setLoading(false);
     }
@@ -332,6 +341,7 @@ export default function InboxPage() {
     setNextCursor(null);
     setHasLoadedMore(false);
     setLoading(true);
+    setLoadError(false);
     setNotifications([]);
   }, [isArchivedScope]);
 
@@ -454,23 +464,32 @@ export default function InboxPage() {
 
   // Single-shot mark-all — the backend supports a `markAllRead: true` flag
   // (route.ts:72), so we issue ONE PATCH instead of N parallel requests.
+  // The response was never checked, so a rejected save still cleared every
+  // unread dot and zeroed the badge, and the whole inbox came back unread on
+  // the next poll with nothing having said the action failed.
   const markAllAsRead = async () => {
+    const prev = notifications;
+    const prevUnread = serverUnreadCount;
+    // The server only touches NON-archived rows, so flipping the archive
+    // list optimistically made those rows look read for 30 seconds until
+    // the poll put the unread styling back — as if the action undid itself.
+    if (!isArchivedScope) {
+      setNotifications((cur) => cur.map((n) => ({ ...n, read: true })));
+    }
+    // Server marks every non-archived row read, so the unread badge is 0.
+    setServerUnreadCount(0);
     try {
-      await fetch("/api/notifications", {
+      const res = await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ markAllRead: true }),
       });
-      // The server only touches NON-archived rows, so flipping the archive
-      // list optimistically made those rows look read for 30 seconds until
-      // the poll put the unread styling back — as if the action undid itself.
-      if (!isArchivedScope) {
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-      }
-      // Server marks every non-archived row read, so the unread badge is 0.
-      setServerUnreadCount(0);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (error) {
       console.error("Error marking all as read:", error);
+      setNotifications(prev);
+      setServerUnreadCount(prevUnread);
+      toast.error("Couldn't mark everything as read. Please try again.");
     }
   };
 
@@ -651,6 +670,15 @@ export default function InboxPage() {
   // this has to stay reachable when the current scope renders EMPTY too:
   // a starred notification that has fallen off the first page was otherwise
   // unreachable, with "No favorites yet" and no pagination control at all.
+  // A failed poll while rows are already on screen changes nothing the
+  // user needs to act on; the error state only replaces an empty list.
+  const showLoadError = loadError && notifications.length === 0;
+
+  const retryLoad = useCallback(() => {
+    setLoading(true);
+    void fetchNotifications();
+  }, [fetchNotifications]);
+
   const loadMoreButton = nextCursor ? (
     <div className="flex justify-center mt-2 mb-4">
       <button
@@ -935,14 +963,18 @@ export default function InboxPage() {
               </div>
             ) : filteredNotifications.length === 0 ? (
               <div className="px-4 md:px-8">
-                {filterType !== "all" ? (
+                {showLoadError ? (
+                  <InboxLoadError onRetry={retryLoad} />
+                ) : filterType !== "all" ? (
                   <EmptyFiltered onClear={() => setFilterType("all")} />
                 ) : activeTab === "favorites" ? (
-                  <EmptyFavorites />
+                  <EmptyFavorites hasMore={!!nextCursor} />
+                ) : activeTab === "mentions" ? (
+                  <EmptyMentions hasMore={!!nextCursor} />
                 ) : (
                   <EmptyInbox />
                 )}
-                {loadMoreButton}
+                {!showLoadError && loadMoreButton}
               </div>
             ) : (
               <div className="px-4 md:px-8 py-4">
@@ -1002,12 +1034,14 @@ export default function InboxPage() {
               // empties the loaded page, or older archived rows that match it
               // can never be pulled in.
               <div className="px-6 py-4">
-                {filterType !== "all" ? (
+                {showLoadError ? (
+                  <InboxLoadError onRetry={retryLoad} />
+                ) : filterType !== "all" ? (
                   <EmptyFiltered onClear={() => setFilterType("all")} />
                 ) : (
                   <EmptyArchive />
                 )}
-                {loadMoreButton}
+                {!showLoadError && loadMoreButton}
               </div>
             ) : (
               <div className="px-6 py-4 space-y-1">
@@ -1729,12 +1763,53 @@ function EmptyFiltered({ onClear }: { onClear: () => void }) {
   );
 }
 
-function EmptyFavorites() {
+// Mentions and Favorites narrow the pages that are already loaded, so an
+// empty scope with another page waiting is not the same thing as having
+// nothing to see. Say which one it is instead of "You're all caught up!".
+function EmptyMentions({ hasMore }: { hasMore: boolean }) {
+  return (
+    <InboxEmptyState
+      icon={AtSign}
+      title={hasMore ? "No mentions on this page" : "No mentions yet"}
+      subtitle={
+        hasMore
+          ? "Load more notifications to keep looking for older mentions."
+          : "When someone @-mentions you in a comment or a message, it lands here."
+      }
+    />
+  );
+}
+
+function EmptyFavorites({ hasMore }: { hasMore: boolean }) {
   return (
     <InboxEmptyState
       icon={Star}
-      title="No favorites yet"
-      subtitle="Star important notifications to find them quickly here."
+      title={hasMore ? "No favorites on this page" : "No favorites yet"}
+      subtitle={
+        hasMore
+          ? "Load older notifications to keep looking for starred ones."
+          : "Star important notifications to find them quickly here."
+      }
+    />
+  );
+}
+
+function InboxLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <InboxEmptyState
+      icon={AlertCircle}
+      title="Couldn't load notifications"
+      subtitle="Something went wrong while fetching your inbox."
+      action={
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 px-3 text-[13px]"
+          onClick={onRetry}
+        >
+          Retry
+        </Button>
+      }
     />
   );
 }

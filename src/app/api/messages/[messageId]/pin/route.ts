@@ -46,9 +46,21 @@ export async function POST(
       );
     }
 
+    // `updatedAt` is @updatedAt, and the feed reads it as "this message was
+    // edited". A bare update here would bump it, so pinning someone else's
+    // message branded it "(edited)" forever — in a record the firm relies on
+    // that reads as tampering. Carry the stored value forward instead.
+    const current = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { updatedAt: true },
+    });
+
     const updated = await prisma.message.update({
       where: { id: messageId },
-      data: { isPinned: !access.message.isPinned },
+      data: {
+        isPinned: !access.message.isPinned,
+        ...(current ? { updatedAt: current.updatedAt } : {}),
+      },
       select: { id: true, isPinned: true },
     });
 
