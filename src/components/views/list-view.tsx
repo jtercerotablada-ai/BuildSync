@@ -487,6 +487,18 @@ export function ListView({
     });
   }, [reorderDisabled]);
 
+  // ---- DRAG CANCEL (Escape) ----
+  // dnd-kit fires onDragCancel (not onDragEnd) on Escape. Without this
+  // handler the cleanup in handleDragEnd never runs: isDraggingRef stays
+  // true (freezing all future prop→local sync), the drag overlay sticks,
+  // and the optimistic cross-section move is left un-rolled-back.
+  const handleDragCancel = useCallback(() => {
+    setActiveTask(null);
+    dragSourceSectionRef.current = null;
+    isDraggingRef.current = false;
+    setLocalSections(sections);
+  }, [sections]);
+
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       if (reorderDisabled) return;
@@ -827,6 +839,7 @@ export function ListView({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       >
       {/* Shared overflow-auto container so the header AND the rows

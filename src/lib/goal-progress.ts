@@ -46,8 +46,11 @@ export const GoalProgressService = {
 
     switch (objective.progressSource) {
       case ProgressSource.MANUAL:
-        // No automatic calculation for manual progress
-        return objective.progress;
+        // No automatic calculation for manual progress. This used to return
+        // straight out, which also skipped the parent roll-up at the bottom of
+        // this function, so a manual goal broke the chain and left a
+        // SUB_OBJECTIVES ancestor showing a stale average forever.
+        break;
 
       case ProgressSource.KEY_RESULTS:
         newProgress = await this.calculateFromKeyResults(objective.keyResults);
@@ -62,11 +65,14 @@ export const GoalProgressService = {
         break;
     }
 
-    // Update the objective with new progress
-    await prisma.objective.update({
-      where: { id: objectiveId },
-      data: { progress: Math.round(newProgress) },
-    });
+    // Update the objective with new progress. A manual goal owns its own
+    // number, so writing it back would only churn updatedAt.
+    if (objective.progressSource !== ProgressSource.MANUAL) {
+      await prisma.objective.update({
+        where: { id: objectiveId },
+        data: { progress: Math.round(newProgress) },
+      });
+    }
 
     // If this objective has a parent, recalculate parent's progress too
     if (objective.parentId) {

@@ -452,15 +452,24 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     setEditingForm(null);
   };
 
+  // Same endpoint and same consequences as the builder's Delete button, so it
+  // has to make the same promise: "past submissions are kept" read as "still
+  // reachable", and they aren't — every list filters inactive forms out, which
+  // takes the submissions inbox with them.
   const handleFormDelete = async (formId: string) => {
-    if (!confirm("Delete this form? Past submissions are kept but new ones will be rejected.")) {
+    const name = forms.find((f) => f.id === formId)?.name;
+    if (
+      !confirm(
+        `Delete the form ${name ? `"${name}"` : "this form"}?\n\nIt stops accepting submissions and leaves this project's form list. Its past submissions stay in the database, but no screen can open them again — export anything you still need first. This can't be undone from the app.`
+      )
+    ) {
       return;
     }
     const snapshot = forms;
     setForms((prev) => prev.filter((f) => f.id !== formId));
     try {
-      // Soft-delete (close) the form so its submissions are preserved, as the
-      // confirm promises — a hard DELETE cascades-deletes every submission.
+      // Soft-delete (close) the form so its submission rows survive, as the
+      // confirm says — a hard DELETE cascades-deletes every submission.
       const res = await fetch(`/api/forms/${formId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

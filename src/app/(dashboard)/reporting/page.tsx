@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Pencil,
   BarChart3,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +70,14 @@ const DEFAULT_DASHBOARDS: Dashboard[] = [
   },
 ];
 
-const COLORS = ["#000000", "#c9a84c", "#a8893a", "#c9a84c", "#0a0a0a", "#a8893a", "#a8893a"];
+// Distinct values only. The list used to repeat #a8893a three times and
+// #c9a84c twice, so React saw duplicate keys, picking one gold swatch lit
+// up every swatch sharing its hex, and the random pick on Create was
+// weighted 3-in-7 towards one colour.
+const COLORS = ["#000000", "#c9a84c", "#a8893a", "#64748b"];
+
+// Placeholder tiles shown while the saved dashboards are loading.
+const SKELETON_KEYS = ["s1", "s2", "s3"];
 
 export default function ReportingPage() {
   return (
@@ -83,8 +91,17 @@ function ReportingPageInner() {
   const { data: session } = useSession();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [dashboards, setDashboards] = useState<Dashboard[]>(DEFAULT_DASHBOARDS);
+  const [loading, setLoading] = useState(true);
+  // Distinguishes "you have no saved dashboards" from "the fetch failed" —
+  // the list is seeded with the two built-in dashboards, so a 500 or an
+  // offline client used to render as if every saved dashboard had been
+  // deleted, with no spinner, no banner and no way to retry.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [recentCollapsed, setRecentCollapsed] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Dashboard | null>(null);
   const [form, setForm] = useState({
     name: "",
@@ -96,10 +113,14 @@ function ReportingPageInner() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setLoadError(false);
       try {
         const res = await fetch("/api/dashboards");
-        if (res.ok && !cancelled) {
+        if (!cancelled) {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
+          if (cancelled) return;
           const ownerName = session?.user?.name || "You";
           const remote: Dashboard[] = data.map((d: {
             id: string;
@@ -122,11 +143,13 @@ function ReportingPageInner() {
           setDashboards([...DEFAULT_DASHBOARDS, ...remote]);
         }
       } catch {
-        // ignore
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [session?.user?.name]);
+  }, [session?.user?.name, reloadKey]);
 
   function openCreate() {
     setEditing(null);
@@ -151,6 +174,10 @@ function ReportingPageInner() {
   async function handleSubmit() {
     const name = form.name.trim();
     if (!name) return;
+    // The dialog stays open for the whole round-trip, so without this guard a
+    // second click fires a second POST and creates a duplicate dashboard.
+    if (saving) return;
+    setSaving(true);
 
     try {
       if (editing) {
@@ -213,11 +240,15 @@ function ReportingPageInner() {
       setCreateOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Save failed");
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
+    if (deletingId) return;
     if (!confirm("Delete this dashboard?")) return;
+    setDeletingId(id);
     try {
       const res = await fetch(`/api/dashboards/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -225,6 +256,8 @@ function ReportingPageInner() {
       toast.success("Dashboard deleted");
     } catch {
       toast.error("Failed to delete");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -303,6 +336,26 @@ function ReportingPageInner() {
             />
             Dashboards
           </button>
+
+          {!recentCollapsed && loadError && (
+            // Fetch failed — say so instead of quietly rendering only the two
+            // built-in dashboards, which reads as "your saved ones are gone".
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="flex-1 text-sm text-slate-600">
+                Couldn&apos;t load your dashboards.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReloadKey((k) => k + 1)}
+                disabled={loading}
+                className="gap-1.5 self-start sm:self-auto"
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                Retry
+              </Button>
+            </div>
+          )}
 
           {!recentCollapsed && (
             <>
@@ -390,6 +443,23 @@ function ReportingPageInner() {
                       )}
                     </div>
                   ))}
+
+                  {/* Saved dashboards are still on the wire — the two built-in
+                      ones render instantly, so without these the list looks
+                      complete before it is. */}
+                  {loading &&
+                    SKELETON_KEYS.map((k) => (
+                      <div
+                        key={k}
+                        className="border rounded-lg p-4 bg-white min-h-[140px] md:min-h-[160px] flex flex-col animate-pulse"
+                      >
+                        <div className="flex items-start gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-lg bg-slate-200 flex-shrink-0" />
+                          <div className="h-4 w-2/3 rounded bg-slate-200 mt-2" />
+                        </div>
+                        <div className="mt-auto h-3 w-1/2 rounded bg-slate-100" />
+                      </div>
+                    ))}
                 </div>
               ) : (
                 <div className="border rounded-lg divide-y bg-white">
@@ -457,6 +527,17 @@ function ReportingPageInner() {
                       )}
                     </div>
                   ))}
+
+                  {loading &&
+                    SKELETON_KEYS.map((k) => (
+                      <div
+                        key={k}
+                        className="flex items-center gap-3 md:gap-4 p-3 md:p-4 animate-pulse"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-200 flex-shrink-0" />
+                        <div className="h-4 w-1/3 rounded bg-slate-200" />
+                      </div>
+                    ))}
                 </div>
               )}
             </>
@@ -516,10 +597,17 @@ function ReportingPageInner() {
             </div>
             <Button
               onClick={handleSubmit}
-              disabled={!form.name.trim()}
+              disabled={!form.name.trim() || saving}
               className="w-full bg-slate-900 hover:bg-slate-800"
             >
-              {editing ? "Save changes" : "Create dashboard"}
+              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {saving
+                ? editing
+                  ? "Saving…"
+                  : "Creating…"
+                : editing
+                  ? "Save changes"
+                  : "Create dashboard"}
             </Button>
           </div>
         </DialogContent>

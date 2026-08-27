@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useUiState } from "@/hooks/use-ui-state";
+import { notifyUnreadChanged } from "@/lib/notifications-refresh";
 
 // Types
 interface Notification {
@@ -95,6 +96,16 @@ const TYPE_META: Record<
     label: "Form submission",
   },
 };
+
+// Whether a row has somewhere to go when clicked. Portfolio/workspace
+// invitations and plain system rows arrive with no deep-link payload at
+// all, yet every row was painted with a pointer cursor and an "Open
+// notification" label — promising a destination the click could never
+// reach. Those rows still mark themselves read; they just no longer
+// advertise a navigation that does not exist.
+function hasNavigationTarget(n: Notification): boolean {
+  return Boolean(n.taskId || n.projectId || n.teamId);
+}
 
 // Helper function to format relative time
 function formatRelativeTime(date: Date): string {
@@ -297,10 +308,16 @@ export default function InboxPage() {
   // On scope change (tab switch that flips archived), invalidate any
   // in-flight requests and reset pagination so a late loadMore can't
   // append rows from the previous scope, and the poll starts fresh.
+  // Clearing the list and going back to the spinner matters as much:
+  // `loading` was only ever set false, so Activity -> Archive kept the
+  // activity rows on screen under the Archive header until the refetch
+  // landed — with an "Unarchive" action on rows that were not archived.
   useEffect(() => {
     scopeGenRef.current += 1;
     setNextCursor(null);
     setHasLoadedMore(false);
+    setLoading(true);
+    setNotifications([]);
   }, [isArchivedScope]);
 
   useEffect(() => {
@@ -386,24 +403,35 @@ export default function InboxPage() {
     return groups;
   };
 
+  // Optimistic mark-as-read, shaped like archiveOne below. The badge used to
+  // be decremented from inside the setNotifications updater, which React
+  // invokes twice under Strict Mode, so a single click could drop the count
+  // by two; and the PATCH result was never checked, so a failed save left the
+  // row looking read until the next poll put it back.
   const markAsRead = async (id: string) => {
+    // Only the badge for rows that were actually unread (and non-archived)
+    // may move — otherwise the count drifts.
+    const target = notifications.find((n) => n.id === id);
+    const wasUnread = !!target && !target.read;
+    setNotifications((cur) =>
+      cur.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    if (wasUnread) setServerUnreadCount((c) => Math.max(0, c - 1));
     try {
-      await fetch("/api/notifications", {
+      const res = await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: [id], read: true }),
       });
-      setNotifications((prev) => {
-        // Only decrement the server unread badge if this row was actually
-        // unread (and non-archived) — otherwise the count would drift.
-        const target = prev.find((n) => n.id === id);
-        if (target && !target.read) {
-          setServerUnreadCount((c) => Math.max(0, c - 1));
-        }
-        return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
-      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (error) {
       console.error("Error marking notification as read:", error);
+      if (wasUnread) {
+        setNotifications((cur) =>
+          cur.map((n) => (n.id === id ? { ...n, read: false } : n))
+        );
+        setServerUnreadCount((c) => c + 1);
+      }
     }
   };
 
@@ -416,7 +444,12 @@ export default function InboxPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ markAllRead: true }),
       });
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      // The server only touches NON-archived rows, so flipping the archive
+      // list optimistically made those rows look read for 30 seconds until
+      // the poll put the unread styling back — as if the action undid itself.
+      if (!isArchivedScope) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      }
       // Server marks every non-archived row read, so the unread badge is 0.
       setServerUnreadCount(0);
     } catch (error) {
@@ -544,6 +577,11 @@ export default function InboxPage() {
       router.push(`/my-tasks?task=${notification.taskId}`);
     } else if (notification.projectId) {
       router.push(`/projects/${notification.projectId}`);
+    } else if (notification.teamId) {
+      // Team invitations ("You were added to X") carry only teamId, and
+      // teamId used to be honoured for mentions alone — so those rows
+      // fell through to a bare return and clicking them went nowhere.
+      router.push(`/teams/${notification.teamId}`);
     }
   };
 
@@ -551,6 +589,14 @@ export default function InboxPage() {
   // read=false AND archived=false rows regardless of the loaded page,
   // so the badge never desyncs with archived/paged local state.
   const unreadCount = serverUnreadCount;
+
+  // The header's bell keeps its own count on a 30s poll, so every mark-read
+  // / archive here left the bell stale while the tab badge beside it had
+  // already moved. Broadcasting from one place covers every mutation and
+  // every optimistic rollback.
+  useEffect(() => {
+    notifyUnreadChanged(serverUnreadCount);
+  }, [serverUnreadCount]);
 
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
 
@@ -574,6 +620,32 @@ export default function InboxPage() {
 
   const groupedNotifications = groupNotificationsByTime(filteredNotifications);
 
+  // Load more (older) — only when the server says there's another page.
+  // Mentions and Favorites are narrowed client-side over the loaded page, so
+  // this has to stay reachable when the current scope renders EMPTY too:
+  // a starred notification that has fallen off the first page was otherwise
+  // unreachable, with "No favorites yet" and no pagination control at all.
+  const loadMoreButton = nextCursor ? (
+    <div className="flex justify-center mt-2 mb-4">
+      <button
+        onClick={loadMore}
+        disabled={loadingMore}
+        className="inline-flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-60"
+      >
+        {loadingMore ? (
+          <>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Loading...
+          </>
+        ) : activeTab === "favorites" ? (
+          "Load older notifications"
+        ) : (
+          "Load more"
+        )}
+      </button>
+    </div>
+  ) : null;
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
       {/* ─── Page Header ─── */}
@@ -595,20 +667,28 @@ export default function InboxPage() {
               <Settings className="w-4 h-4 mr-2" />
               Notification settings
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[11px] font-medium text-gray-400">
-              Quick actions
-            </DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={markAllAsRead}
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Mark all as read
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={archiveAll}>
-              <Archive className="w-4 h-4 mr-2" />
-              Archive all
-            </DropdownMenuItem>
+            {/* Both bulk actions only ever touch NON-archived rows, so on
+                the Archive tab they would change nothing the user can see
+                while silently rewriting the inbox behind them. Hide them
+                there instead of offering an invisible action. */}
+            {!isArchivedScope && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[11px] font-medium text-gray-400">
+                  Quick actions
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={markAllAsRead}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Mark all as read
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={archiveAll}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  Archive all
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -672,6 +752,7 @@ export default function InboxPage() {
       <InboxToolbar
         sortOrder={sortOrder}
         density={density}
+        filterType={filterType}
         onSortChange={(val) => {
           setSortOrder(val);
           if (val === "recent") {
@@ -702,6 +783,7 @@ export default function InboxPage() {
         }}
         onMarkAllRead={markAllAsRead}
         onArchiveAll={archiveAll}
+        isArchivedScope={isArchivedScope}
       />
 
       {/* ─── Content Area ─── */}
@@ -719,24 +801,41 @@ export default function InboxPage() {
                 setAiSummaryLoading(true);
                 try {
                   // Time window for the AI prompt — derived from the
-                  // user's selected period. Notifications older than
-                  // this cutoff are excluded from the summary input.
-                  const now = Date.now();
-                  const daysBack =
-                    summaryPeriod === "last-week"
-                      ? 7
-                      : summaryPeriod === "last-month"
-                        ? 30
-                        : 30;
-                  const cutoff = now - daysBack * 24 * 60 * 60 * 1000;
+                  // user's selected period. Notifications outside this
+                  // window are excluded from the summary input.
+                  // "Last month" means the previous CALENDAR month, which
+                  // is what the menu label and the prompt both promise; it
+                  // used to compute the very same rolling 30-day window as
+                  // "Last 30 days", so the two options were identical.
+                  const now = new Date();
+                  let from: number;
+                  let to = now.getTime();
+                  if (summaryPeriod === "last-month") {
+                    from = new Date(
+                      now.getFullYear(),
+                      now.getMonth() - 1,
+                      1
+                    ).getTime();
+                    to = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+                  } else {
+                    const daysBack = summaryPeriod === "last-week" ? 7 : 30;
+                    from = to - daysBack * 24 * 60 * 60 * 1000;
+                  }
                   const periodLabel =
                     summaryPeriod === "last-week"
                       ? "last 7 days"
                       : summaryPeriod === "last-month"
                         ? "last calendar month"
                         : "last 30 days";
-                  const summaryText = notifications
-                    .filter((n) => new Date(n.createdAt).getTime() >= cutoff)
+                  // Summarize what the user is actually looking at: the
+                  // unfiltered list ignored the Mentions scope and the
+                  // Filter dropdown, so the @Mentions tab described
+                  // assignments and comments that were not on screen.
+                  const summaryText = filteredNotifications
+                    .filter((n) => {
+                      const t = new Date(n.createdAt).getTime();
+                      return t >= from && t <= to;
+                    })
                     .slice(0, 20)
                     .map(
                       (n) =>
@@ -754,6 +853,15 @@ export default function InboxPage() {
                   if (res.ok) {
                     const data = await res.json();
                     setAiSummary(data.result);
+                  } else {
+                    // Only network failures used to surface anything. A 429, or
+                    // a 503 because ANTHROPIC_API_KEY isn't set, left the summary
+                    // null and the button simply blinked back to "View summary".
+                    const err = await res.json().catch(() => null);
+                    setAiSummary(
+                      err?.error ||
+                        `Could not generate summary (${res.status}). Please try again.`
+                    );
                   }
                 } catch {
                   setAiSummary(
@@ -774,11 +882,16 @@ export default function InboxPage() {
                 <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
               </div>
             ) : filteredNotifications.length === 0 ? (
-              activeTab === "favorites" ? (
-                <EmptyFavorites />
-              ) : (
-                <EmptyInbox />
-              )
+              <div className="px-4 md:px-8">
+                {filterType !== "all" ? (
+                  <EmptyFiltered onClear={() => setFilterType("all")} />
+                ) : activeTab === "favorites" ? (
+                  <EmptyFavorites />
+                ) : (
+                  <EmptyInbox />
+                )}
+                {loadMoreButton}
+              </div>
             ) : (
               <div className="px-4 md:px-8 py-4">
                 {Object.entries(groupedNotifications).map(
@@ -809,27 +922,7 @@ export default function InboxPage() {
                     )
                 )}
 
-                {/* Load more (older) — only when the server says there's
-                    another page. Favorites are filtered client-side, so
-                    fetching more activity may surface more favorites. */}
-                {nextCursor && (
-                  <div className="flex justify-center mt-2 mb-4">
-                    <button
-                      onClick={loadMore}
-                      disabled={loadingMore}
-                      className="inline-flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-60"
-                    >
-                      {loadingMore ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Loading...
-                        </>
-                      ) : (
-                        "Load more"
-                      )}
-                    </button>
-                  </div>
-                )}
+                {loadMoreButton}
 
                 {activeTab !== "favorites" && (
                   <button
@@ -850,11 +943,18 @@ export default function InboxPage() {
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               </div>
-            ) : notifications.length === 0 ? (
-              <EmptyArchive />
+            ) : filteredNotifications.length === 0 ? (
+              // Archive used to render the raw `notifications` array, so the
+              // Filter button sitting right above it was completely inert on
+              // this tab.
+              filterType !== "all" ? (
+                <EmptyFiltered onClear={() => setFilterType("all")} />
+              ) : (
+                <EmptyArchive />
+              )
             ) : (
               <div className="px-6 py-4 space-y-1">
-                {notifications.map((notification) => (
+                {filteredNotifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
                     notification={notification}
@@ -905,6 +1005,15 @@ const SORT_OPTIONS: { value: "recent" | "oldest" | "unread"; label: string }[] =
 const DENSITY_OPTIONS: { value: "detailed" | "compact"; label: string }[] = [
   { value: "detailed", label: "Detailed" },
   { value: "compact", label: "Compact" },
+];
+
+type FilterType = "all" | "unread" | "mentions" | "assignments";
+
+const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
+  { value: "all", label: "All activity" },
+  { value: "unread", label: "Unread only" },
+  { value: "mentions", label: "Mentions only" },
+  { value: "assignments", label: "Assignments only" },
 ];
 
 /* ─── Tab Context Menu ─── */
@@ -968,17 +1077,27 @@ function TabContextMenu({
   );
 }
 
+// The trigger used to read a bare "Filter" with no check mark on the
+// selected item, so an active filter was invisible — unlike Density and
+// Sort right beside it, which both show their current value. The trailing
+// "Clear filters" entry was a second copy of "All activity".
 function FilterButton({
+  value,
   onFilter,
 }: {
+  value: FilterType;
   onFilter: (type: string) => void;
 }) {
+  const current = FILTER_OPTIONS.find((o) => o.value === value)!;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="inline-flex items-center gap-1.5 h-[32px] px-3 rounded-[6px] border border-gray-200 bg-white text-[13px] font-medium text-gray-700 hover:bg-gray-50 transition-colors">
           <Filter className="w-3.5 h-3.5 text-gray-500" />
-          Filter
+          <span>
+            Filter: <span className="text-gray-900">{current.label}</span>
+          </span>
+          <ChevronDown className="w-3 h-3 text-gray-400" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -986,38 +1105,20 @@ function FilterButton({
         sideOffset={6}
         className="w-[200px] rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
       >
-        <DropdownMenuItem
-          onClick={() => onFilter("all")}
-          className="rounded-md px-3 py-2 text-[13px] text-gray-700"
-        >
-          All activity
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-1" />
-        <DropdownMenuItem
-          onClick={() => onFilter("unread")}
-          className="rounded-md px-3 py-2 text-[13px] text-gray-700"
-        >
-          Unread only
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onFilter("mentions")}
-          className="rounded-md px-3 py-2 text-[13px] text-gray-700"
-        >
-          Mentions only
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onFilter("assignments")}
-          className="rounded-md px-3 py-2 text-[13px] text-gray-700"
-        >
-          Assignments only
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-1" />
-        <DropdownMenuItem
-          onClick={() => onFilter("all")}
-          className="rounded-md px-3 py-2 text-[13px] text-gray-500"
-        >
-          Clear filters
-        </DropdownMenuItem>
+        {FILTER_OPTIONS.map((opt) => (
+          <DropdownMenuItem
+            key={opt.value}
+            onClick={() => onFilter(opt.value)}
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-[13px] text-gray-700"
+          >
+            <span className="w-4 flex-shrink-0">
+              {value === opt.value && (
+                <Check className="w-3.5 h-3.5 text-gray-900" />
+              )}
+            </span>
+            {opt.label}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1112,25 +1213,31 @@ function SortDropdown({
 function InboxToolbar({
   sortOrder,
   density,
+  filterType,
   onSortChange,
   onDensityChange,
   onFilter,
   onMarkAllRead,
   onArchiveAll,
+  isArchivedScope,
 }: {
   sortOrder: "recent" | "oldest" | "unread";
   density: "detailed" | "compact";
+  filterType: FilterType;
   onSortChange: (v: "recent" | "oldest" | "unread") => void;
   onDensityChange: (v: "detailed" | "compact") => void;
   onFilter: (type: string) => void;
   onMarkAllRead: () => void;
   onArchiveAll: () => void;
+  /** On the Archive tab both bulk actions apply to rows that are not on
+   *  screen, so the More menu (which holds nothing else) is hidden. */
+  isArchivedScope: boolean;
 }) {
   return (
     <div className="flex items-center justify-between px-4 md:px-8 py-2 border-b border-gray-100">
       {/* Left group */}
       <div className="flex items-center gap-2 md:gap-3">
-        <FilterButton onFilter={onFilter} />
+        <FilterButton value={filterType} onFilter={onFilter} />
         <span className="hidden md:block"><DensityDropdown value={density} onChange={onDensityChange} /></span>
       </div>
 
@@ -1138,7 +1245,9 @@ function InboxToolbar({
       <div className="flex items-center gap-2 md:gap-3">
         <span className="hidden md:block"><SortDropdown value={sortOrder} onChange={onSortChange} /></span>
 
-        {/* More options */}
+        {/* More options — both entries are inbox-wide bulk actions that
+            skip archived rows, so the whole menu goes away on Archive. */}
+        {!isArchivedScope && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center justify-center h-[32px] w-[32px] rounded-[6px] border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
@@ -1166,6 +1275,7 @@ function InboxToolbar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
     </div>
   );
@@ -1315,6 +1425,7 @@ function NotificationItem({
   const [expanded, setExpanded] = useState(false);
   const meta = TYPE_META[notification.type] ?? TYPE_META.system;
   const TypeIcon = meta.icon;
+  const navigable = hasNavigationTarget(notification);
 
   return (
     // The row was a plain onClick div — unreachable without a mouse. It is NOT
@@ -1340,7 +1451,7 @@ function NotificationItem({
         // Terse on purpose: the title, sender, timestamp and preview are all
         // ordinary text in the row now, so repeating them here would make a
         // screen reader read every notification twice.
-        aria-label="Open notification"
+        aria-label={navigable ? "Open notification" : "Mark notification as read"}
         className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a84c] focus-visible:ring-inset"
       />
       {/* Row actions on hover — star (favorite) + archive/unarchive.
@@ -1386,7 +1497,12 @@ function NotificationItem({
       </div>
 
       {/* Avatar with type-icon overlay */}
-      <div className="relative flex-shrink-0 pointer-events-none cursor-pointer">
+      <div
+        className={cn(
+          "relative flex-shrink-0 pointer-events-none",
+          navigable && "cursor-pointer"
+        )}
+      >
         <div
           className={cn(
             "rounded-full flex items-center justify-center text-white font-medium overflow-hidden",
@@ -1430,7 +1546,13 @@ function NotificationItem({
       {/* Content — clickable for the mouse (so the text is still selectable
           and the type-badge tooltip still works) while the overlay button
           above carries the keyboard and screen-reader interaction. */}
-      <div className="relative flex-1 min-w-0 cursor-pointer" onClick={onClick}>
+      <div
+        className={cn(
+          "relative flex-1 min-w-0",
+          navigable && "cursor-pointer"
+        )}
+        onClick={onClick}
+      >
         <div className="flex items-start justify-between gap-2">
           <p
             className={cn(
@@ -1490,10 +1612,12 @@ function InboxEmptyState({
   icon: Icon,
   title,
   subtitle,
+  action,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   subtitle: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-1 items-center justify-center min-h-[420px]">
@@ -1510,6 +1634,7 @@ function InboxEmptyState({
         <p className="text-[13px] text-gray-500 leading-[1.6]">
           {subtitle}
         </p>
+        {action && <div className="mt-4">{action}</div>}
       </div>
     </div>
   );
@@ -1521,6 +1646,28 @@ function EmptyInbox() {
       icon={Bell}
       title="You're all caught up!"
       subtitle="Notifications about tasks assigned to you, comments, and mentions will appear here."
+    />
+  );
+}
+
+// A filter that matches nothing used to fall into "You're all caught up!",
+// which reads as "your inbox is empty" while the rows are merely hidden.
+function EmptyFiltered({ onClear }: { onClear: () => void }) {
+  return (
+    <InboxEmptyState
+      icon={Filter}
+      title="No notifications match this filter"
+      subtitle="Clear the filter to see everything in this tab again."
+      action={
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 px-3 text-[13px]"
+          onClick={onClear}
+        >
+          Clear filter
+        </Button>
+      }
     />
   );
 }

@@ -30,9 +30,17 @@ interface SearchResults {
 interface SearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Route prefix of the shell that renders the dialog (e.g. "/portal"), so
+   *  picking a result keeps the user inside that shell instead of jumping to
+   *  the plain dashboard route. */
+  basePath?: string;
 }
 
-export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
+export function SearchDialog({
+  open,
+  onOpenChange,
+  basePath = "",
+}: SearchDialogProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults>({
@@ -42,6 +50,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     users: [],
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   // Tracks the most recent query so a slower response for an older query
   // can't overwrite results for a newer one.
@@ -50,11 +59,17 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     if (q.length < 2) {
       latestQueryRef.current = q;
       setResults({ tasks: [], projects: [], teams: [], users: [] });
+      // Backspacing below 2 characters while a request is still in flight used
+      // to leave the spinner up: this branch returned without clearing it, and
+      // the in-flight query's finally is gated on still being the latest one.
+      setIsLoading(false);
+      setHasError(false);
       return;
     }
 
     latestQueryRef.current = q;
     setIsLoading(true);
+    setHasError(false);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
       if (q !== latestQueryRef.current) return; // a newer query superseded this
@@ -62,9 +77,19 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         const data = await res.json();
         if (q !== latestQueryRef.current) return;
         setResults(data);
+      } else {
+        // Dropping the old rows matters as much as showing the message:
+        // they belong to the PREVIOUS query, so leaving them under the new
+        // one invites a click on something that never matched.
+        setResults({ tasks: [], projects: [], teams: [], users: [] });
+        setHasError(true);
       }
     } catch {
-      // Silently fail
+      // A failing backend must not read as "nothing matched" — surface it.
+      if (q === latestQueryRef.current) {
+        setResults({ tasks: [], projects: [], teams: [], users: [] });
+        setHasError(true);
+      }
     } finally {
       if (q === latestQueryRef.current) setIsLoading(false);
     }
@@ -83,6 +108,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     if (!open) {
       setQuery("");
       setResults({ tasks: [], projects: [], teams: [], users: [] });
+      setHasError(false);
     }
   }, [open]);
 
@@ -90,20 +116,25 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     onOpenChange(false);
     switch (item.type) {
       case "task":
+        // Carry the task id in the URL the same way the inbox does, so the
+        // destination can open that task instead of dropping the user on a
+        // board of hundreds of cards with nothing selected.
         if (item.extra?.projectId) {
-          router.push(`/projects/${item.extra.projectId}`);
+          router.push(
+            `${basePath}/projects/${item.extra.projectId}?task=${item.id}`
+          );
         } else {
-          router.push(`/my-tasks`);
+          router.push(`${basePath}/my-tasks?task=${item.id}`);
         }
         break;
       case "project":
-        router.push(`/projects/${item.id}`);
+        router.push(`${basePath}/projects/${item.id}`);
         break;
       case "team":
-        router.push(`/teams/${item.id}`);
+        router.push(`${basePath}/teams/${item.id}`);
         break;
       case "user":
-        router.push(`/profile/${item.id}`);
+        router.push(`${basePath}/profile/${item.id}`);
         break;
     }
   }
@@ -125,7 +156,14 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       <CommandInput
         placeholder="Search tasks, projects, teams, people..."
         value={query}
-        onValueChange={setQuery}
+        onValueChange={(value) => {
+          setQuery(value);
+          // Backspacing out of a failed search must drop the error banner
+          // right away. search() also clears it, but only after the 300ms
+          // debounce — until then the failure message and the "type at
+          // least 2 characters" hint would both be on screen.
+          if (value.length < 2) setHasError(false);
+        }}
       />
       <CommandList>
         {isLoading && (
@@ -134,7 +172,13 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
           </div>
         )}
 
-        {!isLoading && query.length >= 2 && !hasResults && (
+        {!isLoading && hasError && (
+          <div className="py-6 text-center text-sm text-gray-500">
+            Search is unavailable right now. Try again in a moment.
+          </div>
+        )}
+
+        {!isLoading && !hasError && query.length >= 2 && !hasResults && (
           <CommandEmpty>No results found.</CommandEmpty>
         )}
 

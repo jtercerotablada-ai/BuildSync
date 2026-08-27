@@ -69,7 +69,6 @@ export function EditablePriorityCell({
     setOpen(false);
     setSaving(true);
     setOptimistic(next);
-    onChange?.(next);
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
@@ -77,9 +76,15 @@ export function EditablePriorityCell({
         body: JSON.stringify({ priority: next }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Tell the parent only now that the write has landed. Its handler
+      // also broadcasts a task-mutated event, and an open detail panel
+      // answers that by refetching the task — announcing the value while
+      // the PATCH was still in flight made the panel read the OLD
+      // priority back and keep showing it. The pill itself is instant
+      // either way, from `optimistic` above.
+      onChange?.(next);
     } catch {
       setOptimistic(value); // roll back
-      onChange?.(value);
       toast.error("Couldn't update priority");
     } finally {
       setSaving(false);

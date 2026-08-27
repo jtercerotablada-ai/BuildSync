@@ -324,6 +324,16 @@ export function MessagesView({
   const [replyMentionUserIds, setReplyMentionUserIds] = useState<
     Record<string, string[]>
   >({});
+  // Mentions staged for the message currently being edited. Seeded
+  // from the message's existing mentions on startEdit so a text-only
+  // edit doesn't read as "every mention was removed" server-side.
+  const [editMentionUserIds, setEditMentionUserIds] = useState<string[]>(
+    []
+  );
+  // Display names for those seeded ids, for the case where a mentioned
+  // user is no longer in the members directory and so can't be
+  // resolved from `members`.
+  const editMentionNamesRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     // Best-effort: a 403 or 500 here just disables @ typeahead, the
@@ -375,12 +385,34 @@ export function MessagesView({
   // setInterval capturing the first render's state.
   const editingIdRef = useRef<string | null>(null);
   const sendingRef = useRef(false);
+  // Id of the message whose edit PATCH is still in flight. The
+  // editing flag is cleared the moment the user hits Save, so without
+  // this a poll landing before the PATCH resolved rewrote the row
+  // with the server's pre-edit text and the correction visibly
+  // reverted for up to ten seconds.
+  const savingEditIdRef = useRef<string | null>(null);
+  // Bumped every time an edit's PATCH lands. savingEditIdRef is read
+  // when a response arrives, so a fetch that was already in flight
+  // when the PATCH resolved found the flag cleared and repainted the
+  // pre-edit text anyway. Comparing this counter against the value
+  // captured at request time drops those crossed responses instead.
+  const editCommitSeqRef = useRef(0);
+  // Thread roots with a reply POST in flight — re-fetching one of
+  // those replaces the optimistic row before the server knows about
+  // it, so the reply disappears mid-send.
+  const replySendingRef = useRef<Set<string>>(new Set());
+  // Per-thread request tickets, so a slow reply fetch can't land on
+  // top of a newer one's result.
+  const replyFetchSeqRef = useRef<Map<string, number>>(new Map());
   useEffect(() => {
     editingIdRef.current = editingId;
   }, [editingId]);
   useEffect(() => {
     sendingRef.current = sending;
   }, [sending]);
+  useEffect(() => {
+    replySendingRef.current = replySending;
+  }, [replySending]);
 
   // ── Fetch / merge ───────────────────────────────────────
   // `silent` keeps the loading spinner off so background polls don't
@@ -388,10 +420,15 @@ export function MessagesView({
   // doesn't know about yet (optimistic temp- rows + in-flight edits).
   const fetchMessages = useCallback(
     async (silent = false) => {
+      const editSeq = editCommitSeqRef.current;
       try {
         const res = await fetch(endpoints.list);
         if (!res.ok) throw new Error("Failed to load");
         const data: MessageRow[] = await res.json();
+        // An edit committed while this request was travelling is
+        // newer than anything it can carry — applying it would show
+        // the pre-edit text back. The next poll picks the row up.
+        if (editCommitSeqRef.current !== editSeq) return;
         // API returns newest-first; we display newest-last (chat
         // style) so flip the array. Pinned messages always render
         // at the top regardless of date.
@@ -414,9 +451,14 @@ export function MessagesView({
           // editing it (otherwise the editing text would get wiped).
           for (const sm of incoming) {
             const local = prev.find((p) => p.id === sm.id);
-            if (local && editingIdRef.current === sm.id) {
-              // Currently editing: preserve local content but accept
-              // the server's metadata (reactions, attachments, pin).
+            if (
+              local &&
+              (editingIdRef.current === sm.id ||
+                savingEditIdRef.current === sm.id)
+            ) {
+              // Currently editing, or the edit's PATCH hasn't landed
+              // yet: preserve local content but accept the server's
+              // metadata (reactions, attachments, pin).
               result.push({
                 ...sm,
                 content: local.content,
@@ -660,11 +702,42 @@ export function MessagesView({
   // ── Thread fetch / expand ──────────────────────────────
   const fetchReplies = useCallback(
     async (rootId: string) => {
+      const ticket = (replyFetchSeqRef.current.get(rootId) ?? 0) + 1;
+      replyFetchSeqRef.current.set(rootId, ticket);
+      const editSeq = editCommitSeqRef.current;
       try {
         const res = await fetch(endpoints.replies(rootId));
         if (!res.ok) throw new Error("Failed");
         const data: MessageRow[] = await res.json();
-        setRepliesByThread((prev) => ({ ...prev, [rootId]: data }));
+        // An older request that finished late must not clobber the
+        // newer one's rows — nor an edit of a reply that was
+        // committed while this request was travelling.
+        if (replyFetchSeqRef.current.get(rootId) !== ticket) return;
+        if (editCommitSeqRef.current !== editSeq) return;
+        setRepliesByThread((prev) => {
+          const local = prev[rootId] || [];
+          const serverIds = new Set(data.map((d) => d.id));
+          const merged = data.map((d) => {
+            const localRow = local.find((l) => l.id === d.id);
+            // Same reasoning as the root feed: don't hand back the
+            // pre-edit text of a reply the user is editing or whose
+            // edit is still in flight.
+            return localRow &&
+              (editingIdRef.current === d.id ||
+                savingEditIdRef.current === d.id)
+              ? { ...d, content: localRow.content }
+              : d;
+          });
+          // Optimistic rows the server hasn't acknowledged yet used to
+          // be wiped by this replace, which made a reply vanish while
+          // it was still being sent.
+          for (const l of local) {
+            if (l.id.startsWith("temp-") && !serverIds.has(l.id)) {
+              merged.push(l);
+            }
+          }
+          return { ...prev, [rootId]: merged };
+        });
       } catch {
         toast.error("Couldn't load replies");
       }
@@ -747,6 +820,9 @@ export function MessagesView({
     const tick = () => {
       if (document.hidden) return;
       for (const rootId of expandedThreads) {
+        // Skip a thread we're mid-POST on; its optimistic row isn't
+        // on the server yet.
+        if (replySendingRef.current.has(rootId)) continue;
         void fetchReplies(rootId);
       }
     };
@@ -854,13 +930,29 @@ export function MessagesView({
           throw new Error(body?.error || "Failed to send");
         }
         const created: MessageRow = await res.json();
-        // Swap the temp row for the server's row.
+        // A replies GET issued before this POST landed can't contain
+        // the new row, so retire its ticket: without this, a fetch
+        // already in flight resolves a moment later, rebuilds the
+        // thread from its own data and deletes the reply we just
+        // saved until the next poll brings it back.
+        replyFetchSeqRef.current.set(
+          rootId,
+          (replyFetchSeqRef.current.get(rootId) ?? 0) + 1
+        );
+        // Swap the temp row for the server's row. If a poll got in
+        // first and dropped the temp row, a plain map would throw the
+        // saved reply away — append it instead (unless that same poll
+        // already brought it back).
         setRepliesByThread((prev) => {
           const list = prev[rootId] || [];
-          return {
-            ...prev,
-            [rootId]: list.map((m) => (m.id === tempId ? created : m)),
-          };
+          if (list.some((m) => m.id === tempId)) {
+            return {
+              ...prev,
+              [rootId]: list.map((m) => (m.id === tempId ? created : m)),
+            };
+          }
+          if (list.some((m) => m.id === created.id)) return prev;
+          return { ...prev, [rootId]: [...list, created] };
         });
       } catch (err) {
         // Roll back the thread + root counter, restore the draft.
@@ -1103,33 +1195,85 @@ export function MessagesView({
   const startEdit = (m: MessageRow) => {
     setEditingId(m.id);
     setEditingContent(m.content);
+    const existing = m.mentions || [];
+    setEditMentionUserIds(existing.map((x) => x.userId));
+    editMentionNamesRef.current = Object.fromEntries(
+      existing
+        .filter((x) => x.name)
+        .map((x) => [x.userId, x.name as string])
+    );
   };
 
   const commitEdit = useCallback(
     async (messageId: string) => {
       const content = editingContent.trim();
       if (!content) return;
+      // Same effective-mentions filter as the composer: keep only the
+      // users whose "@Name" handle is still in the edited body, so a
+      // newly typed mention gets notified and a deleted one gets its
+      // stale inbox item retired.
+      const effectiveMentions = editMentionUserIds.filter((uid) => {
+        const member = members.find((m) => m.id === uid);
+        const display = member
+          ? member.name || member.email
+          : editMentionNamesRef.current[uid] || null;
+        if (!display) return false;
+        return content.includes(`@${display}`);
+      });
       const snapshot = captureSnapshot();
       updateAnyMessage(messageId, (m) => ({ ...m, content }));
       setEditingId(null);
+      savingEditIdRef.current = messageId;
       try {
         const res = await fetch(endpoints.message(messageId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({
+            content,
+            mentionUserIds: effectiveMentions,
+          }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => null);
           throw new Error(body?.error || "Failed to update");
         }
+        // Take the server's version of the row: it carries the
+        // re-resolved mentions that drive the gold chips, which the
+        // optimistic string alone can't know about.
+        const updated: {
+          content?: string;
+          updatedAt?: string;
+          mentions?: MentionRef[];
+        } | null = await res.json().catch(() => null);
+        // Retire every fetch that was issued before this write, then
+        // apply the server row.
+        editCommitSeqRef.current += 1;
+        updateAnyMessage(messageId, (m) => ({
+          ...m,
+          content: updated?.content ?? content,
+          updatedAt: updated?.updatedAt ?? m.updatedAt,
+          mentions: updated?.mentions ?? m.mentions,
+        }));
       } catch (err) {
         restoreSnapshot(snapshot);
         toast.error(
           err instanceof Error ? err.message : "Failed to update"
         );
+      } finally {
+        if (savingEditIdRef.current === messageId) {
+          savingEditIdRef.current = null;
+        }
       }
     },
-    [editingContent, captureSnapshot, restoreSnapshot, updateAnyMessage]
+    [
+      editingContent,
+      editMentionUserIds,
+      members,
+      endpoints,
+      captureSnapshot,
+      restoreSnapshot,
+      updateAnyMessage,
+    ]
   );
 
   // ── Delete ───────────────────────────────────────────────
@@ -1265,11 +1409,41 @@ export function MessagesView({
     }
   };
 
-  const copyLink = (messageId: string) => {
-    const url = `${window.location.href.split("#")[0]}#message-${messageId}`;
-    navigator.clipboard.writeText(url);
-    toast.success("Link copied");
-  };
+  // Build the link the deep-link effect above actually understands.
+  // The old "#message-<id>" fragment was read by nothing, and the feed
+  // isn't even mounted at the moment a browser would resolve a hash,
+  // so the recipient just landed at the top of the tab.
+  const copyLink = useCallback(
+    async (messageId: string, rootId?: string) => {
+      const url = new URL(window.location.href);
+      url.hash = "";
+      url.searchParams.set("message", messageId);
+      if (rootId && rootId !== messageId) {
+        url.searchParams.set("thread", rootId);
+      } else {
+        url.searchParams.delete("thread");
+      }
+      // Whoever opens the link may have a different default tab on
+      // this project, so pin the view when the URL doesn't carry one.
+      if (scope.type === "project" && !url.searchParams.get("view")) {
+        url.searchParams.set("view", "messages");
+      }
+      try {
+        await navigator.clipboard.writeText(url.toString());
+        toast.success("Link copied");
+      } catch {
+        toast.error("Couldn't copy the link");
+      }
+    },
+    [scope.type]
+  );
+
+  // A portfolio's tabs are not URL-addressable, so a link into its
+  // Messages tab lands the recipient on the default tab with this
+  // view never mounted — the deep-link effect can't run. Until that
+  // page reads its tab from the URL, don't offer a link that can't
+  // work rather than toast "Link copied" over a dead one.
+  const canCopyLink = scope.type !== "portfolio";
 
   // Sort: pinned first, then newest first (Asana's Messages feed).
   const sorted = [...messages].sort((a, b) => {
@@ -1469,7 +1643,8 @@ export function MessagesView({
                 onDelete={() => handleDelete(m.id)}
                 onPinToggle={() => handlePinToggle(m.id, m.isPinned)}
                 onReact={(emoji) => handleReact(m.id, emoji)}
-                onCopyLink={() => copyLink(m.id)}
+                onCopyLink={() => void copyLink(m.id)}
+                canCopyLink={canCopyLink}
                 onOpenAttachment={(idx) =>
                   setViewer({ messageId: m.id, index: idx })
                 }
@@ -1501,7 +1676,7 @@ export function MessagesView({
                   handleReact(replyId, emoji)
                 }
                 onReplyDelete={(replyId) => handleDelete(replyId)}
-                onReplyCopyLink={(replyId) => copyLink(replyId)}
+                onReplyCopyLink={(replyId) => void copyLink(replyId, m.id)}
                 onReplyOpenAttachment={(replyId, idx) =>
                   setViewer({ messageId: replyId, index: idx })
                 }
@@ -1521,6 +1696,11 @@ export function MessagesView({
                     if (list.includes(member.id)) return prev;
                     return { ...prev, [m.id]: [...list, member.id] };
                   })
+                }
+                onEditMentionAdd={(member) =>
+                  setEditMentionUserIds((prev) =>
+                    prev.includes(member.id) ? prev : [...prev, member.id]
+                  )
                 }
               />
               ))(item.message)
@@ -1587,6 +1767,9 @@ interface MessageItemProps {
   onPinToggle: () => void;
   onReact: (emoji: string) => void;
   onCopyLink: () => void;
+  // False where this surface has no addressable URL, so the action
+  // is hidden instead of handing out a link that opens nothing.
+  canCopyLink?: boolean;
   onOpenAttachment: (index: number) => void;
   onDeleteAttachment: (attachmentId: string) => void;
   onAddFiles: (files: File[]) => void;
@@ -1616,9 +1799,10 @@ interface MessageItemProps {
     attachmentId: string
   ) => void;
   onReplyAddFiles?: (replyId: string, files: File[]) => void;
-  // @ mention plumbing for the reply composer
+  // @ mention plumbing for the reply composer and the edit surface
   members?: ProjectMemberLite[];
   onReplyMentionAdd?: (member: ProjectMemberLite) => void;
+  onEditMentionAdd?: (member: ProjectMemberLite) => void;
 }
 
 function MessageItem({
@@ -1637,6 +1821,7 @@ function MessageItem({
   onPinToggle,
   onReact,
   onCopyLink,
+  canCopyLink = true,
   onOpenAttachment,
   onDeleteAttachment,
   onAddFiles,
@@ -1662,6 +1847,7 @@ function MessageItem({
   onReplyAddFiles,
   members,
   onReplyMentionAdd,
+  onEditMentionAdd,
 }: MessageItemProps) {
   const addFilesInputRef = useRef<HTMLInputElement | null>(null);
   const replyCount = message.replyCount ?? 0;
@@ -1678,7 +1864,11 @@ function MessageItem({
     <div
       id={`message-${m.id}`}
       className={cn(
-        "bg-white rounded-lg border shadow-sm overflow-hidden group transition-shadow",
+        // No overflow-hidden here: the @-mention picker in the edit
+        // surface is absolutely positioned and would be clipped to a
+        // sliver by the card. The two children that actually need
+        // clipping (attachment tiles, thread surface) round themselves.
+        "bg-white rounded-lg border shadow-sm group transition-shadow",
         m.isPinned && "border-l-4 border-l-[#c9a84c]",
         highlighted &&
           "ring-2 ring-[#c9a84c] ring-offset-2 ring-offset-slate-50 shadow-lg animate-pulse"
@@ -1754,13 +1944,15 @@ function MessageItem({
             </button>
           )}
 
-          <button
-            onClick={onCopyLink}
-            className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
-            title="Copy link"
-          >
-            <Link2 className="w-4 h-4" />
-          </button>
+          {canCopyLink && (
+            <button
+              onClick={onCopyLink}
+              className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+              title="Copy link"
+            >
+              <Link2 className="w-4 h-4" />
+            </button>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1800,18 +1992,17 @@ function MessageItem({
       <div className="px-4 pb-3 pl-[52px]">
         {editing ? (
           <div className="space-y-2">
-            <textarea
+            {/* The edit surface used to be a plain textarea, so an @
+                typed while editing was never resolved to a user and
+                nobody got notified. */}
+            <MentionTextarea
               value={editingContent}
-              onChange={(e) => onEditingContentChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  onCommitEdit();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  onCancelEdit();
-                }
-              }}
+              onChange={onEditingContentChange}
+              members={members || []}
+              onMentionAdd={(member) => onEditMentionAdd?.(member)}
+              onSend={onCommitEdit}
+              onEscape={onCancelEdit}
+              placement="bottom"
               rows={3}
               autoFocus
               maxLength={10000}
@@ -1973,7 +2164,7 @@ function MessageItem({
 
       {/* ── Thread surface (root messages only) ─────────────── */}
       {!isReply && (hasThread || threadExpanded) && (
-        <div className="border-t bg-slate-50/60">
+        <div className="border-t bg-slate-50/60 rounded-b-lg">
           <button
             type="button"
             onClick={onToggleThread}
@@ -2026,6 +2217,7 @@ function MessageItem({
                     onPinToggle={() => {}}
                     onReact={(emoji) => onReplyReact?.(r.id, emoji)}
                     onCopyLink={() => onReplyCopyLink?.(r.id)}
+                    canCopyLink={canCopyLink}
                     onOpenAttachment={(idx) =>
                       onReplyOpenAttachment?.(r.id, idx)
                     }
@@ -2035,6 +2227,8 @@ function MessageItem({
                     onAddFiles={(files) =>
                       onReplyAddFiles?.(r.id, files)
                     }
+                    members={members}
+                    onEditMentionAdd={onEditMentionAdd}
                   />
                 ))
               )}
@@ -2112,9 +2306,11 @@ function ReplyComposer({
 // and reports the resolved userId via onMentionAdd so the parent
 // can stage it for the eventual POST.
 //
-// The picker pops up above the textarea (using bottom-full) so it
-// never gets clipped by the composer container. Keyboard nav: Up/
-// Down to highlight, Enter/Tab to confirm, Escape to cancel.
+// The picker pops up above the textarea (using bottom-full) because
+// the composers sit at the bottom of their surface; `placement`
+// flips it below for callers that sit near the top of theirs.
+// Keyboard nav: Up/Down to highlight, Enter/Tab to confirm, Escape
+// to cancel.
 //
 // Members are filtered case-insensitively against the in-progress
 // query (the text between "@" and the cursor). Only the first 8
@@ -2126,12 +2322,20 @@ interface MentionTextareaProps {
   members: ProjectMemberLite[];
   onMentionAdd: (member: ProjectMemberLite) => void;
   onSend: () => void;
+  // Escape with no @ picker open — used by the edit surface to
+  // abandon the edit, the way its plain textarea used to.
+  onEscape?: () => void;
   placeholder?: string;
   disabled?: boolean;
   rows?: number;
   maxLength?: number;
   className?: string;
+  autoFocus?: boolean;
   textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
+  // Which side the picker opens on. Defaults to "top" (the
+  // composers); the edit surface passes "bottom" because it is the
+  // first thing in a message card and has nothing above it.
+  placement?: "top" | "bottom";
 }
 
 function MentionTextarea({
@@ -2140,12 +2344,15 @@ function MentionTextarea({
   members,
   onMentionAdd,
   onSend,
+  onEscape,
   placeholder,
   disabled,
   rows = 1,
   maxLength,
   className,
+  autoFocus,
   textareaRef,
+  placement = "top",
 }: MentionTextareaProps) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef ?? localRef;
@@ -2237,6 +2444,11 @@ function MentionTextarea({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onSend();
+      return;
+    }
+    if (e.key === "Escape" && onEscape) {
+      e.preventDefault();
+      onEscape();
     }
   };
 
@@ -2275,10 +2487,16 @@ function MentionTextarea({
         rows={rows}
         maxLength={maxLength}
         disabled={disabled}
+        autoFocus={autoFocus}
         className={className}
       />
       {trigger && matches.length > 0 && (
-        <div className="absolute left-0 bottom-full mb-1 w-64 max-h-64 overflow-auto rounded-md border bg-white shadow-lg z-20">
+        <div
+          className={cn(
+            "absolute left-0 w-64 max-h-64 overflow-auto rounded-md border bg-white shadow-lg z-20",
+            placement === "bottom" ? "top-full mt-1" : "bottom-full mb-1"
+          )}
+        >
           <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-slate-400 border-b">
             Mention
           </div>

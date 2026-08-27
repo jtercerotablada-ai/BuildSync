@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useId } from "react";
 import {
   Dialog,
   DialogContent,
@@ -115,6 +115,20 @@ interface Props {
   onDeleted?: (formId: string) => void;
 }
 
+/** Everything the builder edits, in one shape, so the hydrated values can be
+ *  compared against the current ones to tell whether closing would lose work. */
+interface BuilderSnapshot {
+  name: string;
+  description: string;
+  fields: FormField[];
+  defaultSectionId: string | null;
+  defaultAssigneeId: string | null;
+  confirmationMessage: string;
+  notifyOnSubmission: boolean;
+  visibility: "PUBLIC" | "ORGANIZATION";
+  coverImageUrl: string | null;
+}
+
 const FIELD_TYPE_OPTIONS: {
   value: FormFieldType;
   label: string;
@@ -153,6 +167,31 @@ function emptyField(type: FormFieldType = "TEXT"): FormField {
     required: false,
     options: type === "SELECT" || type === "MULTI_SELECT" ? ["Option 1"] : undefined,
   };
+}
+
+/** A branching rule can outlive the field it points at: older builds let the
+ *  controlling field be retyped or deleted without touching its dependents, and
+ *  the API's schema accepts the result. Those forms now fail save validation, so
+ *  clear the dead rules on the way into the builder rather than leaving the form
+ *  stuck behind an error it can't reach the controls to fix. Only rules left
+ *  without a usable controlling field are cleared — one whose option was merely
+ *  renamed still has working pickers, so it is left for the user to repair. */
+function clearDeadBranching(fields: FormField[]): {
+  fields: FormField[];
+  clearedLabels: string[];
+} {
+  const clearedLabels: string[] = [];
+  const healed = fields.map((f) => {
+    const rule = f.showWhen;
+    if (!rule) return f;
+    const dep = fields.find((c) => c.id === rule.fieldId);
+    if (!dep || (dep.type !== "SELECT" && dep.type !== "MULTI_SELECT")) {
+      clearedLabels.push(f.label || "Untitled");
+      return { ...f, showWhen: undefined };
+    }
+    return f;
+  });
+  return { fields: clearedLabels.length > 0 ? healed : fields, clearedLabels };
 }
 
 export function FormBuilderDialog({
@@ -206,29 +245,55 @@ export function FormBuilderDialog({
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [pickersLoaded, setPickersLoaded] = useState(false);
 
+  // Every value the builder edits lives in local state and is re-hydrated from
+  // `initial` on the next open, so a reflex Escape, a click beside the modal or
+  // the X used to throw away the whole editing session without asking. Keep the
+  // hydrated values around so closing can tell whether it would lose work.
+  const pristineRef = useRef<BuilderSnapshot | null>(null);
+
   // ── Hydrate from `initial` on open ─────────────────────────────
   useEffect(() => {
     if (!open) return;
     if (initial) {
-      setName(initial.name);
-      setDescription(initial.description || "");
-      setFields(
+      const { fields: hydratedFields, clearedLabels } = clearDeadBranching(
         Array.isArray(initial.fields) && initial.fields.length > 0
           ? initial.fields
           : [emptyField("TEXT")]
       );
-      setDefaultSectionId(initial.defaultSectionId);
-      setDefaultAssigneeId(initial.defaultAssigneeId);
-      setConfirmationMessage(initial.confirmationMessage || "");
-      setNotifyOnSubmission(initial.notifyOnSubmission);
-      setVisibility(initial.visibility);
+      if (clearedLabels.length > 0) {
+        toast.warning(
+          clearedLabels.length === 1
+            ? `Cleared a branching rule on "${clearedLabels[0]}" — the field it depended on is no longer a Dropdown or Multi-select. Save to keep this.`
+            : `Cleared ${clearedLabels.length} branching rules whose controlling fields are no longer Dropdowns or Multi-selects. Save to keep this.`
+        );
+      }
       // Cover image lives inside the open-ended settings JSON so we
       // don't need a schema migration. FormRow types the bag, so any API
       // response shape that forgets to return it is a compile error rather
       // than a silent cover wipe on the next save.
       const settings = initial.settings;
-      setCoverImageUrl(settings?.coverImageUrl || null);
+      const hydratedCover = settings?.coverImageUrl || null;
+      setName(initial.name);
+      setDescription(initial.description || "");
+      setFields(hydratedFields);
+      setDefaultSectionId(initial.defaultSectionId);
+      setDefaultAssigneeId(initial.defaultAssigneeId);
+      setConfirmationMessage(initial.confirmationMessage || "");
+      setNotifyOnSubmission(initial.notifyOnSubmission);
+      setVisibility(initial.visibility);
+      setCoverImageUrl(hydratedCover);
       setCoverInput(settings?.coverImageUrl || "");
+      pristineRef.current = {
+        name: initial.name,
+        description: initial.description || "",
+        fields: hydratedFields,
+        defaultSectionId: initial.defaultSectionId,
+        defaultAssigneeId: initial.defaultAssigneeId,
+        confirmationMessage: initial.confirmationMessage || "",
+        notifyOnSubmission: initial.notifyOnSubmission,
+        visibility: initial.visibility,
+        coverImageUrl: hydratedCover,
+      };
       // Favorites are per-user, per-form, in localStorage.
       if (typeof window !== "undefined") {
         try {
@@ -245,9 +310,7 @@ export function FormBuilderDialog({
       // empty description, and two pre-built fields: Name (required,
       // maps to task name) + Email (required). Asana ships the
       // same two defaults so submitters always identify themselves.
-      setName("");
-      setDescription("");
-      setFields([
+      const defaultFields: FormField[] = [
         {
           ...emptyField("TEXT"),
           label: "Name",
@@ -259,7 +322,10 @@ export function FormBuilderDialog({
           label: "Email address",
           required: true,
         },
-      ]);
+      ];
+      setName("");
+      setDescription("");
+      setFields(defaultFields);
       setDefaultSectionId(null);
       setDefaultAssigneeId(null);
       setConfirmationMessage("");
@@ -268,11 +334,63 @@ export function FormBuilderDialog({
       setCoverImageUrl(null);
       setCoverInput("");
       setIsFavorite(false);
+      pristineRef.current = {
+        name: "",
+        description: "",
+        fields: defaultFields,
+        defaultSectionId: null,
+        defaultAssigneeId: null,
+        confirmationMessage: "",
+        notifyOnSubmission: true,
+        visibility: "PUBLIC",
+        coverImageUrl: null,
+      };
     }
     setTab("build");
     setActiveFieldId(null);
     setSubmissionsOpen(false);
   }, [open, initial]);
+
+  const hasUnsavedChanges = useCallback(() => {
+    const pristine = pristineRef.current;
+    if (!pristine) return false;
+    const current: BuilderSnapshot = {
+      name,
+      description,
+      fields,
+      defaultSectionId,
+      defaultAssigneeId,
+      confirmationMessage,
+      notifyOnSubmission,
+      visibility,
+      coverImageUrl,
+    };
+    return JSON.stringify(pristine) !== JSON.stringify(current);
+  }, [
+    name,
+    description,
+    fields,
+    defaultSectionId,
+    defaultAssigneeId,
+    confirmationMessage,
+    notifyOnSubmission,
+    visibility,
+    coverImageUrl,
+  ]);
+
+  /** Every user-driven way out of the dialog (Escape, backdrop, the X, Cancel)
+   *  funnels through here so unsaved work is never dropped without asking.
+   *  Programmatic closes after a successful save or delete call onOpenChange
+   *  directly and skip the prompt on purpose. */
+  const requestClose = useCallback(() => {
+    if (
+      hasUnsavedChanges() &&
+      !window.confirm("Discard your unsaved changes to this form?")
+    ) {
+      return;
+    }
+    onOpenChange(false);
+  }, [hasUnsavedChanges, onOpenChange]);
 
   const pickTemplate = useCallback((template: FormTemplate) => {
     setName(template.name);
@@ -332,11 +450,65 @@ export function FormBuilderDialog({
     setFields((prev) => [...prev, emptyField(type)]);
   }, []);
 
+  // A branching rule stores the controlling option as a literal string. Renaming
+  // or deleting that option — or turning the controlling field into a type that
+  // can't drive branching — used to leave dependents pointing at a value that no
+  // longer exists, so the rule quietly stopped matching and the follow-up
+  // questions never appeared on the public form. Keep the dependents in step.
   const updateField = useCallback(
     (id: string, patch: Partial<FormField>) => {
-      setFields((prev) =>
-        prev.map((f) => (f.id === id ? { ...f, ...patch } : f))
-      );
+      setFields((prev) => {
+        const before = prev.find((f) => f.id === id);
+        const next = prev.map((f) => (f.id === id ? { ...f, ...patch } : f));
+        if (!before) return next;
+        if (before.type !== "SELECT" && before.type !== "MULTI_SELECT") {
+          return next;
+        }
+        if (
+          patch.type !== undefined &&
+          patch.type !== "SELECT" &&
+          patch.type !== "MULTI_SELECT"
+        ) {
+          return next.map((f) =>
+            f.id !== id && f.showWhen?.fieldId === id
+              ? { ...f, showWhen: undefined }
+              : f
+          );
+        }
+        if (!patch.options) return next;
+        const oldOptions = before.options || [];
+        const newOptions = patch.options;
+        // The options editor edits in place, so a same-length change is a
+        // rename at that index and a shorter list is a deletion.
+        const renamed = new Map<string, string>();
+        if (oldOptions.length === newOptions.length) {
+          oldOptions.forEach((opt, i) => {
+            if (newOptions[i] !== opt) renamed.set(opt, newOptions[i]);
+          });
+        }
+        const dropped = new Set(
+          oldOptions.filter((o) => !newOptions.includes(o) && !renamed.has(o))
+        );
+        if (renamed.size === 0 && dropped.size === 0) return next;
+        return next.map((f) => {
+          const rule = f.showWhen;
+          if (f.id === id || !rule || rule.fieldId !== id) return f;
+          const wanted = Array.isArray(rule.equals) ? rule.equals : [rule.equals];
+          const remapped = wanted
+            .map((v) => renamed.get(v) ?? v)
+            .filter((v) => !dropped.has(v));
+          // Nothing left to match on — the branch could never fire again,
+          // so drop it and let the field show unconditionally.
+          if (remapped.length === 0) return { ...f, showWhen: undefined };
+          return {
+            ...f,
+            showWhen: {
+              fieldId: id,
+              equals: Array.isArray(rule.equals) ? remapped : remapped[0],
+            },
+          };
+        });
+      });
     },
     []
   );
@@ -384,6 +556,7 @@ export function FormBuilderDialog({
     if (dataFields.length === 0) {
       return { ok: false, msg: "Add at least one field" };
     }
+    const byId = new Map(fields.map((f) => [f.id, f] as const));
     for (const f of fields) {
       if (!f.label.trim()) return { ok: false, msg: "Every field needs a label" };
       if (f.type === "SELECT" || f.type === "MULTI_SELECT") {
@@ -395,6 +568,39 @@ export function FormBuilderDialog({
         // clear, field-specific message instead of a cryptic 400 on save.
         if (f.options.some((o) => !o.trim())) {
           return { ok: false, msg: `"${f.label}" has an empty option` };
+        }
+      }
+      // The submission → task mapping only reads dueDate off a DATE field, so
+      // a mapping left behind by a type change would render a "→ dueDate"
+      // badge here while every submission quietly landed with no deadline.
+      if (f.mapTo === "dueDate" && f.type !== "DATE") {
+        return {
+          ok: false,
+          msg: `"${f.label}" maps to the task due date but is not a Date field`,
+        };
+      }
+      // A branching rule that no longer resolves shows the field to everyone
+      // instead of branching. Say so rather than shipping a form that looks
+      // conditional and isn't.
+      if (f.showWhen) {
+        const dep = byId.get(f.showWhen.fieldId);
+        if (!dep || (dep.type !== "SELECT" && dep.type !== "MULTI_SELECT")) {
+          return {
+            ok: false,
+            msg: `"${f.label}" only shows when another field matches, but that field is no longer a Dropdown or Multi-select`,
+          };
+        }
+        const wanted = Array.isArray(f.showWhen.equals)
+          ? f.showWhen.equals
+          : [f.showWhen.equals];
+        const missing = wanted.filter(
+          (v) => !(dep.options || []).includes(v)
+        );
+        if (missing.length > 0) {
+          return {
+            ok: false,
+            msg: `"${f.label}" branches on "${missing[0]}", which is no longer an option of "${dep.label}"`,
+          };
         }
       }
     }
@@ -488,6 +694,14 @@ export function FormBuilderDialog({
           }),
         });
         if (!res.ok) throw new Error();
+        // The cover saves on its own PATCH, so it must stop counting as an
+        // unsaved change or closing would prompt about work already stored.
+        if (pristineRef.current) {
+          pristineRef.current = {
+            ...pristineRef.current,
+            coverImageUrl: url || null,
+          };
+        }
         toast.success(url ? "Cover image saved" : "Cover image removed");
       } catch {
         toast.error("Couldn't save the cover image");
@@ -523,12 +737,15 @@ export function FormBuilderDialog({
 
   // ── Delete: confirms, soft-deletes (closes the form so submissions are
   //    preserved — a hard DELETE cascades them away), tells the parent to
-  //    drop it from the list, then closes the dialog. ─
+  //    drop it from the list, then closes the dialog. The rows survive in the
+  //    database but nothing in the app lists an inactive form, so the
+  //    submissions inbox behind it becomes unreachable — the confirmation has
+  //    to say that instead of the reassuring "past submissions are kept". ─
   async function handleDelete() {
     if (!initial?.id) return;
     if (
       !window.confirm(
-        `Delete the form "${initial.name}"? New submissions will be rejected; past submissions are kept.`
+        `Delete the form "${initial.name}"?\n\nIt stops accepting submissions and leaves this project's form list. Its past submissions stay in the database, but no screen can open them again — export anything you still need first. This can't be undone from the app.`
       )
     )
       return;
@@ -567,7 +784,10 @@ export function FormBuilderDialog({
   // organización pueden acceder…" line, kept dynamic to the
   // visibility setting so it stays accurate.
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : requestClose())}
+    >
       <DialogContent className="w-[95vw] sm:max-w-[1280px] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-5 pb-3 border-b">
           {/* Title row — Asana puts inline actions on the right
@@ -800,7 +1020,7 @@ export function FormBuilderDialog({
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
               Preview
             </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={requestClose}>
               Cancel
             </Button>
             <Button
@@ -1269,6 +1489,13 @@ function FieldRow({
                           ? field.options
                           : ["Option 1"]
                         : undefined,
+                    // The due date is only ever read off a DATE answer, so a
+                    // mapping carried over from the old type would keep the
+                    // "→ dueDate" badge on a field that can never set one.
+                    mapTo:
+                      field.mapTo === "dueDate" && v !== "DATE"
+                        ? undefined
+                        : field.mapTo,
                   })
                 }
               >
@@ -1471,13 +1698,20 @@ function BranchingEditor({
   showWhen?: FormFieldShowWhen;
   onChange: (rule: FormFieldShowWhen | undefined) => void;
 }) {
+  const toggleId = useId();
   const hasCandidates = previousFields.length > 0;
+  // A rule can survive the field it points at — the controlling field is dragged
+  // below this one, or was already orphaned before the builder started keeping
+  // dependents in step. Keep the switch on screen in that case, with nothing to
+  // point at, so the rule can still be turned off; hiding it left the field
+  // permanently unsavable with no control to reach.
+  const orphaned = !!showWhen && !hasCandidates;
   return (
     <div className="border border-dashed border-slate-300 rounded-md p-3 bg-white">
       <Label className="text-[11px] uppercase tracking-wider text-slate-500 mb-1.5 block">
         Conditional visibility
       </Label>
-      {!hasCandidates ? (
+      {!hasCandidates && !showWhen ? (
         <p className="text-[12px] text-slate-400 italic">
           Add a Dropdown or Multi-select field above to enable branching for
           this field.
@@ -1486,10 +1720,10 @@ function BranchingEditor({
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Switch
-              id={`branch-toggle-${previousFields[0].id}`}
+              id={toggleId}
               checked={!!showWhen}
               onCheckedChange={(c) => {
-                if (!c) onChange(undefined);
+                if (!c || !hasCandidates) onChange(undefined);
                 else {
                   const first = previousFields[0];
                   onChange({
@@ -1503,7 +1737,14 @@ function BranchingEditor({
               Only show this field when…
             </span>
           </div>
-          {showWhen && (
+          {orphaned && (
+            <p className="text-[12px] text-amber-700 pl-8">
+              This rule points at a field that can&apos;t drive branching from
+              here — it has to be a Dropdown or Multi-select placed above this
+              one. Turn the rule off, or move that field up.
+            </p>
+          )}
+          {hasCandidates && showWhen && (
             <div className="flex flex-wrap items-center gap-2 pl-8 text-[12px]">
               <Select
                 value={showWhen.fieldId}

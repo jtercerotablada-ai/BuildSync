@@ -276,6 +276,11 @@ interface Task {
   _count: { subtasks: number; comments: number; attachments: number; likes?: number };
 }
 
+/** What an inline built-in cell (Priority, Tags) hands back after it
+ *  saves. `_count` is excluded because BuiltinFieldCell types it more
+ *  loosely than the list does, and those cells never write it. */
+type InlineTaskPatch = Partial<Omit<Task, "_count">>;
+
 interface SmartSection {
   id: string;
   name: string;
@@ -506,6 +511,19 @@ export default function MyTasksPage() {
   }>({ col: null });
   const [calendarFeedLoading, setCalendarFeedLoading] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
+  /** Confirmation for a drag that would reassign a task's project or
+   *  assignee. The whole row is the drag handle and the sensor fires
+   *  after 5px, so under Group-by-Project / Group-by-Assignee a sloppy
+   *  click used to silently hand the task to another project (dropping
+   *  its section) or to another person (emailing them) with no undo.
+   *  `resolve` is the pending drag's promise callback — answering the
+   *  dialog either lets the move proceed or refuses it. */
+  const [moveConfirm, setMoveConfirm] = useState<{
+    taskName: string;
+    destName: string;
+    kind: "project" | "assignee";
+  } | null>(null);
+  const moveConfirmResolve = useRef<((ok: boolean) => void) | null>(null);
 
   // Per-user UI preferences — server-backed via useUiState so they
   // follow the user across devices/browsers. We bundle the my-tasks
@@ -917,11 +935,27 @@ export default function MyTasksPage() {
   // mount-render groupType closure) would leave stale buckets on screen
   // while the control shows the restored grouping. Guarded on
   // tasks.length so we don't wipe sections to empty during hydration.
+  // Every date bucket and every "Overdue · N days" label is derived from "today",
+  // and "today" was only ever read during a render. A machine left open overnight
+  // therefore kept yesterday's buckets and labels until somebody reloaded the page.
+  // Bumping this key at the next local midnight re-runs the derivation.
+  const [todayKey, setTodayKey] = useState(() => new Date().toDateString());
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timer = setTimeout(
+      () => setTodayKey(new Date().toDateString()),
+      nextMidnight.getTime() - now.getTime() + 1000
+    );
+    return () => clearTimeout(timer);
+  }, [todayKey]);
+
   useEffect(() => {
     if (tasks.length === 0) return;
     organizeTasks(tasks, groupType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, groupType, groupConfigs, personalSections, taskSectionMap]);
+  }, [tasks, groupType, groupConfigs, personalSections, taskSectionMap, todayKey]);
 
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -1260,17 +1294,31 @@ export default function MyTasksPage() {
         buckets.get(sid)!.push(task);
       });
 
-      const result: SmartSection[] = personalSections.map((s) => ({
+      let result: SmartSection[] = personalSections.map((s) => ({
         id: s.id,
         name: s.name,
         collapsed: false,
         tasks: (buckets.get(s.id) ?? []).sort(sortFn),
       }));
+      // The Groups panel offers Custom/Ascending/Descending and Hide empty groups
+      // for every field, but this branch — the DEFAULT view — read neither, so the
+      // menu moved its checkmark and the list stayed exactly the same. "Custom"
+      // keeps the user's own section order, which is what drag-reorder writes.
+      const primaryCfg = groupConfigs[0];
+      if (primaryCfg?.order === "asc") {
+        result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+      } else if (primaryCfg?.order === "desc") {
+        result = [...result].sort((a, b) => b.name.localeCompare(a.name));
+      }
+      if (primaryCfg?.hideEmpty) {
+        result = result.filter((s) => s.tasks.length > 0);
+      }
       setSections(result);
       return;
     }
 
     if (activeGroup === "project") {
+      const primaryCfg = groupConfigs[0];
       const byProject = new Map<string, Task[]>();
       byProject.set("no-project", []);
       activeTasks.forEach((task) => {
@@ -1278,31 +1326,57 @@ export default function MyTasksPage() {
         if (!byProject.has(key)) byProject.set(key, []);
         byProject.get(key)!.push(task);
       });
-      const result: SmartSection[] = [];
+      let result: SmartSection[] = [];
       byProject.forEach((tasks, key) => {
-        if (tasks.length === 0) return;
-        const name = key === "no-project" ? "No project" : tasks[0].project?.name || "Unknown";
+        const name = key === "no-project" ? "No project" : tasks[0]?.project?.name || "Unknown";
         result.push({ id: key, name, collapsed: false, tasks });
       });
+      if (primaryCfg?.order === "asc") {
+        result.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (primaryCfg?.order === "desc") {
+        result.sort((a, b) => b.name.localeCompare(a.name));
+      }
+      // This branch used to drop every empty bucket unconditionally, which made
+      // "Hide empty groups" a no-op. Now only the seeded "No project" catch-all is
+      // dropped when it is empty, matching the date groupings.
+      if (primaryCfg?.hideEmpty) {
+        result = result.filter((s) => s.tasks.length > 0);
+      } else {
+        result = result.filter((s) => s.id !== "no-project" || s.tasks.length > 0);
+      }
       setSections(result);
       return;
     }
 
     if (activeGroup === "priority") {
+      const primaryCfg = groupConfigs[0];
       const priorities = ["HIGH", "MEDIUM", "LOW", "NONE"] as const;
       const labels = { HIGH: "High priority", MEDIUM: "Medium priority", LOW: "Low priority", NONE: "No priority" };
-      const result: SmartSection[] = priorities.map((p) => ({
+      let result: SmartSection[] = priorities.map((p) => ({
         id: p,
         name: labels[p],
         collapsed: false,
         tasks: activeTasks.filter((t) => (t.priority || "NONE") === p),
-      })).filter((s) => s.tasks.length > 0);
+      }));
+      // Priority is ordinal, so Descending reverses the High→Low sequence rather
+      // than sorting by label; "No priority" stays last either way. Neither this
+      // nor hideEmpty was read here before — the branch always dropped empties.
+      if (primaryCfg?.order === "desc") {
+        const noneBucket = result[result.length - 1];
+        result = [...result.slice(0, -1).reverse(), noneBucket];
+      }
+      if (primaryCfg?.hideEmpty) {
+        result = result.filter((s) => s.tasks.length > 0);
+      } else {
+        result = result.filter((s) => s.id !== "NONE" || s.tasks.length > 0);
+      }
       setSections(result);
       return;
     }
 
     if (activeGroup === "assignee") {
       // Bucket by assignee user id, surfacing "Unassigned" last
+      const primaryCfg = groupConfigs[0];
       const byAssignee = new Map<string, { name: string; tasks: Task[] }>();
       activeTasks.forEach((task) => {
         const id = task.assignee?.id || "unassigned";
@@ -1310,14 +1384,24 @@ export default function MyTasksPage() {
         if (!byAssignee.has(id)) byAssignee.set(id, { name, tasks: [] });
         byAssignee.get(id)!.tasks.push(task);
       });
-      const result: SmartSection[] = [];
+      let result: SmartSection[] = [];
       byAssignee.forEach(({ name, tasks }, id) => {
         if (tasks.length === 0 || id === "unassigned") return;
         result.push({ id, name, collapsed: false, tasks });
       });
+      // Order was ignored here too. Sorting happens before "Unassigned" is
+      // appended so that bucket keeps its pinned last position.
+      if (primaryCfg?.order === "asc") {
+        result.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (primaryCfg?.order === "desc") {
+        result.sort((a, b) => b.name.localeCompare(a.name));
+      }
       const unassigned = byAssignee.get("unassigned");
       if (unassigned && unassigned.tasks.length > 0) {
         result.push({ id: "unassigned", name: "Unassigned", collapsed: false, tasks: unassigned.tasks });
+      }
+      if (primaryCfg?.hideEmpty) {
+        result = result.filter((s) => s.tasks.length > 0);
       }
       setSections(result);
       return;
@@ -2086,14 +2170,16 @@ export default function MyTasksPage() {
   // touching the DB. Getting this wrong (the old code always wrote
   // myTaskSection) corrupted state under Project/Priority/Assignee
   // groupings — it failed to move AND wiped any prior myTaskSection.
+  // Returns false when nothing was written, so the caller can restore
+  // the arrangement its drag handler already applied locally.
   async function handleMoveTaskToSection(
     taskId: string,
     destSectionId: string
-  ) {
+  ): Promise<boolean> {
     // ── Personal-sections grouping (the default) ──────────────────
     if (groupType === "sections") {
       await moveTaskToPersonalSection(taskId, destSectionId);
-      return;
+      return true;
     }
 
     // Build the PATCH body for the active grouping. `null` body means
@@ -2101,6 +2187,10 @@ export default function MyTasksPage() {
     let patch: Record<string, unknown> | null = null;
     // Optimistic mutation applied to the in-memory task.
     let applyOptimistic: (t: Task) => Task = (t) => t;
+    // Set for the two groupings whose drop rewrites a shared field
+    // (project / assignee) rather than a personal one — those ask first.
+    let confirmKind: "project" | "assignee" | null = null;
+    let confirmDestName = "";
 
     if (groupType === "project") {
       const projectId = destSectionId === "no-project" ? null : destSectionId;
@@ -2116,6 +2206,8 @@ export default function MyTasksPage() {
         : null;
       const destName =
         sections.find((s) => s.id === destSectionId)?.name ?? "Unknown";
+      confirmKind = "project";
+      confirmDestName = destName;
       applyOptimistic = (t) =>
         t.id === taskId
           ? {
@@ -2152,6 +2244,8 @@ export default function MyTasksPage() {
         : null;
       const destName =
         sections.find((s) => s.id === destSectionId)?.name ?? null;
+      confirmKind = "assignee";
+      confirmDestName = destName ?? "Unassigned";
       applyOptimistic = (t) =>
         t.id === taskId
           ? {
@@ -2177,7 +2271,7 @@ export default function MyTasksPage() {
       };
       if (!(destSectionId in sectionMap)) {
         toast.info("Can't drop here in this grouping");
-        return;
+        return false;
       }
       const myTaskSection = sectionMap[destSectionId];
       patch = { myTaskSection };
@@ -2192,7 +2286,21 @@ export default function MyTasksPage() {
 
     // group=none / unknown → no meaningful destination; bail without a
     // corrupting write. Nothing moved optimistically, so no revert.
-    if (!patch) return;
+    if (!patch) return false;
+
+    // Reassigning the project or the owner is not a personal
+    // rearrangement: it moves the task out of a project (the API also
+    // clears its section) or hands it to a colleague and emails them.
+    // Ask before writing — the row is its own drag handle, so these
+    // drops are easy to start by accident.
+    if (confirmKind) {
+      const ok = await confirmTaskReassignment({
+        taskName: tasks.find((t) => t.id === taskId)?.name ?? "this task",
+        destName: confirmDestName,
+        kind: confirmKind,
+      });
+      if (!ok) return false;
+    }
 
     const updatedTasks = tasks.map(applyOptimistic);
     setTasks(updatedTasks);
@@ -2211,6 +2319,49 @@ export default function MyTasksPage() {
       toast.error("Couldn't move task — reverting");
       fetchTasks(true);
     }
+    return true;
+  }
+
+  /** Opens the reassignment confirmation and resolves with the answer.
+   *  Any already-pending question is answered "no" first so a second
+   *  drag can never leave an orphaned promise hanging. */
+  function confirmTaskReassignment(info: {
+    taskName: string;
+    destName: string;
+    kind: "project" | "assignee";
+  }): Promise<boolean> {
+    moveConfirmResolve.current?.(false);
+    return new Promise<boolean>((resolve) => {
+      moveConfirmResolve.current = resolve;
+      setMoveConfirm(info);
+    });
+  }
+
+  function answerMoveConfirm(ok: boolean) {
+    const resolve = moveConfirmResolve.current;
+    moveConfirmResolve.current = null;
+    setMoveConfirm(null);
+    resolve?.(ok);
+  }
+
+  /** Folds an inline built-in cell edit (Priority, Tags) back into the
+   *  page's task list. Those cells save themselves and used to keep the
+   *  new value in their own local state only, so the row stayed in its
+   *  old Priority bucket, the Board card kept the old dot, and an open
+   *  detail panel kept the old value until a refetch.
+   *
+   *  A cell calls this again when its own request settles, and that later
+   *  call still carries the render closure it was created in — so reading
+   *  `tasks` here and writing the whole array back put a pre-edit snapshot
+   *  over everything the user changed while the request was in flight
+   *  (another row's checkbox visibly flipped back). Hence the functional
+   *  update; re-deriving the sections is left to the effect on `tasks`,
+   *  which always runs against the list that was actually committed. */
+  function handleInlineFieldPatch(taskId: string, patch: InlineTaskPatch) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t))
+    );
+    notifyTaskMutated(taskId);
   }
 
   async function handleToggleComplete(task: Task) {
@@ -3150,9 +3301,11 @@ export default function MyTasksPage() {
             <>
             <ListDndProvider
               sections={filteredSections}
+              groupType={groupType}
               onToggleSection={toggleSection}
               onToggleComplete={handleToggleComplete}
               onTaskClick={openTaskDetail}
+              onPatchTask={handleInlineFieldPatch}
               onAddTask={handleAddTask}
               formatDueDate={formatDueDate}
               customColumnCount={customColumns.length}
@@ -3712,6 +3865,49 @@ export default function MyTasksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Drag-to-reassign confirmation. Under Group-by-Project /
+          Group-by-Assignee a drop rewrites a field the whole team sees,
+          so the write waits for an explicit yes instead of firing off a
+          project change (which also clears the task's section) or an
+          assignment email on a mis-drag. */}
+      <Dialog
+        open={!!moveConfirm}
+        onOpenChange={(open) => {
+          if (!open) answerMoveConfirm(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-[16px] font-semibold text-gray-900">
+              {moveConfirm
+                ? moveConfirm.kind === "project"
+                  ? `Move "${moveConfirm.taskName}" to ${moveConfirm.destName}?`
+                  : `Assign "${moveConfirm.taskName}" to ${moveConfirm.destName}?`
+                : ""}
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-gray-600 leading-relaxed pt-2">
+              {moveConfirm?.kind === "project"
+                ? "This changes the task's project for everyone, and it will lose the section it currently sits in."
+                : "This changes who owns the task for everyone, and the new assignee will be notified."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 mt-2">
+            <button
+              onClick={() => answerMoveConfirm(false)}
+              className="px-4 py-2 text-[13px] font-medium text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => answerMoveConfirm(true)}
+              className="px-4 py-2 text-[13px] font-medium text-white bg-[#c9a84c] hover:bg-[#a8893a] rounded-md transition-colors"
+            >
+              {moveConfirm?.kind === "project" ? "Move task" : "Assign task"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -3722,6 +3918,7 @@ function TaskSection({
   onToggleSection,
   onToggleComplete,
   onTaskClick,
+  onPatchTask,
   onAddTask,
   formatDueDate,
   customColumnCount = 0,
@@ -3738,6 +3935,8 @@ function TaskSection({
   onToggleSection: () => void;
   onToggleComplete: (task: Task) => void;
   onTaskClick: (task: Task) => void;
+  /** Forwarded to each row's inline built-in cells (Priority, Tags). */
+  onPatchTask?: (taskId: string, patch: InlineTaskPatch) => void;
   onAddTask: (name: string, sectionId: string, taskType?: "TASK" | "MILESTONE" | "APPROVAL") => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount?: number;
@@ -4080,6 +4279,7 @@ function TaskSection({
               task={task}
               onToggleComplete={() => onToggleComplete(task)}
               onClick={() => onTaskClick(task)}
+              onPatchTask={onPatchTask}
               formatDueDate={formatDueDate}
               customColumnCount={customColumnCount}
               customColumns={customColumns}
@@ -4127,6 +4327,19 @@ function TaskSection({
   );
 }
 
+/** Groupings whose buckets correspond to a writable task field. Under
+ *  any other grouping (Creator, the date groupings, "none") there is
+ *  nothing for handleMoveTaskToSection to PATCH, so a cross-bucket drop
+ *  is refused instead of leaving the row looking moved and reverting on
+ *  the next reload. */
+const MOVABLE_GROUP_TYPES = new Set([
+  "sections",
+  "project",
+  "priority",
+  "assignee",
+  "due_date",
+]);
+
 /**
  * Drag-and-drop wrapper for the List view.
  *
@@ -4144,11 +4357,13 @@ function TaskSection({
  */
 function ListDndProvider({
   sections,
+  groupType,
   onMoveTask,
   onReorderTasks,
   onToggleSection,
   onToggleComplete,
   onTaskClick,
+  onPatchTask,
   onAddTask,
   formatDueDate,
   customColumnCount,
@@ -4163,7 +4378,16 @@ function ListDndProvider({
   onReorderSections,
 }: {
   sections: SmartSection[];
-  onMoveTask: (taskId: string, destSectionId: string) => Promise<void> | void;
+  /** Active List grouping — decides whether a cross-bucket drop has a
+   *  task field to write (see MOVABLE_GROUP_TYPES). */
+  groupType: string;
+  /** Persists the bucket change. Resolves to false when nothing was
+   *  written (refused destination, cancelled confirmation) so the drop
+   *  can be rolled back visually. */
+  onMoveTask: (
+    taskId: string,
+    destSectionId: string
+  ) => Promise<boolean | void> | boolean | void;
   /** Persist a new in-section order. The orderedTaskIds is the full
    *  task id list for the section in its new sequence. */
   onReorderTasks: (
@@ -4173,6 +4397,9 @@ function ListDndProvider({
   onToggleSection: (sectionId: string) => void;
   onToggleComplete: (task: Task) => void;
   onTaskClick: (task: Task) => void;
+  /** Folds an inline built-in cell edit back into the page's task list
+   *  so grouping/sorting and the other views see it immediately. */
+  onPatchTask?: (taskId: string, patch: InlineTaskPatch) => void;
   onAddTask: (
     name: string,
     sectionId: string,
@@ -4217,8 +4444,16 @@ function ListDndProvider({
   // True while a SECTION header (id "section:<id>") is being dragged, so
   // the task-move handlers stay out of the way and we reorder sections.
   const draggingSectionRef = useRef(false);
+  // True while the page is asking the user to confirm a project/assignee
+  // move. The page owns that dialog, so opening it re-renders the page and
+  // hands us a freshly built `sections` array every time — which the sync
+  // below would read as "the parent changed" and use to snap the row back
+  // into its old bucket behind the dialog that is still asking about the
+  // move. Hold the drop preview until the answer comes back.
+  const awaitingMoveConfirmRef = useRef(false);
 
   useEffect(() => {
+    if (awaitingMoveConfirmRef.current) return;
     setLocalSections(sections);
   }, [sections]);
 
@@ -4339,14 +4574,21 @@ function ListDndProvider({
       dragSourceRef.current = null;
       draggingSectionRef.current = false;
 
+      // Released outside every droppable — the user aborted. handleDragOver
+      // has already rearranged localSections, so undo that before anything
+      // else. This has to come BEFORE the section branch below, which used
+      // to persist the very reorder the user was trying to abandon.
+      if (!over) {
+        setLocalSections(sections);
+        return;
+      }
+
       // Section-reorder drag: persist the new section order. localSections
       // already reflects the live arrayMove from handleDragOver.
       if (wasSectionDrag) {
         onReorderSections?.(localSections.map((s) => s.id));
         return;
       }
-
-      if (!over) return;
 
       const activeId = String(active.id);
       const rawOverId = String(over.id);
@@ -4383,19 +4625,50 @@ function ListDndProvider({
         return;
       }
 
+      // Under a grouping whose buckets aren't a task field there is
+      // nothing to save, so the drop is refused and the live
+      // rearrangement undone — previously the row stayed in its new
+      // bucket while only its position was written, and the grouping
+      // snapped back on the next reload.
+      if (!MOVABLE_GROUP_TYPES.has(groupType)) {
+        setLocalSections(sections);
+        toast.info("Can't drop here in this grouping");
+        return;
+      }
+
       // Cross-section move: persist the section change, THEN
       // renumber positions in the destination so the moved row
       // lands at its drop index — not stuck at its source-section
       // position value, which could be 0 (top) or some other stale
       // number that puts the row in the wrong slot.
-      await onMoveTask(activeId, destSectionId);
+      awaitingMoveConfirmRef.current = true;
+      let moved: boolean | void;
+      try {
+        moved = await onMoveTask(activeId, destSectionId);
+      } finally {
+        awaitingMoveConfirmRef.current = false;
+      }
+      // The move was declined (refused destination, or the user
+      // cancelled the reassignment confirmation) — put the row back and
+      // don't renumber a destination it never joined.
+      if (moved === false) {
+        setLocalSections(sections);
+        return;
+      }
       const destSection = localSections.find((s) => s.id === destSectionId);
       if (destSection) {
         const orderedIds = destSection.tasks.map((t) => t.id);
         await onReorderTasks(destSectionId, orderedIds);
       }
     },
-    [localSections, onMoveTask, onReorderTasks, onReorderSections]
+    [
+      sections,
+      groupType,
+      localSections,
+      onMoveTask,
+      onReorderTasks,
+      onReorderSections,
+    ]
   );
 
   return (
@@ -4405,6 +4678,15 @@ function ListDndProvider({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      // Escape mid-drag never reaches onDragEnd, so without this the
+      // live rearrangement handleDragOver applied stays on screen (and
+      // the drag refs stay set) even though nothing was saved.
+      onDragCancel={() => {
+        setActiveTask(null);
+        dragSourceRef.current = null;
+        draggingSectionRef.current = false;
+        setLocalSections(sections);
+      }}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
       {/* Section headers are sortable so they can be dragged to reorder.
@@ -4421,6 +4703,7 @@ function ListDndProvider({
           onToggleSection={() => onToggleSection(section.id)}
           onToggleComplete={onToggleComplete}
           onTaskClick={onTaskClick}
+          onPatchTask={onPatchTask}
           onAddTask={onAddTask}
           formatDueDate={formatDueDate}
           customColumnCount={customColumnCount}
@@ -4625,6 +4908,10 @@ function MyTasksTimeCell({
         autoFocus
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
+        // The whole row carries dnd-kit's listeners, so a 5px pointer drag to
+        // select the digits already in this cell picked the task up instead and
+        // dropped the user out of the editor mid-edit.
+        onPointerDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
           else if (e.key === "Escape") {
@@ -4633,7 +4920,7 @@ function MyTasksTimeCell({
           }
         }}
         placeholder="0"
-        className="w-full bg-transparent outline-none text-[13px] text-slate-700 tabular-nums px-1 py-0.5 rounded focus:bg-slate-50"
+        className="w-full bg-transparent outline-none text-[13px] text-slate-700 tabular-nums px-1 py-0.5 rounded focus:bg-slate-50 select-text"
       />
     );
   }
@@ -4663,6 +4950,7 @@ function TaskRow({
   task,
   onToggleComplete,
   onClick,
+  onPatchTask,
   formatDueDate,
   customColumnCount = 0,
   customColumns = [],
@@ -4673,6 +4961,10 @@ function TaskRow({
   task: Task;
   onToggleComplete: () => void;
   onClick: () => void;
+  /** Applied by the inline Priority / Tags cells after they save, so the
+   *  page's task list (and therefore grouping, sorting and the other
+   *  views) reflects the edit instead of only this cell. */
+  onPatchTask?: (taskId: string, patch: InlineTaskPatch) => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount?: number;
   customColumns?: ListColumn[];
@@ -5112,7 +5404,11 @@ function TaskRow({
             className="hidden md:flex items-center pl-2.5 pr-1 overflow-hidden"
           >
             {col.builtin ? (
-              <BuiltinFieldCell builtinId={col.builtin} task={task} />
+              <BuiltinFieldCell
+                builtinId={col.builtin}
+                task={task}
+                onPatchTask={onPatchTask}
+              />
             ) : isLegacyCosmetic ? null : (
               // Always render the editable cell for real personal /
               // project custom fields — even with no value yet — so the
@@ -5247,7 +5543,13 @@ function BoardView({
     setActiveTask(null);
     const originalSourceId = dragSourceSectionRef.current;
     dragSourceSectionRef.current = null;
-    if (!over) return;
+    // Released outside every column — undo the live column change
+    // handleDragOver already applied, or the card sits in a column it
+    // was never saved to until the next refetch.
+    if (!over) {
+      setLocalSections(sections);
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
@@ -5292,7 +5594,7 @@ function BoardView({
       const orderedIds = destSection.tasks.map((t) => t.id);
       await onReorderTasks(destSectionId, orderedIds);
     }
-  }, [localSections, onMoveTask, onReorderTasks]);
+  }, [sections, localSections, onMoveTask, onReorderTasks]);
 
   const handleAddTaskSubmit = async (sectionId: string) => {
     if (!newTaskName.trim()) {
@@ -5317,6 +5619,14 @@ function BoardView({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      // Escape mid-drag never reaches onDragEnd, so without this the
+      // card stays in the column handleDragOver moved it to even though
+      // the user cancelled and nothing was saved.
+      onDragCancel={() => {
+        setActiveTask(null);
+        dragSourceSectionRef.current = null;
+        setLocalSections(sections);
+      }}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
       {/* No h-full and no overflow on this row: columns grow with their
@@ -7076,6 +7386,9 @@ function FilesView({
 }) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed request used to land on the same empty array as a genuinely
+  // empty account, so an expired session read as "you have no attachments".
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<FileTypeFilter>("all");
   // In-app file viewer (clicking a card opens it instead of new tab)
@@ -7089,12 +7402,24 @@ function FilesView({
     let cancelled = false;
     setLoading(true);
     fetch("/api/my-tasks/files")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Couldn't load your files (HTTP ${r.status})`);
+        return r.json();
+      })
       .then((data) => {
         if (cancelled) return;
+        setError(null);
         setFiles(data.files || []);
       })
-      .catch(() => !cancelled && setFiles([]))
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setFiles([]);
+        setError(
+          e instanceof Error && e.message.startsWith("Couldn't")
+            ? e.message
+            : "Couldn't load your files — check your connection"
+        );
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
@@ -7153,6 +7478,21 @@ function FilesView({
     return (
       <div className="flex items-center justify-center h-full min-h-[300px]">
         <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
+        <p className="text-sm text-gray-700">{error}</p>
+        <button
+          type="button"
+          onClick={() => setLocalRefreshTick((t) => t + 1)}
+          className="mt-3 inline-flex items-center h-8 px-3 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md"
+        >
+          Retry
+        </button>
       </div>
     );
   }

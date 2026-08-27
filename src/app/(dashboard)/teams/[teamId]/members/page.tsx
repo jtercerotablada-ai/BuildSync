@@ -48,6 +48,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TeamHeader } from "@/components/teams/team-header";
 import { InviteTeamModal } from "@/components/teams/invite-team-modal";
 import { AddFieldFlow } from "@/components/teams/add-field-flow";
@@ -136,6 +137,8 @@ export default function TeamMembersPage() {
     name: string;
   } | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  // The member the "Remove from team" confirmation is open for.
+  const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null);
   // Inline job-title editing — the id of the member row being edited.
   const [editingJobTitle, setEditingJobTitle] = useState<string | null>(null);
 
@@ -172,18 +175,20 @@ export default function TeamMembersPage() {
     }
   }
 
+  // Throws on failure so the confirmation dialog can keep itself open and
+  // display the API's reason — a refusal like "assign another lead first" is
+  // actionable, and it used to be replaced by a generic "Error removing member".
   const handleRemoveMember = async (memberId: string) => {
-    try {
-      const res = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        toast.success("Member removed from team");
-        loadAll();
-      } else toast.error("Error removing member");
-    } catch {
-      toast.error("Error removing member");
+    const res = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Error removing member");
     }
+    setRemoveTarget(null);
+    toast.success("Member removed from team");
+    loadAll();
   };
 
   const handleChangeRole = async (memberId: string, newRole: string) => {
@@ -196,7 +201,10 @@ export default function TeamMembersPage() {
       if (res.ok) {
         toast.success("Role updated");
         loadAll();
-      } else toast.error("Error updating role");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Error updating role");
+      }
     } catch {
       toast.error("Error updating role");
     }
@@ -742,7 +750,7 @@ export default function TeamMembersPage() {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-black"
-                          onClick={() => handleRemoveMember(member.id)}
+                          onClick={() => setRemoveTarget(member)}
                         >
                           <UserMinus className="h-4 w-4 mr-2" />
                           Remove from team
@@ -811,6 +819,25 @@ export default function TeamMembersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Remove-from-team confirmation */}
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        title="Remove from team"
+        description={
+          removeTarget
+            ? `${displayName(removeTarget)} will no longer be a member of ${
+                team?.name || "this team"
+              }. Nothing they created is deleted, and they can be added back later.`
+            : undefined
+        }
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (!removeTarget) return;
+          return handleRemoveMember(removeTarget.id);
+        }}
+      />
     </div>
   );
 }

@@ -303,6 +303,19 @@ export async function POST(req: Request) {
       data.projectId = section.projectId;
     }
 
+    // Same start ≤ due invariant the PATCH handler enforces. Without it here,
+    // create is a side door for the very rows that check exists to prevent: an
+    // inverted schedule ships straight into cascadeDependentDates the first
+    // time either date is nudged.
+    if (data.startDate && data.dueDate) {
+      if (new Date(data.startDate) > new Date(data.dueDate)) {
+        return NextResponse.json(
+          { error: "startDate must be on or before dueDate" },
+          { status: 400 }
+        );
+      }
+    }
+
     // When creating a subtask, the caller must have access to the parent —
     // otherwise a new task could be grafted under a parent in another
     // workspace, polluting that task's subtree.

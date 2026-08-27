@@ -40,16 +40,7 @@ const updateTaskSchema = z.object({
   // field; the patch path was the missing piece.
   taskType: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional().nullable(),
   position: z.number().optional(),
-}).refine(
-  (b) =>
-    !b.startDate ||
-    !b.dueDate ||
-    new Date(b.startDate) <= new Date(b.dueDate),
-  {
-    message: "startDate must be on or before dueDate",
-    path: ["startDate"],
-  }
-);
+});
 
 // GET /api/tasks/:taskId - Get task details
 export async function GET(
@@ -317,6 +308,45 @@ export async function PATCH(
 
     if (!existingTask) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    // The start ≤ due invariant has to be checked against the task's
+    // EFFECTIVE dates, not only against what this request carries. The
+    // schema-level check gave up whenever one of the two was absent, so any
+    // single-field PATCH — dragging one Timeline/Gantt handle past the other —
+    // saved a task that ends before it begins, and cascadeDependentDates then
+    // propagated that negative duration to every dependent. An explicit null
+    // still clears the date rather than falling back to the stored one.
+    //
+    // Only enforced when the request actually touches a date. Rows created
+    // before this check existed can already be inverted, and a PATCH that
+    // carries no date at all (rename, complete, assign, drag between sections)
+    // is not what broke them — rejecting those would make such a task
+    // permanently uneditable, including through the pickers that would repair
+    // it. Every inversion a user can still cause arrives with a date attached.
+    if (data.startDate !== undefined || data.dueDate !== undefined) {
+      const effectiveStartDate =
+        data.startDate !== undefined
+          ? data.startDate
+            ? new Date(data.startDate)
+            : null
+          : existingTask.startDate;
+      const effectiveDueDate =
+        data.dueDate !== undefined
+          ? data.dueDate
+            ? new Date(data.dueDate)
+            : null
+          : existingTask.dueDate;
+      if (
+        effectiveStartDate &&
+        effectiveDueDate &&
+        effectiveStartDate > effectiveDueDate
+      ) {
+        return NextResponse.json(
+          { error: "startDate must be on or before dueDate" },
+          { status: 400 }
+        );
+      }
     }
 
     // Prepare update data

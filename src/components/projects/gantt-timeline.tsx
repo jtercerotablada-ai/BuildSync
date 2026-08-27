@@ -31,7 +31,7 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { dueDateToLocalMidnight, startOfLocalDay } from "@/lib/date-only";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MapPin, Diamond } from "lucide-react";
 
 type ProjectType =
@@ -424,9 +424,13 @@ function LaneLabel({ project }: { project: GanttProject }) {
   // Simple overdue flag — endDate in the past on a non-complete
   // project. Was previously derived from pmi.floatDays but EVM
   // metrics were dropped from the project surface per product call.
+  // endDate is stored at UTC midnight of the target day, so comparing the
+  // raw instant against `new Date()` flagged a project due TODAY as overdue
+  // from the first minute of the day for anyone west of UTC. Compare
+  // calendar days instead.
   const isOverdue =
     project.endDate !== null &&
-    new Date(project.endDate) < new Date() &&
+    dueDateToLocalMidnight(project.endDate) < startOfLocalDay() &&
     project.status !== "COMPLETE";
 
   return (
@@ -493,17 +497,22 @@ function GanttBar({
     Math.floor(
       (visibleStart.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
     ) * dayPx;
+  // The end date is inclusive — a project running Aug 1 → Aug 10 occupies ten
+  // day-columns, not the nine the exclusive difference gives. Round rather
+  // than ceil so a DST-shortened interval doesn't gain a column.
   const width =
     Math.max(
       1,
-      Math.ceil(
+      Math.round(
         (visibleEnd.getTime() - visibleStart.getTime()) /
           (1000 * 60 * 60 * 24)
-      )
+      ) + 1
     ) * dayPx;
 
+  // Same UTC-midnight-vs-local-now trap as the lane label: compare calendar
+  // days so a project due today isn't flagged overdue from 00:00.
   const isOverdue =
-    new Date(project.endDate!) < new Date() &&
+    dueDateToLocalMidnight(project.endDate!) < startOfLocalDay() &&
     project.status !== "COMPLETE";
 
   // Time progress ratio — what % of the project window has elapsed.

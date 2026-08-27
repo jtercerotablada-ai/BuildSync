@@ -63,8 +63,17 @@ export async function GET(req: Request) {
     // current instant counted every task due TODAY as overdue — the report
     // never matched My Tasks, which uses this boundary.
     const overdueBefore = startOfTodayUtc(now);
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // Month bounds have to be whole UTC days like the rest of this file.
+    // `new Date(y, m + 1, 0)` is LOCAL midnight of the LAST day of the month,
+    // so with `lte` everything completed after 00:00 on that day fell outside
+    // the window, and tasks due on the 1st (stored at UTC midnight) sat below
+    // the local start bound — the month really ran from day 2 to day 30.
+    const startOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    );
+    const endOfMonthExclusive = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
+    );
     // Snap to whole UTC days like every other counter here. Built from
     // `new Date(now)` these carried the current TIME, so a task due today was
     // excluded from "this week" before mid-day and included after — the same
@@ -144,8 +153,8 @@ export async function GET(req: Request) {
         where: {
           ...baseWhere,
           OR: [
-            { dueDate: { gte: startOfMonth, lte: endOfMonth } },
-            { completedAt: { gte: startOfMonth, lte: endOfMonth } },
+            { dueDate: { gte: startOfMonth, lt: endOfMonthExclusive } },
+            { completedAt: { gte: startOfMonth, lt: endOfMonthExclusive } },
           ],
         },
         select: {
@@ -270,7 +279,7 @@ export async function GET(req: Request) {
           ...baseWhere,
           dueDate: {
             gte: startOfMonth,
-            lte: endOfMonth,
+            lt: endOfMonthExclusive,
           },
           projectId: { not: null },
         },
