@@ -62,6 +62,52 @@ export type MessageAccess =
   | { ok: false; status: number; error: string };
 
 /**
+ * May the caller author in a PROJECT channel? Pure — the composition of the
+ * resolver's own flags, nothing else.
+ *
+ * This is the same predicate POST /api/projects/[projectId]/messages applies
+ * before accepting a new message. It lives here as a named function so the two
+ * entry points cannot drift: the reply route used to check only `ok`, so a
+ * VIEWER who could READ the channel could post unlimited replies under any
+ * message in it. `canComment` is the superset of `canWrite` that also admits
+ * COMMENTER; workspace leadership is admitted on top.
+ */
+export function canPostInProject(access: {
+  canComment: boolean;
+  isWorkspaceManager: boolean;
+}): boolean {
+  return access.canComment || access.isWorkspaceManager;
+}
+
+/**
+ * May the caller author in a PORTFOLIO channel? Pure.
+ *
+ * PortfolioRole is OWNER | EDITOR | VIEWER — there is no COMMENTER, so the
+ * write bar is the same set that may moderate. A VIEWER reads.
+ */
+export function canPostInPortfolio(input: {
+  isOwner: boolean;
+  memberRole: string | null | undefined;
+}): boolean {
+  return (
+    input.isOwner ||
+    input.memberRole === "OWNER" ||
+    input.memberRole === "EDITOR"
+  );
+}
+
+/**
+ * May the caller author on a WORKSPACE ANNOUNCEMENT? Pure.
+ *
+ * Any contributor of that workspace may reply; the view-only roles
+ * (NON_CONTRIBUTOR_ROLES — GUEST / CLIENT) may not. Reads the shared set so
+ * adding a read-only role in one place closes this branch too.
+ */
+export function canPostWorkspaceAnnouncement(role: string): boolean {
+  return !NON_CONTRIBUTOR_ROLES.has(role);
+}
+
+/**
  * Load a Message + verify the caller can READ its parent (project
  * visibility, portfolio privacy, etc.). Used by every generic
  * /api/messages/[id]/* endpoint.
@@ -132,7 +178,7 @@ export async function loadMessageWithAccess(
     const member = msg.project.members.find((m) => m.userId === userId);
     const isAdmin = access.isOwner || member?.role === "ADMIN";
     // Same predicate as POST /api/projects/[projectId]/messages.
-    const canPost = access.canComment || access.isWorkspaceManager;
+    const canPost = canPostInProject(access);
     return { ok: true, message: msg, isAuthor, isAdmin, canPost };
   }
 
@@ -162,11 +208,12 @@ export async function loadMessageWithAccess(
     if (!allowed) {
       return { ok: false, status: 403, error: "Forbidden" };
     }
-    // Portfolio moderation: owner or OWNER/EDITOR member.
-    const isAdmin =
-      isOwner || member?.role === "OWNER" || member?.role === "EDITOR";
-    // PortfolioRole is OWNER | EDITOR | VIEWER — there is no COMMENTER, so
-    // the write bar is the same set that may moderate. A VIEWER reads.
+    // Portfolio moderation: owner or OWNER/EDITOR member. Same set that may
+    // author (see canPostInPortfolio), so both flags read from one predicate.
+    const isAdmin = canPostInPortfolio({
+      isOwner,
+      memberRole: member?.role,
+    });
     const canPost = isAdmin;
     return { ok: true, message: msg, isAuthor, isAdmin, canPost };
   }
@@ -196,6 +243,6 @@ export async function loadMessageWithAccess(
     isAdmin: isAuthor,
     // Workspace announcements: any contributor of that workspace may reply;
     // the view-only roles may not.
-    canPost: !NON_CONTRIBUTOR_ROLES.has(wsMember.role),
+    canPost: canPostWorkspaceAnnouncement(wsMember.role),
   };
 }

@@ -155,7 +155,7 @@ export async function portfolioObjectiveIds(
 }
 
 // A resolved task row we pull once and reduce in JS.
-interface TaskRow {
+export interface TaskRow {
   id: string;
   name: string;
   completed: boolean;
@@ -172,7 +172,7 @@ interface TaskRow {
 
 // ─── Name-resolution maps ─────────────────────────────────────────
 
-interface ResolveMaps {
+export interface ResolveMaps {
   users: Map<string, string>;
   projects: Map<string, { name: string; color: string }>;
   sections: Map<string, string>;
@@ -453,7 +453,7 @@ function computeCompletionStatus(row: TaskRow): string {
 }
 
 /** Bucket a date by grain using the UTC calendar day (date-only.ts). */
-function dateBucketKey(value: Date, grain: DateGrain): string {
+export function dateBucketKey(value: Date, grain: DateGrain): string {
   const d = dueDateToLocalMidnight(value); // local-midnight of the UTC day
   const y = d.getFullYear();
   const m = d.getMonth(); // 0-based
@@ -480,7 +480,7 @@ const MONTH_NAMES = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-function dateBucketLabel(key: string, grain: DateGrain): string {
+export function dateBucketLabel(key: string, grain: DateGrain): string {
   if (grain === "quarter") return key; // "2026-Q3"
   const parts = key.split("-");
   const y = parts[0];
@@ -495,7 +495,7 @@ function dateBucketLabel(key: string, grain: DateGrain): string {
  * Returns { key, label, color } — key groups rows, label displays,
  * color themes the bar/slice.
  */
-function resolveTaskDimension(
+export function resolveTaskDimension(
   row: TaskRow,
   field: DimField,
   grain: DateGrain | undefined,
@@ -1124,7 +1124,7 @@ function buildBurn(
   return { data, seriesKeys, total: scope };
 }
 
-function lastNBuckets(grain: DateGrain, n: number): string[] {
+export function lastNBuckets(grain: DateGrain, n: number): string[] {
   const keys: string[] = [];
   const today = startOfLocalDay();
   if (grain === "quarter") {

@@ -259,6 +259,172 @@ export async function assertUserInWorkspace(
 }
 
 /**
+ * ─── THE TASK DECISION, AS A PURE FUNCTION ────────────────────────────────
+ *
+ * Everything `verifyTaskAccess` decides once it has loaded the task, the
+ * caller's personal ties to it, and the project access result. Lifted out of
+ * the middle of that function verbatim so it can be exercised without a
+ * database — `auth-guards.test.ts` pins every branch below, and DATABASE_URL
+ * points at PRODUCTION (see vitest.config.ts), so an untestable chokepoint is
+ * an unverified one.
+ *
+ * Nothing here does I/O. The one lookup the rule still needs — "does this
+ * caller still hold a contributor seat in the task's workspace?" — is
+ * signalled back to the caller as `requiresContributorSeat` rather than
+ * performed here, so the query stays exactly as lazy as it was.
+ */
+export interface TaskAccessDecisionInput {
+  /** False for a personal / My Tasks task with no project attached. */
+  hasProject: boolean;
+  /** The caller created the task or is its assignee. */
+  isOwnTask: boolean;
+  /** The caller is a TaskCollaborator (follower) on the task. */
+  isCollaborator: boolean;
+  requireWrite: boolean;
+  requireComment: boolean;
+  /** resolveProjectAccess(...).ok — ignored when `hasProject` is false. */
+  projectCanRead: boolean;
+  /** resolveProjectAccess(...).canWrite. */
+  projectCanWrite: boolean;
+  /** resolveProjectAccess(...).canComment. */
+  projectCanComment: boolean;
+  /** resolveProjectAccess(...).isWorkspaceManager. */
+  projectIsWorkspaceManager: boolean;
+}
+
+export type TaskAccessDenial =
+  /** 404 — the task's existence is hidden from this caller. */
+  | { kind: "notFound"; message: string }
+  /** 403 — the caller may see the task but not perform this verb. */
+  | { kind: "forbidden"; message: string };
+
+export interface TaskAccessDecision {
+  /** null when the verb is allowed. */
+  denial: TaskAccessDenial | null;
+  /**
+   * True when the caller was admitted to COMMENT via a personal tie or a
+   * project grant that does not itself prove workspace standing, so the
+   * caller must still confirm a contributor seat in the task's workspace
+   * before the comment is allowed. See `contributorSeatSatisfied`.
+   */
+  requiresContributorSeat: boolean;
+}
+
+export function decideTaskAccess(
+  input: TaskAccessDecisionInput
+): TaskAccessDecision {
+  const allowed = (requiresContributorSeat = false): TaskAccessDecision => ({
+    denial: null,
+    requiresContributorSeat,
+  });
+  const forbid = (message: string): TaskAccessDecision => ({
+    denial: { kind: "forbidden", message },
+    requiresContributorSeat: false,
+  });
+
+  // Creator, assignee, or a follower always keeps READ access to the task.
+  const hasPersonalTie = input.isOwnTask || input.isCollaborator;
+
+  if (!input.hasProject) {
+    // Task without a project - check if user created it, is assigned, or follows
+    if (!hasPersonalTie) {
+      return forbid("You don't have access to this task");
+    }
+    // ...and then apply the SAME capability flags the project branch does.
+    // This used to return unconditionally, so on a personal task a follower —
+    // who has no capability by any measure — could archive it, delete its
+    // attachments, even delete the task. verifyBulkTaskAccess already got
+    // this right ("only the creator or assignee may touch it"); the two
+    // disagreed, so /api/tasks/bulk refused what DELETE /api/tasks/:id let
+    // through.
+    if (input.requireWrite && !input.isOwnTask) {
+      return forbid("You don't have permission to modify this task");
+    }
+    // A follower on a personal task IS the intended audience for a reply.
+    if (input.requireComment && !input.isOwnTask && !input.isCollaborator) {
+      return forbid("You don't have permission to comment on this task");
+    }
+    return allowed();
+  }
+
+  // Hide existence with a 404 for users who can't read the project,
+  // matching the project page (unless they own/are assigned/follow the task).
+  if (!input.projectCanRead && !hasPersonalTie) {
+    return { denial: { kind: "notFound", message: "Task not found" }, requiresContributorSeat: false };
+  }
+
+  // Write requires real edit capability: project owner/ADMIN/EDITOR, or the
+  // caller being the task's creator/assignee. A pure follower can read but
+  // not mutate.
+  if (input.requireWrite && !input.projectCanWrite && !input.isOwnTask) {
+    return forbid("You don't have permission to modify this task");
+  }
+
+  // Commenting is a lower bar than writing — the COMMENTER project role
+  // exists for exactly this — but it is still a bar: a VIEWER could post on
+  // any task they could open.
+  //
+  // Three escapes, each deliberate:
+  //   • isWorkspaceManager — workspace OWNER/ADMIN and Position level 4+ are
+  //     NOT in canWrite/canComment, yet POST /api/projects/:id/messages
+  //     explicitly admits them ("or workspace leadership"). Without this the
+  //     firm's owner could post in a project's channel and be refused on a
+  //     task in the same project, in the same minute.
+  //   • isOwnTask — the creator/assignee already escapes requireWrite.
+  //   • isCollaborator — a follower is an EXPLICIT grant: adding someone else
+  //     as one requires write, and this route notifies collaborators of every
+  //     new comment. Refusing their reply is a notification that leads to a
+  //     403. Self-adding as a follower now requires comment capability too
+  //     (see the collaborators route), so a VIEWER cannot bootstrap through
+  //     this door.
+  if (
+    input.requireComment &&
+    !input.projectCanComment &&
+    !input.projectIsWorkspaceManager &&
+    !input.isOwnTask &&
+    !input.isCollaborator
+  ) {
+    return forbid("You don't have permission to comment on this task");
+  }
+
+  // The personal-tie escapes above (follower, creator, assignee) live on rows
+  // that OUTLIVE offboarding: removing someone from a workspace deletes their
+  // WorkspaceMember row and nothing else, so a TaskCollaborator row from last
+  // year would otherwise still buy comment capability — and, on a task with a
+  // tracking page, the ability to publish text to the client. Anyone leaning
+  // on a personal tie must still hold a contributor seat in the task's
+  // workspace.
+  return allowed(
+    input.requireComment &&
+      !input.projectCanComment &&
+      !input.projectIsWorkspaceManager
+  );
+}
+
+/**
+ * Does this WorkspaceRole still buy a seat at the table?
+ *
+ * `null`/`undefined` means NO membership row — the offboarded case — and is
+ * refused. This is deliberately the opposite default from
+ * `isNonContributorRole`, which answers `false` for absence because a null
+ * role there means "still mid-signup"; here it means "removed from the firm".
+ * An empty string is refused for the same reason: absence of a role is not a
+ * role, and this predicate must fail closed on anything it does not recognise.
+ */
+export function contributorSeatSatisfied(
+  role: string | null | undefined
+): boolean {
+  return !!role && !NON_CONTRIBUTOR_ROLES.has(role);
+}
+
+function throwTaskDenial(denial: TaskAccessDenial): never {
+  if (denial.kind === "notFound") {
+    throw new NotFoundError(denial.message);
+  }
+  throw new AuthorizationError(denial.message);
+}
+
+/**
  * Verify user has access to a task via its project's ACCESS RULES —
  * not merely its workspace. This is the security chokepoint for every
  * /api/tasks/[taskId]/* endpoint.
@@ -314,32 +480,22 @@ export async function verifyTaskAccess(
   const isOwnTask =
     task.creatorId === userId || task.assigneeId === userId;
   const isCollaborator = task.collaborators.length > 0;
-  // Creator, assignee, or a follower always keeps READ access to the task.
-  const hasPersonalTie = isOwnTask || isCollaborator;
+  const requireWrite = !!opts.requireWrite;
+  const requireComment = !!opts.requireComment;
 
   if (!task.project) {
-    // Task without a project - check if user created it, is assigned, or follows
-    if (!hasPersonalTie) {
-      throw new AuthorizationError("You don't have access to this task");
-    }
-    // ...and then apply the SAME capability flags the project branch does.
-    // This used to return unconditionally, so on a personal task a follower —
-    // who has no capability by any measure — could archive it, delete its
-    // attachments, even delete the task. verifyBulkTaskAccess already got
-    // this right ("only the creator or assignee may touch it"); the two
-    // disagreed, so /api/tasks/bulk refused what DELETE /api/tasks/:id let
-    // through.
-    if (opts.requireWrite && !isOwnTask) {
-      throw new AuthorizationError(
-        "You don't have permission to modify this task"
-      );
-    }
-    // A follower on a personal task IS the intended audience for a reply.
-    if (opts.requireComment && !isOwnTask && !isCollaborator) {
-      throw new AuthorizationError(
-        "You don't have permission to comment on this task"
-      );
-    }
+    const personal = decideTaskAccess({
+      hasProject: false,
+      isOwnTask,
+      isCollaborator,
+      requireWrite,
+      requireComment,
+      projectCanRead: false,
+      projectCanWrite: false,
+      projectCanComment: false,
+      projectIsWorkspaceManager: false,
+    });
+    if (personal.denial) throwTaskDenial(personal.denial);
     // `access: null` — a task with no project has no project access to speak
     // of. Callers that need to know what the caller may do here read the
     // personal rules directly (creator/assignee writes, followers comment).
@@ -348,69 +504,27 @@ export async function verifyTaskAccess(
 
   const access = await resolveProjectAccess(task.project, userId);
 
-  // Hide existence with a 404 for users who can't read the project,
-  // matching the project page (unless they own/are assigned/follow the task).
-  if (!access.ok && !hasPersonalTie) {
-    throw new NotFoundError("Task not found");
-  }
+  const decision = decideTaskAccess({
+    hasProject: true,
+    isOwnTask,
+    isCollaborator,
+    requireWrite,
+    requireComment,
+    projectCanRead: access.ok,
+    projectCanWrite: access.canWrite,
+    projectCanComment: access.canComment,
+    projectIsWorkspaceManager: access.isWorkspaceManager,
+  });
+  if (decision.denial) throwTaskDenial(decision.denial);
 
-  // Write requires real edit capability: project owner/ADMIN/EDITOR, or the
-  // caller being the task's creator/assignee. A pure follower can read but
-  // not mutate.
-  if (opts.requireWrite && !access.canWrite && !isOwnTask) {
-    throw new AuthorizationError(
-      "You don't have permission to modify this task"
-    );
-  }
-
-  // Commenting is a lower bar than writing — the COMMENTER project role
-  // exists for exactly this — but it is still a bar: a VIEWER could post on
-  // any task they could open.
-  //
-  // Three escapes, each deliberate:
-  //   • isWorkspaceManager — workspace OWNER/ADMIN and Position level 4+ are
-  //     NOT in canWrite/canComment, yet POST /api/projects/:id/messages
-  //     explicitly admits them ("or workspace leadership"). Without this the
-  //     firm's owner could post in a project's channel and be refused on a
-  //     task in the same project, in the same minute.
-  //   • isOwnTask — the creator/assignee already escapes requireWrite.
-  //   • isCollaborator — a follower is an EXPLICIT grant: adding someone else
-  //     as one requires write, and this route notifies collaborators of every
-  //     new comment. Refusing their reply is a notification that leads to a
-  //     403. Self-adding as a follower now requires comment capability too
-  //     (see the collaborators route), so a VIEWER cannot bootstrap through
-  //     this door.
-  if (
-    opts.requireComment &&
-    !access.canComment &&
-    !access.isWorkspaceManager &&
-    !isOwnTask &&
-    !isCollaborator
-  ) {
-    throw new AuthorizationError(
-      "You don't have permission to comment on this task"
-    );
-  }
-
-  // The personal-tie escapes above (follower, creator, assignee) live on rows
-  // that OUTLIVE offboarding: removing someone from a workspace deletes their
-  // WorkspaceMember row and nothing else, so a TaskCollaborator row from last
-  // year would otherwise still buy comment capability — and, on a task with a
-  // tracking page, the ability to publish text to the client. Anyone leaning
-  // on a personal tie must still hold a contributor seat in the task's
-  // workspace.
-  if (
-    opts.requireComment &&
-    !access.canComment &&
-    !access.isWorkspaceManager
-  ) {
+  if (decision.requiresContributorSeat) {
     const seat = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: { userId, workspaceId: task.project.workspaceId },
       },
       select: { role: true },
     });
-    if (!seat || NON_CONTRIBUTOR_ROLES.has(seat.role)) {
+    if (!contributorSeatSatisfied(seat?.role)) {
       throw new AuthorizationError(
         "You don't have permission to comment on this task"
       );
