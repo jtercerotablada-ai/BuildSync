@@ -175,6 +175,14 @@ interface Portfolio {
   // the caller's edit capability for the Share / Customize gates.
   members: { userId: string; role: PortfolioRole }[];
   projects: PortfolioProject[];
+  // Completed tasks belonging to archived projects, which the route leaves
+  // out of `projects`. Counted in the rollups below so archiving a delivered
+  // job doesn't retroactively erase the work it finished.
+  archivedCompletedTasks?: number;
+  // Ditto for their ids: the reorder endpoint renumbers every row of the
+  // join table and refuses a partial list, so a drag has to send these back
+  // even though no view renders them.
+  archivedProjectIds?: string[];
   _count: {
     projects: number;
   };
@@ -762,7 +770,13 @@ export default function PortfolioDetailPage() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            projectIds: reordered.map((p) => p.project.id),
+            // Archived rows keep their membership in the join table, so they
+            // travel at the end of the new order — dropped, the endpoint
+            // rejects the whole drag as a partial list.
+            projectIds: [
+              ...reordered.map((p) => p.project.id),
+              ...(portfolio.archivedProjectIds ?? []),
+            ],
           }),
         }
       );
@@ -820,6 +834,13 @@ export default function PortfolioDetailPage() {
       if (p.type) byType[p.type] += 1;
       if (p.gate) byGate[p.gate] += 1;
     }
+
+    // Archived projects are off `portfolio.projects`, but the tasks they
+    // completed are still work this portfolio delivered. Added to both sides
+    // of the ratio so progress never overshoots 100%.
+    const archivedCompleted = portfolio.archivedCompletedTasks || 0;
+    totalTasks += archivedCompleted;
+    completedTasks += archivedCompleted;
 
     return {
       totalBudget,
@@ -1475,7 +1496,10 @@ export default function PortfolioDetailPage() {
                   }}
                 />
               ) : (
-                <PortfolioTimelineView projects={portfolio.projects} />
+                <PortfolioTimelineView
+                  projects={portfolio.projects}
+                  canEdit={canEditPortfolio}
+                />
               )}
             </TabsContent>
 
@@ -1493,6 +1517,7 @@ export default function PortfolioDetailPage() {
                 projectCount={portfolio._count.projects}
                 byType={aggregates.byType}
                 byGate={aggregates.byGate}
+                canEdit={canEditPortfolio}
               />
             </TabsContent>
 

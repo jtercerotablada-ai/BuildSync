@@ -74,6 +74,10 @@ interface TimelineProject {
 
 interface Props {
   projects: { id: string; project: TimelineProject }[];
+  /** Portfolio edit capability, resolved by the detail page. Dragging a bar
+   *  reschedules the project, the same mutation the List view's Due date cell
+   *  performs — so both surfaces answer to the same gate. */
+  canEdit: boolean;
 }
 
 const STATUS_META: Record<
@@ -290,7 +294,7 @@ interface DragState {
   previewEnd: Date;
 }
 
-export function PortfolioTimelineView({ projects }: Props) {
+export function PortfolioTimelineView({ projects, canEdit }: Props) {
   const router = useRouter();
   const params = useParams();
   const portfolioId = (params?.portfolioId as string) || "_";
@@ -601,8 +605,10 @@ export function PortfolioTimelineView({ projects }: Props) {
       pp: { id: string; project: TimelineProject },
       mode: DragMode
     ) => {
-      // Only left button; ignore if no dates to move.
-      if (e.button !== 0) return;
+      // Only left button; ignore if no dates to move, or if the caller may
+      // not reschedule (the bar renders without grab affordances then, but
+      // a stray pointer event must not start a drag that only ends in 403).
+      if (e.button !== 0 || !canEdit) return;
       const { start, end } = effectiveDates(pp);
       if (!start || !end) return;
       e.preventDefault();
@@ -623,7 +629,7 @@ export function PortfolioTimelineView({ projects }: Props) {
       dragRef.current = state;
       setDrag(state);
     },
-    [effectiveDates]
+    [effectiveDates, canEdit]
   );
 
   const onBarPointerMove = useCallback(
@@ -1051,7 +1057,9 @@ export function PortfolioTimelineView({ projects }: Props) {
                               "absolute rounded-full flex items-center gap-1.5 px-1.5 text-[11px] font-medium overflow-hidden select-none touch-none",
                               isDragging
                                 ? "shadow-lg ring-2 ring-white cursor-grabbing z-[5]"
-                                : "hover:shadow-md transition-shadow cursor-grab"
+                                : canEdit
+                                  ? "hover:shadow-md transition-shadow cursor-grab"
+                                  : "cursor-default"
                             )}
                             style={{
                               left: bar.left,
@@ -1076,14 +1084,16 @@ export function PortfolioTimelineView({ projects }: Props) {
                             onPointerUp={onBarPointerUp}
                           >
                             {/* Left resize handle */}
-                            <span
-                              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                              onPointerDown={(e) =>
-                                onBarPointerDown(e, pp, "resize-start")
-                              }
-                              onPointerMove={onBarPointerMove}
-                              onPointerUp={onBarPointerUp}
-                            />
+                            {canEdit && (
+                              <span
+                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                onPointerDown={(e) =>
+                                  onBarPointerDown(e, pp, "resize-start")
+                                }
+                                onPointerMove={onBarPointerMove}
+                                onPointerUp={onBarPointerUp}
+                              />
+                            )}
                             {bar.width >= 80 ? (
                               <>
                                 <Avatar className="h-5 w-5 flex-shrink-0 ring-1 ring-white/40 pointer-events-none">
@@ -1108,14 +1118,16 @@ export function PortfolioTimelineView({ projects }: Props) {
                               </span>
                             ) : null}
                             {/* Right resize handle */}
-                            <span
-                              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                              onPointerDown={(e) =>
-                                onBarPointerDown(e, pp, "resize-end")
-                              }
-                              onPointerMove={onBarPointerMove}
-                              onPointerUp={onBarPointerUp}
-                            />
+                            {canEdit && (
+                              <span
+                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                onPointerDown={(e) =>
+                                  onBarPointerDown(e, pp, "resize-end")
+                                }
+                                onPointerMove={onBarPointerMove}
+                                onPointerUp={onBarPointerUp}
+                              />
+                            )}
                           </div>
                         ) : (
                           <div

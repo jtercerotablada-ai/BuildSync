@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { startOfTodayUtc } from "@/lib/date-only";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
 import { canAccessSection } from "@/lib/access-control";
+import {
+  buildProjectVisibilityClauses,
+  taskPrivacyClause,
+} from "@/lib/project-visibility";
 
 const COLORS = [
   "#3b82f6", // blue
@@ -50,11 +55,56 @@ export async function GET(req: Request) {
     if (!isMyImpact && !canAccessSection(access, "reporting")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const baseWhere = {
-      project: {
-        workspaceId: workspaceId,
-      },
-      ...(isMyImpact ? { assigneeId: userId } : {}),
+    // The level gate above answers "may you open org-wide reporting at all";
+    // it says nothing about WHICH rows. Scoping on workspaceId alone let a
+    // PRIVATE project the caller cannot open contribute its name and its task
+    // counts to every chart here. Same rule as the project list, mentions and
+    // search — one function, never a fourth copy.
+    const visibilityClauses = await buildProjectVisibilityClauses(userId);
+    // Each clause carries its OWN workspaceId, so AND-ing the set with this
+    // report's workspace narrows to exactly this workspace's clause rather
+    // than widening to every workspace the caller belongs to. An empty OR
+    // matches nothing — the safe answer for a caller with no membership,
+    // which getEffectiveAccess has already ruled out above.
+    const projectScope: Prisma.ProjectWhereInput = {
+      AND: [{ workspaceId: workspaceId }, { OR: visibilityClauses ?? [] }],
+    };
+    // The project-entity aggregates narrow further to the caller's own
+    // projects in the "my impact" view.
+    const projectWhere: Prisma.ProjectWhereInput = {
+      ...projectScope,
+      ...(isMyImpact ? { ownerId: userId } : {}),
+    };
+    // Goals answer to their own flag. A goal marked private is readable by
+    // its owner, the people named on it and whoever runs the workspace
+    // (decideObjectiveAccess) — so a workspace OWNER/ADMIN is deliberately
+    // NOT narrowed here: hiding a row from this donut that the goals page
+    // hands them one click away would only make the two disagree.
+    const seesEveryObjective =
+      access.workspaceRole === "OWNER" || access.workspaceRole === "ADMIN";
+    const objectiveScope: Prisma.ObjectiveWhereInput = {
+      workspaceId: workspaceId,
+      ...(seesEveryObjective
+        ? {}
+        : {
+            OR: [
+              { isPrivate: false },
+              { ownerId: userId },
+              { members: { some: { userId } } },
+            ],
+          }),
+    };
+    // taskPrivacyClause is itself an `OR`, and query 6 below carries a
+    // top-level `OR` of its own — spreading the clause in the way /api/search
+    // can would let that query's OR overwrite the gate. Both gates sit INSIDE
+    // this AND so every aggregate intersects them instead of replacing one
+    // with the other.
+    const baseWhere: Prisma.TaskWhereInput = {
+      AND: [
+        { project: projectScope },
+        taskPrivacyClause(userId),
+        ...(isMyImpact ? [{ assigneeId: userId }] : []),
+      ],
     };
 
     // Get date ranges
@@ -167,10 +217,7 @@ export async function GET(req: Request) {
       // 7. Projects by status
       prisma.project.groupBy({
         by: ["status"],
-        where: {
-          workspaceId: workspaceId,
-          ...(isMyImpact ? { ownerId: userId } : {}),
-        },
+        where: projectWhere,
         _count: true,
       }),
       // 8. Upcoming tasks this week by assignee
@@ -218,10 +265,7 @@ export async function GET(req: Request) {
       // 12. Projects by owner
       prisma.project.groupBy({
         by: ["ownerId"],
-        where: {
-          workspaceId: workspaceId,
-          ...(isMyImpact ? { ownerId: userId } : {}),
-        },
+        where: projectWhere,
         _count: true,
       }),
       // 13. Portfolio-project relations for projects in this workspace
@@ -230,10 +274,7 @@ export async function GET(req: Request) {
           portfolio: {
             workspaceId: workspaceId,
           },
-          project: {
-            workspaceId: workspaceId,
-            ...(isMyImpact ? { ownerId: userId } : {}),
-          },
+          project: projectWhere,
         },
         select: {
           portfolioId: true,
@@ -244,7 +285,7 @@ export async function GET(req: Request) {
       prisma.objective.groupBy({
         by: ["status"],
         where: {
-          workspaceId: workspaceId,
+          ...objectiveScope,
           ...(isMyImpact ? { ownerId: userId } : {}),
         },
         _count: true,

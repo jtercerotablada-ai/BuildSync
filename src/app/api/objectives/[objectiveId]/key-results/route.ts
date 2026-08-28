@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
+import { AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyObjectiveAccess } from "@/lib/objective-access";
 import { GoalProgressService } from "@/lib/goal-progress";
 
 const createKeyResultSchema = z
@@ -47,15 +48,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
+    // A key result is part of the goal and feeds its progress, so every verb
+    // here takes write access to the goal itself.
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
 
     const body = await req.json();
     const data = createKeyResultSchema.parse(body);
@@ -79,7 +74,7 @@ export async function POST(
 
     return NextResponse.json(keyResult, { status: 201 });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
@@ -111,15 +106,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
 
     const { searchParams } = new URL(req.url);
     const keyResultId = searchParams.get("keyResultId");
@@ -205,7 +192,7 @@ export async function PATCH(
 
     return NextResponse.json(keyResult);
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
@@ -237,15 +224,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
 
     const { searchParams } = new URL(req.url);
     const keyResultId = searchParams.get("keyResultId");
@@ -274,7 +253,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }

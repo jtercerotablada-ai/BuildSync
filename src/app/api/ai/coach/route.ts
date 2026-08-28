@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { resolveObjectiveAccess } from "@/lib/objective-access";
 import { startOfTodayUtc } from "@/lib/date-only";
 
 /**
@@ -35,7 +35,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const workspaceId = await getUserWorkspaceId(userId);
+    // Read gate BEFORE the context query, not after: this route hands the model
+    // the goal's name, every key result, the last check-ins and the linked work,
+    // so "same workspace" is not a strong enough answer once a goal can be
+    // private. resolveObjectiveAccess is the single rule the objective routes
+    // use; it answers 404 rather than 403 so a private goal's existence stays
+    // hidden.
+    const access = await resolveObjectiveAccess(objectiveId, userId);
+    if (!access.ok || !access.canRead) {
+      return NextResponse.json(
+        { error: "Objective not found" },
+        { status: 404 }
+      );
+    }
 
     // Pull the objective + everything that gives the model context.
     const objective = await prisma.objective.findUnique({
@@ -88,7 +100,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!objective || objective.workspaceId !== workspaceId) {
+    if (!objective) {
       return NextResponse.json(
         { error: "Objective not found" },
         { status: 404 }

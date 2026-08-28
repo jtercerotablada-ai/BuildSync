@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import {
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+} from "@/lib/auth-guards";
+import { verifyObjectiveAccess } from "@/lib/objective-access";
 import { GoalProgressService } from "@/lib/goal-progress";
 
 // POST /api/objectives/:objectiveId/recalculate - Manually trigger progress recalculation
@@ -17,15 +21,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    // Recalculating writes the goal's stored progress (and its ancestors'),
+    // so it takes write access.
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
 
     const newProgress = await GoalProgressService.recalculateProgress(objectiveId);
 
@@ -34,6 +32,10 @@ export async function POST(
       progress: Math.round(newProgress),
     });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error recalculating progress:", error);
     return NextResponse.json(
       { error: "Failed to recalculate progress" },

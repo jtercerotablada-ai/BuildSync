@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, assertProjectInWorkspace, assertTaskInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { assertProjectInWorkspace, assertTaskInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyObjectiveAccess } from "@/lib/objective-access";
 
 /**
  * Confirm the keyResult belongs to the objective from the path. Without
@@ -47,15 +48,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    await verifyObjectiveAccess(userId, objectiveId);
     await assertKeyResultInObjective(keyResultId, objectiveId);
 
     const [projects, tasks] = await Promise.all([
@@ -160,15 +153,11 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
+    // Linking work to a key result feeds the goal's progress, so it takes
+    // write access to the goal.
+    const { objective } = await verifyObjectiveAccess(userId, objectiveId, {
+      requireWrite: true,
     });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
 
     await assertKeyResultInObjective(keyResultId, objectiveId);
 
@@ -177,9 +166,9 @@ export async function POST(
 
     // Scope connected project/task to the objective's workspace — audit SEC-04.
     if (data.type === "project") {
-      await assertProjectInWorkspace(data.projectId, workspaceId);
+      await assertProjectInWorkspace(data.projectId, objective.workspaceId);
     } else {
-      await assertTaskInWorkspace(data.taskId, workspaceId);
+      await assertTaskInWorkspace(data.taskId, objective.workspaceId);
     }
 
     if (data.type === "project") {
@@ -284,15 +273,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
     await assertKeyResultInObjective(keyResultId, objectiveId);
 
     const { searchParams } = new URL(req.url);

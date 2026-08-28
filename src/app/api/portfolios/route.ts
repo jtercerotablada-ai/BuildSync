@@ -61,7 +61,9 @@ export async function GET(req: Request) {
           color: true,
           _count: {
             select: {
-              projects: true,
+              // Archived projects are off the portfolio's own list below, so
+              // the widget's count must not include them either.
+              projects: { where: { project: { isArchived: false } } },
             },
           },
         },
@@ -94,6 +96,7 @@ export async function GET(req: Request) {
                 gate: true,
                 budget: true,
                 currency: true,
+                isArchived: true,
                 tasks: {
                   // Only top-level tasks, matching how goal roll-ups measure a
                   // project (src/lib/goal-progress.ts) and how the portfolio
@@ -109,7 +112,7 @@ export async function GET(req: Request) {
         },
         _count: {
           select: {
-            projects: true,
+            projects: { where: { project: { isArchived: false } } },
           },
         },
       },
@@ -132,7 +135,19 @@ export async function GET(req: Request) {
       let completeCount = 0;
       let currency: string | null = null;
 
-      for (const pp of p.projects) {
+      // An archived project is off the dashboard, the sidebar and every team
+      // view, so carrying it here would make this card disagree with the one
+      // next to it. Only its OPEN work is dropped, though: its finished tasks
+      // still feed the totals below, because filing a delivered job away must
+      // not un-finish it (same call the dashboard's completed counts make).
+      const activeProjects = p.projects.filter((pp) => !pp.project.isArchived);
+      for (const pp of p.projects.filter((pp) => pp.project.isArchived)) {
+        const done = pp.project.tasks.filter((t) => t.completed).length;
+        totalTasks += done;
+        completedTasks += done;
+      }
+
+      for (const pp of activeProjects) {
         const proj = pp.project;
         if (proj.budget) {
           totalBudget += Number(proj.budget);
@@ -170,7 +185,7 @@ export async function GET(req: Request) {
         totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
       // Strip raw tasks from response — the list page only needs the rollup.
-      const projectsLight = p.projects.map((pp) => ({
+      const projectsLight = activeProjects.map((pp) => ({
         id: pp.id,
         position: pp.position,
         project: {
@@ -238,7 +253,13 @@ export async function POST(req: Request) {
         name: data.name,
         description: data.description,
         color: data.color || "#a8893a",
-        privacy: data.privacy || "WORKSPACE",
+        // Fallback for callers that omit the field — the create dialog always
+        // sends one. The read gate above grants on owner / explicit member /
+        // PUBLIC and nothing else, so PRIVATE is the only default that names
+        // what a stored row actually does; teaching the gate to honour
+        // WORKSPACE instead would open every portfolio ever created to the
+        // whole workspace at once.
+        privacy: data.privacy || "PRIVATE",
         workspaceId: workspaceMember.workspaceId,
         ownerId: userId,
       },

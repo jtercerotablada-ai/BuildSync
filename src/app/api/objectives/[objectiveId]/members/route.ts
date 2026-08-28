@@ -3,6 +3,10 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { notifyObjectiveShared } from "@/lib/objective-notifications";
+import {
+  objectiveAccessDenied,
+  resolveObjectiveAccess,
+} from "@/lib/objective-access";
 
 /**
  * GET    /api/objectives/:id/members — list members of an objective
@@ -31,45 +35,49 @@ async function loadObjectiveWithAccess(
   | { ok: true; objective: { id: string; name: string; ownerId: string | null; workspaceId: string; teamId: string | null }; isOwner: boolean; canSee: boolean }
   | { ok: false; status: number; error: string }
 > {
-  const obj = await prisma.objective.findUnique({
-    where: { id: objectiveId },
-    select: {
-      id: true,
-      name: true,
-      ownerId: true,
-      workspaceId: true,
-      teamId: true,
-      members: { where: { userId }, select: { id: true } },
-    },
-  });
-  if (!obj) {
-    return { ok: false, status: 404, error: "Objective not found" };
+  // The shared goal gate first, and it already answers in this function's
+  // shape: an unknown goal and a private one this caller isn't on come back
+  // identically (404), so neither can be told apart by poking ids.
+  const gate = await resolveObjectiveAccess(objectiveId, userId);
+  if (!gate.ok) {
+    return gate;
   }
 
-  const isOwner = obj.ownerId === userId;
+  // Only the field the gate doesn't carry — the name goes into the "shared
+  // this objective with you" notification.
+  const obj = await prisma.objective.findUnique({
+    where: { id: objectiveId },
+    select: { name: true },
+  });
+  if (!obj) {
+    return objectiveAccessDenied();
+  }
+
+  const isOwner = gate.isOwner;
   let isTeamMember = false;
-  if (obj.teamId) {
+  if (gate.objective.teamId) {
     const tm = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId: obj.teamId } },
+      where: { userId_teamId: { userId, teamId: gate.objective.teamId } },
       select: { id: true },
     });
     isTeamMember = !!tm;
   }
-  const isObjectiveMember = obj.members.length > 0;
-  const canSee = isOwner || isTeamMember || isObjectiveMember;
+  // Kept on top of the gate, which admits any workspace contributor to an
+  // ordinary goal: the member list has always been for people actually on it.
+  const canSee = isOwner || isTeamMember || gate.isMember;
   if (!canSee) {
     // 404 (not 403) masks existence.
-    return { ok: false, status: 404, error: "Objective not found" };
+    return objectiveAccessDenied();
   }
 
   return {
     ok: true,
     objective: {
-      id: obj.id,
+      id: gate.objective.id,
       name: obj.name,
-      ownerId: obj.ownerId,
-      workspaceId: obj.workspaceId,
-      teamId: obj.teamId,
+      ownerId: gate.objective.ownerId,
+      workspaceId: gate.objective.workspaceId,
+      teamId: gate.objective.teamId,
     },
     isOwner,
     canSee,

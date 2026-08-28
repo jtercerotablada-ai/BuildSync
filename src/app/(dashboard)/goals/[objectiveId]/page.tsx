@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
   Popover,
@@ -152,6 +153,10 @@ interface Objective {
     children: number;
     projects: number;
     likes?: number;
+    // The whole feed, not the page-sized slice `statusUpdates` carries — a
+    // delete cascade takes every row, so the confirmation has to count them
+    // all.
+    statusUpdates?: number;
   };
 }
 
@@ -218,6 +223,7 @@ export default function GoalDetailPage() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // ── Members state ──────────────────────────────────────────
   // Loaded after the objective itself so the UI can render a stack
@@ -613,20 +619,24 @@ export default function GoalDetailPage() {
     }
   }
 
+  // Throws on failure so ConfirmDialog can show the reason. A 403 from the
+  // privacy gate, or a 500, used to fall through the `if (res.ok)` and leave
+  // the user staring at a goal that looked like it had refused to die.
   async function handleDeleteObjective() {
-    if (!confirm("Delete this objective? This action cannot be undone.")) return;
+    const res = await fetch(`/api/objectives/${objectiveId}`, {
+      method: "DELETE",
+    });
 
-    try {
-      const res = await fetch(`/api/objectives/${objectiveId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        router.push("/goals");
-      }
-    } catch (error) {
-      console.error("Error deleting objective:", error);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(
+        data?.error || `Couldn't delete this goal (HTTP ${res.status})`
+      );
     }
+
+    setDeleteOpen(false);
+    toast.success("Goal deleted");
+    router.push("/goals");
   }
 
   const openUpdateDialog = (kr: KeyResult) => {
@@ -659,6 +669,23 @@ export default function GoalDetailPage() {
 
   const currentStatus = getStatusOption(objective.status);
   const hasNoSubgoals = objective.children.length === 0;
+
+  // Spelled out from the counts already on the page: the delete cascades, and
+  // the number of sub-goals it takes with it is the part nobody expects.
+  const plural = (n: number, word: string) =>
+    `${n} ${word}${n === 1 ? "" : "s"}`;
+  const checkInCount =
+    objective._count.statusUpdates ?? objective.statusUpdates?.length ?? 0;
+  const deleteConsequences = [
+    objective._count.children > 0 &&
+      `${plural(objective._count.children, "sub-goal")} — and everything inside them`,
+    objective._count.keyResults > 0 &&
+      `${plural(objective._count.keyResults, "key result")} and their update history`,
+    checkInCount > 0 &&
+      `${checkInCount} ${checkInCount === 1 ? "check-in or comment" : "check-ins and comments"}`,
+    objective._count.projects > 0 &&
+      `${plural(objective._count.projects, "project link")} (the projects themselves are kept)`,
+  ].filter((line): line is string => typeof line === "string");
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -762,7 +789,7 @@ export default function GoalDetailPage() {
             }}>
               Duplicate
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-black" onClick={handleDeleteObjective}>
+            <DropdownMenuItem className="text-black" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
             </DropdownMenuItem>
@@ -1862,6 +1889,19 @@ export default function GoalDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete — a goal takes its whole subtree with it, so this one names
+          what is destroyed and asks for the goal's own name. */}
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete this goal?"
+        description={`"${objective.name}" and everything tracked under it are removed permanently. This can't be undone.`}
+        consequences={deleteConsequences}
+        confirmLabel="Delete goal"
+        requireText={objective.name}
+        onConfirm={handleDeleteObjective}
+      />
     </div>
   );
 }

@@ -116,6 +116,11 @@ type ViewType = "list" | "kanban" | "cards" | "tree";
 // names so the one-time carry-over below can find them.
 const VIEW_UI_STATE_KEY = "goalsView";
 const FILTER_UI_STATE_KEY = "goalsFilter";
+// Period + status pills sit in the same toolbar and are the same kind of
+// choice, so they persist the same way. Neither was ever kept in
+// localStorage, so there is nothing to carry over for them.
+const PERIOD_UI_STATE_KEY = "goalsPeriod";
+const STATUS_UI_STATE_KEY = "goalsStatus";
 const LEGACY_VIEW_STORAGE_KEY = "goals.view";
 const LEGACY_FILTER_STORAGE_KEY = "goals.filter";
 
@@ -165,11 +170,15 @@ function GoalsPageContent() {
   );
   const { value: selectedView, setValue: setSelectedView } =
     useUiState<ViewType>(VIEW_UI_STATE_KEY, "list");
-  const [selectedPeriod, setSelectedPeriod] = useState("All");
+  const { value: selectedPeriod, setValue: setSelectedPeriod } =
+    useUiState<string>(PERIOD_UI_STATE_KEY, "All");
   // Status filter — client-side filter on top of fetched objectives.
   // "all" shows everything; otherwise only objectives whose status
   // exactly matches the selected value are rendered.
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { value: statusFilter, setValue: setStatusFilter } = useUiState<string>(
+    STATUS_UI_STATE_KEY,
+    "all"
+  );
   // Template-aware create state. When `pendingTemplate` is set, the
   // dialog pre-fills name + creates KRs from the template payload.
   const [pendingTemplate, setPendingTemplate] = useState<GoalTemplate | null>(
@@ -272,7 +281,11 @@ function GoalsPageContent() {
     let aborted = false;
     try {
       const params = new URLSearchParams();
-      params.set("parentId", "null");
+      // Deliberately NOT scoped to parentId=null. List / Kanban / Cards are
+      // flat views of "every goal I can see", and pinning the request to root
+      // goals made a goal disappear from all three the moment someone gave it
+      // a parent — including from the "All goals" pill. The tree views derive
+      // their own roots from `parentId`, so they are unaffected.
       // "my" = objectives I OWN (server-side filter via ownerId=me).
       // "team" = objectives where I'm a member but NOT the owner
       //          (the API already scopes by access — owner OR member
@@ -825,6 +838,59 @@ function GoalsPageContent() {
 }
 
 // Goals List View Component
+type SortKey = "name" | "status" | "progress" | "period" | "team" | "owner";
+type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
+
+const SORT_UI_STATE_KEY = "goalsSort";
+
+// Status sorts by how much attention it needs, not alphabetically — the
+// reason to sort a goals list by status is to surface what's in trouble.
+const STATUS_SORT_RANK: Record<string, number> = {
+  OFF_TRACK: 0,
+  AT_RISK: 1,
+  ON_TRACK: 2,
+  PARTIAL: 3,
+  ACHIEVED: 4,
+  MISSED: 5,
+  DROPPED: 6,
+};
+
+const SORT_VALUES: Record<SortKey, (o: Objective) => string | number> = {
+  name: (o) => o.name.toLowerCase(),
+  status: (o) => STATUS_SORT_RANK[o.status] ?? 99,
+  progress: (o) => o.progress,
+  // PERIODS is already in chronological order, so its index is the only
+  // ranking that reads right — "FY26" sorts before "Q1 FY26" alphabetically.
+  period: (o) => {
+    const i = PERIODS.indexOf(o.period ?? "");
+    return i === -1 ? PERIODS.length : i;
+  },
+  team: (o) => o.team?.name.toLowerCase() ?? "",
+  owner: (o) => o.owner?.name?.toLowerCase() ?? "",
+};
+
+function sortObjectives(objectives: Objective[], sort: SortState): Objective[] {
+  const value = sort ? SORT_VALUES[sort.key] : undefined;
+  // No sort (or a key from an older build sitting in the saved pref) leaves
+  // the API's newest-first order alone.
+  if (!sort || !value) return objectives;
+  const dir = sort.dir === "desc" ? -1 : 1;
+  return [...objectives].sort((a, b) => {
+    const av = value(a);
+    const bv = value(b);
+    // Blank cells sink in both directions — reversing a sort shouldn't lift
+    // the goals with no owner or no team to the top of the list.
+    if (av === "" || bv === "") {
+      if (av === bv) return 0;
+      return av === "" ? 1 : -1;
+    }
+    if (typeof av === "number" && typeof bv === "number") {
+      return (av - bv) * dir;
+    }
+    return String(av).localeCompare(String(bv)) * dir;
+  });
+}
+
 function GoalsListView({
   objectives,
   expandedIds,
@@ -840,7 +906,7 @@ function GoalsListView({
   onCreateGoal: () => void;
   getStatusColor: (status: string) => string;
 }) {
-  const columns = [
+  const columns: { id: SortKey; label: string; className: string }[] = [
     { id: "name", label: "Name", className: "flex-1" },
     { id: "status", label: "Status", className: "w-[80px]" },
     { id: "progress", label: "Progress", className: "w-[140px]" },
@@ -848,6 +914,25 @@ function GoalsListView({
     { id: "team", label: "Responsible team", className: "w-[140px]" },
     { id: "owner", label: "Owner", className: "w-[80px]" },
   ];
+
+  const { value: sort, setValue: setSort } = useUiState<SortState>(
+    SORT_UI_STATE_KEY,
+    null
+  );
+
+  // asc → desc → back to the API's own order, so a header can always undo
+  // itself without hunting for a reset control.
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) =>
+      !prev || prev.key !== key
+        ? { key, dir: "asc" }
+        : prev.dir === "asc"
+          ? { key, dir: "desc" }
+          : null
+    );
+  };
+
+  const rows = sortObjectives(objectives, sort);
 
   if (objectives.length === 0) {
     return (
@@ -876,28 +961,41 @@ function GoalsListView({
           centers its content per Juan's request. Per-cell `border-l`
           provides vertical dividers; rows below use the same pattern. */}
       <div className="hidden md:flex items-stretch border-b border-[#e6e9ef] text-xs font-medium text-black uppercase tracking-wide bg-white">
-        {columns.map((col, i) => (
-          <div
-            key={col.id}
-            className={cn(
-              "py-2 px-3 flex items-center justify-center gap-1",
-              col.className,
-              i > 0 && "border-l border-[#e6e9ef]"
-            )}
-          >
-            {col.label}
-            <ChevronDown className="w-3 h-3" />
-          </div>
-        ))}
-        <div className="w-10 border-l border-[#e6e9ef] flex items-center justify-center">
-          <Plus className="w-4 h-4 text-black" />
-        </div>
+        {columns.map((col, i) => {
+          const active = sort?.key === col.id;
+          return (
+            <button
+              key={col.id}
+              type="button"
+              onClick={() => toggleSort(col.id)}
+              aria-label={`Sort by ${col.label}`}
+              className={cn(
+                "py-2 px-3 flex items-center justify-center gap-1 hover:bg-gray-50 transition-colors",
+                col.className,
+                i > 0 && "border-l border-[#e6e9ef]"
+              )}
+            >
+              {col.label}
+              <ChevronDown
+                className={cn(
+                  "w-3 h-3 transition-transform",
+                  active
+                    ? sort?.dir === "desc" && "rotate-180"
+                    : "opacity-30"
+                )}
+              />
+            </button>
+          );
+        })}
+        {/* Trailing spacer, aligned with the rows' own end cell. It used to
+            carry an add-column "+" that was never wired to anything. */}
+        <div className="w-10 border-l border-[#e6e9ef]" />
       </div>
 
       {/* Goals List — per-cell `border-l` restored on each column
           cell for guaranteed vertical dividers across browsers. */}
       <div>
-        {objectives.map((objective) => (
+        {rows.map((objective) => (
           <div key={objective.id}>
             {/* Desktop row — per-cell border-l on each column cell */}
             <div

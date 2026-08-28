@@ -54,6 +54,7 @@ export async function GET(
                 currency: true,
                 startDate: true,
                 endDate: true,
+                isArchived: true,
                 owner: {
                   select: {
                     id: true,
@@ -118,8 +119,34 @@ export async function GET(
       );
     }
 
+    // An archived project is off the dashboard, the sidebar and every team
+    // view; leaving it on this page's list, timeline and health rollup would
+    // make the portfolio disagree with the dashboard beside it. Its OPEN work
+    // is what stops counting — there is no surface left to work it down on.
+    const activeProjects = portfolio.projects.filter(
+      (pp) => !pp.project.isArchived
+    );
+    // Its FINISHED work still counts, though: archiving a delivered job must
+    // not retroactively un-deliver it, so the tasks it completed stay in the
+    // portfolio's totals (the same call the dashboard's completed counts
+    // make). The client folds this into totalTasks AND completedTasks, so
+    // progress can only rise toward the truth, never past 100%.
+    const archivedCompletedTasks = portfolio.projects
+      .filter((pp) => pp.project.isArchived)
+      .reduce(
+        (n, pp) => n + pp.project.tasks.filter((t) => t.completed).length,
+        0
+      );
+    // The reorder endpoint renumbers the WHOLE join table and rejects a
+    // partial list, so the page still has to name the rows it no longer
+    // renders — otherwise dragging a row on a portfolio that contains an
+    // archived project can only ever answer 400.
+    const archivedProjectIds = portfolio.projects
+      .filter((pp) => pp.project.isArchived)
+      .map((pp) => pp.project.id);
+
     // Calculate stats for each project
-    const projectsWithStats = portfolio.projects.map((pp) => {
+    const projectsWithStats = activeProjects.map((pp) => {
       const project = pp.project;
       const totalTasks = project.tasks.length;
       const completedTasks = project.tasks.filter((t) => t.completed).length;
@@ -152,6 +179,9 @@ export async function GET(
     return NextResponse.json({
       ...portfolio,
       projects: projectsWithStats,
+      _count: { ...portfolio._count, projects: projectsWithStats.length },
+      archivedCompletedTasks,
+      archivedProjectIds,
     });
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
@@ -247,7 +277,10 @@ export async function PATCH(
         },
         _count: {
           select: {
-            projects: true,
+            // Same population the GET returns, so the page merging this
+            // response after a rename doesn't resurrect the archived rows
+            // in its "N projects" count.
+            projects: { where: { project: { isArchived: false } } },
           },
         },
       },

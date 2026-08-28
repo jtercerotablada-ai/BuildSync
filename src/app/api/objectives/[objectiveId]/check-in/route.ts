@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import {
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+} from "@/lib/auth-guards";
+import { verifyObjectiveAccess } from "@/lib/objective-access";
 import type { ObjectiveStatus } from "@prisma/client";
 
 /**
@@ -41,13 +46,16 @@ export async function POST(
     const body = await req.json();
     const parsed = checkInSchema.parse(body);
 
-    // Verify the objective is in the user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
+    // A check-in writes the goal's status, so it needs write access to it.
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
+
+    // Only the current status is still needed after the gate — it isn't part
+    // of the access subject.
     const objective = await prisma.objective.findUnique({
       where: { id: objectiveId },
-      select: { workspaceId: true, status: true },
+      select: { status: true },
     });
-    if (!objective || objective.workspaceId !== workspaceId) {
+    if (!objective) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -85,6 +93,10 @@ export async function POST(
         { error: error.issues[0]?.message ?? "Validation error" },
         { status: 400 }
       );
+    }
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
     }
     console.error("Error creating check-in:", error);
     return NextResponse.json(

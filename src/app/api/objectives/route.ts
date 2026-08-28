@@ -8,6 +8,7 @@ import {
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { resolveObjectiveAccess } from "@/lib/objective-access";
 
 const keyResultSeedSchema = z.object({
   name: z.string().min(1),
@@ -26,6 +27,10 @@ const createObjectiveSchema = z.object({
   parentId: z.string().optional(),
   teamId: z.string().optional(),
   ownerId: z.string().optional(),
+  // The New goal dialog's privacy picker. Without a key here Zod strips it
+  // and every goal is stored public, which is how the flag stayed unreadable
+  // for as long as it has: the column the gate reads was never written.
+  isPrivate: z.boolean().optional(),
   progressSource: z.enum(["MANUAL", "KEY_RESULTS", "SUB_OBJECTIVES", "PROJECTS"]).optional(),
   // Optional. When present, the objective is created together with these
   // KRs in a single transaction — used by the engineering goal templates.
@@ -73,6 +78,21 @@ export async function GET(req: Request) {
         { ownerId: userId },
         { members: { some: { userId } } },
         { team: { members: { some: { userId } } } },
+      ],
+      // A goal marked private is not team-wide work, so the team clause above
+      // must not reach it: only its owner and the people explicitly named on
+      // it may list it. This belongs in the WHERE and never in a filter over
+      // the result, because `take` (the Home widget sends ?limit=4) is applied
+      // by the database — dropping rows afterwards would silently return fewer
+      // goals than the caller is entitled to see.
+      AND: [
+        {
+          OR: [
+            { isPrivate: false },
+            { ownerId: userId },
+            { members: { some: { userId } } },
+          ],
+        },
       ],
     };
 
@@ -178,13 +198,14 @@ export async function POST(req: Request) {
 
     const workspaceId = await getUserWorkspaceId(userId);
 
-    // Verify parentId belongs to user's workspace
+    // Verify parentId is a goal this caller may actually open, and that it
+    // belongs to the workspace the new goal is being created in. Checking the
+    // workspace alone let anyone parent a new goal under a PRIVATE one, which
+    // surfaces that goal's name and roll-up in every tree walked from the
+    // child.
     if (data.parentId) {
-      const parent = await prisma.objective.findUnique({
-        where: { id: data.parentId },
-        select: { workspaceId: true },
-      });
-      if (!parent || parent.workspaceId !== workspaceId) {
+      const parentAccess = await resolveObjectiveAccess(data.parentId, userId);
+      if (!parentAccess.ok || parentAccess.objective.workspaceId !== workspaceId) {
         return NextResponse.json({ error: "Parent objective not found" }, { status: 404 });
       }
     }
@@ -223,6 +244,7 @@ export async function POST(req: Request) {
         period: data.period,
         parentId: data.parentId,
         teamId: data.teamId,
+        isPrivate: data.isPrivate ?? false,
         progressSource: data.progressSource || "MANUAL",
         workspaceId,
         ownerId: resolvedOwnerId,

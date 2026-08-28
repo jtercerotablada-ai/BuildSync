@@ -701,6 +701,7 @@ export function ChartBuilder({
                     benchmark={
                       benchmark.trim() === "" ? undefined : Number(benchmark)
                     }
+                    truncation={preview.truncation}
                     height={240}
                   />
                 ) : (

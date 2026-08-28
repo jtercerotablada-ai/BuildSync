@@ -145,7 +145,10 @@ export function CreateObjectiveDialog({
           ownerId: owner?.id,
           teamId: accountableTeam?.id,
           period: selectedPeriod?.name,
-          privacy,
+          // The picker has to arrive as the column the privacy gate reads
+          // (Objective.isPrivate). Sent under any other name it is dropped
+          // as an unknown key and every goal is created public.
+          isPrivate: privacy === "private",
         }),
       });
 

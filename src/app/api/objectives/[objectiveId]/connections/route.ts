@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, assertProjectInWorkspace, assertTaskInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { assertProjectInWorkspace, assertTaskInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyObjectiveAccess } from "@/lib/objective-access";
 import { GoalProgressService } from "@/lib/goal-progress";
 
 const connectProjectSchema = z.object({
@@ -33,15 +34,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
+    await verifyObjectiveAccess(userId, objectiveId);
 
     const [projects, tasks] = await Promise.all([
       prisma.objectiveProject.findMany({
@@ -121,7 +114,7 @@ export async function GET(
       tasks: tasksFormatted,
     });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
@@ -146,15 +139,11 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
+    // Connecting work to a goal changes the goal (its progress rolls up from
+    // what is linked), so it takes write access.
+    const { objective } = await verifyObjectiveAccess(userId, objectiveId, {
+      requireWrite: true,
     });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
 
     const body = await req.json();
     const data = connectionSchema.parse(body);
@@ -163,9 +152,9 @@ export async function POST(
     // this, projectId/taskId are trusted from the body and a user can link
     // (and expose progress of) resources from another company — audit SEC-04.
     if (data.type === "project") {
-      await assertProjectInWorkspace(data.projectId, workspaceId);
+      await assertProjectInWorkspace(data.projectId, objective.workspaceId);
     } else {
-      await assertTaskInWorkspace(data.taskId, workspaceId);
+      await assertTaskInWorkspace(data.taskId, objective.workspaceId);
     }
 
     if (data.type === "project") {
@@ -278,15 +267,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify objective belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-    if (!objective || objective.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
+    // Disconnecting work changes the goal's roll-up, so it takes write access.
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
@@ -328,7 +310,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }

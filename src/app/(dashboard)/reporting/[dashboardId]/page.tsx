@@ -21,7 +21,6 @@ import {
   Columns2,
   Square,
   GripVertical,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -1400,9 +1399,10 @@ function CustomChartWidget({ widget, height }: { widget: DashboardWidget; height
         total={resp.total}
         showDataLabels={widget.showDataLabels ?? true}
         benchmark={widget.benchmark}
+        truncation={resp.truncation}
         height={height}
       />
-      <WidgetFooter filterSummary={resp.meta.filterSummary} drilldownBase={resp.meta.drilldownBase} />
+      <WidgetFooter filterSummary={resp.meta.filterSummary} />
     </>
   );
 }
@@ -1516,28 +1516,20 @@ function CatalogWidgetBody({
 
 // ── Shared widget footer: filter summary + View all drilldown ──
 
-function WidgetFooter({
-  filterSummary,
-  drilldownBase,
-}: {
-  filterSummary: string;
-  drilldownBase?: string;
-}) {
+// The "View all" link that used to sit here pointed at /my-tasks?<drilldownBase>.
+// buildMeta encodes the chart's entity, scope, project/portfolio and filters into
+// that querystring "so the UI can translate to its own params" — but /my-tasks
+// reads none of them. So a chart of the whole firm's overdue work opened the
+// VIEWER'S OWN task list, silently swapping the dataset under a label promising
+// more of the same. The querystring is still built and still returned in meta;
+// the link comes back when something can actually replay it.
+function WidgetFooter({ filterSummary }: { filterSummary: string }) {
   return (
-    <div className="flex items-center justify-between mt-3 md:mt-4 pt-3 border-t text-[10px] md:text-xs text-slate-400 gap-2">
+    <div className="flex items-center mt-3 md:mt-4 pt-3 border-t text-[10px] md:text-xs text-slate-400 gap-2">
       <div className="flex items-center gap-1 min-w-0">
         <Filter className="w-3 h-3 flex-shrink-0" />
         <span className="truncate">{filterSummary}</span>
       </div>
-      {drilldownBase && (
-        <Link
-          href={`/my-tasks?${drilldownBase}`}
-          className="flex items-center gap-1 text-slate-500 hover:text-slate-900 flex-shrink-0"
-        >
-          <span>View all</span>
-          <ExternalLink className="w-3 h-3" />
-        </Link>
-      )}
     </div>
   );
 }

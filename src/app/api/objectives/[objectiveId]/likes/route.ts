@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  verifyWorkspaceAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { verifyObjectiveAccess } from "@/lib/objective-access";
 
 // POST /api/objectives/:objectiveId/likes - Toggle like for current user
 export async function POST(
@@ -21,16 +21,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-
-    if (!objective) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
-
-    await verifyWorkspaceAccess(userId, objective.workspaceId);
+    // A like is a row on the goal, so it takes write access to the goal.
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
 
     const existing = await prisma.objectiveLike.findUnique({
       where: { objectiveId_userId: { objectiveId, userId } },

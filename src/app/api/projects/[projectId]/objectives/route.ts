@@ -58,8 +58,21 @@ export async function GET(
       );
     }
 
+    // Access to the PROJECT does not imply access to every goal pointed at it.
+    // A private objective linked here would otherwise show its name, owner and
+    // progress to anyone who can open the project — the same clause the goals
+    // list uses, kept in the WHERE so it cannot be undone by a later slice.
     const joins = await prisma.objectiveProject.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        objective: {
+          OR: [
+            { isPrivate: false },
+            { ownerId: userId },
+            { members: { some: { userId } } },
+          ],
+        },
+      },
       include: {
         objective: {
           select: {

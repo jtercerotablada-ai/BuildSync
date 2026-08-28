@@ -46,6 +46,17 @@ export interface ReportChartProps {
   benchmark?: number;
   /** Render height in px. Defaults to 200 (grid). Preview/expand pass larger. */
   height?: number;
+  /**
+   * Group-cap disclosure from the engine (ChartTruncation in report-query).
+   * Structural, not imported, so this client component keeps no type edge to
+   * the server-only module.
+   */
+  truncation?: {
+    shown: number;
+    groups: number;
+    applied: boolean;
+    basis: "top" | "window";
+  };
 }
 
 const EMPTY_HEIGHT_FALLBACK =
@@ -81,7 +92,38 @@ function categoryAxisWidth(data: ChartDataRow[]): number {
   return Math.min(160, Math.max(80, Math.round(longest * 6.2)));
 }
 
-export function ReportChart({
+/**
+ * The caption for a capped chart. "Top" is only honest for the ranked cap —
+ * a time-axis chart keeps a window ending at today, not the largest buckets.
+ */
+function truncationCaption(
+  t: NonNullable<ReportChartProps["truncation"]>
+): string {
+  return t.basis === "top"
+    ? `Top ${t.shown} of ${t.groups}`
+    : `Showing ${t.shown} of ${t.groups}`;
+}
+
+/**
+ * The cap in the query engine used to be invisible: a donut of "the top 12"
+ * projects rendered as a complete pie of a subset. The chart now admits it,
+ * in the footer's own voice, without moving a single plotted number.
+ */
+export function ReportChart(props: ReportChartProps) {
+  const { truncation } = props;
+  return (
+    <>
+      <ReportChartBody {...props} />
+      {truncation?.applied && (
+        <p className="mt-1 text-right text-[10px] md:text-xs text-slate-400">
+          {truncationCaption(truncation)}
+        </p>
+      )}
+    </>
+  );
+}
+
+function ReportChartBody({
   chartType,
   data,
   seriesKeys,

@@ -217,6 +217,18 @@ export interface ChartQueryResponse {
   /** Grand total of the primary measure — powers 'number' + donut center. */
   total: number;
   meta: ChartQueryMeta;
+  /**
+   * Present when the engine capped the bucket count. Declared HERE rather than
+   * widened at one call site, because the server has always sent it and the
+   * consumers that did not know about it drew a subset that looked complete —
+   * a 12-slice donut of 27 projects with no way to tell.
+   */
+  truncation?: {
+    shown: number;
+    groups: number;
+    applied: boolean;
+    basis: "top" | "window";
+  };
 }
 
 // ─── Zod schema (validates an incoming ChartConfig on the wire) ────

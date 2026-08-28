@@ -15,18 +15,16 @@
  *     use), so nothing can drift.
  *   • Widgets persist as SHARED, durable ReportWidget rows via
  *     /api/portfolios/{portfolioId}/widgets (a portfolio is multi-member, so
- *     the Panel is a shared dashboard — NOT per-user uiState). dnd-kit reorder,
- *     per-widget edit / expand / duplicate / resize / remove, and a "View all"
- *     drilldown are all wired to that API.
+ *     the Panel is a shared dashboard — NOT per-user uiState). dnd-kit reorder
+ *     and per-widget edit / expand / duplicate / resize / remove are all wired
+ *     to that API, and all of them are gated on `canEdit` because that API is.
  *
  * The KPI number row at the top is preserved from the portfolio aggregates the
- * detail page already computes (this component's prop signature is UNCHANGED so
- * the detail page needs no edit — portfolioId comes from useParams()).
+ * detail page already computes (portfolioId comes from useParams()).
  */
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import {
   Plus,
   Filter,
@@ -42,7 +40,6 @@ import {
   Columns2,
   Square,
   GripVertical,
-  ExternalLink,
   MoreHorizontal,
   MessageSquare,
 } from "lucide-react";
@@ -82,8 +79,12 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ChartBuilder, type ChartBuilderResult } from "@/components/reporting/chart-builder";
-import { ReportChart } from "@/components/reporting/report-chart";
+import {
+  ReportChart,
+  type ReportChartProps,
+} from "@/components/reporting/report-chart";
 import type {
   ChartConfig,
   ChartQueryResponse,
@@ -91,7 +92,7 @@ import type {
   ChartType,
 } from "@/lib/report-config";
 
-// ─── Props (UNCHANGED — the detail page passes these verbatim) ──────
+// ─── Props (the detail page passes these verbatim) ──────
 
 type ProjectStatus =
   | "ON_TRACK"
@@ -132,6 +133,10 @@ interface Props {
   projectCount: number;
   byType: Record<ProjectType, number>;
   byGate: Record<ProjectGate, number>;
+  /** Portfolio edit capability, resolved by the detail page. Mirrors the
+   *  widgets route's own gate (owner, or member OWNER/EDITOR), so a viewer
+   *  is no longer offered controls that answer 403. */
+  canEdit: boolean;
 }
 
 // ─── Widget model ───────────────────────────────────────────────────
@@ -417,6 +422,7 @@ export function PortfolioPanelView({
   totalTasks,
   completedTasks,
   overdueTasks,
+  canEdit,
 }: Props) {
   const params = useParams();
   const portfolioId = params.portfolioId as string;
@@ -440,6 +446,7 @@ export function PortfolioPanelView({
   const [textOpen, setTextOpen] = useState(false);
   const [textDraft, setTextDraft] = useState({ id: "", title: "", text: "" });
   const [expandWidget, setExpandWidget] = useState<PanelWidget | null>(null);
+  const [removeWidget, setRemoveWidget] = useState<PanelWidget | null>(null);
 
   // Guard concurrent loads (portfolio switch).
   const loadTokenRef = useRef(0);
@@ -691,38 +698,45 @@ export function PortfolioPanelView({
   return (
     <div className="space-y-4">
       {/* Toolbar — Add widget menu (Template / Custom / Text) */}
-      <div className="flex items-center justify-between">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Add widget</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuItem onClick={() => setTemplateOpen(true)}>
-              <LayoutTemplate className="w-4 h-4 mr-2" />
-              <div className="flex flex-col">
-                <span>Template chart</span>
-                <span className="text-[11px] text-slate-400">Prebuilt, portfolio-scoped</span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={openCustomBuilder}>
-              <PenLine className="w-4 h-4 mr-2" />
-              <div className="flex flex-col">
-                <span>Custom chart</span>
-                <span className="text-[11px] text-slate-400">Full builder</span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={openTextNew}>
-              <TypeIcon className="w-4 h-4 mr-2" />
-              <div className="flex flex-col">
-                <span>Text</span>
-                <span className="text-[11px] text-slate-400">A note or heading</span>
-              </div>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div
+        className={cn(
+          "flex items-center",
+          canEdit ? "justify-between" : "justify-end"
+        )}
+      >
+        {canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Plus className="w-4 h-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Add widget</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem onClick={() => setTemplateOpen(true)}>
+                <LayoutTemplate className="w-4 h-4 mr-2" />
+                <div className="flex flex-col">
+                  <span>Template chart</span>
+                  <span className="text-[11px] text-slate-400">Prebuilt, portfolio-scoped</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openCustomBuilder}>
+                <PenLine className="w-4 h-4 mr-2" />
+                <div className="flex flex-col">
+                  <span>Custom chart</span>
+                  <span className="text-[11px] text-slate-400">Full builder</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openTextNew}>
+                <TypeIcon className="w-4 h-4 mr-2" />
+                <div className="flex flex-col">
+                  <span>Text</span>
+                  <span className="text-[11px] text-slate-400">A note or heading</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <a
           href="mailto:feedback@ttcivilstructural.com?subject=Panel%20Feedback"
           className="text-xs text-[#a8893a] hover:underline inline-flex items-center gap-1"
@@ -754,18 +768,22 @@ export function PortfolioPanelView({
           <BarChart3 className="w-10 h-10 mx-auto text-slate-300 mb-3" />
           <p className="text-sm font-medium text-slate-700 mb-1">No charts yet</p>
           <p className="text-xs text-slate-500 mb-4">
-            Add a chart to visualize this portfolio&apos;s work.
+            {canEdit
+              ? "Add a chart to visualize this portfolio's work."
+              : "No one has added a chart to this portfolio yet."}
           </p>
-          <div className="flex items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setTemplateOpen(true)}>
-              <LayoutTemplate className="w-4 h-4 mr-2" />
-              Template chart
-            </Button>
-            <Button variant="outline" size="sm" onClick={openCustomBuilder}>
-              <Plus className="w-4 h-4 mr-2" />
-              Custom chart
-            </Button>
-          </div>
+          {canEdit && (
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setTemplateOpen(true)}>
+                <LayoutTemplate className="w-4 h-4 mr-2" />
+                Template chart
+              </Button>
+              <Button variant="outline" size="sm" onClick={openCustomBuilder}>
+                <Plus className="w-4 h-4 mr-2" />
+                Custom chart
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -778,8 +796,9 @@ export function PortfolioPanelView({
                   onEdit={() => (w.kind === "text" ? openTextEdit(w) : openEditBuilder(w))}
                   onExpand={() => setExpandWidget(w)}
                   onDuplicate={() => handleDuplicate(w.id)}
-                  onRemove={() => handleRemove(w.id)}
+                  onRemove={() => setRemoveWidget(w)}
                   onSetWidth={(width) => handleSetWidth(w.id, width)}
+                  canEdit={canEdit}
                 />
               ))}
             </div>
@@ -872,6 +891,26 @@ export function PortfolioPanelView({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Remove widget — the Panel is a SHARED dashboard, so this deletes a
+          card every member of the portfolio sees, with no undo. Plain body,
+          no requireText: one chart is cheap to rebuild in the builder. */}
+      <ConfirmDialog
+        open={!!removeWidget}
+        onOpenChange={(o) => !o && setRemoveWidget(null)}
+        title="Remove widget"
+        description={
+          removeWidget
+            ? `"${removeWidget.title}" will be removed from this portfolio's panel for everyone.`
+            : undefined
+        }
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          const target = removeWidget;
+          setRemoveWidget(null);
+          if (target) await handleRemove(target.id);
+        }}
+      />
     </div>
   );
 }
@@ -887,6 +926,7 @@ interface SortableWidgetProps {
   onDuplicate: () => void;
   onRemove: () => void;
   onSetWidth: (width: 1 | 2) => void;
+  canEdit: boolean;
 }
 
 function SortableWidget({
@@ -896,6 +936,7 @@ function SortableWidget({
   onDuplicate,
   onRemove,
   onSetWidth,
+  canEdit,
 }: SortableWidgetProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: widget.id });
@@ -917,14 +958,16 @@ function SortableWidget({
     >
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <button
-            className="opacity-40 md:opacity-0 md:group-hover:opacity-100 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
-            aria-label="Drag to reorder"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
+          {canEdit && (
+            <button
+              className="opacity-40 md:opacity-0 md:group-hover:opacity-100 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+              aria-label="Drag to reorder"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+          )}
           <h3 className="text-sm font-medium text-slate-900 break-words min-w-0">
             {widget.title}
           </h3>
@@ -939,45 +982,49 @@ function SortableWidget({
               <Maximize2 className="w-4 h-4" />
             </button>
           )}
-          <button
-            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-slate-400 hover:text-slate-600 p-0.5"
-            onClick={onEdit}
-            aria-label="Edit"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          {canEdit && (
+            <>
               <button
                 className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-slate-400 hover:text-slate-600 p-0.5"
-                aria-label="More"
+                onClick={onEdit}
+                aria-label="Edit"
               >
-                <MoreHorizontal className="w-4 h-4" />
+                <Pencil className="w-4 h-4" />
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onDuplicate}>
-                <Copy className="w-4 h-4 mr-2" />
-                Duplicate
-              </DropdownMenuItem>
-              {widget.width === 2 ? (
-                <DropdownMenuItem onClick={() => onSetWidth(1)}>
-                  <Columns2 className="w-4 h-4 mr-2" />
-                  Make half width
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onClick={() => onSetWidth(2)}>
-                  <Square className="w-4 h-4 mr-2" />
-                  Make full width
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-black" onClick={onRemove}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Remove
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-slate-400 hover:text-slate-600 p-0.5"
+                    aria-label="More"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={onDuplicate}>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Duplicate
+                  </DropdownMenuItem>
+                  {widget.width === 2 ? (
+                    <DropdownMenuItem onClick={() => onSetWidth(1)}>
+                      <Columns2 className="w-4 h-4 mr-2" />
+                      Make half width
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => onSetWidth(2)}>
+                      <Square className="w-4 h-4 mr-2" />
+                      Make full width
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-black" onClick={onRemove}>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Remove
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -1010,8 +1057,15 @@ function WidgetBody({ widget, height }: { widget: PanelWidget; height: number })
 
 // ── Custom chart widget: queries the engine, renders ReportChart ──
 
+// The engine reports its group cap alongside the rows; ChartQueryResponse
+// predates that field, so it is widened in here rather than left on the
+// floor — unread, a capped donut draws a subset as if it were the whole.
+type ChartResp = ChartQueryResponse & {
+  truncation?: ReportChartProps["truncation"];
+};
+
 function CustomChartWidget({ widget, height }: { widget: PanelWidget; height: number }) {
-  const [resp, setResp] = useState<ChartQueryResponse | null>(null);
+  const [resp, setResp] = useState<ChartResp | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1033,7 +1087,7 @@ function CustomChartWidget({ widget, height }: { widget: PanelWidget; height: nu
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `Query failed (${res.status})`);
         }
-        const data: ChartQueryResponse = await res.json();
+        const data: ChartResp = await res.json();
         if (!cancelled) {
           setResp(data);
           setLoading(false);
@@ -1075,36 +1129,28 @@ function CustomChartWidget({ widget, height }: { widget: PanelWidget; height: nu
         showDataLabels={widget.showDataLabels ?? true}
         benchmark={widget.benchmark}
         height={height}
+        truncation={resp.truncation}
       />
-      <WidgetFooter filterSummary={resp.meta.filterSummary} drilldownBase={resp.meta.drilldownBase} />
+      <WidgetFooter filterSummary={resp.meta.filterSummary} />
     </>
   );
 }
 
-// ── Shared widget footer: filter summary + View all drilldown ──
+// ── Shared widget footer: filter summary ──
+//
+// There was a "View all" drilldown here linking to /my-tasks?<drilldownBase>.
+// /my-tasks reads no search params at all, so it ignored the portfolio, the
+// entity and every filter and simply showed the reader their OWN task list —
+// a different number under the chart's heading. Dropped rather than pointed
+// somewhere else: no view today replays a portfolio-scoped chart's filters.
 
-function WidgetFooter({
-  filterSummary,
-  drilldownBase,
-}: {
-  filterSummary: string;
-  drilldownBase?: string;
-}) {
+function WidgetFooter({ filterSummary }: { filterSummary: string }) {
   return (
-    <div className="flex items-center justify-between mt-3 pt-3 border-t text-[10px] md:text-xs text-slate-400 gap-2">
+    <div className="flex items-center mt-3 pt-3 border-t text-[10px] md:text-xs text-slate-400 gap-2">
       <div className="flex items-center gap-1 min-w-0">
         <Filter className="w-3 h-3 flex-shrink-0" />
         <span className="truncate">{filterSummary}</span>
       </div>
-      {drilldownBase && (
-        <Link
-          href={`/my-tasks?${drilldownBase}`}
-          className="flex items-center gap-1 text-slate-500 hover:text-slate-900 flex-shrink-0"
-        >
-          <span>View all</span>
-          <ExternalLink className="w-3 h-3" />
-        </Link>
-      )}
     </div>
   );
 }

@@ -3,11 +3,11 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  verifyWorkspaceAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { verifyObjectiveAccess } from "@/lib/objective-access";
 
 const createCommentSchema = z.object({
   text: z.string().min(1).max(2000),
@@ -26,16 +26,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true, status: true },
-    });
-
-    if (!objective) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
-
-    await verifyWorkspaceAccess(userId, objective.workspaceId);
+    // Commenting appends a row to the goal's activity feed, so it takes write
+    // access to the goal.
+    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
 
     const body = await req.json();
     const data = createCommentSchema.parse(body);
@@ -90,16 +83,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const objective = await prisma.objective.findUnique({
-      where: { id: objectiveId },
-      select: { workspaceId: true },
-    });
-
-    if (!objective) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
-
-    await verifyWorkspaceAccess(userId, objective.workspaceId);
+    await verifyObjectiveAccess(userId, objectiveId);
 
     const comments = await prisma.objectiveStatusUpdate.findMany({
       where: { objectiveId },

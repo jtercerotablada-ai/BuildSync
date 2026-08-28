@@ -121,6 +121,35 @@ export interface EngineContext {
   portfolioObjectiveIds?: string[];
 }
 
+// ─── Group-cap disclosure ─────────────────────────────────────────
+
+/**
+ * How many buckets the aggregation produced vs. how many survived the
+ * `options.limit` cap. The cap was silent, so "Overdue tasks by project" on a
+ * firm with 27 jobs drew twelve and looked complete — and two of the shapes
+ * are donuts, i.e. a whole pie of a subset. The renderer captions this; the
+ * cap and every number drawn are unchanged.
+ */
+export interface ChartTruncation {
+  /** Buckets actually rendered. */
+  shown: number;
+  /** Buckets that existed before the cap. */
+  groups: number;
+  /** groups > shown — the chart is drawing a subset. */
+  applied: boolean;
+  /**
+   * How the surviving buckets were chosen. The ranked path keeps the largest;
+   * the chronological path keeps a window ending at today, which is not "the
+   * top" of anything — the caption has to word the two differently.
+   */
+  basis: "top" | "window";
+}
+
+export type ChartQueryResult = Omit<ChartQueryResponse, "meta"> & {
+  /** Omitted by shapes that have no buckets to cap (number cards, burn). */
+  truncation?: ChartTruncation;
+};
+
 /**
  * Resolve a portfolio's project ids via the PortfolioProject join. Callers
  * that already gated portfolio view-access should use this once and place the
@@ -762,7 +791,7 @@ interface Bucket {
 async function runTaskQuery(
   config: ChartConfig,
   ctx: EngineContext
-): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
+): Promise<ChartQueryResult> {
   const where = buildTaskWhere(config, ctx);
 
   const rawRows = await prisma.task.findMany({
@@ -853,6 +882,9 @@ async function runTaskQuery(
       pushSeries(bucket, "value", measureValue(row, primary, maps));
     }
   }
+
+  // Bucket count BEFORE the cap — the denominator the caption discloses.
+  const groups = buckets.size;
 
   // Aggregate each bucket's series.
   let rowsOut: (ChartDataRow & { __primary: number; __sortKey: string })[] =
@@ -993,7 +1025,17 @@ async function runTaskQuery(
     }
   );
 
-  return { data, seriesKeys, total };
+  return {
+    data,
+    seriesKeys,
+    total,
+    truncation: {
+      shown: rowsOut.length,
+      groups,
+      applied: rowsOut.length < groups,
+      basis: chronological ? "window" : "top",
+    },
+  };
 }
 
 function pushSeries(bucket: Bucket, key: string, value: number | null) {
@@ -1073,8 +1115,11 @@ function measureFieldLabel(field: MeasureField): string {
 function buildBurn(
   rows: TaskRow[],
   config: ChartConfig
-): { data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number } {
+): ChartQueryResult {
   const grain: DateGrain = config.dimension?.dateGrain ?? "week";
+  // No truncation to disclose here: `limit` GENERATES the trailing window of
+  // buckets rather than dropping buckets that existed, and everything before
+  // the window is folded into the cumulative baseline, not discarded.
   const limit = config.options?.limit ?? 12;
   const scope = rows.length;
 
@@ -1301,7 +1346,7 @@ function resolveRecordDimension(
 async function runProjectQuery(
   config: ChartConfig,
   ctx: EngineContext
-): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
+): Promise<ChartQueryResult> {
   const where: Prisma.ProjectWhereInput = { workspaceId: ctx.workspaceId };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
   else if (config.scope.kind === "project") {
@@ -1386,7 +1431,7 @@ async function runProjectQuery(
 async function runGoalQuery(
   config: ChartConfig,
   ctx: EngineContext
-): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
+): Promise<ChartQueryResult> {
   const where: Prisma.ObjectiveWhereInput = { workspaceId: ctx.workspaceId };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
 
@@ -1458,7 +1503,7 @@ function runRecordQuery(
   rows: RecordRow[],
   config: ChartConfig,
   maps: RecordMaps
-): { data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number } {
+): ChartQueryResult {
   const filtered = applyRecordPostFilters(rows, config.filters);
   const limit = config.options?.limit ?? 12;
 
@@ -1528,6 +1573,9 @@ function runRecordQuery(
     }
   }
 
+  // Bucket count BEFORE the cap — the denominator the caption discloses.
+  const groups = buckets.size;
+
   // Aggregate each bucket's series (count => length of pushed 1s).
   let rowsOut: (ChartDataRow & { __primary: number })[] = Array.from(
     buckets.values()
@@ -1572,7 +1620,17 @@ function runRecordQuery(
     return rest;
   });
 
-  return { data, seriesKeys, total };
+  return {
+    data,
+    seriesKeys,
+    total,
+    truncation: {
+      shown: rowsOut.length,
+      groups,
+      applied: rowsOut.length < groups,
+      basis: "top",
+    },
+  };
 }
 
 // ─── Public entrypoint ────────────────────────────────────────────
@@ -1580,7 +1638,7 @@ function runRecordQuery(
 export async function runChartQuery(
   config: ChartConfig,
   ctx: EngineContext
-): Promise<Omit<ChartQueryResponse, "meta">> {
+): Promise<ChartQueryResult> {
   if (config.entity === "projects") return runProjectQuery(config, ctx);
   if (config.entity === "goals") return runGoalQuery(config, ctx);
   return runTaskQuery(config, ctx);
