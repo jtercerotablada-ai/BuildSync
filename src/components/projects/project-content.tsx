@@ -42,6 +42,7 @@ import {
   Search,
   Edit2,
   Copy,
+  LayoutTemplate,
   Archive,
   Check,
   X,
@@ -82,6 +83,7 @@ import { ProjectOverview } from "@/components/projects/project-overview";
 import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
 import { ProjectShareDialog } from "@/components/projects/project-share-dialog";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
+import { SaveAsTemplateDialog } from "@/components/projects/save-as-template-dialog";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 
@@ -495,6 +497,7 @@ export function ProjectContent({
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [saveAsTemplateOpen, setSaveAsTemplateOpen] = useState(false);
 
   // Filter/Sort/Group state
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
@@ -946,17 +949,18 @@ export function ProjectContent({
     router.push(browseProjectsHref);
   };
 
-  // What the delete actually destroys. sectionTaskCounts is the honest task
-  // number (sub-tasks included, multi-homed guests excluded); the rendered
-  // section.tasks lists are neither, so a caller that didn't pass it gets the
-  // line without a count rather than a wrong one.
-  const deletedTaskCount = sectionTaskCounts
+  // What a delete destroys and what a template capture reads — the same
+  // population. sectionTaskCounts is the honest task number (sub-tasks
+  // included, multi-homed guests excluded); the rendered section.tasks lists
+  // are neither, so a caller that didn't pass it gets the line without a count
+  // rather than a wrong one.
+  const totalTaskCount = sectionTaskCounts
     ? Object.values(sectionTaskCounts).reduce((n, c) => n + c, 0)
     : null;
   const deleteConsequences = [
-    deletedTaskCount === null
+    totalTaskCount === null
       ? "Every task in this project, with its sub-tasks, comments and attachments"
-      : `${deletedTaskCount} task${deletedTaskCount === 1 ? "" : "s"} and sub-tasks, with their comments and attachments`,
+      : `${totalTaskCount} task${totalTaskCount === 1 ? "" : "s"} and sub-tasks, with their comments and attachments`,
     `${project.sections.length} section${project.sections.length === 1 ? "" : "s"} and this project's saved views`,
     `${memberCount} member${memberCount === 1 ? " loses" : "s lose"} access`,
   ];
@@ -1093,6 +1097,21 @@ export function ProjectContent({
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate
                 </DropdownMenuItem>
+                {/* Same family as Duplicate — this project becomes the seed
+                    for another — so it sits next to it. onSelect is prevented
+                    for the same reason Delete prevents it: the menu closing
+                    must not steal focus from the dialog it opens. */}
+                {canEditProject && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setSaveAsTemplateOpen(true);
+                    }}
+                  >
+                    <LayoutTemplate className="h-4 w-4 mr-2" />
+                    Save as template
+                  </DropdownMenuItem>
+                )}
                 {/* The separator earns its place only if something follows
                     it; a reader who gets neither destructive item would
                     otherwise see the menu end on a rule. */}
@@ -1896,6 +1915,18 @@ export function ProjectContent({
           description: project.description ?? null,
         }}
         onProjectUpdated={() => router.refresh()}
+      />
+
+      {/* Save as template — a sibling of the other dialogs for the same
+          reason the delete confirm is: inside DropdownMenuContent it would
+          unmount with the menu and never render. */}
+      <SaveAsTemplateDialog
+        open={saveAsTemplateOpen}
+        onOpenChange={setSaveAsTemplateOpen}
+        projectId={project.id}
+        projectName={project.name}
+        sectionCount={project.sections.length}
+        taskCount={totalTaskCount}
       />
 
       {/* Delete confirmation — a sibling of the other dialogs, deliberately

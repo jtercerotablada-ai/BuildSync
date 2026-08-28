@@ -43,6 +43,10 @@ const createProjectSchema = z.object({
         section: z.string().min(1).max(80),
         name: z.string().min(1).max(200),
         type: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),
+        // The step's instructions. A template that carries only titles makes
+        // the next engineer re-derive how the work is actually done.
+        description: z.string().max(5000).optional(),
+        priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional(),
         // Days from the project start date (today, unless overridden) to
         // set as the task's due date — lets a template ship a starting
         // schedule anchored on "today" that the engineer then adjusts.
@@ -561,6 +565,8 @@ export async function POST(req: Request) {
                 creatorId: userId,
                 position: parentPosition * 1000,
                 taskType: t.type ?? "TASK",
+                description: t.description || null,
+                priority: t.priority ?? "NONE",
                 dueDate,
               },
               select: { id: true },

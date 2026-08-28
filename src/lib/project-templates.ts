@@ -64,6 +64,12 @@ export interface ProjectTemplateTask {
   section: string;
   name: string;
   type?: "TASK" | "MILESTONE" | "APPROVAL";
+  /** The instructions that make a step repeatable — how to run the inspection,
+   *  which form to file, what the reviewer looks for. Without this a captured
+   *  template hands the next engineer a list of titles and nothing else, which
+   *  is why every task created from a template so far has had an empty body. */
+  description?: string;
+  priority?: "NONE" | "LOW" | "MEDIUM" | "HIGH";
   /** Days from the project start date (today, unless the creator picks a
    *  start) to set as this task's due date. Lets a template ship a starting
    *  schedule anchored on "today" that the engineer then adjusts. Omit for

@@ -16,6 +16,9 @@
  * "New template" opens NewTemplateDialog, which persists a reusable custom
  * template that then shows up here and in the /templates page — the same
  * connection Asana has between creating a template and starting a project.
+ * A card under "Created by your team" can also be edited (EditTemplateDialog)
+ * or deleted, both offered only to the template's creator because the API
+ * gates both on that.
  *
  * The "Blank project" CTA escapes to the legacy full-form CreateProjectDialog.
  */
@@ -29,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { X, Plus, Download, Trash2, FilePlus2 } from "lucide-react";
+import { X, Plus, Download, Pencil, Trash2, FilePlus2 } from "lucide-react";
 import {
   PROJECT_TEMPLATES,
   CATEGORY_LABELS,
@@ -46,7 +49,11 @@ import {
   type CustomTemplateRow,
 } from "@/lib/custom-templates";
 import { ACCENT_BG, resolveTemplateIcon } from "./template-visuals";
-import { ConfirmTemplateDialog } from "./confirm-template-dialog";
+import {
+  ConfirmTemplateDialog,
+  templateContentCounts,
+} from "./confirm-template-dialog";
+import { EditTemplateDialog } from "./edit-template-dialog";
 import { NewTemplateDialog } from "./new-template-dialog";
 
 interface CreateProjectGalleryProps {
@@ -79,16 +86,24 @@ export function CreateProjectGallery({
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("for_you");
   const [pickedId, setPickedId] = useState<string | null>(null);
-  const [custom, setCustom] = useState<CustomProjectTemplate[]>([]);
+  // The RAW rows are what state holds: the edit dialog re-sends a template's
+  // stored structure, and the mapped ProjectTemplate is a lossy view of it
+  // (it merges the row colour into `defaults` and derives the gate).
+  const [rows, setRows] = useState<CustomTemplateRow[]>([]);
   const [newTemplateOpen, setNewTemplateOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<CustomTemplateRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const custom = useMemo<CustomProjectTemplate[]>(
+    () => rows.map(customRowToProjectTemplate),
+    [rows]
+  );
 
   const loadCustom = useCallback(async () => {
     try {
       const res = await fetch("/api/workspace/templates");
       if (!res.ok) return;
-      const rows = (await res.json()) as CustomTemplateRow[];
-      setCustom(rows.map(customRowToProjectTemplate));
+      setRows((await res.json()) as CustomTemplateRow[]);
     } catch {
       /* non-fatal — built-ins still render */
     }
@@ -132,7 +147,7 @@ export function CreateProjectGallery({
         throw new Error(err.error || "Failed to delete template");
       }
       toast.success("Template deleted");
-      setCustom((prev) => prev.filter((c) => c.id !== id));
+      setRows((prev) => prev.filter((r) => r.id !== dbId));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete template");
     } finally {
@@ -245,29 +260,52 @@ export function CreateProjectGallery({
                 const Icon = resolveTemplateIcon(tpl.icon);
                 const isCustom = "custom" in tpl;
                 const c = tpl as CustomProjectTemplate;
+                // What this card will really create — never the raw structure
+                // length, which can count tasks filed under a section that no
+                // longer exists and that the provisioner skips.
+                const counts = templateContentCounts(tpl);
                 return (
                   <div
                     key={tpl.id}
                     className="group relative text-left rounded-xl border border-gray-200 bg-white hover:border-[#c9a84c] hover:shadow-md transition-all overflow-hidden flex flex-col"
                   >
+                    {/* Edit and delete are CREATOR-ONLY on the API (both PUT
+                        and DELETE), so a teammate's template shows neither
+                        rather than an affordance that 403s. */}
                     {isCustom && c.mine && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (
-                            window.confirm(
-                              `Delete the "${tpl.name}" template? This can't be undone.`
+                      <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const row = rows.find(
+                              (r) => r.id === customIdToDbId(tpl.id)
+                            );
+                            if (row) setEditingRow(row);
+                          }}
+                          className="w-7 h-7 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-900"
+                          aria-label="Edit template"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (
+                              window.confirm(
+                                `Delete the "${tpl.name}" template? This can't be undone.`
+                              )
                             )
-                          )
-                            handleDeleteCustom(tpl.id);
-                        }}
-                        disabled={deletingId === tpl.id}
-                        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40"
-                        aria-label="Delete template"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                              handleDeleteCustom(tpl.id);
+                          }}
+                          disabled={deletingId === tpl.id}
+                          className="w-7 h-7 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-600 disabled:opacity-40"
+                          aria-label="Delete template"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )}
                     <button
                       type="button"
@@ -302,26 +340,32 @@ export function CreateProjectGallery({
                         <div className="mt-3 flex items-center gap-3 text-[11px] text-gray-500 flex-wrap">
                           <span>
                             <span className="font-medium tabular-nums text-gray-700">
-                              {tpl.sections.length}
+                              {counts.sections}
                             </span>{" "}
-                            section{tpl.sections.length === 1 ? "" : "s"}
+                            section{counts.sections === 1 ? "" : "s"}
                           </span>
-                          {tpl.tasks && tpl.tasks.length > 0 && (
+                          {counts.tasks > 0 && (
                             <>
                               <span className="text-gray-300">·</span>
                               <span>
                                 <span className="font-medium tabular-nums text-gray-700">
-                                  {tpl.tasks.length}
+                                  {counts.tasks}
                                 </span>{" "}
-                                task{tpl.tasks.length === 1 ? "" : "s"}
-                                {(() => {
-                                  const subCount = tpl.tasks!.reduce(
-                                    (acc, t) => acc + (t.subtasks?.length ?? 0),
-                                    0
-                                  );
-                                  if (subCount === 0) return null;
-                                  return ` + ${subCount} subtasks`;
-                                })()}
+                                task{counts.tasks === 1 ? "" : "s"}
+                                {counts.subtasks > 0
+                                  ? ` + ${counts.subtasks} subtasks`
+                                  : ""}
+                              </span>
+                            </>
+                          )}
+                          {counts.customFields > 0 && (
+                            <>
+                              <span className="text-gray-300">·</span>
+                              <span>
+                                <span className="font-medium tabular-nums text-gray-700">
+                                  {counts.customFields}
+                                </span>{" "}
+                                field{counts.customFields === 1 ? "" : "s"}
                               </span>
                             </>
                           )}
@@ -337,6 +381,9 @@ export function CreateProjectGallery({
                         {isCustom && (
                           <p className="mt-2 text-[11px] text-gray-400">
                             Created by {c.creator?.name || "your team"}
+                            {c.mine
+                              ? ""
+                              : " · only the creator can edit or delete it"}
                           </p>
                         )}
                       </div>
@@ -358,6 +405,17 @@ export function CreateProjectGallery({
           onOpenChange(false);
           setPickedId(null);
         }}
+      />
+
+      {/* Edit a custom template (creator only — see the card actions) */}
+      <EditTemplateDialog
+        row={editingRow}
+        onClose={() => setEditingRow(null)}
+        onSaved={(saved) =>
+          setRows((prev) =>
+            prev.map((r) => (r.id === saved.id ? { ...r, ...saved } : r))
+          )
+        }
       />
 
       {/* New custom template */}
