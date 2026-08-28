@@ -238,7 +238,11 @@ ${context}`;
 
     const anthropic = new Anthropic({ apiKey });
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      // Pinned dated model ids are retired eventually, and when one is the
+      // Anthropic API answers 404, which surfaced here as a bare 500 and an
+      // "AI Coach failed" toast with nothing to act on. The env var lets the
+      // model be moved without a deploy the next time that happens.
+      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
       max_tokens: 1024,
       messages: [{ role: "user", content: prompt }],
     });
@@ -249,9 +253,17 @@ ${context}`;
     return NextResponse.json({ analysis: responseText });
   } catch (error) {
     console.error("AI Coach error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate AI Coach analysis" },
-      { status: 500 }
-    );
+    // Upstream failures used to collapse into one opaque sentence, so a
+    // retired model id and a revoked key looked identical from the UI and
+    // both took a network trace to tell apart. The SDK's own status and
+    // message are safe to pass on — they describe our call, not the user's
+    // data — and the panel renders whatever comes back in `error`.
+    const status =
+      error instanceof Anthropic.APIError ? error.status ?? 502 : 500;
+    const detail =
+      error instanceof Anthropic.APIError
+        ? `AI provider error ${error.status}: ${error.message}`
+        : "Failed to generate AI Coach analysis";
+    return NextResponse.json({ error: detail }, { status });
   }
 }
