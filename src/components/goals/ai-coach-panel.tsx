@@ -33,8 +33,16 @@ export function AICoachPanel({ objectiveId }: { objectiveId: string }) {
           analysis: string;
           at: string;
         };
-        setAnalysis(parsed.analysis);
-        setLastRunAt(parsed.at);
+        // Drop an empty entry instead of loading it. Browsers that ran the
+        // coach while it could answer 200-with-nothing are still carrying one,
+        // and rehydrating it puts the panel back in its dead state on every
+        // visit with no way for the user to tell why.
+        if (!(parsed.analysis ?? "").trim()) {
+          localStorage.removeItem(cacheKey);
+        } else {
+          setAnalysis(parsed.analysis);
+          setLastRunAt(parsed.at);
+        }
       }
     } catch {
       // ignore
@@ -55,7 +63,15 @@ export function AICoachPanel({ objectiveId }: { objectiveId: string }) {
         throw new Error(err.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      const text: string = data.analysis ?? "";
+      const text: string = (data.analysis ?? "").trim();
+      // Refuse to accept — or worse, CACHE — an empty analysis. An empty string
+      // is falsy, so the panel would fall back to its "never analysed" state
+      // while the cache kept insisting it had run, and every later visit read
+      // the emptiness back and showed the same dead pitch text. The user got a
+      // button that appeared to do nothing, forever.
+      if (!text) {
+        throw new Error("The analysis came back empty. Try again.");
+      }
       setAnalysis(text);
       const at = new Date().toISOString();
       setLastRunAt(at);

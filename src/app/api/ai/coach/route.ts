@@ -259,8 +259,24 @@ ${context}`;
       messages: [{ role: "user", content: prompt }],
     });
 
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    // Join EVERY text block rather than reading content[0]. A response may lead
+    // with a non-text block, and reading only the first one turned that into an
+    // empty string — a 200 carrying nothing, which the panel then cached and
+    // showed as "never analysed" on every later visit.
+    const responseText = message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+
+    // An empty answer is a failed analysis, not a successful empty one. Saying
+    // so lets the panel show the error and keeps it from caching nothing.
+    if (!responseText) {
+      return NextResponse.json(
+        { error: "The model returned no analysis. Try again." },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ analysis: responseText });
   } catch (error) {
