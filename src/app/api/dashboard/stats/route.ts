@@ -20,6 +20,12 @@ export async function GET() {
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
 
+    // An archived project is off every list the user can reach, so its open
+    // tasks can't be opened, reassigned or closed — counting them here leaves
+    // a number the user has no way to work down. Tasks with no project at all
+    // are real load and still count.
+    const openTaskScope = [{ projectId: null }, { project: { isArchived: false } }];
+
     // Run all queries in parallel for better performance
     const [dueToday, overdue, completedThisWeek, activeProjects] = await Promise.all([
       // Tasks due today (assigned to user, not completed)
@@ -31,6 +37,7 @@ export async function GET() {
             gte: today,
             lt: tomorrow,
           },
+          OR: openTaskScope,
         },
       }),
 
@@ -42,10 +49,13 @@ export async function GET() {
           dueDate: {
             lt: today,
           },
+          OR: openTaskScope,
         },
       }),
 
-      // Completed this week (by user)
+      // Completed this week (by user). Not archive-scoped, unlike the two
+      // above: this is what the person shipped, and archiving the job they
+      // just finished must not erase it.
       prisma.task.count({
         where: {
           assigneeId: userId,
@@ -62,6 +72,9 @@ export async function GET() {
           status: {
             not: "COMPLETE",
           },
+          // Archiving is a separate axis from status — a shelved project
+          // can still be mid-gate — but neither one is active work.
+          isArchived: false,
           OR: [
             { ownerId: userId },
             { members: { some: { userId } } },

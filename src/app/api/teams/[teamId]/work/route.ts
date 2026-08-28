@@ -101,7 +101,9 @@ export async function GET(
 
     // Get projects associated with this team
     const projects = await prisma.project.findMany({
-      where: { teamId },
+      // Archiving doesn't unlink a project from its team, it just stops
+      // it being listed as work in flight.
+      where: { teamId, isArchived: false },
       select: {
         id: true,
         name: true,

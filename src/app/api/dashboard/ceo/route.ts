@@ -93,12 +93,34 @@ export async function GET(request: Request) {
     }
 
     // ── Parallel fetch ──────────────────────────────────────
+    // Archived projects keep their gate, their budget and their
+    // coordinates, so nothing below drops them on its own. The in-flight
+    // wheres carry the filter: every figure on this page describes the same
+    // portfolio the page lists, and a rollup counting a project the list
+    // doesn't show is its own kind of wrong. Deliberately NOT pushed up
+    // into scopedProjectIds — that set also decides which teammates a
+    // scoped viewer can see.
     const projectWhere =
       scopedProjectIds === null
-        ? { workspaceId }
-        : { workspaceId, id: { in: scopedProjectIds } };
+        ? { workspaceId, isArchived: false }
+        : { workspaceId, id: { in: scopedProjectIds }, isArchived: false };
 
     const taskWhere =
+      scopedProjectIds === null
+        ? { project: { workspaceId, isArchived: false } }
+        : {
+            projectId: { in: scopedProjectIds },
+            project: { isArchived: false },
+          };
+
+    // The same scope WITHOUT the archive filter, for the completed-in-period
+    // counts only. Those describe what the firm shipped inside a window, not
+    // what it is carrying now, and archiving the job they just finished must
+    // not retroactively erase the throughput — the same call the team workload
+    // route makes for completedLast30Days. It also keeps the header's two
+    // chips talking about one population: `teamCount` below counts everyone a
+    // scoped viewer shares a project with, archived projects included.
+    const completedTaskWhere =
       scopedProjectIds === null
         ? { project: { workspaceId } }
         : { projectId: { in: scopedProjectIds } };
@@ -106,7 +128,7 @@ export async function GET(request: Request) {
     if (slim) {
       const [tasksCompleted, teamCount] = await Promise.all([
         prisma.task.count({
-          where: { ...taskWhere, completedAt: { gte: periodStart } },
+          where: { ...completedTaskWhere, completedAt: { gte: periodStart } },
         }),
         // Same visibility as the full path's team list: management
         // counts the whole firm, lower levels count only people they
@@ -287,7 +309,7 @@ export async function GET(request: Request) {
         // activity sample above is capped at 12 rows, so deriving the
         // stat from it undercounts — this is the real number.
         prisma.task.count({
-          where: { ...taskWhere, completedAt: { gte: periodStart } },
+          where: { ...completedTaskWhere, completedAt: { gte: periodStart } },
         }),
       ]);
 

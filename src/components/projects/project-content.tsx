@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { notifySidebarRefresh } from "@/lib/open-create-project";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -283,6 +283,15 @@ interface ProjectContentProps {
   /** Real per-section task counts from the server (sub-tasks included,
    *  multi-homed guests excluded) — what deleting a section destroys. */
   sectionTaskCounts?: Record<string, number>;
+  /** May edit the project (rename, archive/unarchive, settings) — mirrors
+   *  PATCH /api/projects/[projectId]. AUTHORITATIVE when supplied: only the
+   *  server sees the viewer's WORKSPACE role. Optional so callers that don't
+   *  pass it fall back to the legacy email memo below; never the other way
+   *  round. */
+  canEdit?: boolean;
+  /** May delete the project — mirrors DELETE /api/projects/[projectId], which
+   *  also admits a workspace OWNER/ADMIN. Same authority note as canEdit. */
+  canManage?: boolean;
 }
 
 // Monochrome + gold palette for status badges. Gold = active/positive,
@@ -378,8 +387,20 @@ export function ProjectContent({
   project,
   currentView,
   sectionTaskCounts,
+  canEdit,
+  canManage,
 }: ProjectContentProps) {
   const router = useRouter();
+  // Both project pages are re-exported into the portal shell, so any
+  // destination that exists in both has to be prefixed with the one the user
+  // is actually in.
+  const pathname = usePathname();
+  const shellPrefix = pathname?.startsWith("/portal") ? "/portal" : "";
+  const browseProjectsHref = `${shellPrefix}/projects/all`;
+  // Browse projects opens on Active, which is the one list that cannot
+  // contain an archived project — so the banner's link has to name the scope
+  // or it lands the user somewhere the thing they clicked from isn't.
+  const archivedProjectsHref = `${browseProjectsHref}?scope=archived`;
   const { data: session } = useSession();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -440,7 +461,7 @@ export function ProjectContent({
   // Whether the current user may edit project content (visibility / settings).
   // Owner or an ADMIN/EDITOR member — mirrors the project PATCH gate, which
   // is broader than canManageMembers (that's owner/ADMIN only).
-  const canEditProject = useMemo(() => {
+  const canEditProjectFallback = useMemo(() => {
     if (!currentEmail) return false;
     if (project.owner?.email && project.owner.email === currentEmail) return true;
     return project.members.some(
@@ -449,6 +470,16 @@ export function ProjectContent({
         (m.role === "ADMIN" || m.role === "EDITOR")
     );
   }, [currentEmail, project.owner, project.members]);
+  // The props are AUTHORITATIVE; the memos above are the legacy fallback for
+  // callers that don't pass them. Only the server sees the viewer's WORKSPACE
+  // role, and matching the session email against owner/members is blind to it
+  // — which is why the delete rule below could never be stated here at all.
+  const canEditProject = canEdit ?? canEditProjectFallback;
+  // Deletion is its own gate, not canEditProject: DELETE enforces
+  // `access.canManage` (owner | project ADMIN | workspace manager) while PATCH
+  // enforces owner | project ADMIN/EDITOR, so an EDITOR may archive a project
+  // he may not delete. The members memo is the closest legacy approximation.
+  const canDeleteProject = canManage ?? canManageMembers;
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
@@ -881,7 +912,7 @@ export function ProjectContent({
       if (res.ok) {
         toast.success(next ? "Project archived" : "Project unarchived");
         notifySidebarRefresh();
-        if (next) router.push("/projects/all");
+        if (next) router.push(browseProjectsHref);
         else router.refresh();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -903,7 +934,7 @@ export function ProjectContent({
     }
     toast.success("Project deleted");
     notifySidebarRefresh();
-    router.push("/projects/all");
+    router.push(browseProjectsHref);
   };
 
   // What the delete actually destroys. sectionTaskCounts is the honest task
@@ -952,14 +983,22 @@ export function ProjectContent({
       {/* Archived banner — an archived project is dropped from the sidebar and
           from the default projects list, so the banner has to name the one
           place it still shows up or the user keeps a saved URL as their only
-          way back. The button is gated the way the PATCH is: offering it to a
-          reader who can't edit would dead-end in a 403 toast. */}
+          way back. Naming it is not enough: "Browse projects" is a page, so it
+          is a link to that page rather than a label to go hunting for. The
+          button is gated the way the PATCH is: offering it to a reader who
+          can't edit would dead-end in a 403 toast. */}
       {project.isArchived && (
         <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 md:px-6 py-2 text-sm text-amber-900">
           <Archive className="h-4 w-4 flex-shrink-0 text-amber-700" />
           <span>
-            This project is archived. It&apos;s kept under Archived in Browse
-            projects.
+            This project is archived. It&apos;s kept under Archived in{" "}
+            <Link
+              href={archivedProjectsHref}
+              className="font-medium underline underline-offset-2 hover:text-amber-950"
+            >
+              Browse projects
+            </Link>
+            .
           </span>
           {canEditProject && (
             <Button
@@ -1044,23 +1083,28 @@ export function ProjectContent({
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {/* The separator earns its place only if something follows
+                    it; a reader who gets neither destructive item would
+                    otherwise see the menu end on a rule. */}
+                {(canEditProject || canDeleteProject) && <DropdownMenuSeparator />}
                 {canEditProject && (
                   <DropdownMenuItem onClick={() => setArchived(!project.isArchived)}>
                     <Archive className="h-4 w-4 mr-2" />
                     {project.isArchived ? 'Unarchive' : 'Archive'}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  className="text-black"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setDeleteDialogOpen(true);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
+                {canDeleteProject && (
+                  <DropdownMenuItem
+                    className="text-black"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setDeleteDialogOpen(true);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1803,7 +1847,12 @@ export function ProjectContent({
 
       {/* Project Share Dialog — Asana-parity "Share {project}" modal. The
           header Share buttons open this (they used to just copy the link;
-          that action now lives in the dialog's "Copy project link" button). */}
+          that action now lives in the dialog's "Copy project link" button).
+          Its `canEdit` gates exactly one control, the visibility picker, and
+          PATCH treats visibility as access control rather than content: it
+          refuses anyone short of `access.canManage`. Passing the edit flag
+          handed an EDITOR a picker that answered "Only a project admin can
+          change visibility" on every choice. */}
       <ProjectShareDialog
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
@@ -1811,7 +1860,7 @@ export function ProjectContent({
         projectName={project.name}
         visibility={project.visibility ?? "WORKSPACE"}
         ownerId={project.owner?.id ?? null}
-        canEdit={canEditProject}
+        canEdit={canDeleteProject}
         canManageMembers={canManageMembers}
         onVisibilityChange={() => router.refresh()}
       />

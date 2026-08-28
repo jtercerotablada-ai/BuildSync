@@ -22,11 +22,11 @@
  * page is the data-dense overview.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { openCreateProjectGallery } from "@/lib/open-create-project";
 import { useUiState } from "@/hooks/use-ui-state";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -133,8 +133,30 @@ type View = "grid" | "list" | "gantt";
 type Scope = "active" | "archived";
 const VIEW_UI_STATE_KEY = "projects.view";
 
+// useSearchParams must live under a Suspense boundary in Next 15, so the
+// page body is a child component and the default export only wraps it.
 export default function ProjectsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-black" />
+        </div>
+      }
+    >
+      <ProjectsPageContent />
+    </Suspense>
+  );
+}
+
+function ProjectsPageContent() {
   const router = useRouter();
+  // This page is re-exported into the portal shell, so every destination
+  // that exists in both has to carry the prefix of the shell the user is
+  // actually in — otherwise one click ejects them from it.
+  const pathname = usePathname();
+  const shellPrefix = pathname?.startsWith("/portal") ? "/portal" : "";
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   // `initialLoad` gates the full-page spinner. Refetches (a new search
@@ -152,11 +174,16 @@ export default function ProjectsPage() {
   // Archive scope stays plain useState on purpose: it's somewhere you
   // go to retrieve one old project, never how you want to browse
   // tomorrow, so it must not survive the session like `view` does.
-  const [scope, setScope] = useState<Scope>("active");
+  // ?scope=archived is the one exception — the banner on an archived
+  // project links here to say where it went, and landing on Active would
+  // open the one list guaranteed not to contain it.
+  const initialScope: Scope =
+    searchParams.get("scope") === "archived" ? "archived" : "active";
+  const [scope, setScope] = useState<Scope>(initialScope);
   // The scope `projects` was actually fetched under. Flipping the toggle
   // re-renders with the previous scope's rows still in state, so nothing
   // may assert "this scope is empty" until the two agree.
-  const [loadedScope, setLoadedScope] = useState<Scope>("active");
+  const [loadedScope, setLoadedScope] = useState<Scope>(initialScope);
   // Default to list view — matches Asana's project browser and is
   // denser for AEC users who want to scan many projects fast.
   // Grid and Gantt are still one click away. Server-backed so the
@@ -211,10 +238,10 @@ export default function ProjectsPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("q", debouncedSearch);
-    // The param only WIDENS the response to archived rows too — the
-    // archived-only narrowing is `inScope` below, so both scopes go
-    // through the same client-side funnel as the type/gate pills.
-    if (scope === "archived") params.set("includeArchived", "true");
+    // Narrow server-side. `includeArchived` only WIDENS the response, so
+    // this view used to fetch every project in the workspace and throw
+    // the active half away in the browser.
+    if (scope === "archived") params.set("archivedOnly", "true");
     const qs = params.toString();
     fetch(`/api/projects${qs ? `?${qs}` : ""}`, { signal: controller.signal })
       .then((r) => {
@@ -247,6 +274,11 @@ export default function ProjectsPage() {
 
   // Scope is resolved before the pills so the empty state can tell
   // "this scope is empty" apart from "the filters hid everything".
+  // The server now returns one scope or the other, so this no longer
+  // narrows the response — it keeps the rows we just left off screen in
+  // the gap between flipping the toggle and the new scope arriving.
+  // Without it that gap renders the old scope's projects under the new
+  // label instead of the spinner `loadedScope` guards below.
   const inScope = useMemo(
     () => projects.filter((p) => p.isArchived === (scope === "archived")),
     [projects, scope]
@@ -470,10 +502,11 @@ export default function ProjectsPage() {
             {view === "list" ? (
               <ProjectsListView
                 projects={filtered}
-                onRowClick={(id) => router.push(`/projects/${id}`)}
+                shellPrefix={shellPrefix}
+                onRowClick={(id) => router.push(`${shellPrefix}/projects/${id}`)}
               />
             ) : (
-              <ProjectsGridView projects={filtered} />
+              <ProjectsGridView projects={filtered} shellPrefix={shellPrefix} />
             )}
           </div>
         )}
@@ -541,13 +574,19 @@ function ArchivedBadge() {
   );
 }
 
-function ProjectsGridView({ projects }: { projects: Project[] }) {
+function ProjectsGridView({
+  projects,
+  shellPrefix,
+}: {
+  projects: Project[];
+  shellPrefix: string;
+}) {
   return (
     <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
       {projects.map((p) => (
         <Link
           key={p.id}
-          href={`/projects/${p.id}`}
+          href={`${shellPrefix}/projects/${p.id}`}
           className="group block border rounded-xl p-4 bg-white hover:border-gray-400 hover:shadow-sm transition-all"
         >
           <div className="flex items-start gap-3 mb-3">
@@ -628,9 +667,11 @@ function ProjectsGridView({ projects }: { projects: Project[] }) {
  */
 function ProjectsListView({
   projects,
+  shellPrefix,
   onRowClick,
 }: {
   projects: Project[];
+  shellPrefix: string;
   onRowClick: (id: string) => void;
 }) {
   // Same gridTemplate shared by header, rows, AND ghost-column
@@ -791,7 +832,7 @@ function ProjectsListView({
           return (
             <Link
               key={p.id}
-              href={`/projects/${p.id}`}
+              href={`${shellPrefix}/projects/${p.id}`}
               className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50"
             >
               <div

@@ -117,9 +117,15 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get("workspaceId");
     const query = searchParams.get("q") || "";
-    // Archived projects are hidden from the list by default; pass
-    // ?includeArchived=true to surface them (e.g. an "Archived" view).
+    // Archived projects are hidden from the list by default.
+    // ?includeArchived=true WIDENS the result to archived rows alongside
+    // the active ones; ?archivedOnly=true NARROWS it to archived rows
+    // only, so an Archived view can ask for what it renders instead of
+    // fetching the whole workspace and throwing the active half away.
+    // Precedence: archivedOnly wins — it is the more specific request,
+    // and sending both is only ever a mistake.
     const includeArchived = searchParams.get("includeArchived") === "true";
+    const archivedOnly = searchParams.get("archivedOnly") === "true";
     // Optional widget knobs. Absent params keep the historical behavior:
     // no row cap and updatedAt-desc ordering.
     const limitParam = searchParams.get("limit");
@@ -160,7 +166,11 @@ export async function GET(req: Request) {
       AND: [
         workspaceId ? { workspaceId } : {},
         query ? { name: { contains: query, mode: "insensitive" } } : {},
-        includeArchived ? {} : { isArchived: false },
+        archivedOnly
+          ? { isArchived: true }
+          : includeArchived
+            ? {}
+            : { isArchived: false },
         { OR: visibilityClauses },
       ],
     };

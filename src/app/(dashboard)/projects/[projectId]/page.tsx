@@ -218,7 +218,12 @@ export default async function ProjectPage({
 
   let isWorkspaceManager = false;
   const viewerWorkspaceIds: string[] = [];
-  if (!isProjectOwner && !isProjectMember && !isProjectTeamMember) {
+  // Owner/member only — team membership must NOT suppress this, because
+  // resolveProjectAccess resolves the team AFTER the workspace role and never
+  // lets it. Adding a third term here made a workspace OWNER who happens to
+  // sit on the team a project is shared with stop being a manager of it, and
+  // the delete gate below reads this flag.
+  if (!isProjectOwner && !isProjectMember) {
     if (viewerIsContributor && viewerMembership) {
       viewerWorkspaceIds.push(project.workspaceId);
       const role = viewerMembership.role;
@@ -241,6 +246,47 @@ export default async function ProjectPage({
   if (!hasAccess) {
     notFound();
   }
+
+  // ── Which CONTROLS the page may render ───────────────────────
+  // Resolved here rather than in <ProjectContent>: the client can only match
+  // the session email against the project's owner and members, which is blind
+  // to WORKSPACE role. Deletion turns on exactly that role, so the client
+  // could not state the rule at all and the menu item ended up gated on
+  // nothing — a reader was offered the irreversible control and denied the
+  // reversible one. Each flag mirrors the route its control calls; neither may
+  // be more permissive than that route, or the button dead-ends in a 403.
+  const viewerProjectRole =
+    project.members.find((m) => m.userId === user.id)?.role ?? null;
+  // A NON-CONTRIBUTOR (GUEST / CLIENT) gets no write affordance at all, not
+  // even through the explicit ownership/membership grant that let them read:
+  // src/proxy.ts default-denies those roles across the /api/ surface, so every
+  // one of these controls would answer 403 for them.
+  //
+  // It has to be the role that gate actually reads — the PRIMARY workspace
+  // one, off the JWT — not `viewerIsContributor`, which is standing in THIS
+  // project's workspace. The two are different values for anyone who belongs
+  // to more than one workspace, and reading the wrong one both hid the
+  // controls from owners the API obeys and offered them where the middleware
+  // answers 403 before the handler is reached.
+  const viewerMayCallApi = !isNonContributorRole(session.user.role);
+
+  // canEdit mirrors PATCH /api/projects/[projectId] — owner, or a project
+  // ADMIN/EDITOR. Archive and Unarchive ARE that PATCH, so they ride on it.
+  // Deliberately not `canWrite` from project-access: the route grants neither
+  // team members nor workspace managers the edit.
+  const canEditProject =
+    viewerMayCallApi &&
+    (isProjectOwner ||
+      viewerProjectRole === "ADMIN" ||
+      viewerProjectRole === "EDITOR");
+  // canManage mirrors DELETE, which enforces `access.canManage` — owner,
+  // project ADMIN, or workspace manager. It is NOT a subset of canEditProject:
+  // the two routes genuinely disagree, and a workspace manager may delete a
+  // project he may not rename. Mirroring each route beats reconciling them
+  // here; the server stays the gate.
+  const canManageProject =
+    viewerMayCallApi &&
+    (isProjectOwner || viewerProjectRole === "ADMIN" || isWorkspaceManager);
 
   // Multi-homing: tasks whose HOME is another project but that were
   // added to THIS project (TaskProject rows). Render them under the
@@ -354,6 +400,8 @@ export default async function ProjectPage({
       project={serializedProject}
       currentView={view}
       sectionTaskCounts={sectionTaskCounts}
+      canEdit={canEditProject}
+      canManage={canManageProject}
     />
   );
 }

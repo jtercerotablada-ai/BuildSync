@@ -11,7 +11,8 @@ import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
  * Matrix and Members table on the team workspace.
  *
  * For each member of the team:
- *   - openTasks            count of assigned tasks not yet completed
+ *   - openTasks            count of assigned tasks not yet completed,
+ *                          excluding work sitting in archived projects
  *   - overdueTasks         subset of openTasks past due
  *   - completedLast30Days  velocity proxy (tasks closed in last 30d)
  *   - projectsActive       distinct projects they have open tasks on
@@ -54,7 +55,8 @@ export async function GET(
 
     // 2. Load the team's projects (so the matrix has columns)
     const projects = await prisma.project.findMany({
-      where: { teamId },
+      // A shelved project gets no column — capacity is about live work.
+      where: { teamId, isArchived: false },
       select: {
         id: true,
         name: true,
@@ -79,6 +81,10 @@ export async function GET(
           assigneeId: { in: memberIds },
           completed: false,
           parentTaskId: null,
+          // The archived projects above lost their column, so their open
+          // tasks have to stop filling the bar and the row total too.
+          // Tasks with no project at all are real load and still count.
+          OR: [{ projectId: null }, { project: { isArchived: false } }],
         },
         select: {
           id: true,
@@ -93,6 +99,11 @@ export async function GET(
           completed: true,
           completedAt: { gte: thirtyDaysAgo },
           parentTaskId: null,
+          // Not filtered by archive, unlike the open set: this is what a
+          // person shipped in 30 days, and archiving the job they just
+          // finished must not erase their velocity. Nothing adds it to
+          // openTasks or reads it through a matrix column, so the two
+          // can hold different scopes without contradicting each other.
         },
         select: {
           id: true,

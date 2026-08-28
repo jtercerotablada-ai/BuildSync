@@ -19,7 +19,9 @@ export async function GET(
     await verifyTeamAccess(userId, teamId);
 
     const projects = await prisma.project.findMany({
-      where: { teamId },
+      // The team's live board — archived work is off it here for the same
+      // reason GET /api/projects hides it by default.
+      where: { teamId, isArchived: false },
       include: {
         members: {
           include: {
