@@ -949,7 +949,7 @@ export function ProjectContent({
       ? "Every task in this project, with its sub-tasks, comments and attachments"
       : `${deletedTaskCount} task${deletedTaskCount === 1 ? "" : "s"} and sub-tasks, with their comments and attachments`,
     `${project.sections.length} section${project.sections.length === 1 ? "" : "s"} and this project's saved views`,
-    `${memberCount} member${memberCount === 1 ? "" : "s"} lose access`,
+    `${memberCount} member${memberCount === 1 ? " loses" : "s lose"} access`,
   ];
 
   // Monochrome + gold. Gold = positive/active, black = severe, gray = neutral.
@@ -983,20 +983,21 @@ export function ProjectContent({
       {/* Archived banner — an archived project is dropped from the sidebar and
           from the default projects list, so the banner has to name the one
           place it still shows up or the user keeps a saved URL as their only
-          way back. Naming it is not enough: "Browse projects" is a page, so it
-          is a link to that page rather than a label to go hunting for. The
+          way back. Naming the scope is not enough — it is a link straight to it,
+          because a label the reader has to go hunting for is half an answer. The
           button is gated the way the PATCH is: offering it to a reader who
           can't edit would dead-end in a 403 toast. */}
       {project.isArchived && (
         <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 md:px-6 py-2 text-sm text-amber-900">
           <Archive className="h-4 w-4 flex-shrink-0 text-amber-700" />
           <span>
-            This project is archived. It&apos;s kept under Archived in{" "}
+            This project is archived and hidden from the projects list. Find it
+            under{" "}
             <Link
               href={archivedProjectsHref}
               className="font-medium underline underline-offset-2 hover:text-amber-950"
             >
-              Browse projects
+              Archived
             </Link>
             .
           </span>
