@@ -79,6 +79,32 @@ export function isPublicRoute(pathname: string): boolean {
   return publicPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
+/* ── Routes that may arrive without a session, but are NOT public ───────────
+   A public prefix returns at isPublicRoute() below, which is UPSTREAM of the
+   non-contributor role gate — so listing a route there quietly exempts it from
+   isApiForbiddenForRole too. These routes only need the missing-session 401
+   waived; every other rule still applies to them.
+
+   /api/blob/upload is here because it answers two callers. The token request
+   carries the caller's session and is authorised in-handler (getCurrentUserId
+   plus verifyTaskAccess with requireWrite on the target task), so it must stay
+   subject to the role gate: minting an upload token is a WRITE credential for
+   the firm's blob store, and a read-only role has no business holding one. The
+   upload-completed callback comes from Vercel Blob server-to-server with no
+   cookie at all; handleUpload authenticates it by verifying x-vercel-signature
+   against the store token and rejects it outright when that is missing or
+   wrong. It is the callback, and only the callback, that the blanket 401 was
+   killing.
+
+   EXACT match, not a prefix: /api/blob/upload-avatar and anything else that
+   later lands under /api/blob/ must not inherit this by accident. */
+const sessionOptionalApiExact = ["/api/blob/upload"];
+
+/** Exported for tests — pure string matching, no request needed. */
+export function isSessionOptionalApi(pathname: string): boolean {
+  return sessionOptionalApiExact.includes(pathname);
+}
+
 /* ── The non-contributor API allowlist ─────────────────────────────────────
    The entire server surface the (client) portal calls. Everything else under
    /api/ is internal, and a read-only workspace role — see
@@ -250,6 +276,16 @@ function isHostNeutral(pathname: string): boolean {
     // points there, so callbacks land there. The isolation this split exists
     // for — the app's DOM and storage living on their own origin — is intact.
     pathname.startsWith("/api/auth") ||
+    // The blob upload-completed callback must answer wherever Vercel Blob
+    // sends it. The SDK does not derive that URL from the request Host: with
+    // no explicit callbackUrl it uses VERCEL_PROJECT_PRODUCTION_URL, which
+    // resolves to the shortest production domain — the apex, i.e. PUBLIC_HOST.
+    // Redirecting it would answer the callback with a 307 to another host and
+    // rely on the blob service replaying x-vercel-signature across it, so the
+    // cleanup guard would quietly stop running the day the split is switched
+    // on. Answering in place is safe: that route authenticates both of its
+    // callers itself and holds no session.
+    isSessionOptionalApi(pathname) ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname === "/favicon.ico" ||
@@ -353,6 +389,13 @@ export async function proxy(request: NextRequest) {
   const token = await getToken({ req: request });
 
   if (!token) {
+    // A server-to-server caller that authenticates itself in the handler. Only
+    // the 401 is waived — the role gate below still runs for anyone who DOES
+    // arrive with a session, which is what keeps a read-only role from minting
+    // blob-store write credentials.
+    if (isSessionOptionalApi(pathname)) {
+      return NextResponse.next();
+    }
     // API routes return 401
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

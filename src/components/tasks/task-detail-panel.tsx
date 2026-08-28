@@ -23,6 +23,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { upload } from "@vercel/blob/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -268,6 +269,18 @@ interface TaskDetail {
   _count?: { likes?: number };
 }
 
+/**
+ * Above this, an attachment goes browser → blob storage instead of through
+ * the attachments route.
+ *
+ * 4MB, deliberately well under the ~4.5MB body a Vercel function will accept:
+ * the multipart envelope, the filename and the boundary all ride along with
+ * the bytes, so a file measured at exactly the platform limit still arrives
+ * over it. Anything below keeps the simpler single-request path — it is one
+ * round trip, and it is the path every other upload surface in the app uses.
+ */
+const DIRECT_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
+
 const DEPENDENCY_TYPE_META: Record<
   DependencyTypeStr,
   { short: string; label: string }
@@ -328,6 +341,12 @@ export function TaskDetailPanel({
   // ── File attachment upload ────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // A 200MB model takes minutes. Without a number on screen the panel just
+  // looks frozen, so the direct-to-storage path reports where it is.
+  const [uploadProgress, setUploadProgress] = useState<{
+    name: string;
+    percentage: number;
+  } | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // ── Comment composer (+ inline attachments) ───────────────────
@@ -592,6 +611,91 @@ export function TaskDetailPanel({
   // ATTACHMENT UPLOAD / DELETE
   // ─────────────────────────────────────────────────────────────
 
+  async function postAttachment(body: FormData | string) {
+    const res = await fetch(`/api/tasks/${taskId}/attachments`, {
+      method: "POST",
+      ...(typeof body === "string"
+        ? { headers: { "Content-Type": "application/json" }, body }
+        : { body }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+  }
+
+  /**
+   * One attachment, by whichever route its size allows.
+   *
+   * A big file cannot go through the attachments handler at all — Vercel caps
+   * a function's request body far below what the store accepts — so above the
+   * threshold the bytes go from here straight to blob storage and only a
+   * description of the finished blob is posted to the API.
+   */
+  async function uploadAttachment(file: File, commentId?: string) {
+    if (file.size <= DIRECT_UPLOAD_THRESHOLD_BYTES) {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (commentId) fd.append("commentId", commentId);
+      await postAttachment(fd);
+      return;
+    }
+
+    const mimeType = file.type || "application/octet-stream";
+    const safeName = file.name.replace(/[/\\]/g, "_");
+
+    let blob;
+    try {
+      blob = await upload(`tasks/${taskId}/${safeName}`, file, {
+        // PRIVATE — this is a security control, not a default worth tidying.
+        // The signed token CANNOT pin access (onBeforeGenerateToken has no such
+        // field), so this argument is the only thing that decides it, and
+        // "public" would mint a permanent login-less link to a client's sealed
+        // drawing. The server refuses to create a row for a non-private url and
+        // deletes the blob behind it, so changing this does not simplify
+        // anything — it makes every large upload fail after transferring the
+        // whole file.
+        access: "private",
+        handleUploadUrl: "/api/blob/upload",
+        // Declared here AND in the payload so they agree: the token pins this
+        // exact content type, and a mismatch is rejected by the store.
+        contentType: mimeType,
+        clientPayload: JSON.stringify({
+          kind: "task-attachment",
+          taskId,
+          mimeType,
+        }),
+        multipart: true,
+        onUploadProgress: ({ percentage }) =>
+          setUploadProgress({ name: file.name, percentage }),
+      });
+    } catch (err) {
+      // The SDK throws one fixed string for EVERY server rejection here — it
+      // discards the response body — so the real reason (file type, no write
+      // access, task deleted mid-upload) never reaches this catch. Say what is
+      // actually knowable rather than surfacing that string to the user.
+      throw new Error(
+        err instanceof Error && /client token/i.test(err.message)
+          ? "Upload refused — check the file type and your access to this task"
+          : err instanceof Error
+            ? err.message
+            : "Upload failed"
+      );
+    }
+
+    // Url and display name only. Size and type are read off the stored blob
+    // by the server — sending them would just be a number it has to ignore.
+    await postAttachment(
+      JSON.stringify({
+        // The store's url, never the pathname we asked for: addRandomSuffix
+        // means the two differ, and only this one addresses the bytes.
+        blobUrl: blob.url,
+        name: file.name,
+        commentId,
+      })
+    );
+  }
+
   async function handleAttachmentUpload(
     e: React.ChangeEvent<HTMLInputElement>
   ) {
@@ -601,23 +705,19 @@ export function TaskDetailPanel({
     let okCount = 0;
     for (const file of Array.from(files)) {
       try {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch(`/api/tasks/${taskId}/attachments`, {
-          method: "POST",
-          body: fd,
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `HTTP ${res.status}`);
-        }
+        await uploadAttachment(file);
         okCount++;
       } catch (err) {
+        // Say what actually went wrong. There is no retry through the
+        // multipart route here on purpose: a file that took this path is too
+        // big for it, so a silent fallback would only fail again, slower.
         toast.error(
           err instanceof Error
             ? `${file.name}: ${err.message}`
             : `${file.name}: upload failed`
         );
+      } finally {
+        setUploadProgress(null);
       }
     }
     if (okCount > 0) {
@@ -886,18 +986,12 @@ export function TaskDetailPanel({
 
       let attachmentsUploaded = 0;
       for (const file of pendingCommentFiles) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("commentId", created.id);
         try {
-          const upRes = await fetch(`/api/tasks/${taskId}/attachments`, {
-            method: "POST",
-            body: fd,
-          });
-          if (!upRes.ok) {
-            const upErr = await upRes.json().catch(() => ({}));
-            throw new Error(upErr.error || `HTTP ${upRes.status}`);
-          }
+          // Same helper as the Attachments panel. Left on the multipart path,
+          // this control would keep dying on the platform body cap for a file
+          // the panel right above it accepts — with the comment already
+          // published and referencing a file that never arrived.
+          await uploadAttachment(file, created.id);
           attachmentsUploaded++;
         } catch (err) {
           toast.error(
@@ -905,6 +999,8 @@ export function TaskDetailPanel({
               ? `${file.name}: ${err.message}`
               : `${file.name}: upload failed`
           );
+        } finally {
+          setUploadProgress(null);
         }
       }
 
@@ -1921,6 +2017,22 @@ export function TaskDetailPanel({
                 )}
               </button>
             </div>
+            {uploadProgress && (
+              <div className="mb-2" aria-live="polite">
+                <div className="flex items-center justify-between gap-2 text-[11px] text-[#6f7782]">
+                  <span className="truncate">{uploadProgress.name}</span>
+                  <span className="tabular-nums">
+                    {Math.round(uploadProgress.percentage)}%
+                  </span>
+                </div>
+                <div className="mt-1 h-1 w-full rounded-full bg-[#eceff1]">
+                  <div
+                    className="h-1 rounded-full bg-[#4573d2] transition-[width]"
+                    style={{ width: `${uploadProgress.percentage}%` }}
+                  />
+                </div>
+              </div>
+            )}
             {!taskDetail?.attachments ||
             taskDetail.attachments.length === 0 ? null : (
               <ul className="space-y-0.5 -mx-2">
