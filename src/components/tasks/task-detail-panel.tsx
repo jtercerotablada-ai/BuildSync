@@ -226,7 +226,7 @@ interface TaskDetail {
     id: string;
     name: string;
     color: string;
-    type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | null;
+    type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | "BSIP" | null;
     gate?:
       | "PRE_DESIGN"
       | "DESIGN"

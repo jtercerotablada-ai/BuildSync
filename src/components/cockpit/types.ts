@@ -2,7 +2,12 @@
 // /api/dashboard/ceo. Kept loose on enums (string) so the UI doesn't
 // crash if the DB has a value the client hasn't been recompiled for.
 
-export type ProjectType = "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT";
+export type ProjectType =
+  | "CONSTRUCTION"
+  | "DESIGN"
+  | "RECERTIFICATION"
+  | "PERMIT"
+  | "BSIP";
 export type ProjectGate = "PRE_DESIGN" | "DESIGN" | "PERMITTING" | "CONSTRUCTION" | "CLOSEOUT";
 export type ProjectStatus = "ON_TRACK" | "AT_RISK" | "OFF_TRACK" | "ON_HOLD" | "COMPLETE";
 
@@ -13,6 +18,12 @@ export interface CockpitProject {
   status: ProjectStatus;
   type: ProjectType | null;
   gate: ProjectGate | null;
+  // Pipeline stage — the key stored in Project.stage, resolved through
+  // src/lib/pipelines.ts. Optional because a payload cached from before the
+  // column existed must still render: the tile then shows the project's
+  // stages with none reached rather than inventing progress.
+  stage?: string | null;
+  stageEnteredAt?: string | null;
   location: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -108,6 +119,7 @@ export const TYPE_LABEL: Record<ProjectType, string> = {
   DESIGN: "Design",
   RECERTIFICATION: "Recertification",
   PERMIT: "Permit",
+  BSIP: "BSIP",
 };
 
 // All-monochrome palette (black/white/gold). The four project types use
@@ -119,6 +131,10 @@ export const TYPE_COLOR: Record<ProjectType, string> = {
   DESIGN: "#d4b65a",       // bright gold
   RECERTIFICATION: "#a8893a", // deep gold / bronze
   PERMIT: "#1a1a1a",       // black — outlined treatment in badges
+  // Broward's BSIP is the same work as a recertification, so it sits in the
+  // same bronze family — one shade darker, since the map and the pipeline
+  // have to let the firm tell the two counties apart at a glance.
+  BSIP: "#8a7028",         // dark bronze
 };
 
 export const GATE_LABEL: Record<ProjectGate, string> = {
@@ -127,14 +143,6 @@ export const GATE_LABEL: Record<ProjectGate, string> = {
   PERMITTING: "Permitting",
   CONSTRUCTION: "Construction",
   CLOSEOUT: "Closeout",
-};
-
-export const GATE_INDEX: Record<ProjectGate, number> = {
-  PRE_DESIGN: 0,
-  DESIGN: 1,
-  PERMITTING: 2,
-  CONSTRUCTION: 3,
-  CLOSEOUT: 4,
 };
 
 // Status uses gold for active states, black for severe, gray for neutral.

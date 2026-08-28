@@ -8,6 +8,7 @@ import {
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { legacyGateFor } from "@/lib/pipelines";
 
 /**
  * POST /api/projects/:projectId/duplicate
@@ -112,7 +113,13 @@ export async function POST(
             startDate: source.startDate,
             endDate: source.endDate,
             type: source.type,
-            gate: source.gate,
+            // The copy stands where the original stands, but on its own clock:
+            // the source's dwell belongs to the source. The blocker is not
+            // copied either — it names a wait somebody is actually in.
+            stage: source.stage,
+            stageEnteredAt: source.stage ? new Date() : null,
+            // Derived, never copied — see legacyGateFor().
+            gate: legacyGateFor(source.stage),
             location: source.location,
             latitude: source.latitude,
             longitude: source.longitude,

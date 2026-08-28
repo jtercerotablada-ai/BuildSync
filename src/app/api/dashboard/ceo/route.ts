@@ -185,6 +185,11 @@ export async function GET(request: Request) {
             status: true,
             type: true,
             gate: true,
+            // The cockpit tile draws its bar from the stage now; without these
+            // the payload would arrive typed but empty and every project would
+            // render as untouched.
+            stage: true,
+            stageEnteredAt: true,
             location: true,
             latitude: true,
             longitude: true,
@@ -383,7 +388,9 @@ export async function GET(request: Request) {
     const compliance = projects
       .filter(
         (p) =>
-          (p.type === "RECERTIFICATION" || p.type === "PERMIT") &&
+          (p.type === "RECERTIFICATION" ||
+            p.type === "BSIP" ||
+            p.type === "PERMIT") &&
           p.endDate &&
           new Date(p.endDate) <= sixtyDays
       )

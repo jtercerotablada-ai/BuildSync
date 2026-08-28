@@ -170,8 +170,15 @@ interface Project {
   } | null;
   // Engineering metadata (any of these may be null on legacy rows)
   projectNumber?: string | null;
-  type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | null;
+  type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | "BSIP" | null;
   gate?: "PRE_DESIGN" | "DESIGN" | "PERMITTING" | "CONSTRUCTION" | "CLOSEOUT" | null;
+  // Passed straight through to the Overview's stage strip. Declared here so
+  // the fields survive a future narrowing of this shape: the row is spread in
+  // whole today, and the strip would silently fall back to "No stage set yet"
+  // if they ever stopped arriving.
+  stage?: string | null;
+  stageEnteredAt?: string | Date | null;
+  stageBlocker?: string | null;
   location?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -268,6 +275,7 @@ const PROJECT_TYPE_LABEL: Record<string, string> = {
   DESIGN: "Design",
   RECERTIFICATION: "Recertification",
   PERMIT: "Permit",
+  BSIP: "BSIP",
 };
 // Monochrome + gold palette — matches cockpit/types.ts TYPE_COLOR.
 const PROJECT_TYPE_COLOR: Record<string, string> = {
@@ -275,6 +283,7 @@ const PROJECT_TYPE_COLOR: Record<string, string> = {
   DESIGN: "#d4b65a",       // bright gold
   RECERTIFICATION: "#a8893a", // deep gold / bronze
   PERMIT: "#1a1a1a",       // black (outlined badge treatment)
+  BSIP: "#8a7028",         // dark bronze — same work, other county
 };
 
 interface ProjectContentProps {

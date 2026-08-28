@@ -56,7 +56,8 @@ type ProjectType =
   | "CONSTRUCTION"
   | "DESIGN"
   | "RECERTIFICATION"
-  | "PERMIT";
+  | "PERMIT"
+  | "BSIP";
 
 type ProjectGate =
   | "PRE_DESIGN"
@@ -104,6 +105,7 @@ const TYPE_LABEL: Record<ProjectType, string> = {
   DESIGN: "Design",
   RECERTIFICATION: "Recertification",
   PERMIT: "Permit",
+  BSIP: "BSIP",
 };
 
 const GATE_LABEL: Record<ProjectGate, string> = {
@@ -338,9 +340,12 @@ function ProjectsPageContent() {
             activeLabel={typeFilter === "ALL" ? null : TYPE_LABEL[typeFilter as ProjectType]}
             options={[
               { value: "ALL", label: "All types" },
-              ...(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"] as const).map(
-                (t) => ({ value: t, label: TYPE_LABEL[t] })
-              ),
+              // Driven off the label map so a new project type shows up in
+              // the filter instead of silently dropping out of the list.
+              ...(Object.keys(TYPE_LABEL) as ProjectType[]).map((t) => ({
+                value: t,
+                label: TYPE_LABEL[t],
+              })),
             ]}
             value={typeFilter}
             onChange={(v) => setTypeFilter(v as ProjectType | "ALL")}

@@ -70,6 +70,10 @@ const PROJECT_TYPES = [
   { value: "CONSTRUCTION", label: "Construction" },
   { value: "DESIGN", label: "Design" },
   { value: "RECERTIFICATION", label: "Recertification" },
+  // Broward's Building Structural Integrity Program — the same work as a
+  // Miami-Dade recertification, kept apart so the two counties can be counted
+  // separately.
+  { value: "BSIP", label: "BSIP (Broward)" },
   { value: "PERMIT", label: "Permit" },
 ];
 

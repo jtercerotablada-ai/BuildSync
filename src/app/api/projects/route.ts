@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 import { getTemplateById } from "@/lib/templates-data";
 import { readJson, jsonErrorResponse } from "@/lib/http";
+import { legacyGateFor, stagesForType } from "@/lib/pipelines";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -18,8 +19,10 @@ const createProjectSchema = z.object({
   startDate: z.string().optional(), // For calculating relative due dates
   endDate: z.string().optional(), // Target completion date
   // Engineering firm extensions
-  type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"]).optional(),
-  gate: z.enum(["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"]).optional(),
+  type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT", "BSIP"]).optional(),
+  // No `gate` here on purpose. It is derived from the stage below, and zod
+  // drops the key silently, so the template gallery can keep sending the one
+  // its presets carry without a 400 and without a second writer.
   location: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
@@ -277,7 +280,6 @@ export async function POST(req: Request) {
       startDate,
       endDate,
       type,
-      gate,
       location,
       latitude,
       longitude,
@@ -426,6 +428,13 @@ export async function POST(req: Request) {
           { name: "Calendar", type: "CALENDAR" as const, isDefault: false },
         ];
 
+    // A typed project starts at its pipeline's first stage — exactly what the
+    // backfill did to the live rows, so a job created today behaves like every
+    // job created before it. Leaving `stage` null instead would drop the new
+    // project out of every board that groups by stage, and its own strip would
+    // read "No stage set yet" until somebody noticed.
+    const initialStage = stagesForType(type ?? null)[0] ?? null;
+
     // Create the project and everything a template seeds (sections, views,
     // members, custom fields, tasks, subtasks, custom-field values) inside a
     // SINGLE transaction so a failure part-way through rolls the whole thing
@@ -445,7 +454,10 @@ export async function POST(req: Request) {
             startDate: startDate ? new Date(startDate) : new Date(),
             endDate: endDate ? new Date(endDate) : null,
             type: type ?? null,
-            gate: gate ?? "PRE_DESIGN",
+            stage: initialStage?.key ?? null,
+            stageEnteredAt: initialStage ? new Date() : null,
+            // Derived here and nowhere else — see legacyGateFor().
+            gate: legacyGateFor(initialStage?.key ?? null),
             location: location ?? null,
             latitude: latitude ?? null,
             longitude: longitude ?? null,
@@ -648,6 +660,21 @@ export async function POST(req: Request) {
               }
             }
           }
+        }
+
+        // The first row of the job's history, so "how long has this been on
+        // someone's desk" has a start even for a project nobody has moved yet.
+        // SEED, not FORWARD: arriving at the first stage is not progress.
+        if (initialStage) {
+          await tx.projectStageEvent.create({
+            data: {
+              projectId: created.id,
+              fromStage: null,
+              toStage: initialStage.key,
+              direction: "SEED",
+              userId,
+            },
+          });
         }
 
         return created;

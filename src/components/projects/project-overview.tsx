@@ -49,6 +49,9 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { notifyTaskMutated } from "@/lib/task-events";
+import { ProjectStageStrip } from "@/components/cockpit/PipelineStrip";
+import type { ProjectType } from "@/components/cockpit/types";
+import { resolveStage } from "@/lib/pipelines";
 
 type ProjectStatusKey =
   | "ON_TRACK"
@@ -56,13 +59,6 @@ type ProjectStatusKey =
   | "OFF_TRACK"
   | "ON_HOLD"
   | "COMPLETE";
-
-type ProjectGateKey =
-  | "PRE_DESIGN"
-  | "DESIGN"
-  | "PERMITTING"
-  | "CONSTRUCTION"
-  | "CLOSEOUT";
 
 interface ProjectMemberRow {
   userId: string;
@@ -87,9 +83,18 @@ interface ProjectShape {
   description: string | null;
   color: string;
   status: string;
-  // Lifecycle phase. Optional/nullable to match the parent's shape, where
-  // legacy rows predate the column.
-  gate?: ProjectGateKey | null;
+  // Where the job is, and therefore whose desk it is on. The stages come from
+  // the type (see @/lib/pipelines), so both travel together. All optional to
+  // match the parent's shape, where legacy rows predate the columns.
+  //
+  // `gate` is deliberately absent: it is derived from the stage on the server
+  // now, and a second writer here is how the two facts drift apart.
+  type?: ProjectType | null;
+  stage?: string | null;
+  // ISO when a client refresh handed it back, a Date when the server
+  // component spread the Prisma row straight through.
+  stageEnteredAt?: string | Date | null;
+  stageBlocker?: string | null;
   owner: {
     id: string;
     name: string | null;
@@ -311,25 +316,6 @@ const STATUS_VISUAL: Record<
   },
 };
 
-// Lifecycle phases in the order a job runs through them. The array is the
-// source of truth for both the strip's left-to-right layout and the "reached"
-// comparison, so a future phase only has to be inserted here.
-const GATE_ORDER: ProjectGateKey[] = [
-  "PRE_DESIGN",
-  "DESIGN",
-  "PERMITTING",
-  "CONSTRUCTION",
-  "CLOSEOUT",
-];
-
-const GATE_LABEL: Record<ProjectGateKey, string> = {
-  PRE_DESIGN: "Pre-design",
-  DESIGN: "Design",
-  PERMITTING: "Permitting",
-  CONSTRUCTION: "Construction",
-  CLOSEOUT: "Closeout",
-};
-
 const COMPOSER_MAX_LEN = 4000;
 
 function formatRelativeTime(iso: string): string {
@@ -420,23 +406,37 @@ export function ProjectOverview({
     }
   }, [project.description, description, seededDescription]);
 
-  // Local mirror of the lifecycle phase so the strip can move under the
+  // Local mirror of the pipeline stage so the strip can move under the
   // click instead of waiting a round trip. Seeded the same way the
   // description is: adopt the server value only when the prop itself
   // changes, so a router.refresh() fired by an unrelated action (posting a
-  // status update, say) can't roll an in-flight advance back.
-  const [gate, setGate] = useState<ProjectGateKey | null>(project.gate ?? null);
-  const [seededGate, setSeededGate] = useState<ProjectGateKey | null>(
-    project.gate ?? null
+  // status update, say) can't roll an in-flight move back.
+  const [stage, setStage] = useState<string | null>(project.stage ?? null);
+  const [seededStage, setSeededStage] = useState<string | null>(
+    project.stage ?? null
   );
-  const [gateSaving, setGateSaving] = useState(false);
+  // Mirrored alongside the stage: the dwell has to restart the moment the job
+  // lands, or the line under the strip would keep counting the last stage's
+  // wait until the refresh comes back.
+  const [stageEnteredAt, setStageEnteredAt] = useState<string | Date | null>(
+    project.stageEnteredAt ?? null
+  );
+  // Mirrored for the same reason: the server drops the blocker on a move, so
+  // reading the prop would leave "Blocked · …" from the stage the job just
+  // left sitting under the stage it just arrived at.
+  const [stageBlocker, setStageBlocker] = useState<string | null>(
+    project.stageBlocker ?? null
+  );
+  const [stageSaving, setStageSaving] = useState(false);
   useEffect(() => {
-    const incoming = project.gate ?? null;
-    if (incoming !== seededGate) {
-      setGate(incoming);
-      setSeededGate(incoming);
+    const incoming = project.stage ?? null;
+    if (incoming !== seededStage) {
+      setStage(incoming);
+      setSeededStage(incoming);
+      setStageEnteredAt(project.stageEnteredAt ?? null);
+      setStageBlocker(project.stageBlocker ?? null);
     }
-  }, [project.gate, seededGate]);
+  }, [project.stage, project.stageEnteredAt, project.stageBlocker, seededStage]);
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false);
@@ -1268,41 +1268,56 @@ export function ProjectOverview({
   );
 
   // Backward moves are deliberate, not a guard we forgot: a rejected permit
-  // sends the job back to Design, and a phase that could only go forward
-  // would leave the owner no way to record that.
-  const handleGateChange = useCallback(
-    async (next: ProjectGateKey) => {
-      if (gateSaving) return; // guard against a double click mid-flight
-      const previous = gate;
+  // really does send the job back to Report Drafting, and a stage that could
+  // only go forward would leave the firm no way to record that. The strip
+  // asks before it sends one back, and carries the reason with it.
+  //
+  // Only the stage is sent. The gate the older readouts still render is
+  // derived from it on the server — two writers for one fact is how the
+  // column and the stage desync.
+  const handleStageMove = useCallback(
+    async (next: string, reason?: string) => {
+      if (stageSaving) return; // guard against a double click mid-flight
+      const previous = stage;
+      const previousEnteredAt = stageEnteredAt;
+      const previousBlocker = stageBlocker;
       if (next === previous) return;
-      setGateSaving(true);
-      setGate(next);
+      setStageSaving(true);
+      setStage(next);
+      setStageEnteredAt(new Date());
+      // The server clears it on a move; mirror that so the old stage's
+      // "Blocked · …" does not hang under the new one for a round trip.
+      setStageBlocker(null);
       try {
-        const res = await fetch(`/api/projects/${project.id}`, {
+        const res = await fetch(`/api/projects/${project.id}/stage`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ gate: next }),
+          body: JSON.stringify(reason ? { stage: next, reason } : { stage: next }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => null);
           const msg =
             (body && typeof body === "object" && "error" in body
               ? String(body.error)
-              : null) || "Failed to update phase";
+              : null) || "Failed to update stage";
           throw new Error(msg);
         }
-        toast.success(`Phase set to ${GATE_LABEL[next]}`);
+        toast.success(
+          `Stage set to ${resolveStage(next)?.stage.label ?? "the next stage"}`
+        );
         router.refresh();
       } catch (err) {
-        setGate(previous);
+        setStage(previous);
+        setStageEnteredAt(previousEnteredAt);
+        setStageBlocker(previousBlocker);
         toast.error(
-          err instanceof Error ? err.message : "Failed to update phase"
+          err instanceof Error ? err.message : "Failed to update stage"
         );
       } finally {
-        setGateSaving(false);
+        setStageSaving(false);
       }
     },
-    [project.id, router, gate, gateSaving]
+    [project.id, router, stage, stageEnteredAt, stageBlocker, stageSaving]
   );
 
   return (
@@ -1796,53 +1811,28 @@ export function ProjectOverview({
               )}
             </div>
 
-            {/* Lifecycle phase. Sits with the live status because both answer
-                "where is this job right now", and both PATCH the project.
-                Shown to readers too — only the buttons are gated, so a
-                read-only viewer still sees the phase instead of nothing. */}
+            {/* Pipeline stage. Sits with the live status because both answer
+                "where is this job right now" — the status says how it is
+                going, the stage says whose desk it is on. Shown to readers
+                too: without `onMove` the strip renders as a readout, so a
+                read-only viewer still sees the stage instead of nothing. */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-medium text-slate-500">
-                  Phase
+                  Stage
                 </span>
-                {gateSaving && (
+                {stageSaving && (
                   <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
                 )}
               </div>
-              <div className="flex items-center gap-1 flex-wrap">
-                {GATE_ORDER.map((key, i) => {
-                  const currentIdx = gate ? GATE_ORDER.indexOf(gate) : -1;
-                  const isCurrent = gate === key;
-                  const isReached = currentIdx >= 0 && i < currentIdx;
-                  const className = cn(
-                    "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                    isCurrent
-                      ? "bg-[#c9a84c] text-white border-transparent"
-                      : isReached
-                        ? "bg-[#FBF3E4] text-[#8F6C1F] border-transparent"
-                        : "bg-white text-slate-500 border-slate-200"
-                  );
-                  return canEdit ? (
-                    <button
-                      key={key}
-                      type="button"
-                      disabled={gateSaving}
-                      onClick={() => void handleGateChange(key)}
-                      className={cn(
-                        className,
-                        !isCurrent && "hover:border-slate-300",
-                        gateSaving && "opacity-60"
-                      )}
-                    >
-                      {GATE_LABEL[key]}
-                    </button>
-                  ) : (
-                    <span key={key} className={className}>
-                      {GATE_LABEL[key]}
-                    </span>
-                  );
-                })}
-              </div>
+              <ProjectStageStrip
+                type={project.type ?? null}
+                stage={stage}
+                stageEnteredAt={stageEnteredAt}
+                blocker={stageBlocker}
+                saving={stageSaving}
+                onMove={canEdit ? handleStageMove : undefined}
+              />
             </div>
 
             {/* Composer */}

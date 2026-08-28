@@ -83,6 +83,7 @@ model User {
   objectives          Objective[]          @relation("ObjectiveOwner")
   ownedWorkspaces     Workspace[]          @relation("WorkspaceOwner")
   ownedProjects       Project[]            @relation("ProjectOwner")
+  projectStageEvents  ProjectStageEvent[]
   ownedPortfolios     Portfolio[]          @relation("PortfolioOwner")
   messages            Message[]            @relation("MessageAuthor")
   messageMentions     MessageMention[]     @relation("UserMentions")
@@ -522,6 +523,22 @@ model Project {
   // (format: TT-YYYY-NNN). Nullable so historic rows don't break.
   projectNumber String?
 
+  // ── Pipeline stage ────────────────────────────────────────────────
+  // A key like "recert.awaiting_pe", resolved against the registry in
+  // src/lib/pipelines.ts, which owns the labels, the order and the holder.
+  // TEXT rather than more ProjectGate values on purpose: four pipelines need
+  // ~30 of them and a Postgres enum value can never be dropped or renamed
+  // without rebuilding the type — the destructive path this database forbids.
+  // `gate` above is kept and still written, derived from this, so the
+  // readouts not yet migrated keep rendering.
+  stage          String?
+  // When the job entered its current stage — this is what makes naming the
+  // holder useful: "on the client's desk 24 days" is the actual product.
+  stageEnteredAt DateTime?
+  // One line on what is genuinely being waited for, so a stage does not need
+  // a variant per reason ("survey", "geotech", "notarized application").
+  stageBlocker   String?
+
   workspaceId String
   teamId      String?
   ownerId     String?
@@ -539,6 +556,7 @@ model Project {
   // Tasks multi-homed INTO this project (their home is another project).
   taskProjects  TaskProject[]
   members       ProjectMember[]
+  stageEvents   ProjectStageEvent[]
   companies     ProjectCompany[]     @relation("ProjectCompanies")
   views         ProjectView[]
   viewPrefs     ProjectViewPref[]
@@ -566,6 +584,31 @@ model Project {
   @@index([workspaceId])
   @@index([teamId])
   @@index([ownerId])
+}
+
+/// Every move a project makes through its pipeline.
+///
+/// Required rather than nice-to-have: Activity is task-scoped (it carries a
+/// taskId), so there was nowhere to record a PROJECT-level move. Every number
+/// worth showing comes from here — days in stage, how many times a job went
+/// back through City Comments, how long the last three sat on a client's desk.
+model ProjectStageEvent {
+  id        String   @id @default(cuid())
+  fromStage String?
+  toStage   String
+  /// FORWARD | BACKWARD | SEED — a rejected permit really does send a job
+  /// back, so direction is recorded rather than inferred from the order.
+  direction String   @default("FORWARD")
+  reason    String?
+  createdAt DateTime @default(now())
+
+  projectId String
+  userId    String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
 }
 
 model ProjectMember {
@@ -707,6 +750,10 @@ enum ProjectType {
   DESIGN
   RECERTIFICATION
   PERMIT
+  // Broward's Building Structural Integrity Program. Runs the identical
+  // eleven stages as a Miami-Dade recertification; it is a separate type so
+  // the firm can count and filter that work on its own.
+  BSIP
 }
 
 // Engineering lifecycle gates — replaces generic open/closed semantics

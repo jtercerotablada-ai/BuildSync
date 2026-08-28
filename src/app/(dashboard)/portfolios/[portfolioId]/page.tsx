@@ -116,7 +116,12 @@ type PortfolioStatus =
   | "ON_HOLD"
   | "COMPLETE";
 
-type ProjectType = "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT";
+type ProjectType =
+  | "CONSTRUCTION"
+  | "DESIGN"
+  | "RECERTIFICATION"
+  | "PERMIT"
+  | "BSIP";
 
 type ProjectGate =
   | "PRE_DESIGN"
@@ -254,6 +259,7 @@ const TYPE_META: Record<ProjectType, { label: string; short: string }> = {
   DESIGN: { label: "Design", short: "DES" },
   RECERTIFICATION: { label: "Recertification", short: "REC" },
   PERMIT: { label: "Permit", short: "PRM" },
+  BSIP: { label: "BSIP", short: "BSIP" },
 };
 
 const GATE_META: Record<ProjectGate, { label: string }> = {
@@ -809,6 +815,7 @@ export default function PortfolioDetailPage() {
       DESIGN: 0,
       RECERTIFICATION: 0,
       PERMIT: 0,
+      BSIP: 0,
     };
     const byGate: Record<ProjectGate, number> = {
       PRE_DESIGN: 0,

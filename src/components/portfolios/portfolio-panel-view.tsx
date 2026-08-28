@@ -101,7 +101,12 @@ type ProjectStatus =
   | "ON_HOLD"
   | "COMPLETE";
 
-type ProjectType = "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT";
+type ProjectType =
+  | "CONSTRUCTION"
+  | "DESIGN"
+  | "RECERTIFICATION"
+  | "PERMIT"
+  | "BSIP";
 type ProjectGate =
   | "PRE_DESIGN"
   | "DESIGN"

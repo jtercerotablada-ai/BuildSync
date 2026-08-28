@@ -89,7 +89,7 @@ export interface ProjectTemplate {
   category: ProjectTemplateCategory;
   /** Default project metadata */
   defaults: {
-    type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT";
+    type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | "BSIP";
     gate?: "PRE_DESIGN" | "DESIGN" | "PERMITTING" | "CONSTRUCTION" | "CLOSEOUT";
     color?: string;
   };

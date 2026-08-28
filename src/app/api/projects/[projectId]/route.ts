@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { ProjectGate } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getProjectAccess, resolveProjectAccess } from "@/lib/project-access";
+import {
+  isStageValidForType,
+  legacyGateFor,
+  stageDirection,
+  stagesForType,
+} from "@/lib/pipelines";
 
 // Schedule dates arrive as ISO strings. Validate them at the edge so a
 // malformed one comes back as a 400 naming the field, instead of reaching
@@ -23,7 +30,8 @@ const updateProjectSchema = z.object({
   startDate: dateString.optional().nullable(),
   endDate: dateString.optional().nullable(),
   // Engineering firm extensions — mirrors the create schema in route.ts
-  type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"]).optional().nullable(),
+  type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT", "BSIP"]).optional().nullable(),
+  // Still parsed, never applied — see the rejection in the handler.
   gate: z.enum(["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"]).optional().nullable(),
   location: z.string().optional().nullable(),
   latitude: z.number().optional().nullable(),
@@ -175,26 +183,116 @@ export async function PATCH(
       );
     }
 
-    const updatedProject = await prisma.project.update({
-      where: { id: projectId },
-      data: {
-        ...data,
-        startDate: data.startDate ? new Date(data.startDate) : data.startDate === null ? null : undefined,
-        endDate: data.endDate ? new Date(data.endDate) : data.endDate === null ? null : undefined,
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
+    // `gate` is SERVER-DERIVED from `stage` now, so a caller that sets it
+    // directly desyncs the pair the next screen reads. Rejected rather than
+    // accepted-and-ignored on purpose: silently dropping the write leaves a
+    // phase picker that looks like it saved and snaps back on the next load,
+    // and nobody ever finds out why. The 400 names the endpoint that does move
+    // a job, so the caller gets fixed instead of quietly doing nothing.
+    if (data.gate !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "Phase is derived from the project's stage. Move the stage with PATCH /api/projects/:projectId/stage instead.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const updatedProject = await prisma.$transaction(async (tx) => {
+      // A type change re-homes the project into a different pipeline, which can
+      // leave a stage key that belongs to nobody (a recert key on a design job).
+      let stageChange: {
+        stage: string | null;
+        stageEnteredAt: Date | null;
+        stageBlocker: null;
+        gate: ProjectGate;
+      } | null = null;
+      let seedEvent: {
+        fromStage: string | null;
+        toStage: string;
+      } | null = null;
+
+      if (data.type !== undefined) {
+        // Read inside the transaction, alongside the write it decides: a stage
+        // move landing between the two would otherwise be recorded as the
+        // stage this job came from, and the history would name a move that
+        // never happened.
+        const current = await tx.project.findUnique({
+          where: { id: projectId },
+          select: { type: true, stage: true },
+        });
+
+        // RECERTIFICATION → BSIP is a reclassification, not a move: both run the
+        // same pipeline, so the stage is still valid and the clock must survive.
+        // Nothing is touched unless the current stage genuinely stops belonging.
+        if (
+          current &&
+          data.type !== current.type &&
+          !isStageValidForType(data.type, current.stage)
+        ) {
+          // Seed to the new pipeline's first stage rather than clearing it. A
+          // typed project with no stage is a hole: the strip only offers "Set
+          // stage" for a job with no TYPE, and every board that groups by stage
+          // silently drops the job — which is the one thing this feature exists
+          // to prevent. Seeding is also exactly what the backfill did to all six
+          // live rows, so a re-typed job behaves like every other one, and the
+          // SEED direction says plainly that this is not progress. The stage it
+          // came from survives in the event's fromStage; the firm clicks it
+          // forward once.
+          const first = stagesForType(data.type)[0] ?? null;
+          stageChange = {
+            stage: first?.key ?? null,
+            // A new pipeline starts a new clock; without a stage there is none.
+            stageEnteredAt: first ? new Date() : null,
+            // The blocker described a stage that no longer exists here.
+            stageBlocker: null,
+            gate: legacyGateFor(first?.key ?? null),
+          };
+          // Clearing a type leaves no toStage to record, and the column is NOT
+          // NULL — an un-set is representable only as the absence of a row.
+          if (first) {
+            seedEvent = { fromStage: current.stage, toStage: first.key };
+          }
+        }
+      }
+
+      const project = await tx.project.update({
+        where: { id: projectId },
+        data: {
+          ...data,
+          startDate: data.startDate ? new Date(data.startDate) : data.startDate === null ? null : undefined,
+          endDate: data.endDate ? new Date(data.endDate) : data.endDate === null ? null : undefined,
+          ...(stageChange ?? {}),
+        },
+        include: {
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+          sections: {
+            orderBy: { position: "asc" },
           },
         },
-        sections: {
-          orderBy: { position: "asc" },
-        },
-      },
+      });
+
+      if (seedEvent) {
+        await tx.projectStageEvent.create({
+          data: {
+            projectId,
+            fromStage: seedEvent.fromStage,
+            toStage: seedEvent.toStage,
+            direction: stageDirection(seedEvent.fromStage, seedEvent.toStage),
+            userId,
+          },
+        });
+      }
+
+      return project;
     });
 
     return NextResponse.json(updatedProject);

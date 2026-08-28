@@ -219,7 +219,7 @@ interface Task {
     id: string;
     name: string;
     color: string;
-    type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | null;
+    type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | "BSIP" | null;
     gate?:
       | "PRE_DESIGN"
       | "DESIGN"
@@ -7920,7 +7920,7 @@ function FileCard({
  * without truncating it.
  */
 function projectTypeShort(
-  type: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT"
+  type: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | "BSIP"
 ): string {
   switch (type) {
     case "CONSTRUCTION":
@@ -7931,6 +7931,10 @@ function projectTypeShort(
       return "REC";
     case "PERMIT":
       return "PRM";
+    // Already an abbreviation, so it keeps its own name rather than being
+    // squeezed into three letters nobody at the firm would recognize.
+    case "BSIP":
+      return "BSIP";
   }
 }
 

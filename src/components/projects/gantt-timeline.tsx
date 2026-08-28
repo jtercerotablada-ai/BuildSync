@@ -38,7 +38,8 @@ type ProjectType =
   | "CONSTRUCTION"
   | "DESIGN"
   | "RECERTIFICATION"
-  | "PERMIT";
+  | "PERMIT"
+  | "BSIP";
 
 type ProjectGate =
   | "PRE_DESIGN"
@@ -605,6 +606,7 @@ function humanizeGroupLabel(
       DESIGN: "Design",
       RECERTIFICATION: "Recertification",
       PERMIT: "Permit",
+      BSIP: "BSIP",
     };
     return map[raw] || raw;
   }

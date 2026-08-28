@@ -12,7 +12,7 @@ import { dueDateToLocalMidnight, startOfLocalDay } from "@/lib/date-only";
  * PRM).
  */
 export function projectTypeShort(
-  type: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT"
+  type: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | "BSIP"
 ): string {
   switch (type) {
     case "CONSTRUCTION":
@@ -23,6 +23,10 @@ export function projectTypeShort(
       return "REC";
     case "PERMIT":
       return "PRM";
+    // Already an abbreviation, so it keeps its own name rather than being
+    // squeezed into three letters nobody at the firm would recognize.
+    case "BSIP":
+      return "BSIP";
   }
 }
 

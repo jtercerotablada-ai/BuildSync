@@ -40,7 +40,12 @@ type ProjectStatus =
   | "ON_HOLD"
   | "COMPLETE";
 
-type ProjectType = "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT";
+type ProjectType =
+  | "CONSTRUCTION"
+  | "DESIGN"
+  | "RECERTIFICATION"
+  | "PERMIT"
+  | "BSIP";
 
 type ProjectGate =
   | "PRE_DESIGN"
@@ -121,6 +126,7 @@ const TYPE_META: Record<ProjectType, { label: string }> = {
   DESIGN: { label: "Design" },
   RECERTIFICATION: { label: "Recertification" },
   PERMIT: { label: "Permit" },
+  BSIP: { label: "BSIP" },
 };
 
 // Health order so "worse" statuses float to the top (Asana parity).

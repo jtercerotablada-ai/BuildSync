@@ -276,6 +276,7 @@ async function main() {
         DESIGN: ["Schematic design package", "Coordination meeting w/ arch", "Issue 50% CDs"],
         RECERTIFICATION: ["Field probe inspection", "Draft TR6 report", "File with DOB"],
         PERMIT: ["Submit structural plans", "Address plan examiner comments", "Receive permit"],
+        BSIP: ["Field probe inspection", "Draft BSIP report", "File with Broward"],
       };
       for (let i = 0; i < 3; i++) {
         await prisma.task.create({
