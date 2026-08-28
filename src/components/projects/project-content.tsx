@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   List,
   LayoutGrid,
@@ -130,6 +131,7 @@ interface Project {
   // always carry it (schema default WORKSPACE); optional here for callers
   // that construct partial project shapes.
   visibility?: "PRIVATE" | "WORKSPACE" | "PUBLIC";
+  isArchived: boolean;
   sections: Section[];
   views: { id: string; name: string; type: string; isDefault: boolean }[];
   // Per-project view-tab customization (Asana's tab context menu). Empty for
@@ -452,6 +454,7 @@ export function ProjectContent({
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Filter/Sort/Group state
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
@@ -863,6 +866,61 @@ export function ProjectContent({
     setShowCreateTask(true);
   };
 
+  // Archiving is driven from two places (the name menu and the archived
+  // banner), so the PATCH lives in one. Only the archive direction navigates
+  // away — bringing a project back should leave the user where they are, on
+  // the page that is now un-archived.
+  const setArchived = async (next: boolean) => {
+    const verb = next ? "archive" : "unarchive";
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: next }),
+      });
+      if (res.ok) {
+        toast.success(next ? "Project archived" : "Project unarchived");
+        notifySidebarRefresh();
+        if (next) router.push("/projects/all");
+        else router.refresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `Failed to ${verb} project`);
+      }
+    } catch {
+      toast.error(`Failed to ${verb} project`);
+    }
+  };
+
+  // Thrown rather than toasted: ConfirmDialog renders a rejection inline and
+  // holds itself open, so swallowing the failure here would close the dialog
+  // as though the project had been deleted.
+  const deleteProject = async () => {
+    const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to delete project");
+    }
+    toast.success("Project deleted");
+    notifySidebarRefresh();
+    router.push("/projects/all");
+  };
+
+  // What the delete actually destroys. sectionTaskCounts is the honest task
+  // number (sub-tasks included, multi-homed guests excluded); the rendered
+  // section.tasks lists are neither, so a caller that didn't pass it gets the
+  // line without a count rather than a wrong one.
+  const deletedTaskCount = sectionTaskCounts
+    ? Object.values(sectionTaskCounts).reduce((n, c) => n + c, 0)
+    : null;
+  const deleteConsequences = [
+    deletedTaskCount === null
+      ? "Every task in this project, with its sub-tasks, comments and attachments"
+      : `${deletedTaskCount} task${deletedTaskCount === 1 ? "" : "s"} and sub-tasks, with their comments and attachments`,
+    `${project.sections.length} section${project.sections.length === 1 ? "" : "s"} and this project's saved views`,
+    `${memberCount} member${memberCount === 1 ? "" : "s"} lose access`,
+  ];
+
   // Monochrome + gold. Gold = positive/active, black = severe, gray = neutral.
   const statusConfig = {
     ON_TRACK: { bg: "bg-[#c9a84c]/10", text: "text-[#a8893a]", dot: "bg-[#c9a84c]" },
@@ -888,6 +946,31 @@ export function ProjectContent({
           >
             {project.portfolio.name}
           </Link>
+        </div>
+      )}
+
+      {/* Archived banner — an archived project is dropped from the sidebar and
+          from the default projects list, so the banner has to name the one
+          place it still shows up or the user keeps a saved URL as their only
+          way back. The button is gated the way the PATCH is: offering it to a
+          reader who can't edit would dead-end in a 403 toast. */}
+      {project.isArchived && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 md:px-6 py-2 text-sm text-amber-900">
+          <Archive className="h-4 w-4 flex-shrink-0 text-amber-700" />
+          <span>
+            This project is archived. It&apos;s kept under Archived in Browse
+            projects.
+          </span>
+          {canEditProject && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto h-7 border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+              onClick={() => setArchived(false)}
+            >
+              Unarchive
+            </Button>
+          )}
         </div>
       )}
 
@@ -962,45 +1045,19 @@ export function ProjectContent({
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={async () => {
-                  try {
-                    const res = await fetch(`/api/projects/${project.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ isArchived: true }),
-                    });
-                    if (res.ok) {
-                      toast.success('Project archived');
-                      notifySidebarRefresh();
-                      router.push('/projects/all');
-                    } else {
-                      const err = await res.json().catch(() => ({}));
-                      toast.error(err.error || 'Failed to archive project');
-                    }
-                  } catch {
-                    toast.error('Failed to archive project');
-                  }
-                }}>
-                  <Archive className="h-4 w-4 mr-2" />
-                  Archive
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-black" onClick={async () => {
-                  if (confirm('Delete this project? This cannot be undone.')) {
-                    try {
-                      const res = await fetch(`/api/projects/${project.id}`, { method: 'DELETE' });
-                      if (res.ok) {
-                        toast.success('Project deleted');
-                        notifySidebarRefresh();
-                        router.push('/projects/all');
-                      } else {
-                        const err = await res.json().catch(() => ({}));
-                        toast.error(err.error || 'Failed to delete project');
-                      }
-                    } catch {
-                      toast.error('Failed to delete project');
-                    }
-                  }
-                }}>
+                {canEditProject && (
+                  <DropdownMenuItem onClick={() => setArchived(!project.isArchived)}>
+                    <Archive className="h-4 w-4 mr-2" />
+                    {project.isArchived ? 'Unarchive' : 'Archive'}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  className="text-black"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setDeleteDialogOpen(true);
+                  }}
+                >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete
                 </DropdownMenuItem>
@@ -1780,6 +1837,22 @@ export function ProjectContent({
           description: project.description ?? null,
         }}
         onProjectUpdated={() => router.refresh()}
+      />
+
+      {/* Delete confirmation — a sibling of the other dialogs, deliberately
+          outside the name DropdownMenu: rendered inside DropdownMenuContent it
+          would unmount the moment the menu closed and never appear. Deleting a
+          project is a hard row delete that cascades; there is no trash, hence
+          the typed name. */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete project"
+        description={`"${project.name}" and everything in it will be permanently deleted. This cannot be undone.`}
+        consequences={deleteConsequences}
+        confirmLabel="Delete project"
+        requireText={project.name}
+        onConfirm={deleteProject}
       />
     </div>
   );

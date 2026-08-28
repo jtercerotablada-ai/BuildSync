@@ -80,6 +80,7 @@ interface Project {
   type: ProjectType | null;
   gate: ProjectGate | null;
   status: ProjectStatus;
+  isArchived: boolean;
   location: string | null;
   budget: number | string | null;
   currency: string | null;
@@ -121,7 +122,15 @@ const STATUS_DOT: Record<ProjectStatus, string> = {
   COMPLETE: "#c9a84c",
 };
 
+// Pill styling shared by the filter chips and the Active/Archived
+// toggle so the two read as one control language in the same row.
+const PILL_BASE =
+  "inline-flex items-center gap-1.5 px-3 h-8 rounded-full border text-[13px] transition-colors";
+const PILL_ON = "bg-black text-white border-black";
+const PILL_OFF = "bg-white text-gray-700 border-gray-300 hover:border-gray-400";
+
 type View = "grid" | "list" | "gantt";
+type Scope = "active" | "archived";
 const VIEW_UI_STATE_KEY = "projects.view";
 
 export default function ProjectsPage() {
@@ -140,6 +149,14 @@ export default function ProjectsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "ALL">("ALL");
   const [gateFilter, setGateFilter] = useState<ProjectGate | "ALL">("ALL");
+  // Archive scope stays plain useState on purpose: it's somewhere you
+  // go to retrieve one old project, never how you want to browse
+  // tomorrow, so it must not survive the session like `view` does.
+  const [scope, setScope] = useState<Scope>("active");
+  // The scope `projects` was actually fetched under. Flipping the toggle
+  // re-renders with the previous scope's rows still in state, so nothing
+  // may assert "this scope is empty" until the two agree.
+  const [loadedScope, setLoadedScope] = useState<Scope>("active");
   // Default to list view — matches Asana's project browser and is
   // denser for AEC users who want to scan many projects fast.
   // Grid and Gantt are still one click away. Server-backed so the
@@ -192,12 +209,14 @@ export default function ProjectsPage() {
     let canceled = false;
     const controller = new AbortController();
     setLoading(true);
-    fetch(
-      `/api/projects${
-        debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ""
-      }`,
-      { signal: controller.signal }
-    )
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    // The param only WIDENS the response to archived rows too — the
+    // archived-only narrowing is `inScope` below, so both scopes go
+    // through the same client-side funnel as the type/gate pills.
+    if (scope === "archived") params.set("includeArchived", "true");
+    const qs = params.toString();
+    fetch(`/api/projects${qs ? `?${qs}` : ""}`, { signal: controller.signal })
       .then((r) => {
         // A 401/500 used to fall through to the "No projects yet" empty
         // state, telling the firm its whole project list was gone.
@@ -207,6 +226,7 @@ export default function ProjectsPage() {
       .then((data) => {
         if (canceled) return;
         setProjects(Array.isArray(data) ? data : []);
+        setLoadedScope(scope);
         setLoadError(false);
       })
       .catch((err) => {
@@ -223,15 +243,22 @@ export default function ProjectsPage() {
       canceled = true;
       controller.abort();
     };
-  }, [debouncedSearch, reloadToken]);
+  }, [debouncedSearch, scope, reloadToken]);
+
+  // Scope is resolved before the pills so the empty state can tell
+  // "this scope is empty" apart from "the filters hid everything".
+  const inScope = useMemo(
+    () => projects.filter((p) => p.isArchived === (scope === "archived")),
+    [projects, scope]
+  );
 
   const filtered = useMemo(() => {
-    return projects.filter(
+    return inScope.filter(
       (p) =>
         (typeFilter === "ALL" || p.type === typeFilter) &&
         (gateFilter === "ALL" || p.gate === gateFilter)
     );
-  }, [projects, typeFilter, gateFilter]);
+  }, [inScope, typeFilter, gateFilter]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -305,6 +332,27 @@ export default function ProjectsPage() {
             onChange={(v) => setGateFilter(v as ProjectGate | "ALL")}
           />
 
+          {/* Archive scope. Until this existed, archiving a project
+              dropped it out of every list in the app with no way back
+              to it. */}
+          <div className="flex items-center gap-1">
+            {(
+              [
+                { id: "active" as Scope, label: "Active" },
+                { id: "archived" as Scope, label: "Archived" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setScope(opt.id)}
+                aria-pressed={scope === opt.id}
+                className={cn(PILL_BASE, scope === opt.id ? PILL_ON : PILL_OFF)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <div className="ml-auto flex items-center bg-white border rounded-md overflow-hidden">
             {(
               [
@@ -364,30 +412,52 @@ export default function ProjectsPage() {
             </div>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-16 px-4">
-            <div className="w-16 h-16 bg-white border border-black rounded-full flex items-center justify-center mb-4">
-              <Folder className="h-8 w-8 text-black" />
+          loadedScope !== scope ? (
+            // Between the toggle and the response for the new scope the
+            // rows in state are the ones we just left, so there is
+            // nothing honest to say yet — and rendering a view here
+            // would strip the list down to a bare column header.
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
             </div>
-            <h3 className="text-lg font-medium text-black mb-2">
-              {projects.length === 0
-                ? "No projects yet"
-                : "No projects match these filters"}
-            </h3>
-            <p className="text-sm text-gray-500 max-w-sm text-center mb-4">
-              {projects.length === 0
-                ? "Create your first project to start tracking work, deadlines, and deliverables."
-                : "Try adjusting the type or gate filters above."}
-            </p>
-            {projects.length === 0 && (
-              <Button
-                onClick={() => openCreateProjectGallery()}
-                className="bg-black hover:bg-gray-900 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create first project
-              </Button>
-            )}
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full py-16 px-4">
+              <div className="w-16 h-16 bg-white border border-black rounded-full flex items-center justify-center mb-4">
+                <Folder className="h-8 w-8 text-black" />
+              </div>
+              {/* Search is applied server-side, so a term that matches
+                  nothing empties the scope too — saying "No archived
+                  projects" there sends the user away from an archive
+                  that isn't actually empty. */}
+              <h3 className="text-lg font-medium text-black mb-2">
+                {inScope.length > 0
+                  ? "No projects match these filters"
+                  : debouncedSearch
+                    ? "No projects match your search"
+                    : scope === "archived"
+                      ? "No archived projects"
+                      : "No projects yet"}
+              </h3>
+              <p className="text-sm text-gray-500 max-w-sm text-center mb-4">
+                {inScope.length > 0
+                  ? "Try adjusting the type or gate filters above."
+                  : debouncedSearch
+                    ? "Try a different term, or clear the search box to see everything here."
+                    : scope === "archived"
+                      ? "Projects you archive are kept here instead of deleted."
+                      : "Create your first project to start tracking work, deadlines, and deliverables."}
+              </p>
+              {inScope.length === 0 && scope === "active" && !debouncedSearch && (
+                <Button
+                  onClick={() => openCreateProjectGallery()}
+                  className="bg-black hover:bg-gray-900 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create first project
+                </Button>
+              )}
+            </div>
+          )
         ) : view === "gantt" ? (
           <GanttTimeline projects={filtered} />
         ) : (
@@ -436,14 +506,7 @@ function FilterChip({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          className={cn(
-            "inline-flex items-center gap-1.5 px-3 h-8 rounded-full border text-[13px] transition-colors",
-            isActive
-              ? "bg-black text-white border-black"
-              : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
-          )}
-        >
+        <button className={cn(PILL_BASE, isActive ? PILL_ON : PILL_OFF)}>
           {isActive ? `${label}: ${activeLabel}` : label}
           <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </button>
@@ -463,6 +526,18 @@ function FilterChip({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Muted marker so an archived project never reads as live work in a
+ * list it shares with active ones (search results, a stale tab).
+ */
+function ArchivedBadge() {
+  return (
+    <span className="flex-shrink-0 text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+      Archived
+    </span>
   );
 }
 
@@ -501,6 +576,7 @@ function ProjectsGridView({ projects }: { projects: Project[] }) {
           )}
 
           <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            {p.isArchived && <ArchivedBadge />}
             {p.type && (
               <span className="text-[10px] font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">
                 {TYPE_LABEL[p.type]}
@@ -621,9 +697,12 @@ function ProjectsListView({
                 style={{ backgroundColor: p.color }}
               />
               <div className="min-w-0">
-                <p className="text-[13px] font-medium text-black truncate group-hover:underline">
-                  {p.name}
-                </p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-[13px] font-medium text-black truncate group-hover:underline">
+                    {p.name}
+                  </p>
+                  {p.isArchived && <ArchivedBadge />}
+                </div>
                 <p className="text-[10px] text-gray-500 truncate uppercase tracking-wider">
                   {p.type ? TYPE_LABEL[p.type] : "—"}
                   {p.clientName ? ` · ${p.clientName}` : ""}
@@ -724,6 +803,7 @@ function ProjectsListView({
                   <p className="text-[13px] font-medium text-black truncate">
                     {p.name}
                   </p>
+                  {p.isArchived && <ArchivedBadge />}
                   <span
                     className="text-[9px] px-1.5 py-0.5 rounded font-medium tabular-nums"
                     style={{ backgroundColor: hv.hex, color: hv.textHex }}
