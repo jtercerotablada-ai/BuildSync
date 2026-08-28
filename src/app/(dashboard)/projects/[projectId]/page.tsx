@@ -7,6 +7,7 @@ import { ProjectContent } from "@/components/projects/project-content";
 import { getLevel } from "@/lib/people-types";
 import { canReadProject } from "@/lib/project-access";
 import { isNonContributorRole } from "@/lib/workspace-roles";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 
 // Shared task shape for both the project's own tasks and the tasks
 // multi-homed INTO it — keeps the two queries structurally identical.
@@ -126,6 +127,12 @@ export default async function ProjectPage({
           tasks: {
             where: {
               parentTaskId: null,
+              // A task flagged private is visible to the people tied to it, and
+              // the board is the widest surface it appears on: without this a
+              // colleague reads its name, assignee and due date in List, Board
+              // and Timeline, then gets a 404 on opening it. Same clause the
+              // task list and search use — never a fourth copy.
+              ...taskPrivacyClause(user.id),
             },
             orderBy: { position: "asc" },
             include: TASK_INCLUDE,

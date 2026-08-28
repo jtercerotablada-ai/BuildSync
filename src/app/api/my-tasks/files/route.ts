@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { fileReadUrl } from "@/lib/storage";
 
 /**
  * GET /api/my-tasks/files
@@ -49,7 +50,11 @@ export async function GET(_req: Request) {
       take: 200, // sensible cap; pagination later if needed
     });
 
-    return NextResponse.json({ files: attachments });
+    // Never ship the stored blob url: it is private and unfetchable from the
+    // browser, and a legacy one is a login-less permanent link.
+    return NextResponse.json({
+      files: attachments.map((a) => ({ ...a, url: fileReadUrl("attachment", a.id) })),
+    });
   } catch (error) {
     console.error("Error fetching my-tasks files:", error);
     return NextResponse.json(

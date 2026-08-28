@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 
 type Role = "OWNER" | "ADMIN" | "MEMBER" | "WORKER" | "GUEST";
@@ -87,6 +88,8 @@ export function WorkspaceSection() {
   // Invitation row whose resend/revoke request is in flight, so the row's
   // buttons can be disabled instead of accepting repeat clicks.
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+  // Member awaiting removal confirmation.
+  const [removeTarget, setRemoveTarget] = useState<MemberRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,12 +149,19 @@ export function WorkspaceSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, role: inviteRole, workspaceId }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         toast.error(data.error || "Could not send invitation");
         return;
       }
-      toast.success("Invitation sent");
+      // The row is kept when delivery fails, and the route says so in
+      // `warning`. Claiming "sent" there left the invitee waiting for an
+      // email that was never going to arrive.
+      if (data.warning) {
+        toast.warning(data.warning);
+      } else {
+        toast.success("Invitation sent");
+      }
       setInviteEmail("");
       setInviteRole("MEMBER");
       setInviteOpen(false);
@@ -227,23 +237,20 @@ export function WorkspaceSection() {
     }
   }
 
-  async function handleRemove(memberUserId: string) {
-    if (!confirm("Remove this person from the workspace?")) return;
-    try {
-      const res = await fetch(
-        `/api/workspace/members?userId=${memberUserId}`,
-        { method: "DELETE" }
-      );
-      if (res.ok) {
-        toast.success("Member removed");
-        setMembers((prev) => prev.filter((m) => m.userId !== memberUserId));
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || "Could not remove");
-      }
-    } catch {
-      toast.error("Network error — check your connection");
+  // Throws on failure so the confirmation dialog stays open and shows the
+  // API's own reason (last owner, projects with no heir).
+  async function handleRemove(member: MemberRow) {
+    const res = await fetch(
+      `/api/workspace/members?userId=${member.userId}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Could not remove");
     }
+    setRemoveTarget(null);
+    toast.success("Member removed");
+    setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
   }
 
   if (loading) {
@@ -347,7 +354,7 @@ export function WorkspaceSection() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-gray-400 hover:text-black"
-                        onClick={() => handleRemove(m.userId)}
+                        onClick={() => setRemoveTarget(m)}
                         title="Remove from workspace"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -418,6 +425,31 @@ export function WorkspaceSection() {
           </div>
         </div>
       )}
+
+      {/* Remove-from-workspace confirmation */}
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        title="Remove from workspace"
+        description={
+          removeTarget
+            ? `${
+                removeTarget.user.name || removeTarget.user.email || "This person"
+              } loses access to this workspace immediately.`
+            : undefined
+        }
+        consequences={[
+          "Removed from every project and team in this workspace",
+          "Projects they own are transferred to another owner or admin",
+          "Their tasks, comments and files stay — nothing they made is deleted",
+          "They can be invited back later, but project access must be granted again",
+        ]}
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (!removeTarget) return;
+          return handleRemove(removeTarget);
+        }}
+      />
 
       {/* Invite dialog */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyTrackingToken } from "@/lib/tracking-token";
-import { uploadFile } from "@/lib/storage";
+import { uploadPublicFile } from "@/lib/storage";
 import { buildCommentContent, commentToPlainText } from "@/lib/comment-format";
 
 /**
@@ -174,7 +174,7 @@ export async function POST(
         );
       }
       try {
-        const { url } = await uploadFile(f, `tracking/${submissionId}`);
+        const { url } = await uploadPublicFile(f, `tracking/${submissionId}`);
         uploadedFiles.push({
           name: f.name,
           url,

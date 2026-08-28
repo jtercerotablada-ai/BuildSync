@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { uploadFile, deleteFile } from "@/lib/storage";
+import { uploadPublicFile, deleteFile } from "@/lib/storage";
 import {
   type FormField,
   type FormSubmissionPayload,
@@ -258,9 +258,16 @@ export async function POST(
         size: number;
         mimeType: string;
       }> = [];
+      // The url stored in `answers` is the raw private blob address, which is
+      // NOT fetchable from a browser. The copies mirrored into Attachment rows
+      // below are reachable through /api/files/attachment/:id, so the task
+      // panel and the Files tab keep working; the answers copy is what the
+      // submissions inbox and the anonymous tracking page render, and those
+      // still need a read path of their own (the tracking page has no session
+      // at all, so it needs a token-scoped one).
       for (const v of files) {
         try {
-          const { url } = await uploadFile(v, `forms/${form.id}`);
+          const { url } = await uploadPublicFile(v, `forms/${form.id}`);
           uploadedBlobUrls.push(url);
           uploaded.push({
             name: v.name,

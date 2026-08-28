@@ -57,6 +57,13 @@ type ProjectStatusKey =
   | "ON_HOLD"
   | "COMPLETE";
 
+type ProjectGateKey =
+  | "PRE_DESIGN"
+  | "DESIGN"
+  | "PERMITTING"
+  | "CONSTRUCTION"
+  | "CLOSEOUT";
+
 interface ProjectMemberRow {
   userId: string;
   role: string;
@@ -80,6 +87,9 @@ interface ProjectShape {
   description: string | null;
   color: string;
   status: string;
+  // Lifecycle phase. Optional/nullable to match the parent's shape, where
+  // legacy rows predate the column.
+  gate?: ProjectGateKey | null;
   owner: {
     id: string;
     name: string | null;
@@ -301,6 +311,25 @@ const STATUS_VISUAL: Record<
   },
 };
 
+// Lifecycle phases in the order a job runs through them. The array is the
+// source of truth for both the strip's left-to-right layout and the "reached"
+// comparison, so a future phase only has to be inserted here.
+const GATE_ORDER: ProjectGateKey[] = [
+  "PRE_DESIGN",
+  "DESIGN",
+  "PERMITTING",
+  "CONSTRUCTION",
+  "CLOSEOUT",
+];
+
+const GATE_LABEL: Record<ProjectGateKey, string> = {
+  PRE_DESIGN: "Pre-design",
+  DESIGN: "Design",
+  PERMITTING: "Permitting",
+  CONSTRUCTION: "Construction",
+  CLOSEOUT: "Closeout",
+};
+
 const COMPOSER_MAX_LEN = 4000;
 
 function formatRelativeTime(iso: string): string {
@@ -390,6 +419,24 @@ export function ProjectOverview({
       setSeededDescription(incoming);
     }
   }, [project.description, description, seededDescription]);
+
+  // Local mirror of the lifecycle phase so the strip can move under the
+  // click instead of waiting a round trip. Seeded the same way the
+  // description is: adopt the server value only when the prop itself
+  // changes, so a router.refresh() fired by an unrelated action (posting a
+  // status update, say) can't roll an in-flight advance back.
+  const [gate, setGate] = useState<ProjectGateKey | null>(project.gate ?? null);
+  const [seededGate, setSeededGate] = useState<ProjectGateKey | null>(
+    project.gate ?? null
+  );
+  const [gateSaving, setGateSaving] = useState(false);
+  useEffect(() => {
+    const incoming = project.gate ?? null;
+    if (incoming !== seededGate) {
+      setGate(incoming);
+      setSeededGate(incoming);
+    }
+  }, [project.gate, seededGate]);
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false);
@@ -1220,6 +1267,44 @@ export function ProjectOverview({
     [project.id, router]
   );
 
+  // Backward moves are deliberate, not a guard we forgot: a rejected permit
+  // sends the job back to Design, and a phase that could only go forward
+  // would leave the owner no way to record that.
+  const handleGateChange = useCallback(
+    async (next: ProjectGateKey) => {
+      if (gateSaving) return; // guard against a double click mid-flight
+      const previous = gate;
+      if (next === previous) return;
+      setGateSaving(true);
+      setGate(next);
+      try {
+        const res = await fetch(`/api/projects/${project.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gate: next }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          const msg =
+            (body && typeof body === "object" && "error" in body
+              ? String(body.error)
+              : null) || "Failed to update phase";
+          throw new Error(msg);
+        }
+        toast.success(`Phase set to ${GATE_LABEL[next]}`);
+        router.refresh();
+      } catch (err) {
+        setGate(previous);
+        toast.error(
+          err instanceof Error ? err.message : "Failed to update phase"
+        );
+      } finally {
+        setGateSaving(false);
+      }
+    },
+    [project.id, router, gate, gateSaving]
+  );
+
   return (
     <div className="flex flex-col lg:flex-row h-full">
       {/* Main Content — Asana's Resumen starts directly with the
@@ -1709,6 +1794,55 @@ export function ProjectOverview({
                 </DropdownMenuContent>
               </DropdownMenu>
               )}
+            </div>
+
+            {/* Lifecycle phase. Sits with the live status because both answer
+                "where is this job right now", and both PATCH the project.
+                Shown to readers too — only the buttons are gated, so a
+                read-only viewer still sees the phase instead of nothing. */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-slate-500">
+                  Phase
+                </span>
+                {gateSaving && (
+                  <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+                )}
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                {GATE_ORDER.map((key, i) => {
+                  const currentIdx = gate ? GATE_ORDER.indexOf(gate) : -1;
+                  const isCurrent = gate === key;
+                  const isReached = currentIdx >= 0 && i < currentIdx;
+                  const className = cn(
+                    "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                    isCurrent
+                      ? "bg-[#c9a84c] text-white border-transparent"
+                      : isReached
+                        ? "bg-[#FBF3E4] text-[#8F6C1F] border-transparent"
+                        : "bg-white text-slate-500 border-slate-200"
+                  );
+                  return canEdit ? (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={gateSaving}
+                      onClick={() => void handleGateChange(key)}
+                      className={cn(
+                        className,
+                        !isCurrent && "hover:border-slate-300",
+                        gateSaving && "opacity-60"
+                      )}
+                    >
+                      {GATE_LABEL[key]}
+                    </button>
+                  ) : (
+                    <span key={key} className={className}>
+                      {GATE_LABEL[key]}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Composer */}

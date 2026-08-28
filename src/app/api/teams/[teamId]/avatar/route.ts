@@ -1,7 +1,35 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { uploadFile, deleteFile } from "@/lib/storage";
+import { put } from "@vercel/blob";
+import { assertFileAllowed, deleteFile } from "@/lib/storage";
+
+/**
+ * Team covers stay PUBLIC on purpose — the one upload in the app that does.
+ *
+ * Every other upload goes through uploadFile, which writes a private blob only
+ * /api/files/... will hand back. A cover is different in both directions: it
+ * carries nothing confidential (a decorative header image the team chose), and
+ * it renders as a bare <img src> in team lists, the sidebar and pickers —
+ * surfaces where the viewer is a workspace member who may not belong to the
+ * team, so a membership-gated read route would blank the image for exactly the
+ * people browsing teams to join. There is also no record type for Team on the
+ * file read route. A permanent public URL to a cover image is the cheaper
+ * trade, so this route calls put() directly instead of uploadFile.
+ *
+ * The gates uploadFile would have applied are kept below: the extension
+ * blocklist via assertFileAllowed, plus this route's own image + size checks.
+ */
+async function putPublicCover(teamId: string, file: File) {
+  assertFileAllowed(file.name, file.type);
+  // The uploader's filename is never part of the path: a cover is addressed by
+  // nothing but this url, so there is no reason to carry a name we would then
+  // have to sanitize.
+  return put(`teams/${teamId}/${crypto.randomUUID()}`, file, {
+    access: "public",
+    contentType: file.type,
+  });
+}
 
 // POST /api/teams/:teamId/avatar - Upload/replace the team cover image.
 // Lead-only, mirroring the PATCH /api/teams/:teamId settings gate.
@@ -43,6 +71,8 @@ export async function POST(
         { status: 400 }
       );
     }
+    // Deliberately NOT maxUploadBytes(): that ceiling is sized for permit sets
+    // and Revit models. A header image is a header image.
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
         { error: "Image exceeds the 10MB limit" },
@@ -56,7 +86,15 @@ export async function POST(
       select: { avatar: true },
     });
 
-    const { url } = await uploadFile(file, `teams/${teamId}`);
+    let url: string;
+    try {
+      ({ url } = await putPublicCover(teamId, file));
+    } catch (uploadErr) {
+      return NextResponse.json(
+        { error: uploadErr instanceof Error ? uploadErr.message : "Upload failed" },
+        { status: 400 }
+      );
+    }
 
     const team = await prisma.team.update({
       where: { id: teamId },

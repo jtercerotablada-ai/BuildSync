@@ -11,6 +11,7 @@ import {
   extractMentionIds,
   mentionHandle,
 } from "@/lib/comment-format";
+import { fileReadUrl } from "@/lib/storage";
 
 // Helper function to strip HTML for notification preview
 function getTextPreview(html: string, maxLength: number = 100): string {
@@ -98,7 +99,26 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(comments);
+    // A stored attachment url is a private blob (unfetchable from the browser)
+    // or a legacy public one (a permanent login-less link). Neither may leave
+    // the server — both are read through the gated route instead. Replies carry
+    // attachments too, so the rewrite has to walk them as well.
+    return NextResponse.json(
+      comments.map((c) => ({
+        ...c,
+        attachments: c.attachments.map((a) => ({
+          ...a,
+          url: fileReadUrl("attachment", a.id),
+        })),
+        replies: c.replies?.map((r) => ({
+          ...r,
+          attachments: r.attachments.map((a) => ({
+            ...a,
+            url: fileReadUrl("attachment", a.id),
+          })),
+        })),
+      }))
+    );
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);

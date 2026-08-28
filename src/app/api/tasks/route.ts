@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId, verifyProjectAccess, verifyTaskAccess, verifySectionWritable, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { readJson, jsonErrorResponse } from "@/lib/http";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
 import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
 
@@ -62,6 +63,17 @@ export async function GET(req: Request) {
 
     const whereClause: Record<string, unknown> = {
       parentTaskId: null, // Only get top-level tasks
+      // A task flagged private belongs to its assignee and creator; every
+      // other colleague must not see it in a list, however wide their project
+      // role. Same clause /api/search, /api/reports and /api/ai/assist use.
+      //
+      // It goes in an AND of its own, NOT merged into whereClause.OR: that key
+      // belongs to the myTasks scope below, and an OR written twice replaces
+      // the scope instead of intersecting it. And it goes in the WHERE rather
+      // than a filter over the result, because `take` caps this query at 1000
+      // rows — dropping rows afterwards would silently shorten a page the
+      // caller is entitled to see.
+      AND: [taskPrivacyClause(userId)],
     };
 
     if (myTasks) {

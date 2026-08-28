@@ -268,6 +268,17 @@ export function MessagesView({
     [scope.type, scopeKey]
   );
 
+  // Where an attachment's BYTES live. Uploads are private blobs now, so the
+  // url the list endpoint returns on the row is an address only the server can
+  // fetch — the attachments endpoint doubles as the authenticated read door
+  // (it already holds the message's access rule) and takes the attachment id
+  // as a query param.
+  const attachmentHref = useCallback(
+    (messageId: string, attachmentId: string) =>
+      `${endpoints.attachments(messageId)}?file=${attachmentId}`,
+    [endpoints]
+  );
+
   // ── Deep-link params ────────────────────────────────────
   // The inbox routes mention notifications to /projects/[id]?view=
   // messages&message=ID(&thread=ROOTID). We read those once on
@@ -1221,8 +1232,10 @@ export function MessagesView({
     const list = e.target.files;
     if (!list || list.length === 0) return;
     const incoming = Array.from(list);
-    // 10MB per-file ceiling matches storage.ts; reject early so the
-    // user sees the bad file before they hit send.
+    // Deliberately NOT storage.ts's cap: these bytes travel through a route
+    // handler, which the platform bounds far below it. Checking a
+    // conservative ceiling here shows the user the offending file before they
+    // hit send, instead of an opaque failure from the edge.
     const tooBig = incoming.filter((f) => f.size > 10 * 1024 * 1024);
     if (tooBig.length > 0) {
       toast.error(`${tooBig[0].name} exceeds 10MB`);
@@ -1739,6 +1752,7 @@ export function MessagesView({
                 onDeleteAttachment={(attachmentId) =>
                   handleDeleteAttachment(m.id, attachmentId)
                 }
+                attachmentHref={attachmentHref}
                 onAddFiles={(files) => {
                   for (const f of files) {
                     void uploadFileToMessage(m.id, f);
@@ -1817,7 +1831,7 @@ export function MessagesView({
               files={m.attachments.map((a) => ({
                 id: a.id,
                 name: a.name,
-                url: a.url,
+                url: attachmentHref(m.id, a.id),
                 size: a.size,
                 mimeType: a.mimeType,
                 createdAt: a.createdAt,
@@ -1861,6 +1875,9 @@ interface MessageItemProps {
   onOpenAttachment: (index: number) => void;
   onDeleteAttachment: (attachmentId: string) => void;
   onAddFiles: (files: File[]) => void;
+  // Resolves an attachment to the URL its BYTES are readable at — scope
+  // dependent, so it comes from the parent rather than being built here.
+  attachmentHref: (messageId: string, attachmentId: string) => string;
   // Thread props — only meaningful when isReply === false. The
   // reply-level handlers fan-out to the parent state because all
   // mutations go through the same updateAnyMessage helper there.
@@ -1913,6 +1930,7 @@ function MessageItem({
   onOpenAttachment,
   onDeleteAttachment,
   onAddFiles,
+  attachmentHref,
   threadExpanded,
   threadReplies,
   replyDraft,
@@ -2121,6 +2139,7 @@ function MessageItem({
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
             {m.attachments.map((a, idx) => {
               const isImage = a.mimeType.startsWith("image/");
+              const href = attachmentHref(m.id, a.id);
               return (
                 <div
                   key={a.id}
@@ -2133,10 +2152,12 @@ function MessageItem({
                     title={`Open ${a.name}`}
                   >
                     {isImage ? (
-                      // Browser-rendered thumbnail; the blob is public.
+                      // The blob is private — the thumbnail is served by the
+                      // message's own read route, which re-runs this
+                      // message's access rule on every request.
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={a.url}
+                        src={href}
                         alt={a.name}
                         className="w-full h-28 object-cover bg-slate-100"
                       />
@@ -2160,7 +2181,7 @@ function MessageItem({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        void downloadFile(a.url, a.name);
+                        void downloadFile(href, a.name);
                       }}
                       className="p-1 rounded bg-white/95 border shadow-sm hover:bg-slate-50 text-slate-600"
                       title="Download"
@@ -2313,6 +2334,7 @@ function MessageItem({
                     onDeleteAttachment={(aid) =>
                       onReplyDeleteAttachment?.(r.id, aid)
                     }
+                    attachmentHref={attachmentHref}
                     onAddFiles={(files) =>
                       onReplyAddFiles?.(r.id, files)
                     }

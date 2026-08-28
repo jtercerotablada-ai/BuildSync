@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
 import { readTimeTracking, WORK_HOURS_PER_DAY } from "@/lib/duration";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 
 // GET /api/projects/:projectId/workload
 // Project-scoped mirror of /api/portfolios/:id/workload — returns the
@@ -49,7 +50,14 @@ export async function GET(
     // the parent's TIME_TRACKING estimate twice, so the same engineer showed a
     // different load here than on Team > Workload.
     const tasks = await prisma.task.findMany({
-      where: { projectId, parentTaskId: null, completed: false },
+      where: {
+        projectId,
+        parentTaskId: null,
+        completed: false,
+        // Workload names the task next to the person carrying it, so a private
+        // one would disclose both. Same clause as the board and the task list.
+        ...taskPrivacyClause(userId),
+      },
       select: {
         id: true,
         name: true,

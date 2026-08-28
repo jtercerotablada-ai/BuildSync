@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -111,6 +112,7 @@ export default function PeopleDirectoryPage() {
   const [positionFilter, setPositionFilter] = useState<PositionFilter>("ALL");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [editTarget, setEditTarget] = useState<DirectoryRow | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<DirectoryRow | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const fetchDirectory = useCallback(async () => {
@@ -189,6 +191,29 @@ export default function PeopleDirectoryPage() {
   }, [filtered]);
 
   const canEditAnyone = callerRole === "OWNER" || callerRole === "ADMIN";
+
+  // Mirrors the gate in DELETE /api/workspace/members: owners and admins
+  // remove people, but only an owner can remove another owner (and the API
+  // still refuses the last one).
+  const canRemove = (row: DirectoryRow) =>
+    canEditAnyone &&
+    !row.isMe &&
+    (row.workspaceRole !== "OWNER" || callerRole === "OWNER");
+
+  // Throws on failure so the confirmation dialog stays open showing the
+  // API's own reason — the last owner, or projects with nobody to inherit.
+  const removeFromWorkspace = async (row: DirectoryRow) => {
+    const res = await fetch(`/api/workspace/members?userId=${row.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.error || "Couldn't remove this person");
+    }
+    setRemoveTarget(null);
+    toast.success(`${row.name || row.email} removed from the workspace`);
+    fetchDirectory();
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-white min-h-screen">
@@ -318,7 +343,9 @@ export default function PeopleDirectoryPage() {
                     row={m}
                     canEdit={canEditAnyone || m.isMe}
                     canChangeRole={callerRole === "OWNER" && !m.isMe}
+                    canRemove={canRemove(m)}
                     onEdit={() => setEditTarget(m)}
+                    onRemove={() => setRemoveTarget(m)}
                   />
                 ))}
               </div>
@@ -348,6 +375,31 @@ export default function PeopleDirectoryPage() {
           }}
         />
       )}
+
+      {/* Remove-from-workspace confirmation */}
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        title="Remove from workspace"
+        description={
+          removeTarget
+            ? `${
+                removeTarget.name || removeTarget.email || "This person"
+              } loses access to this workspace immediately.`
+            : undefined
+        }
+        consequences={[
+          "Removed from every project and team in this workspace",
+          "Projects they own are transferred to another owner or admin",
+          "Their tasks, comments and files stay — nothing they made is deleted",
+          "They can be invited back, but project access must be granted again",
+        ]}
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (!removeTarget) return;
+          return removeFromWorkspace(removeTarget);
+        }}
+      />
     </div>
   );
 }
@@ -389,12 +441,16 @@ function PersonRow({
   row,
   canEdit,
   canChangeRole: _canChangeRole,
+  canRemove,
   onEdit,
+  onRemove,
 }: {
   row: DirectoryRow;
   canEdit: boolean;
   canChangeRole: boolean;
+  canRemove: boolean;
   onEdit: () => void;
+  onRemove: () => void;
 }) {
   const positionLabel = row.position
     ? row.position === "OTHER"
@@ -472,6 +528,16 @@ function PersonRow({
           title="Edit profile"
         >
           <Pencil className="w-3.5 h-3.5" />
+        </button>
+      )}
+
+      {canRemove && (
+        <button
+          onClick={onRemove}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+          title="Remove from workspace"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       )}
     </div>

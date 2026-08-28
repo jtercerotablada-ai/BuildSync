@@ -95,6 +95,129 @@ export async function notifyTaskCollaborators(opts: {
   );
 }
 
+/** Label a due date by its UTC calendar day — due dates are stored at UTC
+ *  midnight, so a locale formatter left on server time renames the day. */
+function formatDueDate(value: Date | null): string {
+  if (!value) return "no date";
+  return value.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/**
+ * Drop a Notification when a task's due date MOVES — the reschedule of a
+ * filing or inspection date is the event the firm most needs to hear about,
+ * and until now it happened silently.
+ *
+ * Goes to the assignee plus the task's collaborators, never to the person
+ * making the change. Callers must NOT invoke this while creating a task: a
+ * first date is set by the composer, not moved.
+ *
+ * Reuses DUE_DATE_APPROACHING because the notification types are a schema
+ * enum and there is no reschedule member; the title carries the distinction
+ * and the inbox already routes this type to its "update" row.
+ *
+ * Best-effort + preference-gated per recipient, like the producers above.
+ */
+export async function notifyTaskDueDateChanged(opts: {
+  taskId: string;
+  actorUserId: string;
+  assigneeId: string | null;
+  taskName: string;
+  projectId: string | null;
+  projectName: string | null;
+  previousDueDate: Date | null;
+  dueDate: Date | null;
+}) {
+  const {
+    taskId,
+    actorUserId,
+    assigneeId,
+    taskName,
+    projectId,
+    projectName,
+    previousDueDate,
+    dueDate,
+  } = opts;
+
+  // No actual move: nothing to say.
+  if ((previousDueDate?.getTime() ?? null) === (dueDate?.getTime() ?? null)) {
+    return;
+  }
+
+  let recipientIds: string[] = [];
+  try {
+    const collabs = await prisma.taskCollaborator.findMany({
+      where: { taskId },
+      select: { userId: true },
+    });
+    const candidates = [
+      ...(assigneeId ? [assigneeId] : []),
+      ...collabs.map((c) => c.userId),
+    ];
+    recipientIds = [...new Set(candidates)].filter((id) => id !== actorUserId);
+  } catch (err) {
+    console.error("[notifyTaskDueDateChanged] recipient lookup failed:", err);
+    return;
+  }
+  if (recipientIds.length === 0) return;
+
+  let actorName = "A teammate";
+  let actorImage: string | null = null;
+  try {
+    const actor = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { name: true, email: true, image: true },
+    });
+    actorName = actor?.name ?? actor?.email ?? "A teammate";
+    actorImage = actor?.image ?? null;
+  } catch (err) {
+    console.error("[notifyTaskDueDateChanged] actor lookup failed:", err);
+  }
+
+  const title = !dueDate
+    ? `${actorName} cleared a due date`
+    : !previousDueDate
+      ? `${actorName} set a due date`
+      : `${actorName} moved a due date`;
+  const message = !dueDate
+    ? `${taskName} — due date removed`
+    : !previousDueDate
+      ? `${taskName} — now due ${formatDueDate(dueDate)}`
+      : `${taskName} — ${formatDueDate(previousDueDate)} → ${formatDueDate(dueDate)}`;
+
+  await Promise.all(
+    recipientIds.map(async (uid) => {
+      try {
+        if (!(await shouldNotify(uid, "DUE_DATE_APPROACHING"))) return;
+        await prisma.notification.create({
+          data: {
+            userId: uid,
+            type: "DUE_DATE_APPROACHING",
+            title,
+            message,
+            data: {
+              taskId,
+              projectId: projectId ?? null,
+              taskName,
+              projectName: projectName ?? null,
+              previousDueDate: previousDueDate?.toISOString() ?? null,
+              dueDate: dueDate?.toISOString() ?? null,
+              authorName: actorName,
+              authorImage: actorImage,
+            },
+          },
+        });
+      } catch (err) {
+        console.error("[notifyTaskDueDateChanged] create failed:", err);
+      }
+    })
+  );
+}
+
 /**
  * Drop a TASK_ASSIGNED Notification row + fire an email when a task
  * is assigned to someone other than the actor.

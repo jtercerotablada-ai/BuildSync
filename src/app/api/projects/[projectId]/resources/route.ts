@@ -25,6 +25,15 @@ const resourceSelect = {
   uploader: { select: { id: true, name: true, email: true, image: true } },
 } as const;
 
+// An uploaded resource is a private blob: the stored url is an address only
+// the server can fetch, so publish the authenticated read route instead. A
+// LINK is somebody's external URL and has to travel exactly as it was pasted.
+function withReadUrl<T extends { id: string; type: string; url: string }>(
+  r: T
+): T {
+  return r.type === "FILE" ? { ...r, url: `/api/files/resource/${r.id}` } : r;
+}
+
 // GET /api/projects/:projectId/resources
 export async function GET(
   _req: Request,
@@ -43,7 +52,7 @@ export async function GET(
       select: resourceSelect,
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     });
-    return NextResponse.json(resources);
+    return NextResponse.json(resources.map(withReadUrl));
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
@@ -173,7 +182,7 @@ export async function POST(
       );
       throw e;
     }
-    return NextResponse.json(resource, { status: 201 });
+    return NextResponse.json(withReadUrl(resource), { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

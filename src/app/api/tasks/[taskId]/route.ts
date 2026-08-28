@@ -12,6 +12,7 @@ import {
   notifyTaskAssigned,
   notifyTaskCompleted,
   notifyTaskCollaborators,
+  notifyTaskDueDateChanged,
 } from "@/lib/task-notifications";
 import {
   cascadeDependentDates,
@@ -19,6 +20,16 @@ import {
 } from "@/lib/dependency-cascade";
 import { startOfTodayUtc } from "@/lib/date-only";
 import { readJson, jsonErrorResponse } from "@/lib/http";
+
+// Uploads are private blobs: the url on an Attachment row is an address only
+// the server can fetch. This is the endpoint the task detail panel actually
+// reads its attachments from — the panel renders `taskDetail.attachments` and
+// each comment's attachments, NOT /api/tasks/:id/attachments — so the same
+// rewrite that route does has to happen here or every new upload shows a
+// broken thumbnail and a failed download.
+function withReadUrl<T extends { id: string; url: string }>(a: T): T {
+  return { ...a, url: `/api/files/attachment/${a.id}` };
+}
 
 // Schedule dates arrive as ISO strings. Validate them at the edge so a
 // malformed one comes back as a 400 naming the field, instead of reaching
@@ -263,6 +274,11 @@ export async function GET(
 
     const taskWithLiked = {
       ...task,
+      attachments: task.attachments.map(withReadUrl),
+      comments: task.comments.map((c) => ({
+        ...c,
+        attachments: c.attachments.map(withReadUrl),
+      })),
       isLiked: task.likes.length > 0,
       collaborators: collaboratorUsers,
       hasExternalTracking: submission != null,
@@ -542,11 +558,15 @@ export async function PATCH(
     // Track whether either schedule date actually changed so we know
     // whether to cascade to dependents.
     let datesChanged = false;
+    // Held separately from `datesChanged` (which also covers startDate) so the
+    // reschedule notification below fires on a due-date move and nothing else.
+    let movedDueDate: { from: Date | null; to: Date | null } | null = null;
     if (data.dueDate !== undefined) {
       const newDueDate = data.dueDate ? new Date(data.dueDate) : null;
       if (newDueDate?.getTime() !== existingTask.dueDate?.getTime()) {
         updateData.dueDate = newDueDate;
         datesChanged = true;
+        movedDueDate = { from: existingTask.dueDate, to: newDueDate };
         activities.push({
           type: "DUE_DATE_CHANGED",
           data: { dueDate: data.dueDate },
@@ -756,6 +776,26 @@ export async function PATCH(
         });
       } catch (err) {
         console.error("[tasks PATCH] notifyTaskCollaborators failed:", err);
+      }
+    }
+
+    // A moved filing or inspection date is the schedule change this firm most
+    // needs to hear about, and it used to happen silently — the assignee found
+    // out by reopening the task. Assignee + followers, never the actor.
+    if (movedDueDate) {
+      try {
+        await notifyTaskDueDateChanged({
+          taskId,
+          actorUserId: userId,
+          assigneeId: task.assigneeId ?? null,
+          taskName: task.name,
+          projectId: task.projectId ?? null,
+          projectName: task.project?.name ?? null,
+          previousDueDate: movedDueDate.from,
+          dueDate: movedDueDate.to,
+        });
+      } catch (err) {
+        console.error("[tasks PATCH] notifyTaskDueDateChanged failed:", err);
       }
     }
 

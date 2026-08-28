@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   File,
@@ -16,6 +16,7 @@ import {
   Link2,
   LayoutGrid,
   ExternalLink,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -106,6 +107,59 @@ function getFileType(mimeType: string): FileType {
   return "other";
 }
 
+/**
+ * Where a tile's BYTES come from.
+ *
+ * Uploads are private blobs, so the url on the row is an address only the
+ * server can fetch — following it from the browser gets nothing. Each file is
+ * read back through the route that re-runs its owning record's access rule,
+ * and which route that is depends on what the file hangs off: task
+ * attachments and key resources have record types on /api/files, while a
+ * message attachment's rule lives on the message, so its bytes come from the
+ * message's own endpoint. A LINK holds no bytes at all — it is the external
+ * URL somebody pasted, and travels as itself.
+ */
+function fileHref(file: FileAttachment): string | null {
+  if (file.source === "resource") {
+    return file.resourceType === "LINK"
+      ? file.url || null
+      : `/api/files/resource/${file.id}`;
+  }
+  if (file.source === "message") {
+    return file.messageId
+      ? `/api/messages/${file.messageId}/attachments?file=${file.id}`
+      : null;
+  }
+  return `/api/files/attachment/${file.id}`;
+}
+
+interface ResourceRow {
+  id: string;
+  name: string;
+  url: string;
+  size: number | null;
+  mimeType: string | null;
+  createdAt: string;
+  uploader: FileAttachment["uploader"];
+}
+
+function resourceToFile(r: ResourceRow): FileAttachment {
+  return {
+    id: r.id,
+    name: r.name,
+    url: r.url,
+    size: r.size ?? 0,
+    mimeType: r.mimeType ?? "application/octet-stream",
+    createdAt: r.createdAt,
+    taskId: null,
+    taskName: null,
+    messageId: null,
+    source: "resource",
+    resourceType: "FILE",
+    uploader: r.uploader ?? null,
+  };
+}
+
 function getFileIcon(type: FileType) {
   switch (type) {
     case "image":
@@ -135,6 +189,8 @@ export function FilesView({ projectId }: FilesViewProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,24 +222,61 @@ export function FilesView({ projectId }: FilesViewProps) {
     file.source === "resource" && file.resourceType === "LINK";
 
   const handleDownload = (file: FileAttachment) => {
-    if (!file.url) return;
+    const href = fileHref(file);
+    if (!href) return;
     // A "Key resources" LINK is an external URL, not a blob — just open it.
     if (isLink(file)) {
-      window.open(file.url, "_blank", "noopener,noreferrer");
+      window.open(href, "_blank", "noopener,noreferrer");
       return;
     }
-    // Force a download instead of opening a preview tab. Vercel Blob serves
-    // browser-renderable types inline, so window.open just previewed them;
-    // `?download=1` (and the download attr) makes it save to disk.
-    const sep = file.url.includes("?") ? "&" : "?";
+    // Force a download instead of opening a preview tab: the read route serves
+    // browser-renderable types inline, so a plain navigation just previewed
+    // them. `?download=1` flips it to Content-Disposition: attachment, and the
+    // download attr is honored now that the href is same-origin.
+    const sep = href.includes("?") ? "&" : "?";
     const a = document.createElement("a");
-    a.href = `${file.url}${sep}download=1`;
+    a.href = `${href}${sep}download=1`;
     a.download = file.name;
     a.rel = "noopener";
     document.body.appendChild(a);
     a.click();
     a.remove();
   };
+
+  // Uploading here writes a project RESOURCE — the same endpoint, and so the
+  // same permission gate and the same row, that the Overview's "Key resources"
+  // card posts to. The Files tab aggregates task, message and resource files,
+  // but a task attachment needs a task to hang off and this tab has no task in
+  // hand, so the curated project shelf is the only honest target for a file
+  // dropped at project level.
+  const handleUpload = async (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    const chosen = Array.from(list);
+    setUploading(true);
+    try {
+      for (const f of chosen) {
+        const fd = new FormData();
+        fd.append("file", f);
+        const res = await fetch(`/api/projects/${projectId}/resources`, {
+          method: "POST",
+          body: fd,
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          // Show the server's reason — a read-only member, an oversized file
+          // and a rejected type are all different problems.
+          toast.error(data?.error || `${f.name}: upload failed`);
+          continue;
+        }
+        setFiles((prev) => [resourceToFile(data as ResourceRow), ...prev]);
+        toast.success(`${f.name} uploaded`);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const pickFiles = () => fileInputRef.current?.click();
 
   const handleDelete = async (file: FileAttachment) => {
     // Deletable when it's a task attachment OR an Overview key resource.
@@ -224,47 +317,71 @@ export function FilesView({ projectId }: FilesViewProps) {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white min-h-[400px]">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+  const body = loading ? (
+    <div className="flex-1 flex items-center justify-center min-h-[400px]">
+      <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+    </div>
+  ) : loadError ? (
+    <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] gap-3">
+      <p className="text-sm text-slate-500">Couldn&apos;t load files.</p>
+      <button
+        onClick={() => setReloadKey((k) => k + 1)}
+        className="px-3 py-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50"
+      >
+        Retry
+      </button>
+    </div>
+  ) : files.length === 0 ? (
+    <EmptyState onUpload={pickFiles} uploading={uploading} />
+  ) : (
+    <div className="p-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {files.map((file) => (
+          <FileCard
+            key={`${file.source}-${file.id}`}
+            file={file}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            onOpenSource={openSource}
+          />
+        ))}
       </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-white min-h-[400px] gap-3">
-        <p className="text-sm text-slate-500">Couldn&apos;t load files.</p>
-        <button
-          onClick={() => setReloadKey((k) => k + 1)}
-          className="px-3 py-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  if (files.length === 0) {
-    return <EmptyState />;
-  }
+    </div>
+  );
 
   return (
-    <div className="flex-1 overflow-auto bg-white">
-      <div className="p-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {files.map((file) => (
-            <FileCard
-              key={`${file.source}-${file.id}`}
-              file={file}
-              onDownload={handleDownload}
-              onDelete={handleDelete}
-              onOpenSource={openSource}
-            />
-          ))}
-        </div>
+    <div className="flex-1 flex flex-col bg-white min-h-0">
+      {/* The tab listed files and offered no way to add one, so the only route
+          to the project's own file shelf was the Overview card. The toolbar is
+          the whole difference — everything below it is still the plain
+          gallery. */}
+      <div className="flex items-center justify-end px-6 py-3 border-b border-[#E0E1E3] flex-shrink-0">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            void handleUpload(e.target.files);
+            // Reset so re-picking the same file fires onChange again.
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={pickFiles}
+          disabled={uploading}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[6px] border border-[#C4C6C8] text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {uploading ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Upload className="w-3.5 h-3.5" />
+          )}
+          {uploading ? "Uploading…" : "Upload file"}
+        </button>
       </div>
+      <div className="flex-1 overflow-auto">{body}</div>
     </div>
   );
 }
@@ -273,7 +390,13 @@ export function FilesView({ projectId }: FilesViewProps) {
 // EMPTY STATE — Asana's: illustration + one centered line, nothing else.
 // ============================================
 
-function EmptyState() {
+function EmptyState({
+  onUpload,
+  uploading,
+}: {
+  onUpload: () => void;
+  uploading: boolean;
+}) {
   return (
     <div className="flex-1 flex items-center justify-center bg-white min-h-full">
       <div className="text-center max-w-md px-6">
@@ -282,6 +405,19 @@ function EmptyState() {
           All files from this project&apos;s tasks, messages and key resources
           will appear here
         </h3>
+        <button
+          type="button"
+          onClick={onUpload}
+          disabled={uploading}
+          className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[6px] border border-[#C4C6C8] text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {uploading ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Upload className="w-3.5 h-3.5" />
+          )}
+          {uploading ? "Uploading…" : "Upload file"}
+        </button>
       </div>
     </div>
   );
@@ -341,6 +477,7 @@ function FileCard({
   const fileType = getFileType(file.mimeType);
   const isImage = fileType === "image" && !isLink;
   const deletable = isResource || !!file.taskId;
+  const href = fileHref(file);
 
   return (
     <div className="group relative border border-[#E0E1E3] rounded-[8px] overflow-hidden bg-white hover:shadow-md transition-shadow cursor-pointer">
@@ -348,10 +485,10 @@ function FileCard({
         className="aspect-[4/3] flex items-center justify-center bg-[#F2F3F4]"
         onClick={() => onDownload(file)}
       >
-        {isImage && file.url ? (
+        {isImage && href ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={file.url}
+            src={href}
             alt={file.name}
             loading="lazy"
             decoding="async"

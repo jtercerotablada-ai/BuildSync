@@ -57,6 +57,7 @@ function stranger(
 ): TaskAccessDecisionInput {
   return {
     hasProject: true,
+    isPrivate: false,
     isOwnTask: false,
     isCollaborator: false,
     requireWrite: false,
@@ -482,6 +483,141 @@ describe("a personal tie stops counting once the person leaves the firm", () => 
       stranger({ projectCanRead: true, projectCanWrite: true, requireWrite: true }),
     ]) {
       expect(decideTaskAccess(input).requiresContributorSeat).toBe(false);
+    }
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The private-task toggle
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * "This task is private — only its collaborators can see it" is what the
+ * detail panel says, and PATCH has always stored the flag. Nothing read it:
+ * the task still opened by URL for anyone who could read its project, and
+ * still rendered in every list and board. These tests pin the audience the
+ * copy promises — assignee, creator, follower — plus the one escape that keeps
+ * the flag recoverable (workspace OWNER/ADMIN), and, just as importantly, that
+ * nobody else is quietly added to it.
+ */
+describe("a private task is visible only to the people its toggle names", () => {
+  const secret = (overrides: Partial<TaskAccessDecisionInput> = {}) =>
+    stranger({ isPrivate: true, ...overrides });
+
+  it("its assignee or creator can still open it", () => {
+    expect(allowed(secret({ isOwnTask: true }))).toBe(true);
+  });
+
+  it("a follower can open it — the toggle names them explicitly", () => {
+    // And they get here with projectCanRead false: a follower is added
+    // workspace-wide and may hold no role on the project at all.
+    expect(allowed(secret({ isCollaborator: true }))).toBe(true);
+  });
+
+  it("a colleague who can read the whole project is told it does not exist", () => {
+    const { denial } = decideTaskAccess(secret({ projectCanRead: true }));
+    expect(denial).toEqual({ kind: "notFound", message: "Task not found" });
+    expect(getErrorStatus(new NotFoundError(denial!.message)).status).toBe(404);
+  });
+
+  it("404, not 403 — a private task must not be probeable into existence", () => {
+    // The one fact privacy exists to withhold is that the id is real. An
+    // EDITOR who could open every other task in the project gets the same
+    // answer as a stranger.
+    for (const input of [
+      secret({ projectCanRead: true, projectCanWrite: true }),
+      secret({ projectCanRead: true, projectCanComment: true }),
+      secret(),
+    ]) {
+      expect(decideTaskAccess(input).denial!.kind).toBe("notFound");
+    }
+  });
+
+  it("a project ADMIN/EDITOR gets no override, however wide their role", () => {
+    const editor = secret({ projectCanRead: true, projectCanWrite: true });
+    expect(allowed(editor)).toBe(false);
+    expect(allowed({ ...editor, requireWrite: true })).toBe(false);
+  });
+
+  it("the workspace OWNER keeps the key — nothing else can un-flag the task", () => {
+    // The flag is only clearable from INSIDE the task's own panel. Without
+    // this leg, a task privatised by someone who then leaves — no assignee, no
+    // follower — is unreachable by anyone, permanently. Private goals grant
+    // leadership the same escape (decideObjectiveAccess).
+    const wsOwner = secret({
+      projectCanRead: true,
+      projectCanWrite: true,
+      projectIsWorkspaceManager: true,
+    });
+    expect(allowed(wsOwner)).toBe(true);
+    expect(allowed({ ...wsOwner, requireComment: true })).toBe(true);
+    expect(allowed({ ...wsOwner, requireWrite: true })).toBe(true);
+  });
+
+  it("gives a projectless private task no leadership escape — it has no project to lead", () => {
+    // `projectIsWorkspaceManager` is resolveProjectAccess output and means
+    // nothing when there is no project. A My Tasks task is personal, full stop.
+    const { denial } = decideTaskAccess(
+      secret({ hasProject: false, projectIsWorkspaceManager: true })
+    );
+    expect(denial).toEqual({ kind: "notFound", message: "Task not found" });
+  });
+
+  it("hides a private personal task the same way, with 404 rather than 403", () => {
+    // A projectless task normally answers "forbidden" to a stranger. Once it
+    // is private it must answer like every other private task, or the two
+    // messages together tell the caller which kind of row they just probed.
+    const { denial } = decideTaskAccess(secret({ hasProject: false }));
+    expect(denial).toEqual({ kind: "notFound", message: "Task not found" });
+  });
+
+  it("still applies the ordinary write and comment gates to the people it admits", () => {
+    // Privacy narrows WHO, never widens WHAT. A follower who can now read a
+    // private task must not gain an editor's hands with it.
+    expect(allowed(secret({ isCollaborator: true, requireWrite: true }))).toBe(
+      false
+    );
+    expect(
+      allowed(secret({ isOwnTask: true, requireWrite: true }))
+    ).toBe(true);
+  });
+
+  it("still charges a follower's comment to a live workspace seat", () => {
+    // The offboarding re-check must survive the new branch: a private task is
+    // exactly where a stale TaskCollaborator row is most valuable.
+    const decision = decideTaskAccess(
+      secret({ isCollaborator: true, requireComment: true })
+    );
+    expect(decision.denial).toBeNull();
+    expect(decision.requiresContributorSeat).toBe(true);
+  });
+
+  it("never asks for a workspace seat while denying — the denial is final", () => {
+    for (const input of [
+      secret(),
+      secret({ projectCanRead: true, requireComment: true }),
+      secret({ projectCanRead: true, projectCanComment: true, requireComment: true }),
+      secret({ hasProject: false, requireWrite: true }),
+    ]) {
+      const decision = decideTaskAccess(input);
+      expect(decision.denial).not.toBeNull();
+      expect(decision.requiresContributorSeat).toBe(false);
+    }
+  });
+
+  it("changes nothing for a task that is not private", () => {
+    // The flag defaults to false on every existing row in the firm's database,
+    // so this branch must be inert for all 267 of them.
+    for (const opts of [
+      { projectCanRead: true },
+      { projectCanRead: true, projectCanWrite: true, requireWrite: true },
+      { isCollaborator: true },
+      { hasProject: false, isOwnTask: true, requireWrite: true },
+    ]) {
+      expect(allowed(stranger(opts))).toBe(
+        allowed(stranger({ ...opts, isPrivate: false }))
+      );
+      expect(allowed(stranger(opts))).toBe(true);
     }
   });
 });

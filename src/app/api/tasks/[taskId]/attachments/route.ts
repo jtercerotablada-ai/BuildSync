@@ -4,6 +4,13 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { uploadFile } from "@/lib/storage";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
+// Uploads are private blobs: the url on the row is an address only the server
+// can fetch. Every response from here publishes the authenticated read route
+// instead, so the panels rendering these rows never hold a storage address.
+function withReadUrl<T extends { id: string; url: string }>(a: T): T {
+  return { ...a, url: `/api/files/attachment/${a.id}` };
+}
+
 // GET /api/tasks/:taskId/attachments - Get task attachments
 export async function GET(
   req: Request,
@@ -25,7 +32,7 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(attachments);
+    return NextResponse.json(attachments.map(withReadUrl));
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
@@ -74,10 +81,6 @@ export async function POST(
     const fileName = file.name;
     const fileSize = file.size;
 
-    if (fileSize > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "File size exceeds 10MB limit" }, { status: 400 });
-    }
-
     // If a commentId was supplied, make sure it belongs to this task.
     // Otherwise a malicious client could attach files to any comment
     // by guessing its id.
@@ -111,7 +114,19 @@ export async function POST(
       requireComment: attachingToOwnComment,
     });
 
-    const { url: fileUrl } = await uploadFile(file, `tasks/${taskId}`);
+    // uploadFile owns the size cap and the type allowlist — a second copy of
+    // the ceiling here is how this route ended up rejecting files the store
+    // would have taken. Its failures are the caller's fault, so surface the
+    // reason as a 400 rather than the generic 500 the outer catch returns.
+    let fileUrl: string;
+    try {
+      ({ url: fileUrl } = await uploadFile(file, `tasks/${taskId}`));
+    } catch (uploadErr) {
+      return NextResponse.json(
+        { error: uploadErr instanceof Error ? uploadErr.message : "Upload failed" },
+        { status: 400 }
+      );
+    }
 
     // Create attachment record
     const attachment = await prisma.attachment.create({
@@ -136,7 +151,7 @@ export async function POST(
       },
     });
 
-    return NextResponse.json(attachment, { status: 201 });
+    return NextResponse.json(withReadUrl(attachment), { status: 201 });
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);

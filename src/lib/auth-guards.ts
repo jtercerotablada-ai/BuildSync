@@ -276,6 +276,11 @@ export async function assertUserInWorkspace(
 export interface TaskAccessDecisionInput {
   /** False for a personal / My Tasks task with no project attached. */
   hasProject: boolean;
+  /**
+   * `Task.isPrivate` — the detail panel's toggle, "This task is private — only
+   * its collaborators can see it".
+   */
+  isPrivate: boolean;
   /** The caller created the task or is its assignee. */
   isOwnTask: boolean;
   /** The caller is a TaskCollaborator (follower) on the task. */
@@ -324,6 +329,37 @@ export function decideTaskAccess(
 
   // Creator, assignee, or a follower always keeps READ access to the task.
   const hasPersonalTie = input.isOwnTask || input.isCollaborator;
+
+  // `isPrivate` was persisted by task PATCH and read by nothing, so the toggle
+  // promised a confidentiality the API never delivered: the task still opened
+  // by URL for every project member. The three ties above are the audience the
+  // panel names, and a project ADMIN/EDITOR gets no escape from it.
+  //
+  // Workspace OWNER/ADMIN do, and must: nothing in the product can clear the
+  // flag from OUTSIDE the task, so a task privatised by someone who then
+  // leaves the firm — with no assignee and no follower — would be unreachable
+  // by anybody, forever. Leadership keeps the key here for exactly the reason
+  // `decideObjectiveAccess` gives it to them on a private goal
+  // (@/lib/objective-access, `isWorkspaceManager` in `passesPrivacy`); the two
+  // private-content rules in this codebase must not disagree.
+  //
+  // 404, never 403, matching how this function hides a task in a project the
+  // caller cannot read: a 403 tells someone walking ids that the task is real
+  // and merely hidden, which is the one fact privacy exists to withhold.
+  //
+  // This is the DETAIL half of the rule. Its list-query counterpart is
+  // `taskPrivacyClause` (@/lib/project-visibility), which drops the same rows
+  // from search/report/list results but deliberately omits the collaborator
+  // leg — that leg costs a join per row. So a follower does not see a private
+  // task in a list and can still open the one they were told about, and the
+  // two halves must not be swapped for each other.
+  const isWorkspaceManager = input.hasProject && input.projectIsWorkspaceManager;
+  if (input.isPrivate && !hasPersonalTie && !isWorkspaceManager) {
+    return {
+      denial: { kind: "notFound", message: "Task not found" },
+      requiresContributorSeat: false,
+    };
+  }
 
   if (!input.hasProject) {
     // Task without a project - check if user created it, is assigned, or follows
@@ -439,6 +475,10 @@ function throwTaskDenial(denial: TaskAccessDenial): never {
  * The task's own creator or assignee always retains access (My Tasks,
  * assigned-to-me flows) even when they are not a formal ProjectMember.
  *
+ * A task flagged `isPrivate` narrows that audience to the assignee, the
+ * creator, the task's collaborators and workspace OWNER/ADMIN — no project
+ * role escapes it; see decideTaskAccess for why.
+ *
  * @param opts.requireWrite  Also require write capability (project ADMIN/
  *   EDITOR, owner, or the caller being the task's creator/assignee). Use on
  *   mutating verbs so COMMENTER/VIEWER can't edit arbitrary tasks.
@@ -456,6 +496,7 @@ export async function verifyTaskAccess(
       projectId: true,
       creatorId: true,
       assigneeId: true,
+      isPrivate: true,
       // A task's followers (TaskCollaborator) may not be project members —
       // they're added workspace-wide. They must still be able to READ the
       // task they follow (and its comments/subtasks/attachments).
@@ -486,6 +527,7 @@ export async function verifyTaskAccess(
   if (!task.project) {
     const personal = decideTaskAccess({
       hasProject: false,
+      isPrivate: task.isPrivate,
       isOwnTask,
       isCollaborator,
       requireWrite,
@@ -506,6 +548,7 @@ export async function verifyTaskAccess(
 
   const decision = decideTaskAccess({
     hasProject: true,
+    isPrivate: task.isPrivate,
     isOwnTask,
     isCollaborator,
     requireWrite,
@@ -606,6 +649,10 @@ export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
       id: true,
       creatorId: true,
       assigneeId: true,
+      isPrivate: true,
+      // Same personal tie decideTaskAccess honours — scoped to the caller so
+      // this stays one row per task, not the whole follower list.
+      collaborators: { where: { userId }, select: { id: true } },
       project: {
         select: {
           id: true,
@@ -623,9 +670,12 @@ export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
     throw new NotFoundError("One or more tasks not found");
   }
 
-  // Cache the write decision per project so a bulk of N tasks in the same
+  // Cache the access decision per project so a bulk of N tasks in the same
   // project costs one access resolution, not N.
-  const projectDecision = new Map<string, boolean>();
+  const projectDecision = new Map<
+    string,
+    { canWrite: boolean; isWorkspaceManager: boolean }
+  >();
 
   for (const task of tasks) {
     const isOwnTask =
@@ -642,13 +692,31 @@ export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
       continue;
     }
 
-    let canWrite = projectDecision.get(task.project.id);
-    if (canWrite === undefined) {
+    let decision = projectDecision.get(task.project.id);
+    if (decision === undefined) {
       const access = await resolveProjectAccess(task.project, userId);
-      canWrite = access.canWrite;
-      projectDecision.set(task.project.id, canWrite);
+      decision = {
+        canWrite: access.canWrite,
+        isWorkspaceManager: access.isWorkspaceManager,
+      };
+      projectDecision.set(task.project.id, decision);
     }
-    if (!canWrite && !isOwnTask) {
+
+    // The private-task rule, and it has to be repeated here: this is a second,
+    // independent copy of the task gate, so without it /api/tasks/bulk and
+    // /api/tasks/reorder were the way around decideTaskAccess — a project
+    // EDITOR who gets 404 on GET/DELETE /api/tasks/:id could still delete or
+    // reassign that same row through a bulk POST. Same audience, same 404.
+    if (
+      task.isPrivate &&
+      !isOwnTask &&
+      task.collaborators.length === 0 &&
+      !decision.isWorkspaceManager
+    ) {
+      throw new NotFoundError("One or more tasks not found");
+    }
+
+    if (!decision.canWrite && !isOwnTask) {
       throw new AuthorizationError(
         "You don't have permission to modify one or more tasks"
       );
