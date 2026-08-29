@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { verifyWorkspaceAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { daysFromToday, startOfLocalDay } from "@/lib/date-only";
 
@@ -65,7 +66,9 @@ export async function GET(
                 },
                 _count: {
                   select: {
-                    tasks: true,
+                    // Privacy, as everywhere else: a relation count would
+                    // include tasks this viewer cannot open.
+                    tasks: { where: taskPrivacyClause(userId) },
                   },
                 },
                 tasks: {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ProjectGate } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { getProjectAccess, resolveProjectAccess } from "@/lib/project-access";
 import {
   isStageValidForType,
@@ -89,9 +90,13 @@ export async function GET(
             portfolio: { select: { id: true, name: true } },
           },
         },
+        // Counted with the caller's own visibility, not a bare
+        // `tasks: true`. A relation count ignores privacy, so the card
+        // said "3 tasks" to someone who could open one of them — the
+        // number disagreed with every list that renders it.
         _count: {
           select: {
-            tasks: true,
+            tasks: { where: taskPrivacyClause(userId) },
           },
         },
       },

@@ -262,7 +262,13 @@ export async function GET(request: Request) {
             // Projects > All counts the same way, so leaving subtasks in
             // here made Home show a different "% complete" for the very
             // same project.
-            _count: { select: { tasks: { where: { parentTaskId: null } } } },
+            _count: {
+              select: {
+                tasks: {
+                  where: { parentTaskId: null, ...taskPrivacyClause(userId) },
+                },
+              },
+            },
           },
           orderBy: { updatedAt: "desc" },
         }),

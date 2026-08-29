@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const updateSectionSchema = z.object({
@@ -65,7 +66,10 @@ export async function PATCH(
         ...(data.name !== undefined && { name: data.name }),
       },
       include: {
-        tasks: true,
+        // Renaming a column echoed back every task in it, unfiltered, so
+        // the response carried other people's private tasks across the
+        // wire even though no list would render them.
+        tasks: { where: taskPrivacyClause(userId) },
       },
     });
 

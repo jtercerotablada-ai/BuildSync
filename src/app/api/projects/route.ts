@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 import { getTemplateById } from "@/lib/templates-data";
 import { readJson, jsonErrorResponse } from "@/lib/http";
@@ -197,9 +198,13 @@ export async function GET(req: Request) {
           color: true,
           icon: true,
           status: true,
+          // Counted with the caller's own visibility, not a bare
+          // `tasks: true`. A relation count ignores privacy, so the card
+          // said "3 tasks" to someone who could open one of them — the
+          // number disagreed with every list that renders it.
           _count: {
             select: {
-              tasks: true,
+              tasks: { where: taskPrivacyClause(userId) },
             },
           },
         },
@@ -246,7 +251,8 @@ export async function GET(req: Request) {
         },
         _count: {
           select: {
-            tasks: true,
+            // See the privacy note on the list query above.
+            tasks: { where: taskPrivacyClause(userId) },
             sections: true,
           },
         },
@@ -746,7 +752,7 @@ export async function POST(req: Request) {
         views: true,
         _count: {
           select: {
-            tasks: true,
+            tasks: { where: taskPrivacyClause(userId) },
           },
         },
       },
