@@ -22,7 +22,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
+import { sectionDeletePrompt } from "@/lib/section-delete";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -727,6 +729,7 @@ function BoardColumn({
   const router = useRouter();
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(section.name);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Make the entire column a drop target (critical for empty columns)
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
@@ -754,25 +757,32 @@ function BoardColumn({
     }
   };
 
+  // Use the UNFILTERED task count when available — section.tasks is the
+  // displayed (possibly filtered/hidden) list, so it can understate how
+  // many tasks the server will permanently delete. Deleting cascades to
+  // all tasks and their subtasks regardless of the current filter.
+  // The wording and the typed-name rule live in @/lib/section-delete so the
+  // List view and the Workflow builder cannot drift away from this sentence.
+  const deletePrompt = sectionDeletePrompt(
+    section.name,
+    rawTaskCount ?? section.tasks.length
+  );
+
+  // Thrown rather than toasted: ConfirmDialog renders a rejection inline and
+  // holds itself open, so swallowing the failure here would close the dialog
+  // as though the section had been deleted.
   const handleDelete = async () => {
-    // Use the UNFILTERED task count when available — section.tasks is the
-    // displayed (possibly filtered/hidden) list, so it can understate how
-    // many tasks the server will permanently delete. Deleting cascades to
-    // all tasks and their subtasks regardless of the current filter.
-    const count = rawTaskCount ?? section.tasks.length;
-    const msg =
-      count > 0
-        ? `Delete "${section.name}" and all ${count} of its task${count > 1 ? "s" : ""} (completed and hidden ones included, plus their sub-tasks)? This cannot be undone.`
-        : `Delete "${section.name}"?`;
-    if (!confirm(msg)) return;
-    try {
-      const res = await fetch(`/api/sections/${section.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      toast.success("Section deleted");
-      router.refresh();
-    } catch {
-      toast.error("Failed to delete section");
+    const res = await fetch(`/api/sections/${section.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      // The route answers with distinct reasons (403 for a viewer, 404 for a
+      // section someone else already deleted). The dialog stays open on a
+      // rejection, so it is the one place that can show which it was.
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to delete section");
     }
+    toast.success("Section deleted");
+    setConfirmingDelete(false);
+    router.refresh();
   };
 
   return (
@@ -850,7 +860,16 @@ function BoardColumn({
                 Add task
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleDelete} className="text-black">
+              <DropdownMenuItem
+                // onSelect + preventDefault, not onClick: Radix closes the
+                // menu on select and pulls focus back to the trigger, which
+                // fights the dialog opening in the same tick.
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setConfirmingDelete(true);
+                }}
+                className="text-black"
+              >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete section
               </DropdownMenuItem>
@@ -938,6 +957,19 @@ function BoardColumn({
           Add task
         </button>
       )}
+
+      {/* Section delete — an in-app dialog, not window.confirm(): this is a
+          hard cascade with no trash, and a native confirm is one stray Enter
+          away from taking a whole column of work with it. It renders here in
+          the column rather than inside DropdownMenuContent, which unmounts
+          with the menu; the dialog itself portals to the body, so it is not
+          affected by the column's drag/scroll containers. */}
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        {...deletePrompt}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

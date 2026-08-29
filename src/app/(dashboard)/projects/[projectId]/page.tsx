@@ -336,15 +336,26 @@ export default async function ProjectPage({
   // those keep their HOME section id. The rendered section.tasks list is
   // neither (it hides sub-tasks and adds guests), so the delete confirm needs
   // this number rather than a row count.
-  const sectionTaskCounts = Object.fromEntries(
-    (
-      await prisma.task.groupBy({
-        by: ["sectionId"],
-        where: { sectionId: { in: project.sections.map((s) => s.id) } },
-        _count: { _all: true },
-      })
-    ).map((g) => [g.sectionId as string, g._count._all])
-  ) as Record<string, number>;
+  const sectionTaskCounts = {
+    // Seeded with an explicit zero for EVERY section before the real counts
+    // land on top. groupBy returns no row at all for a section holding no
+    // tasks, and a missing key sends the delete confirmation to its
+    // `?? section.tasks.length` fallback — which counts multi-homed GUEST
+    // cards that this delete does not touch. An empty first column showing
+    // one borrowed card would otherwise warn "all 1 of its task ... This
+    // cannot be undone", and demand the section name be typed, for a delete
+    // that removes nothing. A key that is present and 0 says so honestly.
+    ...Object.fromEntries(project.sections.map((s) => [s.id, 0])),
+    ...Object.fromEntries(
+      (
+        await prisma.task.groupBy({
+          by: ["sectionId"],
+          where: { sectionId: { in: project.sections.map((s) => s.id) } },
+          _count: { _all: true },
+        })
+      ).map((g) => [g.sectionId as string, g._count._all])
+    ),
+  } as Record<string, number>;
 
   const multiHomedBySection = new Map<
     string,

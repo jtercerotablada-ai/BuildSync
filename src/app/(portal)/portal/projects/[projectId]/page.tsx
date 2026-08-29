@@ -185,6 +185,28 @@ export default async function PortalProjectPage({
     viewerMayCallApi &&
     (isOwner || viewerProjectRole === "ADMIN" || isWorkspaceManager);
 
+  // What DELETE /api/sections/:id actually removes: every task carrying that
+  // sectionId — sub-tasks included, multi-homed guests excluded, since those
+  // keep their HOME section id. Computed here as well as on the dashboard
+  // route because this page renders the very same List / Board / Workflow
+  // views, and an EDITOR reaching a project through the portal gets the same
+  // "Delete section" item. Without it every view falls back to its rendered
+  // row count and the confirmation understates the delete — the bug this
+  // number exists to prevent. Seeded with zeros first: groupBy returns no row
+  // for an empty section, and a missing key re-enables that same fallback.
+  const sectionTaskCounts = {
+    ...Object.fromEntries(project.sections.map((s) => [s.id, 0])),
+    ...Object.fromEntries(
+      (
+        await prisma.task.groupBy({
+          by: ["sectionId"],
+          where: { sectionId: { in: project.sections.map((s) => s.id) } },
+          _count: { _all: true },
+        })
+      ).map((g) => [g.sectionId as string, g._count._all])
+    ),
+  } as Record<string, number>;
+
   // Serialize the project data for client component.
   // Prisma's Decimal type doesn't survive JSON.stringify cleanly, so we
   // coerce `budget` to a plain number here.
@@ -216,6 +238,7 @@ export default async function PortalProjectPage({
     <ProjectContent
       project={serializedProject}
       currentView={view}
+      sectionTaskCounts={sectionTaskCounts}
       canEdit={canEditProject}
       canManage={canManageProject}
     />

@@ -34,6 +34,8 @@ import {
   ThumbsUp,
   GripVertical,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { sectionDeletePrompt } from "@/lib/section-delete";
 import { cn } from "@/lib/utils";
 import { format, differenceInCalendarDays } from "date-fns";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
@@ -782,26 +784,40 @@ export function ListView({
     }
   };
 
-  const handleDeleteSection = async (
-    sectionId: string,
-    sectionName: string,
-    taskCount: number
-  ) => {
-    // taskCount must be the RAW count: the visible rows are filtered, and the
-    // server deletes every task in the section (completed, hidden, sub-tasks).
-    const msg =
-      taskCount > 0
-        ? `Delete "${sectionName}" and all ${taskCount} of its task${taskCount > 1 ? "s" : ""} (completed and hidden ones included, plus their sub-tasks)? This cannot be undone.`
-        : `Delete "${sectionName}"?`;
-    if (!confirm(msg)) return;
-    try {
-      const response = await fetch(`/api/sections/${sectionId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete section");
-      toast.success("Section deleted");
-      router.refresh();
-    } catch {
-      toast.error("Failed to delete section");
+  // The section the delete dialog is asking about. `rawTaskCount` must be the
+  // RAW server count, not the rendered rows: the visible list is filtered and
+  // hides sub-tasks, while the server deletes every task carrying this
+  // sectionId. Wording and the typed-name rule live in @/lib/section-delete.
+  //
+  // Open-ness is a SEPARATE flag and the target deliberately outlives it: the
+  // dialog fades out over 200ms, so clearing the target on close would swap
+  // the warning for the empty-section one ("Delete "this section"?") and drop
+  // the type-the-name field for the whole exit animation.
+  const [sectionToDelete, setSectionToDelete] = useState<{
+    id: string;
+    name: string;
+    rawTaskCount: number;
+  } | null>(null);
+  const [deleteSectionOpen, setDeleteSectionOpen] = useState(false);
+
+  // Thrown rather than toasted: ConfirmDialog renders a rejection inline and
+  // holds itself open, so swallowing the failure here would close the dialog
+  // as though the section had been deleted.
+  const handleDeleteSection = async () => {
+    if (!sectionToDelete) return;
+    const response = await fetch(`/api/sections/${sectionToDelete.id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      // The route answers with distinct reasons (403 for a viewer, 404 for a
+      // section someone else already deleted). The dialog stays open on a
+      // rejection, so it is the one place that can show which it was.
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to delete section");
     }
+    toast.success("Section deleted");
+    setDeleteSectionOpen(false);
+    router.refresh();
   };
 
   const startEditing = (taskId: string, field: string, currentValue: string) => {
@@ -1100,13 +1116,20 @@ export function ListView({
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() =>
-                      handleDeleteSection(
-                        section.id,
-                        section.name,
-                        rawSectionCounts?.[section.id] ?? section.tasks.length
-                      )
-                    }
+                    // onSelect + preventDefault, not onClick: Radix closes the
+                    // menu on select and pulls focus back to the trigger, which
+                    // fights the dialog opening in the same tick.
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setSectionToDelete({
+                        id: section.id,
+                        name: section.name,
+                        rawTaskCount:
+                          rawSectionCounts?.[section.id] ??
+                          section.tasks.length,
+                      });
+                      setDeleteSectionOpen(true);
+                    }}
                     className="text-black"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
@@ -1504,6 +1527,21 @@ export function ListView({
           reloadCustomFields();
           reloadCustomFieldValues();
         }}
+      />
+
+      {/* Section delete — an in-app dialog, not window.confirm(): this is a
+          hard cascade with no trash, and a native confirm is one stray Enter
+          away from taking a whole stage of the job with it. Sibling of the
+          row markup, never a child of the DropdownMenuContent it opens from,
+          which unmounts the moment the menu closes. */}
+      <ConfirmDialog
+        open={deleteSectionOpen}
+        onOpenChange={setDeleteSectionOpen}
+        {...sectionDeletePrompt(
+          sectionToDelete?.name ?? "",
+          sectionToDelete?.rawTaskCount ?? 0
+        )}
+        onConfirm={handleDeleteSection}
       />
     </div>
   );

@@ -2171,6 +2171,10 @@ export function ProjectContent({
             <WorkflowView
               sections={project.sections}
               projectId={project.id}
+              // Same honest counts BoardView gets: the builder can delete a
+              // stage, and its card only ever shows the INCOMPLETE task chip,
+              // so without this the confirmation understates the delete.
+              rawSectionCounts={sectionTaskCounts}
             />
           )}
           {baseView === "messages" && (

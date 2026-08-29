@@ -42,6 +42,8 @@ import {
   Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { sectionDeletePrompt } from "@/lib/section-delete";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,6 +88,15 @@ interface Section {
 interface WorkflowViewProps {
   sections: Section[];
   projectId: string;
+  /**
+   * Server-computed tasks-per-section, keyed by section id — exactly what
+   * DELETE /api/sections/:id removes (sub-tasks included, multi-homed guests
+   * excluded). `section.tasks` is the RENDERED list and is neither, so the
+   * delete confirmation must count from here. Optional only so a caller that
+   * has not got the counts degrades to the rendered length rather than
+   * crashing; see the fallback at the onDelete call site.
+   */
+  rawSectionCounts?: Record<string, number>;
 }
 
 // ============================================
@@ -187,7 +198,11 @@ function makeDefaultAction(type: WorkflowActionType): WorkflowAction {
 // MAIN COMPONENT
 // ============================================
 
-export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
+export function WorkflowView({
+  sections,
+  projectId,
+  rawSectionCounts,
+}: WorkflowViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [workflow, setWorkflow] = useState<WorkflowRow | null>(null);
@@ -510,25 +525,41 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     }
   };
 
-  const deleteSection = async (sectionId: string, taskCount: number) => {
-    if (
-      !confirm(
-        taskCount > 0
-          ? `Delete this section and its ${taskCount} task${taskCount === 1 ? "" : "s"}?`
-          : "Delete this section?"
-      )
-    )
-      return;
-    try {
-      const res = await fetch(`/api/sections/${sectionId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error();
-      toast.success("Section deleted");
-      router.refresh();
-    } catch {
-      toast.error("Failed to delete section");
+  // The section the delete dialog is asking about. This card is the smallest
+  // thing on the screen that can fire the biggest delete in the project: the
+  // stage card shows only an "N incomplete tasks" chip, so `rawTaskCount` has
+  // to be the server count or the warning understates what goes. Wording and
+  // the typed-name rule live in @/lib/section-delete, shared with List/Board.
+  //
+  // Open-ness is a SEPARATE flag and the target deliberately outlives it: the
+  // dialog fades out over 200ms, so clearing the target on close would swap
+  // the warning for the empty-section one ("Delete "this section"?") and drop
+  // the type-the-name field for the whole exit animation.
+  const [sectionToDelete, setSectionToDelete] = useState<{
+    id: string;
+    name: string;
+    rawTaskCount: number;
+  } | null>(null);
+  const [deleteSectionOpen, setDeleteSectionOpen] = useState(false);
+
+  // Thrown rather than toasted: ConfirmDialog renders a rejection inline and
+  // holds itself open, so swallowing the failure here would close the dialog
+  // as though the section had been deleted.
+  const deleteSection = async () => {
+    if (!sectionToDelete) return;
+    const res = await fetch(`/api/sections/${sectionToDelete.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      // The route answers with distinct reasons (403 for a viewer, 404 for a
+      // section someone else already deleted). The dialog stays open on a
+      // rejection, so it is the one place that can show which it was.
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to delete section");
     }
+    toast.success("Section deleted");
+    setDeleteSectionOpen(false);
+    router.refresh();
   };
 
   // Drag-to-reorder stages — dnd-kit for Asana-grade drag visuals
@@ -805,9 +836,20 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                       )
                     }
                     onRename={(name) => renameSection(section.id, name)}
-                    onDelete={() =>
-                      deleteSection(section.id, section.tasks.length)
-                    }
+                    onDelete={() => {
+                      setSectionToDelete({
+                        id: section.id,
+                        name: section.name,
+                        // section.tasks is the rendered list — it hides
+                        // sub-tasks and whatever the view is filtering, so it
+                        // can understate the delete by a factor of four. Only
+                        // a fallback for a caller that passed no counts.
+                        rawTaskCount:
+                          rawSectionCounts?.[section.id] ??
+                          section.tasks.length,
+                      });
+                      setDeleteSectionOpen(true);
+                    }}
                     people={people}
                     projectsById={projectsById}
                   />
@@ -927,6 +969,21 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
           reloadWorkflow();
           router.refresh();
         }}
+      />
+
+      {/* Section delete — an in-app dialog, not window.confirm(): deleting a
+          stage hard-deletes every task in it, sub-tasks included, with no
+          trash, and a native confirm is one stray Enter away from doing it.
+          A sibling of the other dialogs for the same reason they are: inside
+          the card's DropdownMenuContent it would unmount with the menu. */}
+      <ConfirmDialog
+        open={deleteSectionOpen}
+        onOpenChange={setDeleteSectionOpen}
+        {...sectionDeletePrompt(
+          sectionToDelete?.name ?? "",
+          sectionToDelete?.rawTaskCount ?? 0
+        )}
+        onConfirm={deleteSection}
       />
     </div>
   );
@@ -1534,7 +1591,16 @@ function SectionCard({
               <Pencil className="w-4 h-4" />
               Rename section
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onDelete} className="gap-2 text-black">
+            <DropdownMenuItem
+              // onSelect + preventDefault, not onClick: Radix closes the menu
+              // on select and pulls focus back to the trigger, which fights
+              // the confirm dialog opening in the same tick.
+              onSelect={(e) => {
+                e.preventDefault();
+                onDelete();
+              }}
+              className="gap-2 text-black"
+            >
               <Trash2 className="w-4 h-4" />
               Delete section
             </DropdownMenuItem>
