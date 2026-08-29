@@ -25,36 +25,69 @@ import { isWorkspaceOwner } from "@/lib/people-types";
 const ACTIVE_GATES = ["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION"] as const;
 
 /**
- * People the caller actually shares work with: anyone holding a place on a
- * project they own or belong to, themselves excluded.
+ * People the caller actually shares work with.
  *
- * ONE function because this lives behind a header chip that is served by two
- * code paths — `?slim=1` for the Home chips and the full cockpit payload — and
- * they carried separate copies of the rule. Fixing the copy Home does not call
- * changed nothing on screen, which is the whole argument for not having two.
+ * Two ways to reach a project in this product, and both make you a real
+ * collaborator: an explicit ProjectMember row, or membership of the TEAM the
+ * project is assigned to — project-access.ts grants read AND write on the team
+ * alone (`if (input.isTeamMember) return true`). Counting only the explicit
+ * rows would report 0 for a firm that hands every job to one team, while three
+ * people edit it daily.
+ *
+ * The caller is excluded; you do not collaborate with yourself. Creating a
+ * project writes an OWNER ProjectMember row, so owners are covered by the same
+ * query rather than needing a special case.
+ *
+ * ONE function because this serves a header chip fed by two code paths —
+ * `?slim=1` for the chips and the full cockpit payload — which previously
+ * carried separate copies of the rule and disagreed.
  */
 async function countSharedCollaborators(
   workspaceId: string,
   userId: string
 ): Promise<number> {
+  // Projects the caller reaches either way. The team arm mirrors
+  // project-access.ts, including its requirement that the team live in the
+  // project's own workspace — never grant across the workspace boundary.
   const callerProjects = await prisma.project.findMany({
     where: {
       workspaceId,
-      OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+      OR: [
+        { ownerId: userId },
+        { members: { some: { userId } } },
+        { team: { workspaceId, members: { some: { userId } } } },
+      ],
     },
-    select: { id: true },
+    select: { id: true, teamId: true },
   });
   if (callerProjects.length === 0) return 0;
 
-  const shared = await prisma.projectMember.findMany({
-    where: {
-      projectId: { in: callerProjects.map((p) => p.id) },
-      userId: { not: userId },
-    },
-    select: { userId: true },
-    distinct: ["userId"],
-  });
-  return shared.length;
+  const projectIds = callerProjects.map((p) => p.id);
+  const teamIds = [
+    ...new Set(
+      callerProjects
+        .map((p) => p.teamId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  const [direct, viaTeam] = await Promise.all([
+    prisma.projectMember.findMany({
+      where: { projectId: { in: projectIds }, userId: { not: userId } },
+      select: { userId: true },
+      distinct: ["userId"],
+    }),
+    teamIds.length === 0
+      ? Promise.resolve([] as { userId: string }[])
+      : prisma.teamMember.findMany({
+          where: { teamId: { in: teamIds }, userId: { not: userId } },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+  ]);
+
+  // One person reachable both ways is one collaborator.
+  return new Set([...direct, ...viaTeam].map((r) => r.userId)).size;
 }
 
 export async function GET(request: Request) {
