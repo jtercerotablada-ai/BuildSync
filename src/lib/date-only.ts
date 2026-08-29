@@ -16,7 +16,15 @@ export function dueDateToLocalMidnight(value: string | Date): Date {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
-/** Local midnight of the given moment (defaults to now). */
+/** Local midnight of the given moment (defaults to now).
+ *
+ *  The no-argument form READS THE CLOCK, which is safe on the server, in an
+ *  event handler or in an effect — and wrong during the RENDER of a client
+ *  component. The server render runs in UTC, so from 20:00 in Miami (00:00
+ *  UTC) it answers TOMORROW, and React does not repair a text or className
+ *  mismatch when it hydrates: the wrong day stays on screen all evening.
+ *  In a client render take the day from `useToday()` (src/lib/use-today.ts)
+ *  instead of calling this. */
 export function startOfLocalDay(from: Date = new Date()): Date {
   return new Date(from.getFullYear(), from.getMonth(), from.getDate());
 }
@@ -34,12 +42,21 @@ export function toDateOnlyISO(value: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Whole calendar days from today to the due date (negative = overdue). */
-export function daysFromToday(value: string | Date): number {
+/** Whole calendar days from `today` to the due date (negative = overdue).
+ *
+ *  `today` is REQUIRED and must be LOCAL MIDNIGHT of the day the caller
+ *  means: `useToday()` in a client component, `startOfLocalDay()` on the
+ *  server. This function used to read the clock itself, and that was the
+ *  bug — the server render runs in UTC, so from 20:00 in Miami (00:00 UTC)
+ *  it counted from TOMORROW, and React does not repair a text or className
+ *  mismatch when it hydrates: a task due today read "Tomorrow", and the
+ *  Timeline lit the wrong column, for the whole evening. There is
+ *  deliberately NO default: a default is exactly what let one hidden clock
+ *  read spread to nineteen call sites without any of them saying so. */
+export function daysFromToday(value: string | Date, today: Date): number {
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
   return Math.round(
-    (dueDateToLocalMidnight(value).getTime() - startOfLocalDay().getTime()) /
-      MS_PER_DAY
+    (dueDateToLocalMidnight(value).getTime() - today.getTime()) / MS_PER_DAY
   );
 }
 

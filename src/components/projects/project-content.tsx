@@ -61,12 +61,16 @@ import {
   RENDERABLE_VIEWS,
 } from "@/lib/project-views";
 import { useUiState } from "@/hooks/use-ui-state";
-import { isThisWeek } from "date-fns";
+// isSameWeek, not isThisWeek: isThisWeek is isSameWeek against Date.now(),
+// i.e. a clock read in the middle of a render. The week is measured against
+// the day useToday() hands us instead.
+import { isSameWeek } from "date-fns";
 import {
   dueDateToLocalMidnight,
   daysFromToday,
   startOfLocalDay,
 } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
 import { TimelineView } from "@/components/views/timeline-view";
@@ -212,9 +216,16 @@ const GROUP_BY_ORDER: GroupByField[] = [
 
 // Bucket a task into a group (stable key + display label + sort weight)
 // for the chosen field. Lower `order` sorts first.
+//
+// `today` is local midnight of the viewer's day (useToday()), passed in
+// rather than read here. A clock read inside this function is a clock read
+// during the render of a client component, and the server render runs in
+// UTC: from 20:00 in Miami it would file work due today under "Overdue",
+// and React does not repair the group headings it hydrates.
 function groupOf(
   task: Task,
-  field: GroupByField
+  field: GroupByField,
+  today: Date
 ): { key: string; label: string; order: number } {
   switch (field) {
     case "assignee":
@@ -238,7 +249,7 @@ function groupOf(
     case "due_date": {
       if (!task.dueDate)
         return { key: "d:none", label: "No due date", order: 99 };
-      const diff = daysFromToday(task.dueDate);
+      const diff = daysFromToday(task.dueDate, today);
       if (diff < 0) return { key: "d:overdue", label: "Overdue", order: 0 };
       if (diff === 0) return { key: "d:today", label: "Today", order: 1 };
       if (diff === 1) return { key: "d:tomorrow", label: "Tomorrow", order: 2 };
@@ -252,9 +263,10 @@ function groupOf(
       // createdAt is a real timestamp, not a UTC-midnight date-only value, so
       // it must be bucketed by its LOCAL calendar day — daysFromToday reads
       // the UTC day and would file last night's task under "Today" while the
-      // Creation-date column (formatted locally) prints yesterday.
+      // Creation-date column (formatted locally) prints yesterday. `today` is
+      // already local midnight; only the task's own timestamp needs folding.
       const daysSince = Math.round(
-        (startOfLocalDay().getTime() -
+        (today.getTime() -
           startOfLocalDay(new Date(task.createdAt)).getTime()) /
           86400000
       );
@@ -507,6 +519,13 @@ export function ProjectContent({
   // Group-by for the project List — regroups tasks into synthetic
   // sections by a field. "none" keeps the project's own sections.
   const [groupBy, setGroupBy] = useState<GroupByField>("none");
+  // The viewer's own calendar day, for the date-driven filter and group-by
+  // buckets below. Never computed while rendering: the server render runs in
+  // UTC and is already tomorrow from 20:00 in Miami. It also re-arms at local
+  // midnight, which re-runs the memo below — so a project page left open
+  // overnight moves a task out of "Today" instead of holding yesterday's
+  // groups until something else happens to change.
+  const today = useToday();
 
   const toggleFilter = (filter: string) => {
     setActiveFilters(prev => {
@@ -579,11 +598,14 @@ export function ProjectContent({
           if (activeFilters.has("completed") && !task.completed) return false;
           if (activeFilters.has("due_this_week")) {
             if (!task.dueDate) return false;
+            // Which week is "this" one is the viewer's question, so it is
+            // answered with the viewer's day; no day yet, no answer.
+            if (!today) return false;
             try {
               // Compare the UTC calendar day (dueDates are stored at UTC
               // midnight); parsing with local time would bucket a task into
               // the previous week for evening US users.
-              if (!isThisWeek(dueDateToLocalMidnight(task.dueDate), { weekStartsOn: 1 })) return false;
+              if (!isSameWeek(dueDateToLocalMidnight(task.dueDate), today, { weekStartsOn: 1 })) return false;
             } catch {
               return false;
             }
@@ -642,14 +664,19 @@ export function ProjectContent({
     // Group-by: flatten the (filtered + sorted) tasks and rebucket them
     // into synthetic sections by the chosen field. Preserves the current
     // sort order within each group.
-    if (groupBy !== "none") {
+    // Grouping by due date or creation date needs the viewer's day, so it
+    // waits for `today`. Until then the project's own sections stand — one
+    // frame ungrouped, rather than a whole evening of headings computed from
+    // the server's UTC day. (In practice grouping is only ever switched on
+    // after mount, so this is a guard, not a visible state.)
+    if (groupBy !== "none" && today) {
       const all = sections.flatMap((s) => s.tasks);
       const groups = new Map<
         string,
         { label: string; order: number; tasks: typeof all }
       >();
       for (const t of all) {
-        const g = groupOf(t, groupBy);
+        const g = groupOf(t, groupBy, today);
         const existing = groups.get(g.key);
         if (existing) existing.tasks.push(t);
         else groups.set(g.key, { label: g.label, order: g.order, tasks: [t] });
@@ -668,7 +695,7 @@ export function ProjectContent({
     }
 
     return sections;
-  }, [project.sections, searchQuery, activeFilters, sortBy, sortDirection, showCompleted, groupBy, session?.user?.email]);
+  }, [project.sections, searchQuery, activeFilters, sortBy, sortDirection, showCompleted, groupBy, today, session?.user?.email]);
 
   const handleViewChange = (view: string) => {
     router.push(`/projects/${project.id}?view=${view}`);

@@ -93,6 +93,7 @@ import {
   dueDateToLocalMidnight,
   toDateOnlyISO,
 } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -310,6 +311,14 @@ export function TaskDetailPanel({
   // ── Data state ────────────────────────────────────────────────
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // The viewer's own calendar day — the only day the due-date label and the
+  // overdue strip may be measured against. Reading the clock while rendering
+  // would take the SERVER's day, which runs in UTC and is already tomorrow
+  // from 20:00 in Miami. It is also `null` until mount, and it re-arms at
+  // local midnight, so a panel left open overnight rolls its "2 days past
+  // due" forward instead of freezing on yesterday's count.
+  const today = useToday();
 
   // ── Inline-edit state for name / description ──────────────────
   const [name, setName] = useState("");
@@ -1085,7 +1094,17 @@ export function TaskDetailPanel({
   // RENDER
   // ─────────────────────────────────────────────────────────────
 
-  const dueDateInfo = formatDueDateLabel(taskDetail?.dueDate || null);
+  const dueDateInfo = formatDueDateLabel(taskDetail?.dueDate || null, today);
+
+  // How many days the task is past due, 0 when it is not. Measured against
+  // `today` — the browser's day — so the strip cannot appear on a task that
+  // is due today just because the server's UTC clock has already rolled over.
+  // No day yet (`today === null`) means no strip: a late strip is recoverable,
+  // a wrong one is not, because React keeps what it hydrated.
+  const overdueDays =
+    today && taskDetail?.dueDate && !taskDetail.completed
+      ? -daysFromToday(taskDetail.dueDate, today)
+      : 0;
 
   return (
     <>
@@ -1291,17 +1310,12 @@ export function TaskDetailPanel({
           {/* Overdue strip — compares by UTC calendar day (date-only.ts)
               so a task due today is never falsely flagged overdue for
               viewers west of UTC. */}
-          {taskDetail?.dueDate &&
-            !taskDetail.completed &&
-            daysFromToday(taskDetail.dueDate) < 0 && (
-              <div className="px-4 py-2 bg-black text-white text-[12px] font-medium flex items-center gap-2 border-b border-black">
-                <Flag className="h-3.5 w-3.5 text-[#c9a84c] flex-shrink-0" />
-                {(() => {
-                  const days = -daysFromToday(taskDetail.dueDate);
-                  return `Overdue · ${days} day${days === 1 ? "" : "s"} past due`;
-                })()}
-              </div>
-            )}
+          {overdueDays > 0 && (
+            <div className="px-4 py-2 bg-black text-white text-[12px] font-medium flex items-center gap-2 border-b border-black">
+              <Flag className="h-3.5 w-3.5 text-[#c9a84c] flex-shrink-0" />
+              {`Overdue · ${overdueDays} day${overdueDays === 1 ? "" : "s"} past due`}
+            </div>
+          )}
 
           {/* Visibility bar — reads Task.isPrivate and lets the user
               switch between project-visible and private-to-collaborators. */}

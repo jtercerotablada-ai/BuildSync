@@ -46,7 +46,8 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, isToday, isTomorrow, isPast } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
+import { useToday } from "@/lib/use-today";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
 import { notifyTaskMutated } from "@/lib/task-events";
 import { toast } from "sonner";
@@ -117,6 +118,23 @@ const PRIORITY_CONFIG: Record<string, { chip: string; label: string }> = {
 // MAIN BOARD VIEW
 // ============================================
 
+/** Whole calendar days from `today` to a task date, or null while today is
+ *  still unknown (the first client frame).
+ *
+ *  The card badges used to call isPast/isToday/isTomorrow, which read the
+ *  clock during render — on the server that clock is UTC, so from 20:00
+ *  Miami a card due today was painted red and labelled "Tomorrow", and
+ *  React does not repair a className on hydration.
+ *
+ *  Named `daysFrom`, not `daysFromToday`, on purpose: date-only exports a
+ *  `daysFromToday(value, today)` whose arguments are the other way round,
+ *  and passing this file's order to that one type-checks and silently
+ *  returns the NEGATED count — every overdue tone inverted. Same name and
+ *  order as the Gantt's helper. */
+function daysFrom(today: Date | null, date: Date): number | null {
+  return today ? differenceInCalendarDays(date, today) : null;
+}
+
 export function BoardView({
   sections,
   onTaskClick,
@@ -126,6 +144,9 @@ export function BoardView({
   rawSectionCounts,
 }: BoardViewProps) {
   const router = useRouter();
+  // Local midnight, null until mounted — the mobile cards' overdue tone and
+  // relative labels are measured from it.
+  const today = useToday();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [addingTaskInSection, setAddingTaskInSection] = useState<string | null>(null);
   // Drafts are kept per section rather than in one shared string, so
@@ -400,13 +421,14 @@ export function BoardView({
   // Mobile helpers — dueDates are UTC-midnight, so read them by UTC
   // calendar day; local parsing would render/flag them a day early.
   const isMobileOverdue = (dueDate: string) => {
-    const date = dueDateToLocalMidnight(dueDate);
-    return isPast(date) && !isToday(date);
+    const days = daysFrom(today, dueDateToLocalMidnight(dueDate));
+    return days !== null && days < 0;
   };
   const formatMobileDate = (dueDate: string) => {
     const date = dueDateToLocalMidnight(dueDate);
-    if (isToday(date)) return "Today";
-    if (isTomorrow(date)) return "Tomorrow";
+    const days = daysFrom(today, date);
+    if (days === 0) return "Today";
+    if (days === 1) return "Tomorrow";
     return format(date, "MMM d");
   };
 
@@ -1150,14 +1172,18 @@ function DueDateBadge({
   dueDate: string;
   completed: boolean;
 }) {
+  const today = useToday();
   const date = dueDateToLocalMidnight(dueDate);
-  const overdue = !completed && isPast(date) && !isToday(date);
-  const today = isToday(date);
-  const tomorrow = isTomorrow(date);
+  const days = daysFrom(today, date);
+  const overdue = !completed && days !== null && days < 0;
+  const dueToday = days === 0;
+  const dueTomorrow = days === 1;
 
+  // Plain date until today is known — never a relative word guessed from
+  // the server's clock.
   let label = format(date, "MMM d");
-  if (today) label = "Today";
-  if (tomorrow) label = "Tomorrow";
+  if (dueToday) label = "Today";
+  if (dueTomorrow) label = "Tomorrow";
 
   return (
     <span
@@ -1168,7 +1194,7 @@ function DueDateBadge({
           ? "text-slate-400"
           : overdue
             ? "text-[#B4304C]"
-            : today
+            : dueToday
               ? "text-[#14865E]"
               : "text-slate-500"
       )}

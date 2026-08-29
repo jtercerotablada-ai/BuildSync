@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { dueDateToLocalMidnight, daysFromToday } from '@/lib/date-only';
+import { useToday } from '@/lib/use-today';
 
 interface AssignedTask {
   id: string;
@@ -43,8 +44,21 @@ function getInitials(name: string | null): string {
 
 // Due dates arrive as UTC-midnight timestamps; bucket and label by the
 // UTC calendar day via date-only helpers, never local getters.
-function formatDueDate(date: string): string {
-  const days = daysFromToday(date);
+//
+// `today` is local midnight of the viewer's day, from useToday(), and is
+// `null` until the widget has mounted. It has to be passed in rather than
+// read here: the server render runs in UTC, so from 20:00 in Miami these
+// helpers answered for TOMORROW, and React does not repair a text or
+// className mismatch when it hydrates — a task due today read "Tomorrow",
+// in the calm gray, for the whole evening.
+function formatDueDate(date: string, today: Date | null): string {
+  // No day yet: show the absolute date rather than guess a relative one.
+  if (!today)
+    return dueDateToLocalMidnight(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  const days = daysFromToday(date, today);
   if (days === 0) return 'Today';
   if (days === 1) return 'Tomorrow';
   if (days === -1) return 'Yesterday';
@@ -54,14 +68,14 @@ function formatDueDate(date: string): string {
   });
 }
 
-function isOverdue(dueDate: string | null): boolean {
-  if (!dueDate) return false;
-  return daysFromToday(dueDate) < 0;
+function isOverdue(dueDate: string | null, today: Date | null): boolean {
+  if (!dueDate || !today) return false;
+  return daysFromToday(dueDate, today) < 0;
 }
 
-function isThisWeek(dueDate: string | null): boolean {
-  if (!dueDate) return false;
-  const days = daysFromToday(dueDate);
+function isThisWeek(dueDate: string | null, today: Date | null): boolean {
+  if (!dueDate || !today) return false;
+  const days = daysFromToday(dueDate, today);
   return days >= 0 && days <= 7;
 }
 
@@ -71,6 +85,10 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
   const [allTasks, setAllTasks] = useState<AssignedTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The viewer's own calendar day. Also re-arms at local midnight, so the
+  // dashboard someone leaves open overnight moves work into Overdue instead
+  // of holding yesterday's split until the next refetch.
+  const today = useToday();
   // Concurrent fetchTasks calls (mount + task-created event + retry)
   // can resolve out of order; tag each with an incrementing id and
   // ignore any response that isn't the latest request.
@@ -160,16 +178,19 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
     }
   };
 
-  // Pre-bucket so we can label tabs with counts in one pass.
-  const thisWeekTasks = allTasks.filter(
-    (t) => !t.completed && !isOverdue(t.dueDate) && isThisWeek(t.dueDate)
+  // Pre-bucket so we can label tabs with counts in one pass. Every active
+  // bucket is decided by `today`, so until useToday() reports the browser's
+  // own day they stay empty rather than be split in UTC — the list is still
+  // loading at that point, and a task filed under the wrong tab would stay
+  // there, since React does not repair what it hydrates.
+  const activeTasks = today ? allTasks.filter((t) => !t.completed) : [];
+  const thisWeekTasks = activeTasks.filter(
+    (t) => !isOverdue(t.dueDate, today) && isThisWeek(t.dueDate, today)
   );
-  const upcomingTasks = allTasks.filter(
-    (t) => !t.completed && !isOverdue(t.dueDate) && !isThisWeek(t.dueDate)
+  const upcomingTasks = activeTasks.filter(
+    (t) => !isOverdue(t.dueDate, today) && !isThisWeek(t.dueDate, today)
   );
-  const overdueTasks = allTasks.filter(
-    (t) => !t.completed && isOverdue(t.dueDate)
-  );
+  const overdueTasks = activeTasks.filter((t) => isOverdue(t.dueDate, today));
   const completedTasks = allTasks.filter((t) => t.completed);
 
   const filteredTasks =
@@ -343,12 +364,12 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
                   <span
                     className={cn(
                       'text-xs flex-shrink-0 mt-0.5',
-                      isOverdue(task.dueDate) && !task.completed
+                      isOverdue(task.dueDate, today) && !task.completed
                         ? 'text-black'
                         : 'text-gray-400'
                     )}
                   >
-                    {formatDueDate(task.dueDate)}
+                    {formatDueDate(task.dueDate, today)}
                   </span>
                 )}
               </div>

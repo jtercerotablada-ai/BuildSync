@@ -8,6 +8,7 @@ import { getTemplateById } from "@/lib/templates-data";
 import { readJson, jsonErrorResponse } from "@/lib/http";
 import { legacyGateFor, stagesForType } from "@/lib/pipelines";
 import { INITIALLY_HIDDEN_VIEWS } from "@/lib/project-views";
+import { templateTaskDates } from "@/lib/template-schedule";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -52,6 +53,10 @@ const createProjectSchema = z.object({
         // set as the task's due date — lets a template ship a starting
         // schedule anchored on "today" that the engineer then adjusts.
         relativeDueDate: z.number().int().optional(),
+        // The mirror offset, to the task's START date. Without it every
+        // template task lands as a one-day bar and a 40-year recertification
+        // opens as ~35 of them for the engineer to stretch by hand.
+        relativeStartDate: z.number().int().optional(),
         // Names of other tasks in this payload that must finish before this
         // one — materialized as finish-to-start TaskDependencies after all
         // tasks are created. Unmatched names are skipped defensively.
@@ -568,14 +573,16 @@ export async function POST(req: Request) {
             if (!section) continue;
             const parentPosition = positionBySection.get(section.id) ?? 0;
             positionBySection.set(section.id, parentPosition + 1);
-            // Anchor the task's due date on the project start (today unless
-            // the caller passed a start date) + the template's relative
-            // offset in days, so the project opens with a real schedule.
-            let dueDate: Date | null = null;
-            if (typeof t.relativeDueDate === "number") {
-              dueDate = new Date(created.startDate ?? new Date());
-              dueDate.setDate(dueDate.getDate() + t.relativeDueDate);
-            }
+            // Anchor the task's start and due dates on the project start
+            // (today unless the caller passed a start date) + the template's
+            // relative offsets in days, so the project opens with a real
+            // schedule of real durations — see templateTaskDates(), which
+            // also clamps a start the template put after its own due date.
+            const { startDate: taskStartDate, dueDate } = templateTaskDates(
+              new Date(created.startDate ?? new Date()),
+              t.relativeStartDate,
+              t.relativeDueDate
+            );
             const parent = await tx.task.create({
               data: {
                 name: t.name,
@@ -586,6 +593,7 @@ export async function POST(req: Request) {
                 taskType: t.type ?? "TASK",
                 description: t.description || null,
                 priority: t.priority ?? "NONE",
+                startDate: taskStartDate,
                 dueDate,
               },
               select: { id: true },
@@ -648,11 +656,23 @@ export async function POST(req: Request) {
             const section = created.sections[templateTask.sectionIndex];
             if (!section) continue;
 
-            let dueDate: Date | null = null;
-            if (templateTask.relativeDueDate !== undefined) {
-              dueDate = new Date(projectStartDate);
-              dueDate.setDate(dueDate.getDate() + templateTask.relativeDueDate);
-            }
+            // The SECOND copy of this write — the built-in templates land
+            // here, the custom/payload ones above. Both go through the same
+            // helper on purpose: fixing one copy of a duplicated write and
+            // shipping a no-op is a mistake this file has made before.
+            // Read optionally: templates-data.ts's TemplateTask (the legacy
+            // generic family this path serves) has no relativeStartDate field
+            // yet, so this path behaves exactly as before until one of those
+            // definitions grows a start offset — at which point the duration
+            // shows up with no further change here.
+            const relativeStartDate = (
+              templateTask as { relativeStartDate?: number }
+            ).relativeStartDate;
+            const { startDate: taskStartDate, dueDate } = templateTaskDates(
+              projectStartDate,
+              relativeStartDate,
+              templateTask.relativeDueDate
+            );
 
             const createdTask = await tx.task.create({
               data: {
@@ -663,6 +683,7 @@ export async function POST(req: Request) {
                 creatorId: userId,
                 priority: templateTask.priority || "NONE",
                 taskType: templateTask.taskType || "TASK",
+                startDate: taskStartDate,
                 dueDate,
                 position: 0,
               },

@@ -37,6 +37,7 @@ import {
   startOfQuarter,
   format,
   differenceInDays,
+  differenceInCalendarDays,
   isSameDay,
   startOfDay,
   eachDayOfInterval,
@@ -44,7 +45,16 @@ import {
   eachMonthOfInterval,
   isWeekend,
 } from "date-fns";
-import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
+// The SAME span/overdue/drag rules the Timeline draws with. This view is a
+// fork of it, and every rule it kept its own copy of drifted: a start-only
+// task was drawn there and invisible here.
+import {
+  dragCommitBody,
+  isTaskOverdue,
+  taskSpan,
+} from "@/lib/task-span";
+import { useToday } from "@/lib/use-today";
 import { sectionBarStyle } from "@/lib/section-bar-colors";
 import { notifyTaskMutated } from "@/lib/task-events";
 
@@ -251,10 +261,31 @@ function dependencyElbowPath(
 // DUE-DATE RANGE TEXT ("Jul 15 – 20", "Jul 7 – Today", "Jul 21", "—")
 // ============================================
 
-function dueRangeText(task: Task): string {
-  if (!task.dueDate) return "—";
+/** Whole calendar days from `today` to a due date (negative = overdue).
+ *  Takes today as an argument instead of calling date-only's
+ *  `daysFromToday()`: that reads the clock, and on the server the local day
+ *  IS the UTC day — from 20:00 Miami every due colour was computed against
+ *  tomorrow, and React does not repair a style mismatch on hydration. */
+export function daysFrom(today: Date, value: string | Date): number {
+  return differenceInCalendarDays(dueDateToLocalMidnight(value), today);
+}
+
+/** `today` is null until mounted; with no today there is no "Today" to say,
+ *  so the range falls back to the plain date rather than guessing. */
+export function dueRangeText(
+  task: { startDate?: string | null; dueDate: string | null },
+  today: Date | null
+): string {
+  // A start-only task ("the survey starts the 14th, we do not know yet
+  // when it closes") has a date; printing an em dash for it said "no date"
+  // about the one field it does carry.
+  if (!task.dueDate) {
+    return task.startDate
+      ? `Starts ${format(dueDateToLocalMidnight(task.startDate), "MMM d")}`
+      : "—";
+  }
   const due = dueDateToLocalMidnight(task.dueDate);
-  const dueIsToday = isSameDay(due, new Date());
+  const dueIsToday = today !== null && isSameDay(due, today);
   const dueAlone = dueIsToday ? "Today" : format(due, "MMM d");
   if (!task.startDate) return dueAlone;
   const start = dueDateToLocalMidnight(task.startDate);
@@ -283,11 +314,26 @@ export function GanttView({
 }: GanttViewProps) {
   const router = useRouter();
 
+  // Local midnight, null until mounted. Every today-derived mark on this
+  // chart — the blue line, the header dot, the bold day column, the due
+  // colours — hangs off this so none of them can be painted from the
+  // server's UTC clock, which after 20:00 Miami is already tomorrow.
+  const today = useToday();
+
   // ---------- State ----------
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     new Set()
   );
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // The day the window is anchored on once the user has paged away from the
+  // live today. NOT seeded with `new Date()`: a state initializer runs during
+  // RENDER, and the server renders in UTC — on a Sunday evening in Miami the
+  // server's clock already says Monday, so it anchored the whole grid a week
+  // ahead (a quarter ahead at Month zoom, on the last evening of a quarter),
+  // and React does not repair the column labels or the bars' inline
+  // left/width when it hydrates. `null` means "wherever today is", which the
+  // browser supplies through `today`.
+  const [pinnedDate, setPinnedDate] = useState<Date | null>(null);
+  const currentDate = pinnedDate ?? today;
   // Asana's Gantt defaults to Months.
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("month");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -321,7 +367,9 @@ export function GanttView({
     handle: "left" | "right" | "move";
     startX: number;
     originalStart: string | null;
-    originalDue: string;
+    // Nullable: a start-only task is a real bar now, and its right handle
+    // is how the engineer finally commits an end date.
+    originalDue: string | null;
     deltaX: number;
   } | null>(null);
   // Set on a real drag (delta != 0) so the trailing click doesn't
@@ -760,10 +808,16 @@ export function GanttView({
 
   // ---------- Columns ----------
   const columns = useMemo(() => {
-    const anchorStart =
+    // Snap a day to the unit the current zoom draws in — the same rule for
+    // the anchor and for the earliest task, so the grid always starts on a
+    // column boundary.
+    const snapToUnit = (d: Date) =>
       zoomLevel === "day" || zoomLevel === "week"
-        ? startOfWeek(currentDate, { weekStartsOn: 1 })
-        : startOfQuarter(currentDate);
+        ? startOfWeek(d, { weekStartsOn: 1 })
+        : startOfQuarter(d);
+
+    // Null until the browser says which day it is; see `currentDate`.
+    const anchorStart = currentDate ? snapToUnit(currentDate) : null;
 
     // Extend the window to cover EVERY dated task (MS Project / Asana
     // behavior — same fix as the Timeline): the default range is a
@@ -775,21 +829,24 @@ export function GanttView({
     let maxTask: Date | null = null;
     for (const s of sections) {
       for (const t of s.tasks) {
-        if (!t.dueDate) continue;
-        const due = dueDateToLocalMidnight(t.dueDate);
-        let st = t.startDate ? dueDateToLocalMidnight(t.startDate) : due;
-        if (st > due) st = due;
-        if (!minTask || st < minTask) minTask = st;
-        if (!maxTask || due > maxTask) maxTask = due;
+        // taskSpan, not `t.dueDate` — a start-only task must widen the grid
+        // it is about to be drawn on, or it falls outside the window.
+        const span = taskSpan(t);
+        if (!span) continue;
+        if (!minTask || span.start < minTask) minTask = span.start;
+        if (!maxTask || span.end > maxTask) maxTask = span.end;
       }
     }
-    let startDate = anchorStart;
-    if (minTask && minTask < startDate) {
-      startDate =
-        zoomLevel === "day" || zoomLevel === "week"
-          ? startOfWeek(minTask, { weekStartsOn: 1 })
-          : startOfQuarter(minTask);
-    }
+    // With no today yet, anchor on the earliest dated task instead: the
+    // server and the browser derive that from the SAME sections, so the grid
+    // they paint is the same one and hydration has nothing to repair. In the
+    // usual case — a plan with work already behind it — this IS the start
+    // date either way, because the window always grows left to minTask.
+    let startDate = anchorStart ?? (minTask ? snapToUnit(minTask) : null);
+    // No anchor and no dated task: draw no grid for this frame rather than
+    // one built on the server's day. The next frame has today.
+    if (!startDate) return [];
+    if (minTask && minTask < startDate) startDate = snapToUnit(minTask);
     let count = config.range;
     if (maxTask && maxTask > startDate) {
       const days = differenceInDays(maxTask, startDate);
@@ -817,11 +874,12 @@ export function GanttView({
         date,
         label,
         isWeekend: zoomLevel === "day" && isWeekend(date),
-        isToday: zoomLevel === "day" && isSameDay(date, new Date()),
+        isToday:
+          zoomLevel === "day" && today !== null && isSameDay(date, today),
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, zoomLevel, sections]);
+  }, [currentDate, zoomLevel, sections, today]);
 
   // ---------- Top header groups (months / quarters / years) ----------
   const headerGroups = useMemo(() => {
@@ -893,9 +951,14 @@ export function GanttView({
   // the user's scroll position. Mirrors the Timeline's effect.
   const chartScrollRef = useRef<HTMLDivElement>(null);
   const lastScrollKeyRef = useRef("");
+  // "Today" pressed while already parked on today produced the SAME key —
+  // same zoom, same start-of-day — so the effect early-returned and the
+  // button did nothing once the user had scrolled away. The nonce makes
+  // every press its own key; it is deliberately not derived from the date.
+  const [recenterNonce, setRecenterNonce] = useState(0);
   useEffect(() => {
-    if (!bounds) return;
-    const key = `${zoomLevel}|${startOfDay(currentDate).getTime()}`;
+    if (!bounds || !currentDate) return;
+    const key = `${zoomLevel}|${startOfDay(currentDate).getTime()}|${recenterNonce}`;
     if (lastScrollKeyRef.current === key) return;
     lastScrollKeyRef.current = key;
     const el = chartScrollRef.current;
@@ -909,7 +972,7 @@ export function GanttView({
         bounds.totalDays) *
       bounds.totalWidth;
     el.scrollLeft = Math.max(0, px);
-  }, [zoomLevel, currentDate, bounds]);
+  }, [zoomLevel, currentDate, bounds, recenterNonce]);
 
   // Header-group pixel widths — sum of member column widths so group
   // borders stay aligned with the proportional columns.
@@ -969,18 +1032,15 @@ export function GanttView({
   // ---------- Task bar position ----------
   const getTaskPosition = useCallback(
     (task: Task) => {
-      if (!task.dueDate || !bounds) return null;
+      const span = taskSpan(task);
+      if (!span || !bounds) return null;
 
-      // dueDate/startDate are UTC-midnight instants; read them by their
-      // UTC calendar day (dueDateToLocalMidnight) so bars don't render a
-      // day early for viewers west of UTC.
-      const taskEnd = dueDateToLocalMidnight(task.dueDate);
-      // No startDate → a 1-day bar sitting on the due date.
-      let taskStart = task.startDate
-        ? dueDateToLocalMidnight(task.startDate)
-        : taskEnd;
-      // Defend against inverted ranges persisted before the drag clamps.
-      if (taskStart > taskEnd) taskStart = taskEnd;
+      // The span reads both dates by their UTC calendar day so bars don't
+      // render a day early for viewers west of UTC, sits a due-only task on
+      // its due date, and gives a START-ONLY task a one-day span on its
+      // start — the bar itself then fades its right edge.
+      const taskStart = span.start;
+      const taskEnd = span.end;
 
       // timelineEnd is exclusive — a task starting exactly there is outside.
       if (taskEnd < bounds.timelineStart || taskStart >= bounds.timelineEnd) {
@@ -1069,12 +1129,13 @@ export function GanttView({
 
   // ---------- Today line ----------
   const todayPosition = useMemo(() => {
-    if (!bounds) return null;
-    const today = startOfDay(new Date());
+    // No today yet (first frame) → no line and no header dot, rather than a
+    // line drawn on the server's day.
+    if (!bounds || !today) return null;
     if (today < bounds.timelineStart || today > bounds.timelineEnd) return null;
     const daysFromStart = differenceInDays(today, bounds.timelineStart);
     return (daysFromStart / bounds.totalDays) * bounds.totalWidth;
-  }, [bounds]);
+  }, [bounds, today]);
 
   // ---------- Drag move / resize (UTC-midnight-safe save) ----------
   const pixelsToDays = useCallback(
@@ -1103,7 +1164,9 @@ export function GanttView({
       // `touch-none`, and cancelling there risks the tap that opens the task.
       if (e.pointerType !== "touch") e.preventDefault();
       e.stopPropagation();
-      if (!task.dueDate) return;
+      // A task with a start and no due date is drawn on this chart now, so
+      // it may be dragged; one with neither date is not drawn at all.
+      if (!task.dueDate && !task.startDate) return;
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       didDragRef.current = false;
       setDragState({
@@ -1128,17 +1191,26 @@ export function GanttView({
       // clamps — otherwise the ghost slides past the opposite edge and
       // visibly jumps back on release.
       if (dragState.handle !== "move") {
-        const s = dueDateToLocalMidnight(
-          dragState.originalStart ?? dragState.originalDue
-        );
-        const d = dueDateToLocalMidnight(dragState.originalDue);
-        const durationDays = Math.round(
-          (d.getTime() - s.getTime()) / 86400000
-        );
-        if (dragState.handle === "left") {
-          snappedDays = Math.min(snappedDays, durationDays);
-        } else {
-          snappedDays = Math.max(snappedDays, -durationDays);
+        const span = taskSpan({
+          startDate: dragState.originalStart,
+          dueDate: dragState.originalDue,
+        });
+        if (span) {
+          const durationDays = Math.round(
+            (span.end.getTime() - span.start.getTime()) / 86400000
+          );
+          if (dragState.handle === "left") {
+            // A start-only bar has no due day to bump into, so its left
+            // handle is free in both directions. Clamping it to the zero
+            // duration of its one-day span froze the PREVIEW at the grab
+            // point while `dragCommitBody` — which has no such clamp when
+            // there is no due date — still wrote the dragged day on release:
+            // the bar did not move, then jumped on mouse-up. Same exemption
+            // the Timeline makes; both charts commit through the same lib.
+            if (!span.open) snappedDays = Math.min(snappedDays, durationDays);
+          } else {
+            snappedDays = Math.max(snappedDays, -durationDays);
+          }
         }
       }
       const snappedPx = snappedDays * bounds.dayWidth;
@@ -1154,36 +1226,18 @@ export function GanttView({
       }
       didDragRef.current = true;
 
-      // Read the originals by their UTC calendar day (they're UTC-midnight
-      // instants). Round-tripping through parseISO+local format shifts every
-      // saved date one day earlier for users west of UTC.
-      const origDue = dueDateToLocalMidnight(dragState.originalDue);
-      const impliedStart = dragState.originalStart
-        ? dueDateToLocalMidnight(dragState.originalStart)
-        : origDue; // 1-day bar convention in this view
-
-      const body: Record<string, string | null> = {};
-      if (dragState.handle === "left") {
-        let newStart = addDays(impliedStart, deltaDays);
-        if (newStart > origDue) newStart = origDue;
-        body.startDate = format(newStart, "yyyy-MM-dd");
-      } else if (dragState.handle === "right") {
-        let newDue = addDays(origDue, deltaDays);
-        if (newDue < impliedStart) newDue = impliedStart;
-        body.dueDate = format(newDue, "yyyy-MM-dd");
-        // Pin the left edge for tasks without a persisted startDate,
-        // otherwise the 1-day bar just translates instead of growing.
-        if (!dragState.originalStart) {
-          body.startDate = format(impliedStart, "yyyy-MM-dd");
-        }
-      } else {
-        // "move" — shift BOTH dates by the same delta (duration preserved).
-        const newDue = addDays(origDue, deltaDays);
-        body.dueDate = format(newDue, "yyyy-MM-dd");
-        if (dragState.originalStart) {
-          body.startDate = format(addDays(impliedStart, deltaDays), "yyyy-MM-dd");
-        }
-      }
+      // The Timeline's rules, not a second copy of them: the originals are
+      // read by their UTC calendar day (round-tripping through parseISO +
+      // local format shifted every saved date one day earlier west of UTC),
+      // the handles clamp instead of inverting the range, a body move never
+      // invents a due date, and the right handle is what commits one on a
+      // start-only task.
+      const body = dragCommitBody(
+        dragState.originalStart,
+        dragState.originalDue,
+        dragState.handle,
+        deltaDays
+      );
 
       // Optimistic: pin the bar at its dropped position IMMEDIATELY, then
       // persist in the background — it must never snap back mid round-trip.
@@ -1301,15 +1355,23 @@ export function GanttView({
   // ---------- Navigation & zoom ----------
   const navigate = (direction: "prev" | "next" | "today") => {
     if (direction === "today") {
-      setCurrentDate(new Date());
+      // Un-pin rather than pin the clock: the window goes back to following
+      // `today`, so a chart left open overnight follows it over midnight too.
+      setPinnedDate(null);
+      setRecenterNonce((n) => n + 1);
       return;
     }
     const amount = direction === "prev" ? -1 : 1;
-    if (zoomLevel === "day") setCurrentDate((d) => addWeeks(d, amount * 2));
-    else if (zoomLevel === "week") setCurrentDate((d) => addMonths(d, amount));
+    // Page from wherever the window sits. Reading the clock here is safe —
+    // an event handler only ever runs in the browser.
+    const from = (d: Date | null) => d ?? today ?? new Date();
+    if (zoomLevel === "day")
+      setPinnedDate((d) => addWeeks(from(d), amount * 2));
+    else if (zoomLevel === "week")
+      setPinnedDate((d) => addMonths(from(d), amount));
     else if (zoomLevel === "month")
-      setCurrentDate((d) => addMonths(d, amount * 3));
-    else setCurrentDate((d) => addMonths(d, amount * 6));
+      setPinnedDate((d) => addMonths(from(d), amount * 3));
+    else setPinnedDate((d) => addMonths(from(d), amount * 6));
   };
 
   const zoomIndex = ZOOM_ORDER.indexOf(zoomLevel);
@@ -1332,10 +1394,10 @@ export function GanttView({
 
   // ---------- Helpers ----------
   const isTaskDueSoon = (task: Task) => {
-    if (!task.dueDate || task.completed) return false;
-    // daysFromToday rounds whole calendar days (differenceInDays against
-    // wall-clock `new Date()` truncates and flags 8-days-out as due soon).
-    const days = daysFromToday(task.dueDate);
+    if (!task.dueDate || task.completed || !today) return false;
+    // Whole calendar days, not a wall-clock difference (differenceInDays
+    // truncates and flagged 8-days-out as due soon).
+    const days = daysFrom(today, task.dueDate);
     return days >= 0 && days <= 7;
   };
 
@@ -1738,16 +1800,16 @@ export function GanttView({
                                     className="w-full px-2 py-1 text-xs text-slate-600 truncate cursor-pointer hover:bg-slate-100 rounded"
                                     style={{
                                       color:
-                                        !task.dueDate || task.completed
+                                        !task.dueDate || task.completed || !today
                                           ? undefined
-                                          : daysFromToday(task.dueDate) < 0
+                                          : daysFrom(today, task.dueDate) < 0
                                             ? DATE_OVERDUE
-                                            : daysFromToday(task.dueDate) === 0
+                                            : daysFrom(today, task.dueDate) === 0
                                               ? DATE_TODAY
                                               : undefined,
                                     }}
                                   >
-                                    {dueRangeText(task)}
+                                    {dueRangeText(task, today)}
                                   </div>
                                 }
                               />
@@ -2187,14 +2249,10 @@ export function GanttView({
                         let min: Date | null = null;
                         let max: Date | null = null;
                         for (const t of section.tasks) {
-                          if (!t.dueDate) continue;
-                          const end = dueDateToLocalMidnight(t.dueDate);
-                          let s = t.startDate
-                            ? dueDateToLocalMidnight(t.startDate)
-                            : end;
-                          if (s > end) s = end;
-                          if (!min || s < min) min = s;
-                          if (!max || end > max) max = end;
+                          const span = taskSpan(t);
+                          if (!span) continue;
+                          if (!min || span.start < min) min = span.start;
+                          if (!max || span.end > max) max = span.end;
                         }
                         if (!min || !max) return null;
                         const pos = getSpanPosition(min, max);
@@ -2232,11 +2290,26 @@ export function GanttView({
                           const isMilestone = task.taskType === "MILESTONE";
                           const isApproval = task.taskType === "APPROVAL";
                           const dueSoon = isTaskDueSoon(task);
+                          // LATE. Not behind the due-soon Options toggle:
+                          // "what slipped" is the question a recert chart
+                          // exists to answer, and an overdue bar used to be
+                          // the same blue as one due next month.
+                          const overdue = isTaskOverdue(task, today);
                           // Bars take their section's hue; done goes gray.
                           const barColor = task.completed
                             ? BAR_FILL_COMPLETED
                             : sectionFill;
                           const isDueOnly = !task.startDate;
+                          // Started, no end committed. One day wide with a
+                          // right edge that dissolves instead of ending, so
+                          // it does not read as a one-day task.
+                          const isOpenEnded = !task.dueDate && !!task.startDate;
+                          // Same channels the Timeline paints late in:
+                          // border + background-image, which the hover /
+                          // selected / due-soon RINGS do not use, so nothing
+                          // fights for the same box-shadow.
+                          const overdueHatch = `repeating-linear-gradient(45deg, ${DATE_OVERDUE}47 0 5px, transparent 5px 11px)`;
+                          const openEdgeFill = `linear-gradient(to right, ${barColor} 0%, ${barColor} 40%, ${barColor}00 100%)`;
 
                           const isResizing =
                             dragState !== null && dragState.taskId === task.id;
@@ -2250,7 +2323,12 @@ export function GanttView({
                           const renderWidth =
                             position && isResizing
                               ? dragState.handle === "left"
-                                ? position.width - dragState.deltaX
+                                ? isOpenEnded
+                                  ? // No due day to shrink toward — the
+                                    // commit translates the bar, so the
+                                    // preview must translate too.
+                                    position.width
+                                  : position.width - dragState.deltaX
                                 : dragState.handle === "right"
                                   ? position.width + dragState.deltaX
                                   : position.width
@@ -2304,8 +2382,8 @@ export function GanttView({
                                   >
                                     <Diamond
                                       className="w-6 h-6"
-                                      fill={barColor}
-                                      color={barColor}
+                                      fill={overdue ? DATE_OVERDUE : barColor}
+                                      color={overdue ? DATE_OVERDUE : barColor}
                                     />
                                   </div>
                                 ) : isApproval ? (
@@ -2326,8 +2404,8 @@ export function GanttView({
                                   >
                                     <ThumbsUp
                                       className="w-6 h-6"
-                                      fill={barColor}
-                                      color={barColor}
+                                      fill={overdue ? DATE_OVERDUE : barColor}
+                                      color={overdue ? DATE_OVERDUE : barColor}
                                     />
                                   </div>
                                 ) : (
@@ -2339,7 +2417,12 @@ export function GanttView({
                                       // and steal mousedown/click wherever an
                                       // arrow crosses it, making drags feel
                                       // stuck.
-                                      "absolute rounded cursor-grab active:cursor-grabbing touch-none group/bar z-10",
+                                      "absolute cursor-grab active:cursor-grabbing touch-none group/bar z-10",
+                                      // A rounded right cap reads as a
+                                      // finished end; an open bar has none.
+                                      isOpenEnded
+                                        ? "rounded-l rounded-r-none"
+                                        : "rounded",
                                       "hover:ring-2 hover:ring-[#335FB5]/50",
                                       "transition-shadow",
                                       selectedTaskId === task.id &&
@@ -2355,9 +2438,22 @@ export function GanttView({
                                       width: barWidth,
                                       top: (ROW_HEIGHT - BAR_HEIGHT) / 2,
                                       height: BAR_HEIGHT,
-                                      backgroundColor: barColor,
+                                      // An open-ended bar paints only the
+                                      // gradient, so its right edge really
+                                      // does reach zero.
+                                      backgroundColor: isOpenEnded
+                                        ? "transparent"
+                                        : barColor,
+                                      backgroundImage: isOpenEnded
+                                        ? openEdgeFill
+                                        : overdue
+                                          ? overdueHatch
+                                          : undefined,
+                                      border: overdue
+                                        ? `2px solid ${DATE_OVERDUE}`
+                                        : undefined,
                                     }}
-                                    title={`${task.name} · ${dueRangeText(task)}`}
+                                    title={`${task.name} · ${dueRangeText(task, today)}`}
                                     onPointerDown={(e) =>
                                       handleDragStart(e, task.id, "move", task)
                                     }

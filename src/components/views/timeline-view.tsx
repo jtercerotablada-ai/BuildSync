@@ -43,9 +43,18 @@ import {
   eachMonthOfInterval,
   isWeekend,
 } from "date-fns";
-import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
 import { sectionBarStyle } from "@/lib/section-bar-colors";
 import { notifyTaskMutated } from "@/lib/task-events";
+import { useToday } from "@/lib/use-today";
+// The span/overdue/drag rules live in a lib so the Gantt — the other
+// chart in this switcher — reads the SAME ones. Two copies is how a
+// start-only task ended up drawn here and invisible there.
+import {
+  dragCommitBody,
+  daysUntilDue,
+  isTaskOverdue,
+  taskSpan,
+} from "@/lib/task-span";
 
 // ============================================
 // TYPES
@@ -99,6 +108,9 @@ type ZoomLevel = "day" | "week" | "month";
 const COMPLETED_STYLE = { bg: "#C9CDD4", text: "#2B2B2B" };
 const TODAY_BLUE = "#335FB5"; // 2px today stripe + axis dot
 const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
+// Same red the list view paints an overdue date in (list-view.tsx:1510), so
+// "late" reads identically wherever an engineer meets it.
+const OVERDUE_RED = "#B4304C";
 
 // Swimlane geometry — 28px bars on a 40px lane pitch. Slimmer than the
 // first 34px cut: the 6px clearance it left between lanes buried the
@@ -225,9 +237,27 @@ export function TimelineView({
 }: TimelineViewProps) {
   const router = useRouter();
 
+  // Local midnight, null until mounted. Every today-derived mark on this
+  // chart — the header dot, the circled day number, the blue stripe, the
+  // due-soon ring and the overdue accent — reads this and draws NOTHING
+  // while it is null. Computing it during render with `new Date()` meant
+  // the UTC server painted tomorrow from 20:00 Miami onward, and React
+  // leaves a mismatched className exactly as the server sent it.
+  const today = useToday();
+
   // State
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // The day the window is anchored on once the user has paged away from the
+  // live today. NOT seeded with `new Date()`: a state initializer runs during
+  // RENDER, and the server renders in UTC — on a Sunday evening in Miami the
+  // server's clock already says Monday, so it anchored the whole grid a week
+  // ahead (a month ahead at Month zoom, on the last evening of a month), and
+  // React does not repair the column labels or the bars' inline left/width
+  // when it hydrates. `null` means "wherever today is", which the browser
+  // supplies through `today`. Same shape as the Gantt, the other half of this
+  // view switcher.
+  const [pinnedDate, setPinnedDate] = useState<Date | null>(null);
+  const currentDate = pinnedDate ?? today;
   // Asana's Cronograma defaults to day zoom.
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("day");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -273,7 +303,9 @@ export function TimelineView({
     handle: "left" | "right" | "move";
     startX: number;
     originalStart: string | null;
-    originalDue: string;
+    // Nullable: a start-only task can be dragged too, and its right handle
+    // is how the engineer commits the end date it does not have yet.
+    originalDue: string | null;
     deltaX: number;
   } | null>(null);
   // True once a drag actually moved by ≥1 snapped day — used to
@@ -400,10 +432,16 @@ export function TimelineView({
   // ============================================
 
   const columns = useMemo(() => {
-    const anchorStart =
+    // Snap a day to the unit this zoom draws in — the same rule for the
+    // anchor and for the earliest task, so the grid always starts on a
+    // column boundary.
+    const snapToUnit = (d: Date) =>
       zoomLevel === "month"
-        ? startOfMonth(currentDate)
-        : startOfWeek(currentDate, { weekStartsOn: 1 });
+        ? startOfMonth(d)
+        : startOfWeek(d, { weekStartsOn: 1 });
+
+    // Null until the browser says which day it is; see `currentDate`.
+    const anchorStart = currentDate ? snapToUnit(currentDate) : null;
 
     // Extend the window to cover EVERY dated task (MS Project / Asana
     // behavior: the plan is never cut off at an arbitrary horizon). The
@@ -415,21 +453,25 @@ export function TimelineView({
     let maxTask: Date | null = null;
     for (const s of sections) {
       for (const t of s.tasks) {
-        if (!t.dueDate) continue;
-        const due = dueDateToLocalMidnight(t.dueDate);
-        let st = t.startDate ? dueDateToLocalMidnight(t.startDate) : due;
-        if (st > due) st = due;
-        if (!minTask || st < minTask) minTask = st;
-        if (!maxTask || due > maxTask) maxTask = due;
+        // taskSpan, not `if (!t.dueDate) continue` — a start-only task is
+        // drawn on this grid, so it has to be able to WIDEN it. Skipping it
+        // here left it outside the very window it was supposed to appear in.
+        const span = taskSpan(t);
+        if (!span) continue;
+        if (!minTask || span.start < minTask) minTask = span.start;
+        if (!maxTask || span.end > maxTask) maxTask = span.end;
       }
     }
-    let startDate = anchorStart;
-    if (minTask && minTask < startDate) {
-      startDate =
-        zoomLevel === "month"
-          ? startOfMonth(minTask)
-          : startOfWeek(minTask, { weekStartsOn: 1 });
-    }
+    // With no today yet, anchor on the earliest dated task instead: the
+    // server and the browser derive that from the SAME sections, so the grid
+    // they paint is the same one and hydration has nothing to repair. In the
+    // usual case — a plan with work already behind it — this IS the start
+    // date either way, because the window always grows left to minTask.
+    let startDate = anchorStart ?? (minTask ? snapToUnit(minTask) : null);
+    // No anchor and no dated task: draw no grid for this frame rather than
+    // one built on the server's day. The next frame has today.
+    if (!startDate) return [];
+    if (minTask && minTask < startDate) startDate = snapToUnit(minTask);
     let count = config.range;
     if (maxTask && maxTask > startDate) {
       const needed =
@@ -456,11 +498,14 @@ export function TimelineView({
         date,
         label,
         isWeekend: zoomLevel === "day" && isWeekend(date),
-        isToday: zoomLevel === "day" && isSameDay(date, new Date()),
+        isToday: zoomLevel === "day" && today !== null && isSameDay(date, today),
       };
     });
+    // `today` is listed by hand — this memo carries an exhaustive-deps
+    // disable, so nothing else would have caught its omission and the day
+    // number would stay circled on yesterday until some other edit ran.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, zoomLevel, sections]);
+  }, [currentDate, zoomLevel, sections, today]);
 
   // ============================================
   // TOP HEADER GROUPS (months at day/week zoom, quarters at month zoom)
@@ -488,10 +533,17 @@ export function TimelineView({
   // ============================================
 
   const timelineRange = useMemo(() => {
-    const fallback =
-      zoomLevel === "month"
-        ? startOfMonth(currentDate)
-        : startOfWeek(currentDate, { weekStartsOn: 1 });
+    // Only reached when `columns` is empty. Falls back to the anchor, or to
+    // the first column, or — with neither, i.e. no today yet and no dated
+    // task — to the epoch, which is inert: totalWidth is 0, so no bar and no
+    // today stripe is positioned from it. Deliberately not `new Date()`:
+    // that is the render-time clock read this whole file is shedding.
+    const anchor = currentDate ?? columns[0]?.date ?? null;
+    const fallback = anchor
+      ? zoomLevel === "month"
+        ? startOfMonth(anchor)
+        : startOfWeek(anchor, { weekStartsOn: 1 })
+      : new Date(0);
     const start = columns[0]?.date || fallback;
     const lastColumn = columns[columns.length - 1]?.date || fallback;
     const end =
@@ -524,10 +576,21 @@ export function TimelineView({
   // this, the view would open on that history instead of on today. Keyed
   // so ordinary section/task edits (which rebuild timelineRange) never
   // yank the user's scroll position.
+  //
+  // The key alone is not enough for the Today button: pressing it when
+  // currentDate is ALREADY today produced an IDENTICAL key, so the guard
+  // early-returned and the button did nothing at all once the user had
+  // scrolled away (scrollLeft 3876 before the click, 3876 after). This
+  // counter is bumped by an explicit Today press and by nothing else, so
+  // the press always scrolls while ordinary re-renders still don't.
+  const [scrollRequest, setScrollRequest] = useState(0);
   const canvasScrollRef = useRef<HTMLDivElement>(null);
   const lastScrollKeyRef = useRef("");
   useEffect(() => {
-    const key = `${zoomLevel}|${startOfDay(currentDate).getTime()}`;
+    // Wait for the first frame that knows which day to anchor on; the
+    // effect re-runs the moment `today` lands.
+    if (!currentDate) return;
+    const key = `${zoomLevel}|${startOfDay(currentDate).getTime()}|${scrollRequest}`;
     if (lastScrollKeyRef.current === key) return;
     lastScrollKeyRef.current = key;
     const el = canvasScrollRef.current;
@@ -541,7 +604,7 @@ export function TimelineView({
         timelineRange.totalDays) *
       timelineRange.totalWidth;
     el.scrollLeft = Math.max(0, px);
-  }, [zoomLevel, currentDate, timelineRange]);
+  }, [zoomLevel, currentDate, timelineRange, scrollRequest]);
 
   // Header-group pixel widths — sum of member column widths so group
   // borders stay aligned with the proportional columns.
@@ -558,22 +621,21 @@ export function TimelineView({
   // ============================================
   // TASK BAR POSITION
   // ============================================
-  // Bars only for tasks with a dueDate. Missing startDate = 1-day bar
-  // sitting on the due date. dueDate/startDate are UTC-midnight
-  // instants; read them by their UTC calendar day so bars don't render
-  // a day early for viewers west of UTC.
+  // Bars for every task carrying at least one date. Missing startDate =
+  // 1-day bar sitting on the due date; missing dueDate = 1-day bar sitting
+  // on the START date, drawn with an open right edge. dueDate/startDate are
+  // UTC-midnight instants; read them by their UTC calendar day so bars
+  // don't render a day early for viewers west of UTC.
 
   const getTaskPosition = useCallback(
     (task: Task) => {
-      if (!task.dueDate) return null;
+      const span = taskSpan(task);
+      if (!span) return null;
 
       const { start: timelineStart, end: timelineEnd, totalWidth, totalDays } = timelineRange;
 
-      const taskEnd = dueDateToLocalMidnight(task.dueDate);
-      let taskStart = task.startDate
-        ? dueDateToLocalMidnight(task.startDate)
-        : taskEnd;
-      if (taskStart > taskEnd) taskStart = taskEnd;
+      const taskEnd = span.end;
+      const taskStart = span.start;
 
       // timelineEnd is exclusive — a task starting exactly there is outside.
       if (taskEnd < timelineStart || taskStart >= timelineEnd) {
@@ -643,11 +705,13 @@ export function TimelineView({
       // stack vertically. First-fit is safe with any input order — a lane
       // only accepts a task starting after the lane's last extent.
       const dated = section.tasks
-        .filter((t) => t.dueDate)
         .flatMap((t) => {
-          const end = dueDateToLocalMidnight(t.dueDate!);
-          let start = t.startDate ? dueDateToLocalMidnight(t.startDate) : end;
-          if (start > end) start = end;
+          // taskSpan covers the start-only case too, so a task whose end
+          // date is not committed yet still earns a lane instead of
+          // vanishing into the "not shown" popover.
+          const span = taskSpan(t);
+          if (!span) return [];
+          const { start, end } = span;
 
           // Mirror getTaskPosition's cull: an off-window task renders no
           // bar and anchors no arrow, so it must not consume a lane —
@@ -669,6 +733,10 @@ export function TimelineView({
           const isMarker =
             t.taskType === "MILESTONE" || t.taskType === "APPROVAL";
           const isDueOnly = !t.startDate;
+          // Start-only: one day wide, and its label ("name" + "Starts
+          // MMM d") always sits OUTSIDE, so reserve the same room the
+          // due-only tick reserves or the neighbour's text gets plowed.
+          const isOpenEnded = span.open;
           let leftPx: number;
           let rightPx: number;
           let labelOutside = true;
@@ -680,7 +748,13 @@ export function TimelineView({
               centerX +
               10 +
               6 +
-              Math.max(estText(t.name, 11), estText("Due MMM 28", 10));
+              Math.max(
+                estText(t.name, 11),
+                // The subtitle is "Starts MMM 28" on an open marker and
+                // "Due MMM 28" otherwise — reserve for the one it will
+                // actually paint, or the neighbour's bar covers its tail.
+                estText(isOpenEnded ? "Starts MMM 28" : "Due MMM 28", 10)
+              );
           } else {
             leftPx = (startOffset / totalDays) * totalWidth;
             const barW = isDueOnly
@@ -689,15 +763,18 @@ export function TimelineView({
                   ((endOffset - startOffset + 1) / totalDays) * totalWidth,
                   14
                 );
-            const labelInside = !isDueOnly && barW >= 80;
+            const labelInside = !isDueOnly && !isOpenEnded && barW >= 80;
             labelOutside = !labelInside;
             rightPx = labelInside
               ? leftPx + barW
               : leftPx +
                 barW +
                 6 +
-                (isDueOnly
-                  ? Math.max(estText(t.name, 12), estText("Due MMM 28", 11))
+                (isDueOnly || isOpenEnded
+                  ? Math.max(
+                      estText(t.name, 12),
+                      estText(isOpenEnded ? "Starts MMM 28" : "Due MMM 28", 11)
+                    )
                   : estText(t.name, 12));
           }
           return [
@@ -775,7 +852,9 @@ export function TimelineView({
         // day's cell — anchor arrows to the glyph, not the (clamped) bar
         // rect the renderer ignores for them.
         if (task.taskType === "MILESTONE" || task.taskType === "APPROVAL") {
-          const due = dueDateToLocalMidnight(task.dueDate!);
+          // span.end, not task.dueDate! — a marker carrying only a start
+          // date reaches this code now that start-only tasks are drawn.
+          const due = taskSpan(task)!.end;
           const dueOffset = Math.min(
             timelineRange.totalDays - 1,
             Math.max(0, differenceInDays(due, timelineRange.start))
@@ -801,13 +880,15 @@ export function TimelineView({
   // ============================================
 
   const todayPosition = useMemo(() => {
-    const today = startOfDay(new Date());
+    // Null until mounted — better no stripe for one frame than a stripe on
+    // the wrong day for the rest of the evening.
+    if (!today) return null;
     const { start, end, totalWidth, totalDays } = timelineRange;
     if (today < start || today > end) return null;
     const daysFromStart = differenceInDays(today, start);
     // Center the marker on today's column at day zoom.
     return ((daysFromStart + (zoomLevel === "day" ? 0.5 : 0)) / totalDays) * totalWidth;
-  }, [timelineRange, zoomLevel]);
+  }, [timelineRange, zoomLevel, today]);
 
   // ============================================
   // DRAG MOVE / RESIZE — whole-day snap, UTC-midnight-safe save
@@ -825,7 +906,10 @@ export function TimelineView({
     (e: React.MouseEvent, taskId: string, handle: "left" | "right" | "move", task: Task) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!task.dueDate) return;
+      // One date is enough to drag. Requiring a dueDate here made a
+      // start-only bar immovable — including by the right handle, the only
+      // gesture that would have given it the due date it was missing.
+      if (!task.dueDate && !task.startDate) return;
       dragMovedRef.current = false;
       setDragState({
         taskId,
@@ -854,17 +938,21 @@ export function TimelineView({
       // clamps — otherwise the ghost slides past the opposite edge and
       // visibly jumps back on release.
       if (dragState.handle !== "move") {
-        const s = dueDateToLocalMidnight(
-          dragState.originalStart ?? dragState.originalDue
-        );
-        const d = dueDateToLocalMidnight(dragState.originalDue);
-        const durationDays = Math.round(
-          (d.getTime() - s.getTime()) / 86400000
-        );
-        if (dragState.handle === "left") {
-          snappedDays = Math.min(snappedDays, durationDays);
-        } else {
-          snappedDays = Math.max(snappedDays, -durationDays);
+        const span = taskSpan({
+          startDate: dragState.originalStart,
+          dueDate: dragState.originalDue,
+        });
+        if (span) {
+          const durationDays = Math.round(
+            (span.end.getTime() - span.start.getTime()) / 86400000
+          );
+          if (dragState.handle === "left") {
+            // A start-only bar has no due day to bump into, so its left
+            // handle is free in both directions.
+            if (!span.open) snappedDays = Math.min(snappedDays, durationDays);
+          } else {
+            snappedDays = Math.max(snappedDays, -durationDays);
+          }
         }
       }
       const snappedPx = snappedDays * pxPerDay;
@@ -879,35 +967,15 @@ export function TimelineView({
         return;
       }
 
-      // Read the originals by their UTC calendar day (they're UTC-midnight
-      // instants). Round-tripping through parseISO+local format shifted every
-      // saved date one day earlier for users west of UTC.
-      const origDue = dueDateToLocalMidnight(dragState.originalDue);
-      const impliedStart = dragState.originalStart
-        ? dueDateToLocalMidnight(dragState.originalStart)
-        : origDue; // no startDate = 1-day bar sitting on the due date
-
-      const body: Record<string, string | null> = {};
-      if (dragState.handle === "left") {
-        let newStart = addDays(impliedStart, deltaDays);
-        if (newStart > origDue) newStart = origDue;
-        body.startDate = format(newStart, "yyyy-MM-dd");
-      } else if (dragState.handle === "right") {
-        let newDue = addDays(origDue, deltaDays);
-        if (newDue < impliedStart) newDue = impliedStart;
-        body.dueDate = format(newDue, "yyyy-MM-dd");
-        // Pin the left edge: with no persisted startDate the 1-day bar
-        // would otherwise translate instead of growing.
-        if (!dragState.originalStart) {
-          body.startDate = format(impliedStart, "yyyy-MM-dd");
-        }
-      } else {
-        // "move" — shift the whole bar; duration preserved.
-        const newDue = addDays(origDue, deltaDays);
-        body.dueDate = format(newDue, "yyyy-MM-dd");
-        if (dragState.originalStart) {
-          body.startDate = format(addDays(impliedStart, deltaDays), "yyyy-MM-dd");
-        }
+      const body = dragCommitBody(
+        dragState.originalStart,
+        dragState.originalDue,
+        dragState.handle,
+        deltaDays
+      );
+      if (Object.keys(body).length === 0) {
+        setDragState(null);
+        return;
       }
 
       // Optimistic: pin the bar at its dropped position IMMEDIATELY, then
@@ -993,12 +1061,21 @@ export function TimelineView({
 
   const navigate = (direction: "prev" | "next" | "today") => {
     if (direction === "today") {
-      setCurrentDate(new Date());
+      // Un-pin rather than pin a moment: a chart left open overnight then
+      // follows useToday()'s midnight re-arm instead of staying on yesterday.
+      setPinnedDate(null);
+      setScrollRequest((n) => n + 1);
     } else {
       const amount = direction === "prev" ? -1 : 1;
-      if (zoomLevel === "day") setCurrentDate((d) => addWeeks(d, amount * 2));
-      else if (zoomLevel === "week") setCurrentDate((d) => addMonths(d, amount));
-      else setCurrentDate((d) => addMonths(d, amount * 3));
+      // Paging runs in an event handler, so reading the clock here is safe —
+      // it is the render that must not. `today` is already set by the time
+      // any arrow can be clicked; the last fallback is belt and braces.
+      const from = (d: Date | null) => d ?? today ?? new Date();
+      if (zoomLevel === "day")
+        setPinnedDate((d) => addWeeks(from(d), amount * 2));
+      else if (zoomLevel === "week")
+        setPinnedDate((d) => addMonths(from(d), amount));
+      else setPinnedDate((d) => addMonths(from(d), amount * 3));
     }
   };
 
@@ -1056,14 +1133,15 @@ export function TimelineView({
   // TASK FLAGS
   // ============================================
 
-  // Due within 7 days and not yet complete → subtle gold ring.
+  // Due within 7 days and not yet complete → subtle gold ring. `today` is
+  // the mounted local midnight, so an evening render can no longer measure
+  // the window from tomorrow (and draws no ring at all until it arrives).
   const isTaskDueSoon = (task: Task) => {
+    if (!today) return false;
     if (!task.dueDate) return false;
     if (task.completed) return false;
-    // daysFromToday rounds whole calendar days (differenceInDays against
-    // wall-clock `new Date()` truncates and flags 8-days-out as due soon).
-    const daysUntilDue = daysFromToday(task.dueDate);
-    return daysUntilDue >= 0 && daysUntilDue <= 7;
+    const days = daysUntilDue(today, task.dueDate);
+    return days >= 0 && days <= 7;
   };
 
   const isTaskMilestone = (task: Task) => task.taskType === "MILESTONE";
@@ -1269,7 +1347,7 @@ export function TimelineView({
 
             {/* One gutter cell per band, height-matched to the band.
                 The count is the number of tasks actually DRAWN: a task
-                with no due date, or one whose dates fall outside the
+                with no date at all, or one whose dates fall outside the
                 visible window, gets no bar. Counting the whole section
                 here made the header read "8" over three bars, with no way
                 to reach the missing five — hence the pill beside it. */}
@@ -1339,8 +1417,15 @@ export function TimelineView({
                                   >
                                     {task.name}
                                   </span>
+                                  {/* "No date" only when BOTH are absent. A
+                                      start-only task has a date and now
+                                      draws a bar, so it should never reach
+                                      this list — and if it is merely out of
+                                      the window, say so. */}
                                   <span className="ml-auto flex-shrink-0 text-[10px] text-slate-400">
-                                    {task.dueDate ? "Out of range" : "No date"}
+                                    {task.dueDate || task.startDate
+                                      ? "Out of range"
+                                      : "No date"}
                                   </span>
                                 </button>
                               </li>
@@ -1608,6 +1693,21 @@ export function TimelineView({
                       const isMilestone = isTaskMilestone(task);
                       const isApproval = isTaskApproval(task);
                       const dueSoon = isTaskDueSoon(task);
+                      // Late is a FACT, not a preference: unlike the gold
+                      // due-soon ring this is never gated on the Options
+                      // toggle. On a recertification chart "what slipped" is
+                      // the question the view exists to answer, and an
+                      // overdue bar used to render in exactly the same blue
+                      // as one due next month.
+                      const overdue = isTaskOverdue(task, today);
+                      // The mirror of the due-only tick: a start date and no
+                      // due date — "the survey starts the 14th, we don't know
+                      // yet when it closes". One day wide, anchored on the
+                      // start, with a right edge that dissolves instead of
+                      // ending, so it reads as unfinished rather than as a
+                      // one-day task. Its label always sits outside and says
+                      // "Starts", never "Due".
+                      const isOpenEnded = !task.dueDate;
                       const barStyle = task.completed
                         ? COMPLETED_STYLE
                         : sectionBarStyle(
@@ -1623,7 +1723,14 @@ export function TimelineView({
                           : position.left;
                       const renderWidth = isResizing
                         ? dragState!.handle === "left"
-                          ? Math.max(position.width - dragState!.deltaX, 14)
+                          ? // An open-ended bar's end IS its start, so its
+                            // left handle translates the whole one-day bar
+                            // instead of resizing it — which is exactly what
+                            // the commit does. Shrinking it here would make
+                            // the preview lie about the write.
+                            isOpenEnded
+                            ? position.width
+                            : Math.max(position.width - dragState!.deltaX, 14)
                           : dragState!.handle === "right"
                             ? Math.max(position.width + dragState!.deltaX, 14)
                             : position.width
@@ -1634,7 +1741,7 @@ export function TimelineView({
                         // day cell — computed from the date itself so the
                         // min-width clamp and a persisted startDate can't
                         // pull the marker off its labeled date.
-                        const due = dueDateToLocalMidnight(task.dueDate!);
+                        const due = taskSpan(task)!.end;
                         const dueOffset = Math.min(
                           timelineRange.totalDays - 1,
                           Math.max(0, differenceInDays(due, timelineRange.start))
@@ -1670,13 +1777,32 @@ export function TimelineView({
                             }}
                             onMouseEnter={() => setHoveredTask(task.id)}
                             onMouseLeave={() => setHoveredTask(null)}
-                            title={`${task.name} — ${isMilestone ? "milestone" : "approval"}`}
+                            title={`${task.name} — ${isMilestone ? "milestone" : "approval"}${
+                              overdue ? " · overdue" : ""
+                            }`}
                           >
-                            <Icon
-                              className="w-5 h-5 flex-shrink-0"
-                              fill={barStyle.bg}
-                              color={barStyle.bg}
-                            />
+                            {/* The due-soon ring was computed for markers
+                                and then applied to nothing — the branch
+                                below never read it, so the PE seal and the
+                                city submittal were the two dates that got
+                                NO date accent at all. The ring goes on the
+                                glyph, not the container, so it doesn't
+                                lasso the label with it. */}
+                            <span
+                              className={cn(
+                                "flex-shrink-0 rounded-full",
+                                dueSoon && showDueSoon && "ring-2 ring-[#a8893a]/70"
+                              )}
+                            >
+                              <Icon
+                                className="w-5 h-5 block"
+                                // A slipped milestone turns red outright:
+                                // there is no bar to outline or hatch, and
+                                // these are the dates that actually hurt.
+                                fill={overdue ? OVERDUE_RED : barStyle.bg}
+                                color={overdue ? OVERDUE_RED : barStyle.bg}
+                              />
+                            </span>
                             <div className="leading-tight whitespace-nowrap">
                               <div
                                 className={cn(
@@ -1686,8 +1812,20 @@ export function TimelineView({
                               >
                                 {task.name}
                               </div>
-                              <div className="text-[10px] text-slate-500">
-                                Due {format(due, "MMM d")}
+                              <div
+                                className={cn(
+                                  "text-[10px]",
+                                  overdue
+                                    ? "font-medium text-[#B4304C]"
+                                    : "text-slate-500"
+                                )}
+                              >
+                                {/* A marker with only a start date is a
+                                    point in time that has not been dated
+                                    yet — say so rather than labelling its
+                                    start "Due". */}
+                                {isOpenEnded ? "Starts" : "Due"}{" "}
+                                {format(due, "MMM d")}
                               </div>
                             </div>
                           </div>
@@ -1710,18 +1848,32 @@ export function TimelineView({
                         )
                           ? DUE_ONLY_TICK_W
                           : Math.max(renderWidth, 14);
-                      const labelInside = !isDueOnly && renderWidth >= 80;
-                      const start = task.startDate
-                        ? dueDateToLocalMidnight(task.startDate)
-                        : dueDateToLocalMidnight(task.dueDate!);
-                      const due = dueDateToLocalMidnight(task.dueDate!);
+                      const labelInside =
+                        !isDueOnly && !isOpenEnded && renderWidth >= 80;
+                      const span = taskSpan(task)!;
+                      const start = span.start;
+                      const due = span.end;
+                      // The open edge lives in the background itself, not in
+                      // a CSS mask: a mask would fade the resize handles too,
+                      // and the right handle is the whole point — it is how
+                      // the engineer finally commits an end date.
+                      const openEdgeFill = `linear-gradient(to right, ${barStyle.bg} 0%, ${barStyle.bg} 40%, ${barStyle.bg}00 100%)`;
+                      // Late: 2px red border + red hatching over the section
+                      // hue. Border and background-image, deliberately —
+                      // both are channels the hover / selected / due-soon
+                      // RINGS don't use, so nothing here fights them.
+                      const overdueHatch = `repeating-linear-gradient(45deg, ${OVERDUE_RED}47 0 5px, transparent 5px 11px)`;
 
                       return (
                         <div key={task.id}>
                           {/* Bar */}
                           <div
                             className={cn(
-                              "absolute rounded cursor-grab active:cursor-grabbing group/bar z-10",
+                              "absolute cursor-grab active:cursor-grabbing group/bar z-10",
+                              // Square, un-rounded right edge on an
+                              // open-ended bar — a rounded cap reads as a
+                              // finished end.
+                              isOpenEnded ? "rounded-l rounded-r-none" : "rounded",
                               "hover:ring-2 hover:ring-[#335FB5]/50",
                               "transition-shadow",
                               selectedTaskId === task.id &&
@@ -1734,7 +1886,19 @@ export function TimelineView({
                               width: barWidth,
                               top: laneTop,
                               height: BAR_HEIGHT,
-                              backgroundColor: barStyle.bg,
+                              // An open-ended bar paints only the gradient,
+                              // so its right edge really does reach zero.
+                              backgroundColor: isOpenEnded
+                                ? "transparent"
+                                : barStyle.bg,
+                              backgroundImage: isOpenEnded
+                                ? openEdgeFill
+                                : overdue
+                                  ? overdueHatch
+                                  : undefined,
+                              border: overdue
+                                ? `2px solid ${OVERDUE_RED}`
+                                : undefined,
                               opacity: task.completed ? 0.6 : 1,
                             }}
                             onMouseDown={(e) => handleResizeStart(e, task.id, "move", task)}
@@ -1745,7 +1909,13 @@ export function TimelineView({
                               setSelectedTaskId(task.id);
                               onTaskClick(task.id);
                             }}
-                            title={`${task.name} · ${format(start, "MMM d")} → ${format(due, "MMM d")}`}
+                            title={
+                              isOpenEnded
+                                ? `${task.name} · starts ${format(start, "MMM d")} · no end date`
+                                : `${task.name} · ${format(start, "MMM d")} → ${format(due, "MMM d")}${
+                                    overdue ? " · overdue" : ""
+                                  }`
+                            }
                           >
                             <div className="relative h-full flex items-center px-1.5 gap-1 overflow-hidden">
                               {!isDueOnly && task.assignee && renderWidth >= 40 && (
@@ -1780,7 +1950,10 @@ export function TimelineView({
 
                             {/* Resize handles — a due-only tick keeps just
                                 the right handle (stretching it right gives
-                                the task a duration; the tick body drags). */}
+                                the task a duration; the tick body drags).
+                                An open-ended bar keeps BOTH: left moves the
+                                start, right is what finally commits a due
+                                date. Its body drag moves the start alone. */}
                             {!isDueOnly && (
                               <div
                                 className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
@@ -1796,11 +1969,13 @@ export function TimelineView({
                             />
                           </div>
 
-                          {/* Label outside the bar when it's a due-only tick
-                              or too narrow. Due-only gets Asana's two-line
-                              name + "Due X" subtitle. */}
+                          {/* Label outside the bar when it's a due-only tick,
+                              an open-ended bar, or simply too narrow. Both
+                              date-incomplete shapes get Asana's two-line
+                              name + subtitle; the subtitle is the only place
+                              the chart can SAY which edge is missing. */}
                           {!labelInside &&
-                            (isDueOnly ? (
+                            (isDueOnly || isOpenEnded ? (
                               <div
                                 className="absolute pointer-events-none z-10 leading-tight"
                                 style={{
@@ -1818,14 +1993,27 @@ export function TimelineView({
                                 >
                                   {task.name}
                                 </div>
-                                <div className="text-[11px] text-slate-500 whitespace-nowrap">
-                                  Due {format(due, "MMM d")}
+                                <div
+                                  className={cn(
+                                    "text-[11px] whitespace-nowrap",
+                                    overdue
+                                      ? "font-medium text-[#B4304C]"
+                                      : "text-slate-500"
+                                  )}
+                                >
+                                  {isOpenEnded
+                                    ? `Starts ${format(start, "MMM d")}`
+                                    : `Due ${format(due, "MMM d")}`}
                                 </div>
                               </div>
                             ) : (
                               <span
                                 className={cn(
-                                  "absolute text-xs font-medium text-slate-700 whitespace-nowrap pointer-events-none z-10",
+                                  "absolute text-xs font-medium whitespace-nowrap pointer-events-none z-10",
+                                  // A narrow overdue bar carries its accent
+                                  // in the label too — 2px of red border on
+                                  // a 14px bar is easy to miss.
+                                  overdue ? "text-[#B4304C]" : "text-slate-700",
                                   task.completed && "line-through text-slate-400"
                                 )}
                                 style={{

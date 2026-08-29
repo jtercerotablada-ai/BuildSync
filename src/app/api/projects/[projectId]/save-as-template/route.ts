@@ -161,6 +161,11 @@ export async function POST(
               description: true,
               priority: true,
               dueDate: true,
+              // The START date is half of the DURATION the engineer dragged
+              // onto the chart. Leaving it out of the select is how a
+              // template captured from a finished recert came back as a wall
+              // of one-day bars even though the capture code reads it.
+              startDate: true,
               sectionId: true,
               parentTaskId: true,
               isPrivate: true,

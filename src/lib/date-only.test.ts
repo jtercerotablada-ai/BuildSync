@@ -60,6 +60,14 @@ function localYMD(d: Date): [number, number, number] {
   return [d.getFullYear(), d.getMonth(), d.getDate()];
 }
 
+/** Local midnight of the machine's current day — the argument a caller who
+ *  legitimately means "now" passes to `daysFromToday`. Written out by hand
+ *  so the fixture does not depend on the function under test. */
+function todayLocal(): Date {
+  const t = new Date();
+  return new Date(t.getFullYear(), t.getMonth(), t.getDate());
+}
+
 /** Freeze "now" at an absolute instant for the duration of a block. */
 function freezeAt(iso: string) {
   beforeAll(() => {
@@ -142,39 +150,40 @@ describe("a task due TODAY is never overdue (the client-side counters)", () => {
   freezeAt("2026-08-27T15:00:00.000Z");
 
   it("reads as Today — 0 days from today, not -1", () => {
-    expect(daysFromToday(dueInDays(0))).toBe(0);
+    expect(daysFromToday(dueInDays(0), todayLocal())).toBe(0);
   });
 
   it("is excluded from the overdue count, which is strictly days < 0", () => {
     // The exact predicate my-tasks, the portfolio API and the assigned-tasks
     // widget all use.
-    const isOverdue = (due: string) => daysFromToday(due) < 0;
+    const isOverdue = (due: string) => daysFromToday(due, todayLocal()) < 0;
     expect(isOverdue(dueInDays(0))).toBe(false);
   });
 
   it("counts as overdue only once the day it was due has passed", () => {
-    expect(daysFromToday(dueInDays(-1))).toBe(-1);
-    expect(daysFromToday(dueInDays(-1)) < 0).toBe(true);
+    expect(daysFromToday(dueInDays(-1), todayLocal())).toBe(-1);
+    expect(daysFromToday(dueInDays(-1), todayLocal()) < 0).toBe(true);
   });
 
   it("reads as Tomorrow for a task due the next day", () => {
-    expect(daysFromToday(dueInDays(1))).toBe(1);
+    expect(daysFromToday(dueInDays(1), todayLocal())).toBe(1);
   });
 
   it("counts whole days into the past as negative", () => {
-    expect(daysFromToday(dueInDays(-7))).toBe(-7);
-    expect(daysFromToday(dueInDays(-30))).toBe(-30);
+    expect(daysFromToday(dueInDays(-7), todayLocal())).toBe(-7);
+    expect(daysFromToday(dueInDays(-30), todayLocal())).toBe(-30);
   });
 
   it("counts whole days into the future as positive", () => {
-    expect(daysFromToday(dueInDays(7))).toBe(7);
-    expect(daysFromToday(dueInDays(30))).toBe(30);
+    expect(daysFromToday(dueInDays(7), todayLocal())).toBe(7);
+    expect(daysFromToday(dueInDays(30), todayLocal())).toBe(30);
   });
 
   it("keeps the Next 30 Days band inclusive of today and of day 30", () => {
     // my-tasks: dueDate >= 0 && <= 30. Today must be in it, day 31 must not.
     const inBand = (due: string) =>
-      daysFromToday(due) >= 0 && daysFromToday(due) <= 30;
+      daysFromToday(due, todayLocal()) >= 0 &&
+      daysFromToday(due, todayLocal()) <= 30;
     expect(inBand(dueInDays(0))).toBe(true);
     expect(inBand(dueInDays(30))).toBe(true);
     expect(inBand(dueInDays(31))).toBe(false);
@@ -183,17 +192,94 @@ describe("a task due TODAY is never overdue (the client-side counters)", () => {
 
   it("accepts the stored Date object as well as the string", () => {
     const today = dueInDays(0);
-    expect(daysFromToday(new Date(today))).toBe(0);
+    expect(daysFromToday(new Date(today), todayLocal())).toBe(0);
   });
 
   it("still says 0 when the day is nearly over", () => {
     // The counter must not flip at some hour of the evening. Same fixture,
     // clock moved to one millisecond before UTC midnight.
     vi.setSystemTime(new Date("2026-08-27T23:59:59.999Z"));
-    expect(daysFromToday(dueInDays(0))).toBe(0);
+    expect(daysFromToday(dueInDays(0), todayLocal())).toBe(0);
     vi.setSystemTime(new Date("2026-08-27T00:00:00.000Z"));
-    expect(daysFromToday(dueInDays(0))).toBe(0);
+    expect(daysFromToday(dueInDays(0), todayLocal())).toBe(0);
     vi.setSystemTime(new Date("2026-08-27T15:00:00.000Z"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The day is an ARGUMENT, and nothing else may decide it.
+ *
+ * `daysFromToday` used to call `startOfLocalDay()` itself. On the server that
+ * reads the UTC day, so from 20:00 in Miami it counted from TOMORROW — and
+ * React does not repair a text or className mismatch when it hydrates, so the
+ * wrong answer stayed on screen for the rest of the evening. Measured live at
+ * 22:56 EDT on Fri Aug 28 2026: the Timeline lit Sat the 29th. The parameter
+ * is required precisely so no caller can inherit that clock read silently.
+ */
+describe("the caller says which day it means, and is believed", () => {
+  // 22:56 in Miami on Friday Aug 28 — where the machine (UTC) already says
+  // Saturday the 29th and the person at the desk still says Friday.
+  const miamiFridayEvening = new Date("2026-08-29T02:56:00.000Z");
+  const friday = new Date(2026, 7, 28);
+
+  it("counts from the day it was given, not from the machine clock", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(miamiFridayEvening);
+      expect(daysFromToday("2026-08-28", friday)).toBe(0); // "Today"
+      expect(daysFromToday("2026-08-29", friday)).toBe(1); // "Tomorrow"
+      expect(daysFromToday("2026-08-27", friday)).toBe(-1); // "Yesterday"
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a task due today OUT of the overdue count on that evening", () => {
+    // The regression the firm hits every night: the day boundary the counter
+    // uses must be the viewer's, not the one the server happens to be in.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(miamiFridayEvening);
+      expect(daysFromToday("2026-08-28", friday) < 0).toBe(false);
+      // What the server's own day would have said — one day ahead.
+      const saturday = new Date(2026, 7, 29);
+      expect(daysFromToday("2026-08-28", saturday) < 0).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("moves when the day it is handed moves, so a tab left open re-arms", () => {
+    const due = "2026-08-28";
+    expect(daysFromToday(due, new Date(2026, 7, 27))).toBe(1);
+    expect(daysFromToday(due, new Date(2026, 7, 28))).toBe(0);
+    expect(daysFromToday(due, new Date(2026, 7, 29))).toBe(-1);
+  });
+
+  it("gives the same answer at every hour of every clock — it is pure now", () => {
+    vi.useFakeTimers();
+    try {
+      const answers = [
+        "2026-08-01T00:00:00.000Z",
+        "2026-08-28T12:00:00.000Z",
+        "2026-08-29T02:56:00.000Z", // the evening that used to break it
+        "2027-01-01T00:00:00.000Z",
+      ].map((iso) => {
+        vi.setSystemTime(new Date(iso));
+        return daysFromToday("2026-08-28", friday);
+      });
+      expect(answers).toEqual([0, 0, 0, 0]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still crosses months and years off the day it was given", () => {
+    expect(daysFromToday("2027-01-01", new Date(2026, 11, 31))).toBe(1);
+    expect(daysFromToday("2026-08-31", new Date(2026, 8, 1))).toBe(-1);
+    expect(daysFromToday("2028-02-29", new Date(2028, 1, 28))).toBe(1);
   });
 });
 
@@ -341,7 +427,7 @@ describe("the server counts a task due TODAY as due, not overdue", () => {
         [dueTomorrow, false],
       ] as const) {
         const serverSaysOverdue = stored < startOfTodayUtc(new Date());
-        const clientSaysOverdue = daysFromToday(stored) < 0;
+        const clientSaysOverdue = daysFromToday(stored, todayLocal()) < 0;
         expect(serverSaysOverdue).toBe(expectedOverdue);
         expect(clientSaysOverdue).toBe(expectedOverdue);
       }
@@ -406,10 +492,13 @@ describe("a viewer west of UTC (America/Los_Angeles)", () => {
     vi.setSystemTime(new Date("2026-08-27T02:00:00.000Z"));
     expect(new Date().getDate()).toBe(26); // local day really is the 26th
 
-    expect(daysFromToday("2026-08-26")).toBe(0); // due today  -> "Today"
-    expect(daysFromToday("2026-08-25")).toBe(-1); // one day late
-    expect(daysFromToday("2026-08-27")).toBe(1); // "Tomorrow"
-    expect(daysFromToday("2026-08-26") < 0).toBe(false); // not overdue
+    // The viewer's day — Aug 26 in Los Angeles — which is what a client
+    // passes from useToday(). The UTC day is already the 27th.
+    const viewerDay = todayLocal();
+    expect(daysFromToday("2026-08-26", viewerDay)).toBe(0); // due today  -> "Today"
+    expect(daysFromToday("2026-08-25", viewerDay)).toBe(-1); // one day late
+    expect(daysFromToday("2026-08-27", viewerDay)).toBe(1); // "Tomorrow"
+    expect(daysFromToday("2026-08-26", viewerDay) < 0).toBe(false); // not overdue
   });
 
   it("sends back the day the user picked, not the UTC day of that instant", () => {
@@ -450,10 +539,10 @@ describe("a viewer west of UTC (America/Los_Angeles)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-31T19:00:00.000Z")); // Oct 31, noon PDT
     expect(new Date().getDate()).toBe(31);
-    expect(daysFromToday(dueInDays(0))).toBe(0);
-    expect(daysFromToday(dueInDays(1))).toBe(1); // across the 25-hour day
-    expect(daysFromToday(dueInDays(2))).toBe(2);
-    expect(daysFromToday(dueInDays(-1))).toBe(-1);
+    expect(daysFromToday(dueInDays(0), todayLocal())).toBe(0);
+    expect(daysFromToday(dueInDays(1), todayLocal())).toBe(1); // across the 25-hour day
+    expect(daysFromToday(dueInDays(2), todayLocal())).toBe(2);
+    expect(daysFromToday(dueInDays(-1), todayLocal())).toBe(-1);
   });
 
   it("counts whole days correctly across the start of daylight saving", () => {
@@ -461,8 +550,8 @@ describe("a viewer west of UTC (America/Los_Angeles)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-07T20:00:00.000Z")); // Mar 7, noon PST
     expect(new Date().getDate()).toBe(7);
-    expect(daysFromToday(dueInDays(1))).toBe(1); // across the 23-hour day
-    expect(daysFromToday(dueInDays(2))).toBe(2);
-    expect(daysFromToday(dueInDays(-1))).toBe(-1);
+    expect(daysFromToday(dueInDays(1), todayLocal())).toBe(1); // across the 23-hour day
+    expect(daysFromToday(dueInDays(2), todayLocal())).toBe(2);
+    expect(daysFromToday(dueInDays(-1), todayLocal())).toBe(-1);
   });
 });

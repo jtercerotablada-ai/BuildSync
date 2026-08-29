@@ -28,8 +28,9 @@ import {
   Area,
   LabelList,
 } from "recharts";
-import { isPast, isToday, format, subDays, startOfDay } from "date-fns";
+import { format, subDays } from "date-fns";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 
 // ============================================
 // TYPES
@@ -85,6 +86,12 @@ const AXIS = "#626364";
 export function DashboardView({ sections, projectId }: DashboardViewProps) {
   const router = useRouter();
 
+  // Local midnight, null until mounted. The overdue KPI and the 15-day
+  // burnup were measured against the render-time clock, and on the server
+  // that clock is UTC: from 20:00 Miami both counted from TOMORROW, so a
+  // task due today was reported overdue until something re-rendered.
+  const today = useToday();
+
   // Flatten all tasks from sections
   const allTasks = useMemo(() => {
     return sections.flatMap((section) =>
@@ -122,17 +129,20 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
   const kpis = useMemo(() => {
     const completed = allTasks.filter((t) => t.completed).length;
     const incomplete = allTasks.filter((t) => !t.completed).length;
-    const overdue = allTasks.filter((t) => {
-      if (!t.dueDate || t.completed) return false;
-      // dueDate is UTC midnight — compare by UTC calendar day so a task due
-      // today isn't counted overdue for users west of UTC.
-      const dueDate = dueDateToLocalMidnight(t.dueDate);
-      return isPast(dueDate) && !isToday(dueDate);
-    }).length;
+    // null until today is known — the card shows a dash rather than a count
+    // taken from the wrong day.
+    const overdue = !today
+      ? null
+      : allTasks.filter((t) => {
+          if (!t.dueDate || t.completed) return false;
+          // dueDate is UTC midnight — compare by UTC calendar day so a task
+          // due today isn't counted overdue for users west of UTC.
+          return dueDateToLocalMidnight(t.dueDate) < today;
+        }).length;
     const total = allTasks.length;
 
     return { completed, incomplete, overdue, total };
-  }, [allTasks]);
+  }, [allTasks, today]);
 
   // ============================================
   // CHART DATA
@@ -200,7 +210,9 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
   // Complete = cumulative completions by completedAt.
   const completionOverTime = useMemo(() => {
     const days: { name: string; Total: number; Complete: number }[] = [];
-    const today = startOfDay(new Date());
+    // No axis before today is known: the last 15 days ARE the x axis, and
+    // the server's version of them starts a day late.
+    if (!today) return days;
     for (let i = 14; i >= 0; i--) {
       const day = subDays(today, i);
       const endOfThatDay = new Date(day.getTime() + 24 * 60 * 60 * 1000 - 1);
@@ -219,7 +231,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
       days.push({ name: format(day, "MM/dd"), Total: total, Complete: complete });
     }
     return days;
-  }, [timeRows]);
+  }, [timeRows, today]);
 
   // ============================================
   // RENDER
@@ -569,7 +581,8 @@ function KPICard({
   filterLabel,
 }: {
   title: string;
-  value: number;
+  /** null = a today-derived count, not known until the client has mounted. */
+  value: number | null;
   filterLabel: string;
 }) {
   return (
@@ -577,7 +590,7 @@ function KPICard({
       <h3 className="text-base font-medium text-slate-900">{title}</h3>
       <div className="flex-1 flex items-center justify-center">
         <p className="text-5xl font-light text-[#1D1F21] tabular-nums">
-          {value}
+          {value ?? "—"}
         </p>
       </div>
       <div className="flex items-center gap-1 text-xs text-slate-500">

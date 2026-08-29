@@ -25,6 +25,7 @@ import {
   useState,
 } from "react";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 import {
   Plus,
   ChevronLeft,
@@ -213,15 +214,26 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   // ‹ › buttons are pressed at the end of the canvas. They used to only
   // scroll inside a hard-coded 121-day box, so on a job longer than three
   // months the arrows dead-ended and the later work counted as zero load.
-  const [today] = useState(() => startOfDay(new Date()));
+  //
+  // The anchor is null until mounted: the window, every day number in the
+  // header and the today line hang off it, and the server's clock is UTC —
+  // seeding it during render dated the whole canvas a day ahead from 20:00
+  // Miami. The view holds its spinner for that one frame instead.
+  const today = useToday();
   const [daysBefore, setDaysBefore] = useState(DAYS_BEFORE_TODAY);
   const [daysAfter, setDaysAfter] = useState(
     TOTAL_DAYS - DAYS_BEFORE_TODAY - 1
   );
   const totalDays = daysBefore + daysAfter + 1;
-  const rangeStart = useMemo(() => addDays(today, -daysBefore), [today, daysBefore]);
+  const rangeStart = useMemo(
+    () => (today ? addDays(today, -daysBefore) : null),
+    [today, daysBefore]
+  );
   const days = useMemo(
-    () => Array.from({ length: totalDays }, (_, i) => addDays(rangeStart, i)),
+    () =>
+      rangeStart
+        ? Array.from({ length: totalDays }, (_, i) => addDays(rangeStart, i))
+        : [],
     [rangeStart, totalDays]
   );
   const timelineW = totalDays * dayW;
@@ -274,6 +286,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   const loadOf = useCallback(
     (taskList: WTask[]): number[] => {
       const vals = new Array<number>(totalDays).fill(0);
+      if (!rangeStart) return vals;
       for (const t of taskList) {
         const span = taskSpan(t, rangeStart);
         if (!span) continue;
@@ -297,6 +310,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   const outsideWindowCount = useMemo(
     () =>
       visibleTasks.filter((t) => {
+        if (!rangeStart) return false;
         const span = taskSpan(t, rangeStart);
         if (!span) return false;
         return span[1] < 0 || span[0] > totalDays - 1;
@@ -582,7 +596,9 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  if (loading) {
+  // `rangeStart` null = today not known yet; the guard also narrows it to a
+  // Date for the whole canvas below.
+  if (loading || !rangeStart) {
     return (
       <div className="flex h-full items-center justify-center bg-white">
         <Loader2 className="h-6 w-6 animate-spin text-slate-400" />

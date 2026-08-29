@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
-import { daysFromToday } from "@/lib/date-only";
+import { daysFromToday, startOfLocalDay } from "@/lib/date-only";
 
 const createPortfolioSchema = z.object({
   name: z.string().min(1),
@@ -123,6 +123,12 @@ export async function GET(req: Request) {
     // Compute aggregate stats per portfolio so the list page can render
     // budget totals, health distribution, and overall progress without
     // making N follow-up requests.
+    //
+    // One day for the whole response, named once instead of re-read per
+    // task: this runs on the server, where the local day IS the UTC day —
+    // the same convention due dates are stored in. `daysFromToday` no longer
+    // reads the clock for us, so the day has to be said out loud.
+    const today = startOfLocalDay();
     const withStats = portfolios.map((p) => {
       let totalBudget = 0;
       let totalTasks = 0;
@@ -159,7 +165,7 @@ export async function GET(req: Request) {
           // date-only overdue: a task due TODAY is NEVER overdue (a raw
           // dueDate < now flips today's tasks for viewers west of UTC).
           // daysFromToday buckets by the UTC calendar day — see date-only.ts.
-          else if (t.dueDate && daysFromToday(t.dueDate) < 0) {
+          else if (t.dueDate && daysFromToday(t.dueDate, today) < 0) {
             overdueTasks += 1;
           }
         }

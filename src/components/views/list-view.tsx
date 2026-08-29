@@ -35,8 +35,9 @@ import {
   GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, isToday, isTomorrow, isPast } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 import { notifyTaskMutated } from "@/lib/task-events";
 import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
@@ -209,6 +210,24 @@ const PRIORITY_LABELS = {
   HIGH: "High",
 };
 
+/** Whole calendar days from `today` to a task date, or null while today is
+ *  still unknown (the first client frame).
+ *
+ *  Every date tone and relative label on this screen goes through it. They
+ *  used to call date-fns isPast/isToday/isTomorrow, which read the clock
+ *  during render — and on the server that clock is UTC, so from 20:00 Miami
+ *  a task due today was painted red and labelled "Tomorrow". React does not
+ *  repair a className on hydration, so it stayed that way.
+ *
+ *  Named `daysFrom`, not `daysFromToday`, on purpose: date-only exports a
+ *  `daysFromToday(value, today)` whose arguments are the other way round,
+ *  and passing this file's order to that one type-checks and silently
+ *  returns the NEGATED count — every overdue tone inverted. Same name and
+ *  order as the Gantt's helper. */
+function daysFrom(today: Date | null, date: Date): number | null {
+  return today ? differenceInCalendarDays(date, today) : null;
+}
+
 export function ListView({
   sections,
   onTaskClick,
@@ -218,6 +237,9 @@ export function ListView({
   rawSectionCounts,
 }: ListViewProps) {
   const router = useRouter();
+  // Local midnight, null until mounted — the red/green date tones and the
+  // "Today"/"Tomorrow" labels are all measured from it.
+  const today = useToday();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(sections.map((s) => s.id))
   );
@@ -848,13 +870,14 @@ export function ListView({
 
   // Mobile helpers
   const isOverdue = (dueDate: string) => {
-    const date = dueDateToLocalMidnight(dueDate);
-    return isPast(date) && !isToday(date);
+    const days = daysFrom(today, dueDateToLocalMidnight(dueDate));
+    return days !== null && days < 0;
   };
   const formatMobileDate = (dueDate: string) => {
     const date = dueDateToLocalMidnight(dueDate);
-    if (isToday(date)) return "Today";
-    if (isTomorrow(date)) return "Tomorrow";
+    const days = daysFrom(today, date);
+    if (days === 0) return "Today";
+    if (days === 1) return "Tomorrow";
     return format(date, "MMM d");
   };
 
@@ -1493,13 +1516,17 @@ function DueDateBadge({
   dueDate: string;
   completed: boolean;
 }) {
+  const today = useToday();
   const date = dueDateToLocalMidnight(dueDate);
-  const isOverdue = !completed && isPast(date) && !isToday(date);
-  const isDueToday = !completed && isToday(date);
+  const days = daysFrom(today, date);
+  const isOverdue = !completed && days !== null && days < 0;
+  const isDueToday = !completed && days === 0;
 
+  // Plain date until today is known — never a relative word guessed from
+  // the server's clock.
   let label = format(date, "MMM d");
-  if (isToday(date)) label = "Today";
-  if (isTomorrow(date)) label = "Tomorrow";
+  if (days === 0) label = "Today";
+  if (days === 1) label = "Tomorrow";
 
   return (
     <div
@@ -1677,6 +1704,9 @@ function SortableTaskRow({
   onCustomFieldChange,
   onCustomFieldCommitted,
 }: SortableTaskRowProps) {
+  // Null until mounted: the range pill's red/green tone is measured from it,
+  // and the server's "today" is a UTC day ahead all evening.
+  const today = useToday();
   const {
     attributes,
     listeners,
@@ -1951,11 +1981,16 @@ function SortableTaskRow({
                         // the range ends today — plain text, no icon.
                         "flex items-center gap-1 text-xs",
                         !task.completed &&
-                          isPast(dueDateToLocalMidnight(task.dueDate)) &&
-                          !isToday(dueDateToLocalMidnight(task.dueDate))
+                          (daysFrom(
+                            today,
+                            dueDateToLocalMidnight(task.dueDate)
+                          ) ?? 0) < 0
                           ? "text-[#B4304C]"
                           : !task.completed &&
-                              isToday(dueDateToLocalMidnight(task.dueDate))
+                              daysFrom(
+                                today,
+                                dueDateToLocalMidnight(task.dueDate)
+                              ) === 0
                             ? "text-[#14865E]"
                             : "text-slate-600",
                         task.completed && "text-slate-400"

@@ -146,6 +146,7 @@ import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 import { notifyTaskMutated } from "@/lib/task-events";
 import { TaskDetailPanel as SharedTaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { readTimeTracking, formatDays, parseDaysInput } from "@/lib/duration";
@@ -329,6 +330,12 @@ const DEFAULT_PERSONAL_SECTIONS: PersonalSection[] = [
  * `dropOverride` is the in-flight drag placement; `map` is the persisted
  * uiState placement; `task.myTaskSection` is the older DB record of the same
  * thing. All three count as the user having filed the task themselves.
+ *
+ * `opts.today` is local midnight of the day the CALLER means — `useToday()`
+ * during a render, `startOfLocalDay()` from an effect or a handler. Reading
+ * the clock in here was the bug: which bucket a task lands in is the one
+ * thing on this page worse to get wrong than a label, and the server renders
+ * in UTC, so from 20:00 in Miami it filed tomorrow's work under "Do today".
  */
 function resolvePersonalSectionId(
   task: { id: string; dueDate: string | null; completed: boolean; myTaskSection: string | null },
@@ -338,6 +345,8 @@ function resolvePersonalSectionId(
     validIds: Set<string>;
     fallbackId: string;
     promoteToDoToday: boolean;
+    /** Local midnight, or null before the browser's clock is known. */
+    today: Date | null;
   }
 ): string {
   const explicit =
@@ -357,13 +366,17 @@ function resolvePersonalSectionId(
   // touches a task the user placed themselves, or dragging one out of "Do
   // today" would spring straight back. And a completed task is never
   // promoted: it cannot be work anyone is about to be late on.
+  //
+  // A fourth rule: with no day yet (`today` null) nothing is promoted. The
+  // task stays where the user filed it rather than moving on a guess.
   if (
     opts.promoteToDoToday &&
+    opts.today &&
     !explicit &&
     !task.completed &&
     sid !== DO_TODAY_SECTION_ID &&
     task.dueDate &&
-    daysFromToday(task.dueDate) <= 0
+    daysFromToday(task.dueDate, opts.today) <= 0
   ) {
     return DO_TODAY_SECTION_ID;
   }
@@ -1005,27 +1018,21 @@ export default function MyTasksPage() {
   // mount-render groupType closure) would leave stale buckets on screen
   // while the control shows the restored grouping. Guarded on
   // tasks.length so we don't wipe sections to empty during hydration.
-  // Every date bucket and every "Overdue · N days" label is derived from "today",
-  // and "today" was only ever read during a render. A machine left open overnight
-  // therefore kept yesterday's buckets and labels until somebody reloaded the page.
-  // Bumping this key at the next local midnight re-runs the derivation.
-  const [todayKey, setTodayKey] = useState(() => new Date().toDateString());
-  useEffect(() => {
-    const now = new Date();
-    const nextMidnight = new Date(now);
-    nextMidnight.setHours(24, 0, 0, 0);
-    const timer = setTimeout(
-      () => setTodayKey(new Date().toDateString()),
-      nextMidnight.getTime() - now.getTime() + 1000
-    );
-    return () => clearTimeout(timer);
-  }, [todayKey]);
+  // Every date bucket, every "Overdue · N days" label and every "Do today"
+  // promotion is derived from "today" — and "today" used to be read fresh at
+  // each of those sites, including during a render. Two things went wrong with
+  // that: a machine left open overnight kept yesterday's buckets until somebody
+  // reloaded, and a render-time read answers in UTC on the server, which from
+  // 20:00 in Miami is already tomorrow. `useToday()` is null until mounted (so
+  // there is no server-vs-client day to disagree about) and re-arms itself at
+  // the next local midnight, which also re-runs the derivation below.
+  const today = useToday();
 
   useEffect(() => {
     if (tasks.length === 0) return;
     organizeTasks(tasks, groupType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, groupType, groupConfigs, personalSections, taskSectionMap, todayKey]);
+  }, [tasks, groupType, groupConfigs, personalSections, taskSectionMap, today]);
 
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -1335,6 +1342,14 @@ export default function MyTasksPage() {
     // Don't filter out completed tasks here - let the filter system handle visibility
     const activeTasks = taskList;
 
+    // organizeTasks only ever runs from an effect, a fetch callback or a drag
+    // handler — never during a render — so reading the clock here is the safe
+    // form: it is always the browser's own day, never the server's UTC one.
+    // Read ONCE for the whole pass so a derivation that straddles midnight
+    // cannot file two tasks against two different days. The effect above
+    // re-runs this when `useToday()` rolls over, so the buckets follow.
+    const dayForBuckets = startOfLocalDay();
+
     // Position-then-createdAt sort — position is what intra-section
     // drag-reorder writes, so this makes the dropped order persist.
     const sortFn = (a: Task, b: Task) => {
@@ -1366,6 +1381,7 @@ export default function MyTasksPage() {
           validIds,
           fallbackId,
           promoteToDoToday,
+          today: dayForBuckets,
         });
         if (!buckets.has(sid)) buckets.set(sid, []);
         buckets.get(sid)!.push(task);
@@ -1545,7 +1561,7 @@ export default function MyTasksPage() {
           noDate.push(task);
           return;
         }
-        const delta = daysFromToday(d);
+        const delta = daysFromToday(d, dayForBuckets);
         if (delta < 0) overdue.push(task);
         else if (delta === 0) today.push(task);
         else if (delta <= 7) thisWeek.push(task);
@@ -1608,7 +1624,7 @@ export default function MyTasksPage() {
       if (!task.dueDate) {
         recentlyAssigned.push(task);
       } else {
-        const delta = daysFromToday(task.dueDate);
+        const delta = daysFromToday(task.dueDate, dayForBuckets);
         if (delta <= 0) {
           doToday.push(task);
         } else if (delta <= 7) {
@@ -1745,9 +1761,16 @@ export default function MyTasksPage() {
     // compare them as-is.
     dateOnly: boolean = true
   ): boolean {
-    if (!dateStr) return false;
+    // Every window below ("this week", "overdue", "next month") is measured
+    // from `today`, the page-level useToday() value — NOT from a fresh clock
+    // read. This runs inside applyFiltersAndSort, which runs during a render,
+    // and a render-time read answers in the server's UTC day: from 20:00 in
+    // Miami "overdue" would have swallowed everything due today.
+    // Until the browser's day is known there is no window to test against, so
+    // no date matches — and no date filter can run before the task fetch has
+    // resolved anyway, which happens after mount.
+    if (!dateStr || !today) return false;
     const date = dateOnly ? dueDateToLocalMidnight(dateStr) : new Date(dateStr);
-    const today = startOfLocalDay();
 
     const dayOfWeek = today.getDay(); // 0=Sun
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -1843,8 +1866,12 @@ export default function MyTasksPage() {
                 // Asana's Completed sub-select: further gate on WHEN the
                 // task was completed. "all" (or a missing completedAt)
                 // passes everything.
-                if (completedWindow === "all" || !task.completedAt) return true;
-                const daysAgo = -daysFromToday(task.completedAt); // >=0 in the past
+                // No day yet ⇒ no window to narrow to, so the sub-select
+                // behaves as "all" rather than hiding completed work on a
+                // guess. The day comes from useToday(), not the clock: this
+                // filter runs during a render.
+                if (completedWindow === "all" || !task.completedAt || !today) return true;
+                const daysAgo = -daysFromToday(task.completedAt, today); // >=0 in the past
                 switch (completedWindow) {
                   case "today": return daysAgo === 0;
                   case "yesterday": return daysAgo === 1;
@@ -1884,13 +1911,16 @@ export default function MyTasksPage() {
               if (f.operator === "is_before" && task.dueDate) {
                 // "is before today" etc — simplified. daysFromToday folds
                 // the UTC-midnight due date onto the local calendar day so
-                // the comparison isn't off by one west of UTC.
+                // the comparison isn't off by one west of UTC. The day is
+                // the page's useToday() value; with no day yet the filter
+                // excludes nothing, because hiding work is the one failure
+                // mode a task list must not have.
                 if (!isDateInRange(task.dueDate, f.value)) {
-                  if (f.value === "today" && daysFromToday(task.dueDate) >= 0) return false;
+                  if (f.value === "today" && today && daysFromToday(task.dueDate, today) >= 0) return false;
                 }
               }
               if (f.operator === "is_after" && task.dueDate) {
-                if (f.value === "today" && daysFromToday(task.dueDate) <= 0) return false;
+                if (f.value === "today" && today && daysFromToday(task.dueDate, today) <= 0) return false;
               }
               break;
             case "start_date":
@@ -2069,6 +2099,9 @@ export default function MyTasksPage() {
         validIds,
         fallbackId,
         promoteToDoToday,
+        // Unlike organizeTasks this runs DURING a render (Board / Calendar /
+        // Dashboard all read it), so the day has to come from useToday().
+        today,
       });
       if (!buckets.has(sid)) buckets.set(sid, []);
       buckets.get(sid)!.push(task);
@@ -2545,7 +2578,19 @@ export default function MyTasksPage() {
     // midnight of that calendar day (date-only.ts) so a task due "today"
     // never reads as overdue for viewers west of UTC.
     const date = dueDateToLocalMidnight(dateStr);
-    const today = startOfLocalDay();
+    // The day comes from useToday(), never from a clock read here: this
+    // formats a label during a render, and the server's render happens in
+    // UTC — from 20:00 in Miami it called a task due today "Tomorrow", in
+    // gold, and React does not repair the text when it hydrates.
+    // Before the browser's day is known, show the plain date in the neutral
+    // tone: no "Today", no overdue black. A late relative label beats a
+    // confident wrong one.
+    if (!today) {
+      return {
+        text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        className: "text-gray-500",
+      };
+    }
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const thisWeekEnd = new Date(today);
@@ -2553,7 +2598,7 @@ export default function MyTasksPage() {
 
     // Whole calendar days from today to the due date (negative = overdue,
     // 0 = today). Drives the overdue branch so "due today" is never past due.
-    const delta = daysFromToday(dateStr);
+    const delta = daysFromToday(dateStr, today);
 
     if (delta < 0) {
       // PMI/AEC convention: overdue items get a count of working days
@@ -3645,6 +3690,9 @@ export default function MyTasksPage() {
             validIds: new Set(personalSections.map((s) => s.id)),
             fallbackId: personalSections[0]?.id ?? "recently-assigned",
             promoteToDoToday: canPromoteToDoToday(personalSections),
+            // Render-time: the Section dropdown must show the same bucket the
+            // list does, so both take the day from useToday().
+            today,
           })}
           onMoveToSection={(sectionId) =>
             moveTaskToPersonalSection(selectedTask.id, sectionId)
@@ -5111,6 +5159,10 @@ function TaskRow({
    *  broke at DPR 1.25 / zoom !== 67%). */
   rowGridTemplate?: string;
 }) {
+  // Local midnight, null until mounted. Only the START end of a start–due
+  // range is measured from it here; the due end's word and colour arrive
+  // already-resolved from the page's formatDueDate.
+  const today = useToday();
   const dueDateInfo = formatDueDate(task.dueDate);
 
   // Inline rename — double-click the name to swap in an input, Enter
@@ -5396,7 +5448,8 @@ function TaskRow({
             const dueLabel = formatDueColumnLabel(
               task.startDate,
               task.dueDate,
-              dueDateInfo.text
+              dueDateInfo.text,
+              today
             );
             return (
               <div key="dueDate" className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
@@ -5984,6 +6037,9 @@ function SortableBoardCard({
   onClick: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
+  // Same as TaskRow: only the START end of a start–due range is measured
+  // from the local day here.
+  const today = useToday();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
 
   const style = {
@@ -6056,7 +6112,7 @@ function SortableBoardCard({
         <div className="flex items-center justify-between mt-2 pt-1.5">
           {/* Due date — first-class start–due range ("Today - Jul 8"). */}
           <span className={cn("text-[11px]", dueDateInfo.className)}>
-            {formatDueColumnLabel(task.startDate, task.dueDate, dueDateInfo.text)}
+            {formatDueColumnLabel(task.startDate, task.dueDate, dueDateInfo.text, today)}
           </span>
 
           {/* Right side: meta + avatar */}
@@ -6151,6 +6207,15 @@ function CalendarView({
   // 4 weeks before this week's Monday so the user can scroll up a
   // month from today and forward indefinitely. `weekCount` grows
   // as the user scrolls toward the bottom (IntersectionObserver).
+  //
+  // These two seeds keep their clock read on purpose. They only pick where
+  // the scroll window opens and which month the header shows before the
+  // first scroll event corrects it — nothing is marked as "today" from them
+  // (that is `todayStr` below, which comes from useToday()). This component
+  // is also unreachable during a server render: it mounts only after the
+  // user picks the Calendar tab, which is only offered once the client-side
+  // task fetch has resolved. Same call the sibling calendar in
+  // src/components/views/calendar-view.tsx made.
   const [windowStart] = useState<Date>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -6333,13 +6398,19 @@ function CalendarView({
     return out;
   }, [allDays, weekCount]);
 
-  // Identify the week index containing today
-  const todayStr = new Date().toDateString();
+  // Identify the week index containing today.
+  // Null until mounted: this string decides which cell wears the gold today
+  // tint and which week the Today button scrolls to. A render-time clock read
+  // answers in UTC on the server, so all evening the circle sat on tomorrow
+  // and React never moved it. No tint for one frame beats a tint on the
+  // wrong day.
+  const today = useToday();
+  const todayStr = today ? today.toDateString() : null;
   const todayWeekIndex = useMemo(
     () =>
-      weeks.findIndex((wk) =>
-        wk.some((d) => d.toDateString() === todayStr)
-      ),
+      todayStr === null
+        ? -1
+        : weeks.findIndex((wk) => wk.some((d) => d.toDateString() === todayStr)),
     [weeks, todayStr]
   );
 
@@ -6629,16 +6700,23 @@ function CalendarView({
     return () => el.removeEventListener("scroll", onScroll);
   }, [allDays, weekOffsets]);
 
-  // On initial mount, jump to today's week.
+  // On open, jump to today's week — once.
+  // `todayWeekIndex` is -1 until useToday() reports the browser's day, which
+  // is one frame after mount, so a mount-only effect would run against a
+  // todayWeekRef that is still null and leave the user parked four weeks in
+  // the past. Wait for the first render that actually knows which week is
+  // today's; the ref keeps it from re-scrolling afterwards (e.g. at midnight,
+  // or when scrolling appends more weeks).
+  const didJumpToTodayRef = useRef(false);
   useEffect(() => {
-    if (todayWeekRef.current && scrollRef.current) {
-      const HEADER_PX = 32;
-      const idx = todayWeekIndex >= 0 ? todayWeekIndex : 0;
-      scrollRef.current.scrollTop = (weekOffsets[idx] ?? 0) - HEADER_PX;
-    }
-    // Run once on mount — refs and offsets derived from initial render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (didJumpToTodayRef.current) return;
+    if (todayWeekIndex < 0) return;
+    if (!todayWeekRef.current || !scrollRef.current) return;
+    const HEADER_PX = 32;
+    scrollRef.current.scrollTop =
+      (weekOffsets[todayWeekIndex] ?? 0) - HEADER_PX;
+    didJumpToTodayRef.current = true;
+  }, [todayWeekIndex, weekOffsets]);
 
   const goToToday = () => {
     if (!scrollRef.current) return;
@@ -7145,6 +7223,12 @@ function DashboardView({
 }) {
   const [widgetGalleryOpen, setWidgetGalleryOpen] = useState(false);
   const enabled = useMemo(() => new Set(widgets), [widgets]);
+  // Local midnight, null until mounted. The Overdue KPI and the upcoming-month
+  // donut are both measured from it, and measuring them against a render-time
+  // clock meant the server's UTC day: from 20:00 in Miami everything due today
+  // was reported overdue. While the day is unknown these widgets show 0 rather
+  // than a count taken from the wrong day.
+  const today = useToday();
 
   const completed = tasks.filter((t) => t.completed).length;
   const incomplete = tasks.filter((t) => !t.completed).length;
@@ -7152,7 +7236,9 @@ function DashboardView({
   // daysFromToday folds the UTC-midnight due date onto the local day so a
   // task due TODAY is never counted overdue (violated the date-only rule
   // before, when `new Date(t.dueDate) < new Date()` flagged it west of UTC).
-  const overdue = tasks.filter((t) => !t.completed && t.dueDate && daysFromToday(t.dueDate) < 0).length;
+  const overdue = today
+    ? tasks.filter((t) => !t.completed && t.dueDate && daysFromToday(t.dueDate, today) < 0).length
+    : 0;
   const total = tasks.length;
 
   // Data for bar chart - tasks by section
@@ -7167,9 +7253,13 @@ function DashboardView({
   // (daysFromToday, date-only) so the donut mirrors Asana's "completion
   // status for the upcoming month" rather than the all-time split.
   // Undated incomplete tasks are excluded (they have no upcoming due day).
-  const nextMonthTasks = tasks.filter(
-    (t) => t.dueDate && daysFromToday(t.dueDate) >= 0 && daysFromToday(t.dueDate) <= 30
-  );
+  const nextMonthTasks = today
+    ? tasks.filter((t) => {
+        if (!t.dueDate) return false;
+        const delta = daysFromToday(t.dueDate, today);
+        return delta >= 0 && delta <= 30;
+      })
+    : [];
   const nextMonthCompleted = nextMonthTasks.filter((t) => t.completed).length;
   const nextMonthIncomplete = nextMonthTasks.filter((t) => !t.completed).length;
   const completionData = [
@@ -7199,29 +7289,48 @@ function DashboardView({
     count: p.count,
   }));
 
-  // Data for line chart - completion over time (last 14 days)
-  const completionOverTimeData = [];
-  for (let i = 13; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+  // Data for line chart - completion over time (last 14 days).
+  // Anchored to `today` rather than a render-time `new Date()`: the axis
+  // labels ARE calendar days, and on the server that clock reads UTC, so
+  // every evening the chart was labelled with tomorrow's dates.
+  // Each bucket now closes at the local midnight AFTER its own day, which is
+  // what "by <date>" means on the axis — the old cut-off was the same
+  // time-of-day N days ago, so a task created last night counted a day late
+  // and the last point crept upward as the afternoon wore on.
+  const completionOverTimeData: {
+    date: string;
+    total: number;
+    completed: number;
+  }[] = [];
+  if (today) {
+    for (let i = 13; i >= 0; i--) {
+      const dayStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - i
+      );
+      const dayEnd = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - i + 1
+      );
+      const dateStr = `${dayStart.getMonth() + 1}/${dayStart.getDate()}`;
 
-    const tasksCreatedByDate = tasks.filter((t) => {
-      const created = new Date(t.createdAt);
-      return created <= date;
-    }).length;
+      const tasksCreatedByDate = tasks.filter(
+        (t) => new Date(t.createdAt) < dayEnd
+      ).length;
 
-    const tasksCompletedByDate = tasks.filter((t) => {
-      if (!t.completed || !t.completedAt) return false;
-      const completedDate = new Date(t.completedAt);
-      return completedDate <= date;
-    }).length;
+      const tasksCompletedByDate = tasks.filter((t) => {
+        if (!t.completed || !t.completedAt) return false;
+        return new Date(t.completedAt) < dayEnd;
+      }).length;
 
-    completionOverTimeData.push({
-      date: dateStr,
-      total: tasksCreatedByDate,
-      completed: tasksCompletedByDate,
-    });
+      completionOverTimeData.push({
+        date: dateStr,
+        total: tasksCreatedByDate,
+        completed: tasksCompletedByDate,
+      });
+    }
   }
 
   // Widget footer (Asana-style): the active-filter readout on the left,
@@ -8019,16 +8128,23 @@ function formatRangeLabel(
  * is today/tomorrow/yesterday, in which case it uses the relative word.
  * Falls back to just the due label when no start date is present, so
  * single-date tasks render exactly as before.
+ *
+ * `today` is local midnight from `useToday()` — the callers are row/card
+ * components, so this runs during a render and must not read the clock: the
+ * server render is a UTC day ahead all evening, and React leaves the wrong
+ * word on screen. `null` means the day is not known yet, and the start end of
+ * the range falls back to its absolute "Mon DD".
  */
 function formatDueColumnLabel(
   startStr: string | null,
   dueStr: string | null,
-  dueRelative: string
+  dueRelative: string,
+  today: Date | null
 ): string {
   if (!startStr) return dueRelative;
   const start = dueDateToLocalMidnight(startStr);
   // Relative word for the start, if within ±1 day of today.
-  const startDelta = daysFromToday(startStr);
+  const startDelta = today === null ? null : daysFromToday(startStr, today);
   let startLabel: string;
   if (startDelta === 0) startLabel = "Today";
   else if (startDelta === 1) startLabel = "Tomorrow";

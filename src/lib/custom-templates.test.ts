@@ -49,6 +49,7 @@ function task(overrides: Partial<CaptureTask> & { id: string; name: string }): C
   return {
     taskType: "TASK",
     dueDate: null,
+    startDate: null,
     sectionId: "sec_1",
     parentTaskId: null,
     isPrivate: false,
@@ -110,6 +111,7 @@ describe("normalizeStructure — the rich shape round-trips", () => {
         section: "Field Work",
         name: "Site visit",
         type: "MILESTONE",
+        relativeStartDate: -21,
         relativeDueDate: -14,
         subtasks: ["Photos", "Measurements"],
         customFieldValues: { Responsible: "insp" },
@@ -179,6 +181,30 @@ describe("normalizeStructure — a bad row degrades, it never throws", () => {
   it("falls back to default sections when the gallery renders an empty row", () => {
     const tpl = customRowToProjectTemplate(row({ tasks: [] }));
     expect(tpl.sections).toEqual(["To do", "In progress", "Done"]);
+  });
+
+  it("keeps a start offset a task carries on its own", () => {
+    // The duration half of the plan must survive the column even when the
+    // task has no due date: a task with only a start is a real plan, not a
+    // half-filled one.
+    const st = normalizeStructure({
+      sections: ["Field Work"],
+      tasks: [{ section: "Field Work", name: "Field survey", relativeStartDate: 13 }],
+    });
+
+    expect(st.tasks?.[0]).toEqual({
+      section: "Field Work",
+      name: "Field survey",
+      relativeStartDate: 13,
+    });
+  });
+
+  it("keeps a non-integer relativeStartDate out of the structure", () => {
+    const st = normalizeStructure({
+      sections: ["Field Work"],
+      tasks: [{ section: "Field Work", name: "Site visit", relativeStartDate: 1.5 }],
+    });
+    expect(st.tasks?.[0]).not.toHaveProperty("relativeStartDate");
   });
 
   it("keeps a non-integer relativeDueDate out of the structure", () => {
@@ -299,6 +325,119 @@ describe("capture — dates become offsets from the anchor", () => {
 
     expect(structure.tasks?.[0].relativeDueDate).toBe(10);
     expect(structure.tasks?.[1]).not.toHaveProperty("relativeDueDate");
+  });
+});
+
+describe("capture — the durations the engineer dragged carry over", () => {
+  it("round-trips a start offset from the same anchor as the due date", () => {
+    const { structure } = buildTemplateStructure(
+      capture({
+        project: { type: "RECERTIFICATION", startDate: "2026-01-15T00:00:00.000Z" },
+        tasks: [
+          task({
+            id: "t1",
+            name: "Field survey",
+            startDate: "2026-01-22T00:00:00.000Z",
+            dueDate: "2026-02-05T00:00:00.000Z",
+          }),
+        ],
+      })
+    );
+
+    expect(structure.tasks?.[0].relativeStartDate).toBe(7);
+    expect(structure.tasks?.[0].relativeDueDate).toBe(21);
+    // Measured from one anchor, so the 14-day bar is what the next project
+    // opens with — not a one-day bar to stretch by hand.
+    expect(
+      structure.tasks![0].relativeDueDate! - structure.tasks![0].relativeStartDate!
+    ).toBe(14);
+  });
+
+  it("captures a start-only task — no due date is not no dates", () => {
+    const { structure } = buildTemplateStructure(
+      capture({
+        project: { type: "RECERTIFICATION", startDate: "2026-09-01T00:00:00.000Z" },
+        tasks: [
+          task({ id: "t1", name: "Field survey", startDate: "2026-09-14T00:00:00.000Z" }),
+        ],
+      })
+    );
+
+    expect(structure.tasks?.[0]).toEqual({
+      section: "Field Work",
+      name: "Field survey",
+      relativeStartDate: 13,
+    });
+  });
+
+  it("keeps a start offset negative when the work begins before kickoff", () => {
+    const { structure } = buildTemplateStructure(
+      capture({
+        project: { type: "RECERTIFICATION", startDate: "2026-01-15T00:00:00.000Z" },
+        tasks: [
+          task({
+            id: "t1",
+            name: "Order the survey",
+            startDate: "2026-01-01T00:00:00.000Z",
+            dueDate: "2026-01-15T00:00:00.000Z",
+          }),
+        ],
+      })
+    );
+
+    expect(structure.tasks?.[0].relativeStartDate).toBe(-14);
+    expect(structure.tasks?.[0].relativeDueDate).toBe(0);
+  });
+
+  it("measures whole calendar days from a start date that carries a time", () => {
+    // Same trap as the due date: the project start is an instant, the task
+    // start is UTC midnight, and differencing them raw loses a day.
+    const { structure } = buildTemplateStructure(
+      capture({
+        project: { type: "RECERTIFICATION", startDate: "2026-03-02T18:42:11.000Z" },
+        tasks: [
+          task({
+            id: "t1",
+            name: "Site visit",
+            startDate: "2026-03-09T00:00:00.000Z",
+            dueDate: "2026-03-16T00:00:00.000Z",
+          }),
+        ],
+      })
+    );
+
+    expect(structure.tasks?.[0].relativeStartDate).toBe(7);
+    expect(structure.tasks?.[0].relativeDueDate).toBe(14);
+  });
+
+  it("leaves a due-only task without a start offset", () => {
+    const { structure } = buildTemplateStructure(
+      capture({
+        project: { type: "RECERTIFICATION", startDate: "2026-01-01T00:00:00.000Z" },
+        tasks: [task({ id: "t1", name: "Report due", dueDate: "2026-01-11T00:00:00.000Z" })],
+      })
+    );
+
+    expect(structure.tasks?.[0].relativeDueDate).toBe(10);
+    expect(structure.tasks?.[0]).not.toHaveProperty("relativeStartDate");
+  });
+
+  it("survives the JSON column the capture writes it to", () => {
+    const { structure } = buildTemplateStructure(
+      capture({
+        project: { type: "RECERTIFICATION", startDate: "2026-01-15T00:00:00.000Z" },
+        tasks: [
+          task({
+            id: "t1",
+            name: "Field survey",
+            startDate: "2026-01-22T00:00:00.000Z",
+            dueDate: "2026-02-05T00:00:00.000Z",
+          }),
+        ],
+      })
+    );
+
+    expect(normalizeStructure(JSON.parse(JSON.stringify(structure)))).toEqual(structure);
   });
 });
 
@@ -609,6 +748,7 @@ describe("captured instructions", () => {
           description: "  Photograph every elevation; note spalling by column line.  ",
           priority: "HIGH",
           dueDate: null,
+          startDate: null,
           sectionId: "s1",
           parentTaskId: null,
           isPrivate: false,
@@ -636,6 +776,7 @@ describe("captured instructions", () => {
           description: "   ",
           priority: "NONE",
           dueDate: null,
+          startDate: null,
           sectionId: "s1",
           parentTaskId: null,
           isPrivate: false,

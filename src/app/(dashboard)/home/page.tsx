@@ -108,6 +108,12 @@ type HomeCockpitData = CockpitData & {
 // chip counts over. next14/lookahead3w are forward-looking planning
 // windows where a completed-count is meaningless, so they fall back
 // to the last 7 days (same as "week").
+//
+// The clock read below is the safe kind: this is only ever called from the
+// fetch effect, so it runs on the browser, with the browser's day. It must
+// NOT be moved into the render — the server renders in UTC, and from 20:00
+// in Miami "today" there is already tomorrow, which would ask the API for a
+// window that has not started yet.
 function periodStartFor(period: HomePeriod): Date {
   const now = new Date();
   switch (period) {

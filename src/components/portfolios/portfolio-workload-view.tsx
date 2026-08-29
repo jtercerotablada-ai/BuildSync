@@ -31,6 +31,7 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useToday } from "@/lib/use-today";
 
 interface WorkloadTask {
   id: string;
@@ -366,7 +367,10 @@ export function PortfolioWorkloadView({
     return map;
   }, [visibleRows, counts, windowSize]);
 
-  const today = startOfDay(new Date());
+  // Local midnight, null until mounted. Computed during render this came
+  // from the server's UTC clock, so from 20:00 Miami the gold "today" column
+  // tinted tomorrow — and React does not repair a className on hydration.
+  const today = useToday();
   // Capacity is only earned on working days — counting Saturdays and Sundays
   // as capacity made a 7-day window look 40% roomier than the week really is.
   const workingDays = useMemo(
@@ -680,7 +684,7 @@ export function PortfolioWorkloadView({
               </div>
               <div className="flex">
                 {days.map((d, i) => {
-                  const isToday = sameDay(d, today);
+                  const isToday = today !== null && sameDay(d, today);
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                   return (
                     <div
@@ -799,7 +803,7 @@ export function PortfolioWorkloadView({
                   <div className="flex">
                     {days.map((d, i) => {
                       const c = counts.get(`${a.id}|${i}`) || 0;
-                      const isToday = sameDay(d, today);
+                      const isToday = today !== null && sameDay(d, today);
                       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                       return (
                         <WorkloadCell

@@ -36,6 +36,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useToday } from '@/lib/use-today';
 
 interface DueDatePickerProps {
   /** Optional start of the range. */
@@ -123,8 +124,10 @@ export function DueDatePicker({
     startDate && !dueDate ? 'due' : 'start'
   );
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Null until mounted. Read during render this was the SERVER's day, which
+  // is UTC — after 20:00 Miami the ring sat on tomorrow's cell, and React
+  // does not repair a className on hydration.
+  const today = useToday();
 
   // Re-sync draft from props every time the popover transitions to
   // open. Outside of that window we keep the draft so live edits
@@ -307,7 +310,8 @@ export function DueDatePicker({
 
   const allDays = [...prevDays, ...currentDays, ...nextDays];
 
-  const isToday = (date: Date) => date.toDateString() === today.toDateString();
+  const isToday = (date: Date) =>
+    today !== null && date.toDateString() === today.toDateString();
 
   const isStart = (date: Date) =>
     !!localStart && date.toDateString() === localStart.toDateString();

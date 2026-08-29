@@ -131,12 +131,17 @@ export function ConfirmTemplateDialog({
         : { sections: 0, tasks: 0, subtasks: 0, customFields: 0 },
     [template]
   );
-  // Only a template that ships offsets has anything to anchor.
+  // Only a template that ships offsets has anything to anchor. A start
+  // offset counts on its own: a captured "the survey starts the 14th, we do
+  // not know yet when it closes" carries no due date, and asking only about
+  // relativeDueDate hid the anchor field on exactly that plan.
   const hasSchedule = useMemo(
     () =>
       !!template &&
       materializableTasks(template).some(
-        (t) => typeof t.relativeDueDate === "number"
+        (t) =>
+          typeof t.relativeDueDate === "number" ||
+          typeof t.relativeStartDate === "number"
       ),
     [template]
   );

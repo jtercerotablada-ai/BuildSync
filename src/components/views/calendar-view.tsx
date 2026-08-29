@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 import { useUiState } from "@/hooks/use-ui-state";
 
 /** Format a local Date as a date-only "YYYY-MM-DD" string (the wire format
@@ -141,21 +142,40 @@ export function CalendarView({
     [tasks]
   );
 
+  // Null until mounted: the server renders in UTC, so from 20:00 Miami its
+  // "today" is tomorrow — and React does not repair a className mismatch, so
+  // the circle stayed on the wrong day all evening. No circle for one frame
+  // beats a circle on the wrong day. Declared up here because the whole
+  // window is derived from it.
+  const today = useToday();
+
   // ── State driving the "infinite" calendar ─────────────────────
-  // `windowStart` is the very first Monday rendered. Seeded at 4
-  // weeks before this week's Monday so the user can scroll up a
-  // month from today AND forward indefinitely. `weekCount` grows as
-  // the bottom sentinel enters the viewport.
-  const [windowStart, setWindowStart] = useState<Date>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  // `windowStart` is the very first Monday rendered: `weeksBack` weeks
+  // before this week's Monday, so the user can scroll up a month from today
+  // AND forward indefinitely. `weekCount` grows as the bottom sentinel
+  // enters the viewport.
+  //
+  // DERIVED from `today`, not seeded with `new Date()` in a state
+  // initializer — that initializer runs during RENDER, and this view is
+  // server-rendered with real tasks (?view=calendar arrives as a prop from
+  // the project page's server component). On a Sunday evening in Miami the
+  // server's Monday is NEXT week's, so it shipped a grid whose every day
+  // number was seven days off, and React does not repair them on hydration.
+  // Null for the first frame means no grid for one frame, which the
+  // downstream memos already handle (`allDays.length === 0`). Deriving it
+  // also means a tab left open past a Sunday midnight re-anchors on the new
+  // week instead of drifting a week behind the today circle, which re-arms
+  // on its own.
+  const [weeksBack, setWeeksBack] = useState(4);
+  const windowStart = useMemo<Date | null>(() => {
+    if (!today) return null;
     const dayOffset = today.getDay() === 0 ? 6 : today.getDay() - 1;
-    const thisMonday = new Date(today);
-    thisMonday.setDate(today.getDate() - dayOffset);
-    const start = new Date(thisMonday);
-    start.setDate(thisMonday.getDate() - 4 * 7); // 4 weeks back
-    return start;
-  });
+    return new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() - dayOffset - weeksBack * 7
+    );
+  }, [today, weeksBack]);
   // Height snapshot so prepending earlier weeks doesn't jump the scroll.
   const prependAnchorRef = useRef<number | null>(null);
 
@@ -164,20 +184,20 @@ export function CalendarView({
   function loadEarlierWeeks() {
     if (scrollRef.current) prependAnchorRef.current = scrollRef.current.scrollHeight;
     setWeekCount((c) => c + 8);
-    setWindowStart((s) => {
-      const n = new Date(s);
-      n.setDate(s.getDate() - 8 * 7);
-      return n;
-    });
+    setWeeksBack((b) => b + 8);
   }
   const [weekCount, setWeekCount] = useState(16); // ~4 months on mount
+  // Null until the user scrolls (the tracker below sets it) or until today
+  // is known — same reason as `windowStart`: the month in the header was a
+  // render-time clock read, and on the last evening of a month the server
+  // titled the calendar with the NEXT month.
   const [visibleMonth, setVisibleMonth] = useState<{
     year: number;
     month: number;
-  }>(() => {
-    const t = new Date();
-    return { year: t.getFullYear(), month: t.getMonth() };
-  });
+  } | null>(null);
+  const shownMonth =
+    visibleMonth ??
+    (today ? { year: today.getFullYear(), month: today.getMonth() } : null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -380,6 +400,7 @@ export function CalendarView({
 
   // ── Generate all days from windowStart ────────────────────────
   const allDays = useMemo(() => {
+    if (!windowStart) return [];
     const out: Date[] = [];
     for (let i = 0; i < weekCount * 7; i++) {
       const d = new Date(windowStart);
@@ -392,17 +413,19 @@ export function CalendarView({
   const weeks = useMemo(() => {
     const out: Date[][] = [];
     for (let w = 0; w < weekCount; w++) {
-      out.push(allDays.slice(w * 7, (w + 1) * 7));
+      const wk = allDays.slice(w * 7, (w + 1) * 7);
+      if (wk.length === 0) break;
+      out.push(wk);
     }
     return out;
   }, [allDays, weekCount]);
 
-  const todayStr = new Date().toDateString();
+  const todayStr = today ? today.toDateString() : null;
   const todayWeekIndex = useMemo(
     () =>
-      weeks.findIndex((wk) =>
-        wk.some((d) => d.toDateString() === todayStr)
-      ),
+      todayStr === null
+        ? -1
+        : weeks.findIndex((wk) => wk.some((d) => d.toDateString() === todayStr)),
     [weeks, todayStr]
   );
 
@@ -637,7 +660,9 @@ export function CalendarView({
           month: midDate.getMonth(),
         };
         setVisibleMonth((prev) =>
-          prev.year === next.year && prev.month === next.month ? prev : next
+          prev && prev.year === next.year && prev.month === next.month
+            ? prev
+            : next
         );
       }
     };
@@ -646,14 +671,17 @@ export function CalendarView({
   }, [allDays, weekOffsets]);
 
   // ── Initial scroll to today ───────────────────────────────────
+  // Waits for `todayWeekIndex` instead of firing on mount: today is unknown
+  // for the first frame now, and a mount-only effect would have parked the
+  // view on the oldest week in the window every time.
+  const didInitialScrollRef = useRef(false);
   useEffect(() => {
-    if (todayWeekRef.current && scrollRef.current) {
-      const HEADER_PX = 32;
-      const idx = todayWeekIndex >= 0 ? todayWeekIndex : 0;
-      scrollRef.current.scrollTop = (weekOffsets[idx] ?? 0) - HEADER_PX;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (didInitialScrollRef.current) return;
+    if (todayWeekIndex < 0 || !scrollRef.current) return;
+    didInitialScrollRef.current = true;
+    const HEADER_PX = 32;
+    scrollRef.current.scrollTop = (weekOffsets[todayWeekIndex] ?? 0) - HEADER_PX;
+  }, [todayWeekIndex, weekOffsets]);
 
   const goToToday = () => {
     if (!scrollRef.current) return;
@@ -699,7 +727,7 @@ export function CalendarView({
           Today
         </Button>
         <span className="font-medium text-black ml-2 tabular-nums">
-          {formatMonthYear(visibleMonth.year, visibleMonth.month)}
+          {shownMonth ? formatMonthYear(shownMonth.year, shownMonth.month) : ""}
         </span>
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {/* Asana's "Fines de semana: activado/desactivado" toggle. */}
@@ -831,7 +859,7 @@ export function CalendarView({
                   const isCollapsed = isWeekend && !showWeekends;
                   const dayNum = date.getDate();
                   const isCurrentMonth =
-                    date.getMonth() === visibleMonth.month;
+                    date.getMonth() === shownMonth?.month;
                   const isFirstOfMonth = dayNum === 1;
                   const isAdding = addingForDate === dateStr;
                   const isDropTarget = dragOverDate === dateStr;

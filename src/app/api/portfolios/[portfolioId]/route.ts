@@ -3,7 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyWorkspaceAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
-import { daysFromToday } from "@/lib/date-only";
+import { daysFromToday, startOfLocalDay } from "@/lib/date-only";
 
 const updatePortfolioSchema = z.object({
   name: z.string().min(1).optional(),
@@ -145,7 +145,13 @@ export async function GET(
       .filter((pp) => pp.project.isArchived)
       .map((pp) => pp.project.id);
 
-    // Calculate stats for each project
+    // Calculate stats for each project.
+    //
+    // One day for the whole response, named once instead of re-read per
+    // task: this runs on the server, where the local day IS the UTC day —
+    // the same convention due dates are stored in. `daysFromToday` no longer
+    // reads the clock for us, so the day has to be said out loud.
+    const today = startOfLocalDay();
     const projectsWithStats = activeProjects.map((pp) => {
       const project = pp.project;
       const totalTasks = project.tasks.length;
@@ -154,7 +160,7 @@ export async function GET(
       // buckets by the UTC calendar day, so viewers west of UTC don't see
       // today's tasks flip to overdue (see src/lib/date-only.ts).
       const overdueTasks = project.tasks.filter(
-        (t) => !t.completed && t.dueDate && daysFromToday(t.dueDate) < 0
+        (t) => !t.completed && t.dueDate && daysFromToday(t.dueDate, today) < 0
       ).length;
       const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 

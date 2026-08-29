@@ -243,6 +243,12 @@ function normalizeTasks(raw: unknown): ProjectTemplateTask[] | undefined {
     if (typeof t.relativeDueDate === "number" && Number.isInteger(t.relativeDueDate)) {
       task.relativeDueDate = t.relativeDueDate;
     }
+    // The start offset is what gives a template task a DURATION. Dropping it
+    // here would throw away the bars the engineer just dragged, silently, on
+    // the way into the column — the same way the description went missing.
+    if (typeof t.relativeStartDate === "number" && Number.isInteger(t.relativeStartDate)) {
+      task.relativeStartDate = t.relativeStartDate;
+    }
     const dependsOn = stringList(t.dependsOn, 200);
     if (dependsOn.length > 0) task.dependsOn = dependsOn;
     const subtasks = stringList(t.subtasks, 200);
@@ -327,6 +333,11 @@ export interface CaptureTask {
   description?: string | null;
   priority?: NonNullable<ProjectTemplateTask["priority"]> | null;
   dueDate: Date | string | null;
+  /** REQUIRED, deliberately: an optional field let the capture endpoint ship
+   *  a Prisma select that never asked for it, and the durations were dropped
+   *  silently with a green test suite. The compiler names the next reader
+   *  that forgets. */
+  startDate: Date | string | null;
   sectionId: string | null;
   parentTaskId: string | null;
   isPrivate: boolean;
@@ -621,6 +632,16 @@ export function buildTemplateStructure(input: CaptureInput): CaptureResult {
       if (anchor && due) {
         // Both reduced to their calendar day first — see utcDay().
         task.relativeDueDate = Math.round((utcDay(due) - utcDay(anchor)) / DAY_MS);
+      }
+      // The START offset is measured from the SAME anchor, so the pair keeps
+      // the duration the engineer built by dragging the bar. Captured on its
+      // own when the task has no due date: "the field survey starts the 14th,
+      // we do not know yet when it closes" is a real plan, and a template that
+      // kept only the due date would hand the next job a task with no dates at
+      // all.
+      const start = toDate(row.startDate);
+      if (anchor && start) {
+        task.relativeStartDate = Math.round((utcDay(start) - utcDay(anchor)) / DAY_MS);
       }
 
       const dependsOn = dependsOnByTaskId.get(row.id);

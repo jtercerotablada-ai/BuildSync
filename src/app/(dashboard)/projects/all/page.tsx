@@ -51,6 +51,8 @@ import {
 import { cn } from "@/lib/utils";
 import { GanttTimeline } from "@/components/projects/gantt-timeline";
 import { computePmiSnapshot, healthVisual } from "@/lib/pmi-metrics";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -679,6 +681,10 @@ function ProjectsListView({
   shellPrefix: string;
   onRowClick: (id: string) => void;
 }) {
+  // Local midnight, null until mounted. The overdue triangle below is a
+  // calendar-day comparison, so it needs the day the ENGINEER is in: the
+  // server's local day is UTC, which rings a project a day early.
+  const today = useToday();
   // Same gridTemplate shared by header, rows, AND ghost-column
   // overlay so every divider lands on the same pixel boundary.
   const gridTemplate = "100px minmax(220px, 1fr) 110px 130px 100px 56px";
@@ -716,9 +722,17 @@ function ProjectsListView({
           completedTaskCount: completedTasks,
         });
         const hv = healthVisual(pmi.health);
+        // endDate is stored at UTC midnight of the target day, so comparing
+        // the raw instant against `new Date()` flagged a project due TODAY as
+        // overdue — from 20:00 the evening BEFORE the deadline, for anyone
+        // west of UTC, and then all day on the deadline itself. Compare
+        // calendar days against the client's day instead; no day, no flag.
+        // Same rule as LaneLabel in gantt-timeline.tsx, the other renderer of
+        // this list.
         const isOverdue =
+          today !== null &&
           p.endDate !== null &&
-          new Date(p.endDate) < new Date() &&
+          dueDateToLocalMidnight(p.endDate) < today &&
           p.status !== "COMPLETE";
 
         return (

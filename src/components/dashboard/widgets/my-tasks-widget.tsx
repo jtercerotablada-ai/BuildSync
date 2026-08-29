@@ -6,7 +6,8 @@ import { Check, Plus, Calendar as CalendarIcon, ChevronRight } from 'lucide-reac
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday, toDateOnlyISO } from '@/lib/date-only';
+import { dueDateToLocalMidnight, daysFromToday, toDateOnlyISO } from '@/lib/date-only';
+import { useToday } from '@/lib/use-today';
 import { TaskDetailPanel } from '@/components/tasks/task-detail-panel';
 import { DueDatePicker } from '@/components/tasks/due-date-picker';
 
@@ -29,9 +30,21 @@ type TabType = 'upcoming' | 'overdue' | 'completed';
 // getInitials was used by the original avatar header; the avatar
 // row was removed so the helper is no longer needed.
 
-// Format due date
-function formatDueDate(date: string): { text: string; isSpecial: boolean } {
-  const diff = daysFromToday(date);
+// Format due date.
+//
+// `today` is local midnight of the viewer's day, from useToday(), and is
+// `null` until the widget has mounted. It is passed in rather than read
+// here: the server render runs in UTC, so from 20:00 in Miami this counted
+// from TOMORROW, and React does not repair a text or className mismatch
+// when it hydrates — a task due today read "Tomorrow", in the bold
+// "special" ink, for the rest of the evening.
+function formatDueDate(
+  date: string,
+  today: Date | null
+): { text: string; isSpecial: boolean } {
+  // No day yet: the absolute date is right in every timezone, and the
+  // relative phrasing arrives one frame later from the browser's clock.
+  const diff = today === null ? null : daysFromToday(date, today);
 
   if (diff === 0) {
     return { text: 'Today', isSpecial: true };
@@ -135,18 +148,27 @@ export function MyTasksWidget() {
     }
   }, [isCreating]);
 
-  const today = startOfLocalDay();
+  // The viewer's own calendar day, and `null` until mount — never the
+  // server's UTC day, which is already tomorrow from 20:00 in Miami and
+  // would file today's work under Overdue for the whole evening. Also
+  // re-arms at local midnight, so a dashboard left open overnight moves
+  // tasks across the split instead of waiting for the next refetch.
+  const today = useToday();
 
   // Asana shows ~5 tasks per tab by default and exposes a "Mostrar
   // más" affordance to reveal the rest. We mirror that with showAll
   // (cap stays at 5 unless the user expands).
   const VISIBLE_LIMIT = 5;
+  // Both splits need `today`; without it no task can be placed, so they stay
+  // empty. The list is still loading then, so nothing is actually hidden.
   const upcomingTasksAll = allTasks.filter(task => {
+    if (!today) return false;
     if (task.completed) return false;
     if (!task.dueDate) return true;
     return dueDateToLocalMidnight(task.dueDate) >= today;
   });
   const overdueTasksAll = allTasks.filter(task => {
+    if (!today) return false;
     if (task.completed) return false;
     if (!task.dueDate) return false;
     return dueDateToLocalMidnight(task.dueDate) < today;
@@ -354,7 +376,7 @@ export function MyTasksWidget() {
                 <CalendarIcon className="h-3.5 w-3.5" />
                 {newTaskDueDate && (
                   <span className="tabular-nums">
-                    {formatDueDate(toDateOnlyISO(newTaskDueDate)).text}
+                    {formatDueDate(toDateOnlyISO(newTaskDueDate), today).text}
                   </span>
                 )}
               </button>
@@ -453,7 +475,7 @@ export function MyTasksWidget() {
               </div>
             )}
             {currentTasks.map((task) => {
-              const dueInfo = task.dueDate ? formatDueDate(task.dueDate) : null;
+              const dueInfo = task.dueDate ? formatDueDate(task.dueDate, today) : null;
 
               return (
                 <div

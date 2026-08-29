@@ -4,7 +4,7 @@
  * formatting logic. Single source of truth for these mappings.
  */
 
-import { dueDateToLocalMidnight, startOfLocalDay } from "@/lib/date-only";
+import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
 
 /**
  * 3-letter discipline chip for the project type. Matches what shows
@@ -114,8 +114,20 @@ export function formatRangeLabel(
  * back to "Mon D" for further-out dates. Mirrors the formatDueDate
  * helper used inside my-tasks so panels in projects render the same
  * vocabulary.
+ *
+ * `today` is local midnight of the viewer's day, or `null` while the
+ * caller does not know it yet. It is a REQUIRED parameter because this
+ * helper is rendered by client components (the task detail panel): it used
+ * to read the clock itself, and a clock read during a client render is the
+ * bug — the server render runs in UTC, so from 20:00 in Miami it is already
+ * tomorrow there, and React does not repair a text mismatch when it
+ * hydrates. A task due today stayed labelled "Tomorrow" all evening.
+ * Client callers pass `useToday()` (src/lib/use-today.ts).
  */
-export function formatDueDateLabel(date: string | null): {
+export function formatDueDateLabel(
+  date: string | null,
+  today: Date | null
+): {
   text: string;
   className: string;
 } {
@@ -127,10 +139,25 @@ export function formatDueDateLabel(date: string | null): {
   // Due dates are stored as UTC-midnight timestamps; read them by the
   // UTC calendar day so a task due "today" never renders as "Yesterday"
   // for viewers west of UTC. See src/lib/date-only.ts.
-  const today = startOfLocalDay();
   const target = dueDateToLocalMidnight(d);
-  const dayMs = 86400000;
-  const diffDays = Math.round((target.getTime() - today.getTime()) / dayMs);
+
+  // No day yet — the server render and the first client render, before
+  // useToday() has reported the browser's own day. Show the absolute date
+  // instead of guessing a relative one: both renders agree, so there is
+  // nothing for hydration to repair, and the relative phrasing appears one
+  // frame later from the viewer's own clock. A wrong "Tomorrow" is worse
+  // than a late one on the panel someone opens to check a deadline.
+  if (!today) {
+    return {
+      text: target.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      className: "text-slate-600",
+    };
+  }
+
+  const diffDays = daysFromToday(d, today);
 
   if (diffDays === 0) return { text: "Today", className: "text-[#a8893a]" };
   if (diffDays === 1) return { text: "Tomorrow", className: "text-[#a8893a]" };

@@ -43,6 +43,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useToday } from "@/lib/use-today";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -191,37 +192,43 @@ function startOfDay(d: Date): Date {
   return x;
 }
 
-function isToday(iso: string): boolean {
-  return new Date(iso).toDateString() === new Date().toDateString();
+/** Whole calendar days from `today` to an instant, or null while today is
+ *  still unknown (the first client frame).
+ *
+ *  Every "Today"/"Yesterday" word below goes through it. They read the clock
+ *  during render, and the server's clock is UTC — from 20:00 Miami an update
+ *  posted this evening was captioned "Yesterday". */
+function dayOffsetFrom(today: Date | null, iso: string): number | null {
+  if (!today) return null;
+  const then = startOfDay(new Date(iso));
+  return Math.round((then.getTime() - today.getTime()) / 86400000);
 }
 
 /** "Just now" / "5 minutes ago" / "2 hours ago" / "Yesterday" / "Aug 3". */
-function formatRelativeTime(iso: string): string {
+function formatRelativeTime(iso: string, today: Date | null): string {
   const then = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - then.getTime();
+  const diffMs = Date.now() - then.getTime();
   const min = Math.floor(diffMs / 60000);
   if (min < 1) return "Just now";
   if (min < 60) return `${min} minute${min === 1 ? "" : "s"} ago`;
   const hr = Math.floor(min / 60);
-  if (hr < 24 && then.getDate() === now.getDate()) {
+  const offset = dayOffsetFrom(today, iso);
+  if (hr < 24 && offset === 0) {
     return `${hr} hour${hr === 1 ? "" : "s"} ago`;
   }
-  const y = new Date(now);
-  y.setDate(y.getDate() - 1);
-  if (then.toDateString() === y.toDateString()) return "Yesterday";
+  if (offset === -1) return "Yesterday";
   return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /** Sidebar / short label: "Today" / "Yesterday" / "Aug 3". */
-function formatDayLabel(iso: string): string {
-  const then = new Date(iso);
-  const now = new Date();
-  if (then.toDateString() === now.toDateString()) return "Today";
-  const y = new Date(now);
-  y.setDate(y.getDate() - 1);
-  if (then.toDateString() === y.toDateString()) return "Yesterday";
-  return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function formatDayLabel(iso: string, today: Date | null): string {
+  const offset = dayOffsetFrom(today, iso);
+  if (offset === 0) return "Today";
+  if (offset === -1) return "Yesterday";
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function monthDay(iso: string): string {
@@ -242,9 +249,14 @@ function longDate(iso: string): string {
 /** Project date range pill: "Today – Aug 31" / "Aug 3 – Aug 31". */
 function dateRangeLabel(
   start: string | null | undefined,
-  end: string | null | undefined
+  end: string | null | undefined,
+  today: Date | null
 ): string | null {
-  const s = start ? (isToday(start) ? "Today" : monthDay(start)) : null;
+  const s = start
+    ? dayOffsetFrom(today, start) === 0
+      ? "Today"
+      : monthDay(start)
+    : null;
   const e = end ? monthDay(end) : null;
   if (s && e) return `${s} – ${e}`;
   if (s) return s;
@@ -299,6 +311,9 @@ export function ProjectStatusModal({
   onPosted?: () => void;
 }) {
   const router = useRouter();
+  // Local midnight, null until mounted — the "Today"/"Yesterday" captions,
+  // the date-range pill and the two-week upcoming window all measure from it.
+  const today = useToday();
   const [updates, setUpdates] = useState<ProjectStatusUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -380,7 +395,9 @@ export function ProjectStatusModal({
   );
 
   const upcoming = useMemo(() => {
-    const today = startOfDay(new Date());
+    // No window before today is known: on the server the next two weeks
+    // start TOMORROW, which silently drops everything due today.
+    if (!today) return [];
     const end = new Date(today);
     end.setDate(end.getDate() + 14);
     end.setHours(23, 59, 59, 999);
@@ -397,7 +414,7 @@ export function ProjectStatusModal({
           new Date(b.startDate || (b.dueDate as string)).getTime()
       )
       .slice(0, 12);
-  }, [tasks]);
+  }, [tasks, today]);
 
   const copyLink = () => {
     try {
@@ -501,7 +518,7 @@ export function ProjectStatusModal({
           </span>
           <span className="text-gray-400">
             {" · "}
-            {formatRelativeTime(selected.createdAt)}
+            {formatRelativeTime(selected.createdAt, today)}
           </span>
         </div>
       </div>
@@ -560,8 +577,12 @@ export function ProjectStatusModal({
             <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
             Upcoming tasks in 2 weeks
           </span>
-          <span className="text-gray-300">·</span>
-          <span>Starting: {longDate(new Date().toISOString())}</span>
+          {today && (
+            <>
+              <span className="text-gray-300">·</span>
+              <span>Starting: {longDate(today.toISOString())}</span>
+            </>
+          )}
         </div>
         {upcoming.length === 0 ? (
           <p className="text-sm text-gray-400 border rounded-lg px-3 py-4">
@@ -776,7 +797,7 @@ export function ProjectStatusModal({
                           {headlineOf(u)}
                         </span>
                         <span className="text-[11px] text-gray-400 flex-shrink-0">
-                          {formatDayLabel(u.createdAt)}
+                          {formatDayLabel(u.createdAt, today)}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
@@ -867,10 +888,10 @@ export function ProjectStatusModal({
             {project.name}
           </h2>
         </div>
-        {dateRangeLabel(project.startDate, project.endDate) && (
+        {dateRangeLabel(project.startDate, project.endDate, today) && (
           <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-5">
             <CalendarDays className="h-3.5 w-3.5" />
-            {dateRangeLabel(project.startDate, project.endDate)}
+            {dateRangeLabel(project.startDate, project.endDate, today)}
           </div>
         )}
 

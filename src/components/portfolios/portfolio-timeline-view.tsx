@@ -32,6 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUiState } from "@/hooks/use-ui-state";
+import { useToday } from "@/lib/use-today";
 
 type ProjectStatus =
   | "ON_TRACK"
@@ -342,9 +343,14 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
     return addMonths(c, -backMonths);
   }, [centerDate, scale]);
 
-  const today = new Date();
-  const todayOffset = fractionalMonths(rangeStart, today);
-  const todayPx = todayOffset * monthPx;
+  // Local midnight, null until mounted — the last portfolio view still
+  // reading the clock during render. Its two siblings (workload, status)
+  // moved to the hook; this one kept `new Date()`, so the blue today line
+  // never re-armed: a portfolio tab left open on the office machine
+  // overnight kept drawing yesterday's line.
+  const today = useToday();
+  const todayOffset = today ? fractionalMonths(rangeStart, today) : null;
+  const todayPx = todayOffset === null ? 0 : todayOffset * monthPx;
   const totalPx = rangeMonths * monthPx;
 
   const activeLeftColumns = LEFT_COLUMN_DEFS.filter((c) =>
@@ -1151,7 +1157,9 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
             ))}
 
             {/* ── Today marker ────────────────────────────── */}
-            {todayOffset >= 0 && todayOffset <= rangeMonths && (
+            {todayOffset !== null &&
+              todayOffset >= 0 &&
+              todayOffset <= rangeMonths && (
               <div
                 className="absolute pointer-events-none"
                 style={{

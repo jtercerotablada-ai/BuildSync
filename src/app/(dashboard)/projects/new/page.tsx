@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toDateOnlyISO } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 import { useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -171,12 +173,20 @@ export default function NewProjectPage() {
   // Default to the LOCAL calendar date. toISOString() would give the UTC
   // date, which is already "tomorrow" for US-evening users — and this value
   // seeds every template task's relative due date server-side.
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${d.getFullYear()}-${mm}-${dd}`;
-  });
+  //
+  // Filled from `useToday()` in an effect rather than a useState initializer:
+  // an initializer runs during RENDER, and this page is server-rendered, so
+  // the server put its UTC date into the `value=` attribute of the date
+  // input while the client's state held the local one. React does not
+  // rewrite an input's value when it hydrates, so from 20:00 Miami the field
+  // SHOWED tomorrow and POSTed today — the exact "already tomorrow for
+  // US-evening users" case the comment above set out to avoid.
+  const today = useToday();
+  // null = the engineer has not picked a date, so the field follows today.
+  // Derived rather than seeded-then-corrected: no effect, no second render,
+  // and nothing to clobber a date that HAS been picked.
+  const [pickedStartDate, setPickedStartDate] = useState<string | null>(null);
+  const startDate = pickedStartDate ?? (today ? toDateOnlyISO(today) : "");
 
   // Load template if templateId is provided
   useEffect(() => {
@@ -220,7 +230,10 @@ export default function NewProjectPage() {
   });
 
   const handleCreateProject = () => {
-    if (!projectName.trim()) return;
+    // `startDate` is empty only on the very first frame, before the seeding
+    // effect runs. Posting "" would hand the API an Invalid Date to build
+    // every template task's schedule from.
+    if (!projectName.trim() || !startDate) return;
     createProjectMutation.mutate();
   };
 
@@ -310,7 +323,7 @@ export default function NewProjectPage() {
                     id="startDate"
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => setPickedStartDate(e.target.value)}
                     className="pl-10"
                   />
                 </div>
@@ -321,7 +334,11 @@ export default function NewProjectPage() {
 
               <Button
                 onClick={handleCreateProject}
-                disabled={!projectName.trim() || createProjectMutation.isPending}
+                disabled={
+                  !projectName.trim() ||
+                  !startDate ||
+                  createProjectMutation.isPending
+                }
                 className="w-full bg-[#c9a84c] hover:bg-[#a8893a]"
               >
                 {createProjectMutation.isPending ? (

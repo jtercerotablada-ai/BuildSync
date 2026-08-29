@@ -31,7 +31,8 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { dueDateToLocalMidnight, startOfLocalDay } from "@/lib/date-only";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { useToday } from "@/lib/use-today";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MapPin, Diamond } from "lucide-react";
 
 type ProjectType =
@@ -95,6 +96,12 @@ export function GanttTimeline({
 }: {
   projects: GanttProject[];
 }) {
+  // Local midnight, null until mounted, then handed down to the rows. The
+  // dashed today line and the overdue trim were computed during render, and
+  // the server's clock is UTC — from 20:00 Miami the line stood on tomorrow
+  // and a project ending today already wore the overdue ring. One shared
+  // value rather than a hook per row: every row wants the same day.
+  const today = useToday();
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [centerDate, setCenterDate] = useState<Date>(() => new Date());
   const [groupBy, setGroupBy] = useState<"none" | "type" | "owner">(
@@ -118,6 +125,13 @@ export function GanttTimeline({
     const start = new Date(centerDate);
     start.setDate(start.getDate() - half);
     start.setDate(1); // snap to first of month
+    // ...and to LOCAL MIDNIGHT. Every mark on this canvas is placed by
+    // Math.floor((mark - rangeStart) / oneDay), and the marks themselves are
+    // local midnights (dueDateToLocalMidnight, useToday). An origin still
+    // carrying centerDate's time of day made that division fractional, so
+    // the floor put every bar, milestone and the today line one column left
+    // of the month ruler.
+    start.setHours(0, 0, 0, 0);
 
     const end = new Date(start);
     end.setDate(end.getDate() + visibleDays + 60); // buffer right edge
@@ -159,15 +173,14 @@ export function GanttTimeline({
     return markers;
   }, [rangeStart, rangeEnd, dayPx]);
 
-  // Today line — only render if "now" is in the visible window.
+  // Today line — only render if today is known AND inside the window.
   const todayLeft = useMemo(() => {
-    const now = new Date();
-    if (now < rangeStart || now > rangeEnd) return null;
+    if (!today || today < rangeStart || today > rangeEnd) return null;
     const daysFromStart = Math.floor(
-      (now.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
+      (today.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
     );
     return daysFromStart * dayPx;
-  }, [rangeStart, rangeEnd, dayPx]);
+  }, [today, rangeStart, rangeEnd, dayPx]);
 
   // Group projects into lanes per the active groupBy.
   const groupedRows = useMemo(() => {
@@ -303,7 +316,7 @@ export function GanttTimeline({
                   </div>
                 )}
                 {group.projects.map((p) => (
-                  <LaneLabel key={p.id} project={p} />
+                  <LaneLabel key={p.id} project={p} today={today} />
                 ))}
               </div>
             ))}
@@ -377,6 +390,7 @@ export function GanttTimeline({
                     rangeStart={rangeStart}
                     rangeEnd={rangeEnd}
                     dayPx={dayPx}
+                    today={today}
                   />
                 ))}
               </div>
@@ -421,17 +435,25 @@ export function GanttTimeline({
   );
 }
 
-function LaneLabel({ project }: { project: GanttProject }) {
+function LaneLabel({
+  project,
+  today,
+}: {
+  project: GanttProject;
+  today: Date | null;
+}) {
   // Simple overdue flag — endDate in the past on a non-complete
   // project. Was previously derived from pmi.floatDays but EVM
   // metrics were dropped from the project surface per product call.
   // endDate is stored at UTC midnight of the target day, so comparing the
   // raw instant against `new Date()` flagged a project due TODAY as overdue
   // from the first minute of the day for anyone west of UTC. Compare
-  // calendar days instead.
+  // calendar days instead — against the CLIENT's day (null until mounted),
+  // because the server's local day is UTC and would ring it a day early.
   const isOverdue =
+    today !== null &&
     project.endDate !== null &&
-    dueDateToLocalMidnight(project.endDate) < startOfLocalDay() &&
+    dueDateToLocalMidnight(project.endDate) < today &&
     project.status !== "COMPLETE";
 
   return (
@@ -473,11 +495,13 @@ function GanttBar({
   rangeStart,
   rangeEnd,
   dayPx,
+  today,
 }: {
   project: GanttProject;
   rangeStart: Date;
   rangeEnd: Date;
   dayPx: number;
+  today: Date | null;
 }) {
   // startDate/endDate are UTC-midnight instants; read them by UTC calendar
   // day so bars don't land one day-cell early against the local rangeStart.
@@ -519,17 +543,29 @@ function GanttBar({
   // Same UTC-midnight-vs-local-now trap as the lane label: compare calendar
   // days so a project due today isn't flagged overdue from 00:00.
   const isOverdue =
-    dueDateToLocalMidnight(project.endDate!) < startOfLocalDay() &&
+    today !== null &&
+    dueDateToLocalMidnight(project.endDate!) < today &&
     project.status !== "COMPLETE";
 
   // Time progress ratio — what % of the project window has elapsed.
-  // Shown as a darker "actual" fill stripe inside the bar.
-  const now = new Date();
+  // Shown as a darker "actual" fill stripe inside the bar. Measured in whole
+  // days from `today` like every other mark on this chart, and 0 (no stripe)
+  // until today is known: the old `new Date()` mixed a wall-clock instant
+  // with local-midnight bounds, which the server and the browser build in
+  // different zones, so the stripe hydrated at a different width.
   let timeRatio = 0;
-  if (now >= start && now <= end) {
-    timeRatio =
-      (now.getTime() - start.getTime()) / (end.getTime() - start.getTime());
-  } else if (now > end) timeRatio = 1;
+  if (today) {
+    if (today > end) {
+      timeRatio = 1;
+    } else if (today >= start) {
+      // A one-day project has a zero-length window; dividing by it gave NaN,
+      // which is not a width, and the stripe vanished on the one day it
+      // matters. Its day has arrived, so it is fully elapsed.
+      const windowMs = end.getTime() - start.getTime();
+      timeRatio =
+        windowMs === 0 ? 1 : (today.getTime() - start.getTime()) / windowMs;
+    }
+  }
 
   // Milestones — tasks marked taskType=MILESTONE plotted as diamonds
   // along the bar at their due date. Standard PMBOK Gantt convention.

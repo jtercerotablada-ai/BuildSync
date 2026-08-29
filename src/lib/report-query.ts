@@ -399,10 +399,15 @@ function applyPostFilters(
   );
   if (postFilters.length === 0) return rows;
 
+  // One day for the whole pass. Server-only module, so the local day is the
+  // UTC day due dates are stored in — the behaviour daysFromToday used to
+  // read off the clock for itself, now stated once instead of per row.
+  const today = startOfLocalDay();
+
   return rows.filter((row) => {
     for (const f of postFilters) {
       if (f.field === "dueStatus") {
-        const status = computeDueStatus(row);
+        const status = computeDueStatus(row, today);
         const want = filterValues(f.value);
         // Unfinished filter — skip it, the same way the Prisma path returns a
         // null clause instead of one that matches nothing.
@@ -469,12 +474,14 @@ function matchCfFilter(raw: unknown, f: Filter): boolean {
 
 // ─── Dimension key + label resolution ─────────────────────────────
 
-/** Compute the Upcoming|Overdue|No date|Completed bucket for a task. */
-function computeDueStatus(row: TaskRow): string {
+/** Compute the Upcoming|Overdue|No date|Completed bucket for a task.
+ *  `today` is local midnight of the day to measure against; this module is
+ *  server-only, so that is the UTC day due dates are stored in. */
+function computeDueStatus(row: TaskRow, today: Date): string {
   if (row.completed) return "Completed";
   if (!row.dueDate) return "No date";
   // date-only: due today (0) is NOT overdue; negative = overdue.
-  return daysFromToday(row.dueDate) < 0 ? "Overdue" : "Upcoming";
+  return daysFromToday(row.dueDate, today) < 0 ? "Overdue" : "Upcoming";
 }
 
 function computeCompletionStatus(row: TaskRow): string {
@@ -561,7 +568,12 @@ export function resolveTaskDimension(
       return { key: s, label: s, color: COMPLETION_STATUS_COLORS[s] };
     }
     case "dueStatus": {
-      const s = computeDueStatus(row);
+      // Server-only module: the local day IS the UTC day due dates are
+      // stored in, so this is the same day daysFromToday used to read for
+      // itself — per call, exactly as before. It is named here rather than
+      // taken as a parameter because this function's signature is the
+      // module's public API (report-query.test.ts calls it directly).
+      const s = computeDueStatus(row, startOfLocalDay());
       return { key: s, label: s, color: DUE_STATUS_COLORS[s] };
     }
     case "project": {

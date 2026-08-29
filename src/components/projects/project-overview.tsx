@@ -48,6 +48,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useToday } from "@/lib/use-today";
 import { notifyTaskMutated } from "@/lib/task-events";
 import { ProjectStageStrip } from "@/components/cockpit/PipelineStrip";
 import type { ProjectType } from "@/components/cockpit/types";
@@ -357,6 +358,10 @@ export function ProjectOverview({
 }: ProjectOverviewProps) {
   const router = useRouter();
   const { data: session } = useSession();
+  // Local midnight, null until mounted — the activity feed's day label is
+  // printed from it. Read during render it came from the server's UTC clock,
+  // so after 20:00 Miami the feed was headed with tomorrow's date.
+  const today = useToday();
   // Whether the current user may edit the project (description, live status,
   // status-badge sync). Owner or a project ADMIN/EDITOR — matches the PATCH
   // gate on /api/projects/[id] and the status-sync gate on status-updates.
@@ -2193,10 +2198,12 @@ export function ProjectOverview({
               <ActivityIcon className="w-3.5 h-3.5" />
               Activity
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-3">
-              <Calendar className="w-3 h-3" />
-              {formatDayLabel(new Date())}
-            </div>
+            {today && (
+              <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-3">
+                <Calendar className="w-3 h-3" />
+                {formatDayLabel(today)}
+              </div>
+            )}
 
             {loadingFeed ? (
               <p className="text-sm text-slate-400">Loading…</p>
