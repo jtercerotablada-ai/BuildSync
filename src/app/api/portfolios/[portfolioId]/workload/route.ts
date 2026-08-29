@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { readTimeTracking, WORK_HOURS_PER_DAY } from "@/lib/duration";
 
 // GET /api/portfolios/:portfolioId/workload
@@ -81,11 +82,16 @@ export async function GET(
     // their own assignments listed each one next to its parent and summed the
     // parent's TIME_TRACKING estimate twice, so the same engineer showed a
     // different load here than on Team > Workload.
+    // PRIVACY: a portfolio groups projects the viewer may read, which is
+    // not permission to read every task inside them. Without this clause
+    // the workload grid listed other people's private task NAMES and who
+    // they were assigned to. Same leak the project activity feed had.
     const tasks = await prisma.task.findMany({
       where: {
         projectId: { in: projectIds },
         parentTaskId: null,
         completed: false,
+        ...taskPrivacyClause(userId),
       },
       select: {
         id: true,

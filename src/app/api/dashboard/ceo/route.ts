@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { isWorkspaceOwner } from "@/lib/people-types";
 
 // Aggregated payload for the home cockpit at /home.
@@ -171,12 +172,23 @@ export async function GET(request: Request) {
         ? { workspaceId, isArchived: false }
         : { workspaceId, id: { in: scopedProjectIds }, isArchived: false };
 
+    // PRIVACY: being allowed to read a PROJECT is not permission to read
+    // every task in it. A private task belongs to its creator and assignee;
+    // taskPrivacyClause() is what every list in the product filters by, and
+    // without it this dashboard put other people's private task NAMES (plus
+    // assignee and creator) into the queue, the milestones tile and the
+    // activity stream — on the screen the owner opens first every morning.
+    // It also keeps them out of the counts, which is the same answer.
     const taskWhere =
       scopedProjectIds === null
-        ? { project: { workspaceId, isArchived: false } }
+        ? {
+            project: { workspaceId, isArchived: false },
+            ...taskPrivacyClause(userId),
+          }
         : {
             projectId: { in: scopedProjectIds },
             project: { isArchived: false },
+            ...taskPrivacyClause(userId),
           };
 
     // The same scope WITHOUT the archive filter, for the completed-in-period
@@ -188,8 +200,8 @@ export async function GET(request: Request) {
     // scoped viewer shares a project with, archived projects included.
     const completedTaskWhere =
       scopedProjectIds === null
-        ? { project: { workspaceId } }
-        : { projectId: { in: scopedProjectIds } };
+        ? { project: { workspaceId }, ...taskPrivacyClause(userId) }
+        : { projectId: { in: scopedProjectIds }, ...taskPrivacyClause(userId) };
 
     if (slim) {
       const [tasksCompleted, teamCount] = await Promise.all([

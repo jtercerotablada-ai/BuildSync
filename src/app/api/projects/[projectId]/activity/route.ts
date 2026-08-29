@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { resolveProjectAccess } from "@/lib/project-access";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 
 // GET /api/projects/:projectId/activity
 //
@@ -13,6 +14,16 @@ import { resolveProjectAccess } from "@/lib/project-access";
 // This is intentionally read-only and derived — no separate "Activity"
 // table is needed today. If we later add audit-log style tracking we
 // can swap the source without touching the front-end shape.
+//
+// PRIVACY: reading the project is NOT enough to read every task in it.
+// A task marked private is visible only to its creator, its assignee, or
+// a workspace manager — decideTaskAccess() 404s it by URL and
+// taskPrivacyClause() drops it from every list. This feed derived its
+// rows straight from Task.projectId and so printed the NAMES of other
+// people's private tasks ("Melvin created a task — <name>") on the
+// project Overview, while List, Board, Timeline, Gantt and the Calendar
+// all correctly hid them. Both task sources below take the same clause
+// the rest of the product uses; do not hand-roll a second rule here.
 
 type ActivityType =
   | "status_update"
@@ -102,6 +113,7 @@ export async function GET(
             projectId,
             completed: true,
             completedAt: { not: null },
+            ...taskPrivacyClause(userId),
           },
           orderBy: { completedAt: "desc" },
           take: 20,
@@ -116,7 +128,7 @@ export async function GET(
           },
         }),
         prisma.task.findMany({
-          where: { projectId },
+          where: { projectId, ...taskPrivacyClause(userId) },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 import { resolveProjectAccess } from "@/lib/project-access";
 
 /**
@@ -124,9 +125,15 @@ export async function GET(
       }),
       // Milestones approaching in the NEXT 14 days — surfaces what's
       // coming up so the composer can pre-fill the "Next steps" block
+// PRIVACY: reading the project is not the same as reading every task in
+// it. A private task is visible only to its creator or assignee —
+// taskPrivacyClause() is the rule the rest of the product lists by, and
+// without it this endpoint printed other people's private milestone
+// NAMES. Same leak the project activity feed had.
       prisma.task.findMany({
         where: {
           projectId,
+          ...taskPrivacyClause(userId),
           taskType: "MILESTONE",
           completed: false,
           dueDate: {
@@ -143,9 +150,11 @@ export async function GET(
     // Pull the names of the milestones that landed so the
     // "Accomplished" block can pre-fill with real titles instead of
     // a bare count.
+    // See the privacy note on the upcoming-milestones query above.
     const recentMilestones = await prisma.task.findMany({
       where: {
         projectId,
+        ...taskPrivacyClause(userId),
         taskType: "MILESTONE",
         completed: true,
         completedAt: { gte: windowStart, lte: now },
