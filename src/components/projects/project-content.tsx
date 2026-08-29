@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { notifySidebarRefresh } from "@/lib/open-create-project";
 import { useSession } from "next-auth/react";
@@ -55,11 +55,32 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  BUILTIN_VIEWS,
   BUILTIN_VIEW_KEYS,
-  baseLabelFor,
+  PROJECT_TAB_ORDER_KEY,
   RENDERABLE_VIEWS,
+  nextProjectTabOrderMap,
+  nextTabOrder,
+  resolveProjectTabs,
+  savedTabOrderFor,
+  type ProjectTabOrderMap,
+  type ProjectViewTab,
 } from "@/lib/project-views";
+import {
+  DndContext,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableViewTab } from "@/components/projects/sortable-view-tab";
 import { useUiState } from "@/hooks/use-ui-state";
 // isSameWeek, not isThisWeek: isThisWeek is isSameWeek against Date.now(),
 // i.e. a clock read in the middle of a render. The week is measured against
@@ -315,6 +336,14 @@ interface ProjectContentProps {
   /** May delete the project — mirrors DELETE /api/projects/[projectId], which
    *  also admits a workspace OWNER/ADMIN. Same authority note as canEdit. */
   canManage?: boolean;
+  /** This viewer's saved tab order for THIS project, resolved on the
+   *  server. `useUiState` only reads its localStorage cache and the DB
+   *  from an effect, so without this the first paint renders catalog
+   *  order and the strip visibly re-shuffles once — the same flicker the
+   *  "+" fix removed, moved to page load. Seeding the hook's default with
+   *  the server's answer makes the SSR HTML, the hydration render and the
+   *  hydrated value all agree, so there is nothing to settle. */
+  initialTabOrder?: string[] | null;
 }
 
 // Monochrome + gold palette for status badges. Gold = active/positive,
@@ -378,16 +407,9 @@ interface ViewPref {
   position: number;
 }
 
-// A resolved tab in the strip: a built-in view (with any rename applied) or a
-// "Make a copy" of one. `mobile` mirrors the built-in's responsive visibility.
-interface TabDef {
-  viewKey: string;
-  baseView: string;
-  label: string;
-  mobile: boolean;
-  isCopy: boolean;
-  isDefault: boolean;
-}
+// A resolved tab in the strip is `ProjectViewTab` from @/lib/project-views —
+// the same shape this file used to declare inline, now shared with the pure
+// rule that builds and orders the strip.
 
 // Tab icons, keyed by the underlying built-in view. Copies reuse their base
 // view's icon.
@@ -412,6 +434,7 @@ export function ProjectContent({
   sectionTaskCounts,
   canEdit,
   canManage,
+  initialTabOrder,
 }: ProjectContentProps) {
   const router = useRouter();
   // Both project pages are re-exported into the portal shell, so any
@@ -711,41 +734,64 @@ export function ProjectContent({
     [project.viewPrefs]
   );
 
-  const tabs = useMemo<TabDef[]>(() => {
-    const prefByKey = new Map(viewPrefs.map((p) => [p.viewKey, p]));
-    const result: TabDef[] = [];
-    // Built-in tabs, in catalog order, minus any "deleted" (hidden) ones, with
-    // rename overrides applied.
-    for (const b of BUILTIN_VIEWS) {
-      const pref = prefByKey.get(b.key);
-      if (pref?.hidden) continue;
-      result.push({
-        viewKey: b.key,
-        baseView: b.key,
-        label: pref?.label?.trim() || b.label,
-        mobile: b.mobile,
-        isCopy: false,
-        isDefault: !!pref?.isDefault,
-      });
-    }
-    // "Make a copy" tabs, appended after the built-ins (Asana order).
-    const copies = viewPrefs
-      .filter((p) => !BUILTIN_VIEW_KEYS.has(p.viewKey) && !p.hidden)
-      .sort(
-        (a, b) => a.position - b.position || a.viewKey.localeCompare(b.viewKey)
+  // WHAT the strip contains is a project-wide decision — the shared `hidden`
+  // flag "+", Delete and Make-a-copy write to ProjectViewPref. The ORDER is
+  // personal ("por persona, cada quien acomoda sus taps"), so it lives in this
+  // user's own uiState: ProjectViewPref has no userId, so an order stored
+  // there would rearrange all three colleagues' strips at once.
+  // Seeded from the server so the first frame is already this viewer's
+  // arrangement. Memoised on the id + the resolved order because
+  // useUiState holds its default in useState's initialiser: a fresh
+  // object per render would be harmless there but is a lie to read.
+  const tabOrderSeed = useMemo<ProjectTabOrderMap>(
+    () =>
+      initialTabOrder && initialTabOrder.length > 0
+        ? { [project.id]: initialTabOrder }
+        : {},
+    [project.id, initialTabOrder]
+  );
+  const {
+    value: tabOrderMap,
+    setValue: setTabOrderMap,
+    isHydrated: tabOrderHydrated,
+  } = useUiState<ProjectTabOrderMap>(PROJECT_TAB_ORDER_KEY, tabOrderSeed);
+
+  // Built-ins "+" has just un-hidden, held locally until the server row says
+  // the same thing. Without this the new tab cannot exist until the PATCH
+  // round-trips and the server component re-renders — that gap is the flicker:
+  // click Gantt, land on Gantt, and watch its tab pop in a beat later.
+  const [pendingUnhide, setPendingUnhide] = useState<string[]>([]);
+
+  // Hand the tab back to the server copy only once the two AGREE, so the
+  // hand-off is invisible. Clearing the whole overlay on any viewPrefs change
+  // would make the tab disappear and return on an unrelated refresh — the
+  // second shuffle this is meant to prevent.
+  useEffect(() => {
+    setPendingUnhide((prev) => {
+      const next = prev.filter((key) =>
+        viewPrefs.some((p) => p.viewKey === key && p.hidden)
       );
-    for (const c of copies) {
-      result.push({
-        viewKey: c.viewKey,
-        baseView: c.baseView,
-        label: c.label?.trim() || `${baseLabelFor(c.baseView)} copy`,
-        mobile: true,
-        isCopy: true,
-        isDefault: c.isDefault,
-      });
-    }
-    return result;
+      return next.length === prev.length ? prev : next;
+    });
   }, [viewPrefs]);
+
+  const effectivePrefs = useMemo<ViewPref[]>(() => {
+    if (pendingUnhide.length === 0) return viewPrefs;
+    const pending = new Set(pendingUnhide);
+    return viewPrefs.map((p) =>
+      pending.has(p.viewKey) && p.hidden ? { ...p, hidden: false } : p
+    );
+  }, [viewPrefs, pendingUnhide]);
+
+  // savedTabOrderFor returns the stored array by reference (or undefined), so
+  // this stays referentially stable between renders and the memo below holds.
+  const savedTabOrder = savedTabOrderFor(tabOrderMap, project.id);
+
+  const tabs = useMemo<ProjectViewTab[]>(
+    () =>
+      resolveProjectTabs({ prefs: effectivePrefs, savedOrder: savedTabOrder }),
+    [effectivePrefs, savedTabOrder]
+  );
 
   // The active tab may be a copy, whose underlying built-in drives rendering.
   const activeTab = tabs.find((t) => t.viewKey === currentView);
@@ -755,30 +801,194 @@ export function ProjectContent({
       ? currentView
       : "list";
 
-  // Hidden built-in views — the "+" catalog re-adds (unhides) these.
+  // Hidden built-in views — the "+" catalog re-adds (unhides) these. Read from
+  // effectivePrefs, not viewPrefs: a tab already un-hidden optimistically must
+  // not be PATCHed a second time when the user clicks it again in "+".
   const hiddenBuiltins = useMemo(
     () =>
       new Set(
-        viewPrefs
+        effectivePrefs
           .filter((p) => p.hidden && BUILTIN_VIEW_KEYS.has(p.viewKey))
           .map((p) => p.viewKey)
       ),
-    [viewPrefs]
+    [effectivePrefs]
   );
 
   const [renamingKey, setRenamingKey] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [tabBusy, setTabBusy] = useState(false);
 
+  // ── Arranging the strip (per user) ──────────────────────────────────
+  //
+  // Write this user's arrangement. `setTabOrderMap` PATCHes on a debounce and
+  // swallows its own network errors, so the same payload is sent here too:
+  // that is the only way to notice a REJECTED write — the merged uiState is
+  // size-capped server-side and the PATCH fails past the cap — and roll the
+  // strip back instead of leaving the user with an order that silently never
+  // saved. The rollback's setTabOrderMap replaces the hook's still-pending
+  // debounced write with the old value, so the server ends up repaired too.
+  // The most recent map this component wrote, so a stale in-flight request
+  // can tell whether it is still the current one before rolling anything back.
+  const lastTabOrderWriteRef = useRef<ProjectTabOrderMap | null>(null);
+
+  const persistTabOrder = (order: string[]) => {
+    // Pre-hydration the map is still the `{}` default, so a write here would
+    // be computed against an empty map. Unreachable rather than merely
+    // unlikely: dnd-kit attaches no pointer listeners until it has mounted,
+    // so there is no drag to persist before this flips.
+    if (!tabOrderHydrated) return;
+    const previous = tabOrderMap;
+    const nextMap = nextProjectTabOrderMap(previous, project.id, order);
+    lastTabOrderWriteRef.current = nextMap;
+    setTabOrderMap(nextMap);
+    fetch("/api/users/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uiState: { [PROJECT_TAB_ORDER_KEY]: nextMap } }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      })
+      .catch(() => {
+        // Only the LATEST write may roll back. Two drags inside one round trip
+        // hit the same row in SERIALIZABLE transactions; if the first loses
+        // that race and 500s after the second has already committed, rolling
+        // back to ITS snapshot would rewind both drags on screen and then push
+        // the stale order back to the server.
+        if (lastTabOrderWriteRef.current !== nextMap) return;
+        setTabOrderMap(previous);
+        toast.error("Could not save your tab order");
+      });
+  };
+
+  const [draggingTabKey, setDraggingTabKey] = useState<string | null>(null);
+  const [tabOrderAnnouncement, setTabOrderAnnouncement] = useState("");
+  // Mouse: a few pixels of travel is what separates a drag from the click that
+  // opens a view — or, on the active tab, its context menu. Touch: a long
+  // press, so a swipe still SCROLLS the overflowing strip on the iPad instead
+  // of grabbing whichever tab happened to be under the finger.
+  const tabSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 8 },
+    })
+  );
+
+  // Tabs the breakpoint hides ("hidden md:flex") are still registered as drop
+  // targets, and `display: none` measures as a 0x0 rect at the viewport
+  // origin — which sits close enough to this strip that closestCenter would
+  // hand it the drop and move the dragged tab somewhere invisible. Compare
+  // only against targets that actually occupy space.
+  const tabCollisionDetection: CollisionDetection = (args) =>
+    closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) => {
+        const rect = args.droppableRects.get(container.id);
+        return !!rect && rect.width > 0 && rect.height > 0;
+      }),
+    });
+
+  // Below md the strip renders only the `mobile` tabs — the rest carry
+  // "hidden md:flex". They stay in `tabs` (and therefore in the saved order),
+  // so anything that reports or steps through POSITIONS has to ignore them.
+  const isTabOnScreen = (tab: ProjectViewTab) =>
+    tab.mobile ||
+    typeof window === "undefined" ||
+    window.matchMedia("(min-width: 768px)").matches;
+
+  const moveTab = (from: number, to: number) => {
+    if (from < 0 || from >= tabs.length) return;
+    if (to < 0 || to >= tabs.length || to === from) return;
+    const moved = tabs[from];
+    const nextKeys = nextTabOrder(tabs, { type: "move", from, to });
+    persistTabOrder(nextKeys);
+    // Announce the position the user can actually see. Counting the whole
+    // array would say "position 4 of 5" on a phone where only three tabs are
+    // on screen and nothing appeared to move.
+    const onScreen = nextKeys.filter((key) => {
+      const tab = tabs.find((t) => t.viewKey === key);
+      return !!tab && isTabOnScreen(tab);
+    });
+    setTabOrderAnnouncement(
+      `${moved.label} moved to position ${
+        onScreen.indexOf(moved.viewKey) + 1
+      } of ${onScreen.length}`
+    );
+  };
+
+  const handleTabDragEnd = (event: DragEndEvent) => {
+    setDraggingTabKey(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    moveTab(
+      tabs.findIndex((t) => t.viewKey === active.id),
+      tabs.findIndex((t) => t.viewKey === over.id)
+    );
+  };
+
+  // Alt+Arrow reorders from the keyboard. dnd-kit's KeyboardSensor is not an
+  // option on this strip: it activates on Space/Enter, which on a tab button
+  // already means "open this view", so arming a drag there would break plain
+  // keyboard navigation.
+  const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (!e.altKey) return;
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    // Step OVER the tabs this breakpoint hides. Swapping with one of those
+    // rewrites the saved order while the visible strip does not move at all.
+    const step = e.key === "ArrowLeft" ? -1 : 1;
+    let target = index + step;
+    while (target >= 0 && target < tabs.length && !isTabOnScreen(tabs[target])) {
+      target += step;
+    }
+    if (target < 0 || target >= tabs.length) return;
+    moveTab(index, target);
+  };
+
+  // The active tab's context menu is opened by US, on click. Radix's
+  // DropdownMenuTrigger opens on POINTERDOWN — the same press that arms the
+  // drag sensor — so grabbing the active tab would pop the menu open under the
+  // pointer and cancel the drag. The trigger below is therefore an inert
+  // anchor (pointer-events: none) that only positions the menu, and dnd-kit
+  // swallows the click that ends a real drag exactly as it does for list rows,
+  // so a drag never ends in an open menu.
+  const [openTabMenuKey, setOpenTabMenuKey] = useState<string | null>(null);
+  // Only one tab is active at a time, so one ref is enough to hand focus back
+  // when the menu closes; the inert anchor cannot take it.
+  const activeTabButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // ...that holds for a drag that COMPLETES. A drag CANCELLED with Escape (or
+  // by a window resize / tab switch) detaches dnd-kit's click swallower 50ms
+  // later while the button is still held down, so the click that fires when
+  // the user finally lets go reaches the tab: Escape — the universal "undo
+  // this gesture" — would navigate to the very tab being dragged, or pop open
+  // the active tab's menu. Swallow exactly that one click.
+  const cancelledTabDragRef = useRef(false);
+  useEffect(() => {
+    // A fresh press means the cancelled gesture ended without ever producing
+    // the click we were holding this for; drop it so a later, genuine click is
+    // never eaten.
+    const clear = () => {
+      cancelledTabDragRef.current = false;
+    };
+    document.addEventListener("pointerdown", clear, true);
+    return () => document.removeEventListener("pointerdown", clear, true);
+  }, []);
+  const swallowCancelledTabDragClick = () => {
+    if (!cancelledTabDragRef.current) return false;
+    cancelledTabDragRef.current = false;
+    return true;
+  };
+
   const viewsApi = (suffix = "") =>
     `/api/projects/${project.id}/views${suffix}`;
 
-  const startRename = (tab: TabDef) => {
+  const startRename = (tab: ProjectViewTab) => {
     setRenameValue(tab.label);
     setRenamingKey(tab.viewKey);
   };
 
-  const commitRename = async (tab: TabDef) => {
+  const commitRename = async (tab: ProjectViewTab) => {
     const next = renameValue.trim();
     setRenamingKey(null);
     if (!next || next === tab.label) return;
@@ -799,7 +1009,7 @@ export function ProjectContent({
     }
   };
 
-  const setDefaultView = async (tab: TabDef) => {
+  const setDefaultView = async (tab: ProjectViewTab) => {
     if (tabBusy) return;
     setTabBusy(true);
     try {
@@ -822,7 +1032,7 @@ export function ProjectContent({
     }
   };
 
-  const makeViewCopy = async (tab: TabDef) => {
+  const makeViewCopy = async (tab: ProjectViewTab) => {
     if (tabBusy) return;
     setTabBusy(true);
     try {
@@ -847,7 +1057,7 @@ export function ProjectContent({
     }
   };
 
-  const copyViewLink = async (tab: TabDef) => {
+  const copyViewLink = async (tab: ProjectViewTab) => {
     const url = `${window.location.origin}/projects/${project.id}?view=${tab.viewKey}`;
     // Prefer the async Clipboard API; fall back to a hidden-textarea execCommand
     // when it's unavailable or blocked (e.g. document not focused).
@@ -875,7 +1085,7 @@ export function ProjectContent({
     }
   };
 
-  const deleteView = async (tab: TabDef) => {
+  const deleteView = async (tab: ProjectViewTab) => {
     if (tabBusy) return;
     if (tabs.length <= 1) {
       toast.error("A project must keep at least one view");
@@ -907,20 +1117,65 @@ export function ProjectContent({
     }
   };
 
-  // "+" catalog: re-add (unhide) a hidden built-in before navigating to it.
-  const addOrOpenView = async (viewKey: string) => {
-    if (hiddenBuiltins.has(viewKey)) {
+  // "+" catalog: re-add (unhide) a hidden built-in, then navigate to it.
+  //
+  // Nothing here awaits the network. The old version awaited the PATCH before
+  // navigating and let the tab appear only when the server prop came back, so
+  // adding a view flickered. Now the tab is shown optimistically and the order
+  // is materialised first, which is also what makes the new tab land LAST
+  // instead of dropping back into its catalog slot (Gantt between Timeline and
+  // Dashboard) — and it lands last for THIS user only, because the order is
+  // written to his uiState, not to the project.
+  const addOrOpenView = (viewKey: string) => {
+    if (!hiddenBuiltins.has(viewKey)) {
+      // Already in the strip — nothing to un-hide, just go there.
+      handleViewChange(viewKey);
+      return;
+    }
+    // Un-hiding edits the PROJECT, which a read-only colleague may not do —
+    // but he may still OPEN the view, and below md this menu is his only way
+    // to reach the five "hidden md:flex" ones. Navigate without the PATCH that
+    // would only 403 (this is what the pre-drag version did, minus the 403).
+    if (!canEditProject) {
+      handleViewChange(viewKey);
+      return;
+    }
+
+    // Where he was, so a rejected un-hide can put him back. Navigating first
+    // is what kills the flicker, but it means a 403 would otherwise strand him
+    // on a view whose tab has just been pulled back out of the strip.
+    const previousView = currentView;
+
+    setPendingUnhide((prev) =>
+      prev.includes(viewKey) ? prev : [...prev, viewKey]
+    );
+    persistTabOrder(nextTabOrder(tabs, { type: "append", viewKey }));
+    handleViewChange(viewKey);
+
+    void (async () => {
       try {
-        await fetch(viewsApi(`/${encodeURIComponent(viewKey)}`), {
+        const res = await fetch(viewsApi(`/${encodeURIComponent(viewKey)}`), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ hidden: false }),
         });
-      } catch {
-        /* navigate regardless; a failed unhide just re-renders the tab */
+        if (!res.ok) {
+          throw new Error((await res.json().catch(() => ({}))).error);
+        }
+        // Pull the real ProjectViewPref rows in; the optimistic overlay drops
+        // itself once they agree, so the strip never moves twice.
+        router.refresh();
+      } catch (e) {
+        // Roll the tab back out of the strip — the project never got it —
+        // and off the view it would have opened, so he is not left on a body
+        // with no tab highlighted and no tab to click back from.
+        setPendingUnhide((prev) => prev.filter((k) => k !== viewKey));
+        handleViewChange(previousView);
+        toast.error(
+          e instanceof Error && e.message ? e.message : "Could not add view"
+        );
       }
-    }
-    handleViewChange(viewKey);
+    })();
   };
 
   const handleTaskClick = (taskId: string) => {
@@ -1333,15 +1588,57 @@ export function ProjectContent({
             view picker visually distinct from the toolbar so the
             primary navigation never feels crowded by toggles. */}
         <div className="flex flex-col gap-0">
-          <div className="flex items-center gap-0 md:gap-1 overflow-x-auto flex-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {/* Drag-to-reorder. The arrangement is PERSONAL, so this needs no
+              project write access — a read-only colleague may still arrange
+              his own strip. autoScroll keeps a drag alive past the visible
+              edge once there are more tabs than fit; y:0 stops it from
+              scrolling the page while the drag is purely horizontal. */}
+          <DndContext
+            sensors={tabSensors}
+            collisionDetection={tabCollisionDetection}
+            autoScroll={{ threshold: { x: 0.2, y: 0 } }}
+            onDragStart={(e: DragStartEvent) => {
+              setDraggingTabKey(String(e.active.id));
+              // Belt and braces: a drag must never leave the active tab's
+              // context menu hanging open over the strip.
+              setOpenTabMenuKey(null);
+            }}
+            onDragCancel={() => {
+              setDraggingTabKey(null);
+              cancelledTabDragRef.current = true;
+            }}
+            onDragEnd={handleTabDragEnd}
+          >
+          <div
+            className={cn(
+              "flex items-center gap-0 md:gap-1 overflow-x-auto flex-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
+              // Deliberately NOT hidden until the saved order arrives. This
+              // component is server-rendered, and `useUiState` reports
+              // hydrated only from an effect, so any such guard ships inside
+              // the streamed HTML: the tab strip would be a blank row on every
+              // cold load, for all three colleagues, until the JS bundle
+              // hydrates. That costs everyone a visible gap in order to hide
+              // one settle frame that only a user who has arranged his tabs
+              // would ever see — and it does not even hide it on a device with
+              // no localStorage cache, where the order arrives from the
+              // network. Paint the strip; let the arrangement land.
+              draggingTabKey && "cursor-grabbing"
+            )}
+          >
             {/* No "Team" tab — Asana assigns the team at the team level;
                 projects don't carry a Team view. The route still resolves
                 for old deep links, and members live in Manage members. */}
-            {tabs.map((tab) => {
+            <SortableContext
+              items={tabs.map((t) => t.viewKey)}
+              strategy={horizontalListSortingStrategy}
+            >
+            {tabs.map((tab, tabIndex) => {
               const Icon = VIEW_ICONS[tab.baseView] ?? List;
               const active = currentView === tab.viewKey;
+              // The responsive display now lives on the sortable slot, so the
+              // controls inside it are plain flex children.
               const display = tab.mobile ? "flex" : "hidden md:flex";
-              const cls = `${display} items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              const cls = `flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 active
                   ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -1349,111 +1646,164 @@ export function ProjectContent({
               // Copies keep their label on mobile so two same-icon tabs stay
               // distinguishable; built-ins collapse to icon-only like before.
               const labelCls = tab.isCopy ? "" : "hidden md:inline";
+              const renaming = active && renamingKey === tab.viewKey;
 
-              // Inline rename — the active tab becomes a text field.
-              if (active && renamingKey === tab.viewKey) {
-                return (
-                  <div
-                    key={tab.viewKey}
-                    className={`${display} items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 border-b-2 border-[#c9a84c]`}
-                  >
-                    <Icon className="h-4 w-4 text-[#a8893a]" />
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          commitRename(tab);
-                        } else if (e.key === "Escape") {
-                          e.preventDefault();
-                          setRenamingKey(null);
-                        }
-                      }}
-                      onBlur={() => commitRename(tab)}
-                      className="w-24 md:w-32 bg-transparent text-xs md:text-[13px] font-medium text-[#a8893a] outline-none"
-                    />
-                  </div>
-                );
-              }
-
-              // Inactive tab — a plain button that navigates.
-              if (!active) {
-                return (
-                  <button
-                    key={tab.viewKey}
-                    onClick={() => handleViewChange(tab.viewKey)}
-                    className={cls}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className={labelCls}>{tab.label}</span>
-                  </button>
-                );
-              }
-
-              // Active tab — clicking it again opens the Asana context menu.
               return (
-                <DropdownMenu key={tab.viewKey}>
-                  <DropdownMenuTrigger asChild>
-                    <button className={cls} aria-label={`${tab.label} view options`}>
-                      <Icon className="h-4 w-4" />
-                      <span className={labelCls}>{tab.label}</span>
-                      <ChevronDown className="h-3 w-3 opacity-60" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56">
-                    {canEditProject && (
-                      <DropdownMenuItem onClick={() => startRename(tab)}>
-                        <Edit2 className="h-4 w-4 mr-2" />
-                        Rename
-                      </DropdownMenuItem>
-                    )}
-                    {canEditProject && (
-                      <DropdownMenuItem onClick={() => setDefaultView(tab)}>
-                        <Star
-                          className={cn(
-                            "h-4 w-4 mr-2",
-                            tab.isDefault && "fill-[#c9a84c] text-[#c9a84c]"
-                          )}
-                        />
-                        {tab.isDefault ? "Default view" : "Set as default"}
-                        {tab.isDefault && (
-                          <Check className="h-4 w-4 ml-auto text-[#a8893a]" />
-                        )}
-                      </DropdownMenuItem>
-                    )}
-                    {canEditProject && (
-                      <DropdownMenuItem onClick={() => makeViewCopy(tab)}>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Make a copy
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={() => copyViewLink(tab)}>
-                      <Link2 className="h-4 w-4 mr-2" />
-                      Copy link
-                    </DropdownMenuItem>
-                    {/* Overview is the fixed landing tab and isn't in the "+"
-                        catalog to re-add, so it can't be deleted (only copied,
-                        renamed, or set as default) — matches Asana. */}
-                    {canEditProject && tab.viewKey !== "overview" && (
-                      <DropdownMenuSeparator />
-                    )}
-                    {canEditProject && tab.viewKey !== "overview" && (
-                      <DropdownMenuItem
-                        className="text-black"
-                        disabled={tabs.length <= 1}
-                        onClick={() => deleteView(tab)}
+                <SortableViewTab
+                  key={tab.viewKey}
+                  viewKey={tab.viewKey}
+                  className={display}
+                  // Dragging a tab whose label is an open text field would
+                  // swallow the click that positions the caret.
+                  disabled={renaming}
+                >
+                  {/* Inline rename — the active tab becomes a text field. */}
+                  {renaming ? (
+                      <div
+                        className="flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 border-b-2 border-[#c9a84c]"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                        <Icon className="h-4 w-4 text-[#a8893a]" />
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              commitRename(tab);
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              setRenamingKey(null);
+                            }
+                          }}
+                          onBlur={() => commitRename(tab)}
+                          className="w-24 md:w-32 bg-transparent text-xs md:text-[13px] font-medium text-[#a8893a] outline-none"
+                        />
+                      </div>
+                  ) : !active ? (
+                    /* Inactive tab — a plain button that navigates. */
+                      <button
+                        onClick={() => {
+                          if (swallowCancelledTabDragClick()) return;
+                          handleViewChange(tab.viewKey);
+                        }}
+                        onKeyDown={(e) => handleTabKeyDown(e, tabIndex)}
+                        className={cls}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className={labelCls}>{tab.label}</span>
+                      </button>
+                  ) : (
+                    /* Active tab — clicking it again opens the Asana context
+                       menu. See openTabMenuKey: the menu is opened on CLICK by
+                       this button, and the Trigger below is an inert anchor that
+                       only tells Radix where to place the panel, so a press that
+                       turns into a drag never opens it. */
+                    <DropdownMenu
+                      open={openTabMenuKey === tab.viewKey}
+                      onOpenChange={(open) =>
+                        setOpenTabMenuKey(open ? tab.viewKey : null)
+                      }
+                    >
+                        <button
+                          ref={activeTabButtonRef}
+                          className={cls}
+                          aria-label={`${tab.label} view options`}
+                          aria-haspopup="menu"
+                          aria-expanded={openTabMenuKey === tab.viewKey}
+                          onClick={() => {
+                            if (swallowCancelledTabDragClick()) return;
+                            setOpenTabMenuKey(tab.viewKey);
+                          }}
+                          onKeyDown={(e) => handleTabKeyDown(e, tabIndex)}
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span className={labelCls}>{tab.label}</span>
+                          <ChevronDown className="h-3 w-3 opacity-60" />
+                        </button>
+                      <DropdownMenuTrigger asChild>
+                        {/* Anchor only — it covers the tab so Radix positions the
+                            panel exactly where it used to, and is disabled +
+                            aria-hidden so it is neither focusable nor announced
+                            alongside the real tab button above. */}
+                        <button
+                          type="button"
+                          disabled
+                          tabIndex={-1}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-0"
+                        />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="w-56"
+                        // Radix would hand focus back to the anchor above, which
+                        // is inert and unfocusable — send it to the real tab.
+                        onCloseAutoFocus={(e) => {
+                          e.preventDefault();
+                          activeTabButtonRef.current?.focus();
+                        }}
+                      >
+                        {canEditProject && (
+                          <DropdownMenuItem onClick={() => startRename(tab)}>
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                        )}
+                        {canEditProject && (
+                          <DropdownMenuItem onClick={() => setDefaultView(tab)}>
+                            <Star
+                              className={cn(
+                                "h-4 w-4 mr-2",
+                                tab.isDefault && "fill-[#c9a84c] text-[#c9a84c]"
+                              )}
+                            />
+                            {tab.isDefault ? "Default view" : "Set as default"}
+                            {tab.isDefault && (
+                              <Check className="h-4 w-4 ml-auto text-[#a8893a]" />
+                            )}
+                          </DropdownMenuItem>
+                        )}
+                        {canEditProject && (
+                          <DropdownMenuItem onClick={() => makeViewCopy(tab)}>
+                            <Copy className="h-4 w-4 mr-2" />
+                            Make a copy
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => copyViewLink(tab)}>
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Copy link
+                        </DropdownMenuItem>
+                        {/* Overview is the fixed landing tab and isn't in the "+"
+                            catalog to re-add, so it can't be deleted (only copied,
+                            renamed, or set as default) — matches Asana. */}
+                        {canEditProject && tab.viewKey !== "overview" && (
+                          <DropdownMenuSeparator />
+                        )}
+                        {canEditProject && tab.viewKey !== "overview" && (
+                          <DropdownMenuItem
+                            className="text-black"
+                            disabled={tabs.length <= 1}
+                            onClick={() => deleteView(tab)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </SortableViewTab>
               );
             })}
-            {/* "+" add-view catalog — Asana-style Popular / Others menu. */}
+            </SortableContext>
+            {/* "+" add-view catalog — Asana-style Popular / Others menu. It is
+                NOT a tab: it stays pinned after the sortable ones and cannot
+                be dragged. It stays visible without write access: below md
+                five views render "hidden md:flex", so this menu is the ONLY
+                route a read-only colleague has to Workflow, Messages, Files,
+                Notes and Workload on a phone. addOrOpenView drops the un-hide
+                PATCH for him and just navigates. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -1495,6 +1845,13 @@ export function ProjectContent({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          </DndContext>
+
+          {/* Keyboard reorder feedback — the drag has visual motion, Alt+Arrow
+              has none, so screen readers get the new position spoken. */}
+          <span role="status" aria-live="polite" className="sr-only">
+            {tabOrderAnnouncement}
+          </span>
 
           {/* Toolbar - only show for task views. Sits on its own
               row below the view tabs (Asana parity). border-t adds

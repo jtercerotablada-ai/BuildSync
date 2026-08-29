@@ -2,6 +2,11 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
+import {
+  PROJECT_TAB_ORDER_KEY,
+  savedTabOrderFor,
+  type ProjectTabOrderMap,
+} from "@/lib/project-views";
 import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
 import { getLevel } from "@/lib/people-types";
@@ -79,6 +84,11 @@ export default async function ProjectPage({
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
+    // The tab order is a per-user preference, and the strip is above the
+    // fold: resolving it here rather than letting the client fetch it
+    // after mount is what keeps the tabs from re-shuffling on load. It
+    // rides the user lookup that already runs, so it costs no round trip.
+    include: { preferences: { select: { uiState: true } } },
   });
 
   if (!user) {
@@ -350,6 +360,17 @@ export default async function ProjectPage({
     multiHomedBySection.set(targetSection, arr);
   }
 
+  // This viewer's own arrangement of the tab strip, read through the same
+  // helper the client uses so the stored shape has exactly one reader. It
+  // is per-user (uiState), unlike the shared hidden/rename rows on
+  // ProjectViewPref, so it cannot be resolved from the project alone.
+  const savedTabOrder =
+    savedTabOrderFor(
+      (user.preferences?.uiState as { [PROJECT_TAB_ORDER_KEY]?: ProjectTabOrderMap } | null)
+        ?.[PROJECT_TAB_ORDER_KEY],
+      project.id
+    ) ?? null;
+
   // Serialize the project data for client component.
   // Prisma's Decimal type doesn't survive JSON.stringify cleanly, so we
   // coerce `budget` to a plain number here (loses precision past 15
@@ -409,6 +430,7 @@ export default async function ProjectPage({
       sectionTaskCounts={sectionTaskCounts}
       canEdit={canEditProject}
       canManage={canManageProject}
+      initialTabOrder={savedTabOrder}
     />
   );
 }
