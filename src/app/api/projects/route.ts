@@ -7,6 +7,7 @@ import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 import { getTemplateById } from "@/lib/templates-data";
 import { readJson, jsonErrorResponse } from "@/lib/http";
 import { legacyGateFor, stagesForType } from "@/lib/pipelines";
+import { INITIALLY_HIDDEN_VIEWS } from "@/lib/project-views";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -501,6 +502,24 @@ export async function POST(req: Request) {
             views: true,
           },
         });
+
+        // ── Starting tab strip ──────────────────────────────────────
+        // A new project opens on Overview / List / Board / Messages / Files.
+        // The remaining built-ins are seeded HIDDEN rather than deleted: the
+        // "+" un-hides one on demand (see addOrOpenView), so this is a starting
+        // point and not a removal. Only new projects are seeded, so nothing
+        // that already shows a tab loses it.
+        if (INITIALLY_HIDDEN_VIEWS.length > 0) {
+          await tx.projectViewPref.createMany({
+            data: INITIALLY_HIDDEN_VIEWS.map((viewKey) => ({
+              projectId: created.id,
+              viewKey,
+              baseView: viewKey,
+              hidden: true,
+            })),
+            skipDuplicates: true,
+          });
+        }
 
         // ── Project-template custom fields ──────────────────────────
         // Created BEFORE tasks so task creation can resolve their

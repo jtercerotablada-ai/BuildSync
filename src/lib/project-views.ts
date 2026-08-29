@@ -30,6 +30,31 @@ export const BUILTIN_VIEWS: BuiltinViewDef[] = [
 
 export const BUILTIN_VIEW_KEYS = new Set(BUILTIN_VIEWS.map((v) => v.key));
 
+/**
+ * The tabs a NEW project opens with. The catalog has twelve; a job that has
+ * just been created has nothing to put in a Gantt, a Workload or a Dashboard,
+ * so showing all twelve makes the ones that matter harder to find on the day
+ * the project is busiest.
+ *
+ * Everything else is one click away under "+", which un-hides it — this seeds
+ * a starting point, it does not remove anything. Existing projects are
+ * untouched: the seed is written at creation, so a project that already shows
+ * a tab keeps showing it.
+ */
+export const DEFAULT_VISIBLE_VIEWS = [
+  "overview",
+  "list",
+  "board",
+  "messages",
+  "files",
+] as const;
+
+/** Built-ins a new project starts with hidden — the catalog minus the above. */
+export const INITIALLY_HIDDEN_VIEWS = BUILTIN_VIEWS.filter(
+  (v) => !(DEFAULT_VISIBLE_VIEWS as readonly string[]).includes(v.key)
+).map((v) => v.key);
+
+
 const BUILTIN_LABEL: Record<string, string> = Object.fromEntries(
   BUILTIN_VIEWS.map((v) => [v.key, v.label])
 );

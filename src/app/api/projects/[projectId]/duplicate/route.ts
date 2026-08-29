@@ -9,6 +9,7 @@ import {
   getErrorStatus,
 } from "@/lib/auth-guards";
 import { legacyGateFor } from "@/lib/pipelines";
+import { INITIALLY_HIDDEN_VIEWS } from "@/lib/project-views";
 
 /**
  * POST /api/projects/:projectId/duplicate
@@ -151,6 +152,22 @@ export async function POST(
           },
           select: { id: true },
         });
+
+        // A duplicate is a new project, so it opens on the same lean tab strip
+        // a fresh one does rather than the full catalog. The source's own tab
+        // choices are not copied: they belong to how that job was run, and the
+        // "+" restores any of these in one click.
+        if (INITIALLY_HIDDEN_VIEWS.length > 0) {
+          await tx.projectViewPref.createMany({
+            data: INITIALLY_HIDDEN_VIEWS.map((viewKey) => ({
+              projectId: created.id,
+              viewKey,
+              baseView: viewKey,
+              hidden: true,
+            })),
+            skipDuplicates: true,
+          });
+        }
 
         // Recreate sections, remembering old→new id so tasks land in the
         // matching section.
