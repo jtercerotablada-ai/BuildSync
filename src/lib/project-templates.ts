@@ -805,8 +805,15 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         section: "Repairs (if required)",
         name: "Repairs designed, permitted & built (separate design / construction project)",
         dependsOn: ["Repairs required — do this section only if the Building Official requires repairs (delete otherwise)"],
+        // A BAR, not a milestone. This is the ~90 days the job sits on the
+        // owner's desk while repairs are designed, permitted and built —
+        // the longest hold in the whole recertification. As a point-in-time
+        // marker it drew as a single day four months out and the wait was
+        // invisible on the chart, which is the one thing a recertification
+        // schedule exists to show. Responsible stays the owner: the span is
+        // there to make it obvious whose clock is running.
+        relativeStartDate: 29,
         relativeDueDate: 118,
-        type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
       },
       {
@@ -1477,8 +1484,15 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         section: "Repairs (if required)",
         name: "Repairs designed, permitted & built (separate design / construction project)",
         dependsOn: ["Repairs required — do this section only if the Building Official requires repairs (delete otherwise)"],
+        // A BAR, not a milestone. This is the ~90 days the job sits on the
+        // owner's desk while repairs are designed, permitted and built —
+        // the longest hold in the whole recertification. As a point-in-time
+        // marker it drew as a single day four months out and the wait was
+        // invisible on the chart, which is the one thing a recertification
+        // schedule exists to show. Responsible stays the owner: the span is
+        // there to make it obvious whose clock is running.
+        relativeStartDate: 29,
         relativeDueDate: 118,
-        type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
       },
       {
