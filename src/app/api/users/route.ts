@@ -117,6 +117,14 @@ export async function GET(req: Request) {
       }
     }
 
+    // Whether the "frequent" ranking actually produced anyone. The widget
+    // renders a label over this list, and a silent fallback made it call the
+    // whole firm "Frequent collaborators" on a workspace with no shared
+    // projects at all — the people were right, the heading was a claim about
+    // shared work that had never happened. Reported in a header so the list
+    // shape stays a plain array.
+    const rankedByFrequency = filter === "frequent" && members.length > 0;
+
     if (members.length === 0) {
       // Either filter=all, OR filter=frequent fell back to workspace.
       members = await prisma.user.findMany({
@@ -131,8 +139,12 @@ export async function GET(req: Request) {
     }
 
     // ── 2. Stats enrichment (opt-in) ───────────────────────────────
+    const peopleHeaders = {
+      "X-People-Ranking": rankedByFrequency ? "frequent" : "workspace",
+    };
+
     if (!includeStats || members.length === 0) {
-      return NextResponse.json(members);
+      return NextResponse.json(members, { headers: peopleHeaders });
     }
 
     const memberIds = members.map((m) => m.id);
@@ -268,7 +280,7 @@ export async function GET(req: Request) {
       upcomingCount: upcomingByUser.get(m.id) ?? 0,
     }));
 
-    return NextResponse.json(enriched);
+    return NextResponse.json(enriched, { headers: peopleHeaders });
   } catch (error) {
     console.error("Error fetching users:", error);
     return NextResponse.json(

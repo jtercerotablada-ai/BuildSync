@@ -62,6 +62,10 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
   const [filter, setFilter] = useState<FilterMode>('frequent');
   const [period, setPeriod] = useState<PeriodTab>('week');
   const [retryToken, setRetryToken] = useState(0);
+  // The API falls back to the whole workspace when the caller shares no
+  // projects with anyone. Saying so is the difference between a heading that
+  // describes the list and one that flatters it.
+  const [rankedByFrequency, setRankedByFrequency] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +82,12 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: Person[] = await res.json();
-        if (!cancelled) setPeople(data);
+        if (!cancelled) {
+          setPeople(data);
+          setRankedByFrequency(
+            res.headers.get("X-People-Ranking") === "frequent"
+          );
+        }
       } catch (err) {
         if (!cancelled) {
           console.error('Failed to fetch people:', err);
@@ -113,7 +122,9 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-              {filter === 'frequent' ? 'Frequent collaborators' : 'All'}
+              {filter === 'frequent' && rankedByFrequency
+                ? 'Frequent collaborators'
+                : 'All'}
               <ChevronDown className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
