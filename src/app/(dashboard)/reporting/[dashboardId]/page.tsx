@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   Plus,
   Star,
@@ -21,6 +21,7 @@ import {
   Columns2,
   Square,
   GripVertical,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +35,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUiState } from "@/hooks/use-ui-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -373,6 +375,14 @@ export default function DashboardPage() {
   // plain useState, so it reset on every navigation and meant nothing.
   const { value: favoriteDashboards, setValue: setFavoriteDashboards } =
     useUiState<string[]>("favoriteDashboards", []);
+  // The two default dashboards are hardcoded in the client, not rows, so there
+  // is nothing to DELETE — removing one is a per-user preference. An array,
+  // deliberately: the preferences merge replaces arrays wholesale and only
+  // deep-merges objects, so a removal here actually persists.
+  const { value: hiddenDefaults, setValue: setHiddenDefaults } =
+    useUiState<string[]>("hiddenDefaultDashboards", []);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const router = useRouter();
   const isFavorite = favoriteDashboards.includes(dashboardId);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -906,6 +916,32 @@ export default function DashboardPage() {
           <h1 className="text-base md:text-xl font-semibold text-slate-900 truncate min-w-0">
             {config.name}
           </h1>
+          {/* Actions hang off the name, the way a project's and a goal's do.
+              Before this the only way to remove a dashboard was a hover-only
+              menu on the list page — invisible from inside the thing you had
+              just decided to get rid of. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex-shrink-0"
+                aria-label="Dashboard actions"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem
+                className="text-black"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setRemoveOpen(true);
+                }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isDefaultDashboard ? "Hide dashboard" : "Delete dashboard"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             onClick={() =>
               setFavoriteDashboards(
@@ -1181,6 +1217,44 @@ export default function DashboardPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Sibling of the other dialogs, deliberately outside the name menu:
+          rendered inside DropdownMenuContent it would unmount the moment the
+          menu closed and never appear. */}
+      <ConfirmDialog
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title={isDefaultDashboard ? "Hide dashboard" : "Delete dashboard"}
+        description={
+          isDefaultDashboard
+            ? `"${config.name}" is one of the dashboards BuildSync provides, so there is nothing to delete — it is hidden for you and can be brought back from Reporting.`
+            : `"${config.name}" and its widgets will be permanently deleted. This cannot be undone.`
+        }
+        confirmLabel={isDefaultDashboard ? "Hide it" : "Delete dashboard"}
+        requireText={isDefaultDashboard ? undefined : config.name}
+        onConfirm={async () => {
+          if (isDefaultDashboard) {
+            // No row exists for a built-in, so removal is a preference. Kept
+            // reversible, and Reporting says so, because a one-way hide is how
+            // a thing disappears with no way back.
+            await setHiddenDefaults([
+              ...hiddenDefaults.filter((id) => id !== dashboardId),
+              dashboardId,
+            ]);
+            toast.success(`"${config.name}" hidden`);
+          } else {
+            const res = await fetch(`/api/dashboards/${dashboardId}`, {
+              method: "DELETE",
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || "Failed to delete dashboard");
+            }
+            toast.success(`"${config.name}" deleted`);
+          }
+          router.push("/reporting");
+        }}
+      />
     </div>
   );
 }

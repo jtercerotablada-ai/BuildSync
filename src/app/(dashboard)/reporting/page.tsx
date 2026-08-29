@@ -32,6 +32,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useUiState } from "@/hooks/use-ui-state";
 import { SectionGuard } from "@/components/access/section-guard";
 
 interface Dashboard {
@@ -91,6 +92,11 @@ function ReportingPageInner() {
   const { data: session } = useSession();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [dashboards, setDashboards] = useState<Dashboard[]>(DEFAULT_DASHBOARDS);
+  // Built-in dashboards have no row to delete, so hiding one is a per-user
+  // preference. An array on purpose: the preferences merge replaces arrays and
+  // only deep-merges objects, so a removal persists instead of coming back.
+  const { value: hiddenDefaults, setValue: setHiddenDefaults } =
+    useUiState<string[]>("hiddenDefaultDashboards", []);
   const [loading, setLoading] = useState(true);
   // Distinguishes "you have no saved dashboards" from "the fetch failed" —
   // the list is seeded with the two built-in dashboards, so a 500 or an
@@ -262,7 +268,9 @@ function ReportingPageInner() {
   }
 
   // Resolve display owner for default dashboards
-  const dashboardsForRender = dashboards.map((d) =>
+  const dashboardsForRender = dashboards
+    .filter((d) => !(d.isDefault && hiddenDefaults.includes(d.id)))
+    .map((d) =>
     d.isDefault && session?.user?.name
       ? { ...d, ownerName: session.user.name }
       : d
@@ -359,6 +367,26 @@ function ReportingPageInner() {
 
           {!recentCollapsed && (
             <>
+              {/* Hiding a built-in must not be a one-way trip. Without this the
+                  only way back would be clearing a preference nobody can see —
+                  the same dead end the archived-projects view exists to avoid. */}
+              {hiddenDefaults.length > 0 && (
+                <div className="mb-3 flex items-center gap-2 text-[13px] text-slate-500">
+                  <span>
+                    {hiddenDefaults.length} built-in{" "}
+                    {hiddenDefaults.length === 1 ? "dashboard is" : "dashboards are"}{" "}
+                    hidden.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setHiddenDefaults([])}
+                    className="font-medium underline underline-offset-2 hover:text-slate-900"
+                  >
+                    Show them again
+                  </button>
+                </div>
+              )}
+
               {viewMode === "grid" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
                   {/* Create Dashboard Card */}
