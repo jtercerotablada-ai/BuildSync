@@ -3,7 +3,16 @@ import { z } from "zod";
 import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
+import {
+  AuthorizationError,
+  contributorSeatSatisfied,
+  getErrorStatus,
+} from "@/lib/auth-guards";
+import {
+  requireTeamStanding,
+  requireTeamMemberManagement,
+  assertTeamAcceptsNewMembers,
+} from "@/lib/team-access";
 import { sendInvitationEmail } from "@/lib/email";
 import { notifyMembershipGranted } from "@/lib/membership-notifications";
 import { WORKSPACE_ROLE_META } from "@/lib/people-types";
@@ -12,7 +21,41 @@ const inviteSchema = z.object({
   email: z.string().email(),
 });
 
-// POST /api/teams/:teamId/invite - Invite a user to the team
+/**
+ * POST /api/teams/:teamId/invite — invite somebody to a team by email.
+ *
+ * WHO MAY CALL IT: a team LEAD, or an OWNER/ADMIN of the team's workspace.
+ * The page must ask GET /api/teams/:teamId/members?viewer=1 for
+ * `viewer.canManageMembers` before it renders the button — it used to render
+ * for every member, and a colleague who typed an address got
+ * "Only team leads or workspace admins can invite members" after the fact.
+ *
+ * WHAT IT WILL NOT DO ANY MORE: create a WorkspaceMember row. This route
+ * looked up ANY registered account by email, added the TeamMember, and then
+ * minted a workspace seat with role MEMBER if the account did not have one —
+ * so any team lead could pull any existing account in the database into the
+ * firm's workspace, silently, with no workspace-admin approval anywhere.
+ *
+ * A team is a grouping INSIDE a workspace, never a side door into one, so the
+ * two cases are now separate:
+ *
+ *   • the invitee already holds a contributor seat → they are added to the
+ *     team directly, exactly as before;
+ *
+ *   • the invitee is an outsider (no account, or an account with no seat
+ *     here) → only a workspace OWNER/ADMIN may proceed, and even they do not
+ *     create the seat: a WorkspaceInvitation bound to this team is
+ *     created/refreshed and emailed, and the seat appears when the INVITEE
+ *     accepts it (POST /api/invite/:token/accept, which also adds the
+ *     TeamMember). That path is auditable — it records who invited whom — and
+ *     it is the one place in the product designed to grant a seat.
+ *
+ * A GUEST/CLIENT seat is refused outright: a team grant is Editor-level on
+ * every project attached to the team, which is exactly the capability those
+ * roles are defined not to have, so `resolveProjectAccess` drops the grant
+ * for them and the row would buy nothing but a misleading name in the
+ * members table.
+ */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ teamId: string }> }
@@ -28,46 +71,57 @@ export async function POST(
     const body = await req.json();
     const { email } = inviteSchema.parse(body);
 
-    // Verify the team exists and user is a member
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      include: {
-        members: true,
-        workspace: true,
-      },
-    });
+    // One rule for the whole team surface (@/lib/team-access): team
+    // membership plus a live contributor seat to be here at all, LEAD or
+    // workspace OWNER/ADMIN to add anyone.
+    const standing = await requireTeamStanding(userId, teamId);
+    requireTeamMemberManagement(standing);
+    assertTeamAcceptsNewMembers(standing);
 
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
-
-    const inviterMember = team.members.find((m) => m.userId === userId);
-    if (!inviterMember) {
-      throw new AuthorizationError("You must be a team member to invite others");
-    }
-
-    // Only team LEADs or workspace ADMIN/OWNER can invite members
-    if (inviterMember.role !== "LEAD") {
-      const workspaceMember = await prisma.workspaceMember.findUnique({
-        where: { userId_workspaceId: { userId, workspaceId: team.workspaceId } },
-        select: { role: true },
-      });
-      if (!workspaceMember || (workspaceMember.role !== "ADMIN" && workspaceMember.role !== "OWNER")) {
-        throw new AuthorizationError("Only team leads or workspace admins can invite members");
-      }
-    }
-
+    const workspaceId = standing.workspaceId;
     const normalizedEmail = email.toLowerCase().trim();
 
     // Find the user by email
     const invitedUser = await prisma.user.findUnique({
       where: { email: normalizedEmail },
+      select: { id: true },
     });
 
-    if (!invitedUser) {
-      // Non-member email → don't dead-end with a 404. Create/refresh a
-      // workspace-level invitation so they can join the workspace (and,
-      // once in, be added to the team) and email them the magic link.
+    // The invitee's standing in THIS workspace decides which of the two paths
+    // below applies. Looked up once, here, so the branches cannot disagree.
+    const inviteeSeat = invitedUser
+      ? await prisma.workspaceMember.findUnique({
+          where: {
+            userId_workspaceId: { userId: invitedUser.id, workspaceId },
+          },
+          select: { role: true },
+        })
+      : null;
+
+    // A seat that exists but is read-only is a definite NO, not an outsider
+    // to be invited: re-inviting them would only mint a second invitation for
+    // an address that is already inside the workspace.
+    if (inviteeSeat && !contributorSeatSatisfied(inviteeSeat.role)) {
+      throw new AuthorizationError(
+        "That account is a view-only member of this workspace and can't be added to a team. Change their workspace role first."
+      );
+    }
+
+    if (!invitedUser || !inviteeSeat) {
+      // ── Outsider path ────────────────────────────────────────────────
+      // No account at all, or an account with no seat in this workspace.
+      // Bringing somebody INTO the firm is workspace leadership's call, not
+      // a team lead's.
+      if (!standing.canInviteOutsiders) {
+        throw new AuthorizationError(
+          `${normalizedEmail} isn't in this workspace yet. Ask a workspace admin to invite them, then you can add them to the team.`
+        );
+      }
+
+      // Create/refresh a workspace-level invitation bound to THIS team and
+      // email them the magic link. Accepting it creates the WorkspaceMember
+      // AND the TeamMember in one transaction — the accept route handles a
+      // brand-new email and an existing account that simply has to sign in.
       // Upsert on the (email, workspaceId) unique key so re-inviting a
       // previously ACCEPTED/DECLINED/EXPIRED address doesn't 500.
       const token = crypto.randomBytes(32).toString("hex");
@@ -78,7 +132,7 @@ export async function POST(
         where: {
           email_workspaceId: {
             email: normalizedEmail,
-            workspaceId: team.workspaceId,
+            workspaceId,
           },
         },
         create: {
@@ -86,7 +140,7 @@ export async function POST(
           role: "MEMBER",
           token,
           expiresAt,
-          workspaceId: team.workspaceId,
+          workspaceId,
           inviterId: userId,
           // Bind the invite to THIS team so acceptance adds them as a
           // TeamMember (not just a workspace member).
@@ -111,12 +165,16 @@ export async function POST(
         select: { name: true, email: true },
       });
       const inviterName = inviter?.name || inviter?.email || "A teammate";
+      const workspace = await prisma.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { name: true },
+      });
       try {
         await sendInvitationEmail({
           email: normalizedEmail,
           token: invitation.token,
           inviterName,
-          workspaceName: team.workspace.name,
+          workspaceName: workspace?.name ?? "the workspace",
           roleLabel: WORKSPACE_ROLE_META.MEMBER?.label || "Member",
           personalMessage: null,
           projectName: null,
@@ -143,14 +201,19 @@ export async function POST(
       );
     }
 
-    // Check if user is already a team member
+    // ── Insider path ─────────────────────────────────────────────────────
+    // Already holds a contributor seat here, so adding them to the team
+    // grants nothing they could not already have been granted.
+    const insiderId = invitedUser.id;
+
     const existingMember = await prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
-          userId: invitedUser.id,
+          userId: insiderId,
           teamId,
         },
       },
+      select: { id: true },
     });
 
     if (existingMember) {
@@ -160,10 +223,9 @@ export async function POST(
       );
     }
 
-    // Add user to the team
     const newMember = await prisma.teamMember.create({
       data: {
-        userId: invitedUser.id,
+        userId: insiderId,
         teamId,
         role: "MEMBER",
       },
@@ -179,32 +241,12 @@ export async function POST(
       },
     });
 
-    // Also ensure user is a workspace member
-    const existingWorkspaceMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: invitedUser.id,
-          workspaceId: team.workspaceId,
-        },
-      },
-    });
-
-    if (!existingWorkspaceMember) {
-      await prisma.workspaceMember.create({
-        data: {
-          userId: invitedUser.id,
-          workspaceId: team.workspaceId,
-          role: "MEMBER",
-        },
-      });
-    }
-
     // Let the added member know via their Inbox that they're now on the
     // team (they didn't request it). Best-effort; never blocks the response.
     await notifyMembershipGranted({
-      userId: invitedUser.id,
+      userId: insiderId,
       type: "TEAM_INVITATION",
-      title: `You were added to ${team.name}`,
+      title: `You were added to ${standing.teamName}`,
       data: { teamId },
     });
 
@@ -220,8 +262,11 @@ export async function POST(
       );
     }
 
-    if (error instanceof AuthorizationError) {
-      const { status, message } = getErrorStatus(error);
+    // Covers AuthorizationError (403) and NotFoundError (404) — the latter is
+    // how requireTeamStanding hides a team from a caller with no seat in its
+    // workspace, and it used to fall through to the generic 500 below.
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
       return NextResponse.json({ error: message }, { status });
     }
 

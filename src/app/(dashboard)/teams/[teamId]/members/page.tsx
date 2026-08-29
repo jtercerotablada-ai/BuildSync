@@ -30,6 +30,7 @@ import {
   X,
   Trash2,
   Pencil,
+  Clock,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,45 @@ interface Team {
   id: string;
   name: string;
   avatar: string | null;
+  privacy: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
   members: TeamMember[];
+}
+
+/**
+ * What the CALLER may do here, answered by the server rather than guessed
+ * from the session.
+ *
+ * `session.user.role` is the primary-workspace role; the routes check the role
+ * in the TEAM's workspace, and team membership on top of it. Deriving the
+ * buttons from the session was how this surface ended up rendering an Add
+ * member button for everyone that only a lead could use. GET
+ * /api/teams/:id/members?viewer=1 returns the same standing the routes
+ * enforce, so what is offered and what is allowed cannot drift apart.
+ */
+interface TeamViewer {
+  isLead: boolean;
+  isMember: boolean;
+  canManageMembers: boolean;
+  canAddMembers: boolean;
+  isArchived: boolean;
+}
+
+/**
+ * A pending "Membership by request" ask. The queue below is the only place
+ * a lead can act on one — without it the REQUEST_TO_JOIN privacy setting
+ * would create requests that nobody in the product could ever see.
+ */
+interface JoinRequest {
+  id: string;
+  status: string;
+  message: string | null;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  };
 }
 
 interface FieldValueRow {
@@ -146,6 +185,10 @@ export default function TeamMembersPage() {
   } | null>(null);
   // Inline job-title editing — the id of the member row being edited.
   const [editingJobTitle, setEditingJobTitle] = useState<string | null>(null);
+  // Pending join requests and the row currently being decided.
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<TeamViewer | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -154,15 +197,25 @@ export default function TeamMembersPage() {
 
   async function loadAll() {
     try {
-      const [tRes, fRes] = await Promise.all([
+      const [tRes, fRes, vRes] = await Promise.all([
         fetch(`/api/teams/${teamId}`),
         fetch(`/api/teams/${teamId}/fields`),
+        // ?viewer=1 keeps the members array exactly as it was and adds the
+        // caller's own standing beside it, so every control below is gated on
+        // what the route will actually allow.
+        fetch(`/api/teams/${teamId}/members?viewer=1`),
       ]);
       if (tRes.ok) setTeam(await tRes.json());
       if (fRes.ok) {
         const data = await fRes.json();
         setFields(data.fields || []);
         setValues(data.values || []);
+      }
+      if (vRes.ok) {
+        const data = await vRes.json();
+        // Absent or unreadable standing leaves every action hidden — the safe
+        // direction: nothing offered is nothing that dead-ends in a 403.
+        setViewer(data.viewer ?? null);
       }
     } catch (error) {
       console.error("Error fetching team:", error);
@@ -364,6 +417,69 @@ export default function TeamMembersPage() {
     : undefined;
   const isLead = myMembership?.role === "LEAD";
   const isMember = !!myMembership;
+  // Team LEAD or workspace OWNER/ADMIN — the set every membership verb admits
+  // (@/lib/team-access). Server-answered, never inferred from the session.
+  const canManageMembers = viewer?.canManageMembers ?? false;
+  // False on an archived team: nobody can be added until it's restored.
+  const canAddMembers = viewer?.canAddMembers ?? false;
+
+  // Only whoever may decide requests reads the queue — GET /requests answers
+  // 403 to anyone else, so asking as a plain member would be a guaranteed
+  // failed request on every page load.
+  useEffect(() => {
+    if (!canManageMembers) {
+      setJoinRequests([]);
+      return;
+    }
+    loadJoinRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManageMembers, teamId]);
+
+  async function loadJoinRequests() {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/requests`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const rows: JoinRequest[] = data.requests ?? [];
+      // Decided rows are history; the queue shows only what still needs a
+      // lead, which is also why the section disappears when it's empty.
+      setJoinRequests(rows.filter((r) => r.status === "PENDING"));
+    } catch (error) {
+      console.error("Error fetching join requests:", error);
+    }
+  }
+
+  async function handleDecideRequest(
+    requestId: string,
+    status: "APPROVED" | "DECLINED"
+  ) {
+    setDecidingId(requestId);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/requests/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Couldn't update the request");
+      }
+      setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
+      toast.success(
+        status === "APPROVED" ? "Member added to team" : "Request declined"
+      );
+      // An approval writes a TeamMember row inside the same transaction, so
+      // the grid below is now stale — reload it rather than leave the new
+      // person invisible until the next navigation.
+      if (status === "APPROVED") loadAll();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Couldn't update the request"
+      );
+    } finally {
+      setDecidingId(null);
+    }
+  }
 
   const valueMap = useMemo(() => {
     const m: Record<string, Record<string, unknown>> = {};
@@ -418,15 +534,24 @@ export default function TeamMembersPage() {
 
       {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 px-4 md:px-6 py-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowInviteModal(true)}
-          className="gap-1.5"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add member
-        </Button>
+        {/* Gated the way POST /api/teams/:id/invite is. This was the third
+            copy of the Add member control and the one left open, so a plain
+            member could still pick a colleague and be told afterwards that
+            only leads may do it. `<span />` keeps the toolbar's
+            justify-between layout when the button is hidden. */}
+        {canAddMembers ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowInviteModal(true)}
+            className="gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add member
+          </Button>
+        ) : (
+          <span />
+        )}
 
         <div className="flex items-center gap-0.5">
           <DropdownMenu>
@@ -546,6 +671,88 @@ export default function TeamMembersPage() {
           )}
         </div>
       </div>
+
+      {/* ── Pending join requests (leads / workspace admins) ────── */}
+      {/* Rendered only when there is something to decide: an empty box
+          headed "Requests" reads as a broken feature, and this whole
+          surface got audited for screens that say things that aren't so. */}
+      {canManageMembers && joinRequests.length > 0 && (
+        <div className="mx-4 md:mx-6 mb-3 rounded-lg border border-[#c9a84c]/40 bg-[#c9a84c]/5">
+          <div className="flex items-center gap-2 border-b border-[#c9a84c]/25 px-4 py-2.5">
+            <Clock className="h-3.5 w-3.5 text-[#8a7124]" />
+            <span className="text-sm font-medium text-gray-900">
+              Requests to join
+            </span>
+            <span className="rounded-full bg-[#c9a84c]/25 px-2 py-0.5 text-[11px] font-medium text-[#6f5a1c]">
+              {joinRequests.length}
+            </span>
+          </div>
+          <ul className="divide-y divide-[#c9a84c]/20">
+            {joinRequests.map((r) => {
+              const who = r.user.name || r.user.email || "Unknown";
+              const busy = decidingId === r.id;
+              return (
+                <li
+                  key={r.id}
+                  className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <Avatar className="h-7 w-7 shrink-0">
+                      <AvatarImage src={r.user.image || undefined} />
+                      <AvatarFallback
+                        className="text-[11px] text-white"
+                        style={{ backgroundColor: avatarColor(who) }}
+                      >
+                        {getInitials(r.user.name, r.user.email)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900">
+                        {who}
+                      </p>
+                      {r.user.email && r.user.name && (
+                        <p className="truncate text-xs text-gray-500">
+                          {r.user.email}
+                        </p>
+                      )}
+                      {r.message && (
+                        <p className="mt-1 border-l-2 border-[#c9a84c]/50 pl-2 text-xs italic text-gray-600">
+                          {r.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 sm:pl-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => handleDecideRequest(r.id, "DECLINED")}
+                      className="gap-1.5"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Decline
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => handleDecideRequest(r.id, "APPROVED")}
+                      className="gap-1.5 bg-[#c9a84c] text-black hover:bg-[#b8973f]"
+                    >
+                      {busy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      Approve
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* ── Full-width spreadsheet grid ─────────────────────────── */}
       <div className="border-t overflow-x-auto">
@@ -682,7 +889,7 @@ export default function TeamMembersPage() {
                       maxLength={120}
                       className="w-full rounded border border-[#c9a84c] bg-white px-1.5 py-1 text-sm text-gray-900 outline-none"
                     />
-                  ) : isLead || member.user.id === currentUserId ? (
+                  ) : canManageMembers || member.user.id === currentUserId ? (
                     <button
                       type="button"
                       onClick={() => setEditingJobTitle(member.id)}
@@ -737,30 +944,52 @@ export default function TeamMembersPage() {
                           <Mail className="h-4 w-4 mr-2" />
                           Send message
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {member.role === "MEMBER" ? (
-                          <DropdownMenuItem
-                            onClick={() => handleChangeRole(member.id, "LEAD")}
-                          >
-                            <Shield className="h-4 w-4 mr-2" />
-                            Make lead
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            onClick={() => handleChangeRole(member.id, "MEMBER")}
-                          >
-                            <Shield className="h-4 w-4 mr-2" />
-                            Remove as lead
-                          </DropdownMenuItem>
+                        {/* Role changes are gated the way PATCH
+                            /api/teams/:id/members/:memberId is — LEAD or
+                            workspace OWNER/ADMIN. This menu was open to every
+                            member, so "Make lead" was a control whose only
+                            possible answer was a 403 toast. */}
+                        {canManageMembers && (
+                          <>
+                            <DropdownMenuSeparator />
+                            {member.role === "MEMBER" ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleChangeRole(member.id, "LEAD")
+                                }
+                              >
+                                <Shield className="h-4 w-4 mr-2" />
+                                Make lead
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleChangeRole(member.id, "MEMBER")
+                                }
+                              >
+                                <Shield className="h-4 w-4 mr-2" />
+                                Remove as lead
+                              </DropdownMenuItem>
+                            )}
+                          </>
                         )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-black"
-                          onClick={() => setRemoveTarget(member)}
-                        >
-                          <UserMinus className="h-4 w-4 mr-2" />
-                          Remove from team
-                        </DropdownMenuItem>
+                        {/* DELETE also admits the member removing themselves,
+                            which is the one row where this reads as "Leave". */}
+                        {(canManageMembers ||
+                          member.user.id === currentUserId) && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-black"
+                              onClick={() => setRemoveTarget(member)}
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              {member.user.id === currentUserId
+                                ? "Leave team"
+                                : "Remove from team"}
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -792,6 +1021,12 @@ export default function TeamMembersPage() {
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
         onInviteSent={loadAll}
+        // Without these two the link caption fell to its narrowest branch and
+        // called a PUBLIC team private, and the workspace picker listed people
+        // already on the team behind an Add button whose only possible answer
+        // was "User is already a team member".
+        privacy={team.privacy}
+        existingMemberIds={team.members.map((m) => m.user.id)}
       />
 
       {/* Rename field dialog */}
@@ -826,19 +1061,32 @@ export default function TeamMembersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Remove-from-team confirmation */}
+      {/* Remove-from-team confirmation. Reads as "Leave" on your own row,
+          which is the one case DELETE allows without managing the team. */}
       <ConfirmDialog
         open={!!removeTarget}
         onOpenChange={(open) => !open && setRemoveTarget(null)}
-        title="Remove from team"
+        title={
+          removeTarget && removeTarget.user.id === currentUserId
+            ? "Leave team"
+            : "Remove from team"
+        }
         description={
           removeTarget
-            ? `${displayName(removeTarget)} will no longer be a member of ${
-                team?.name || "this team"
-              }. Nothing they created is deleted, and they can be added back later.`
+            ? removeTarget.user.id === currentUserId
+              ? `You'll no longer be a member of ${
+                  team?.name || "this team"
+                }, and you lose the access to its projects that came with it. Nothing you created is deleted.`
+              : `${displayName(removeTarget)} will no longer be a member of ${
+                  team?.name || "this team"
+                }. Nothing they created is deleted, and they can be added back later.`
             : undefined
         }
-        confirmLabel="Remove"
+        confirmLabel={
+          removeTarget && removeTarget.user.id === currentUserId
+            ? "Leave"
+            : "Remove"
+        }
         onConfirm={() => {
           if (!removeTarget) return;
           return handleRemoveMember(removeTarget.id);

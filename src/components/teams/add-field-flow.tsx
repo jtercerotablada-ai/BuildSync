@@ -244,7 +244,7 @@ export function AddFieldFlow({
               onClick={() => setShowMembersModal(true)}
             >
               <Settings className="h-4 w-4" />
-              Manage access
+              Field access
             </Button>
           </DialogHeader>
 
@@ -259,7 +259,7 @@ export function AddFieldFlow({
               className="text-black h-auto p-0"
               onClick={() => setShowMembersModal(true)}
             >
-              Change access
+              Who can see it
             </Button>
           </div>
 
@@ -464,26 +464,15 @@ export function AddFieldFlow({
         </DialogContent>
       </Dialog>
 
-      {/* ========== FIELD MEMBERS MODAL ========== */}
+      {/* ========== FIELD ACCESS MODAL ==========
+           It used to be handed a fabricated member list ("Item administrators
+           (Team)", "Guests") — neither is a thing in this product. The panel
+           states the real rule instead and needs nothing but the team name. */}
       <FieldMembersModal
         open={showMembersModal}
         onClose={() => setShowMembersModal(false)}
         onBack={() => setShowMembersModal(false)}
         organizationName={organizationName}
-        members={[
-          {
-            id: "1",
-            name: "Item administrators (Team)",
-            type: "group",
-            role: "admin",
-          },
-          {
-            id: "2",
-            name: "Guests",
-            type: "group",
-            role: "user",
-          },
-        ]}
       />
     </>
   );

@@ -3,9 +3,9 @@
 /**
  * Dense, action-rich members table for the team workspace.
  *
- * Columns: Member | Role | Open | Overdue | Done 30d | Projects | Capacity | Joined | Actions
+ * Columns: Member | Role | Open | Overdue | Done 30d | Projects | Load | Joined | Actions
  *
- * The "Capacity" cell is a small horizontal bar (0-100%) normalized
+ * The "Load" cell is a small horizontal bar (0-100%) normalized
  * against the busiest member, so you can scan who's slammed and who's
  * free without doing arithmetic.
  *
@@ -36,7 +36,12 @@ export interface MemberRow {
   overdueTasks: number;
   completedLast30Days: number;
   projectsActive: number;
-  capacityPct: number;
+  /**
+   * Share of the busiest member's open-task count, 0-100. Named for what it
+   * measures — see GET /api/teams/:id/workload, which stopped calling this
+   * "capacityPct" because nothing in the product records anyone's capacity.
+   */
+  relativeLoadPct: number;
 }
 
 // Team roles per the Prisma TeamRole enum: LEAD (admin) and MEMBER.
@@ -140,7 +145,7 @@ export function TeamMembersTable({
               Projects
             </th>
             <th className="px-3 py-2 text-right border-b border-r border-gray-100 w-[160px]">
-              Capacity
+              Load
             </th>
             <th className="px-3 py-2 text-right border-b border-r border-gray-100 w-[110px]">
               Joined
@@ -233,17 +238,17 @@ export function TeamMembersTable({
                       <div
                         className={cn(
                           "h-full",
-                          m.capacityPct >= 85
+                          m.relativeLoadPct >= 85
                             ? "bg-black"
-                            : m.capacityPct >= 60
+                            : m.relativeLoadPct >= 60
                               ? "bg-[#a8893a]"
                               : "bg-[#c9a84c]"
                         )}
-                        style={{ width: `${m.capacityPct}%` }}
+                        style={{ width: `${m.relativeLoadPct}%` }}
                       />
                     </div>
                     <span className="text-[11px] font-mono tabular-nums text-gray-700 w-9 text-right">
-                      {m.capacityPct}%
+                      {m.relativeLoadPct}%
                     </span>
                   </div>
                 </td>

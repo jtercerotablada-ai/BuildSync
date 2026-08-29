@@ -57,17 +57,28 @@ export const TeamWorkSection = forwardRef<
   const router = useRouter();
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // A failed read is NOT an empty team. /api/teams/:id/work answers 403 to a
+  // non-member, and the discovery grid now sends non-members straight to this
+  // page — so swallowing the error into `workItems = []` showed a team with
+  // six attached projects the copy for a team that has none, above an
+  // Add work button that 403s on click.
+  const [loadError, setLoadError] = useState<"denied" | "failed" | null>(null);
   const [showLinkModal, setShowLinkModal] = useState(false);
 
   async function fetchWork() {
     try {
       const res = await fetch(`/api/teams/${teamId}/work`);
       if (res.ok) {
-        const data = await res.json();
-        setWorkItems(data);
+        setWorkItems(await res.json());
+        setLoadError(null);
+      } else {
+        setWorkItems([]);
+        setLoadError(res.status === 403 || res.status === 404 ? "denied" : "failed");
       }
     } catch (error) {
       console.error("Error fetching team work:", error);
+      setWorkItems([]);
+      setLoadError("failed");
     } finally {
       setIsLoading(false);
     }
@@ -118,27 +129,50 @@ export const TeamWorkSection = forwardRef<
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-gray-900">Curated work</h3>
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-black"
-            onClick={() => setShowLinkModal(true)}
-          >
-            <Plus className="h-4 w-4" />
-            Add work
-          </button>
-          <button
-            className="text-sm text-gray-500 hover:text-black hover:underline"
-            onClick={() => router.push(`/teams/${teamId}/work`)}
-          >
-            View all work
-          </button>
-        </div>
+        {/* Both actions go to endpoints this caller has just been refused, so
+            neither is offered once the read came back denied. */}
+        {loadError !== "denied" && (
+          <div className="flex items-center gap-3">
+            <button
+              className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-black"
+              onClick={() => setShowLinkModal(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Add work
+            </button>
+            <button
+              className="text-sm text-gray-500 hover:text-black hover:underline"
+              onClick={() => router.push(`/teams/${teamId}/work`)}
+            >
+              View all work
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Work items list */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-6">
+          <p className="text-sm text-gray-500 max-w-md mx-auto">
+            {loadError === "denied"
+              ? "Join this team to see the work it keeps here."
+              : "Couldn't load this team's work."}
+          </p>
+          {loadError === "failed" && (
+            <button
+              className="mt-3 text-sm font-medium text-gray-900 hover:underline"
+              onClick={() => {
+                setIsLoading(true);
+                fetchWork();
+              }}
+            >
+              Try again
+            </button>
+          )}
         </div>
       ) : workItems.length > 0 ? (
         <div className="space-y-1">
@@ -205,22 +239,10 @@ export const TeamWorkSection = forwardRef<
       ) : (
         /* Empty state */
         <div className="text-center py-6">
-          {/* Placeholder skeleton items */}
-          <div className="space-y-3 mb-6 opacity-30">
-            <div className="flex items-center gap-3 p-3">
-              <div className="w-8 h-8 bg-gray-300 rounded" />
-              <div className="flex-1 h-3 bg-gray-200 rounded w-3/4" />
-            </div>
-            <div className="flex items-center gap-3 p-3">
-              <div className="w-8 h-8 bg-gray-200 rounded" />
-              <div className="flex-1 h-3 bg-gray-200 rounded w-1/2" />
-            </div>
-            <div className="flex items-center gap-3 p-3">
-              <div className="w-8 h-8 bg-gray-300 rounded" />
-              <div className="flex-1 h-3 bg-gray-200 rounded w-2/3" />
-            </div>
-          </div>
-
+          {/* Three grey skeleton bars used to sit here as decoration. They
+              are the exact shape this app draws while data is loading, so an
+              empty section read as a fetch that never finished — the section
+              already has a real spinner one branch up for that. */}
           <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
             Organize links to important work, such as portfolios, projects,
             templates, etc., so your team members can find them easily.

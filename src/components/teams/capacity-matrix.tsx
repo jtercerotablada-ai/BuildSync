@@ -3,7 +3,7 @@
 /**
  * Capacity Matrix — the centerpiece of the team workspace.
  *
- * Rows:    team members (sorted by capacity, busiest first)
+ * Rows:    team members (sorted by relative load, busiest first)
  * Columns: the projects this team owns (Project.teamId = thisTeam)
  * Cells:   number of open tasks the member has on that project.
  *          Color scales gold → black with task count, so the
@@ -11,7 +11,8 @@
  *
  * The right-most "Σ Load" column sums each member's open tasks and
  * shows them next to a horizontal bar normalized against the
- * busiest member (capacity = 100% for the most loaded person). The
+ * busiest member (100% for the most loaded person — a relative load, NOT a
+ * share of anyone's capacity: nothing in this product records capacity). The
  * bottom row sums per project so you can spot under- or over-
  * staffed projects at a glance.
  *
@@ -32,7 +33,14 @@ export interface MatrixMember {
   role: string;
   openTasks: number;
   overdueTasks: number;
-  capacityPct: number;
+  /**
+   * Share of the BUSIEST member's open-task count, 0-100 — not a share of
+   * anyone's capacity, which this product does not record. The endpoint that
+   * feeds this (GET /api/teams/:id/workload) renamed the field for that
+   * reason; reading the old name here would have made the sort NaN and the
+   * bar `width: "undefined%"` the moment this component was mounted.
+   */
+  relativeLoadPct: number;
   taskByProject: Record<string, number>;
 }
 
@@ -89,15 +97,15 @@ export function CapacityMatrix({
     return (
       <div className="border border-dashed rounded-xl p-8 text-center">
         <p className="text-sm text-gray-500">
-          No members on this team yet — add people to see capacity.
+          No members on this team yet — add people to see their workload.
         </p>
       </div>
     );
   }
 
-  // Sort members by capacity (busiest first) for a more useful read.
+  // Sort members by relative load (busiest first) for a more useful read.
   const sortedMembers = [...members].sort(
-    (a, b) => b.capacityPct - a.capacityPct
+    (a, b) => b.relativeLoadPct - a.relativeLoadPct
   );
 
   // Peak cell value across the matrix (max tasks any single member
@@ -122,7 +130,7 @@ export function CapacityMatrix({
       <div className="px-4 py-3 border-b flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-black">
-            Capacity matrix
+            Workload matrix
           </h3>
           <p className="text-[11px] text-gray-500">
             Open tasks per member × project. Color = relative load.
@@ -244,13 +252,13 @@ export function CapacityMatrix({
                       <div
                         className={cn(
                           "h-full transition-all",
-                          m.capacityPct >= 85
+                          m.relativeLoadPct >= 85
                             ? "bg-black"
-                            : m.capacityPct >= 60
+                            : m.relativeLoadPct >= 60
                               ? "bg-[#a8893a]"
                               : "bg-[#c9a84c]"
                         )}
-                        style={{ width: `${m.capacityPct}%` }}
+                        style={{ width: `${m.relativeLoadPct}%` }}
                       />
                     </div>
                     <span className="text-[11px] font-mono tabular-nums font-semibold text-black w-12 text-right">

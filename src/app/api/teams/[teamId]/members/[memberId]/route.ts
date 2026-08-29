@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getErrorStatus } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 
 const updateMemberSchema = z
   .object({
@@ -14,8 +16,15 @@ const updateMemberSchema = z
   });
 
 // PATCH /api/teams/:teamId/members/:memberId - Update a member's role and/or
-// job title. Role changes are LEAD-only; a job title can be set by a LEAD (for
-// anyone) or by the member on their own row.
+// job title.
+//
+// Role changes: whoever may manage this team's membership — team LEAD or
+// workspace OWNER/ADMIN (@/lib/team-access). It used to be LEAD-only while
+// POST /invite and POST /members already admitted workspace managers, so a
+// workspace owner could put someone on a team and then not be able to change
+// or remove them — and a team whose only LEAD left the firm was permanently
+// unadministrable. A job title can be set by a manager (for anyone) or by the
+// member on their own row.
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ teamId: string; memberId: string }> }
@@ -31,17 +40,11 @@ export async function PATCH(
     const body = await req.json();
     const data = updateMemberSchema.parse(body);
 
-    // The caller must belong to this team.
-    const currentUserMember = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId } },
-    });
-    if (!currentUserMember) {
-      return NextResponse.json(
-        { error: "You don't have access to this team" },
-        { status: 403 }
-      );
-    }
-    const isLead = currentUserMember.role === "LEAD";
+    // Team membership plus a live contributor seat in the TEAM's workspace —
+    // 404 for anyone else, so a stale TeamMember row left behind by
+    // offboarding can no longer re-role the people still here.
+    const standing = await requireTeamStanding(userId, teamId);
+    const canManage = standing.canManageMembers;
 
     // Verify memberId belongs to this team.
     const memberToUpdate = await prisma.teamMember.findUnique({ where: { id: memberId } });
@@ -49,11 +52,12 @@ export async function PATCH(
       return NextResponse.json({ error: "Member not found in this team" }, { status: 404 });
     }
 
-    // Role change: leads only, and never demote the last lead.
+    // Role change: team leads or workspace admins, and never demote the last
+    // lead.
     if (data.role !== undefined) {
-      if (!isLead) {
+      if (!canManage) {
         return NextResponse.json(
-          { error: "Only team leads can change member roles" },
+          { error: "Only team leads or workspace admins can change member roles" },
           { status: 403 }
         );
       }
@@ -70,10 +74,10 @@ export async function PATCH(
       }
     }
 
-    // Job title: a lead can set anyone's; a member can set only their own.
+    // Job title: a manager can set anyone's; a member can set only their own.
     if (data.jobTitle !== undefined) {
       const isSelf = memberToUpdate.userId === userId;
-      if (!isLead && !isSelf) {
+      if (!canManage && !isSelf) {
         return NextResponse.json(
           { error: "You can only edit your own job title" },
           { status: 403 }
@@ -121,6 +125,14 @@ export async function PATCH(
       );
     }
 
+    // requireTeamStanding answers 404 for a caller with no seat in the team's
+    // workspace and for a non-member of a PRIVATE team; without this it would
+    // surface as a generic 500.
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
+
     console.error("Error updating team member:", error);
     return NextResponse.json(
       { error: "Failed to update team member" },
@@ -129,7 +141,10 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/teams/:teamId/members/:memberId - Remove member from team
+// DELETE /api/teams/:teamId/members/:memberId - Remove member from team.
+// Whoever may manage this team's membership (team LEAD or workspace
+// OWNER/ADMIN), or the member removing themselves. Same rule as PATCH above —
+// the two verbs enforcing different rules is how this surface got audited.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ teamId: string; memberId: string }> }
@@ -151,19 +166,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    // Check if current user is team lead or removing themselves
-    const currentUserMember = await prisma.teamMember.findUnique({
-      where: {
-        userId_teamId: {
-          userId,
-          teamId,
-        },
-      },
-    });
-
+    // Team lead / workspace admin, or the member leaving of their own accord.
+    const standing = await requireTeamStanding(userId, teamId);
     const canRemove =
-      currentUserMember?.role === "LEAD" ||
-      memberToRemove.userId === userId;
+      standing.canManageMembers || memberToRemove.userId === userId;
 
     if (!canRemove) {
       return NextResponse.json(
@@ -195,6 +201,11 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
+
     console.error("Error removing team member:", error);
     return NextResponse.json(
       { error: "Failed to remove team member" },

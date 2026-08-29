@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import {
@@ -15,7 +14,6 @@ import {
   Users,
   Lock,
   Mail,
-  Check,
   LayoutGrid,
   Calendar,
   Globe,
@@ -61,13 +59,10 @@ export default function CreateTeamPage() {
   const [teamName, setTeamName] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<User[]>([]);
-  const [isEndorsed, setIsEndorsed] = useState(false);
   const [privacy, setPrivacy] = useState<PrivacyType>('PUBLIC');
 
   // Search state
-  const [searchResults, setSearchResults] = useState<User[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,35 +84,62 @@ export default function CreateTeamPage() {
     }
   }, [currentUser]);
 
-  // Search users as they type
+  // The roster this picker is allowed to offer, loaded once.
+  //
+  // NOT /api/users/search: that endpoint returns users from EVERY workspace
+  // the caller belongs to, at any role. POST /api/teams now refuses seed
+  // members who don't hold a contributor seat in the workspace the team is
+  // being created in (a team must never be a side door into a workspace), so
+  // searching there offered people whose selection made the whole creation
+  // fail — the typed name and privacy choice still on screen, and nothing said
+  // until the submit. /api/workspace/members returns the caller's primary
+  // workspace, resolved by the same pickPrimaryMembership() the create route
+  // uses, so what is listed here is exactly what that route will accept.
+  const [roster, setRoster] = useState<User[] | null>(null);
+
   useEffect(() => {
-    const searchUsers = async () => {
-      if (!memberSearch.trim()) {
-        setSearchResults([]);
-        return;
-      }
-
-      setSearchLoading(true);
-      try {
-        const res = await fetch(`/api/users/search?q=${encodeURIComponent(memberSearch)}`);
-        if (res.ok) {
-          const data = await res.json();
-          // Filter out already selected members
-          const filtered = data.filter(
-            (user: User) => !selectedMembers.some((m) => m.id === user.id)
-          );
-          setSearchResults(filtered);
-        }
-      } catch (error) {
-        console.error('Failed to search users:', error);
-      } finally {
-        setSearchLoading(false);
-      }
+    let cancelled = false;
+    fetch('/api/workspace/members')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: unknown) => {
+        if (cancelled || !Array.isArray(rows)) return;
+        setRoster(
+          rows
+            // GUEST/CLIENT seats are read-only, and a team grant is
+            // Editor-level on every attached project — the create route
+            // refuses them for that reason, so they are not offered.
+            .filter((row) => {
+              const role = (row as { role?: string }).role;
+              return !!role && role !== 'GUEST' && role !== 'CLIENT';
+            })
+            .map((row) => (row as { user?: User }).user)
+            .filter((u): u is User => !!u && !!u.id)
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setRoster([]);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, []);
 
-    const debounce = setTimeout(searchUsers, 300);
-    return () => clearTimeout(debounce);
-  }, [memberSearch, selectedMembers]);
+  // Filter the roster as they type — derived, not stored: no round-trip and no
+  // debounce, because the firm is small enough that the whole list is already
+  // in memory.
+  const searchLoading = roster === null && memberSearch.trim().length > 0;
+  const searchResults = useMemo(() => {
+    const term = memberSearch.trim().toLowerCase();
+    if (!term || !roster) return [];
+    return roster
+      .filter((u) => !selectedMembers.some((m) => m.id === u.id))
+      .filter(
+        (u) =>
+          (u.name || '').toLowerCase().includes(term) ||
+          (u.email || '').toLowerCase().includes(term)
+      )
+      .slice(0, 10);
+  }, [memberSearch, selectedMembers, roster]);
 
   // Point the keyboard highlight back at the first match whenever the results change
   useEffect(() => {
@@ -362,7 +384,10 @@ export default function CreateTeamPage() {
                       {searchLoading ? (
                         <div className="p-3 text-sm text-gray-500">Searching...</div>
                       ) : searchResults.length === 0 ? (
-                        <div className="p-3 text-sm text-gray-500">No users found</div>
+                        <div className="p-3 text-sm text-gray-500">
+                          Nobody in this workspace matches. Only people already
+                          in the workspace can be added to a team.
+                        </div>
                       ) : (
                         searchResults.map((user, index) => (
                           <button
@@ -400,36 +425,11 @@ export default function CreateTeamPage() {
                 </div>
               </div>
 
-              {/* Team status (Endorsed) */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Team status</Label>
-                <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Checkbox
-                    id="endorsed"
-                    checked={isEndorsed}
-                    onCheckedChange={(checked) => setIsEndorsed(checked as boolean)}
-                    disabled
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor="endorsed"
-                        className="text-sm font-medium text-gray-400 cursor-not-allowed"
-                      >
-                        Endorsed
-                      </label>
-                      <Check className="h-4 w-4 text-gray-400" />
-                      <span className="text-xs text-[#a8893a] font-medium">
-                        Premium feature
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Endorsed teams are recommended by admins in your organization.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              {/* A disabled "Endorsed ✓ Premium feature" checkbox used to sit
+                  here, copied from Asana's paid tier. BuildSync is this firm's
+                  internal tool — there is no tier to upgrade to and no admin
+                  endorsement to earn, so it was a permanently greyed-out
+                  control advertising a product nobody can buy. */}
 
               {/* Team privacy */}
               <div className="space-y-3">

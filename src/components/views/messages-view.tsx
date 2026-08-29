@@ -1809,8 +1809,11 @@ export function MessagesView({
             )
           )}
 
-          {/* Education card — Asana closes the feed with it */}
-          <ConnectCard />
+          {/* Education card — an EMPTY state, not a footer. It used to close
+              every feed unconditionally: post the first message, reload, and
+              "Connect your conversations to your work" was still sitting
+              under it, so the channel never stopped looking unused. */}
+          {feed.length === 0 && <ConnectCard scope={scope.type} />}
         </div>
       </div>
 
@@ -2809,7 +2812,16 @@ function StatusUpdateCard({
 
 // ─── Education card — Asana closes the Messages feed with it ─────
 
-function ConnectCard() {
+function ConnectCard({ scope }: { scope: MessageScope["type"] }) {
+  // The card is shared by three channels, so it can't claim messages "stay
+  // with the project" — on the team tab that named the wrong container, and
+  // pointed the reader at a project that has nothing to do with the thread.
+  const where =
+    scope === "team"
+      ? "with the team, so anyone who joins later can read back through them"
+      : scope === "portfolio"
+        ? "with the portfolio, alongside the projects it tracks"
+        : "with the project for the whole team to see";
   return (
     <div className="bg-white rounded-lg border border-[#E0E1E3] shadow-sm p-10 text-center">
       <div className="w-14 h-14 rounded-full bg-[#FBE9EC] mx-auto flex items-center justify-center mb-4">
@@ -2819,8 +2831,8 @@ function ConnectCard() {
         Connect your conversations to your work
       </h3>
       <p className="text-sm text-slate-500 max-w-md mx-auto">
-        Send a message to kick off projects, discuss tasks, or brainstorm
-        ideas. Messages stay with the project for the whole team to see.
+        Send a message to kick off work, discuss tasks, or brainstorm ideas.
+        Messages stay {where}.
       </p>
     </div>
   );

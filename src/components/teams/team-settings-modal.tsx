@@ -8,11 +8,8 @@ import {
   Trash2,
   Loader2,
   UserPlus,
-  ChevronDown,
-  Pencil,
-  Settings,
-  Link2,
   Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import {
   Dialog,
@@ -25,13 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -41,6 +32,7 @@ interface TeamSettingsModalProps {
     name: string;
     description?: string | null;
     privacy: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
+    isArchived?: boolean;
     workspace?: {
       name: string;
     } | null;
@@ -48,8 +40,36 @@ interface TeamSettingsModalProps {
   open: boolean;
   onClose: () => void;
   onSave?: () => void;
-  defaultTab?: "general" | "members" | "advanced";
+  /** "advanced" is the old id of the tab that now holds only the Danger zone. */
+  defaultTab?: "general" | "members" | "advanced" | "danger";
+  /**
+   * Whether this caller may change the team's name, description and privacy —
+   * PATCH /api/teams/:id keeps those lead-only, while ARCHIVING (the Danger
+   * zone) also admits a workspace OWNER/ADMIN. Passing false hides the General
+   * tab entirely rather than showing fields whose Update button 403s, which is
+   * how a workspace owner reaches the archive control on a team he is not the
+   * lead of. Defaults to true so every existing caller is unchanged.
+   */
+  canEditDetails?: boolean;
 }
+
+type SettingsTab = "general" | "members" | "danger";
+
+/** What the Danger zone needs to state the real blast radius of a delete. */
+interface TeamDangerFacts {
+  isArchived: boolean;
+  archivedAt: string | null;
+  counts: {
+    projects: number;
+    members: number;
+    messages: number;
+    knowledgeEntries: number;
+    customFields: number;
+  };
+}
+
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
 
 export function TeamSettingsModal({
   team,
@@ -57,17 +77,23 @@ export function TeamSettingsModal({
   onClose,
   onSave,
   defaultTab = "general",
+  canEditDetails = true,
 }: TeamSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    const wanted = defaultTab === "advanced" ? "danger" : defaultTab;
+    // Never open on a tab this caller can't be shown.
+    return wanted === "general" && !canEditDetails ? "members" : wanted;
+  });
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description || "");
   const [privacy, setPrivacy] = useState(team.privacy);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [allowInviteLinks, setAllowInviteLinks] = useState(true);
   const [members, setMembers] = useState<{ id: string; role: string; user: { id: string; name: string | null; email: string | null; image: string | null } }[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [danger, setDanger] = useState<TeamDangerFacts | null>(null);
 
   // Reset form when the modal opens or a different team is shown. Depending on
   // the whole `team` object reset the fields on every parent re-render — the
@@ -101,10 +127,45 @@ export function TeamSettingsModal({
     return () => { cancelled = true; };
   }, [activeTab, open, team.id]);
 
-  const tabs = [
-    { id: "general", label: "General" },
+  // The Danger zone quotes real numbers back at the user, and the archive
+  // button has to know which direction it points. Neither caller passes any of
+  // that in `team`, so read it from the team endpoint whenever the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    async function fetchDangerFacts() {
+      try {
+        const res = await fetch(`/api/teams/${team.id}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        setDanger({
+          isArchived: !!data.isArchived,
+          archivedAt: data.archivedAt ?? null,
+          counts: {
+            projects: data._count?.projects ?? 0,
+            members: data._count?.members ?? 0,
+            messages: data._count?.messages ?? 0,
+            knowledgeEntries: data._count?.knowledgeEntries ?? 0,
+            customFields: data._count?.customFields ?? 0,
+          },
+        });
+      } catch {
+        // Leave `danger` null — the delete dialog falls back to wording that
+        // makes no claim about counts it could not read.
+      }
+    }
+    fetchDangerFacts();
+    return () => { cancelled = true; };
+  }, [open, team.id]);
+
+  const isArchived = danger?.isArchived ?? team.isArchived ?? false;
+
+  const tabs: { id: SettingsTab; label: string }[] = [
+    ...(canEditDetails
+      ? [{ id: "general" as const, label: "General" }]
+      : []),
     { id: "members", label: "Members" },
-    { id: "advanced", label: "Advanced" },
+    { id: "danger", label: "Danger zone" },
   ];
 
   const handleSave = async () => {
@@ -174,40 +235,97 @@ export function TeamSettingsModal({
     }
   };
 
-  const handleDelete = async () => {
-    // Cascades: team messages, custom fields and knowledge entries are deleted
-    // with it. Its projects and goals are only detached (SetNull).
-    if (
-      !confirm(
-        `Delete "${team.name}"?
-
-Its messages, knowledge entries and custom fields are deleted permanently. Its projects and goals stay but lose their team. This cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
-    setIsDeleting(true);
+  // Archive is reversible, so it does NOT navigate away: the same button has to
+  // be reachable to undo it. Success is decided by what the server sends back,
+  // not by res.ok — the old handler PATCHed a key the route schema stripped and
+  // toasted "Team archived" over a row that never changed.
+  const setArchived = async (next: boolean) => {
+    setIsArchiving(true);
     try {
       const res = await fetch(`/api/teams/${team.id}`, {
-        method: "DELETE",
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: next }),
       });
-
-      if (res.ok) {
-        toast.success("Team deleted");
-        onClose();
-        window.location.href = "/";
-      } else {
-        toast.error("Failed to delete team");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          data?.error || (next ? "Failed to archive team" : "Failed to restore team")
+        );
       }
+      if (data?.isArchived !== next) {
+        throw new Error("The team was not updated. Please try again.");
+      }
+      setDanger((prev) =>
+        prev
+          ? { ...prev, isArchived: next, archivedAt: data.archivedAt ?? null }
+          : prev
+      );
+      toast.success(next ? "Team archived" : "Team restored");
+      onSave?.();
     } catch (error) {
-      toast.error("Failed to delete team");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : next
+            ? "Failed to archive team"
+            : "Failed to restore team"
+      );
     } finally {
-      setIsDeleting(false);
+      setIsArchiving(false);
     }
   };
 
+  // What a delete actually does, measured rather than guessed: Project.teamId is
+  // SET NULL so the jobs and their tasks survive detached, while the team's
+  // messages, knowledge entries and custom fields cascade away — and because a
+  // project attached to a team grants Editor access to every team member, anyone
+  // whose only claim was this team loses those jobs.
+  const c = danger?.counts;
+  const deleteConsequences = c
+    ? [
+        c.projects > 0
+          ? `${plural(c.projects, "project stays", "projects stay")} — detached from this team, keeping every task, file and comment`
+          : "No projects are attached to this team",
+        ...(c.messages > 0
+          ? [`${plural(c.messages, "team message is", "team messages are")} deleted permanently`]
+          : []),
+        ...(c.knowledgeEntries > 0
+          ? [`${plural(c.knowledgeEntries, "knowledge entry is", "knowledge entries are")} deleted permanently`]
+          : []),
+        ...(c.customFields > 0
+          ? [`${plural(c.customFields, "team field is", "team fields are")} deleted permanently`]
+          : []),
+        ...(c.projects > 0 && c.members > 0
+          ? [
+              `Anyone among the ${plural(c.members, "member", "members")} whose access to those projects came only through this team loses it`,
+            ]
+          : []),
+      ]
+    : [
+        "Projects are detached, not deleted — they keep every task, file and comment",
+        "The team's messages, knowledge entries and team fields are deleted permanently",
+        "Anyone whose access to those projects came only through this team loses it",
+      ];
+
+  const handleDelete = async () => {
+    const res = await fetch(`/api/teams/${team.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      // Thrown, not toasted: ConfirmDialog shows the message and keeps the
+      // dialog open so the typed confirmation is not lost.
+      throw new Error(data?.error || "Failed to delete team");
+    }
+    toast.success("Team deleted");
+    setDeleteOpen(false);
+    onClose();
+    window.location.href = "/";
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
@@ -356,7 +474,9 @@ Its messages, knowledge entries and custom fields are deleted permanently. Its p
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Invited members will receive an email with a link to join the team
+                  Someone already in this workspace is added to the team right
+                  away. Anyone else is emailed an invitation, and a workspace
+                  admin has to be the one to send it.
                 </p>
               </div>
 
@@ -399,149 +519,93 @@ Its messages, knowledge entries and custom fields are deleted permanently. Its p
                 </div>
               </div>
 
-              {/* Pending Invitations */}
-              <div className="space-y-3">
-                <span className="text-sm font-medium">Pending invitations</span>
-                <p className="text-xs text-gray-500">No pending invitations</p>
-              </div>
+              {/* A "Pending invitations — No pending invitations" block used to
+                  sit here. It was static JSX: nothing ever fetched an
+                  invitation, so it reported "none" over however many were
+                  outstanding, including one sent from the field directly
+                  above it. Removed rather than faked; outstanding invitations
+                  are listed in workspace Settings, which is the screen that
+                  can also resend and revoke them. */}
             </div>
           )}
 
-          {/* TAB: Advanced */}
-          {activeTab === "advanced" && (
-            <div className="space-y-6">
-              {/* Preview banner — the permission dropdowns below are UI-only
-               * until the team-permissions endpoint lands. Be honest about
-               * it instead of letting users think they're toggling state. */}
-              <div className="p-3 rounded-lg border border-[#a8893a]/30 bg-[#a8893a]/10 flex items-start gap-2">
-                <div className="text-[#a8893a] text-sm" aria-hidden="true">⚠</div>
-                <div className="text-xs text-[#a8893a] leading-relaxed">
-                  <strong>Preview only.</strong> Permission rules below show the planned roles model. They don&rsquo;t yet save to the server — defaults apply: team admins can edit, all members can invite, only admins can remove.
+          {/* TAB: Danger zone
+              This tab used to be "Advanced": four permission controls (who can
+              edit, who can add, who can remove, allow invite links) under a
+              banner admitting none of them saved. The real model is team LEAD
+              vs MEMBER, enforced in the routes, so the mock is gone and only
+              the two actions that do something are left. */}
+          {activeTab === "danger" && (
+            <div className="space-y-4">
+              {/* Archive — reversible, and now actually persisted */}
+              <div className="p-4 border border-gray-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  {isArchived ? (
+                    <ArchiveRestore className="h-4 w-4 text-gray-500" />
+                  ) : (
+                    <Archive className="h-4 w-4 text-gray-500" />
+                  )}
+                  <h4 className="text-sm font-medium">
+                    {isArchived ? "Restore team" : "Archive team"}
+                  </h4>
                 </div>
-              </div>
-
-              {/* Editing Permissions */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Pencil className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">Editing permissions</span>
-                </div>
-                <div className="space-y-2 pl-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Who can edit team settings</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
-                          Team admins only
-                          <ChevronDown className="h-3 w-3" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      {/* TODO: Wire to API once team permission settings endpoint exists */}
-                      <DropdownMenuContent>
-                        <DropdownMenuItem disabled>Team admins only</DropdownMenuItem>
-                        <DropdownMenuItem disabled>All team members</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </div>
-
-              {/* Membership Permissions */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">Membership permissions</span>
-                </div>
-                <div className="space-y-2 pl-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Who can add team members</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
-                          All team members
-                          <ChevronDown className="h-3 w-3" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      {/* TODO: Wire to API once team permission settings endpoint exists */}
-                      <DropdownMenuContent>
-                        <DropdownMenuItem disabled>All team members</DropdownMenuItem>
-                        <DropdownMenuItem disabled>Team admins only</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Who can remove team members</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
-                          Team admins only
-                          <ChevronDown className="h-3 w-3" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      {/* TODO: Wire to API once team permission settings endpoint exists */}
-                      <DropdownMenuContent>
-                        <DropdownMenuItem disabled>Team admins only</DropdownMenuItem>
-                        <DropdownMenuItem disabled>All team members</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </div>
-
-              {/* Invitations */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">Invitations</span>
-                </div>
-                <div className="space-y-2 pl-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Allow invite links</span>
-                    {/* TODO: Persist invite link setting via API once endpoint exists */}
-                    <Checkbox checked={allowInviteLinks} onCheckedChange={(checked) => { setAllowInviteLinks(!!checked); }} />
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Anyone with the invite link can join the team
-                  </p>
-                </div>
-              </div>
-
-              {/* Danger Zone */}
-              <div className="p-4 border border-gray-300 rounded-lg bg-gray-100">
-                <h4 className="text-sm font-medium text-black mb-1">Danger zone</h4>
-                <p className="text-xs text-black mb-3">
-                  These actions cannot be undone.
+                <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+                  {isArchived
+                    ? "This team is archived. Restoring brings it back to the team list with its projects, messages and members exactly as they are."
+                    : "Puts the team out of the way without losing anything. Its projects, messages and members are kept, and you can restore it here at any time."}
                 </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="text-black border-gray-400 hover:bg-gray-100" onClick={async () => {
-                    if (!confirm('Archive this team? Members will no longer be able to access it.')) return;
-                    try {
-                      const res = await fetch(`/api/teams/${team.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ archived: true }),
-                      });
-                      if (res.ok) { toast.success('Team archived'); onClose(); window.location.href = '/'; }
-                      else toast.error('Failed to archive team');
-                    } catch { toast.error('Failed to archive team'); }
-                  }}>
+                {isArchived && danger?.archivedAt && (
+                  <p className="text-xs text-gray-500 mb-3">
+                    Archived on{" "}
+                    {new Date(danger.archivedAt).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-black border-gray-400"
+                  disabled={isArchiving}
+                  onClick={() => setArchived(!isArchived)}
+                >
+                  {isArchiving ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : isArchived ? (
+                    <ArchiveRestore className="h-4 w-4 mr-2" />
+                  ) : (
                     <Archive className="h-4 w-4 mr-2" />
-                    Archive team
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                  >
-                    {isDeleting ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Trash2 className="h-4 w-4 mr-2" />
-                    )}
-                    Delete team
-                  </Button>
+                  )}
+                  {isArchived ? "Restore team" : "Archive team"}
+                </Button>
+              </div>
+
+              {/* Delete — the only irreversible action on this screen */}
+              <div className="p-4 border border-gray-300 rounded-lg bg-gray-100">
+                <div className="flex items-center gap-2 mb-1">
+                  <Trash2 className="h-4 w-4 text-black" />
+                  <h4 className="text-sm font-medium text-black">Delete team</h4>
                 </div>
+                <p className="text-xs text-black mb-3 leading-relaxed">
+                  Permanent. The team&rsquo;s projects survive on their own, but its
+                  conversation is destroyed and team-granted project access is
+                  revoked. Archive instead if you only want it out of the way.
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-xs text-black mb-3">
+                  {deleteConsequences.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete team
+                </Button>
               </div>
             </div>
           )}
@@ -562,5 +626,21 @@ Its messages, knowledge entries and custom fields are deleted permanently. Its p
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Sibling of the settings dialog, not a child of its content: the typed
+        confirmation has to survive whatever the tab underneath is doing. Same
+        component the project delete uses — this is the harder of the two, since
+        a team delete also takes access away from people who are not here. */}
+    <ConfirmDialog
+      open={deleteOpen}
+      onOpenChange={setDeleteOpen}
+      title="Delete team"
+      description={`"${team.name}" will be permanently deleted. Archiving is reversible; this is not.`}
+      consequences={deleteConsequences}
+      confirmLabel="Delete team"
+      requireText={team.name}
+      onConfirm={handleDelete}
+    />
+    </>
   );
 }

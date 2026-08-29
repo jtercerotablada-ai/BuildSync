@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTeamAccess, verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
+import { verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 
 const createTaskSchema = z.object({
   name: z.string().min(1),
@@ -23,18 +25,29 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this team
-    await verifyTeamAccess(userId, teamId);
+    // Team membership AND a live contributor seat in the team's workspace —
+    // a TeamMember row survives offboarding and used to be the whole gate.
+    await requireTeamStanding(userId, teamId);
 
     // All tasks from the team's projects. Dateless tasks are included on
     // purpose — the shared CalendarView surfaces them via its "No date (N)"
     // drawer (Asana parity) instead of hiding them. startDate/priority/
     // taskType/description are what the multi-day bars + detail need.
+    //
+    // PRIVACY. This query used to name no caller at all, so every team member
+    // got the identical result set: a task flagged `isPrivate` — which 404s
+    // by URL for a colleague via decideTaskAccess (@/lib/auth-guards) —
+    // rendered on the team calendar with its name, description, due date and
+    // assignee. Team membership grants PROJECT access (project-access.ts);
+    // it has never granted an exemption from task privacy. taskPrivacyClause
+    // is the list-query half of that same decision, shared with search,
+    // reports and /api/ai/assist so the four cannot drift.
     const tasks = await prisma.task.findMany({
       where: {
         project: {
           teamId,
         },
+        ...taskPrivacyClause(userId),
       },
       select: {
         id: true,
@@ -96,17 +109,9 @@ export async function POST(
     const body = await req.json();
     const { name, dueDate, projectId } = createTaskSchema.parse(body);
 
-    // Verify user is team member
-    const teamMember = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId } },
-    });
-
-    if (!teamMember) {
-      return NextResponse.json(
-        { error: "You must be a team member to create tasks" },
-        { status: 403 }
-      );
-    }
+    // Same standing the GET requires — one rule, not a second hand-rolled
+    // membership lookup that only checked for a TeamMember row.
+    await requireTeamStanding(userId, teamId);
 
     // When a projectId is supplied it MUST belong to this team. Without this
     // check a team member could inject tasks into an arbitrary project in

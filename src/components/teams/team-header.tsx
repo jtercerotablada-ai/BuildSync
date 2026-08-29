@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ChevronDown,
   Star,
@@ -10,7 +11,6 @@ import {
   MessageSquare,
   Calendar,
   BookOpen,
-  Plus,
   Settings,
   Trash2,
 } from "lucide-react";
@@ -130,6 +130,10 @@ export function useTeamStar(teamId: string) {
 
 interface TeamMember {
   id: string;
+  // Optional so a leaner caller still compiles; every page that renders this
+  // header passes the raw /api/teams/:id payload, which carries it. It is what
+  // decides whether the lead-only actions below are drawn at all.
+  role?: string;
   user: {
     id: string;
     name: string | null;
@@ -159,6 +163,12 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Our own copy of the roster — see the effect below for why the header
+  // keeps one instead of trusting the prop alone.
+  const [fetchedMembers, setFetchedMembers] = useState<{
+    teamId: string;
+    rows: TeamMember[];
+  } | null>(null);
   // Every page that renders this header holds the team in its own client
   // state, loaded once with fetch(), so router.refresh() — which only re-runs
   // server components — never repainted a rename saved in the settings
@@ -184,6 +194,9 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         avatar: fresh.avatar ?? null,
         privacy: fresh.privacy,
       });
+      if (Array.isArray(fresh.members)) {
+        setFetchedMembers({ teamId: team.id, rows: fresh.members });
+      }
     } catch {
       // Keep showing the last known values rather than blanking the header.
     }
@@ -192,6 +205,61 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   // moved between the team's tabs (each page remounts this header) and
   // never survived a reload.
   const { isStarred, toggleStar } = useTeamStar(team.id);
+
+  // ── Who may actually use the actions in this header ──────────────
+  const { data: session } = useSession();
+  const currentUserId =
+    (session?.user as { id?: string } | undefined)?.id || null;
+  // The primary-workspace role the jwt callback resolves. The invite route
+  // checks the role in the TEAM's workspace; for a single-workspace firm
+  // those are the same row, and when they aren't the route still decides —
+  // this only governs whether the button is offered.
+  const workspaceRole =
+    (session?.user as { role?: string | null } | undefined)?.role ?? null;
+
+  // Membership normally rides in on the prop (every page here passes the raw
+  // /api/teams/:id payload). We keep our own copy anyway so adding someone
+  // from the dialog updates the avatar row and the picker's exclusion list
+  // without the host page refetching; and when a caller gives us no members
+  // at all we resolve them rather than guess — guessing "member" paints
+  // buttons that 403, guessing "not" hides Add member from a lead.
+  useEffect(() => {
+    if (team.members) return;
+    let canceled = false;
+    fetch(`/api/teams/${team.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((fresh) => {
+        if (!canceled && Array.isArray(fresh?.members)) {
+          setFetchedMembers({
+            teamId: team.id,
+            rows: fresh.members as TeamMember[],
+          });
+        }
+      })
+      .catch(() => {
+        // Leave membership unknown — the actions stay hidden, which is the
+        // safe direction: nothing offered is nothing that dead-ends.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [team.id, team.members]);
+
+  const members =
+    fetchedMembers && fetchedMembers.teamId === team.id
+      ? fetchedMembers.rows
+      : team.members;
+  const myMembership = currentUserId
+    ? members?.find((m) => m.user.id === currentUserId)
+    : undefined;
+  const isLead = myMembership?.role === "LEAD";
+  // Exactly the gate POST /api/teams/:teamId/invite enforces: you must be ON
+  // the team, and then either its LEAD or a workspace ADMIN/OWNER. This button
+  // used to render for everyone, so a colleague filled in an address and got
+  // "Only team leads or workspace admins can invite members".
+  const canInvite =
+    !!myMembership &&
+    (isLead || workspaceRole === "ADMIN" || workspaceRole === "OWNER");
 
   // Deleting a team cascades to its messages, custom fields and knowledge
   // entries; its projects AND goals are only DETACHED (both FKs are
@@ -226,7 +294,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
     { id: "knowledge", label: "Knowledge", icon: BookOpen, href: `/teams/${team.id}/knowledge` },
   ];
 
-  const memberCount = team.members?.length || 0;
+  const memberCount = members?.length || 0;
 
   return (
     <>
@@ -257,37 +325,50 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                 {/* "Edit team" and "Settings" were two entries that both
                     navigated to the members tab. One entry, opening the
                     settings dialog — or the members tab when the caller
-                    didn't give us enough of the team to open it. */}
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    if (!view.privacy) {
-                      router.push(`/teams/${team.id}/members`);
-                      return;
-                    }
-                    e.preventDefault();
-                    setShowSettings(true);
-                  }}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Team settings
-                </DropdownMenuItem>
+                    didn't give us enough of the team to open it.
+
+                    Delete is lead-only because DELETE /api/teams/:id is; the
+                    settings dialog also carries archive/restore, which PATCH
+                    opens to a workspace OWNER/ADMIN, so it follows canInvite
+                    (the same on-the-team-plus-lead-or-ws-admin set) and hides
+                    its own lead-only General tab for the rest. This menu used
+                    to show both to every member. */}
+                {(isLead || canInvite) && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      if (!view.privacy) {
+                        router.push(`/teams/${team.id}/members`);
+                        return;
+                      }
+                      e.preventDefault();
+                      setShowSettings(true);
+                    }}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Team settings
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() => router.push(`/teams/${team.id}/members`)}
                 >
                   <Users className="h-4 w-4 mr-2" />
-                  Manage members
+                  {canInvite ? "Manage members" : "View members"}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-black"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setShowDeleteConfirm(true);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete team
-                </DropdownMenuItem>
+                {isLead && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-black"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setShowDeleteConfirm(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete team
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -307,7 +388,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
           <div className="flex items-center gap-2">
             {/* Member avatars preview */}
             <div className="flex -space-x-2">
-              {team.members?.slice(0, 3).map((member) => (
+              {members?.slice(0, 3).map((member) => (
                 <Avatar key={member.id} className="h-8 w-8 border-2 border-white">
                   <AvatarImage src={member.user.image || undefined} />
                   <AvatarFallback className="text-xs bg-white text-black border border-black">
@@ -322,14 +403,17 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
               )}
             </div>
 
-            {/* Invite button */}
-            <Button
-              className="bg-black hover:bg-black gap-2"
-              onClick={() => setShowInviteModal(true)}
-            >
-              <Users className="h-4 w-4" />
-              Invite
-            </Button>
+            {/* Invite button — only for someone the invite route will let
+                through. See canInvite above. */}
+            {canInvite && (
+              <Button
+                className="bg-black hover:bg-black gap-2"
+                onClick={() => setShowInviteModal(true)}
+              >
+                <Users className="h-4 w-4" />
+                Add member
+              </Button>
+            )}
           </div>
         </div>
 
@@ -364,6 +448,9 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         teamId={team.id}
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
+        privacy={view.privacy}
+        existingMemberIds={members?.map((m) => m.user.id)}
+        onInviteSent={reloadTeam}
       />
 
       {view.privacy && (
@@ -378,6 +465,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
           open={showSettings}
           onClose={() => setShowSettings(false)}
           onSave={reloadTeam}
+          canEditDetails={isLead}
         />
       )}
 
@@ -385,11 +473,19 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         title="Delete team"
-        description={`"${view.name}" and everything scoped to it will be permanently deleted. This cannot be undone.`}
+        // Not "everything scoped to it": the next bullet says the projects
+        // survive, and a description that contradicts its own consequence list
+        // teaches the reader to skip both.
+        description={`"${view.name}" is deleted. This cannot be undone — here is exactly what goes and what stays.`}
         consequences={[
           "Team messages, knowledge entries and custom fields are deleted",
-          "Members lose access; their tasks are not deleted",
-          "The team's projects and goals stay, but lose their team",
+          // Measured, not assumed: Project.teamId is SET NULL, so the jobs and
+          // their tasks survive — but a project attached to a team grants
+          // Editor access to every team member dynamically, so anyone whose
+          // only claim to those jobs was this team quietly loses them.
+          "The team's projects, tasks and goals stay, but lose their team",
+          "Anyone whose access to those projects came from this team loses it",
+          "Archiving instead keeps all of it and can be undone",
         ]}
         confirmLabel="Delete team"
         requireText={view.name}

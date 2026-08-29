@@ -96,6 +96,8 @@ model User {
   projectBriefs       ProjectBrief[]       @relation("UserProjectBriefs")
   noteCollaborators   NoteCollaborator[]
   preferences         UserPreferences?
+  teamJoinRequests    TeamJoinRequest[] @relation("TeamJoinRequester")
+  teamJoinDecisions   TeamJoinRequest[] @relation("TeamJoinDecider")
 
   // New relations (2.2)
   portfolioMembers       PortfolioMember[]       @relation("UserPortfolioMembers")
@@ -279,6 +281,12 @@ model Team {
   color       String?
   avatar      String?
   privacy     TeamPrivacy @default(PUBLIC)
+  // Archiving a team is reversible and is the ONLY safe alternative to
+  // deleting one: a delete detaches every project (Project.teamId is
+  // SET NULL, so the jobs survive) but destroys the team's messages and
+  // silently revokes the Editor access those projects granted through it.
+  isArchived  Boolean     @default(false)
+  archivedAt  DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -291,6 +299,46 @@ model Team {
   messages    TeamMessage[]
   customFields TeamCustomField[]
   knowledgeEntries TeamKnowledgeEntry[]
+  joinRequests TeamJoinRequest[]
+
+  @@index([workspaceId, isArchived])
+}
+
+/// What "Membership by request" actually means. The privacy value was
+/// stored and then ignored — the join route treated REQUEST_TO_JOIN
+/// exactly like PUBLIC, so a team labelled "a member has to request to
+/// join" let anyone in the workspace walk straight in. This is the queue
+/// that makes the label true.
+model TeamJoinRequest {
+  id      String @id @default(cuid())
+  /// PENDING | APPROVED | DECLINED. TEXT rather than an enum for the
+  /// reason recorded in prisma/sql/2026-08-28-project-stage-pipelines.sql:
+  /// a Postgres enum value can never be dropped or renamed without
+  /// rebuilding the type, which is the destructive path this database
+  /// forbids.
+  status  String @default("PENDING")
+  /// Optional note from the requester ("I am covering the Brickell job").
+  message String?
+
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("TeamJoinRequester", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Kept after a decision so the record survives; SET NULL so removing
+  /// the approver never erases who asked.
+  decidedById String?
+  decidedBy   User?    @relation("TeamJoinDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One row per person per team: a second request updates the existing
+  /// one rather than stacking duplicates in the lead's queue.
+  @@unique([teamId, userId])
+  @@index([teamId, status])
+  @@index([userId])
 }
 
 model TeamMember {

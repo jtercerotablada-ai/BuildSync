@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  verifyTeamAccess,
   verifyProjectAccess,
   assertProjectInWorkspace,
   getErrorStatus,
   AuthorizationError,
 } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 
 // POST /api/teams/:teamId/work - Link work to team
 export async function POST(
@@ -22,8 +23,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this team
-    await verifyTeamAccess(userId, teamId);
+    // Team membership AND a live contributor seat in the team's workspace.
+    // A TeamMember row outlives offboarding, so it was never proof on its own.
+    const standing = await requireTeamStanding(userId, teamId);
 
     const body = await req.json();
     const { workId, workType } = body;
@@ -36,14 +38,9 @@ export async function POST(
       // Scope the target project to THIS team's workspace before mutating it.
       // Without this, workId is trusted straight from the body, letting any
       // team member re-parent ANY project in the database — audit SEC-01.
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-        select: { workspaceId: true },
-      });
-      if (!team) {
-        return NextResponse.json({ error: "Team not found" }, { status: 404 });
-      }
-      await assertProjectInWorkspace(workId, team.workspaceId);
+      // The workspace comes from the standing resolved above, which already
+      // loaded the team (and 404s when it does not exist).
+      await assertProjectInWorkspace(workId, standing.workspaceId);
 
       // Attaching a project to a team now SHARES it with the whole team
       // (every team member gets Editor-level access), so this is a manage-
@@ -96,8 +93,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this team
-    await verifyTeamAccess(userId, teamId);
+    // Team membership AND a live contributor seat — see the POST above.
+    await requireTeamStanding(userId, teamId);
 
     // Get projects associated with this team
     const projects = await prisma.project.findMany({
@@ -111,16 +108,32 @@ export async function GET(
         icon: true,
         status: true,
         description: true,
-        _count: {
-          select: {
-            tasks: true,
-          },
-        },
       },
       orderBy: {
         updatedAt: "desc",
       },
     });
+
+    // Task counts, computed with the caller's own visibility rather than a
+    // bare `_count: { tasks: true }`. That relation count included tasks
+    // flagged `isPrivate` — the same rows the calendar was leaking outright —
+    // so two people looking at the same team saw the same number and one of
+    // them could not open every task in it. taskPrivacyClause is the shared
+    // list-query rule (@/lib/project-visibility).
+    const countsByProject = new Map<string, number>();
+    if (projects.length > 0) {
+      const grouped = await prisma.task.groupBy({
+        by: ["projectId"],
+        where: {
+          projectId: { in: projects.map((p) => p.id) },
+          ...taskPrivacyClause(userId),
+        },
+        _count: { _all: true },
+      });
+      for (const row of grouped) {
+        if (row.projectId) countsByProject.set(row.projectId, row._count._all);
+      }
+    }
 
     // Transform projects to work items format
     const workItems = projects.map((project) => ({
@@ -131,7 +144,7 @@ export async function GET(
       icon: project.icon,
       status: project.status,
       description: project.description,
-      _count: project._count,
+      _count: { tasks: countsByProject.get(project.id) ?? 0 },
     }));
 
     return NextResponse.json(workItems);
@@ -172,7 +185,7 @@ export async function DELETE(
       );
     }
 
-    await verifyTeamAccess(userId, teamId);
+    await requireTeamStanding(userId, teamId);
     // Unlinking revokes the whole team's access to the project — a manage-
     // level action, same bar as sharing it (see the POST handler above).
     const { access: unlinkAccess } = await verifyProjectAccess(userId, projectId);

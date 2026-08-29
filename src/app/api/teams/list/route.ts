@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { teamArchiveWhere } from "@/lib/team-access";
 
 // GET /api/teams/list - Get all teams the user is a member of
-export async function GET() {
+//
+// Archived teams are OUT by default — this list feeds the sidebar, the Goals
+// team picker and the dashboard widget, and an archived team must not be
+// offered as somewhere to file new work. `?archived=true` returns the archive
+// on its own, `?archived=all` returns both (see teamArchiveWhere).
+export async function GET(req: Request) {
   try {
     const userId = await getCurrentUserId();
 
@@ -19,8 +25,11 @@ export async function GET() {
     // personal signup singleton) dropped real teams from the list even though
     // the user belongs to them. members.some.userId already guarantees the user
     // only ever sees teams they're actually in.
+    const { searchParams } = new URL(req.url);
+
     const teams = await prisma.team.findMany({
       where: {
+        ...teamArchiveWhere(searchParams.get("archived")),
         members: {
           some: {
             userId,
@@ -33,6 +42,11 @@ export async function GET() {
         description: true,
         color: true,
         privacy: true,
+        // So a screen that asks for the archive can badge the rows, and the
+        // Teams page can tell "you have no teams" apart from "your teams are
+        // all archived".
+        isArchived: true,
+        archivedAt: true,
         _count: {
           select: {
             objectives: true,

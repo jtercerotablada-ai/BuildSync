@@ -42,6 +42,7 @@ import {
   Image as ImageIcon,
   Upload,
   Trash2,
+  Archive,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { consumeTeamInvite } from "@/lib/team-invite";
-import { teamPrivacyMeta } from "@/lib/team-privacy";
+import { teamJoinMode, teamPrivacyMeta } from "@/lib/team-privacy";
 import { toast } from "sonner";
 import {
   InviteTeamModal,
@@ -87,6 +88,12 @@ interface Team {
   color: string | null;
   avatar: string | null;
   privacy: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
+  // Archiving is the reversible alternative to deleting a team. An archived
+  // team is dropped from the default /teams listing, so this page has to say
+  // so out loud — otherwise a saved URL is the only thing that still finds it
+  // and nothing on screen explains why it vanished from the list.
+  isArchived?: boolean;
+  archivedAt?: string | null;
   workspace?: { id: string; name: string };
   members: TeamMember[];
   objectives: {
@@ -131,6 +138,14 @@ export default function TeamOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [unarchiving, setUnarchiving] = useState(false);
+  const [joining, setJoining] = useState(false);
+  // A sent request has no client-readable state to come back to: GET
+  // /requests is the lead's queue and 403s for the requester. Holding it
+  // here keeps the button honest for the rest of the visit; after a reload
+  // it offers to ask again, and the endpoint upserts, so asking twice is a
+  // no-op rather than a duplicate in the lead's queue.
+  const [requested, setRequested] = useState(false);
   const { isStarred: starred, toggleStar } = useTeamStar(teamId);
 
   // Inline description editing
@@ -145,11 +160,30 @@ export default function TeamOverviewPage() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const workSectionRef = useRef<TeamWorkSectionHandle>(null);
+  // A pending "invite a teammate" intent, held in a ref rather than state:
+  // it is consumed exactly once, by the fetch that resolves membership.
+  const inviteIntentRef = useRef(false);
 
   const fetchTeam = async () => {
     try {
       const res = await fetch(`/api/teams/${teamId}`);
-      if (res.ok) setTeam(await res.json());
+      if (res.ok) {
+        const fresh: Team = await res.json();
+        setTeam(fresh);
+        // The invite intent is resolved HERE, not in a mount effect, because
+        // whether the dialog may open at all depends on the membership that
+        // only just arrived. Opening it first and discovering afterwards
+        // that the caller is a plain MEMBER is how you get a dialog whose
+        // every button answers 403.
+        if (inviteIntentRef.current) {
+          inviteIntentRef.current = false;
+          if (mayInvite(fresh)) setShowInvite(true);
+          else
+            toast.error(
+              "Only team leads or workspace admins can add people to this team."
+            );
+        }
+      }
     } catch (e) {
       console.error("Error loading team:", e);
     } finally {
@@ -164,11 +198,12 @@ export default function TeamOverviewPage() {
 
   // "Invite teammate" entry point (Home People widget + header menu) routes
   // through /teams and lands here with a pending invite intent — consume it
-  // once on mount and auto-open the invite dialog. The intent rides in
-  // sessionStorage (not a URL param) so the read is reliable across the soft
-  // navigation that got us here.
+  // once on mount and hand it to fetchTeam, which opens the dialog once it
+  // knows whether this user may use it. The intent rides in sessionStorage
+  // (not a URL param) so the read is reliable across the soft navigation
+  // that got us here.
   useEffect(() => {
-    if (consumeTeamInvite()) setShowInvite(true);
+    if (consumeTeamInvite()) inviteIntentRef.current = true;
   }, []);
 
   const myMembership = currentUserId
@@ -178,6 +213,33 @@ export default function TeamOverviewPage() {
   // Any team member can edit the description (Asana parity); color/settings
   // stay lead-only.
   const isMember = !!myMembership;
+  // The primary-workspace role resolved into the session. The routes below
+  // check the role in the TEAM's workspace; for a single-workspace firm they
+  // are the same row, and where they differ the route still has the last word
+  // — this only decides whether the control is offered at all.
+  const workspaceRole =
+    (session?.user as { role?: string | null } | undefined)?.role ?? null;
+  const isWorkspaceAdmin =
+    workspaceRole === "ADMIN" || workspaceRole === "OWNER";
+  // Exactly the gate POST /api/teams/:teamId/invite enforces: on the team,
+  // and then LEAD or workspace ADMIN/OWNER. This button used to render for
+  // everyone, so a colleague typed an address and got "Only team leads or
+  // workspace admins can invite members" — the same dead-end control the
+  // schedule charts shipped, and it is not to be repeated.
+  const canInvite = isMember && (isLead || isWorkspaceAdmin);
+  // PATCH { isArchived } enforces the same set, in BOTH directions.
+  const canArchive = canInvite;
+
+  /**
+   * The same rule, answerable against a team payload that hasn't reached
+   * state yet — the invite-intent path needs it inside fetchTeam, before
+   * `canInvite` above has anything to compute from.
+   */
+  function mayInvite(t: Team): boolean {
+    if (!currentUserId) return false;
+    const me = t.members.find((m) => m.user.id === currentUserId);
+    return !!me && (me.role === "LEAD" || isWorkspaceAdmin);
+  }
 
   function startEditDesc() {
     if (!isMember) return;
@@ -286,10 +348,90 @@ export default function TeamOverviewPage() {
     }
   }
 
+  /**
+   * Bring an archived team back. Mirrors the archived-project banner: the
+   * one control that undoes the state the banner is announcing sits inside
+   * the banner, not three menus away.
+   */
+  async function unarchiveTeam() {
+    setUnarchiving(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: false }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      toast.success("Team restored");
+      fetchTeam();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Couldn't restore this team"
+      );
+    } finally {
+      setUnarchiving(false);
+    }
+  }
+
+  /**
+   * Join / ask to join, for someone looking at a team they aren't on.
+   *
+   * PUBLIC self-joins through /join. REQUEST_TO_JOIN opens a PENDING row
+   * through /requests for a lead to approve — and /join answers 409 with
+   * `requiresRequest` if the team's privacy changed under us between the
+   * page load and the click, so that answer is followed rather than shown
+   * to the user as an error.
+   */
+  async function handleJoin() {
+    if (!team) return;
+    setJoining(true);
+    try {
+      if (teamJoinMode(team.privacy) === "INSTANT") {
+        const res = await fetch(`/api/teams/${teamId}/join`, {
+          method: "POST",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          toast.success(`You joined ${team.name}`);
+          fetchTeam();
+          return;
+        }
+        if (!data?.requiresRequest) {
+          throw new Error(data?.error || "Couldn't join this team");
+        }
+        // fall through to the request path
+      }
+      const res = await fetch(`/api/teams/${teamId}/requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Couldn't send your request");
+      setRequested(true);
+      toast.success("Request sent — a team lead will review it");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't join this team");
+    } finally {
+      setJoining(false);
+    }
+  }
+
   function handleSetupStep(stepId: string) {
     if (stepId === "description") startEditDesc();
     else if (stepId === "work") workSectionRef.current?.openAddWork();
-    else if (stepId === "members") setShowInvite(true);
+    else if (stepId === "members") {
+      // The checklist is shown to every member, but only some of them can
+      // act on this step — say so instead of opening a dialog that 403s.
+      if (canInvite) setShowInvite(true);
+      else
+        toast.error(
+          "Only team leads or workspace admins can add people to this team."
+        );
+    }
   }
 
   if (loading) {
@@ -324,8 +466,51 @@ export default function TeamOverviewPage() {
     { id: "knowledge", label: "Knowledge", icon: BookOpen, href: `/teams/${teamId}/knowledge` },
   ];
 
+  const joinMode = teamJoinMode(team.privacy);
+  // Nothing to join when the team is archived — /join and /requests both
+  // refuse it, so offering the button would only produce a toast.
+  const canJoin = !isMember && !team.isArchived && joinMode !== "INVITE_ONLY";
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
+      {/* ── ARCHIVED BANNER ──────────────────────────────────────
+          An archived team is dropped from the default /teams listing, so
+          the banner has to name the one place it still shows up — as a
+          link, not just a label — or a saved URL is the user's only way
+          back. Mirrors the archived-project banner so the two read as one
+          product. The button is gated the way the PATCH is: offering it to
+          a member who can't archive would dead-end in a 403 toast. */}
+      {team.isArchived && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 md:px-6 py-2 text-sm text-amber-900">
+          <Archive className="h-4 w-4 flex-shrink-0 text-amber-700" />
+          <span>
+            This team is archived and hidden from the teams list. Find it
+            under{" "}
+            <Link
+              href="/teams?scope=archived"
+              className="font-medium underline underline-offset-2 hover:text-amber-950"
+            >
+              Archived
+            </Link>
+            .
+          </span>
+          {canArchive && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto h-7 border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+              onClick={unarchiveTeam}
+              disabled={unarchiving}
+            >
+              {unarchiving && (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              )}
+              Unarchive
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* ── COVER HEADER ─────────────────────────────────────────── */}
       <div className="relative">
         <div
@@ -548,15 +733,47 @@ export default function TeamOverviewPage() {
               </div>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowInvite(true)}
-          >
-            <UserPlus className="h-3.5 w-3.5 mr-1.5" />
-            Invite
-          </Button>
-          {isLead && (
+          {/* Add member — only for someone the invite route will let
+              through. See canInvite above. */}
+          {canInvite && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInvite(true)}
+            >
+              <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+              Add member
+            </Button>
+          )}
+          {/* …and the mirror image for someone who isn't on the team at all.
+              Until this existed the only way in was for somebody to paste
+              you the /join URL: the team page itself offered nothing. */}
+          {canJoin && (
+            <Button
+              size="sm"
+              className="bg-black hover:bg-gray-900 text-white"
+              onClick={handleJoin}
+              disabled={joining || requested}
+            >
+              {joining ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {requested
+                ? "Request sent"
+                : joinMode === "INSTANT"
+                  ? "Join team"
+                  : "Request to join"}
+            </Button>
+          )}
+          {/* canArchive, not isLead: the Danger zone inside is where archive
+              and restore live, and PATCH { isArchived } admits a workspace
+              OWNER/ADMIN as well as the lead. The modal hides its General tab
+              for a non-lead, so nothing lead-only is offered to them. Without
+              this a workspace owner could undo an archive from the banner but
+              had no way to start one. */}
+          {(isLead || canArchive) && (
             <Button
               variant="ghost"
               size="icon"
@@ -664,6 +881,8 @@ export default function TeamOverviewPage() {
         open={showInvite}
         onClose={() => setShowInvite(false)}
         onInviteSent={fetchTeam}
+        privacy={team.privacy}
+        existingMemberIds={team.members.map((m) => m.user.id)}
       />
       <TeamSettingsModal
         team={{
@@ -676,6 +895,10 @@ export default function TeamOverviewPage() {
         open={showSettings}
         onClose={() => setShowSettings(false)}
         onSave={fetchTeam}
+        // Name / description / privacy stay lead-only in PATCH; archive does
+        // not. A workspace admin who is not the lead gets Members + Danger
+        // zone, and no General tab whose Update button would 403.
+        canEditDetails={isLead}
       />
 
       {/* Hidden file input driving the cover "Upload image" action */}

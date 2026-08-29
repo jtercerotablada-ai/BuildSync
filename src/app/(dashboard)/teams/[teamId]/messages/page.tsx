@@ -24,8 +24,17 @@ interface Team {
   id: string;
   name: string;
   avatar?: string | null;
+  // `role`, `privacy` and `description` all ride in on the same
+  // /api/teams/:id payload and all three feed the header: role decides
+  // whether the lead-only actions are drawn at all, privacy captions the
+  // invite link truthfully, description opens the settings dialog with the
+  // real value. Typing them away here left the header guessing.
+  description?: string | null;
+  privacy?: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
+  workspace?: { id: string; name: string } | null;
   members?: Array<{
     id: string;
+    role?: string;
     user: {
       id: string;
       name: string | null;
