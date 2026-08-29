@@ -24,6 +24,39 @@ import { isWorkspaceOwner } from "@/lib/people-types";
 
 const ACTIVE_GATES = ["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION"] as const;
 
+/**
+ * People the caller actually shares work with: anyone holding a place on a
+ * project they own or belong to, themselves excluded.
+ *
+ * ONE function because this lives behind a header chip that is served by two
+ * code paths — `?slim=1` for the Home chips and the full cockpit payload — and
+ * they carried separate copies of the rule. Fixing the copy Home does not call
+ * changed nothing on screen, which is the whole argument for not having two.
+ */
+async function countSharedCollaborators(
+  workspaceId: string,
+  userId: string
+): Promise<number> {
+  const callerProjects = await prisma.project.findMany({
+    where: {
+      workspaceId,
+      OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+    },
+    select: { id: true },
+  });
+  if (callerProjects.length === 0) return 0;
+
+  const shared = await prisma.projectMember.findMany({
+    where: {
+      projectId: { in: callerProjects.map((p) => p.id) },
+      userId: { not: userId },
+    },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+  return shared.length;
+}
+
 export async function GET(request: Request) {
   try {
     const userId = await getCurrentUserId();
@@ -130,28 +163,7 @@ export async function GET(request: Request) {
         prisma.task.count({
           where: { ...completedTaskWhere, completedAt: { gte: periodStart } },
         }),
-        // Same visibility as the full path's team list: management
-        // counts the whole firm, lower levels count only people they
-        // share a project with.
-        isManagement
-          ? prisma.workspaceMember.count({ where: { workspaceId } })
-          : prisma.projectMember
-              .findMany({
-                where:
-                  scopedProjectIds === null
-                    ? { project: { workspaceId } }
-                    : { projectId: { in: scopedProjectIds } },
-                select: { userId: true },
-                distinct: ["userId"],
-              })
-              .then((rows) =>
-                prisma.workspaceMember.count({
-                  where: {
-                    workspaceId,
-                    userId: { in: rows.map((r) => r.userId) },
-                  },
-                })
-              ),
+        countSharedCollaborators(workspaceId, userId),
       ]);
       return NextResponse.json({
         projects: [],
@@ -371,39 +383,10 @@ export async function GET(request: Request) {
       if (row.assigneeId) loadByUser.set(row.assigneeId, row._count._all);
     }
 
-    // The header chip counts PEOPLE THE CALLER ACTUALLY SHARES WORK WITH,
-    // which is not `workspaceMembers`. For a workspace manager that list is
-    // the whole firm — a roster that never moves, sitting in a header whose
-    // other chip is scoped to "today". On a workspace with three accounts and
-    // no projects it read "3", which answered a question nobody asked.
-    //
-    // Shared work means: someone holds a ProjectMember row on a project the
-    // caller owns or is a member of. The caller is excluded — you do not
-    // collaborate with yourself — so a firm of one, or anyone with no projects
-    // yet, honestly reads 0 and rises the moment real work is shared.
-    const callerProjectIds = (
-      await prisma.project.findMany({
-        where: {
-          workspaceId,
-          OR: [{ ownerId: userId }, { members: { some: { userId } } }],
-        },
-        select: { id: true },
-      })
-    ).map((p) => p.id);
-
-    const sharedPeopleCount =
-      callerProjectIds.length === 0
-        ? 0
-        : (
-            await prisma.projectMember.findMany({
-              where: {
-                projectId: { in: callerProjectIds },
-                userId: { not: userId },
-              },
-              select: { userId: true },
-              distinct: ["userId"],
-            })
-          ).length;
+    const sharedPeopleCount = await countSharedCollaborators(
+      workspaceId,
+      userId
+    );
 
     // Team utilization — naive: % of visible members with at least
     // 1 in-flight task.
