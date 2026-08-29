@@ -223,7 +223,10 @@ export default function HomePage() {
     if (!data) return { tasksCompleted: null, collaborators: null };
     return {
       tasksCompleted: data.summary?.tasksCompleted ?? 0,
-      collaborators: data.summary?.teamCount ?? data.team.length,
+      // No fallback to data.team.length: for a manager that array is the whole
+      // firm, which is the number this chip was corrected away from. A missing
+      // summary means we do not know, and 0 is the honest stand-in.
+      collaborators: data.summary?.teamCount ?? 0,
     };
   }, [data, error]);
 

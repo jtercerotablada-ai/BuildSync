@@ -371,6 +371,40 @@ export async function GET(request: Request) {
       if (row.assigneeId) loadByUser.set(row.assigneeId, row._count._all);
     }
 
+    // The header chip counts PEOPLE THE CALLER ACTUALLY SHARES WORK WITH,
+    // which is not `workspaceMembers`. For a workspace manager that list is
+    // the whole firm — a roster that never moves, sitting in a header whose
+    // other chip is scoped to "today". On a workspace with three accounts and
+    // no projects it read "3", which answered a question nobody asked.
+    //
+    // Shared work means: someone holds a ProjectMember row on a project the
+    // caller owns or is a member of. The caller is excluded — you do not
+    // collaborate with yourself — so a firm of one, or anyone with no projects
+    // yet, honestly reads 0 and rises the moment real work is shared.
+    const callerProjectIds = (
+      await prisma.project.findMany({
+        where: {
+          workspaceId,
+          OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+        },
+        select: { id: true },
+      })
+    ).map((p) => p.id);
+
+    const sharedPeopleCount =
+      callerProjectIds.length === 0
+        ? 0
+        : (
+            await prisma.projectMember.findMany({
+              where: {
+                projectId: { in: callerProjectIds },
+                userId: { not: userId },
+              },
+              select: { userId: true },
+              distinct: ["userId"],
+            })
+          ).length;
+
     // Team utilization — naive: % of visible members with at least
     // 1 in-flight task.
     const memberIds = workspaceMembers.map((m) => m.userId);
@@ -473,7 +507,7 @@ export async function GET(request: Request) {
       // capped activity sample or the team slice(0,8) above.
       summary: {
         tasksCompleted: periodCompletedCount,
-        teamCount: workspaceMembers.length,
+        teamCount: sharedPeopleCount,
       },
       // Hint to the UI for graceful degradation. The Home page can
       // hide finance widgets entirely when this is false.

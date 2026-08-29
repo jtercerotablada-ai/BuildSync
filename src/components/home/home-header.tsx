@@ -125,18 +125,18 @@ export function HomeHeader({
               plural="tasks completed"
             />
           )}
-          {/* "People", not "collaborators". For a workspace manager this is
-              simply everyone in the firm, and it is not scoped by the period
-              selector beside it — so on a workspace with no projects and no
-              teams it read "3 collaborators" while nobody was collaborating on
-              anything. The number was right; the word was a claim about
-              activity that the query never made. */}
+          {/* This counted every member of the workspace, so a manager with no
+              projects read "3 collaborators" while collaborating with nobody.
+              It now counts the people who hold a place on a project the viewer
+              owns or belongs to, which is what the word has always promised —
+              so the word is right again, and the number moves when the work
+              does. */}
           {collaboratorsCount !== undefined && (
             <SummaryChip
               icon={<Users className="h-3.5 w-3.5 text-gray-500" />}
               count={collaboratorsCount}
-              singular="person"
-              plural="people"
+              singular="collaborator"
+              plural="collaborators"
             />
           )}
           {actions}
