@@ -55,6 +55,17 @@ import {
   isTaskOverdue,
   taskSpan,
 } from "@/lib/task-span";
+// Dependency arrows are ROUTED, not guessed: the router is handed every
+// drawn bar and keeps its long horizontal legs in the bar-free band that
+// straddles each lane boundary. The elbow this replaced knew only its two
+// endpoints, so it dropped a vertical leg at the midpoint of the two stubs
+// — wherever that happened to land — and ran its horizontal legs along the
+// lane centrelines, i.e. straight through the bars and labels in them.
+import {
+  barObstacle,
+  routeDependency,
+  type ObstacleRect,
+} from "@/lib/dependency-route";
 
 // ============================================
 // TYPES
@@ -129,102 +140,6 @@ const DUE_ONLY_TICK_W = 8;
 
 const HEADER_HEIGHT = 48; // two 24px sticky header rows (Asana: 49px)
 const FOOTER_ROW_HEIGHT = 44; // add-section row
-
-// ============================================
-// DEPENDENCY CONNECTOR GEOMETRY (rounded elbows)
-// ============================================
-
-/** Convert a polyline into an SVG path with rounded corners of radius `r`. */
-function roundedPolyline(pts: { x: number; y: number }[], r: number): string {
-  if (pts.length < 2) return "";
-  if (pts.length === 2) {
-    return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
-  }
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const d1 = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
-    const d2 = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
-    const rr = Math.min(r, d1 / 2, d2 / 2);
-    const ax = p1.x - ((p1.x - p0.x) / d1) * rr;
-    const ay = p1.y - ((p1.y - p0.y) / d1) * rr;
-    const bx = p1.x + ((p2.x - p1.x) / d2) * rr;
-    const by = p1.y + ((p2.y - p1.y) / d2) * rr;
-    d += ` L ${ax.toFixed(1)} ${ay.toFixed(1)} Q ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} ${bx.toFixed(1)} ${by.toFixed(1)}`;
-  }
-  const last = pts[pts.length - 1];
-  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
-  return d;
-}
-
-/**
- * Rounded orthogonal elbow between a source endpoint and a target endpoint.
- * sxOutDir/exInDir are +1 (right) or -1 (left) per dependency type.
- */
-function dependencyElbowPath(
-  sx: number,
-  sy: number,
-  ex: number,
-  ey: number,
-  sxOutDir: number,
-  exInDir: number
-): string {
-  const STUB = 14;
-  const R = 7;
-  const sOutX = sx + sxOutDir * STUB;
-  const eInX = ex + exInDir * STUB;
-
-  // Same-row straight shot is only legal when the segment actually leaves
-  // `sx` heading `sxOutDir` AND arrives at `ex` from the `exInDir` side —
-  // e.g. a forward FS. A same-lane FF/SS (stubs pointing the same way) or a
-  // backwards link would draw the line straight THROUGH the bars between
-  // the two endpoints, so those fall through to the gap detour below.
-  if (Math.abs(sy - ey) < 1) {
-    const straightOk = sxOutDir * (ex - sx) > 0 && exInDir * (sx - ex) > 0;
-    if (straightOk) return `M ${sx} ${sy} L ${ex} ${ey}`;
-  }
-
-  // The short 4-point elbow (out → drop at midX → in) is only legal when
-  // that single vertical leg sits on the correct side of BOTH ends: it has
-  // to leave `sx` heading `sxOutDir` AND reach `ex` from the `exInDir`
-  // side. Checking only the start (as this used to) breaks every arrow
-  // whose two stubs point the SAME way — FF (right→right) and SS
-  // (left→left): the leg dropped inside the dependent's bar and the last
-  // segment ran through it to the far edge, arrowhead pointing backwards.
-  const midX = (sOutX + eInX) / 2;
-  const leavesCorrectly = sxOutDir * (midX - sx) > 0;
-  const arrivesCorrectly = exInDir * (midX - ex) > 0;
-  const sameRow = Math.abs(sy - ey) < 1;
-
-  let pts: { x: number; y: number }[];
-  if (!sameRow && leavesCorrectly && arrivesCorrectly) {
-    pts = [
-      { x: sx, y: sy },
-      { x: midX, y: sy },
-      { x: midX, y: ey },
-      { x: ex, y: ey },
-    ];
-  } else {
-    // Route the horizontal crossing through the inter-lane GAP adjacent to
-    // the source lane (bar-free by construction — bars are BAR_HEIGHT tall
-    // on a LANE_HEIGHT pitch, and the band's BAND_PADDING covers the last
-    // lane). (sy+ey)/2 landed exactly on an intermediate lane's centerline
-    // whenever the two lanes were an even distance apart, and same-row
-    // detours need a lane-boundary channel too.
-    const midY = sy + (ey >= sy ? 1 : -1) * (LANE_HEIGHT / 2);
-    pts = [
-      { x: sx, y: sy },
-      { x: sOutX, y: sy },
-      { x: sOutX, y: midY },
-      { x: eInX, y: midY },
-      { x: eInX, y: ey },
-      { x: ex, y: ey },
-    ];
-  }
-  return roundedPolyline(pts, R);
-}
 
 // ============================================
 // MAIN COMPONENT
@@ -677,6 +592,15 @@ export function TimelineView({
       bandHeight: number;
       top: number;
       datedTasks: Task[];
+      /**
+       * The OPAQUE shape each lane draws, in band-local x plus the lane
+       * index — [leftPx, obstacleRightPx], which the packing below already
+       * computes and used to throw away, kept so the arrow layer can route
+       * AROUND the bars instead of through them. Not [leftPx, rightPx]:
+       * that one reserves the label text too, and see obstacleRightPx for
+       * why an arrow must be allowed to pass behind a name.
+       */
+      laneRects: { x0: number; x1: number; lane: number }[];
     };
     const bands: Band[] = [];
     let top = 0;
@@ -739,11 +663,24 @@ export function TimelineView({
           const isOpenEnded = span.open;
           let leftPx: number;
           let rightPx: number;
+          // The right edge of the OPAQUE shape alone — the bar, the tick, the
+          // glyph — never the label beside it. `rightPx` is what the LANE
+          // reserves and it MUST include the text, or two names plow into
+          // each other; an arrow has no such problem, because the layer is
+          // painted UNDER the z-10 labels now and a leg passing behind a name
+          // leaves it readable. Walling the text off is worse than the bug it
+          // would prevent: on a day-zoom recert chart nearly every label sits
+          // outside, so a lane reads as occupied for a few hundred px past
+          // its bar, no free column survives anywhere near the target, and
+          // the router walks the arrow out past the LEFT edge of its own bar
+          // hunting for one.
+          let obstacleRightPx: number;
           let labelOutside = true;
           if (isMarker) {
             // 20px glyph centered on the due day + two-line label right.
             const centerX = (endOffset + 0.5) * dayWidth;
             leftPx = centerX - 10;
+            obstacleRightPx = leftPx + 20; // the glyph, not its name
             rightPx =
               centerX +
               10 +
@@ -763,6 +700,7 @@ export function TimelineView({
                   ((endOffset - startOffset + 1) / totalDays) * totalWidth,
                   14
                 );
+            obstacleRightPx = leftPx + barW;
             const labelInside = !isDueOnly && !isOpenEnded && barW >= 80;
             labelOutside = !labelInside;
             rightPx = labelInside
@@ -784,6 +722,7 @@ export function TimelineView({
               end: end.getTime(),
               leftPx,
               rightPx,
+              obstacleRightPx,
               labelOutside,
             },
           ];
@@ -794,6 +733,7 @@ export function TimelineView({
       const laneEnds: number[] = [];
       const laneLabelOutside: boolean[] = [];
       const laneOf = new Map<string, number>();
+      const laneRects: { x0: number; x1: number; lane: number }[] = [];
       for (const item of dated) {
         // The air gap is only needed when the lane's LAST item drew text
         // outside its bar — two label-inside bars may sit flush, so a
@@ -811,6 +751,9 @@ export function TimelineView({
           laneLabelOutside[lane] = item.labelOutside;
         }
         laneOf.set(item.task.id, lane);
+        // Record only — the first-fit above decided the lane, this just
+        // remembers where the bar it placed ends up.
+        laneRects.push({ x0: item.leftPx, x1: item.obstacleRightPx, lane });
       }
 
       const laneCount = Math.max(1, laneEnds.length);
@@ -826,6 +769,7 @@ export function TimelineView({
         bandHeight,
         top,
         datedTasks: dated.map((d) => d.task),
+        laneRects,
       });
       top += bandHeight;
     }
@@ -874,6 +818,96 @@ export function TimelineView({
     },
     [bandLayout, getTaskPosition, timelineRange]
   );
+
+  // Every drawn bar as a rectangle the arrow router must route around, in
+  // the SAME absolute canvas space getTaskScreenPos returns — band.top
+  // included. Get that offset wrong and the router still draws confident,
+  // tidy arrows; they just avoid the wrong rows. So the y here is spelled
+  // out exactly as it is above: band.top + lane*LANE_HEIGHT + BAR_TOP +
+  // BAR_HEIGHT/2. Built once per layout, not once per link.
+  const barObstacles = useMemo<ObstacleRect[]>(() => {
+    const rects: ObstacleRect[] = [];
+    for (const band of bandLayout.bands) {
+      // A collapsed band draws no bars and anchors no arrow, so it must not
+      // contribute obstacles either — its lanes are still packed above.
+      if (band.collapsed) continue;
+      for (const r of band.laneRects) {
+        rects.push(
+          barObstacle(
+            r.x0,
+            r.x1,
+            band.top + r.lane * LANE_HEIGHT + BAR_TOP + BAR_HEIGHT / 2,
+            BAR_HEIGHT
+          )
+        );
+      }
+    }
+    return rects;
+  }, [bandLayout]);
+
+  // Every link's routed path, computed once per LAYOUT instead of once per
+  // render. Routing costs O(links × bars) now that the router is handed the
+  // whole chart, and this component re-renders on every mousemove of a drag
+  // (handleMouseMove writes a fresh dragState object each event) and on every
+  // bar hover — which would have re-run the whole chart's geometry at pointer
+  // rate on a big recert project. Nothing in here reads dragState or
+  // hoveredTask: getTaskScreenPos anchors to the COMMITTED span, exactly as
+  // it did before, so an arrow still does not follow a bar mid-drag. Only the
+  // active/inactive stroke stays in the render, where it belongs.
+  const depPaths = useMemo(() => {
+    if (!showDependencies) return [];
+    return dependencies.flatMap((dep) => {
+      const blocking = getTaskScreenPos(dep.blockingTaskId);
+      const dependent = getTaskScreenPos(dep.dependentTaskId);
+      if (!blocking || !dependent) return [];
+
+      // FS = blocker right → dependent left, etc.
+      let sx = 0;
+      let sy = 0;
+      let ex = 0;
+      let ey = 0;
+      let sxOutDir = 1;
+      let exInDir = -1;
+      if (dep.type === "FINISH_TO_START") {
+        sx = blocking.xRight;
+        sy = blocking.yCenter;
+        ex = dependent.xLeft;
+        ey = dependent.yCenter;
+        sxOutDir = 1;
+        exInDir = -1;
+      } else if (dep.type === "START_TO_START") {
+        sx = blocking.xLeft;
+        sy = blocking.yCenter;
+        ex = dependent.xLeft;
+        ey = dependent.yCenter;
+        sxOutDir = -1;
+        exInDir = -1;
+      } else if (dep.type === "FINISH_TO_FINISH") {
+        sx = blocking.xRight;
+        sy = blocking.yCenter;
+        ex = dependent.xRight;
+        ey = dependent.yCenter;
+        sxOutDir = 1;
+        exInDir = 1;
+      } else {
+        sx = blocking.xLeft;
+        sy = blocking.yCenter;
+        ex = dependent.xRight;
+        ey = dependent.yCenter;
+        sxOutDir = -1;
+        exInDir = 1;
+      }
+
+      const path = routeDependency({
+        from: { x: sx, y: sy, dir: sxOutDir },
+        to: { x: ex, y: ey, dir: exInDir },
+        obstacles: barObstacles,
+        laneHeight: LANE_HEIGHT,
+        barHeight: BAR_HEIGHT,
+      });
+      return [{ dep, path }];
+    });
+  }, [showDependencies, dependencies, getTaskScreenPos, barObstacles]);
 
   // ============================================
   // TODAY LINE POSITION
@@ -1555,16 +1589,21 @@ export function TimelineView({
                 />
               )}
 
-              {/* Dependency arrows — rounded orthogonal elbows.
-                  Painted ABOVE the bars (which sit at z-10), the way the
-                  Gantt view does it: underneath, every connector leg that
-                  ran horizontally across an intermediate bar was hidden by
-                  it and the link read as two disconnected stubs. The layer
-                  is pointer-events-none, so it steals nothing from the
-                  bars it crosses. */}
+              {/* Dependency arrows — orthogonal routes around the bars.
+                  Painted BEHIND them (z-[5], under the z-10 bars and their
+                  labels). This used to sit ABOVE, and had to: the old elbow
+                  ran its legs straight across intermediate bars, so
+                  underneath, a crossing leg was hidden and the link read as
+                  two disconnected stubs. Above, the same legs landed on top
+                  of the task names — the thing the firm actually reported.
+                  Now that routeDependency is handed every bar and goes
+                  around them, nothing worth seeing ends up under a bar, and
+                  the text wins every remaining overlap. Still
+                  pointer-events-none: the layer steals nothing from the
+                  bars. */}
               {showDependencies && dependencies.length > 0 && (
                 <svg
-                  className="absolute left-0 top-0 pointer-events-none z-20"
+                  className="absolute left-0 top-0 pointer-events-none z-[5]"
                   width={totalWidth}
                   height={bandLayout.totalHeight}
                 >
@@ -1590,50 +1629,7 @@ export function TimelineView({
                       <polygon points="0 0.5, 7 4, 0 7.5" fill="#335FB5" />
                     </marker>
                   </defs>
-                  {dependencies.map((dep) => {
-                    const blocking = getTaskScreenPos(dep.blockingTaskId);
-                    const dependent = getTaskScreenPos(dep.dependentTaskId);
-                    if (!blocking || !dependent) return null;
-
-                    // FS = blocker right → dependent left, etc.
-                    let sx = 0;
-                    let sy = 0;
-                    let ex = 0;
-                    let ey = 0;
-                    let sxOutDir = 1;
-                    let exInDir = -1;
-                    if (dep.type === "FINISH_TO_START") {
-                      sx = blocking.xRight;
-                      sy = blocking.yCenter;
-                      ex = dependent.xLeft;
-                      ey = dependent.yCenter;
-                      sxOutDir = 1;
-                      exInDir = -1;
-                    } else if (dep.type === "START_TO_START") {
-                      sx = blocking.xLeft;
-                      sy = blocking.yCenter;
-                      ex = dependent.xLeft;
-                      ey = dependent.yCenter;
-                      sxOutDir = -1;
-                      exInDir = -1;
-                    } else if (dep.type === "FINISH_TO_FINISH") {
-                      sx = blocking.xRight;
-                      sy = blocking.yCenter;
-                      ex = dependent.xRight;
-                      ey = dependent.yCenter;
-                      sxOutDir = 1;
-                      exInDir = 1;
-                    } else {
-                      sx = blocking.xLeft;
-                      sy = blocking.yCenter;
-                      ex = dependent.xRight;
-                      ey = dependent.yCenter;
-                      sxOutDir = -1;
-                      exInDir = 1;
-                    }
-
-                    const path = dependencyElbowPath(sx, sy, ex, ey, sxOutDir, exInDir);
-
+                  {depPaths.map(({ dep, path }) => {
                     const isActive =
                       hoveredTask === dep.blockingTaskId ||
                       hoveredTask === dep.dependentTaskId ||

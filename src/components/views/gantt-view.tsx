@@ -54,6 +54,13 @@ import {
   isTaskOverdue,
   taskSpan,
 } from "@/lib/task-span";
+// The dependency-arrow router, shared with the Timeline. It needs the bars to
+// route around, which is why this view now builds an obstacle list.
+import {
+  barObstacle,
+  routeDependency,
+  type ObstacleRect,
+} from "@/lib/dependency-route";
 import { useToday } from "@/lib/use-today";
 import { sectionBarStyle } from "@/lib/section-bar-colors";
 import { notifyTaskMutated } from "@/lib/task-events";
@@ -171,91 +178,15 @@ const ZOOM_LABELS: Record<ZoomLevel, string> = {
 };
 
 // ============================================
-// DEPENDENCY CONNECTOR GEOMETRY (copied from timeline-view.tsx)
+// DEPENDENCY CONNECTOR GEOMETRY
 // ============================================
-
-/** Convert a polyline into an SVG path with rounded corners of radius `r`. */
-function roundedPolyline(pts: { x: number; y: number }[], r: number): string {
-  if (pts.length < 2) return "";
-  if (pts.length === 2) {
-    return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
-  }
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const d1 = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
-    const d2 = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
-    const rr = Math.min(r, d1 / 2, d2 / 2);
-    const ax = p1.x - ((p1.x - p0.x) / d1) * rr;
-    const ay = p1.y - ((p1.y - p0.y) / d1) * rr;
-    const bx = p1.x + ((p2.x - p1.x) / d2) * rr;
-    const by = p1.y + ((p2.y - p1.y) / d2) * rr;
-    d += ` L ${ax.toFixed(1)} ${ay.toFixed(1)} Q ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} ${bx.toFixed(1)} ${by.toFixed(1)}`;
-  }
-  const last = pts[pts.length - 1];
-  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
-  return d;
-}
-
-/** Rounded orthogonal elbow between two bar endpoints (MS Project / Asana style). */
-function dependencyElbowPath(
-  sx: number,
-  sy: number,
-  ex: number,
-  ey: number,
-  sxOutDir: number,
-  exInDir: number
-): string {
-  const STUB = 14;
-  const R = 7;
-  const sOutX = sx + sxOutDir * STUB;
-  const eInX = ex + exInDir * STUB;
-
-  if (Math.abs(sy - ey) < 1) {
-    return `M ${sx} ${sy} L ${ex} ${ey}`;
-  }
-
-  // The short 4-point elbow (out → drop at midX → in) is only legal when
-  // that single vertical leg sits on the correct side of BOTH ends: it has
-  // to leave `sx` heading `sxOutDir` AND reach `ex` from the `exInDir`
-  // side. Checking only the start (as this used to) breaks every arrow
-  // whose two stubs point the SAME way — FF (right→right) and SS
-  // (left→left): the leg dropped inside the dependent's bar and the last
-  // segment ran through it to the far edge, arrowhead pointing backwards.
-  const midX = (sOutX + eInX) / 2;
-  const leavesCorrectly = sxOutDir * (midX - sx) > 0;
-  const arrivesCorrectly = exInDir * (midX - ex) > 0;
-
-  let pts: { x: number; y: number }[];
-  if (leavesCorrectly && arrivesCorrectly) {
-    pts = [
-      { x: sx, y: sy },
-      { x: midX, y: sy },
-      { x: midX, y: ey },
-      { x: ex, y: ey },
-    ];
-  } else {
-    // Route the horizontal crossing along the ROW BOUNDARY adjacent to the
-    // source (bar-free by construction — bars are BAR_HEIGHT tall centered
-    // in ROW_HEIGHT rows, and the svg renders UNDER the z-10 bars). The
-    // old (sy+ey)/2 midpoint landed exactly on an intermediate row's bar
-    // centerline whenever the two rows were an even distance apart, so the
-    // crossing vanished behind the bars and the arrow looked cut — the
-    // same fix the Timeline's elbows already got.
-    const crossY = ey > sy ? sy + ROW_HEIGHT / 2 : sy - ROW_HEIGHT / 2;
-    pts = [
-      { x: sx, y: sy },
-      { x: sOutX, y: sy },
-      { x: sOutX, y: crossY },
-      { x: eInX, y: crossY },
-      { x: eInX, y: ey },
-      { x: ex, y: ey },
-    ];
-  }
-  return roundedPolyline(pts, R);
-}
+// The elbow that used to live here (a fork of the Timeline's, which had the
+// same defect) knew only its two endpoints: it dropped its vertical leg at the
+// midpoint of the two stubs, an x chosen with no idea whether a bar was
+// sitting there, and ran both horizontal legs along the row centrelines, which
+// is exactly where every bar in those rows is. `@/lib/dependency-route` is
+// given the bars instead and routes around them; it is shared with the
+// Timeline so the two views stop drifting apart a third time.
 
 // ============================================
 // DUE-DATE RANGE TEXT ("Jul 15 – 20", "Jul 7 – Today", "Jul 21", "—")
@@ -1071,7 +1002,7 @@ export function GanttView({
 
   // ---------- Row map (taskId → absolute row index), accounting for
   // section header rows, ghost "Add task…" rows and collapsed sections
-  // so the arrow SVG lands exactly on each 40px bar row. ----------
+  // so the arrow SVG lands exactly on each ROW_HEIGHT bar row. ----------
   const { taskRowMap, totalRows } = useMemo(() => {
     const map = new Map<string, number>();
     let row = 0;
@@ -1126,6 +1057,106 @@ export function GanttView({
     },
     [taskRowMap, filteredSections, getTaskPosition]
   );
+
+  // ---------- Obstacles the dependency arrows must route around ----------
+  // Every drawn bar, glyph and due-only pill, in the chart's own coordinate
+  // space. Built from getTaskScreenPos rather than from getTaskPosition so the
+  // rect sits exactly where the ANCHOR does: that one function already knows a
+  // milestone is a 24px diamond centred on its due day and a start-less task a
+  // 12px pill, and a second copy of those rules is how this view and the
+  // Timeline drifted apart in the first place.
+  //
+  // Unlike the Timeline, the Gantt gives every task its own ROW_HEIGHT row
+  // (taskRowMap counts section headers and ghost rows, so no two bars share a
+  // y), so this list is one rect per visible task and never two in a row.
+  // Collapsed sections are absent from taskRowMap, so their tasks return null
+  // and are not obstacles — they are not drawn either.
+  //
+  // Nothing here is the label text: Asana renders this chart bare, names live
+  // only in the left table, so a bar's right edge is the whole obstacle.
+  const barObstacles = useMemo(() => {
+    if (!showDependencies) return [] as ObstacleRect[];
+    const rects: ObstacleRect[] = [];
+    for (const section of filteredSections) {
+      for (const task of section.tasks) {
+        const pos = getTaskScreenPos(task.id);
+        if (!pos) continue;
+        rects.push(barObstacle(pos.xLeft, pos.xRight, pos.yCenter, BAR_HEIGHT));
+      }
+    }
+    return rects;
+  }, [showDependencies, filteredSections, getTaskScreenPos]);
+
+  // ---------- Routed paths, one per dependency ----------
+  // Computed once per LAYOUT, not once per render. Routing costs
+  // O(links × bars) now that the router is handed every bar on the chart, and
+  // this component re-renders on hover, on selection and on every frame of a
+  // bar drag — which would have re-run the whole chart's geometry at pointer
+  // rate on a big project. Nothing in here reads dragState or hoveredTask:
+  // getTaskScreenPos returns the COMMITTED span, exactly as it did before, so
+  // an arrow still does not follow a bar mid-drag. Only the active stroke
+  // stays in the render.
+  const depPaths = useMemo(() => {
+    if (!showDependencies) return [] as { dep: DependencyRow; path: string }[];
+    return dependencies.flatMap((dep) => {
+      const blocking = getTaskScreenPos(dep.blockingTaskId);
+      const dependent = getTaskScreenPos(dep.dependentTaskId);
+      if (!blocking || !dependent) return [];
+
+      // FS = blocker right → dependent left; SS = left→left;
+      // FF = right→right; SF = left→right.
+      let sx = 0;
+      let sy = 0;
+      let ex = 0;
+      let ey = 0;
+      let sxOutDir = 1;
+      let exInDir = -1;
+      if (dep.type === "FINISH_TO_START") {
+        sx = blocking.xRight;
+        sy = blocking.yCenter;
+        ex = dependent.xLeft;
+        ey = dependent.yCenter;
+        sxOutDir = 1;
+        exInDir = -1;
+      } else if (dep.type === "START_TO_START") {
+        sx = blocking.xLeft;
+        sy = blocking.yCenter;
+        ex = dependent.xLeft;
+        ey = dependent.yCenter;
+        sxOutDir = -1;
+        exInDir = -1;
+      } else if (dep.type === "FINISH_TO_FINISH") {
+        sx = blocking.xRight;
+        sy = blocking.yCenter;
+        ex = dependent.xRight;
+        ey = dependent.yCenter;
+        sxOutDir = 1;
+        exInDir = 1;
+      } else {
+        sx = blocking.xLeft;
+        sy = blocking.yCenter;
+        ex = dependent.xRight;
+        ey = dependent.yCenter;
+        sxOutDir = -1;
+        exInDir = 1;
+      }
+
+      // Routed around the bars, not through them: the old elbow dropped its
+      // vertical leg at the midpoint of the two stubs whatever was sitting
+      // there, and ran its horizontal legs down the row centrelines, which is
+      // where the bars are. Long runs now ride the (ROW_HEIGHT − BAR_HEIGHT)
+      // band straddling a row boundary — bar-free by construction — and only
+      // the two short stubs at the ends ever touch a centreline.
+      const path = routeDependency({
+        from: { x: sx, y: sy, dir: sxOutDir },
+        to: { x: ex, y: ey, dir: exInDir },
+        obstacles: barObstacles,
+        laneHeight: ROW_HEIGHT,
+        barHeight: BAR_HEIGHT,
+      });
+      return [{ dep, path }];
+    });
+  }, [showDependencies, dependencies, getTaskScreenPos, barObstacles]);
 
   // ---------- Today line ----------
   const todayPosition = useMemo(() => {
@@ -2067,166 +2098,119 @@ export function GanttView({
 
               {/* Dependency arrows — TWO stacked svgs over one shared
                   geometry. The VISIBLE strokes render ABOVE the z-10 bars
-                  (z-20, fully pointer-events-none) so a leg passing an
-                  intermediate row's bar stays visible instead of being
-                  swallowed behind it (MS Project draws connectors over
-                  bars too); the fat CLICK targets stay BELOW the bars
-                  (z-[5]) so they can never steal a bar's mousedown/drag. */}
-              {showDependencies &&
-                dependencies.length > 0 &&
-                bounds &&
-                (() => {
-                  const depGeo = dependencies.flatMap((dep) => {
-                    const blocking = getTaskScreenPos(dep.blockingTaskId);
-                    const dependent = getTaskScreenPos(dep.dependentTaskId);
-                    if (!blocking || !dependent) return [];
-
-                    // FS = blocker right → dependent left; SS = left→left;
-                    // FF = right→right; SF = left→right.
-                    let sx = 0;
-                    let sy = 0;
-                    let ex = 0;
-                    let ey = 0;
-                    let sxOutDir = 1;
-                    let exInDir = -1;
-                    if (dep.type === "FINISH_TO_START") {
-                      sx = blocking.xRight;
-                      sy = blocking.yCenter;
-                      ex = dependent.xLeft;
-                      ey = dependent.yCenter;
-                      sxOutDir = 1;
-                      exInDir = -1;
-                    } else if (dep.type === "START_TO_START") {
-                      sx = blocking.xLeft;
-                      sy = blocking.yCenter;
-                      ex = dependent.xLeft;
-                      ey = dependent.yCenter;
-                      sxOutDir = -1;
-                      exInDir = -1;
-                    } else if (dep.type === "FINISH_TO_FINISH") {
-                      sx = blocking.xRight;
-                      sy = blocking.yCenter;
-                      ex = dependent.xRight;
-                      ey = dependent.yCenter;
-                      sxOutDir = 1;
-                      exInDir = 1;
-                    } else {
-                      sx = blocking.xLeft;
-                      sy = blocking.yCenter;
-                      ex = dependent.xRight;
-                      ey = dependent.yCenter;
-                      sxOutDir = -1;
-                      exInDir = 1;
-                    }
-
-                    const path = dependencyElbowPath(
-                      sx,
-                      sy,
-                      ex,
-                      ey,
-                      sxOutDir,
-                      exInDir
-                    );
-
-                    const isActive =
-                      depMenu?.dep.id === dep.id ||
-                      hoveredTask === dep.blockingTaskId ||
-                      hoveredTask === dep.dependentTaskId ||
-                      selectedTaskId === dep.blockingTaskId ||
-                      selectedTaskId === dep.dependentTaskId;
-
-                    return [{ dep, path, isActive }];
-                  });
-
-                  return (
-                    <>
-                      {/* Click layer — fat transparent hit paths, under the
-                          bars. A 1.5px line is unclickable; the parent svg
-                          is pointer-events-none, so only these take clicks. */}
-                      <svg
-                        className="absolute inset-0 pointer-events-none z-[5]"
-                        width={bounds.totalWidth}
-                        height={totalRows * ROW_HEIGHT}
+                  (z-20, fully pointer-events-none); that used to be forced —
+                  a leg crossing an intermediate row's bar was swallowed and
+                  the link read as two disconnected stubs — and the router no
+                  longer crosses bars, but the layer stays on top so the
+                  arrowhead landing on a bar's edge is never clipped by it
+                  (MS Project draws connectors over bars too). The fat CLICK
+                  targets stay BELOW the bars (z-[5]) so they can never steal
+                  a bar's mousedown/drag. */}
+              {showDependencies && dependencies.length > 0 && bounds && (
+                <>
+                  {/* Click layer — fat transparent hit paths, under the
+                      bars. A 1.5px line is unclickable; the parent svg
+                      is pointer-events-none, so only these take clicks. */}
+                  <svg
+                    className="absolute inset-0 pointer-events-none z-[5]"
+                    width={bounds.totalWidth}
+                    height={totalRows * ROW_HEIGHT}
+                  >
+                    {depPaths.map(({ dep, path }) => (
+                      <path
+                        key={dep.id}
+                        d={path}
+                        stroke="transparent"
+                        strokeWidth={12}
+                        fill="none"
+                        style={{
+                          pointerEvents: "stroke",
+                          cursor: "pointer",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Convert the click to the SVG's own coordinate
+                          // space (= the timeline body's), so the pill
+                          // scrolls with the arrow instead of floating.
+                          const svg = e.currentTarget.ownerSVGElement;
+                          const box = svg?.getBoundingClientRect();
+                          setDepMenu({
+                            dep,
+                            x: box ? e.clientX - box.left : 0,
+                            y: box ? e.clientY - box.top : 0,
+                            // Not enough room below → open upwards.
+                            flipUp: window.innerHeight - e.clientY < 260,
+                            open: false,
+                          });
+                        }}
+                      />
+                    ))}
+                  </svg>
+                  {/* Visible layer — strokes + arrowheads. ABOVE the bars
+                      (z-10) so an arrowhead landing on a bar edge is not
+                      clipped, but BELOW the sticky date header (z-20):
+                      at z-20 it tied with the header and, being later in
+                      the DOM, won — so scrolling the chart down drew the
+                      connectors straight across "September 2026" and the
+                      day numbers. The bars never did that, because they
+                      sit at z-10 and pass under the header correctly. */}
+                  <svg
+                    className="absolute inset-0 pointer-events-none z-[15]"
+                    width={bounds.totalWidth}
+                    height={totalRows * ROW_HEIGHT}
+                  >
+                    <defs>
+                      <marker
+                        id="gantt-dep-arrow-default"
+                        markerWidth="8"
+                        markerHeight="8"
+                        refX="6.5"
+                        refY="4"
+                        orient="auto"
                       >
-                        {depGeo.map(({ dep, path }) => (
-                          <path
-                            key={dep.id}
-                            d={path}
-                            stroke="transparent"
-                            strokeWidth={12}
-                            fill="none"
-                            style={{
-                              pointerEvents: "stroke",
-                              cursor: "pointer",
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Convert the click to the SVG's own coordinate
-                              // space (= the timeline body's), so the pill
-                              // scrolls with the arrow instead of floating.
-                              const svg = e.currentTarget.ownerSVGElement;
-                              const box = svg?.getBoundingClientRect();
-                              setDepMenu({
-                                dep,
-                                x: box ? e.clientX - box.left : 0,
-                                y: box ? e.clientY - box.top : 0,
-                                // Not enough room below → open upwards.
-                                flipUp: window.innerHeight - e.clientY < 260,
-                                open: false,
-                              });
-                            }}
-                          />
-                        ))}
-                      </svg>
-                      {/* Visible layer — strokes + arrowheads, over the bars. */}
-                      <svg
-                        className="absolute inset-0 pointer-events-none z-20"
-                        width={bounds.totalWidth}
-                        height={totalRows * ROW_HEIGHT}
+                        <polygon points="0 0.5, 7 4, 0 7.5" fill="#94a3b8" />
+                      </marker>
+                      <marker
+                        id="gantt-dep-arrow-active"
+                        markerWidth="8"
+                        markerHeight="8"
+                        refX="6.5"
+                        refY="4"
+                        orient="auto"
                       >
-                        <defs>
-                          <marker
-                            id="gantt-dep-arrow-default"
-                            markerWidth="8"
-                            markerHeight="8"
-                            refX="6.5"
-                            refY="4"
-                            orient="auto"
-                          >
-                            <polygon points="0 0.5, 7 4, 0 7.5" fill="#94a3b8" />
-                          </marker>
-                          <marker
-                            id="gantt-dep-arrow-active"
-                            markerWidth="8"
-                            markerHeight="8"
-                            refX="6.5"
-                            refY="4"
-                            orient="auto"
-                          >
-                            <polygon points="0 0.5, 7 4, 0 7.5" fill="#a8893a" />
-                          </marker>
-                        </defs>
-                        {depGeo.map(({ dep, path, isActive }) => (
-                          <path
-                            key={dep.id}
-                            d={path}
-                            stroke={isActive ? "#a8893a" : "#94a3b8"}
-                            strokeWidth={isActive ? 2 : 1.5}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            fill="none"
-                            markerEnd={
-                              isActive
-                                ? "url(#gantt-dep-arrow-active)"
-                                : "url(#gantt-dep-arrow-default)"
-                            }
-                            opacity={isActive ? 1 : 0.9}
-                          />
-                        ))}
-                      </svg>
-                    </>
-                  );
-                })()}
+                        <polygon points="0 0.5, 7 4, 0 7.5" fill="#a8893a" />
+                      </marker>
+                    </defs>
+                    {depPaths.map(({ dep, path }) => {
+                      // Hover/selection only — it changes on pointer move,
+                      // so it must NOT live in the routing memo.
+                      const isActive =
+                        depMenu?.dep.id === dep.id ||
+                        hoveredTask === dep.blockingTaskId ||
+                        hoveredTask === dep.dependentTaskId ||
+                        selectedTaskId === dep.blockingTaskId ||
+                        selectedTaskId === dep.dependentTaskId;
+                      return (
+                        <path
+                          key={dep.id}
+                          d={path}
+                          stroke={isActive ? "#a8893a" : "#94a3b8"}
+                          strokeWidth={isActive ? 2 : 1.5}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          markerEnd={
+                            isActive
+                              ? "url(#gantt-dep-arrow-active)"
+                              : "url(#gantt-dep-arrow-default)"
+                          }
+                          opacity={isActive ? 1 : 0.9}
+                        />
+                      );
+                    })}
+                  </svg>
+                </>
+              )}
 
               {/* Rows — mirror the left panel 1:1 */}
               {filteredSections.map((section) => {
