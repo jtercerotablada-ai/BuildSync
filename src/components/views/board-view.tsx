@@ -101,6 +101,13 @@ interface BoardViewProps {
   /** Unfiltered task count per section id, for the delete-section confirm
    *  (the displayed `section.tasks` may be filtered and understate it). */
   rawSectionCounts?: Record<string, number>;
+  /** False when the columns are synthetic group-by buckets (`group:*` ids)
+   *  rather than real Section rows. Every section-scoped mutation here —
+   *  rename, delete, add-task, add-section — addresses `section.id` on
+   *  /api/sections or /api/tasks, so against a synthetic id it can only
+   *  ever 404. Those affordances are hidden rather than offered-and-failed.
+   *  Drag-reorder is already covered by `reorderDisabled`. */
+  sectionsAreEditable?: boolean;
 }
 
 // ============================================
@@ -144,6 +151,7 @@ export function BoardView({
   projectId,
   reorderDisabled = false,
   rawSectionCounts,
+  sectionsAreEditable = true,
 }: BoardViewProps) {
   const router = useRouter();
   // Local midnight, null until mounted — the mobile cards' overdue tone and
@@ -588,8 +596,10 @@ export function BoardView({
             </div>
           )}
 
-          {/* Add task button */}
-          {addingTaskInSection === mobileActiveSection?.id ? (
+          {/* Add task button — hidden while the columns are group-by
+              buckets: both branches address `section.id`, which is a
+              synthetic `group:*` key the server has never heard of. */}
+          {!sectionsAreEditable ? null : addingTaskInSection === mobileActiveSection?.id ? (
             <div className="mobile-task-card">
               <input
                 type="text"
@@ -666,6 +676,7 @@ export function BoardView({
               rawTaskCount={rawSectionCounts?.[section.id]}
               onTaskClick={onTaskClick}
               projectId={projectId}
+              sectionsAreEditable={sectionsAreEditable}
               isAddingTask={addingTaskInSection === section.id}
               newTaskName={taskDrafts[section.id] ?? ""}
               onStartAddTask={() => setAddingTaskInSection(section.id)}
@@ -678,16 +689,20 @@ export function BoardView({
             />
           ))}
 
-          {/* + Add section */}
-          <div className="flex-shrink-0">
-            <button
-              onClick={handleAddSection}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              Add section
-            </button>
-          </div>
+          {/* + Add section — a real Section row, so it is meaningless while
+              the columns are group-by buckets: the section would be created
+              but could not appear until the grouping is cleared. */}
+          {sectionsAreEditable && (
+            <div className="flex-shrink-0">
+              <button
+                onClick={handleAddSection}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                Add section
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Drag Overlay */}
@@ -708,6 +723,7 @@ function BoardColumn({
   rawTaskCount,
   onTaskClick,
   projectId,
+  sectionsAreEditable,
   isAddingTask,
   newTaskName,
   onStartAddTask,
@@ -719,6 +735,9 @@ function BoardColumn({
   rawTaskCount?: number;
   onTaskClick: (taskId: string) => void;
   projectId: string;
+  /** See BoardViewProps.sectionsAreEditable. When false this column's id is
+   *  a synthetic group key, so it owns no section-scoped actions at all. */
+  sectionsAreEditable: boolean;
   isAddingTask: boolean;
   newTaskName: string;
   onStartAddTask: () => void;
@@ -829,6 +848,20 @@ function BoardColumn({
           )}
         </div>
 
+        {/* Every control in here is section-scoped — quick-add posts
+            `sectionId: section.id` to /api/tasks, rename and delete address
+            /api/sections/:id. Under a group-by that id is a synthetic
+            `group:*` key, so the whole cluster is withheld instead of
+            offering three actions that can only ever 404.
+
+            Also dropped while the rename input is open: Radix's
+            DropdownMenuContent restores focus on close with
+            `triggerRef.current?.focus()`, which fires AFTER the input has
+            autoFocused and would blur it straight back out — and this
+            input commits on blur, so the rename box would close the
+            instant it appeared. Unmounting the trigger leaves that ref
+            null, so the restore is a no-op and focus stays in the input. */}
+        {sectionsAreEditable && !isRenaming && (
         <div className="flex items-center gap-0.5">
           {/* focus-visible keeps these in step with the hover reveal: without
               it a keyboard user tabs onto a fully transparent button and the
@@ -876,6 +909,7 @@ function BoardColumn({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        )}
       </div>
 
       {/* Task Cards — no flex-1 / no overflow-y-auto so the column's
@@ -904,18 +938,27 @@ function BoardColumn({
             board treatment so the user gets immediate feedback when
             hovering over an empty column with a dragged card. */}
         {section.tasks.length === 0 && !isAddingTask && (
-          <button
-            type="button"
-            onClick={onStartAddTask}
-            className={cn(
-              "w-full text-center text-xs rounded-lg border-2 border-dashed transition-colors py-6",
-              isOver
-                ? "border-[#c9a84c] bg-[#c9a84c]/10 text-[#a8893a]"
-                : "border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500"
-            )}
-          >
-            {isOver ? "Drop task here" : "No tasks · click to add"}
-          </button>
+          sectionsAreEditable ? (
+            <button
+              type="button"
+              onClick={onStartAddTask}
+              className={cn(
+                "w-full text-center text-xs rounded-lg border-2 border-dashed transition-colors py-6",
+                isOver
+                  ? "border-[#c9a84c] bg-[#c9a84c]/10 text-[#a8893a]"
+                  : "border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500"
+              )}
+            >
+              {isOver ? "Drop task here" : "No tasks · click to add"}
+            </button>
+          ) : (
+            // Group-by column: neither half of the affordance applies —
+            // quick-add would 404 on the synthetic id and drag is off — so
+            // it states the emptiness instead of inviting a dead click.
+            <div className="w-full text-center text-xs rounded-lg border-2 border-dashed border-slate-200 text-slate-400 py-6">
+              No tasks
+            </div>
+          )
         )}
 
         {/* Inline add task */}
@@ -948,7 +991,7 @@ function BoardColumn({
       </div>
 
       {/* Bottom add task */}
-      {!isAddingTask && (
+      {sectionsAreEditable && !isAddingTask && (
         <button
           onClick={onStartAddTask}
           className="flex items-center gap-1.5 w-full px-3 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-[#E8E9EA] rounded-b-[6px] transition-colors"

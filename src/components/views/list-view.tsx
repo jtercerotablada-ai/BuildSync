@@ -191,6 +191,11 @@ interface ListViewProps {
    *  FILTERED ones, so their length understates what deleting a section
    *  actually destroys — same prop Board view uses for its confirm. */
   rawSectionCounts?: Record<string, number>;
+  /** False when the headings are synthetic group-by buckets (`group:*` ids)
+   *  rather than real Section rows — see BoardViewProps.sectionsAreEditable.
+   *  Rename/delete/add-task all address `section.id` server-side, so they
+   *  are hidden rather than offered against an id that can only 404. */
+  sectionsAreEditable?: boolean;
 }
 
 // Asana's enum-chip palette, measured in the real app: solid fills,
@@ -237,6 +242,7 @@ export function ListView({
   projectId,
   reorderDisabled = false,
   rawSectionCounts,
+  sectionsAreEditable = true,
 }: ListViewProps) {
   const router = useRouter();
   // Local midnight, null until mounted — the red/green date tones and the
@@ -1082,6 +1088,11 @@ export function ListView({
                   </span>
                 )}
               </button>
+              {/* Rename / Add task / Delete are all keyed on `section.id`.
+                  Under a group-by that id is a synthetic `group:*` key with
+                  no row behind it, so the menu is withheld entirely rather
+                  than offering three actions that can only ever 404. */}
+              {sectionsAreEditable && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -1137,6 +1148,7 @@ export function ListView({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
             </div>
 
             {/* Section Content */}
@@ -1208,13 +1220,19 @@ export function ListView({
                         autoFocus
                       />
                     ) : (
-                      <button
-                        onClick={() => setAddingTaskInSection(section.id)}
-                        className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add task...
-                      </button>
+                      // The inline composer POSTs `sectionId` straight to
+                      // /api/tasks (it does not go through onAddTask, which
+                      // knows to fall back off a `group:` id), so under a
+                      // group-by it is withheld rather than left to 404.
+                      sectionsAreEditable && (
+                        <button
+                          onClick={() => setAddingTaskInSection(section.id)}
+                          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add task...
+                        </button>
+                      )
                     )}
                   </div>
                   <div className="hidden md:block"></div>
@@ -1420,14 +1438,18 @@ export function ListView({
           );
         })()}
 
-        {/* Add Section Button — naturally clean (action row, not a task) */}
-        <button
-          onClick={handleAddSection}
-          className="flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
-        >
-          <Plus className="w-4 h-4" />
-          Add section
-        </button>
+        {/* Add Section Button — naturally clean (action row, not a task).
+            Hidden under a group-by: the section would really be created but
+            could not show up until the grouping is cleared. */}
+        {sectionsAreEditable && (
+          <button
+            onClick={handleAddSection}
+            className="flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
+          >
+            <Plus className="w-4 h-4" />
+            Add section
+          </button>
+        )}
       </div>
 
       {/* DragOverlay — portal-mounted ghost that follows the cursor.

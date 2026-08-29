@@ -3536,6 +3536,13 @@ export default function MyTasksPage() {
                 // Name comes from BoardView's inline input (no prompt()).
                 createPersonalSection(name);
               }}
+              // Board columns are the SAME personal uiState buckets the List
+              // view manages, so its section menu reuses the same handlers.
+              // /api/sections is never in play here — there is no Section row
+              // behind "recently-assigned" or a "custom-…" id to address.
+              onRenameSection={handleRenameSection}
+              onDeleteSection={handleDeleteSection}
+              defaultSectionIds={DEFAULT_SECTION_ID_SET}
               onReorderTasks={async (sectionId, orderedTaskIds) => {
                 // Same persistence pattern List view uses — re-number
                 // positions for every task in the section, parallel
@@ -5666,6 +5673,9 @@ function BoardView({
   onMoveTask,
   onReorderTasks,
   onAddSection,
+  onRenameSection,
+  onDeleteSection,
+  defaultSectionIds,
   formatDueDate,
 }: {
   sections: SmartSection[];
@@ -5677,6 +5687,14 @@ function BoardView({
   onReorderTasks: (sectionId: string, orderedTaskIds: string[]) => Promise<void> | void;
   /** Create a persisted personal section from an inline-typed name. */
   onAddSection: (name: string) => void;
+  /** Rename/delete a personal section. These columns are uiState buckets,
+   *  NOT Prisma Section rows, so they go through the same uiState handlers
+   *  the List view uses — never /api/sections, which has no row to address. */
+  onRenameSection: (sectionId: string, name: string) => void;
+  onDeleteSection: (sectionId: string) => void;
+  /** The 4 built-in buckets. They can be renamed but not deleted, matching
+   *  the List view's section menu. */
+  defaultSectionIds: Set<string>;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -5858,6 +5876,9 @@ function BoardView({
             onNewTaskNameChange={setNewTaskName}
             onSubmitTask={() => handleAddTaskSubmit(section.id)}
             onCancelAddTask={() => { setAddingInSection(null); setNewTaskName(""); }}
+            onRenameSection={onRenameSection}
+            onDeleteSection={onDeleteSection}
+            isDefaultSection={defaultSectionIds.has(section.id)}
           />
         ))}
 
@@ -5916,6 +5937,9 @@ function BoardColumn({
   onNewTaskNameChange,
   onSubmitTask,
   onCancelAddTask,
+  onRenameSection,
+  onDeleteSection,
+  isDefaultSection,
 }: {
   section: SmartSection;
   onToggleComplete: (task: Task) => void;
@@ -5927,8 +5951,26 @@ function BoardColumn({
   onNewTaskNameChange: (v: string) => void;
   onSubmitTask: () => void;
   onCancelAddTask: () => void;
+  onRenameSection: (sectionId: string, name: string) => void;
+  onDeleteSection: (sectionId: string) => void;
+  isDefaultSection: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: section.id });
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(section.name);
+
+  // A rename committed elsewhere (List view, another tab) has to reach the
+  // idle input too — otherwise reopening this one restores the stale name.
+  useEffect(() => {
+    if (!isRenaming) setRenameValue(section.name);
+  }, [section.name, isRenaming]);
+
+  const commitRename = () => {
+    const name = renameValue.trim();
+    if (name && name !== section.name) onRenameSection(section.id, name);
+    else setRenameValue(section.name);
+    setIsRenaming(false);
+  };
 
   return (
     <div
@@ -5943,15 +5985,81 @@ function BoardColumn({
       {/* Header */}
       <div className="px-3 pt-3 pb-2 flex items-center justify-between group">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <h3 className="font-medium text-sm text-slate-900 truncate">{section.name}</h3>
-          <span className="text-xs text-slate-400 tabular-nums">{section.tasks.length}</span>
+          {isRenaming ? (
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitRename();
+                if (e.key === "Escape") {
+                  setRenameValue(section.name);
+                  setIsRenaming(false);
+                }
+              }}
+              onBlur={commitRename}
+              className="font-medium text-sm text-slate-900 bg-white border rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-[#c9a84c] w-full"
+              autoFocus
+            />
+          ) : (
+            <>
+              <h3 className="font-medium text-sm text-slate-900 truncate">{section.name}</h3>
+              <span className="text-xs text-slate-400 tabular-nums">{section.tasks.length}</span>
+            </>
+          )}
         </div>
-        <button
-          onClick={onStartAddTask}
-          className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Plus className="w-4 h-4 text-slate-400" />
-        </button>
+        {/* Section menu — parity with the List view's section header. These
+            columns are personal uiState buckets, so rename/delete go to the
+            uiState handlers, never /api/sections. Defaults can be renamed
+            but not deleted, same rule the List view applies. */}
+        {!isRenaming && (
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={onStartAddTask}
+              aria-label="Add task"
+              className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+            >
+              <Plus className="w-4 h-4 text-slate-400" />
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label="Section options"
+                  className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+                >
+                  <MoreHorizontal className="w-4 h-4 text-slate-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setRenameValue(section.name);
+                    setIsRenaming(true);
+                  }}
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Rename section
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onStartAddTask}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add task
+                </DropdownMenuItem>
+                {!isDefaultSection && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => onDeleteSection(section.id)}
+                      className="text-[#b3261e]"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete section
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
       {/* Cards — no flex-1 / overflow-y-auto so the column's height

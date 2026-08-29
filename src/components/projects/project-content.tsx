@@ -2105,6 +2105,9 @@ export function ProjectContent({
               projectId={project.id}
               reorderDisabled={hasActiveFilters}
               rawSectionCounts={sectionTaskCounts}
+              // Under a group-by these headings are synthetic `group:*`
+              // buckets, not Section rows — see the useMemo above.
+              sectionsAreEditable={groupBy === "none"}
             />
           )}
           {baseView === "board" && (
@@ -2115,6 +2118,9 @@ export function ProjectContent({
               projectId={project.id}
               reorderDisabled={hasActiveFilters}
               rawSectionCounts={sectionTaskCounts}
+              // Under a group-by these columns are synthetic `group:*`
+              // buckets, not Section rows — see the useMemo above.
+              sectionsAreEditable={groupBy === "none"}
             />
           )}
           {baseView === "timeline" && (
