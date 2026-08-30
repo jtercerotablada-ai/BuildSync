@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { NO_STATUS_LABEL, isStatusEarned } from '@/lib/project-status';
 
 interface Project {
   id: string;
@@ -18,6 +19,10 @@ interface Project {
   color: string;
   icon?: string;
   status: string;
+  /** When a human last chose that status; null/absent means nobody ever did.
+   *  See @/lib/project-status — the same rule the project header, the
+   *  Overview sidebar and the portfolio rows read. */
+  statusSetAt?: string | null;
   _count?: {
     tasks: number;
   };
@@ -183,12 +188,21 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
                     {project._count?.tasks || 0} tasks
                   </p>
                 </div>
-                {project.status && getStatusLabel(project.status) && (
-                  <span className={cn(
-                    "text-xs px-2 py-0.5 rounded-full flex-shrink-0",
-                    getStatusClasses(project.status)
-                  )}>
-                    {getStatusLabel(project.status)}
+                {/* A status nobody chose is not a status: `Project.status`
+                    defaults to ON_TRACK, so this pill used to promise the
+                    home dashboard that every untouched project was fine. */}
+                {isStatusEarned(project.statusSetAt) ? (
+                  project.status && getStatusLabel(project.status) ? (
+                    <span className={cn(
+                      "text-xs px-2 py-0.5 rounded-full flex-shrink-0",
+                      getStatusClasses(project.status)
+                    )}>
+                      {getStatusLabel(project.status)}
+                    </span>
+                  ) : null
+                ) : (
+                  <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-slate-100 text-slate-500 border border-slate-200">
+                    {NO_STATUS_LABEL}
                   </span>
                 )}
               </button>

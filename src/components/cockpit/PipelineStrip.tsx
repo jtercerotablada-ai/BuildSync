@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Check, ChevronDown } from 'lucide-react';
 import type { CockpitProject, ProjectType } from './types';
@@ -13,6 +13,12 @@ import {
   type Stage,
   type StageHolder,
 } from '@/lib/pipelines';
+import {
+  stageAdvanceDetail,
+  stageAdvanceOffer,
+  stageAdvancePrompt,
+  type AdvanceSection,
+} from '@/lib/stage-advance';
 import { cn } from '@/lib/utils';
 
 interface PipelineStripProps {
@@ -150,6 +156,43 @@ const HOLDER_DESK: Record<StageHolder, string> = {
   NONE: 'Finished',
 };
 
+/**
+ * Where one click PUTS the job. HOLDER_DESK above is the same fact in the
+ * present tense; this is the consequence of accepting the offer, and it is a
+ * second map rather than a prefix because "Lands finished" is not a sentence —
+ * the terminal stage closes the job rather than handing it to anyone.
+ *
+ * This is the line that makes the offer safe to click: the firm hesitates over
+ * exactly one move, the hand-off to the PE, and the button should say so
+ * before it is pressed.
+ */
+const HOLDER_LANDS: Record<StageHolder, string> = {
+  FIRM: 'Lands on our desk.',
+  PE: "Lands on the PE's desk.",
+  CLIENT: "Lands on the client's desk.",
+  ARCHITECT: "Lands on the architect's desk.",
+  CONTRACTOR: "Lands on the contractor's desk.",
+  CITY: 'Goes to the city.',
+  NONE: 'Closes the job out.',
+};
+
+/**
+ * Offers the viewer has waved off, for this tab only.
+ *
+ * Module scope, not component state: the strip unmounts on every navigation
+ * inside a project, and an offer that reappears each time you come back is
+ * wallpaper — which is how the two status controls lost the owner's trust in
+ * the first place. A full reload clears it, so a dismissal is never permanent
+ * and nothing has to be stored per user.
+ *
+ * Keyed by project AND stage: two recertifications sitting on Field Work are
+ * two separate questions, and answering one must not silence the other.
+ */
+const dismissedAdvances = new Set<string>();
+
+const advanceKey = (projectId: string, stageKey: string) =>
+  `${projectId}|${stageKey}`;
+
 /** Null — not "0 days" — when nothing recorded the arrival: a job whose
  *  stageEnteredAt is missing has an unknown wait, and claiming it landed
  *  today is the one thing the line must never do. */
@@ -176,6 +219,20 @@ export interface ProjectStageStripProps {
    */
   onMove?: (stageKey: string, reason?: string) => void;
   saving?: boolean;
+  /**
+   * Identifies the job for the once-per-tab dismissal below. Required for the
+   * advance offer, because a dismissal keyed on the stage alone would silence
+   * every other project sitting on the same stage.
+   */
+  projectId?: string;
+  /**
+   * The project's board columns, each with its `stage` mapping and its tasks —
+   * what lets the strip notice that this stage's work is finished and offer
+   * the move. OMIT IT AND THE STRIP IS EXACTLY WHAT IT WAS: the offer is the
+   * only thing these two props add, and a caller that has not loaded sections
+   * (or has no right to move the stage) simply never sees it.
+   */
+  sections?: readonly AdvanceSection[];
 }
 
 /**
@@ -186,6 +243,13 @@ export interface ProjectStageStripProps {
  * sidebar, on a phone, and inside a cockpit tile alike. Nothing scrolls
  * sideways and nothing wraps into an unreadable block of pills; the labels
  * live in the list, which is vertical and opens on demand.
+ *
+ * THE ADVANCE OFFER (`projectId` + `sections`) is the strip's one control that
+ * the strip itself proposes: when every task in the column mapped to the
+ * current stage is finished, it names the next stage and whose desk that puts
+ * the job on, and one click moves it. It never moves anything on its own, it
+ * appears only for a viewer who may edit, and "Not now" silences it for that
+ * stage until the tab is reloaded.
  */
 export function ProjectStageStrip({
   type,
@@ -194,6 +258,8 @@ export function ProjectStageStrip({
   blocker,
   onMove,
   saving = false,
+  projectId,
+  sections,
 }: ProjectStageStripProps) {
   const [listOpen, setListOpen] = useState(false);
   // A backward move waits here for a confirmation. Forward is one click,
@@ -202,6 +268,13 @@ export function ProjectStageStrip({
   // be able to file one.
   const [pendingBack, setPendingBack] = useState<Stage | null>(null);
   const [reason, setReason] = useState('');
+  // Mirrors the module-level set into state so waving an offer off re-renders,
+  // and is SEEDED from it so a remount honours a dismissal made earlier in
+  // this tab. Empty on the server and empty on the client's first paint, so
+  // there is no hydration mismatch to repair.
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(
+    () => new Set(dismissedAdvances)
+  );
 
   const pipeline = pipelineForType(type);
   // A key belonging to another pipeline (the type was changed under a live
@@ -212,6 +285,29 @@ export function ProjectStageStrip({
   const current = resolved?.stage ?? null;
   const editable = !!onMove;
   const dwell = dwellLabel(stageEnteredAt);
+
+  // THE OFFER. Only for a viewer who may actually move the stage — telling a
+  // reader that a stage is finished, next to a control he cannot use, is a
+  // dead end. Everything else about when to stay quiet lives in the pure
+  // function; see src/lib/stage-advance.ts.
+  const offer = useMemo(
+    () =>
+      editable && projectId && sections
+        ? stageAdvanceOffer({ type, stage, sections })
+        : null,
+    [editable, projectId, sections, type, stage]
+  );
+  const offerKey =
+    offer && projectId ? advanceKey(projectId, offer.from.key) : null;
+  // Hidden while a send-back is being confirmed: two questions about the same
+  // strip at once is how a screen stops being read.
+  const showOffer = !!offer && !!offerKey && !dismissed.has(offerKey) && !pendingBack;
+
+  const dismissOffer = () => {
+    if (!offerKey) return;
+    dismissedAdvances.add(offerKey);
+    setDismissed(new Set(dismissedAdvances));
+  };
 
   const pick = (target: Stage, index: number) => {
     if (!onMove || saving || index === currentIndex) return;
@@ -296,6 +392,55 @@ export function ProjectStageStrip({
           'No stage set yet.'
         )}
       </p>
+
+      {/* The one-click advance. Sits directly under the line that says where
+          the job is, because it is the same sentence continued: this is where
+          it is, and this is the one move the work says is available. It is an
+          OFFER — the stage is never moved for him. See stage-advance.ts for
+          why deriving it was rejected. */}
+      {showOffer && offer && offerKey && (
+        <div
+          role="status"
+          className="rounded-lg border border-[#e0c98a] bg-[#FBF3E4] p-2.5 space-y-2"
+        >
+          <p className="text-xs font-medium text-[#8F6C1F]">
+            {stageAdvancePrompt(offer)}
+          </p>
+          <p className="text-[11px] text-[#a8893a]">
+            {stageAdvanceDetail(offer)} {HOLDER_LANDS[offer.next.holder]}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                if (!onMove || saving) return;
+                // Forward, so no reason and no confirmation — the same one
+                // click a rail segment costs. It goes through the caller's
+                // handleStageMove and therefore through PATCH
+                // /api/projects/:id/stage, which is the only writer of
+                // stageEnteredAt and the ProjectStageEvent history.
+                //
+                // Not dismissed here on purpose: if the move fails the caller
+                // rolls the stage back, and the offer should come back with
+                // it rather than vanish on a click that did nothing.
+                setListOpen(false);
+                onMove(offer.next.key);
+              }}
+              className="px-2.5 py-1 rounded text-xs font-medium bg-[#c9a84c] text-white disabled:opacity-60"
+            >
+              Move to {offer.next.label}
+            </button>
+            <button
+              type="button"
+              onClick={dismissOffer}
+              className="px-2.5 py-1 rounded text-xs text-slate-500 hover:text-slate-700"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
 
       {blocker && <p className="text-xs text-slate-400">Blocked · {blocker}</p>}
 

@@ -19,6 +19,8 @@
  *                                   workflow template id when present)
  */
 
+import { stageLabel, type StageKey } from "./pipelines";
+
 export type ProjectTemplateCategory =
   | "for_you"
   | "engineering"
@@ -108,8 +110,16 @@ export interface ProjectTemplate {
     color?: string;
   };
   /** Initial sections (kanban columns) created when the project is made.
-   *  Asana paradigm: sections are workflow STATUS, not project phases.
-   *  Phases (when relevant) live in a custom field. */
+   *
+   *  For a template whose project type runs a pipeline, a column IS a stage:
+   *  the names come out of pipelines.ts (see RECERT_SECTIONS below), and
+   *  POST /api/projects resolves each one back to its key and stores it on
+   *  Section.stage. That is the whole fix for "two places to put status" —
+   *  the board and the stage strip are one vocabulary, and status stays what
+   *  status is: Task.completed for a step, Project.status for the job.
+   *
+   *  A template with no pipeline (bid pipeline, weekly priorities) still
+   *  names its columns freely; they simply carry no stage. */
   sections: string[];
   /** Custom fields the template wants on the project, e.g. "Phase".
    *  Created + linked to the project at provisioning time. */
@@ -121,6 +131,158 @@ export interface ProjectTemplate {
    *  immediately after creation. */
   workflowTemplateId?: string;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Board columns that ARE pipeline stages
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * THE DUPLICATE THIS REMOVES
+ * The recertification templates used to ship five hand-written columns —
+ * Kickoff & scheduling, Inspection & Reports, Building Official Review,
+ * Repairs (if required), Recertification Complete — which are a coarser COPY
+ * of the eleven stages in pipelines.ts. The stages landed after these
+ * sections and nobody reconciled them, so one screen answered "where is this
+ * job?" twice, in two vocabularies, and the owner said he did not trust it.
+ *
+ * Now a column IS a stage. A template declares the STAGE KEYS its board
+ * carries, in pipeline order, and the column names are read out of
+ * pipelines.ts — so a label the owner signs off there renames the column here
+ * with no second edit, and the two can never drift again. POST /api/projects
+ * resolves each column name back to its key and stores it on Section.stage.
+ *
+ * WHICH STAGES GET A COLUMN: the ones that actually carry work, which in
+ * practice means the ones a first-pass task files into. Awaiting Client Fees,
+ * Awaiting Client Repairs and Reinspection carry none in any template below
+ * and get no column — inventing an empty one would re-introduce the confusion
+ * from the other direction, since a column that can never hold anything is
+ * not a place the work is. It also matters to the advance offer: an empty
+ * column is silent by rule (@/lib/stage-advance), so an invented one would
+ * only be dead space on the board.
+ *
+ * A column may also be free-form on purpose — see RECERT_REPAIRS_COLUMN,
+ * which holds a conditional LOOP the linear board cannot express as a
+ * position.
+ */
+function stageColumnNames<K extends StageKey>(
+  keys: readonly K[]
+): Record<K, string> {
+  const out = {} as Record<K, string>;
+  for (const key of keys) {
+    // `?? key` is unreachable: StageKey is derived from the same arrays that
+    // build the lookup, so every key resolves. Falling back to the raw key
+    // rather than throwing keeps a hypothetical drift a visibly wrong column
+    // name instead of a module that cannot be imported.
+    out[key] = stageLabel(key) ?? key;
+  }
+  return out;
+}
+
+/**
+ * The recertification board: the eight recert stages the FIRST PASS of the
+ * job walks through, in pipeline order, so the board and the stage strip read
+ * left-to-right the same way.
+ *
+ * WHY THE REPAIR LOOP IS NOT IN HERE. A recertification is not a line, it is
+ * a line with a conditional loop: if the Building Official requires repairs,
+ * the job goes back through re-inspection, an updated report, a second PE
+ * seal and a second submittal. Filing those second-pass tasks under the same
+ * stage columns as the first pass looked tidy and broke two things at once.
+ *
+ *   1. It silenced the advance offer at the three stages it matters most.
+ *      "Prepare updated reports" is due day 120 and sits in the SAME column
+ *      as "Generate recertification reports", due day 5 — and the offer only
+ *      fires when every task in the column is finished (see
+ *      @/lib/stage-advance). So on day 5, on every recert, the strip stayed
+ *      silent at Report Drafting, Awaiting PE Signature and Submitted to
+ *      City, waiting on a task from a branch that may never happen.
+ *   2. It broke the template's own instruction. The first task of the branch
+ *      is named "...do this section only if the Building Official requires
+ *      repairs (delete otherwise)", and "this section" has to be ONE column
+ *      the engineer can empty in one pass. Scattered across five, the
+ *      engineer deletes two tasks and leaves four second-pass tasks alive,
+ *      reading as first-pass work on a job that already finished.
+ *
+ * So the branch keeps one column of its own, free-form (no stage: it is a
+ * conditional loop, not a position in the line), sitting where the calendar
+ * reaches it — after the Building Official's determination in City Comments.
+ * That also restores what the stage vocabulary says about itself: Awaiting
+ * Client Repairs and Reinspection are stages the job VISITS, not columns work
+ * files into, so they carry no column and the strip stays quiet on them.
+ */
+const RECERT_COLUMN_STAGES = [
+  "recert.draft",
+  "recert.field_work",
+  "recert.report_drafting",
+  "recert.awaiting_pe",
+  "recert.submitted_to_client",
+  "recert.submitted_to_city",
+  "recert.city_comments",
+  "recert.recertified",
+] as const satisfies readonly StageKey[];
+
+const RECERT = stageColumnNames(RECERT_COLUMN_STAGES);
+
+/**
+ * The conditional branch, in one deletable column. Named nothing a recert
+ * stage is named, so resolveSectionStage() derives no stage from it and it
+ * stays honestly free-form.
+ */
+const RECERT_REPAIRS_COLUMN = "Repairs (if required)";
+
+/** Board order: the first pass in pipeline order, the repair loop parked
+ *  after City Comments where the determination that triggers it happens, and
+ *  Recertified last because that is where every path ends. */
+const RECERT_SECTIONS = [
+  RECERT["recert.draft"],
+  RECERT["recert.field_work"],
+  RECERT["recert.report_drafting"],
+  RECERT["recert.awaiting_pe"],
+  RECERT["recert.submitted_to_client"],
+  RECERT["recert.submitted_to_city"],
+  RECERT["recert.city_comments"],
+  RECERT_REPAIRS_COLUMN,
+  RECERT["recert.recertified"],
+];
+
+/**
+ * The general building-safety survey board. The same recert pipeline (its
+ * project type is RECERTIFICATION) but a shorter walk: a survey is delivered
+ * to the client and followed up on, it is never submitted to a jurisdiction
+ * and never "Recertified" by one — so Reinspection, Awaiting Client Fees,
+ * Submitted to City, City Comments and Recertified carry no work here and get
+ * no column. Unlike the recert board it has no repair LOOP either: the survey
+ * ends at follow-up tracking, which is why Awaiting Client Repairs is a real
+ * column here and not one there.
+ */
+const SURVEY_COLUMN_STAGES = [
+  "recert.draft",
+  "recert.field_work",
+  "recert.report_drafting",
+  "recert.awaiting_pe",
+  "recert.submitted_to_client",
+  "recert.awaiting_client_repairs",
+] as const satisfies readonly StageKey[];
+
+const SURVEY = stageColumnNames(SURVEY_COLUMN_STAGES);
+const SURVEY_SECTIONS = SURVEY_COLUMN_STAGES.map((key) => SURVEY[key]);
+
+/**
+ * The permit board. Its four columns — Permit Prep, Submitted to AHJ,
+ * Corrections, Approved — were the same duplication in miniature: a coarser
+ * copy of the permit pipeline. They map one-for-one onto real stages, so this
+ * is a rename into the shared vocabulary and not a redesign; the template
+ * carries no tasks, so nothing moved.
+ */
+const PERMIT_COLUMN_STAGES = [
+  "permit.preparing_submittal",
+  "permit.submitted_to_city",
+  "permit.city_comments",
+  "permit.permit_issued",
+] as const satisfies readonly StageKey[];
+
+const PERMIT_COLUMNS = stageColumnNames(PERMIT_COLUMN_STAGES);
+const PERMIT_SECTIONS = PERMIT_COLUMN_STAGES.map((key) => PERMIT_COLUMNS[key]);
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   // ── Engineering ────────────────────────────────────────────────
@@ -601,7 +763,11 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     accent: "blue",
     category: "engineering",
     defaults: { type: "PERMIT", gate: "PERMITTING", color: "#888888" },
-    sections: ["Permit Prep", "Submitted to AHJ", "Corrections", "Approved"],
+    // Permit Prep / Submitted to AHJ / Corrections / Approved were the same
+    // duplication in miniature — a coarser copy of the permit pipeline. They
+    // map one-for-one onto real stages, so this is a rename into the shared
+    // vocabulary, not a redesign. See PERMIT_COLUMN_STAGES.
+    sections: PERMIT_SECTIONS,
     workflowTemplateId: "permit-cycle",
   },
   {
@@ -613,24 +779,18 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     accent: "violet",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#a8893a" },
-    // Sections mirror the real recertification PROCESS (the swimlane), not
-    // kanban status — a recert moves phase by phase: Kickoff & scheduling →
-    // Inspection & Reports → Building Official Review → Repairs (only if
-    // required) → Recertification Complete. The notice / RFP / proposal /
-    // award are pre-project (already won) so the project starts at kickoff,
-    // not at the notice. Who owns each step lives in the 'Responsible' field
-    // so the board can be grouped by role without losing the phase flow. The
-    // field capture (photos + the jurisdiction forms) is handled by the
-    // firm's field-inspection app, NOT re-listed here as a checklist — this
-    // template tracks the project, and never names that app in any
-    // client-visible text.
-    sections: [
-      "Kickoff & scheduling",
-      "Inspection & Reports",
-      "Building Official Review",
-      "Repairs (if required)",
-      "Recertification Complete",
-    ],
+    // The columns ARE the recert pipeline stages — see RECERT_COLUMN_STAGES.
+    // They used to be five hand-written phase names (Kickoff & scheduling →
+    // Inspection & Reports → Building Official Review → Repairs → Complete),
+    // which was a coarser copy of the same eleven stages the strip shows: two
+    // vocabularies for one question. The notice / RFP / proposal / award are
+    // still pre-project (already won), so the project starts at Draft, not at
+    // the notice. Who owns each step lives in the 'Responsible' field so the
+    // board can be grouped by role without losing the stage flow. The field
+    // capture (photos + the jurisdiction forms) is handled by the firm's
+    // field-inspection app, NOT re-listed here as a checklist — this template
+    // tracks the project, and never names that app in any client-visible text.
+    sections: RECERT_SECTIONS,
     customFields: [
       {
         name: "Responsible",
@@ -645,13 +805,15 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
     ],
     tasks: [
-      // ── Kickoff & scheduling ───────────────────────────────────
+      // ── Draft — kickoff & scheduling ───────────────────────────
+      // Each task names the STAGE its column is, so these banners describe
+      // the narrative and the `section:` line is the fact.
       // The Notice of Recertification and the RFP / proposal / award are
       // pre-project — already negotiated and won before the engagement
       // exists — so the project STARTS here, at kickoff. The recert due
       // date carries over from the notice as a reference, not a task.
       {
-        section: "Kickoff & scheduling",
+        section: RECERT["recert.draft"],
         name: "Confirm scope & recertification due date",
         relativeStartDate: 0,
         relativeDueDate: 0,
@@ -663,7 +825,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "Kickoff & scheduling",
+        section: RECERT["recert.draft"],
         name: "Schedule site inspection",
         dependsOn: ["Confirm scope & recertification due date"],
         relativeStartDate: 1,
@@ -675,9 +837,12 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
 
-      // ── Inspection & Reports (field capture done on site) ──────
+      // ── Field Work → Report Drafting → PE seal → delivery ──────
+      // Field capture is done on site. The five columns these tasks land in
+      // are the stages the work actually belongs to, which is why the sealed
+      // report and the inspection that produced it no longer share a column.
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Structural inspection — photos & form",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -685,7 +850,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Electrical inspection — photos & form",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -693,7 +858,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Thermography (IR) inspection",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -701,7 +866,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Illumination inspection",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -709,7 +874,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Guardrail inspection",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -717,7 +882,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Field inspection complete",
         dependsOn: ["Structural inspection — photos & form", "Electrical inspection — photos & form", "Thermography (IR) inspection", "Illumination inspection", "Guardrail inspection"],
         relativeDueDate: 4,
@@ -725,7 +890,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.report_drafting"],
         name: "Generate recertification reports",
         dependsOn: ["Field inspection complete"],
         relativeStartDate: 5,
@@ -745,7 +910,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.awaiting_pe"],
         name: "PE review, sign & seal reports (ready to sign)",
         dependsOn: ["Generate recertification reports"],
         relativeDueDate: 6,
@@ -753,7 +918,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.submitted_to_client"],
         name: "Submit reports to owner",
         dependsOn: ["PE review, sign & seal reports (ready to sign)"],
         relativeStartDate: 6,
@@ -761,7 +926,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.submitted_to_city"],
         name: "Owner submits reports to Building Official",
         dependsOn: ["Submit reports to owner"],
         relativeDueDate: 7,
@@ -769,9 +934,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "owner" },
       },
 
-      // ── Building Official Review ────────────────────────────────
+      // ── City Comments — the Building Official's review ──────────
       {
-        section: "Building Official Review",
+        section: RECERT["recert.city_comments"],
         name: "Building Official reviews reports",
         dependsOn: ["Owner submits reports to Building Official"],
         relativeStartDate: 8,
@@ -779,7 +944,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "building_official" },
       },
       {
-        section: "Building Official Review",
+        section: RECERT["recert.city_comments"],
         name: "Determination — repairs required?",
         dependsOn: ["Building Official reviews reports"],
         relativeDueDate: 28,
@@ -794,7 +959,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       // recertification needs to close: repairs done -> re-inspect ->
       // updated sealed report -> resubmit.
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
         dependsOn: ["Determination — repairs required?"],
         relativeStartDate: 28,
@@ -802,7 +967,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Repairs designed, permitted & built (separate design / construction project)",
         dependsOn: ["Repairs required — do this section only if the Building Official requires repairs (delete otherwise)"],
         // A BAR, not a milestone. This is the ~90 days the job sits on the
@@ -817,7 +982,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "owner" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Re-inspect completed repairs",
         dependsOn: ["Repairs designed, permitted & built (separate design / construction project)"],
         relativeStartDate: 119,
@@ -825,7 +990,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Prepare updated reports",
         dependsOn: ["Re-inspect completed repairs"],
         relativeStartDate: 120,
@@ -833,7 +998,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "PE review, sign & seal updated reports (ready to sign)",
         dependsOn: ["Prepare updated reports"],
         relativeDueDate: 121,
@@ -841,7 +1006,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Owner resubmits updated reports to Building Official",
         dependsOn: ["PE review, sign & seal updated reports (ready to sign)"],
         relativeStartDate: 121,
@@ -849,9 +1014,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "owner" },
       },
 
-      // ── Recertification Complete ────────────────────────────────
+      // ── Recertified — the job is finished and nobody is holding it ──
       {
-        section: "Recertification Complete",
+        section: RECERT["recert.recertified"],
         name: "Recertification Complete",
         dependsOn: ["Owner resubmits updated reports to Building Official"],
         relativeDueDate: 124,
@@ -859,7 +1024,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "building_official" },
       },
       {
-        section: "Recertification Complete",
+        section: RECERT["recert.recertified"],
         name: "Project closeout",
         dependsOn: ["Recertification Complete"],
         relativeStartDate: 125,
@@ -878,15 +1043,19 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "building-safety-inspection",
     name: "Building safety inspection",
     description:
-      "General-purpose building safety survey — pre-purchase due diligence, annual walkthrough, insurance-required inspection, or code-compliance review. Covers life safety, means of egress, visible structural / envelope / MEP, ADA, roof, and hazard ID. 5 status sections with a 'Category' custom field tagging every task by trade plus a 'Severity' field for findings. 28 parent tasks, 140+ subtasks, internal QC approval, and a delivery milestone.",
+      "General-purpose building safety survey — pre-purchase due diligence, annual walkthrough, insurance-required inspection, or code-compliance review. Covers life safety, means of egress, visible structural / envelope / MEP, ADA, roof, and hazard ID. The board columns are the survey's own stages, so the board and the stage strip say the same thing; a 'Category' custom field tags every task by trade and a 'Severity' field ranks findings. 28 parent tasks, 140+ subtasks, internal QC approval, and a delivery milestone.",
     icon: "ClipboardCheck",
     accent: "rose",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#94a3b8" },
-    // Same Asana paradigm B as the other engineering templates:
-    // status sections + category custom field. A finding doesn't change
-    // category as it progresses; it changes status.
-    sections: ["To Do", "In Progress", "Under Review", "Approved", "Done"],
+    // This board used to be five STATUS columns (To Do → … → Done) sitting
+    // next to a stage strip and a project status pill: three answers on one
+    // screen to what reads as one question. The columns are now the survey's
+    // own stages (SURVEY_COLUMN_STAGES) and status stays where status lives —
+    // Task.completed for a step, Project.status for the engagement. 'Category'
+    // still tags every task by trade, so grouping the board by trade is a
+    // click and nothing was lost.
+    sections: SURVEY_SECTIONS,
     customFields: [
       {
         name: "Category",
@@ -919,7 +1088,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     tasks: [
       // ── Engagement & Preparation ───────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.draft"],
         name: "Project intake & scope agreement",
         customFieldValues: { Category: "engagement" },
         subtasks: [
@@ -931,7 +1100,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.draft"],
         name: "Pre-inspection document review",
         customFieldValues: { Category: "engagement" },
         subtasks: [
@@ -943,7 +1112,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.draft"],
         name: "Site access coordination",
         customFieldValues: { Category: "engagement" },
         subtasks: [
@@ -956,7 +1125,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── Life Safety ────────────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Fire alarm & sprinkler system",
         customFieldValues: { Category: "life_safety" },
         subtasks: [
@@ -968,7 +1137,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Fire extinguishers & suppression",
         customFieldValues: { Category: "life_safety" },
         subtasks: [
@@ -980,7 +1149,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Smoke compartmentation & fire-rated assemblies",
         customFieldValues: { Category: "life_safety" },
         subtasks: [
@@ -994,7 +1163,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── Means of Egress ────────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Exit door inspection",
         customFieldValues: { Category: "egress" },
         subtasks: [
@@ -1005,7 +1174,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Egress path width & obstructions",
         customFieldValues: { Category: "egress" },
         subtasks: [
@@ -1017,7 +1186,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Stairwell inspection",
         customFieldValues: { Category: "egress" },
         subtasks: [
@@ -1029,7 +1198,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Exit discharge",
         customFieldValues: { Category: "egress" },
         subtasks: [
@@ -1042,7 +1211,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── Structural (Visible) ───────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Visible structural walkthrough",
         customFieldValues: { Category: "structural" },
         subtasks: [
@@ -1054,7 +1223,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Foundation visible inspection",
         customFieldValues: { Category: "structural" },
         subtasks: [
@@ -1065,7 +1234,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Roof structure (interior view)",
         customFieldValues: { Category: "structural" },
         subtasks: [
@@ -1078,7 +1247,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── Envelope ───────────────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Exterior walls & cladding",
         customFieldValues: { Category: "envelope" },
         subtasks: [
@@ -1089,7 +1258,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Windows & exterior doors",
         customFieldValues: { Category: "envelope" },
         subtasks: [
@@ -1100,7 +1269,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Roof envelope",
         customFieldValues: { Category: "envelope" },
         subtasks: [
@@ -1113,7 +1282,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── MEP (Visible) ──────────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Electrical visible inspection",
         customFieldValues: { Category: "mep" },
         subtasks: [
@@ -1125,7 +1294,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Plumbing visible inspection",
         customFieldValues: { Category: "mep" },
         subtasks: [
@@ -1136,7 +1305,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "HVAC visible inspection",
         customFieldValues: { Category: "mep" },
         subtasks: [
@@ -1149,7 +1318,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── ADA Accessibility ──────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Accessible route",
         customFieldValues: { Category: "ada" },
         subtasks: [
@@ -1161,7 +1330,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Accessible restroom",
         customFieldValues: { Category: "ada" },
         subtasks: [
@@ -1173,7 +1342,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Accessible parking",
         customFieldValues: { Category: "ada" },
         subtasks: [
@@ -1186,7 +1355,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── Roof ───────────────────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Roof walk inspection",
         customFieldValues: { Category: "roof" },
         subtasks: [
@@ -1201,7 +1370,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── Hazards ────────────────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Trip & fall hazards",
         customFieldValues: { Category: "hazards" },
         subtasks: [
@@ -1212,7 +1381,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Hazardous materials (visible signs)",
         customFieldValues: { Category: "hazards" },
         subtasks: [
@@ -1223,7 +1392,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.field_work"],
         name: "Security & emergency readiness",
         customFieldValues: { Category: "hazards" },
         subtasks: [
@@ -1236,7 +1405,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
       // ── Report & Delivery ──────────────────────────────────────
       {
-        section: "To Do",
+        section: SURVEY["recert.report_drafting"],
         name: "Findings compilation",
         customFieldValues: { Category: "report" },
         subtasks: [
@@ -1247,7 +1416,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.report_drafting"],
         name: "ROM cost estimate by priority",
         customFieldValues: { Category: "report" },
         subtasks: [
@@ -1258,7 +1427,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.report_drafting"],
         name: "Draft report",
         customFieldValues: { Category: "report" },
         subtasks: [
@@ -1270,13 +1439,13 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.awaiting_pe"],
         name: "Internal QC — sign-off review",
         type: "APPROVAL",
         customFieldValues: { Category: "report" },
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.submitted_to_client"],
         name: "Client review & revisions",
         customFieldValues: { Category: "report" },
         subtasks: [
@@ -1287,13 +1456,13 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.submitted_to_client"],
         name: "Final report delivered",
         type: "MILESTONE",
         customFieldValues: { Category: "report" },
       },
       {
-        section: "To Do",
+        section: SURVEY["recert.awaiting_client_repairs"],
         name: "Repair follow-up tracking",
         customFieldValues: { Category: "report" },
         subtasks: [
@@ -1315,19 +1484,13 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     accent: "blue",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#335FB5" },
-    // Same real-process paradigm as the Miami-Dade recert, scoped to
-    // Broward's BSIP: structural + electrical, with IR thermography only
-    // when the AHJ asks for it. Field capture (photos + the jurisdiction
-    // forms) is handled by the firm's field-inspection app; sections are the
-    // process phases and 'Responsible' is the swimlane role. No field
-    // checklists here, and no client-visible text names that app.
-    sections: [
-      "Kickoff & scheduling",
-      "Inspection & Reports",
-      "Building Official Review",
-      "Repairs (if required)",
-      "Recertification Complete",
-    ],
+    // Broward's BSIP runs the identical eleven stages as a Miami-Dade recert,
+    // so it gets the identical board: structural + electrical, with IR
+    // thermography only when the AHJ asks for it. Field capture (photos + the
+    // jurisdiction forms) is handled by the firm's field-inspection app;
+    // columns are the pipeline stages and 'Responsible' is the swimlane role.
+    // No field checklists here, and no client-visible text names that app.
+    sections: RECERT_SECTIONS,
     customFields: [
       {
         name: "Responsible",
@@ -1342,12 +1505,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
     ],
     tasks: [
-      // ── Kickoff & scheduling ───────────────────────────────────
+      // ── Draft — kickoff & scheduling ───────────────────────────
+      // Each task names the STAGE its column is, so these banners describe
+      // the narrative and the `section:` line is the fact.
       // Notice + RFP / proposal / award are pre-project (already won), so
       // the project STARTS at kickoff; the BSIP due date carries over from
       // the notice as a reference, not a task.
       {
-        section: "Kickoff & scheduling",
+        section: RECERT["recert.draft"],
         name: "Confirm scope & BSIP due date",
         relativeStartDate: 0,
         relativeDueDate: 0,
@@ -1360,7 +1525,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "Kickoff & scheduling",
+        section: RECERT["recert.draft"],
         name: "Schedule site inspection",
         dependsOn: ["Confirm scope & BSIP due date"],
         relativeStartDate: 1,
@@ -1372,9 +1537,12 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
 
-      // ── Inspection & Reports (field capture done on site) ──────
+      // ── Field Work → Report Drafting → PE seal → delivery ──────
+      // Field capture is done on site. The five columns these tasks land in
+      // are the stages the work actually belongs to, which is why the sealed
+      // report and the inspection that produced it no longer share a column.
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Structural inspection — photos & form",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -1382,7 +1550,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Electrical inspection — photos & form",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -1390,7 +1558,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Thermography (IR) — only if the AHJ requires it (skip otherwise)",
         dependsOn: ["Schedule site inspection"],
         relativeStartDate: 2,
@@ -1398,7 +1566,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.field_work"],
         name: "Field inspection complete",
         dependsOn: ["Structural inspection — photos & form", "Electrical inspection — photos & form", "Thermography (IR) — only if the AHJ requires it (skip otherwise)"],
         relativeDueDate: 4,
@@ -1406,7 +1574,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.report_drafting"],
         name: "Generate BSIP reports",
         dependsOn: ["Field inspection complete"],
         relativeStartDate: 5,
@@ -1424,7 +1592,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.awaiting_pe"],
         name: "PE review, sign & seal reports (ready to sign)",
         dependsOn: ["Generate BSIP reports"],
         relativeDueDate: 6,
@@ -1432,7 +1600,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.submitted_to_client"],
         name: "Submit reports to owner",
         dependsOn: ["PE review, sign & seal reports (ready to sign)"],
         relativeStartDate: 6,
@@ -1440,7 +1608,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Inspection & Reports",
+        section: RECERT["recert.submitted_to_city"],
         name: "Owner submits reports to Building Official (BORA)",
         dependsOn: ["Submit reports to owner"],
         relativeDueDate: 7,
@@ -1448,9 +1616,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "owner" },
       },
 
-      // ── Building Official Review ────────────────────────────────
+      // ── City Comments — the Building Official's review ──────────
       {
-        section: "Building Official Review",
+        section: RECERT["recert.city_comments"],
         name: "Building Official reviews reports",
         dependsOn: ["Owner submits reports to Building Official (BORA)"],
         relativeStartDate: 8,
@@ -1458,7 +1626,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "building_official" },
       },
       {
-        section: "Building Official Review",
+        section: RECERT["recert.city_comments"],
         name: "Determination — repairs required?",
         dependsOn: ["Building Official reviews reports"],
         relativeDueDate: 28,
@@ -1473,7 +1641,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       // recertification needs to close: repairs done -> re-inspect ->
       // updated sealed report -> resubmit.
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
         dependsOn: ["Determination — repairs required?"],
         relativeStartDate: 28,
@@ -1481,7 +1649,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Repairs designed, permitted & built (separate design / construction project)",
         dependsOn: ["Repairs required — do this section only if the Building Official requires repairs (delete otherwise)"],
         // A BAR, not a milestone. This is the ~90 days the job sits on the
@@ -1496,7 +1664,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "owner" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Re-inspect completed repairs",
         dependsOn: ["Repairs designed, permitted & built (separate design / construction project)"],
         relativeStartDate: 119,
@@ -1504,7 +1672,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Prepare updated reports",
         dependsOn: ["Re-inspect completed repairs"],
         relativeStartDate: 120,
@@ -1512,7 +1680,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "PE review, sign & seal updated reports (ready to sign)",
         dependsOn: ["Prepare updated reports"],
         relativeDueDate: 121,
@@ -1520,7 +1688,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "Repairs (if required)",
+        section: RECERT_REPAIRS_COLUMN,
         name: "Owner resubmits updated reports to Building Official",
         dependsOn: ["PE review, sign & seal updated reports (ready to sign)"],
         relativeStartDate: 121,
@@ -1528,9 +1696,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "owner" },
       },
 
-      // ── Recertification Complete ────────────────────────────────
+      // ── Recertified — the job is finished and nobody is holding it ──
       {
-        section: "Recertification Complete",
+        section: RECERT["recert.recertified"],
         name: "BSIP recertification complete",
         dependsOn: ["Owner resubmits updated reports to Building Official"],
         relativeDueDate: 124,
@@ -1538,7 +1706,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         customFieldValues: { Responsible: "building_official" },
       },
       {
-        section: "Recertification Complete",
+        section: RECERT["recert.recertified"],
         name: "Project closeout",
         dependsOn: ["BSIP recertification complete"],
         relativeStartDate: 125,

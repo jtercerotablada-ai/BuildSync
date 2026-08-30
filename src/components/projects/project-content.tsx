@@ -111,6 +111,7 @@ import { CreateProjectDialog } from "@/components/projects/create-project-dialog
 import { SaveAsTemplateDialog } from "@/components/projects/save-as-template-dialog";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
+import { NO_STATUS_LABEL, isStatusEarned } from "@/lib/project-status";
 
 interface Task {
   id: string;
@@ -145,6 +146,11 @@ interface Section {
   id: string;
   name: string;
   position: number;
+  // Section.stage — the pipeline stage this column's work belongs to (a
+  // Project.stage key such as "recert.field_work"), null for a free-form
+  // column. Declared here only so it survives the trip to <ProjectOverview>,
+  // which hands it to the stage strip; nothing on this screen reads it.
+  stage?: string | null;
   tasks: Task[];
 }
 
@@ -154,6 +160,13 @@ interface Project {
   description: string | null;
   color: string;
   status: string;
+  // When a human last CHOSE that status. `Project.status` defaults to
+  // ON_TRACK, so without this the header pill claimed a confident "On track"
+  // on every project nobody had ever judged — four inches above the Overview
+  // sidebar, which reads the same column and says "No status". Two answers to
+  // one question on one screen is the exact complaint this change exists to
+  // remove. Same string-or-Date pair the rest of the row travels as.
+  statusSetAt?: string | Date | null;
   // Workspace-access level exposed in the Share dialog. Full project rows
   // always carry it (schema default WORKSPACE); optional here for callers
   // that construct partial project shapes.
@@ -362,6 +375,15 @@ const STATUS_LABELS = {
   OFF_TRACK: "Off track",
   ON_HOLD: "On hold",
   COMPLETE: "Complete",
+};
+
+/** The header pill for a project whose status no human ever set. Grey, and
+ *  not one of the five above: "No status" is the absence of an answer, not a
+ *  sixth one. Matches NO_STATUS_VISUAL in the Overview sidebar below it. */
+const NO_STATUS_CONFIG = {
+  bg: "bg-slate-100",
+  text: "text-slate-500",
+  dot: "bg-slate-300",
 };
 
 const PRIORITY_ORDER: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2, NONE: 3 };
@@ -1256,7 +1278,16 @@ export function ProjectContent({
     COMPLETE: { bg: "bg-[#d4b65a]/15", text: "text-[#a8893a]", dot: "bg-[#d4b65a]" },
   };
 
-  const status = statusConfig[project.status as keyof typeof statusConfig] || statusConfig.ON_TRACK;
+  // A status nobody chose is not a status. Grey on purpose, and deliberately
+  // not one of the five pickable looks — it must not read as a sixth answer.
+  const statusEarned = isStatusEarned(project.statusSetAt);
+  const status = statusEarned
+    ? statusConfig[project.status as keyof typeof statusConfig] ||
+      statusConfig.ON_TRACK
+    : NO_STATUS_CONFIG;
+  const statusLabel = statusEarned
+    ? STATUS_LABELS[project.status as keyof typeof STATUS_LABELS]
+    : NO_STATUS_LABEL;
 
   // Show toolbar only for task views (not calendar - it has its own)
   const showToolbar = ["list", "board", "timeline", "gantt"].includes(baseView);
@@ -1433,14 +1464,14 @@ export function ProjectContent({
             {/* Status Badge - shown inline on desktop, below on mobile */}
             <div className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm ${status.bg} ${status.text}`}>
               <div className={`w-2 h-2 rounded-full ${status.dot}`} />
-              {STATUS_LABELS[project.status as keyof typeof STATUS_LABELS]}
+              {statusLabel}
             </div>
           </div>
 
           {/* Mobile-only status badge row */}
           <div className={`md:hidden flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs w-fit ${status.bg} ${status.text}`}>
             <div className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
-            {STATUS_LABELS[project.status as keyof typeof STATUS_LABELS]}
+            {statusLabel}
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">

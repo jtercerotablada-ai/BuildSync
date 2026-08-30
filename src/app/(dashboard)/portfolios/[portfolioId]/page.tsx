@@ -92,6 +92,7 @@ import { PortfolioCustomizeDrawer } from "@/components/portfolios/portfolio-cust
 import { MessagesView } from "@/components/views/messages-view";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { ProjectStatusModal } from "@/components/portfolios/project-status-modal";
+import { NO_STATUS_LABEL, isStatusEarned } from "@/lib/project-status";
 import { useUiState } from "@/hooks/use-ui-state";
 import {
   COLUMN_DEFS,
@@ -135,6 +136,12 @@ interface Project {
   name: string;
   color: string;
   status: PortfolioStatus;
+  // When a human last chose that status; null means nobody ever did.
+  // `Project.status` defaults to ON_TRACK, so the STATUS cell used to read a
+  // confident "On track" on projects no one had judged — and the status
+  // modal that cell opens, which reads the stamp, answered "No status" to the
+  // same question one click later.
+  statusSetAt: string | null;
   type: ProjectType | null;
   gate: ProjectGate | null;
   budget: number | null;
@@ -272,6 +279,25 @@ const GATE_META: Record<ProjectGate, { label: string }> = {
 
 function statusMeta(s: PortfolioStatus) {
   return STATUS_OPTIONS.find((o) => o.value === s) || STATUS_OPTIONS[0];
+}
+
+/** Grey, and deliberately not one of the five pickable looks: "No status" is
+ *  the absence of an answer, not a sixth one. */
+const NO_STATUS_META = {
+  value: "ON_TRACK" as PortfolioStatus,
+  label: NO_STATUS_LABEL,
+  dot: "bg-slate-300",
+  chip: "bg-slate-100 text-slate-500",
+};
+
+/**
+ * The look for a PROJECT's status — unlike the portfolio's own, a project
+ * status has to be earned. Same rule as the project header, the Overview
+ * sidebar and the status modal this row opens (@/lib/project-status), because
+ * "On track" here and "No status" one click later is worse than either.
+ */
+function projectStatusMeta(p: { status: PortfolioStatus; statusSetAt?: string | null }) {
+  return isStatusEarned(p.statusSetAt) ? statusMeta(p.status) : NO_STATUS_META;
 }
 
 function formatDate(date: string | null): string {
@@ -970,8 +996,13 @@ export default function PortfolioDetailPage() {
       let key = "—";
       let label = "None";
       if (listView.group === "status") {
-        key = p.status;
-        label = statusMeta(p.status).label;
+        // Its own bucket, not the ON_TRACK one: the STATUS cell in these rows
+        // reads "No status" for a project nobody judged, and a group heading
+        // that filed it under "On track" would put the two answers back on
+        // one screen.
+        const earned = isStatusEarned(p.statusSetAt);
+        key = earned ? p.status : "_no_status";
+        label = earned ? statusMeta(p.status).label : NO_STATUS_LABEL;
       } else if (listView.group === "owner") {
         key = p.owner?.id || "_none";
         label = p.owner?.name || "No owner";
@@ -1844,7 +1875,7 @@ function ProjectDataCell({
         </div>
       );
     case "status": {
-      const m = statusMeta(p.status);
+      const m = projectStatusMeta(p);
       return (
         <button
           type="button"
@@ -1948,7 +1979,7 @@ function ProjectRowBody({
   canEdit?: boolean;
 }) {
   const p = pp.project;
-  const m = statusMeta(p.status);
+  const m = projectStatusMeta(p);
   return (
     <>
       {/* Desktop grid */}

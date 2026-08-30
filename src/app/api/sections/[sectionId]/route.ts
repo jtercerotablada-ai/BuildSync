@@ -4,12 +4,19 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { taskPrivacyClause } from "@/lib/project-visibility";
 import { verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { resolveSectionStage } from "@/lib/pipelines";
 
 const updateSectionSchema = z.object({
   name: z.string().min(1, "Section name is required").optional(),
   // Target index among the project's sections (0-based). Used by the
   // workflow builder's drag-to-reorder.
   position: z.number().int().min(0).optional(),
+  // Re-point (or clear, with null) the pipeline stage whose work this column
+  // carries. OMITTING it leaves the stage untouched — including across a
+  // rename: the join is a decision somebody made, not something a new name
+  // silently re-derives underneath them. Validated against THIS project's own
+  // pipeline, so a column cannot be moved onto another pipeline's stage.
+  stage: z.string().min(1).max(80).nullable().optional(),
 });
 
 // PATCH /api/sections/:sectionId - Rename and/or reorder a section
@@ -28,7 +35,8 @@ export async function PATCH(
     // Verify section exists and user has access to its project
     const existingSection = await prisma.section.findUnique({
       where: { id: sectionId },
-      select: { projectId: true },
+      // `project.type` decides which pipeline's stages this column may claim.
+      select: { projectId: true, project: { select: { type: true } } },
     });
     if (!existingSection) {
       return NextResponse.json({ error: "Section not found" }, { status: 404 });
@@ -41,6 +49,26 @@ export async function PATCH(
 
     const body = await req.json();
     const data = updateSectionSchema.parse(body);
+
+    // Only a stage the caller actually sent is resolved — `undefined` here
+    // means "leave it alone", not "re-derive it from the name".
+    let nextStage: string | null | undefined;
+    if (data.stage !== undefined) {
+      const resolved = resolveSectionStage(
+        existingSection.project?.type ?? null,
+        // The name is deliberately not passed: resolveSectionStage reads it
+        // ONLY on its derive-from-name branch, which `stage !== undefined`
+        // above has already ruled out. Handing it `data.name` read as though
+        // a rename re-derived the stage, which is the opposite of the rule —
+        // renaming a column must never move the job to another desk.
+        "",
+        data.stage
+      );
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      nextStage = resolved.stage;
+    }
 
     // Reorder: pull the project's sections in order, move this one to
     // the requested index, and rewrite positions 0..n atomically.
@@ -64,6 +92,7 @@ export async function PATCH(
       where: { id: sectionId },
       data: {
         ...(data.name !== undefined && { name: data.name }),
+        ...(nextStage !== undefined && { stage: nextStage }),
       },
       include: {
         // Renaming a column echoed back every task in it, unfiltered, so

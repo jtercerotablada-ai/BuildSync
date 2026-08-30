@@ -21,9 +21,12 @@
  *
  * Read-only, already-served data: GET status-updates (keeps the `sections`
  * the old viewer discarded), GET /api/tasks for What's-next, and GET
- * /api/projects/[id] for the panel's description + members. Posting reuses the
- * existing POST /status-updates. Comments / reactions / followers need backend
- * and are intentionally not shipped as dead stub controls.
+ * /api/projects/[id] for the panel's description + members AND, in both
+ * variants, the project's own `statusSetAt` — the portfolio row handed in
+ * here does not carry it, and without it an untouched project would show a
+ * green "On track" nobody ever chose. Posting reuses the existing POST
+ * /status-updates. Comments / reactions / followers need backend and are
+ * intentionally not shipped as dead stub controls.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -44,6 +47,12 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useToday } from "@/lib/use-today";
+import {
+  NO_STATUS_LABEL,
+  countOverdue,
+  isStatusEarned,
+  statusNudge,
+} from "@/lib/project-status";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -96,6 +105,17 @@ const STATUS_VISUAL: Record<
 function statusVisual(s: ProjectStatusKey) {
   return STATUS_VISUAL[s] || STATUS_VISUAL.ON_TRACK;
 }
+
+/** A project whose status nobody ever chose: grey, and saying so. Kept out
+ *  of STATUS_VISUAL because it is not one of the five a human can pick — it
+ *  is the absence of all of them, and it must never be mistakable for a
+ *  colour somebody selected. */
+const NO_STATUS_VISUAL = {
+  label: NO_STATUS_LABEL,
+  dot: "bg-gray-300",
+  chip: "bg-gray-100 text-gray-500",
+  accent: "bg-gray-300",
+};
 
 const STATUS_ORDER: ProjectStatusKey[] = [
   "ON_TRACK",
@@ -157,6 +177,16 @@ interface ProjectMember {
 interface ProjectDetail {
   description: string | null;
   members: ProjectMember[];
+  /** The project's LIVE claim, read from the project itself. The portfolio
+   *  row this modal is handed does not carry `statusSetAt` (the portfolio API
+   *  never selected it), and an absent stamp is indistinguishable from "nobody
+   *  ever set one" — which would show "No status" on a project a human really
+   *  had judged. GET /api/projects/:id returns the whole row, so the answer
+   *  comes from there. */
+  status: ProjectStatusKey | null;
+  statusSetAt: string | null;
+  /** Powers the "long wait" half of the nudge; same reason as above. */
+  stageEnteredAt: string | null;
 }
 
 /** Structural subset of the portfolio page's `Project` — passing the full
@@ -166,6 +196,10 @@ export interface StatusModalProject {
   name: string;
   color: string;
   status: ProjectStatusKey;
+  /** When a human last CHOSE that status; null/absent means nobody ever did.
+   *  Optional because most callers' queries predate the column — the modal
+   *  re-reads it from the project itself rather than trusting the absence. */
+  statusSetAt?: string | Date | null;
   startDate?: string | null;
   endDate?: string | null;
   owner?: { id: string; name: string | null; image: string | null } | null;
@@ -322,8 +356,11 @@ export function ProjectStatusModal({
 
   // Composer state (Asana "Update status" / "New status update").
   const [composing, setComposing] = useState(false);
-  const [postStatus, setPostStatus] = useState<ProjectStatusKey>(
-    project.status
+  // Null = nothing pre-selected. See startComposing(): a status has to be
+  // earned, so the composer refuses to answer on the poster's behalf when
+  // nobody ever has.
+  const [postStatus, setPostStatus] = useState<ProjectStatusKey | null>(
+    isStatusEarned(project.statusSetAt) ? project.status : null
   );
   const [postSections, setPostSections] = useState<StatusSection[]>(() =>
     DEFAULT_COMPOSER_SECTIONS.map((s) => ({ ...s }))
@@ -370,9 +407,10 @@ export function ProjectStatusModal({
     };
   }, [project.id]);
 
-  // Project detail (description + members) — panel only.
+  // Project detail. The description + members are panel-only, but BOTH
+  // variants need `statusSetAt` — "has a human ever said how this job is
+  // going?" — and the portfolio row that gets passed in does not carry it.
   useEffect(() => {
-    if (variant !== "panel") return;
     let cancelled = false;
     fetch(`/api/projects/${project.id}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -381,13 +419,16 @@ export function ProjectStatusModal({
         setDetail({
           description: d.description ?? null,
           members: Array.isArray(d.members) ? d.members : [],
+          status: (d.status as ProjectStatusKey) ?? null,
+          statusSetAt: d.statusSetAt ?? null,
+          stageEnteredAt: d.stageEnteredAt ?? null,
         });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [project.id, variant]);
+  }, [project.id]);
 
   const selected = useMemo(
     () => updates.find((u) => u.id === selectedId) || updates[0] || null,
@@ -416,6 +457,47 @@ export function ProjectStatusModal({
       .slice(0, 12);
   }, [tasks, today]);
 
+  // ── The project's LIVE claim (not the selected update's) ────
+  // Prefer the project row once it lands; fall back to the portfolio row that
+  // opened this so the header is never blank on the first frame.
+  const liveStatus = (detail?.status ?? project.status) as ProjectStatusKey;
+  const liveStatusSetAt = detail
+    ? detail.statusSetAt
+    : project.statusSetAt ?? null;
+  // A status nobody chose is not a status: `Project.status` defaults to
+  // ON_TRACK, so an untouched project used to read as a confident "On track"
+  // that no human had vouched for.
+  const statusEarned = isStatusEarned(liveStatusSetAt);
+  const liveVisual = statusEarned ? statusVisual(liveStatus) : NO_STATUS_VISUAL;
+
+  // Open work already past its due date, from the task list this modal
+  // already fetches for "What's next?" — no extra round-trip.
+  const overdueCount = useMemo(() => countOverdue(tasks, today), [tasks, today]);
+
+  // One line of FACT beside the claim when the two disagree. States a number,
+  // changes nothing, blocks nothing.
+  const nudge = statusNudge({
+    status: liveStatus,
+    statusSetAt: liveStatusSetAt,
+    overdueCount,
+    stageEnteredAt: detail?.stageEnteredAt ?? null,
+    today,
+  });
+
+  /** The live claim as a chip, with the nudge under it. Rendered in both
+   *  variants' headers so the portfolio's two status surfaces answer "how is
+   *  this job going?" the same way. */
+  const liveClaim = (
+    <div className="flex flex-col items-start gap-0.5">
+      <Badge className={cn(liveVisual.chip, "text-xs")}>
+        {liveVisual.label}
+      </Badge>
+      {nudge && (
+        <span className="text-[11px] text-amber-700">{nudge}</span>
+      )}
+    </div>
+  );
+
   const copyLink = () => {
     try {
       const url = `${window.location.origin}/projects/${project.id}?view=overview`;
@@ -429,7 +511,11 @@ export function ProjectStatusModal({
     router.push(`/projects/${project.id}?view=overview`);
 
   const startComposing = () => {
-    setPostStatus(project.status);
+    // Nothing pre-selected on a project whose status nobody ever set: seeding
+    // the pills from `project.status` there hands the poster the ON_TRACK
+    // default, and one unread click turns an unearned green into an earned
+    // one. When a human did set it, the pills open on that answer as before.
+    setPostStatus(statusEarned ? liveStatus : null);
     setPostSections(DEFAULT_COMPOSER_SECTIONS.map((s) => ({ ...s })));
     setComposing(true);
   };
@@ -438,6 +524,12 @@ export function ProjectStatusModal({
 
   const submitUpdate = async () => {
     if (!composerHasContent || posting) return;
+    // Only reachable on a project whose status nobody ever set — the pills
+    // open blank there. The update carries a status; one has to be chosen.
+    if (!postStatus) {
+      toast.error("Pick a status for this update");
+      return;
+    }
     setPosting(true);
     try {
       const res = await fetch(
@@ -470,6 +562,18 @@ export function ProjectStatusModal({
       setSelectedId(created.id);
       setComposing(false);
       toast.success("Status updated");
+      // Posting with `syncProjectStatus` IS a human choosing the status, and
+      // POST /status-updates stamps `statusSetAt` in the same transaction it
+      // writes `Project.status` — so the claim in this header is earned the
+      // moment the post returns. Mirrored into local state rather than
+      // refetched: `detail` is what the header reads, and leaving it stale
+      // would keep the chip on "No status" above the update just posted.
+      // Null `detail` needs nothing — the mount fetch has not landed yet and
+      // will read the stamped row when it does.
+      const stampedAt = new Date().toISOString();
+      setDetail((prev) =>
+        prev ? { ...prev, status: postStatus, statusSetAt: stampedAt } : prev
+      );
       onPosted?.();
     } catch {
       toast.error("Couldn't post the update");
@@ -658,6 +762,13 @@ export function ProjectStatusModal({
             <label className="block text-xs uppercase tracking-wider text-gray-400 font-medium mb-2">
               Status
             </label>
+            {/* Says what the disabled Post button is waiting for on a project
+                whose status was never set — the pills open with nothing on. */}
+            {!postStatus && (
+              <p className="text-xs text-gray-500 mb-2">
+                Pick a status for this update
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {STATUS_ORDER.map((s) => {
                 const v = statusVisual(s);
@@ -718,7 +829,7 @@ export function ProjectStatusModal({
           <button
             type="button"
             onClick={submitUpdate}
-            disabled={!composerHasContent || posting}
+            disabled={!composerHasContent || posting || !postStatus}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-black rounded-md px-3 py-1.5 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {posting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -748,9 +859,14 @@ export function ProjectStatusModal({
         <div className={MODAL_CONTAINER}>
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
-            <h2 className="font-semibold text-[15px] text-gray-900 truncate">
-              Status of {project.name}
-            </h2>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <h2 className="font-semibold text-[15px] text-gray-900 truncate">
+                Status of {project.name}
+              </h2>
+              {/* The project's live claim, next to the history of updates —
+                  grey "No status" until a human has actually chosen one. */}
+              {liveClaim}
+            </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {canEdit && (
                 <button
@@ -897,9 +1013,15 @@ export function ProjectStatusModal({
 
         {/* Latest status */}
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-[15px] font-semibold text-gray-900">
-            Latest status
-          </h3>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h3 className="text-[15px] font-semibold text-gray-900">
+              Latest status
+            </h3>
+            {/* The project's live claim — grey "No status" until a human has
+                actually chosen one, so this panel and the portfolio row it
+                opened from cannot answer differently. */}
+            {liveClaim}
+          </div>
           {canEdit && (
             <button
               onClick={startComposing}

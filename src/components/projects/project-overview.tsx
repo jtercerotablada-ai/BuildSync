@@ -30,6 +30,7 @@ import {
   Paperclip,
   Sparkles,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { ProjectBriefEditor } from "@/components/projects/project-brief-editor";
@@ -53,6 +54,12 @@ import { notifyTaskMutated } from "@/lib/task-events";
 import { ProjectStageStrip } from "@/components/cockpit/PipelineStrip";
 import type { ProjectType } from "@/components/cockpit/types";
 import { resolveStage } from "@/lib/pipelines";
+import {
+  NO_STATUS_LABEL,
+  countOverdue,
+  isStatusEarned,
+  statusNudge,
+} from "@/lib/project-status";
 
 type ProjectStatusKey =
   | "ON_TRACK"
@@ -75,6 +82,12 @@ interface ProjectMemberRow {
 interface SectionRow {
   id: string;
   name: string;
+  // Section.stage — the pipeline stage whose work this column carries, or
+  // null/absent for a free-form column, which is what EVERY column on every
+  // project created before 2026-08-30 is. It is what lets the strip notice
+  // that a stage's work is finished; without it the offer below can never
+  // fire, which is how it shipped dead the first time.
+  stage?: string | null;
   tasks: { id: string; completed: boolean }[];
 }
 
@@ -84,6 +97,11 @@ interface ProjectShape {
   description: string | null;
   color: string;
   status: string;
+  // When a human last CHOSE that status. Null means nobody ever did: the
+  // column defaults to ON_TRACK, so an untouched project used to render a
+  // confident green "On track" that no one had vouched for. Same
+  // string-or-Date pair as stageEnteredAt below, for the same reason.
+  statusSetAt?: string | Date | null;
   // Where the job is, and therefore whose desk it is on. The stages come from
   // the type (see @/lib/pipelines), so both travel together. All optional to
   // match the parent's shape, where legacy rows predate the columns.
@@ -317,6 +335,18 @@ const STATUS_VISUAL: Record<
   },
 };
 
+// What a project whose status nobody ever set looks like: grey, and saying
+// so. Deliberately NOT one of the five above — the whole point is that this
+// state must not be mistakable for a colour somebody chose.
+const NO_STATUS_VISUAL = {
+  dot: "bg-slate-300",
+  bg: "bg-slate-100",
+  text: "text-slate-400",
+  border: "border-slate-200",
+  borderT: "border-t-slate-200",
+  label: NO_STATUS_LABEL,
+};
+
 const COMPOSER_MAX_LEN = 4000;
 
 function formatRelativeTime(iso: string): string {
@@ -445,8 +475,15 @@ export function ProjectOverview({
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false);
-  const [composerStatus, setComposerStatus] = useState<ProjectStatusKey>(
-    (project.status as ProjectStatusKey) || "ON_TRACK"
+  // Null = nothing pre-selected, which is what a project whose status nobody
+  // ever set has to open with. Seeding the pills from `project.status` there
+  // would hand the poster the very ON_TRACK default this work exists to stop
+  // being taken for a human's answer — one unread click and the unearned
+  // green becomes earned.
+  const [composerStatus, setComposerStatus] = useState<ProjectStatusKey | null>(
+    isStatusEarned(project.statusSetAt)
+      ? (project.status as ProjectStatusKey) || null
+      : null
   );
   // Block-builder state — array of sections the user is editing.
   // Each block has its own `content` textarea; posting concatenates
@@ -462,6 +499,13 @@ export function ProjectOverview({
   const [historyExpanded, setHistoryExpanded] = useState(false);
   // Asana Overview parity — Milestones + Connected portfolios sections.
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
+  // Every task's completion + due date, from the SAME /api/tasks response the
+  // milestone list is built from. Backs the overdue count the status nudge
+  // reads; kept as raw rows so "overdue" is decided against the browser's own
+  // midnight rather than at fetch time.
+  const [taskDueRows, setTaskDueRows] = useState<
+    { id: string; completed: boolean; dueDate: string | null }[]
+  >([]);
   const [portfolios, setPortfolios] = useState<PortfolioLite[]>([]);
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
   // Key resources — curated files + links pinned on the Overview.
@@ -539,6 +583,19 @@ export function ProjectOverview({
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         if (canceled) return;
+        const rows: {
+          id: string;
+          completed: boolean;
+          dueDate: string | null;
+          taskType?: string | null;
+        }[] = Array.isArray(data) ? data : data?.tasks || [];
+        setTaskDueRows(
+          rows.map((t) => ({
+            id: t.id,
+            completed: t.completed,
+            dueDate: t.dueDate,
+          }))
+        );
         const list: MilestoneRow[] = (
           Array.isArray(data) ? data : data?.tasks || []
         )
@@ -892,7 +949,13 @@ export function ProjectOverview({
   // first mount. Also resets the block content + kicks off the
   // highlights fetch so the auto-pulled chips render fresh.
   const openComposer = useCallback(() => {
-    setComposerStatus((project.status as ProjectStatusKey) || "ON_TRACK");
+    // Same rule as the initial state: reflect the live status only if a human
+    // put it there, otherwise open with nothing selected.
+    setComposerStatus(
+      isStatusEarned(project.statusSetAt)
+        ? (project.status as ProjectStatusKey) || null
+        : null
+    );
     setComposerSections(DEFAULT_SECTIONS.map((s) => ({ ...s })));
     setHighlights(null);
     setHighlightsLoading(true);
@@ -940,6 +1003,7 @@ export function ProjectOverview({
   }, [
     project.id,
     project.status,
+    project.statusSetAt,
     buildAccomplishedFromHighlights,
     buildBlockedFromHighlights,
     buildNextStepsFromHighlights,
@@ -1046,9 +1110,33 @@ export function ProjectOverview({
     };
   }, [project.id, feedReloadKey]);
 
-  const currentStatus =
-    STATUS_VISUAL[project.status as ProjectStatusKey] ||
-    STATUS_VISUAL.ON_TRACK;
+  // A status nobody chose is not a status. `Project.status` defaults to
+  // ON_TRACK, so this heading claimed every untouched project was fine —
+  // which reads as information and is exactly what the owner said he did not
+  // trust. Grey "No status" until a human sets one.
+  const statusEarned = isStatusEarned(project.statusSetAt);
+  const currentStatus = !statusEarned
+    ? NO_STATUS_VISUAL
+    : STATUS_VISUAL[project.status as ProjectStatusKey] ||
+      STATUS_VISUAL.ON_TRACK;
+
+  // Open work already past its due date, counted from the task list this
+  // Overview already fetches for Milestones — no second round-trip.
+  const overdueCount = useMemo(
+    () => countOverdue(taskDueRows, today),
+    [taskDueRows, today]
+  );
+
+  // One line of FACT beside the claim, when the two disagree. It states the
+  // number and changes nothing: a job can be genuinely on track with an
+  // overdue task that does not matter, and only the engineer knows which.
+  const nudge = statusNudge({
+    status: project.status,
+    statusSetAt: project.statusSetAt,
+    overdueCount,
+    stageEnteredAt,
+    today,
+  });
 
   // Merge owner + members into a single deduped roster.
   const allMembers = useMemo(() => {
@@ -1134,6 +1222,13 @@ export function ProjectOverview({
       toast.error("Fill in at least one section before posting.");
       return;
     }
+    // Only reachable on a project whose status nobody ever set — the pills
+    // open blank there rather than defaulting to On track on the poster's
+    // behalf. The update carries a status, so one has to be chosen.
+    if (!composerStatus) {
+      toast.error("Pick a status for this update.");
+      return;
+    }
     if (composerTotalLength > COMPOSER_MAX_LEN) {
       toast.error(
         `Total content must be ${COMPOSER_MAX_LEN} characters or fewer.`
@@ -1192,6 +1287,14 @@ export function ProjectOverview({
       setComposerSections(DEFAULT_SECTIONS.map((s) => ({ ...s })));
       setComposerOpen(false);
       toast.success("Status update posted");
+      // Posting an update with `syncProjectStatus` IS a human choosing the
+      // status, and POST /status-updates now stamps `statusSetAt` inside the
+      // same transaction that writes `Project.status` — so the refresh below
+      // reads back an EARNED status and the heading stops saying "No status"
+      // above the green card just posted. This used to be a compensating
+      // PATCH from here, which could not work: `canWrite` on the status-update
+      // endpoint admits shared-TEAM members whom PATCH /api/projects/:id
+      // 403s, so exactly those posters kept an unstamped status.
       router.refresh();
     } catch (err) {
       toast.error(
@@ -1206,6 +1309,7 @@ export function ProjectOverview({
     composerSections,
     composerTotalLength,
     hasComposerContent,
+    canEdit,
     router,
   ]);
 
@@ -1790,7 +1894,9 @@ export function ProjectOverview({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-8 text-xs">
-                    Update status
+                    {/* "Set" while there is nothing to update — the button is
+                        the only invitation to earn the missing status. */}
+                    {statusEarned ? "Update status" : "Set status"}
                     <ChevronDown className="w-3.5 h-3.5 ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1816,6 +1922,20 @@ export function ProjectOverview({
               )}
             </div>
 
+            {/* The facts, when they disagree with the claim above. One line,
+                stating a number and nothing else — it does not re-colour the
+                status, does not block anything, and never fires under At risk
+                or Off track, which already say something is wrong. Deriving
+                the status outright is NOT wanted: a job can be genuinely on
+                track with an overdue task that does not matter, and only the
+                engineer knows which. */}
+            {nudge && (
+              <div className="flex items-center gap-1.5 -mt-1 mb-3 text-xs text-[#8F6C1F]">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{nudge}</span>
+              </div>
+            )}
+
             {/* Pipeline stage. Sits with the live status because both answer
                 "where is this job right now" — the status says how it is
                 going, the stage says whose desk it is on. Shown to readers
@@ -1837,6 +1957,16 @@ export function ProjectOverview({
                 blocker={stageBlocker}
                 saving={stageSaving}
                 onMove={canEdit ? handleStageMove : undefined}
+                // The two the ADVANCE OFFER needs, and the whole reason the
+                // board columns carry a stage: the strip can only say "all
+                // Field Work is done, move it?" if it can see the column that
+                // holds that stage work. Both are required together — the
+                // strip stays silent without either, which is exactly how the
+                // offer shipped unreachable. The project id keys the "Not
+                // now" dismissal, so waving the offer off on one job does not
+                // silence it on the next.
+                projectId={project.id}
+                sections={project.sections}
               />
             </div>
 
@@ -1853,7 +1983,14 @@ export function ProjectOverview({
               </button>
             ) : (
               <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-4">
-                {/* Status pill selector */}
+                {/* Status pill selector. Nothing is pre-selected on a project
+                    whose status was never set, so the prompt says what the
+                    disabled Post button is waiting for. */}
+                {!composerStatus && (
+                  <p className="text-xs text-slate-500">
+                    Pick a status for this update
+                  </p>
+                )}
                 <div className="flex items-center gap-1 flex-wrap">
                   {(Object.keys(STATUS_VISUAL) as ProjectStatusKey[]).map(
                     (key) => {
@@ -1983,7 +2120,7 @@ export function ProjectOverview({
                       size="sm"
                       className="h-8 text-xs bg-black hover:bg-gray-900 text-white"
                       onClick={handlePostUpdate}
-                      disabled={posting || !hasComposerContent}
+                      disabled={posting || !hasComposerContent || !composerStatus}
                     >
                       {posting ? "Posting…" : "Post update"}
                     </Button>

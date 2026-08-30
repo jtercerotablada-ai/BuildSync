@@ -244,7 +244,16 @@ export async function POST(
       if (wantsSync) {
         await tx.project.update({
           where: { id: projectId },
-          data: { status: parsed.data.status },
+          data: {
+            status: parsed.data.status,
+            // Posting an update WITH sync is a human choosing the status, so
+            // it is stamped as one. Without this the project's own heading
+            // read "No status" directly above the green update just posted —
+            // and the gates differ, so a client-side compensating PATCH could
+            // not cover it: `canWrite` here admits shared-TEAM members whom
+            // PATCH /api/projects/:id 403s.
+            statusSetAt: new Date(),
+          },
         });
       }
       return row;

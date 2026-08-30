@@ -268,6 +268,18 @@ export async function PATCH(
           ...data,
           startDate: data.startDate ? new Date(data.startDate) : data.startDate === null ? null : undefined,
           endDate: data.endDate ? new Date(data.endDate) : data.endDate === null ? null : undefined,
+          // A STATUS HAS TO BE EARNED. `status` defaults to ON_TRACK, so every
+          // project claimed to be fine from the moment it was created, whether
+          // or not anybody looked — which reads as information and is worse
+          // than saying nothing. This request is a human choosing the value, so
+          // it is the one place that records that somebody did; a null
+          // statusSetAt renders as "No status" everywhere instead of an
+          // unearned green. Stamped only when `status` is actually in the
+          // payload: renaming a project or moving its dates must not
+          // retroactively vouch for a status nobody ever set. Creating and
+          // duplicating a project leave it null on purpose (the duplicate route
+          // copies `status` and not this), so a copy starts out honest.
+          ...(data.status !== undefined ? { statusSetAt: new Date() } : {}),
           ...(stageChange ?? {}),
         },
         include: {

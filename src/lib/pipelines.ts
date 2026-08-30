@@ -334,6 +334,113 @@ export function stageDirection(
   return to.index < from.index ? "BACKWARD" : "FORWARD";
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// The board column ↔ stage join
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * WHY THIS EXISTS
+ * The recertification templates shipped five board columns — Kickoff &
+ * scheduling, Inspection & Reports, Building Official Review, Repairs,
+ * Recertification Complete — which are a coarser COPY of the eleven stages
+ * above. The stages landed after the template sections and nobody reconciled
+ * them, so one screen answered "where is this job?" in two vocabularies and
+ * the owner said, of the controls, that they did not give him confidence.
+ *
+ * The reconciliation is that a board column IS a stage: every column a recert
+ * template creates is named exactly as its stage is named here, and
+ * Section.stage stores the key (see prisma/sql/2026-08-30-*.sql).
+ *
+ * This does NOT make the stage derived from the board — that was proposed and
+ * rejected. Half the recert stages are pure waiting on the client, the PE or
+ * the city and carry no work of their own, so a column can never exist for
+ * them and "the furthest column with open work" could never land there —
+ * exactly the stages where "whose desk is this on?" is the whole question.
+ * The stage stays stored and human-moved; the join is what lets the product
+ * NOTICE that a stage's work is finished and OFFER the next move.
+ */
+
+/** The label a stage renders under; null for a key that does not resolve. */
+export function stageLabel(key: string | null | undefined): string | null {
+  return resolveStage(key)?.stage.label ?? null;
+}
+
+/**
+ * The stage a column called `name` belongs to, searched within THIS project
+ * type's own pipeline and no other.
+ *
+ * Exact label match — trimmed and case-insensitive, never fuzzy and never a
+ * prefix. A column is a stage because it was NAMED as one, which is the same
+ * rule the templates are built to satisfy, so the match is the exact inverse
+ * of how the template's column list is generated. Anything looser would
+ * quietly file "Final Inspection punch list" under Final Inspection and put a
+ * job on a desk nobody chose.
+ */
+export function stageForSectionName(
+  type: ProjectType | null | undefined,
+  name: string | null | undefined
+): Stage | null {
+  const pipeline = pipelineForType(type);
+  if (!pipeline || !name) return null;
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return null;
+  return pipeline.stages.find((s) => s.label.toLowerCase() === wanted) ?? null;
+}
+
+export type SectionStageResolution =
+  | { ok: true; stage: string | null }
+  | { ok: false; error: string };
+
+/**
+ * The one rule for what Section.stage becomes, shared by every writer
+ * (POST /api/projects, POST /api/sections, PATCH /api/sections/:id) so a
+ * column created by a template, by the "+ Add section" button and by a rename
+ * can never end up under three different rules.
+ *
+ *   requested = a key  → it must belong to THIS project's pipeline, or the
+ *                        write is refused. Claiming a design stage on a
+ *                        recertification is a bug, not a preference.
+ *   requested = null   → deliberately free-form. A column that is explicitly
+ *                        not a stage stays not a stage even if it is named
+ *                        like one.
+ *   requested = absent → derived from the column's own name. This is what
+ *                        carries a template's intent through a client that
+ *                        only sends section NAMES, and it is exactly the
+ *                        inverse of how those names were generated.
+ */
+export function resolveSectionStage(
+  type: ProjectType | null | undefined,
+  name: string,
+  requested: string | null | undefined
+): SectionStageResolution {
+  if (requested === null) return { ok: true, stage: null };
+  if (requested === undefined) {
+    return { ok: true, stage: stageForSectionName(type, name)?.key ?? null };
+  }
+  if (!isStageValidForType(type, requested)) {
+    return {
+      ok: false,
+      error: `"${requested}" is not a stage of this project's pipeline`,
+    };
+  }
+  return { ok: true, stage: requested };
+}
+
+/**
+ * The column holding the work of `stageKey`, or null when this stage has no
+ * column — which is the normal case for a stage that is pure waiting, not an
+ * error. Pass the project's sections in position order; the first match wins,
+ * because a hand-made duplicate column should not change which one the
+ * product points at.
+ */
+export function sectionForStage<T extends { stage?: string | null }>(
+  sections: readonly T[],
+  stageKey: string | null | undefined
+): T | null {
+  if (!stageKey) return null;
+  return sections.find((section) => section.stage === stageKey) ?? null;
+}
+
 /** The human word for a holder, short enough to sit in a pill next to the
  *  stage label. FIRM is "Us" rather than the company name so the strip reads
  *  the same for all three of them. */

@@ -49,6 +49,13 @@ export async function GET(
                 name: true,
                 color: true,
                 status: true,
+                // When a human last CHOSE that status. Without it the row
+                // cannot tell "somebody said On track" from the ON_TRACK
+                // default nobody ever looked at, so it painted a confident
+                // gold pill on every project — while the status modal that
+                // same pill opens fetches the project directly, reads the
+                // stamp and says "No status". One click, two answers.
+                statusSetAt: true,
                 type: true,
                 gate: true,
                 budget: true,

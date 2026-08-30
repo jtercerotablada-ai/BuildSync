@@ -178,6 +178,13 @@ export async function POST(
               name: s.name,
               position: s.position,
               projectId: created.id,
+              // The board column ↔ stage join travels with the column. The
+              // copy stands at the source's stage (above), so dropping this
+              // gave it a strip that knows where the job is and a board that
+              // does not — the two vocabularies this whole change exists to
+              // merge, re-created by the standard way the firm starts the
+              // next building's recertification.
+              stage: s.stage,
             },
             select: { id: true },
           });

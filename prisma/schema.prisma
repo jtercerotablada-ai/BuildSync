@@ -551,6 +551,12 @@ model Project {
   color       String            @default("#4573D2")
   icon        String?
   status      ProjectStatus     @default(ON_TRACK)
+  /// When a human last chose the status. Null means nobody ever did — the
+  /// default above made every project claim to be On track from the moment
+  /// it was created, whether or not anyone had looked, which is worse than
+  /// saying nothing because it reads as information. Null renders as
+  /// "No status".
+  statusSetAt DateTime?
   visibility  ProjectVisibility @default(WORKSPACE)
   isArchived  Boolean           @default(false)
   startDate   DateTime?
@@ -874,6 +880,16 @@ model Section {
   id        String   @id @default(cuid())
   name      String
   position  Int      @default(0)
+  /// Which pipeline stage this column's work belongs to (a Project.stage
+  /// key, e.g. "recert.field_work"), or null for a free-form column.
+  ///
+  /// The board and the stage strip were two vocabularies for one question —
+  /// the template's columns are a coarser copy of the pipeline. This is the
+  /// join between them, and it is what lets the product notice that a
+  /// stage's work is finished. It does NOT make the stage derived: half the
+  /// recert stages are pure waiting on the client, the PE or the city and
+  /// carry no work at all, so a derived stage could never land on them.
+  stage     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
@@ -889,6 +905,7 @@ model Section {
   formsAsDefaultSection Form[]
 
   @@index([projectId])
+  @@index([projectId, stage])
 }
 
 // Asana multi-homing: a task can appear in MORE than one project. The

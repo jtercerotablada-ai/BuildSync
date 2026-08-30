@@ -7,7 +7,11 @@ import { taskPrivacyClause } from "@/lib/project-visibility";
 import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 import { getTemplateById } from "@/lib/templates-data";
 import { readJson, jsonErrorResponse } from "@/lib/http";
-import { legacyGateFor, stagesForType } from "@/lib/pipelines";
+import {
+  legacyGateFor,
+  resolveSectionStage,
+  stagesForType,
+} from "@/lib/pipelines";
 import { INITIALLY_HIDDEN_VIEWS } from "@/lib/project-views";
 import { templateTaskDates } from "@/lib/template-schedule";
 
@@ -36,7 +40,24 @@ const createProjectSchema = z.object({
   // template gallery pick) we use these instead of the default
   // "To do / In progress / Done" so the kanban columns reflect the
   // template's intent.
-  sections: z.array(z.string().min(1).max(80)).optional(),
+  // A plain name, or a name plus the pipeline stage whose work that column
+  // carries. The string form is what the template gallery sends and stays
+  // supported forever; the object form lets a caller state the stage outright
+  // instead of relying on the column being NAMED as its stage (see
+  // resolveSectionStage below). A stage from another pipeline is a 400, never
+  // a silent drop — a silently dropped stage is how the board and the strip
+  // became two vocabularies in the first place.
+  sections: z
+    .array(
+      z.union([
+        z.string().min(1).max(80),
+        z.object({
+          name: z.string().min(1).max(80),
+          stage: z.string().min(1).max(80).nullable().optional(),
+        }),
+      ])
+    )
+    .optional(),
   // Pre-baked tasks (with optional subtasks) created after sections.
   // Each task's `section` must match one of the section names exactly
   // — unmatched tasks are silently skipped (defensive).
@@ -198,6 +219,10 @@ export async function GET(req: Request) {
           color: true,
           icon: true,
           status: true,
+          // When a human last CHOSE that status. `Project.status` defaults to
+          // ON_TRACK, so a summary row without this cannot tell a judgement
+          // from a default and every card claimed "On track".
+          statusSetAt: true,
           // Counted with the caller's own visibility, not a bare
           // `tasks: true`. A relation count ignores privacy, so the card
           // said "3 tasks" to someone who could open one of them — the
@@ -412,22 +437,44 @@ export async function POST(req: Request) {
     // Determine sections — priority: explicit `sections` from a
     // project-template gallery pick → legacy `template.sections` →
     // default "To do / In progress / Done".
-    const sectionsToCreate =
+    const requestedSections: { name: string; stage?: string | null }[] =
       explicitSections && explicitSections.length > 0
-        ? explicitSections.map((name, index) => ({
-            name: name.trim(),
-            position: index,
-          }))
+        ? explicitSections.map((entry) =>
+            typeof entry === "string" ? { name: entry } : entry
+          )
         : template
-          ? template.sections.map((section, index) => ({
-              name: section.name,
-              position: index,
-            }))
-          : [
-              { name: "To do", position: 0 },
-              { name: "In progress", position: 1 },
-              { name: "Done", position: 2 },
-            ];
+          ? template.sections.map((section) => ({ name: section.name }))
+          : [{ name: "To do" }, { name: "In progress" }, { name: "Done" }];
+
+    // ── The board column ↔ stage join ───────────────────────────────
+    // A recert board column IS a pipeline stage. The template gallery sends
+    // column NAMES only, and those names are generated from pipelines.ts, so
+    // resolveSectionStage() reads each one back to its key — while a caller
+    // that can state the key outright is taken at its word, and refused if
+    // the key belongs to another pipeline. Without this the board and the
+    // stage strip stay two vocabularies for one question, which is the thing
+    // the owner said he did not trust.
+    const sectionsToCreate: {
+      name: string;
+      position: number;
+      stage: string | null;
+    }[] = [];
+    for (const [index, entry] of requestedSections.entries()) {
+      const sectionName = entry.name.trim();
+      const resolved = resolveSectionStage(
+        type ?? null,
+        sectionName,
+        entry.stage
+      );
+      if (!resolved.ok) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      sectionsToCreate.push({
+        name: sectionName,
+        position: index,
+        stage: resolved.stage,
+      });
+    }
 
     // Determine views based on template or default
     const viewsToCreate = template
