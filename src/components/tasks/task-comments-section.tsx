@@ -13,12 +13,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { activityText } from '@/lib/activity-text';
 import { toast } from 'sonner';
 import {
   renderCommentContent,
   commentToPlainText,
 } from '@/components/tasks/comment-content';
-import { dueDateToLocalMidnight } from '@/lib/date-only';
 
 interface Activity {
   id: string;
@@ -69,84 +69,19 @@ function formatActivityDate(date: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ` at ${time}`;
 }
 
+/**
+ * NOTE: nothing imports this component. The activity feed the user actually
+ * sees lives in task-detail-panel.tsx's "All activity" tab. That mattered:
+ * a careful switch was maintained here while the mounted renderer printed the
+ * raw enum name, so work done "on the feed" changed nothing anyone reads. The
+ * sentence now has ONE home — src/lib/activity-text.ts — and both renderers
+ * read it, so this copy cannot silently become the better of the two again.
+ */
 function renderActivityText(activity: Activity): React.ReactNode {
-  const data = activity.data as Record<string, string> | undefined;
-
-  switch (activity.type) {
-    case 'TASK_CREATED':
-      return 'created this task';
-    case 'TASK_COMPLETED':
-      return 'completed this task';
-    case 'TASK_UNCOMPLETED':
-      return 'marked this task incomplete';
-    case 'TASK_ASSIGNED':
-      return 'assigned this task';
-    case 'TASK_UNASSIGNED':
-      return 'unassigned this task';
-    case 'TASK_MOVED':
-      return 'moved this task';
-    case 'TASK_RENAMED':
-      return (
-        <>
-          renamed this task to <span className="font-medium">{data?.newName}</span>
-        </>
-      );
-    case 'TASK_DESCRIPTION_CHANGED':
-      return 'updated the description';
-    case 'DUE_DATE_CHANGED': {
-      const raw = activity.data as Record<string, unknown> | undefined;
-      // Rows written by the dependency cascade. Before this the feed showed
-      // an ordinary "changed due date" for a date NOBODY picked — or, until
-      // the cascade started writing rows at all, showed nothing while the
-      // date moved. `automatic` is what separates the two.
-      const isAutomatic = raw?.automatic === true;
-      const causedBy =
-        typeof raw?.causedByTaskName === 'string' ? raw.causedByTaskName : null;
-      // A cascade can move a task that has only a start date; naming its due
-      // date "none" would be a second lie in a row written to stop the first.
-      const movedField =
-        isAutomatic && !data?.dueDate && data?.startDate ? 'start date' : 'due date';
-      const movedValue =
-        movedField === 'start date' ? data?.startDate : data?.dueDate;
-      // Due dates are stored date-only at UTC midnight. Reading one with a
-      // bare `new Date(...).toLocaleDateString` printed the day BEFORE for
-      // every viewer west of UTC — the whole office is in Miami.
-      const label = movedValue
-        ? dueDateToLocalMidnight(movedValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        : 'none';
-
-      if (isAutomatic) {
-        return (
-          <>
-            {`automatically moved the ${movedField} to `}
-            <span className="text-[#a8893a]">{label}</span>
-            {causedBy ? (
-              <>
-                {' '}after <span className="font-medium">{causedBy}</span> was rescheduled
-              </>
-            ) : null}
-          </>
-        );
-      }
-
-      return (
-        <>
-          changed due date to{' '}
-          <span className="text-[#a8893a]">{label}</span>
-        </>
-      );
-    }
-    case 'COMMENT_ADDED':
-      return 'added a comment';
-    case 'SUBTASK_ADDED':
-      return (
-        <>
-          added subtask <span className="font-medium">{data?.subtaskName}</span>
-        </>
-      );
-    default:
-      return activity.type.toLowerCase().replace(/_/g, ' ');
-  }
+  return activityText(
+    activity.type,
+    activity.data as Record<string, unknown> | null | undefined
+  );
 }
 
 export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd, onCommentEdit, onCommentDelete }: TaskCommentsSectionProps) {

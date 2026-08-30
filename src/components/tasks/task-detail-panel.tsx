@@ -93,6 +93,7 @@ import {
   dueDateToLocalMidnight,
   toDateOnlyISO,
 } from "@/lib/date-only";
+import { activityText } from "@/lib/activity-text";
 import { useToday } from "@/lib/use-today";
 
 interface TaskDetailPanelProps {
@@ -148,6 +149,10 @@ interface TaskActivity {
   id: string;
   type: string;
   createdAt: string;
+  /** The row's Json payload. Carried because the feed used to print the bare
+   *  enum name, so a cascade-written row read "due date changed" without the
+   *  date it moved to or the blocker that moved it. */
+  data?: Record<string, unknown> | null;
   user: {
     id: string;
     name: string | null;
@@ -2554,7 +2559,7 @@ export function TaskDetailPanel({
                       <span className="font-medium">{activity.user?.name}</span>
                       <span className="text-black">
                         {" "}
-                        {activity.type.replace(/_/g, " ").toLowerCase()}
+                        {activityText(activity.type, activity.data)}
                       </span>
                       <span className="text-black text-xs ml-2">
                         {new Date(activity.createdAt).toLocaleDateString()}
