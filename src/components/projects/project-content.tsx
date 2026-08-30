@@ -82,6 +82,7 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableViewTab } from "@/components/projects/sortable-view-tab";
 import { useUiState } from "@/hooks/use-ui-state";
+import type { GanttProjectPrefs } from "@/lib/gantt-prefs";
 // isSameWeek, not isThisWeek: isThisWeek is isSameWeek against Date.now(),
 // i.e. a clock read in the middle of a render. The week is measured against
 // the day useToday() hands us instead.
@@ -148,8 +149,9 @@ interface Section {
   position: number;
   // Section.stage — the pipeline stage this column's work belongs to (a
   // Project.stage key such as "recert.field_work"), null for a free-form
-  // column. Declared here only so it survives the trip to <ProjectOverview>,
-  // which hands it to the stage strip; nothing on this screen reads it.
+  // column. Survives the trip to <ProjectOverview>, which hands it to the
+  // stage strip, and to <GanttView>, whose section headers turn it into
+  // whose desk the column is sitting on.
   stage?: string | null;
   tasks: Task[];
 }
@@ -357,6 +359,12 @@ interface ProjectContentProps {
    *  the server's answer makes the SSR HTML, the hydration render and the
    *  hydrated value all agree, so there is nothing to settle. */
   initialTabOrder?: string[] | null;
+  /** This viewer's remembered Gantt settings for THIS project, resolved on
+   *  the server from the same uiState row the chart's hook reads. Same
+   *  reason as initialTabOrder: without it the chart opens at the defaults
+   *  and a click made before the client fetch lands saves those defaults
+   *  over the stored folds. */
+  initialGanttPrefs?: GanttProjectPrefs | null;
 }
 
 // Monochrome + gold palette for status badges. Gold = active/positive,
@@ -457,6 +465,7 @@ export function ProjectContent({
   canEdit,
   canManage,
   initialTabOrder,
+  initialGanttPrefs,
 }: ProjectContentProps) {
   const router = useRouter();
   // Both project pages are re-exported into the portal shell, so any
@@ -2059,6 +2068,32 @@ export function ProjectContent({
                 </DropdownMenu>
               )}
 
+              {/* Grouping is set on the List, but it is component state and
+                  the tab switch is a router.push on the same route — the
+                  component never unmounts, so the grouping follows the user
+                  onto Timeline and Gantt and rebuilds their lanes as
+                  synthetic `group:*` buckets. There it takes every
+                  section-scoped action away (see sectionsAreEditable below)
+                  with no Group control to explain it and no way back except
+                  a "Clear all" whose label never mentions grouping. This
+                  names the state that is doing it and clears it in one
+                  click. It only ever REMOVES a grouping — setting one stays
+                  a List decision, since these two charts were never
+                  designed to be read by group. */}
+              {groupBy !== "none" && baseView !== "list" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[#a8893a] bg-[#c9a84c]/10"
+                    onClick={() => setGroupBy("none")}
+                    title={`Lanes are grouped by ${GROUP_BY_LABELS[groupBy]}, not by the project's sections. Section actions are unavailable until the grouping is cleared.`}
+                  >
+                    <Rows3 className="mr-2 h-4 w-4" />
+                    Grouped by {GROUP_BY_LABELS[groupBy]}
+                    <X className="ml-1 h-3.5 w-3.5" />
+                  </Button>
+                )}
+
               {/* Options */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -2159,13 +2194,36 @@ export function ProjectContent({
               sections={filteredSections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
+              // Under a group-by these lanes are synthetic `group:*`
+              // buckets, not Section rows — see the useMemo above. Same
+              // prop List and Board got in 3198e68; the schedule views
+              // were missed, and their "Add section" row POSTs to
+              // /api/sections just the same.
+              sectionsAreEditable={groupBy === "none"}
             />
           )}
           {baseView === "gantt" && (
             <GanttView
               sections={filteredSections}
+              // The UNFILTERED, ungrouped project sections. `sections`
+              // above is the filtered set, and the chart resolves a
+              // dependency's blocker NAME out of whatever it is handed:
+              // filter to "Incomplete tasks" and a completed blocker fell
+              // out of the map, so "Blocked by" rendered "—" — identical
+              // to a task with no blocker at all. The blocker exists
+              // regardless of what the viewer is currently looking at.
+              allSections={project.sections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
+              // Under a group-by these lanes are synthetic `group:*`
+              // buckets, not Section rows — see the useMemo above.
+              sectionsAreEditable={groupBy === "none"}
+              // The county deadline on a recertification: the date the
+              // whole engagement exists to hit. It was already on the
+              // wire and the chart's only vertical line was today.
+              projectEndDate={project.endDate}
+              projectName={project.name}
+              initialPrefs={initialGanttPrefs}
               members={(() => {
                 // Owner + members, deduped — feeds the inline assignee
                 // picker in the Gantt's editable left table.

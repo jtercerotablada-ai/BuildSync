@@ -18,6 +18,10 @@ import {
   cascadeDependentDates,
   type CascadeShift,
 } from "@/lib/dependency-cascade";
+import {
+  cascadeActivityRows,
+  type CascadeActivityRow,
+} from "@/lib/cascade-activity";
 import { startOfTodayUtc } from "@/lib/date-only";
 import { readJson, jsonErrorResponse } from "@/lib/http";
 
@@ -667,15 +671,37 @@ export async function PATCH(
     });
 
     // Create activity logs — one round trip, not one per entry.
-    if (activities.length > 0) {
-      await prisma.activity.createMany({
-        data: activities.map((activity) => ({
-          type: activity.type as "TASK_CREATED" | "TASK_COMPLETED" | "TASK_UNCOMPLETED" | "TASK_ASSIGNED" | "TASK_UNASSIGNED" | "TASK_MOVED" | "TASK_RENAMED" | "TASK_DESCRIPTION_CHANGED" | "DUE_DATE_CHANGED" | "COMMENT_ADDED" | "ATTACHMENT_ADDED" | "CUSTOM_FIELD_CHANGED" | "SUBTASK_ADDED" | "DEPENDENCY_ADDED",
-          taskId,
+    const activityRows: CascadeActivityRow[] = activities.map((activity) => ({
+      type: activity.type as "TASK_CREATED" | "TASK_COMPLETED" | "TASK_UNCOMPLETED" | "TASK_ASSIGNED" | "TASK_UNASSIGNED" | "TASK_MOVED" | "TASK_RENAMED" | "TASK_DESCRIPTION_CHANGED" | "DUE_DATE_CHANGED" | "COMMENT_ADDED" | "ATTACHMENT_ADDED" | "CUSTOM_FIELD_CHANGED" | "SUBTASK_ADDED" | "DEPENDENCY_ADDED",
+      taskId,
+      userId,
+      data: activity.data as object,
+    }));
+    // A Gantt drag and the table's date picker both land here, and both used
+    // to cascade dependents through a bare `tx.task.update` — the dependent's
+    // date moved and its feed said nothing. These rows are what answers "why
+    // did the filing slip?". They are attributed to the task the user
+    // actually edited (post-rename name, since this PATCH may have renamed it).
+    if (cascadeShifts.length > 0) {
+      activityRows.push(
+        ...cascadeActivityRows(cascadeShifts, {
           userId,
-          data: activity.data as object,
-        })),
-      });
+          causedByTaskId: taskId,
+          causedByTaskName: task.name,
+        })
+      );
+    }
+    if (activityRows.length > 0) {
+      // The task update and the cascade already COMMITTED above. Throwing
+      // here would answer 500 to an edit that succeeded, and the client
+      // would roll its optimistic dates back to a schedule the database no
+      // longer holds. History is worth logging, not worth losing the edit —
+      // same guard the goal-progress recalculation below uses.
+      try {
+        await prisma.activity.createMany({ data: activityRows });
+      } catch (activityError) {
+        console.error("Error writing task activity rows:", activityError);
+      }
     }
 
     // Recalculate goal progress if task completion status changed

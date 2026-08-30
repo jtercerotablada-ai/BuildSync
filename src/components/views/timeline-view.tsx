@@ -105,6 +105,13 @@ interface TimelineViewProps {
   sections: Section[];
   onTaskClick: (taskId: string) => void;
   projectId: string;
+  /** False when the lanes are synthetic group-by buckets (`group:*` ids)
+   *  rather than real Section rows — same prop, same default and same
+   *  meaning List and Board received in 3198e68. The schedule views were
+   *  missed there: this one's "Add section" row POSTs to /api/sections and
+   *  its create-task dialog carries `sections[0].id` to /api/tasks, which
+   *  is a synthetic key the server has never heard of. */
+  sectionsAreEditable?: boolean;
 }
 
 type ZoomLevel = "day" | "week" | "month";
@@ -149,6 +156,7 @@ export function TimelineView({
   sections,
   onTaskClick,
   projectId,
+  sectionsAreEditable = true,
 }: TimelineViewProps) {
   const router = useRouter();
 
@@ -574,9 +582,13 @@ export function TimelineView({
   // SWIMLANE LAYOUT — greedy first-fit lane packing per section band
   // ============================================
 
-  // Section → palette index for per-section bar colors. Indexed off the
-  // FULL sections prop (not filteredSections) so filtering never
-  // reshuffles a section's color.
+  // Section → palette index for per-section bar colors: the columns on
+  // screen, in their own order — the same rule gantt-view.tsx uses, so one
+  // lane is one hue on both charts. The old wording claimed this was "the
+  // FULL sections prop (not filteredSections)"; it IS filteredSections. The
+  // guarantee holds anyway: project-content's memo maps the sections and
+  // filters their TASKS (project-content.tsx:619-707), so no filter can drop
+  // a section and renumber the ones after it.
   const sectionColorIdx = useMemo(() => {
     const m = new Map<string, number>();
     sections.forEach((s, i) => m.set(s.id, i));
@@ -1473,12 +1485,19 @@ export function TimelineView({
               );
             })}
 
-            {/* Add section — inline input, Enter=create / Escape=cancel */}
+            {/* Add section — inline input, Enter=create / Escape=cancel.
+                Withheld while the lanes are group-by buckets, for the same
+                reason List and Board withhold theirs in 3198e68: the
+                section really would be created, and then be invisible until
+                the grouping is cleared. The ROW itself stays either way —
+                its FOOTER_ROW_HEIGHT is paired with a matching spacer row
+                in the canvas below, and dropping one half slides the whole
+                left column out of register with its bars. */}
             <div
               className="border-b flex-shrink-0"
               style={{ height: FOOTER_ROW_HEIGHT }}
             >
-              {addingSection ? (
+              {!sectionsAreEditable ? null : addingSection ? (
                 <div className="flex items-center h-full px-2 md:px-3">
                   <input
                     autoFocus
@@ -2059,7 +2078,12 @@ export function TimelineView({
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         projectId={projectId}
-        sectionId={filteredSections[0]?.id}
+        // Under a group-by the first lane's id is a synthetic `group:*`
+        // key and POST /api/tasks answers 404 "Section not found". Sending
+        // nothing instead is not a downgrade: the route auto-places a
+        // section-less project task into the project's first real section,
+        // so the task is created and visible rather than refused.
+        sectionId={sectionsAreEditable ? filteredSections[0]?.id : undefined}
         defaultTaskType={createType}
       />
     </div>

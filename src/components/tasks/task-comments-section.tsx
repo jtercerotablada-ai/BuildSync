@@ -18,6 +18,7 @@ import {
   renderCommentContent,
   commentToPlainText,
 } from '@/components/tasks/comment-content';
+import { dueDateToLocalMidnight } from '@/lib/date-only';
 
 interface Activity {
   id: string;
@@ -92,15 +93,49 @@ function renderActivityText(activity: Activity): React.ReactNode {
       );
     case 'TASK_DESCRIPTION_CHANGED':
       return 'updated the description';
-    case 'DUE_DATE_CHANGED':
+    case 'DUE_DATE_CHANGED': {
+      const raw = activity.data as Record<string, unknown> | undefined;
+      // Rows written by the dependency cascade. Before this the feed showed
+      // an ordinary "changed due date" for a date NOBODY picked — or, until
+      // the cascade started writing rows at all, showed nothing while the
+      // date moved. `automatic` is what separates the two.
+      const isAutomatic = raw?.automatic === true;
+      const causedBy =
+        typeof raw?.causedByTaskName === 'string' ? raw.causedByTaskName : null;
+      // A cascade can move a task that has only a start date; naming its due
+      // date "none" would be a second lie in a row written to stop the first.
+      const movedField =
+        isAutomatic && !data?.dueDate && data?.startDate ? 'start date' : 'due date';
+      const movedValue =
+        movedField === 'start date' ? data?.startDate : data?.dueDate;
+      // Due dates are stored date-only at UTC midnight. Reading one with a
+      // bare `new Date(...).toLocaleDateString` printed the day BEFORE for
+      // every viewer west of UTC — the whole office is in Miami.
+      const label = movedValue
+        ? dueDateToLocalMidnight(movedValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : 'none';
+
+      if (isAutomatic) {
+        return (
+          <>
+            {`automatically moved the ${movedField} to `}
+            <span className="text-[#a8893a]">{label}</span>
+            {causedBy ? (
+              <>
+                {' '}after <span className="font-medium">{causedBy}</span> was rescheduled
+              </>
+            ) : null}
+          </>
+        );
+      }
+
       return (
         <>
           changed due date to{' '}
-          <span className="text-[#a8893a]">
-            {data?.dueDate ? new Date(data.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'none'}
-          </span>
+          <span className="text-[#a8893a]">{label}</span>
         </>
       );
+    }
     case 'COMMENT_ADDED':
       return 'added a comment';
     case 'SUBTASK_ADDED':

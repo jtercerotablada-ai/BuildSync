@@ -4,6 +4,37 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { cascadeFromDependency, type CascadeShift } from "@/lib/dependency-cascade";
+import { cascadeActivityRows } from "@/lib/cascade-activity";
+
+/**
+ * Write the history for a cascade that has already committed.
+ *
+ * Both endpoints below shift dependents inside their transaction and used to
+ * leave no trace, so a task that jumped a week when a link was created or
+ * retyped had an activity feed with nothing in it. The cause named on each
+ * row is the BLOCKING task — that is the end of the edge the dependent moved
+ * to satisfy.
+ *
+ * Never throws: the link and the shifted dates are already persisted, and
+ * failing here would answer 500 to a change that actually happened.
+ */
+async function recordCascade(
+  shifts: CascadeShift[],
+  opts: { userId: string; blockingTaskId: string; blockingTaskName: string }
+): Promise<void> {
+  if (shifts.length === 0) return;
+  try {
+    await prisma.activity.createMany({
+      data: cascadeActivityRows(shifts, {
+        userId: opts.userId,
+        causedByTaskId: opts.blockingTaskId,
+        causedByTaskName: opts.blockingTaskName,
+      }),
+    });
+  } catch (activityError) {
+    console.error("Error writing dependency cascade activity:", activityError);
+  }
+}
 
 const createDependencySchema = z.object({
   blockingTaskId: z.string().min(1, "Blocking task ID is required"),
@@ -141,6 +172,12 @@ export async function POST(
       return created;
     });
 
+    await recordCascade(cascadeShifts, {
+      userId,
+      blockingTaskId: dependency.blockingTask.id,
+      blockingTaskName: dependency.blockingTask.name,
+    });
+
     return NextResponse.json({ ...dependency, cascadeShifts }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -233,6 +270,12 @@ export async function PATCH(
       // not silently reschedule an unrelated A→C.
       cascadeShifts = await cascadeFromDependency(tx, dependencyId);
       return row;
+    });
+
+    await recordCascade(cascadeShifts, {
+      userId,
+      blockingTaskId: updated.blockingTask.id,
+      blockingTaskName: updated.blockingTask.name,
     });
 
     return NextResponse.json({ ...updated, cascadeShifts });

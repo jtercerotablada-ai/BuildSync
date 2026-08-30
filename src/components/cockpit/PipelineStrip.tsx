@@ -6,6 +6,7 @@ import { Check, ChevronDown } from 'lucide-react';
 import type { CockpitProject, ProjectType } from './types';
 import { TYPE_COLOR, TYPE_LABEL, STATUS_COLOR } from './types';
 import {
+  holderDeskLabel,
   holderLabel,
   isStageValidForType,
   pipelineForType,
@@ -141,23 +142,7 @@ function ProjectTile({ project }: { project: CockpitProject }) {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * The sentence form of a holder. `holderLabel()` gives the noun that fits in
- * a pill ("The client"); this is the line under the strip, which has to read
- * as the answer to "whose desk is this on?". Exhaustive on purpose: a holder
- * added to the registry has to be given words here before it compiles.
- */
-const HOLDER_DESK: Record<StageHolder, string> = {
-  FIRM: 'On our desk',
-  PE: "On the PE's desk",
-  CLIENT: "On the client's desk",
-  ARCHITECT: "On the architect's desk",
-  CONTRACTOR: "On the contractor's desk",
-  CITY: 'With the city',
-  NONE: 'Finished',
-};
-
-/**
- * Where one click PUTS the job. HOLDER_DESK above is the same fact in the
+ * Where one click PUTS the job. `holderDeskLabel()` is the same fact in the
  * present tense; this is the consequence of accepting the offer, and it is a
  * second map rather than a prefix because "Lands finished" is not a sentence —
  * the terminal stage closes the job rather than handing it to anyone.
@@ -383,7 +368,7 @@ export function ProjectStageStrip({
           <>
             <span className="font-medium text-slate-700">{current.label}</span>
             {' · '}
-            {HOLDER_DESK[current.holder]}
+            {holderDeskLabel(current.holder)}
             {/* Dwell only while somebody is holding it: how long a finished
                 job has sat closed is not a wait anyone is waiting on. */}
             {current.holder !== 'NONE' && dwell ? ` · ${dwell}` : ''}

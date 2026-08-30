@@ -458,6 +458,31 @@ const HOLDER_LABELS: Readonly<Record<StageHolder, string>> = {
   NONE: "No one",
 };
 
+/**
+ * The sentence form of a holder — "whose desk is this on?" answered in
+ * words, for a surface that is already showing the stage's own label and
+ * would otherwise print it twice.
+ *
+ * Lived in PipelineStrip.tsx until the Gantt's section headers needed the
+ * same words; two copies of this map is how the cockpit and the schedule
+ * end up saying different things about the same stage. Exhaustive on
+ * purpose: a holder added to the registry has to be given words here
+ * before it compiles.
+ */
+export function holderDeskLabel(holder: StageHolder): string {
+  return HOLDER_DESK[holder];
+}
+
+const HOLDER_DESK: Readonly<Record<StageHolder, string>> = {
+  FIRM: "On our desk",
+  PE: "On the PE's desk",
+  CLIENT: "On the client's desk",
+  ARCHITECT: "On the architect's desk",
+  CONTRACTOR: "On the contractor's desk",
+  CITY: "With the city",
+  NONE: "Finished",
+};
+
 // ───────────────────────────────────────────────────────────────────────────
 // The legacy gate
 // ───────────────────────────────────────────────────────────────────────────

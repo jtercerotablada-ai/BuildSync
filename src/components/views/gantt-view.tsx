@@ -23,6 +23,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -64,6 +68,31 @@ import {
 import { useToday } from "@/lib/use-today";
 import { sectionBarStyle } from "@/lib/section-bar-colors";
 import { notifyTaskMutated } from "@/lib/task-events";
+// Zoom / collapsed / Options used to die with the component, and the tab
+// strip unmounts it on every switch. The shape, the cap and the eviction
+// order live in the lib so they can be tested; the hook is the transport.
+import { useUiState } from "@/hooks/use-ui-state";
+import {
+  DEFAULT_GANTT_PREFS,
+  EMPTY_GANTT_PREFS_MAP,
+  GANTT_PREFS_KEY,
+  ganttPrefsFor,
+  nextGanttPrefsMap,
+  sameGanttPrefs,
+  type GanttPrefsMap,
+  type GanttProjectPrefs,
+  type GanttZoomLevel,
+} from "@/lib/gantt-prefs";
+// Section.stage has been on these objects all along with nothing reading it.
+// On a recert the daily question is whose desk the job is on, and this is the
+// only place the answer is already loaded.
+import { holderDeskLabel, resolveStage } from "@/lib/pipelines";
+// One rule for "did this shift move anything", shared with the Activity rows
+// the same cascade writes — the module is pure, its only imports are types.
+import {
+  cascadeShiftMoved,
+  type CascadeShiftDates,
+} from "@/lib/cascade-activity";
 
 // ============================================
 // TYPES — kept identical to timeline-view.tsx so
@@ -98,10 +127,38 @@ interface Section {
   name: string;
   position: number;
   tasks: Task[];
+  /** A `Project.stage` key, e.g. "recert.field_work" — the pipeline stage
+   *  this section stands for. `stageLabel()`/`holderLabel()` in lib/pipelines
+   *  turn it into "Building Official Review · The city". */
+  stage?: string | null;
 }
 
 interface GanttViewProps {
   sections: Section[];
+  /** Every section of the project, unfiltered and ungrouped. The `sections`
+   *  prop is the FILTERED set; a blocker hidden by a filter must still be
+   *  nameable. Optional so the component still renders standalone. */
+  allSections?: Section[];
+  /** False when the columns are synthetic group buckets, in which case
+   *  every section-scoped write would 404. Same prop, same default and same
+   *  meaning as List and Board received in 3198e68. */
+  sectionsAreEditable?: boolean;
+  /** The project's target completion date — on a recertification this is
+   *  the county deadline the engagement exists to hit. Date-only at UTC
+   *  midnight like every other date here. */
+  projectEndDate?: string | Date | null;
+  /** Marks the deadline line with the project name in its tooltip. */
+  projectName?: string;
+  /** This viewer's remembered zoom / folds / Options for THIS project,
+   *  resolved on the server from the same uiState row `useUiState` reads.
+   *  useUiState only reaches its cache and the DB from an effect, so without
+   *  this the chart opens at the defaults and the remembered zoom lands a
+   *  frame later — and worse, a click inside that window persisted the
+   *  DEFAULTS over the stored folds, because the server's uiState merge
+   *  REPLACES the object under a project id. Seeding the hook's default with
+   *  the server's answer makes the SSR HTML, the hydration render and the
+   *  first write all agree. */
+  initialPrefs?: GanttProjectPrefs | null;
   onTaskClick: (taskId: string) => void;
   projectId: string;
   /** Project members (owner included) for the inline assignee picker. */
@@ -113,15 +170,18 @@ interface GanttViewProps {
   }[];
 }
 
-type ZoomLevel = "day" | "week" | "month" | "quarter";
+// One definition, in the lib, because the persisted preference and the chart
+// have to agree on the set: a zoom key this file cannot draw is not a wrong
+// label, it is `zoomConfig[zoom] === undefined` and a blank chart.
+type ZoomLevel = GanttZoomLevel;
 
-type DependencyType =
+export type DependencyType =
   | "FINISH_TO_START"
   | "START_TO_START"
   | "FINISH_TO_FINISH"
   | "START_TO_FINISH";
 
-interface DependencyRow {
+export interface DependencyRow {
   id: string;
   type: DependencyType;
   dependentTaskId: string;
@@ -142,6 +202,344 @@ function dependencyLabel(type: DependencyType): string {
   return t ? `${t.label} · ${t.code}` : "";
 }
 
+function dependencyCode(type: DependencyType): string {
+  return DEPENDENCY_TYPES.find((d) => d.type === type)?.code ?? "";
+}
+
+/**
+ * The constraint spelled out, for the reader who does not think in
+ * FS/SS/FF/SF. The subject is always the DEPENDENT task ("this task …"),
+ * and the wording is the server's actual rule: `edgeAnchor()` in
+ * lib/dependency-cascade picks a blocker date and a dependent field, then
+ * pushes that field to be no earlier than it — it never pulls a task in.
+ * "Starts when the blocker finishes" would be a promise the cascade does
+ * not keep.
+ */
+export function dependencyMeaning(type: DependencyType): string {
+  switch (type) {
+    case "FINISH_TO_START":
+      return "starts no earlier than the blocker finishes";
+    case "START_TO_START":
+      return "starts no earlier than the blocker starts";
+    case "FINISH_TO_FINISH":
+      return "finishes no earlier than the blocker finishes";
+    case "START_TO_FINISH":
+      return "finishes no earlier than the blocker starts";
+  }
+}
+
+/**
+ * How a blocker relates to what is on screen.
+ *   visible    — it is a row in the chart right now.
+ *   hidden     — it exists and is nameable, but the current filter, search
+ *                or grouping dropped it from the rows being drawn.
+ *   unnameable — the dependency row arrived with no name behind it.
+ */
+export type BlockerVisibility = "visible" | "hidden" | "unnameable";
+
+export interface ResolvedBlocker {
+  dep: DependencyRow;
+  /** null exactly when `visibility` is "unnameable". */
+  name: string | null;
+  visibility: BlockerVisibility;
+}
+
+/**
+ * What the "Blocked by" cell is allowed to say about a task that has no
+ * name here. Two ways a dependency arrives nameless, and neither is
+ * fetchable from this component:
+ *   1. the blocker is a task flagged private to someone else — the project
+ *      page filters its sections through taskPrivacyClause(), and
+ *      /api/projects/:id/dependencies applies no privacy filter at all, so
+ *      the EDGE is visible while the task behind it is not;
+ *   2. the blocker is a subtask — the page loads `parentTaskId: null` only,
+ *      while the dependencies route scopes by projectId, which a subtask
+ *      also carries.
+ * (A cross-project edge cannot get here: that route requires BOTH endpoints
+ * to be in this project.)
+ * So the label names nothing, and the cell folds every unnameable blocker
+ * into ONE of these — a count is a fact about someone else's private work.
+ */
+export const UNNAMEABLE_BLOCKER_LABEL = "A task you can't see";
+
+/**
+ * Classify every dependency of every task into visible / hidden /
+ * unnameable, so the cell can be honest about all three.
+ *
+ * The bug this replaces: the lookup was built from the `sections` prop and
+ * both maps did `if (!name) continue`, so a blocker removed by a filter was
+ * dropped from the row entirely and the cell rendered "—" — pixel-identical
+ * to a task with no blocker at all. Reproduced on production: completing
+ * "Field inspection complete" and ticking Filter → Incomplete tasks made
+ * "Generate recertification reports" stop naming its blocker.
+ *
+ * `visibleTaskIds` is the id set of the rows actually being drawn; a
+ * nameable blocker outside it is "hidden", never dropped.
+ */
+export function resolveBlockedBy(
+  dependencies: DependencyRow[],
+  taskNameById: Map<string, string>,
+  visibleTaskIds: Set<string>
+): Map<string, ResolvedBlocker[]> {
+  const m = new Map<string, ResolvedBlocker[]>();
+  for (const dep of dependencies) {
+    const name = taskNameById.get(dep.blockingTaskId) ?? null;
+    const visibility: BlockerVisibility = !name
+      ? "unnameable"
+      : visibleTaskIds.has(dep.blockingTaskId)
+        ? "visible"
+        : "hidden";
+    const arr = m.get(dep.dependentTaskId) ?? [];
+    arr.push({ dep, name, visibility });
+    m.set(dep.dependentTaskId, arr);
+  }
+  return m;
+}
+
+/**
+ * The one-line cell contents. Every unnameable blocker collapses into a
+ * single placeholder — rendering one per row would publish how many
+ * private tasks are blocking this one, which is the number the placeholder
+ * exists not to say. The menu still lists them one per row: removing a link
+ * needs its own dep id, and the browser already holds those.
+ */
+export function blockedCellParts(
+  blockers: ResolvedBlocker[]
+): { key: string; label: string; visibility: BlockerVisibility }[] {
+  const parts: { key: string; label: string; visibility: BlockerVisibility }[] =
+    [];
+  let unnameableShown = false;
+  for (const b of blockers) {
+    if (b.visibility === "unnameable") {
+      if (unnameableShown) continue;
+      unnameableShown = true;
+      parts.push({
+        key: b.dep.id,
+        label: UNNAMEABLE_BLOCKER_LABEL,
+        visibility: "unnameable",
+      });
+      continue;
+    }
+    parts.push({
+      key: b.dep.id,
+      label: b.name as string,
+      visibility: b.visibility,
+    });
+  }
+  return parts;
+}
+
+/** Hover text for the cell: says WHY a muted name is muted, so "hidden by a
+ *  filter" is never read as "deleted". */
+export function blockedCellTitle(blockers: ResolvedBlocker[]): string {
+  return blockedCellParts(blockers)
+    .map((p) =>
+      p.visibility === "visible"
+        ? p.label
+        : p.visibility === "hidden"
+          ? `${p.label} (hidden by the current filter)`
+          : `${p.label} (blocking this task, but not visible to you)`
+    )
+    .join(", ");
+}
+
+// ============================================
+// WHAT THE SERVER JUST DID — cascade disclosure
+// ============================================
+
+/** One entry of the API's `cascadeShifts`. The server has always sent the
+ *  NAME of every task its cascade moved; this view kept only the count.
+ *  The dates ride along as ISO strings — `movedShifts` below needs them to
+ *  count the same shifts the history writes. */
+export interface CascadeShiftSummary extends CascadeShiftDates {
+  taskId: string;
+  taskName: string;
+}
+
+/** The optimistic layer stores date-only strings. Shifts arrive as ISO over
+ *  the wire; a Date is accepted too so a caller cannot silently store
+ *  "Wed Sep 0". */
+function dateOnly(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  return (value instanceof Date ? value.toISOString() : String(value)).slice(
+    0,
+    10
+  );
+}
+
+/**
+ * The shifts that actually moved a date.
+ *
+ * The server can return a shift that ends where it began (a diamond in the
+ * graph, folded into one entry — see cascadeShiftMoved), and the Activity
+ * feed already skips those. Counting them here would have the toast say
+ * "Shifted 3 dependent tasks" over a history holding two rows: one event,
+ * two answers, and the toast is the one the reader cannot go back and check.
+ */
+function movedShifts<T extends CascadeShiftDates>(
+  shifts: readonly T[] | undefined | null
+): T[] {
+  if (!Array.isArray(shifts)) return [];
+  return shifts.filter(cascadeShiftMoved);
+}
+
+/**
+ * The toast a cascade earns, or null when nothing downstream moved.
+ *
+ * Deliberately the SAME two sentences the task panel's date picker already
+ * uses (task-detail-panel.tsx) — a drag on this chart and a date typed in the
+ * panel run the identical server cascade, and two phrasings for one event is
+ * how a person stops trusting either. The count form is the fallback, not the
+ * default: see cascadeToastNames.
+ */
+export function cascadeToastTitle(
+  shifts: readonly CascadeShiftSummary[] | undefined | null
+): string | null {
+  const moved = movedShifts(shifts);
+  if (moved.length === 0) return null;
+  if (moved.length === 1) return `Shifted dependent "${moved[0].taskName}"`;
+  return `Shifted ${moved.length} dependent tasks`;
+}
+
+/**
+ * The names behind the count, for the toast's second line; null when the
+ * title already named the task.
+ *
+ * "3 dependent tasks moved" is not an answer to "which?", and on a
+ * recertification the only question that matters about a cascade is whether
+ * the one with the county date in it moved. A toast has room for a few names,
+ * not thirty, so the tail is counted.
+ */
+export function cascadeToastNames(
+  shifts: readonly CascadeShiftSummary[] | undefined | null,
+  max = 4
+): string | null {
+  const moved = movedShifts(shifts);
+  if (moved.length < 2) return null;
+  const shown = moved.slice(0, Math.max(1, max)).map((s) => s.taskName);
+  const rest = moved.length - shown.length;
+  return rest > 0 ? `${shown.join(", ")} +${rest} more` : shown.join(", ");
+}
+
+// ============================================
+// THE DEADLINE — Project.endDate, the date the engagement exists to hit
+// ============================================
+
+/**
+ * The chip that labels the deadline line.
+ *
+ * `today` is `useToday()`'s value and may be null on the first frame; the
+ * label then states the date and claims nothing about whether it has passed,
+ * because the only clock available during that render is the server's UTC one
+ * and west of UTC it is already tomorrow.
+ */
+export function deadlineMarkerLabel(deadline: Date, today: Date | null): string {
+  const when = format(deadline, "MMM d");
+  if (!today) return `Deadline · ${when}`;
+  const days = differenceInCalendarDays(deadline, today);
+  if (days === 0) return "Deadline today";
+  // Past deadlines are the ones worth saying something about: a recert letter
+  // date that has gone by is the whole reason this line is drawn.
+  if (days < 0) return `Deadline passed · ${when}`;
+  return `Deadline · ${when}`;
+}
+
+/** Hover text for the deadline line and its axis marker. Names the project so
+ *  the line can never be read as belonging to a task. */
+export function deadlineMarkerTitle(
+  deadline: Date,
+  today: Date | null,
+  projectName?: string
+): string {
+  const head = projectName ? `${projectName} — ` : "";
+  const base = `${head}deadline ${format(deadline, "MMM d, yyyy")}`;
+  if (!today) return base;
+  const days = differenceInCalendarDays(deadline, today);
+  if (days === 0) return `${base} · due today`;
+  if (days < 0) {
+    const n = -days;
+    return `${base} · ${n} day${n === 1 ? "" : "s"} past due`;
+  }
+  return `${base} · ${days} day${days === 1 ? "" : "s"} left`;
+}
+
+// ============================================
+// THE GRID WINDOW — how many columns a span costs
+// ============================================
+
+/**
+ * The hard ceiling on drawn columns.
+ *
+ * renderGridCells emits one div per column PER ROW, so the number here is
+ * multiplied by every task on the chart: 500 columns on a 50-row project is
+ * already 25 000 divs. It is a truncation, not a scroll limit — past it the
+ * window simply stops before the work does, which is why nothing may widen
+ * the window without asking whether the result still fits.
+ */
+export const MAX_GRID_COLUMNS = 500;
+
+/**
+ * Columns needed to cover `from`..`to` at this zoom, padding included.
+ *
+ * Extracted so the deadline can be ASKED whether it fits before it is
+ * allowed to move the window. The bug: `Project.endDate` was folded into
+ * the min/max of the dated tasks and the count was then clamped to
+ * MAX_GRID_COLUMNS, so a deadline far outside the plan — a county date
+ * already passed, which is exactly the recert that needs looking at —
+ * dragged the window's start back to itself and the clamp cut it off
+ * BEFORE the work. Today's line, every bar and every section bracket then
+ * computed outside the window and rendered nothing: a blank chart.
+ */
+export function gridColumnsNeeded(
+  zoom: GanttZoomLevel,
+  from: Date,
+  to: Date
+): number {
+  const days = differenceInDays(to, from);
+  switch (zoom) {
+    case "day":
+      return days + 14;
+    case "week":
+      return Math.ceil(days / 7) + 4;
+    case "month":
+      return Math.ceil(days / 28) + 2;
+    case "quarter":
+      return Math.ceil(days / 84) + 1;
+  }
+}
+
+// ============================================
+// SECTION STAGE — whose desk this column is sitting on
+// ============================================
+
+/**
+ * The stage chip for a section, or null when there is nothing to say.
+ *
+ * The chip says WHOSE DESK, never the stage label. A section has a stage
+ * because it was NAMED as one — `stageForSectionName()` matches the column
+ * name against the pipeline's labels and that is the only rule any writer
+ * uses — so "Field Work · Us" beside a header reading "Field Work" prints
+ * the same words twice and adds one fact. The label is not lost: it is the
+ * hover text, where the reader who wants the stage key's own name can find
+ * it.
+ *
+ * Null covers every degrade path and they all have to be silent: a section
+ * with no stage (most projects), a stage key from a pipeline that no longer
+ * exists, and the synthetic `group:*` buckets the List's Group-by builds,
+ * which carry no stage at all. Absent a stage the header must look exactly as
+ * it did before this existed.
+ */
+export function sectionStageChip(
+  stage: string | null | undefined
+): { label: string; desk: string } | null {
+  const resolved = resolveStage(stage);
+  if (!resolved) return null;
+  return {
+    label: resolved.stage.label,
+    desk: holderDeskLabel(resolved.stage.holder),
+  };
+}
+
 // ============================================
 // PALETTE — bars are colored BY SECTION (Asana's "Color: by section")
 // via the shared palette in lib/section-bar-colors, matching the
@@ -155,6 +553,12 @@ const TODAY_BLUE = "#335FB5"; // today stripe + axis dot
 const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
 const DATE_OVERDUE = "#B4304C"; // red due text
 const DATE_TODAY = "#14865E"; // green "– Today" due text
+// The project deadline marker. Deliberately NOT today's blue and deliberately
+// dashed: two solid vertical lines in one hue would read as two "todays", and
+// the one thing this line must never be mistaken for is the one already there.
+// It reuses the overdue red because that is what the date means when it is
+// behind you.
+const DEADLINE_RED = "#B4304C";
 
 // ============================================
 // LAYOUT CONSTANTS — Asana's measured geometry
@@ -239,6 +643,11 @@ export function dueRangeText(
 
 export function GanttView({
   sections,
+  allSections,
+  sectionsAreEditable = true,
+  projectEndDate,
+  projectName,
+  initialPrefs,
   onTaskClick,
   projectId,
   members = [],
@@ -252,8 +661,18 @@ export function GanttView({
   const today = useToday();
 
   // ---------- State ----------
+  // Every one of these four starts at the SERVER-RESOLVED preferences for
+  // this project — the same value on the server render and on the first
+  // client render, because it is a prop, so there is no hydration mismatch to
+  // repair and no frame of defaults to watch settle. Reading useUiState's
+  // localStorage cache during render would be the mismatch (see the comment
+  // on its initializer, use-ui-state.ts:181); a prop is not.
+  const seededPrefs = useMemo<GanttProjectPrefs>(
+    () => initialPrefs ?? { ...DEFAULT_GANTT_PREFS, collapsedSectionIds: [] },
+    [initialPrefs]
+  );
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
-    new Set()
+    () => new Set(seededPrefs.collapsedSectionIds)
   );
   // The day the window is anchored on once the user has paged away from the
   // live today. NOT seeded with `new Date()`: a state initializer runs during
@@ -265,13 +684,125 @@ export function GanttView({
   // browser supplies through `today`.
   const [pinnedDate, setPinnedDate] = useState<Date | null>(null);
   const currentDate = pinnedDate ?? today;
-  // Asana's Gantt defaults to Months.
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("month");
+  // Days, not Months. This followed Asana's Gantt, which is not drawing a
+  // 40-year recertification: Months runs at ~12px/day (366px per month), so
+  // the three-day inspection, the two-day report and the one-day filing are
+  // 37px, 24px and 12px of bar — a wall of stubs where the whole point is
+  // reading which one comes first. The Timeline, the same chart in another
+  // file, has always opened at day. A remembered zoom overrides this.
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>(seededPrefs.zoom);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
-  const [showDependencies, setShowDependencies] = useState(true);
+  const [showDependencies, setShowDependencies] = useState(
+    seededPrefs.showDependencies
+  );
   // Off by default — Asana draws no due-soon rings; still toggleable.
-  const [highlightDueSoon, setHighlightDueSoon] = useState(false);
+  const [highlightDueSoon, setHighlightDueSoon] = useState(
+    seededPrefs.highlightDueSoon
+  );
+
+  // ---------- Remembered view state (per user, per project) ----------
+  // The hook's default is this project's server-resolved entry, so the map
+  // is never empty while the DB fetch is in flight — which is the window in
+  // which a write used to save the defaults over the stored folds.
+  const ganttPrefsSeed = useMemo<GanttPrefsMap>(
+    () => (initialPrefs ? { [projectId]: initialPrefs } : EMPTY_GANTT_PREFS_MAP),
+    [initialPrefs, projectId]
+  );
+  const {
+    value: ganttPrefsMap,
+    setValue: setGanttPrefsMap,
+    isHydrated: ganttPrefsHydrated,
+  } = useUiState<GanttPrefsMap>(GANTT_PREFS_KEY, ganttPrefsSeed);
+
+  // Set the moment the user touches any of the four. After that the load
+  // below stops applying: the server value arrives asynchronously (cache
+  // first, DB a beat later), and a user who dialled the zoom in that window
+  // must not have it yanked back by a payload that predates the click.
+  const prefsTouchedRef = useRef(false);
+  const prefsProjectRef = useRef(projectId);
+
+  // Apply the remembered settings once they arrive. Re-runs on every change to
+  // the map — not just the first — because on a machine with no localStorage
+  // cache `isHydrated` flips true against an EMPTY map and the real one lands
+  // only when the DB fetch resolves; a run-once guard would have made the
+  // preference work on every device except a new one.
+  useEffect(() => {
+    // A different project is a different question: whatever the user dialled
+    // for the last one must not keep this one's own settings from loading.
+    if (prefsProjectRef.current !== projectId) {
+      prefsProjectRef.current = projectId;
+      prefsTouchedRef.current = false;
+    }
+    if (!ganttPrefsHydrated || prefsTouchedRef.current) return;
+    const p = ganttPrefsFor(ganttPrefsMap, projectId);
+    setZoomLevel(p.zoom);
+    setShowDependencies(p.showDependencies);
+    setHighlightDueSoon(p.highlightDueSoon);
+    // A fresh Set every run would re-render the whole chart each time the map
+    // object changes identity, so only swap it when the ids actually differ.
+    setCollapsedSections((prev) => {
+      if (
+        prev.size === p.collapsedSectionIds.length &&
+        p.collapsedSectionIds.every((id) => prev.has(id))
+      ) {
+        return prev;
+      }
+      return new Set(p.collapsedSectionIds);
+    });
+  }, [ganttPrefsHydrated, ganttPrefsMap, projectId]);
+
+  // Persist one changed setting. `patch` carries what just changed; the rest
+  // is read off this render's state — which is the server-seeded value from
+  // the first frame — because the server's uiState merge REPLACES the object
+  // stored for a project rather than merging into it, so a partial write
+  // would silently blank the other three.
+  const persistGanttPrefs = useCallback(
+    (patch: Partial<GanttProjectPrefs>) => {
+      prefsTouchedRef.current = true;
+      const base: GanttProjectPrefs = {
+        zoom: zoomLevel,
+        collapsedSectionIds: [...collapsedSections],
+        showDependencies,
+        highlightDueSoon,
+      };
+      const next = { ...base, ...patch };
+      // Return BEFORE calling setValue, not by returning `cur` from inside
+      // it: the hook writes its cache and schedules the PATCH around the
+      // updater, so a no-op toggle still hit the network from in there.
+      if (sameGanttPrefs(ganttPrefsFor(ganttPrefsMap, projectId), next)) return;
+      setGanttPrefsMap((cur) => nextGanttPrefsMap(cur, projectId, next));
+    },
+    [
+      zoomLevel,
+      collapsedSections,
+      showDependencies,
+      highlightDueSoon,
+      ganttPrefsMap,
+      setGanttPrefsMap,
+      projectId,
+    ]
+  );
+
+  const applyZoom = useCallback(
+    (level: ZoomLevel) => {
+      setZoomLevel(level);
+      persistGanttPrefs({ zoom: level });
+    },
+    [persistGanttPrefs]
+  );
+
+  // ---------- The deadline ----------
+  // Project.endDate — on a recertification, the date on the county letter the
+  // whole engagement exists to hit. It has been on the wire since this chart
+  // was built and the only vertical line here was today's. Read as a DATE-ONLY
+  // UTC-midnight value like every other date on this screen; derived from a
+  // prop, so the server and the browser compute the same day and hydration has
+  // nothing to repair.
+  const deadlineDate = useMemo(
+    () => (projectEndDate ? dueDateToLocalMidnight(projectEndDate) : null),
+    [projectEndDate]
+  );
   const [dependencies, setDependencies] = useState<DependencyRow[]>([]);
   // Clicked dependency arrow → Asana's type pill + menu. x/y are CONTENT
   // coords inside the scrolling timeline body (same space as the arrow
@@ -389,10 +920,18 @@ export function GanttView({
      
   }, [projectId, sections]);
 
-  // Section → palette index for per-section bar colors. Indexed off the
-  // base sections prop (not the filtered list) so filtering never
-  // reshuffles a section's color — and it matches the Timeline view's
-  // color for the same section.
+  // Section → palette index for per-section bar colors: the columns on
+  // screen, in their own order.
+  //
+  // The old comment said "the FULL sections prop (not filteredSections)" and
+  // `sections` IS filteredSections — but the claim it was defending holds
+  // anyway, so this stayed as it was: project-content's memo only ever MAPS
+  // the sections and filters their TASKS (project-content.tsx:619-707), so no
+  // filter, search or hide-completed can drop a section and renumber the ones
+  // after it. Numbering off `allSections` instead was tried and reverted: it
+  // moved the group-by buckets to palette slots after the real sections,
+  // while timeline-view.tsx numbers the same buckets 0..k — one lane, two
+  // hues, on two charts one tab apart.
   const sectionColorIdx = useMemo(() => {
     const m = new Map<string, number>();
     sections.forEach((s, i) => m.set(s.id, i));
@@ -408,53 +947,73 @@ export function GanttView({
   // already rewritten.
   const filteredSections = effectiveSections;
 
-  // ---------- Name lookup (from the FULL sections prop, so "Blocked by"
-  // resolves even when the predecessor is filtered out) ----------
+  // ---------- Name lookup ----------
+  // The union of allSections and the `sections` prop. The comment here used
+  // to say this read "the FULL sections prop"; `sections` is the FILTERED
+  // one — search, Incomplete/Completed, Due this week, Assigned to me and
+  // hide-completed all delete rows from it, and a group-by replaces the
+  // sections themselves with `group:*` buckets. Both halves are load-bearing:
+  // allSections carries the real sections a filter emptied, and `sections`
+  // carries the tasks when the columns are group buckets.
   const taskNameById = useMemo(() => {
     const m = new Map<string, string>();
+    for (const s of allSections ?? [])
+      for (const t of s.tasks) m.set(t.id, t.name);
     for (const s of sections) for (const t of s.tasks) m.set(t.id, t.name);
     return m;
+  }, [allSections, sections]);
+
+  // The ids the chart is actually drawing. A nameable blocker outside this
+  // set is hidden, not gone, and the cell says so instead of rendering the
+  // same "—" a task with no blocker at all gets.
+  const visibleTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of sections) for (const t of s.tasks) ids.add(t.id);
+    return ids;
   }, [sections]);
 
-  const blockedByNames = useMemo(() => {
-    const m = new Map<string, string[]>();
-    for (const dep of dependencies) {
-      const name = taskNameById.get(dep.blockingTaskId);
-      if (!name) continue;
-      const arr = m.get(dep.dependentTaskId) ?? [];
-      arr.push(name);
-      m.set(dep.dependentTaskId, arr);
-    }
-    return m;
-  }, [dependencies, taskNameById]);
-
-  // Same map but with the dependency ids, for the editable "Blocked by"
-  // cell (remove needs the dep id, add needs candidate tasks).
-  const blockedByDetail = useMemo(() => {
-    const m = new Map<
-      string,
-      { depId: string; blockingTaskId: string; name: string }[]
-    >();
-    for (const dep of dependencies) {
-      const name = taskNameById.get(dep.blockingTaskId);
-      if (!name) continue;
-      const arr = m.get(dep.dependentTaskId) ?? [];
-      arr.push({ depId: dep.id, blockingTaskId: dep.blockingTaskId, name });
-      m.set(dep.dependentTaskId, arr);
-    }
-    return m;
-  }, [dependencies, taskNameById]);
-
-  const allTasksFlat = useMemo(
-    () => effectiveSections.flatMap((s) => s.tasks),
-    [effectiveSections]
+  // Every blocker of every task, classified visible / hidden / unnameable.
+  // Carries the whole DependencyRow: the menu needs the dep id to remove a
+  // link and the type to retype one, including for a blocker it cannot name.
+  const blockedByDetail = useMemo(
+    () => resolveBlockedBy(dependencies, taskNameById, visibleTaskIds),
+    [dependencies, taskNameById, visibleTaskIds]
   );
+
+  // Candidates for "Add blocker" — the UNFILTERED set, deduped by id (a
+  // task appears in both arrays under a group-by). Built from the filtered
+  // list, the menu could not offer the predecessor the filter had just
+  // removed: with "Incomplete tasks" ticked, no completed task could be
+  // named as a blocker at all, which is most of what a recert depends on.
+  const allTasksFlat = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Task[] = [];
+    for (const s of [...(allSections ?? []), ...effectiveSections]) {
+      for (const t of s.tasks) {
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        out.push(t);
+      }
+    }
+    return out;
+  }, [allSections, effectiveSections]);
 
   // Search box inside the "Blocked by" menu. The list used to be the first
   // 15 tasks in board order, so on any real project the task you wanted to
   // depend on simply wasn't in the menu. Only one menu is open at a time,
   // so a single query serves every row; it resets whenever a menu opens.
   const [blockerQuery, setBlockerQuery] = useState("");
+  // The type the NEXT link created from this menu is born with. Every link
+  // used to be posted as {blockingTaskId} alone and the route defaulted it
+  // to FINISH_TO_START, so the only way to get a start-to-start pair — two
+  // inspections that must begin together — was to click its drawn arrow
+  // afterwards, and depPaths draws no arrow when either endpoint has no
+  // dates or sits in a collapsed or filtered section. Reset to FS whenever a
+  // menu opens: a link type is a fact about one link, and carrying SS
+  // silently into the next task's menu is the kind of invisible state this
+  // pass exists to remove.
+  const [newBlockerType, setNewBlockerType] =
+    useState<DependencyType>("FINISH_TO_START");
 
   // ---------- Inline edit helpers (Asana's Gantt table is editable) ----------
   const [renaming, setRenaming] = useState<{
@@ -462,8 +1021,42 @@ export function GanttView({
     value: string;
   } | null>(null);
 
+  // Apply server cascade results to the optimistic layer so rescheduled
+  // bars glide to their new dates IMMEDIATELY instead of waiting for
+  // router.refresh() to land.
+  const applyShiftOverrides = useCallback(
+    (
+      shifts:
+        | readonly (CascadeShiftDates & { taskId: string })[]
+        | undefined
+    ) => {
+      if (!Array.isArray(shifts) || shifts.length === 0) return;
+      // An open task panel keeps its own copy of the task and refetches only
+      // on this event. Every caller here has just been told by the server
+      // that these tasks' dates moved, so the panel is stale the instant the
+      // bars glide — and the panel is where someone goes to find out why.
+      for (const s of shifts) notifyTaskMutated(s.taskId);
+      setOptimisticDates((prev) => {
+        const next = { ...prev };
+        for (const s of shifts) {
+          next[s.taskId] = {
+            startDate: dateOnly(s.newStart),
+            dueDate: dateOnly(s.newEnd),
+          };
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   const patchTask = useCallback(
     async (taskId: string, body: Record<string, unknown>) => {
+      // Counted like every other in-flight write: the stale-override reaper
+      // below drops optimistic dates that the props have not confirmed once
+      // nothing is pending, and the cascade overrides applied here are
+      // exactly that kind of unconfirmed date.
+      patchesInFlightRef.current += 1;
       try {
         const res = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
@@ -474,14 +1067,42 @@ export function GanttView({
           const data = await res.json().catch(() => null);
           throw new Error(data?.error || "Failed to update task");
         }
+        // The response body was read and thrown away. Editing a date in this
+        // table runs the SAME server cascade a drag does, and the same one the
+        // task panel's picker runs — where it is named. Here it happened in
+        // silence: dependent bars only moved on the next refresh, with nothing
+        // saying they had moved or which ones.
+        const updated = await res.json().catch(() => null);
+        const shifts: {
+          taskId: string;
+          taskName: string;
+          newStart: string | null;
+          newEnd: string | null;
+        }[] = Array.isArray(updated?.cascadeShifts)
+          ? updated.cascadeShifts
+          : [];
+        // applyShiftOverrides notifies for every task the cascade moved; this
+        // one is for the task the user actually edited.
+        applyShiftOverrides(shifts);
+        notifyTaskMutated(taskId);
+        const cascadeTitle = cascadeToastTitle(shifts);
+        if (cascadeTitle) {
+          const names = cascadeToastNames(shifts);
+          toast.success(
+            cascadeTitle,
+            names ? { description: names } : undefined
+          );
+        }
         router.refresh();
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to update task"
         );
+      } finally {
+        patchesInFlightRef.current -= 1;
       }
     },
-    [router]
+    [router, applyShiftOverrides]
   );
 
   const saveRename = useCallback(() => {
@@ -505,38 +1126,20 @@ export function GanttView({
     }
   }, [projectId]);
 
-  // Apply server cascade results to the optimistic layer so rescheduled
-  // bars glide to their new dates IMMEDIATELY instead of waiting for
-  // router.refresh() to land.
-  const applyShiftOverrides = useCallback(
-    (
-      shifts:
-        | { taskId: string; newStart: string | null; newEnd: string | null }[]
-        | undefined
-    ) => {
-      if (!Array.isArray(shifts) || shifts.length === 0) return;
-      setOptimisticDates((prev) => {
-        const next = { ...prev };
-        for (const s of shifts) {
-          next[s.taskId] = {
-            startDate: s.newStart ? String(s.newStart).slice(0, 10) : null,
-            dueDate: s.newEnd ? String(s.newEnd).slice(0, 10) : null,
-          };
-        }
-        return next;
-      });
-    },
-    []
-  );
-
   const addBlocker = useCallback(
-    async (taskId: string, blockingTaskId: string) => {
+    async (
+      taskId: string,
+      blockingTaskId: string,
+      // The route already accepts all four types and defaults to
+      // FINISH_TO_START; this view was the half that never sent one.
+      type: DependencyType = "FINISH_TO_START"
+    ) => {
       patchesInFlightRef.current += 1;
       try {
         const res = await fetch(`/api/tasks/${taskId}/dependencies`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ blockingTaskId }),
+          body: JSON.stringify({ blockingTaskId, type }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => null);
@@ -545,17 +1148,26 @@ export function GanttView({
         // The server auto-shifts the dependent when the new link is already
         // violated — move the bars optimistically, then refresh.
         const data = await res.json().catch(() => null);
-        const shifted = Array.isArray(data?.cascadeShifts)
-          ? data.cascadeShifts.length
-          : 0;
-        applyShiftOverrides(data?.cascadeShifts);
-        if (shifted > 0) router.refresh();
+        const shifts: CascadeShiftSummary[] = Array.isArray(data?.cascadeShifts)
+          ? data.cascadeShifts
+          : [];
+        applyShiftOverrides(shifts);
+        if (shifts.length > 0) router.refresh();
         await reloadDependencies();
-        toast.success(
-          shifted > 0
-            ? `Dependency added · ${shifted} task${shifted > 1 ? "s" : ""} rescheduled`
-            : "Dependency added"
-        );
+        // Say what was saved in the words the picker used — the code alone
+        // ("Dependency added · SF") is a confirmation only for the reader who
+        // already knew what SF meant. The cascade line underneath is the same
+        // sentence a drag and the table's date picker produce, from the same
+        // two helpers: one server event, one wording.
+        const cascade = cascadeToastTitle(shifts);
+        const names = cascadeToastNames(shifts);
+        toast.success(`Blocker added — this task ${dependencyMeaning(type)}`, {
+          description: cascade
+            ? names
+              ? `${cascade} — ${names}`
+              : cascade
+            : undefined,
+        });
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to add dependency"
@@ -579,7 +1191,7 @@ export function GanttView({
           throw new Error(data?.error || "Failed to remove dependency");
         }
         await reloadDependencies();
-        toast.success("Dependency removed");
+        toast.success("Blocker removed");
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to remove dependency"
@@ -620,19 +1232,23 @@ export function GanttView({
           throw new Error(data?.error || "Failed to update dependency");
         }
         const data = await res.json().catch(() => null);
-        const shifted = Array.isArray(data?.cascadeShifts)
-          ? data.cascadeShifts.length
-          : 0;
+        const shifts: CascadeShiftSummary[] = Array.isArray(data?.cascadeShifts)
+          ? data.cascadeShifts
+          : [];
         // Dates may have moved — glide the bars optimistically, then let
         // the refresh confirm; the arrows re-anchor from the same dates.
-        applyShiftOverrides(data?.cascadeShifts);
-        if (shifted > 0) router.refresh();
+        applyShiftOverrides(shifts);
+        if (shifts.length > 0) router.refresh();
         await reloadDependencies();
-        toast.success(
-          shifted > 0
-            ? `Dependency updated · ${shifted} task${shifted > 1 ? "s" : ""} rescheduled`
-            : "Dependency updated"
-        );
+        const cascade = cascadeToastTitle(shifts);
+        const names = cascadeToastNames(shifts);
+        toast.success(`Blocker updated — this task ${dependencyMeaning(type)}`, {
+          description: cascade
+            ? names
+              ? `${cascade} — ${names}`
+              : cascade
+            : undefined,
+        });
       } catch (err) {
         // Roll the optimistic change back — including the pill's own copy of
         // the row, or it keeps showing the type that never saved.
@@ -778,18 +1394,30 @@ export function GanttView({
     // one built on the server's day. The next frame has today.
     if (!startDate) return [];
     if (minTask && minTask < startDate) startDate = snapToUnit(minTask);
+    // The deadline widens the window like a dated task — but ONLY while the
+    // result still fits under the column cap. Without this test a county date
+    // years from the work moved the window to itself and the clamp below cut
+    // it off before the first bar, leaving a grid with no tasks, no section
+    // brackets and no today line on it. When it does not fit, nothing is
+    // widened and the marker stays off: `deadlinePosition` already returns
+    // null outside the window, and a chart that still draws the work is worth
+    // more than one vertical line.
+    if (deadlineDate) {
+      const candStart =
+        deadlineDate < startDate ? snapToUnit(deadlineDate) : startDate;
+      const candEnd =
+        maxTask && maxTask > deadlineDate ? maxTask : deadlineDate;
+      if (gridColumnsNeeded(zoomLevel, candStart, candEnd) <= MAX_GRID_COLUMNS) {
+        startDate = candStart;
+        maxTask = candEnd;
+      }
+    }
     let count = config.range;
     if (maxTask && maxTask > startDate) {
-      const days = differenceInDays(maxTask, startDate);
-      const needed =
-        zoomLevel === "day"
-          ? days + 14
-          : zoomLevel === "week"
-            ? Math.ceil(days / 7) + 4
-            : zoomLevel === "month"
-              ? Math.ceil(days / 28) + 2
-              : Math.ceil(days / 84) + 1;
-      count = Math.max(count, Math.min(needed, 500));
+      count = Math.max(
+        count,
+        Math.min(gridColumnsNeeded(zoomLevel, startDate, maxTask), MAX_GRID_COLUMNS)
+      );
     }
 
     const cols = config.getColumns(startDate, count);
@@ -810,7 +1438,7 @@ export function GanttView({
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, zoomLevel, sections, today]);
+  }, [currentDate, zoomLevel, sections, today, deadlineDate]);
 
   // ---------- Top header groups (months / quarters / years) ----------
   const headerGroups = useMemo(() => {
@@ -1168,6 +1796,41 @@ export function GanttView({
     return (daysFromStart / bounds.totalDays) * bounds.totalWidth;
   }, [bounds, today]);
 
+  // ---------- Deadline line ----------
+  // The same offset maths as todayPosition, including the out-of-range case:
+  // a deadline the window does not cover gets no line rather than one pinned
+  // to an edge it does not fall on. The window is grown to cover it above
+  // WHEN IT FITS, so this is null exactly when covering it would have cost
+  // more than MAX_GRID_COLUMNS — a county date years from the work. No line
+  // is the right answer there; the alternative was a grid that stopped
+  // before the first bar.
+  const deadlinePosition = useMemo(() => {
+    if (!bounds || !deadlineDate) return null;
+    if (
+      deadlineDate < bounds.timelineStart ||
+      deadlineDate > bounds.timelineEnd
+    ) {
+      return null;
+    }
+    const daysFromStart = differenceInDays(deadlineDate, bounds.timelineStart);
+    return (daysFromStart / bounds.totalDays) * bounds.totalWidth;
+  }, [bounds, deadlineDate]);
+
+  // Null on the first frame with today still unknown — the label then states
+  // the date and claims nothing about whether it has passed.
+  const deadlineLabel = deadlineDate
+    ? deadlineMarkerLabel(deadlineDate, today)
+    : null;
+  const deadlineTitle = deadlineDate
+    ? deadlineMarkerTitle(deadlineDate, today, projectName)
+    : null;
+  // Flip the chip to the left of the line when the line is near the right
+  // edge, so the label is not pushed off the end of the grid.
+  const deadlineLabelOnLeft =
+    deadlinePosition !== null &&
+    bounds !== null &&
+    deadlinePosition > bounds.totalWidth - 160;
+
   // ---------- Drag move / resize (UTC-midnight-safe save) ----------
   const pixelsToDays = useCallback(
     (px: number) => {
@@ -1289,11 +1952,24 @@ export function GanttView({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          // The API rejects an inverted range with a precise reason
+          // ("startDate must be on or before dueDate"), and answers a
+          // permission failure with another; both were thrown away here and
+          // replaced with "Failed to update dates", so the engineer re-tried
+          // the same drag with no idea which edge was wrong — or that the
+          // problem was not the drag at all. Same read the Timeline does.
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error || "");
+        }
         // Glide dependents along too (server-side cascade result).
         const updated = await res.json().catch(() => null);
-        const shifts: { taskId: string; newStart: string | null; newEnd: string | null }[] =
-          updated?.cascadeShifts ?? [];
+        const shifts: {
+          taskId: string;
+          taskName: string;
+          newStart: string | null;
+          newEnd: string | null;
+        }[] = updated?.cascadeShifts ?? [];
         if (shifts.length > 0) {
           setOptimisticDates((prev) => {
             const next = { ...prev };
@@ -1306,15 +1982,34 @@ export function GanttView({
             return next;
           });
         }
+        // Tell the rest of the app the dates moved. An open task detail panel
+        // keeps its own copy of the task and refetches only on this event, so
+        // without it the panel showed pre-drag dates until it was closed and
+        // reopened — and the cascaded tasks showed pre-drag dates too, which
+        // is worse: nobody dragged those.
+        notifyTaskMutated(taskId);
+        for (const s of shifts) notifyTaskMutated(s.taskId);
+        // SAY IT. The cascade moved other people's work and this chart used
+        // to move those bars in silence; the server has been sending the name
+        // of every task it rescheduled all along.
+        const cascadeTitle = cascadeToastTitle(shifts);
+        if (cascadeTitle) {
+          const names = cascadeToastNames(shifts);
+          toast.success(
+            cascadeTitle,
+            names ? { description: names } : undefined
+          );
+        }
         router.refresh();
-      } catch {
+      } catch (error) {
         // Roll back only the failed bar.
         setOptimisticDates((prev) => {
           const next = { ...prev };
           delete next[taskId];
           return next;
         });
-        toast.error("Failed to update dates");
+        const reason = error instanceof Error ? error.message : "";
+        toast.error(reason || "Failed to update dates");
       } finally {
         patchesInFlightRef.current -= 1;
       }
@@ -1353,11 +2048,18 @@ export function GanttView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: !task.completed }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // The server says WHY — an approval whose approver you are not, a
+        // task in a project you can only read. "Failed to update task" sent
+        // the engineer to look for a network problem that was not there.
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "");
+      }
       notifyTaskMutated(task.id);
       router.refresh();
-    } catch {
-      toast.error("Failed to update task");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      toast.error(reason || "Failed to update task");
     }
   };
 
@@ -1374,12 +2076,19 @@ export function GanttView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, projectId }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Same swallow as the other two: the route answers with a real
+        // sentence and the draft name is still in the input, so the person
+        // needs to know whether to rename it or to stop trying.
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "");
+      }
       setAddingSection(false);
       setNewSectionName("");
       router.refresh();
-    } catch {
-      toast.error("Failed to add section");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      toast.error(reason || "Failed to add section");
     }
   };
 
@@ -1405,22 +2114,28 @@ export function GanttView({
     else setPinnedDate((d) => addMonths(from(d), amount * 6));
   };
 
+  // Every zoom entry point goes through applyZoom so the choice is
+  // remembered, whichever control made it — the stepper and the dropdown
+  // both used to write state this component threw away on the next tab
+  // switch.
   const zoomIndex = ZOOM_ORDER.indexOf(zoomLevel);
   const zoomIn = () => {
-    if (zoomIndex > 0) setZoomLevel(ZOOM_ORDER[zoomIndex - 1]);
+    if (zoomIndex > 0) applyZoom(ZOOM_ORDER[zoomIndex - 1]);
   };
   const zoomOut = () => {
     if (zoomIndex < ZOOM_ORDER.length - 1)
-      setZoomLevel(ZOOM_ORDER[zoomIndex + 1]);
+      applyZoom(ZOOM_ORDER[zoomIndex + 1]);
   };
 
   const toggleSection = (sectionId: string) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(sectionId)) next.delete(sectionId);
-      else next.add(sectionId);
-      return next;
-    });
+    // Computed rather than a functional setState because the same value has
+    // to be persisted, and reading it back out of the updater would mean
+    // writing to the preference store from inside a render-phase function.
+    const next = new Set(collapsedSections);
+    if (next.has(sectionId)) next.delete(sectionId);
+    else next.add(sectionId);
+    setCollapsedSections(next);
+    persistGanttPrefs({ collapsedSectionIds: [...next] });
   };
 
   // ---------- Helpers ----------
@@ -1491,9 +2206,14 @@ export function GanttView({
                   <Diamond className="w-3.5 h-3.5 mr-2 text-[#79ABFF]" />
                   Milestone
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setAddingSection(true)}>
-                  Section
-                </DropdownMenuItem>
+                {/* Same withholding as the "Add section" row at the bottom
+                    of the table: under a group-by the new section could not
+                    appear until the grouping is cleared. */}
+                {sectionsAreEditable && (
+                  <DropdownMenuItem onClick={() => setAddingSection(true)}>
+                    Section
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -1548,7 +2268,7 @@ export function GanttView({
                 {ZOOM_ORDER.map((level) => (
                   <DropdownMenuItem
                     key={level}
-                    onClick={() => setZoomLevel(level)}
+                    onClick={() => applyZoom(level)}
                     className={cn(zoomLevel === level && "bg-slate-100")}
                   >
                     {ZOOM_LABELS[level]}
@@ -1581,13 +2301,19 @@ export function GanttView({
             <DropdownMenuContent align="end">
               <DropdownMenuCheckboxItem
                 checked={showDependencies}
-                onCheckedChange={(v) => setShowDependencies(v === true)}
+                onCheckedChange={(v) => {
+                  setShowDependencies(v === true);
+                  persistGanttPrefs({ showDependencies: v === true });
+                }}
               >
                 Show dependencies
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={highlightDueSoon}
-                onCheckedChange={(v) => setHighlightDueSoon(v === true)}
+                onCheckedChange={(v) => {
+                  setHighlightDueSoon(v === true);
+                  persistGanttPrefs({ highlightDueSoon: v === true });
+                }}
               >
                 Highlight due soon
               </DropdownMenuCheckboxItem>
@@ -1631,6 +2357,10 @@ export function GanttView({
             {/* Sections & tasks */}
             {filteredSections.map((section) => {
               const isCollapsed = collapsedSections.has(section.id);
+              // Null for a section with no stage and for the synthetic
+              // `group:*` buckets, which carry none — the header then renders
+              // exactly as it did before this chip existed.
+              const stageChip = sectionStageChip(section.stage);
               return (
                 <div key={section.id}>
                   {/* Section header row */}
@@ -1650,14 +2380,30 @@ export function GanttView({
                     <span className="text-xs text-slate-400 flex-shrink-0">
                       {section.tasks.length}
                     </span>
+                    {/* Whose desk this column is sitting on. Section.stage
+                        has been loaded here all along with nothing reading
+                        it, and on a recert "are we sitting on this or is the
+                        county?" is the question the schedule gets opened for.
+                        The stage's own LABEL is deliberately not printed —
+                        the header two elements to the left already is it, by
+                        the rule that gave the section its stage. Same words
+                        as the cockpit's PipelineStrip, from one map. */}
+                    {stageChip && (
+                      <span
+                        className="flex-shrink-0 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500"
+                        title={`Stage: ${stageChip.label} — ${stageChip.desk.toLowerCase()}`}
+                      >
+                        {stageChip.desk}
+                      </span>
+                    )}
                   </button>
 
                   {/* Task rows */}
                   {!isCollapsed && (
                     <>
                       {section.tasks.map((task) => {
-                        const blockedBy = blockedByNames.get(task.id);
-                        const blockedTxt = blockedBy?.join(", ") ?? "";
+                        const blockers = blockedByDetail.get(task.id) ?? [];
+                        const blockedParts = blockedCellParts(blockers);
                         return (
                           <div
                             key={task.id}
@@ -1853,16 +2599,43 @@ export function GanttView({
                             >
                               <DropdownMenu
                                 onOpenChange={(open) => {
-                                  if (open) setBlockerQuery("");
+                                  if (open) {
+                                    setBlockerQuery("");
+                                    setNewBlockerType("FINISH_TO_START");
+                                  }
                                 }}
                               >
                                 <DropdownMenuTrigger asChild>
                                   <button className="w-full px-2 py-1 text-xs text-slate-500 text-left truncate hover:bg-slate-100 rounded cursor-pointer">
-                                    <span className="truncate" title={blockedTxt}>
-                                      {blockedTxt || (
+                                    {/* Three states, three renderings. A
+                                        blocker the filter hid keeps its NAME
+                                        and goes muted; one with no name says
+                                        that something is blocking without
+                                        naming it. Only a task with no
+                                        blockers at all gets the em dash —
+                                        it used to be what all three showed. */}
+                                    <span
+                                      className="truncate block"
+                                      title={blockedCellTitle(blockers)}
+                                    >
+                                      {blockedParts.length === 0 ? (
                                         <span className="text-slate-300">
                                           —
                                         </span>
+                                      ) : (
+                                        blockedParts.map((part, i) => (
+                                          <span key={part.key}>
+                                            {i > 0 && ", "}
+                                            <span
+                                              className={cn(
+                                                part.visibility !== "visible" &&
+                                                  "text-slate-400 italic"
+                                              )}
+                                            >
+                                              {part.label}
+                                            </span>
+                                          </span>
+                                        ))
                                       )}
                                     </span>
                                   </button>
@@ -1871,24 +2644,84 @@ export function GanttView({
                                   align="start"
                                   className="w-64 max-h-72 overflow-y-auto"
                                 >
-                                  {(blockedByDetail.get(task.id) ?? []).map(
-                                    (b) => (
-                                      <DropdownMenuItem
-                                        key={b.depId}
-                                        onClick={() =>
-                                          removeBlocker(task.id, b.depId)
-                                        }
-                                        className="gap-2"
-                                      >
-                                        <X className="w-3.5 h-3.5 text-slate-400" />
-                                        <span className="truncate">
-                                          {b.name}
+                                  {/* One submenu per existing blocker. The
+                                      row used to BE the remove button, so the
+                                      only thing you could do to a blocker
+                                      from here was delete it by clicking its
+                                      name; the type was invisible and the
+                                      only place to change it was the drawn
+                                      arrow, which depPaths omits whenever an
+                                      endpoint has no dates or sits in a
+                                      collapsed or filtered section. A Radix
+                                      Sub is the one construct that survives
+                                      inside this content — it keeps the
+                                      roving focus and the typeahead the
+                                      search input below already fights. */}
+                                  {blockers.map((b) => (
+                                    <DropdownMenuSub key={b.dep.id}>
+                                      <DropdownMenuSubTrigger className="gap-2">
+                                        <span
+                                          className={cn(
+                                            "truncate flex-1",
+                                            b.visibility !== "visible" &&
+                                              "text-slate-400 italic"
+                                          )}
+                                        >
+                                          {b.name ?? UNNAMEABLE_BLOCKER_LABEL}
                                         </span>
-                                      </DropdownMenuItem>
-                                    )
-                                  )}
-                                  {(blockedByDetail.get(task.id) ?? [])
-                                    .length > 0 && (
+                                        <span className="text-[10px] font-medium text-slate-400">
+                                          {dependencyCode(b.dep.type)}
+                                        </span>
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent className="w-64">
+                                        <div className="px-2 py-1 text-[11px] text-slate-400">
+                                          Link type
+                                        </div>
+                                        {DEPENDENCY_TYPES.map((d) => (
+                                          <DropdownMenuItem
+                                            key={d.type}
+                                            onClick={() =>
+                                              changeDependencyType(b.dep, d.type)
+                                            }
+                                            className="gap-2"
+                                          >
+                                            <Check
+                                              className={cn(
+                                                "w-3.5 h-3.5 flex-shrink-0",
+                                                d.type === b.dep.type
+                                                  ? "text-[#c9a84c]"
+                                                  : "opacity-0"
+                                              )}
+                                            />
+                                            <span className="flex-1 truncate">
+                                              {d.label}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                              {d.code}
+                                            </span>
+                                          </DropdownMenuItem>
+                                        ))}
+                                        {/* The codes mean nothing to half the
+                                            office; the sentence is the
+                                            server's own rule, not a gloss. */}
+                                        <div className="px-2 pt-1 pb-1.5 text-[11px] text-slate-400 leading-snug">
+                                          This task{" "}
+                                          {dependencyMeaning(b.dep.type)}.
+                                        </div>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            removeBlocker(task.id, b.dep.id)
+                                          }
+                                          className="gap-2 text-red-600 focus:text-red-600"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                          Remove blocker
+                                        </DropdownMenuItem>
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                  ))}
+                                  {blockers.length > 0 && (
                                     <div className="my-1 border-t" />
                                   )}
                                   <div className="sticky top-0 z-10 bg-white">
@@ -1908,16 +2741,62 @@ export function GanttView({
                                         className="w-full px-2 py-1 text-xs border rounded outline-none focus:border-slate-400"
                                       />
                                     </div>
+                                    {/* Type for the link about to be
+                                        created. FS stays selected, so the
+                                        ordinary link is still one click on a
+                                        task name; the other three are one
+                                        click away instead of unreachable
+                                        until an arrow happens to be drawn.
+                                        Plain buttons, not menu items — a
+                                        DropdownMenuItem would close the whole
+                                        menu on select, and the picking is not
+                                        finished yet. Same reason the search
+                                        input stops its keydowns: Radix's
+                                        typeahead reads printable keys off the
+                                        content and its roving focus claims
+                                        the arrows. */}
+                                    <div
+                                      className="px-2 pb-1.5"
+                                      onKeyDown={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        {DEPENDENCY_TYPES.map((d) => (
+                                          <button
+                                            key={d.type}
+                                            type="button"
+                                            aria-pressed={
+                                              newBlockerType === d.type
+                                            }
+                                            title={`${d.label} — this task ${dependencyMeaning(d.type)}`}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              setNewBlockerType(d.type);
+                                            }}
+                                            className={cn(
+                                              "px-1.5 py-0.5 text-[10px] font-medium rounded border",
+                                              newBlockerType === d.type
+                                                ? "border-[#c9a84c] bg-[#faf6ea] text-slate-900"
+                                                : "border-slate-200 text-slate-400 hover:text-slate-600"
+                                            )}
+                                          >
+                                            {d.code}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <div className="pt-1 text-[11px] text-slate-400 leading-snug">
+                                        {dependencyLabel(newBlockerType)} —
+                                        this task{" "}
+                                        {dependencyMeaning(newBlockerType)}.
+                                      </div>
+                                    </div>
                                   </div>
                                   {(() => {
                                     const q = blockerQuery.trim().toLowerCase();
                                     const candidates = allTasksFlat.filter(
                                       (t) =>
                                         t.id !== task.id &&
-                                        !(
-                                          blockedByDetail.get(task.id) ?? []
-                                        ).some(
-                                          (b) => b.blockingTaskId === t.id
+                                        !blockers.some(
+                                          (b) => b.dep.blockingTaskId === t.id
                                         ) &&
                                         (!q || t.name.toLowerCase().includes(q))
                                     );
@@ -1936,7 +2815,11 @@ export function GanttView({
                                           <DropdownMenuItem
                                             key={t.id}
                                             onClick={() =>
-                                              addBlocker(task.id, t.id)
+                                              addBlocker(
+                                                task.id,
+                                                t.id,
+                                                newBlockerType
+                                              )
                                             }
                                             className="gap-2"
                                           >
@@ -1962,17 +2845,37 @@ export function GanttView({
                         );
                       })}
 
-                      {/* Ghost "Add task…" row */}
-                      <button
-                        className="flex items-center gap-2 px-3 border-b text-slate-400 hover:text-slate-600 hover:bg-slate-50 w-full text-left"
-                        style={{ height: ROW_HEIGHT }}
-                        onClick={() =>
-                          setCreateDialog({ open: true, sectionId: section.id })
-                        }
-                      >
-                        <Plus className="w-4 h-4 flex-shrink-0" />
-                        <span className="text-sm">Add task…</span>
-                      </button>
+                      {/* Ghost "Add task…" row.
+                          The ROW is always drawn — taskRowMap counts it and
+                          the right panel mirrors it, so removing it here
+                          would slide the whole left table out of register
+                          with its own bars. Only the BUTTON is withheld: it
+                          posts `sectionId: section.id`, and under a group-by
+                          that id is a synthetic `group:d:week` with no row
+                          behind it, so POST /api/tasks answered 404 "Section
+                          not found" and the composer toasted a failure every
+                          single time. Same rule List and Board got in
+                          3198e68. */}
+                      {sectionsAreEditable ? (
+                        <button
+                          className="flex items-center gap-2 px-3 border-b text-slate-400 hover:text-slate-600 hover:bg-slate-50 w-full text-left"
+                          style={{ height: ROW_HEIGHT }}
+                          onClick={() =>
+                            setCreateDialog({
+                              open: true,
+                              sectionId: section.id,
+                            })
+                          }
+                        >
+                          <Plus className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-sm">Add task…</span>
+                        </button>
+                      ) : (
+                        <div
+                          className="border-b"
+                          style={{ height: ROW_HEIGHT }}
+                        />
+                      )}
                     </>
                   )}
                 </div>
@@ -2006,7 +2909,7 @@ export function GanttView({
                   className="flex-1 text-sm border border-[#c9a84c] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-[#c9a84c]"
                 />
               </div>
-            ) : (
+            ) : sectionsAreEditable ? (
               <button
                 className="flex items-center gap-2 px-3 text-slate-500 hover:bg-slate-50 w-full text-left border-b"
                 style={{ height: ROW_HEIGHT }}
@@ -2015,6 +2918,13 @@ export function GanttView({
                 <Plus className="w-4 h-4" />
                 <span className="text-sm">Add section</span>
               </button>
+            ) : (
+              // Withheld under a group-by for the reason 3198e68 gives: the
+              // POST really would create a section, but the columns on screen
+              // are group buckets, so it could not appear until the grouping
+              // is cleared. The empty row keeps totalRows honest — it is
+              // counted in taskRowMap and mirrored on the right.
+              <div className="border-b" style={{ height: ROW_HEIGHT }} />
             )}
 
             {/* White filler down to the viewport bottom */}
@@ -2065,6 +2975,20 @@ export function GanttView({
                     style={{ left: todayPosition, backgroundColor: TODAY_BLUE }}
                   />
                 )}
+                {/* Deadline marker on the axis — a diamond, not a dot, so the
+                    two markers are told apart at a glance and not only by
+                    colour. It lives INSIDE the sticky header, so it stays on
+                    screen when the chart is scrolled down past the chip. */}
+                {deadlinePosition !== null && (
+                  <div
+                    className="absolute bottom-0 w-2 h-2 -translate-x-1/2 rotate-45"
+                    style={{
+                      left: deadlinePosition,
+                      backgroundColor: DEADLINE_RED,
+                    }}
+                    title={deadlineTitle ?? undefined}
+                  />
+                )}
               </div>
             </div>
 
@@ -2094,6 +3018,42 @@ export function GanttView({
                   className="absolute top-0 bottom-0 w-0.5 z-10 pointer-events-none"
                   style={{ left: todayPosition, backgroundColor: TODAY_BLUE }}
                 />
+              )}
+
+              {/* DEADLINE line — Project.endDate.
+                  z-10, the same layer as the today line and BELOW the sticky
+                  date header (z-20). That ordering is load-bearing: the
+                  dependency-arrow layer was at z-20 once, tied with the
+                  header, and being later in the DOM it painted over it when
+                  the chart scrolled — fixed by dropping it to z-[15]. Nothing
+                  in this body may go above 15. */}
+              {deadlinePosition !== null && (
+                <div
+                  className="absolute top-0 bottom-0 z-10 pointer-events-none"
+                  style={{ left: deadlinePosition }}
+                >
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 -translate-x-px"
+                    style={{
+                      // Dashed, because a second SOLID vertical line reads as
+                      // a second "today".
+                      backgroundImage: `repeating-linear-gradient(to bottom, ${DEADLINE_RED} 0 6px, transparent 6px 12px)`,
+                    }}
+                  />
+                  <span
+                    className={cn(
+                      // pointer-events back ON for the chip alone: the wrapper
+                      // is inert so the line never eats a bar's mousedown,
+                      // but the chip has to be hoverable to show its title.
+                      "pointer-events-auto absolute top-0 whitespace-nowrap rounded px-1.5 py-[2px] text-[10px] font-semibold leading-none text-white shadow-sm",
+                      deadlineLabelOnLeft ? "right-[6px]" : "left-[6px]"
+                    )}
+                    style={{ backgroundColor: DEADLINE_RED }}
+                    title={deadlineTitle ?? undefined}
+                  >
+                    {deadlineLabel}
+                  </span>
+                </div>
               )}
 
               {/* Dependency arrows — TWO stacked svgs over one shared

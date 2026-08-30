@@ -7,6 +7,11 @@ import {
   savedTabOrderFor,
   type ProjectTabOrderMap,
 } from "@/lib/project-views";
+import {
+  GANTT_PREFS_KEY,
+  ganttPrefsFor,
+  type GanttPrefsMap,
+} from "@/lib/gantt-prefs";
 import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
 import { getLevel } from "@/lib/people-types";
@@ -382,6 +387,22 @@ export default async function ProjectPage({
       project.id
     ) ?? null;
 
+  // Same read, one key over: the Gantt's remembered zoom, folds and Options
+  // for this project. Resolved here for the reason the tab order is — the
+  // client hook only reaches uiState from an effect, so the chart would open
+  // at the defaults for a beat, and a click inside that beat wrote those
+  // defaults back over the stored folds (the server's uiState merge replaces
+  // the object under a project id). It rides the user lookup that already
+  // runs, so it costs no round trip.
+  const savedGanttPrefs = ganttPrefsFor(
+    (
+      user.preferences?.uiState as {
+        [GANTT_PREFS_KEY]?: GanttPrefsMap;
+      } | null
+    )?.[GANTT_PREFS_KEY],
+    project.id
+  );
+
   // Serialize the project data for client component.
   // Prisma's Decimal type doesn't survive JSON.stringify cleanly, so we
   // coerce `budget` to a plain number here (loses precision past 15
@@ -442,6 +463,7 @@ export default async function ProjectPage({
       canEdit={canEditProject}
       canManage={canManageProject}
       initialTabOrder={savedTabOrder}
+      initialGanttPrefs={savedGanttPrefs}
     />
   );
 }
