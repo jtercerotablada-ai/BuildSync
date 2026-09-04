@@ -998,7 +998,7 @@ export const typologies: Typology[] = [
     delivers: ['Transfer structure', 'Long-span framing', 'BIM coordination', 'Model-derived drawings'],
     track: 'new',
     href: '/services/bim-coordination',
-    photo: photo.frameCurvedCrane,
+    photo: photo.frameCraneClean,
   },
   {
     n: '05',
@@ -1007,7 +1007,7 @@ export const typologies: Typology[] = [
     delivers: ['Mat & spread footings', 'Deep foundations', 'Settlement & uplift checks', 'Reactions schedule'],
     track: 'new',
     href: '/services/structural-analysis',
-    photo: photo.rebarMatWorkers,
+    photo: photo.foundationMatPit,
   },
   {
     n: '06',
@@ -1016,7 +1016,7 @@ export const typologies: Typology[] = [
     delivers: ['Condition assessment', 'Repair scope & details', 'Recertification report', 'Reinspection'],
     track: 'existing',
     href: '/existing-buildings',
-    photo: photo.inspectRoofHelmets,
+    photo: photo.facadeRepairRope,
   },
 ];
 
@@ -1061,7 +1061,7 @@ export const paths: Path[] = [
     ],
     cta: { href: '/services', label: 'Explore design services' },
     art: 'new',
-    photo: photo.frameColumnsSky,
+    photo: photo.frameTowerSunlit,
   },
   {
     n: '02',

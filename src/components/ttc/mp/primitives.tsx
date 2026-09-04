@@ -177,24 +177,29 @@ export function AnimatedLine({
   );
 }
 
-/* ── Section heading — number · label · optional right-aligned meta ──────── */
+/* ── Section heading — a small index and a label, nothing else ──────────── */
 
+/**
+ * The only section furniture on the site: "01 — What we design". The
+ * right-aligned meta and the full-width rule that used to travel with it are
+ * gone; a section starts with its label and its headline, not with a title
+ * block.
+ */
 export function SectionHeading({
   n,
   label,
-  meta,
   className = '',
 }: {
   n: string;
   label: string;
-  meta?: string;
   className?: string;
 }) {
   return (
-    <Reveal className={`mp-sechead ${className}`.trim()}>
-      <span className="mp-secnum mp-sechead__num">{n}</span>
+    <Reveal as="p" className={`mp-sechead ${className}`.trim()}>
+      <span className="mp-sechead__num" aria-hidden="true">
+        {n}
+      </span>
       <span className="mp-sechead__label">{label}</span>
-      {meta ? <span className="mp-sechead__meta">{meta}</span> : null}
     </Reveal>
   );
 }

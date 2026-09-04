@@ -93,7 +93,7 @@ export default function ExistingBuildingsPage() {
       {/* ── When to bring in an engineer ── */}
       <section className="mp-section mp-surface--paper">
         <div className="mp-shell">
-          <SectionHeading n="01" label="When to call" meta="Four triggers" />
+          <SectionHeading n="01" label="When to call" />
           <div className="mp-split">
             <Reveal>
               <h2 className="mp-split__title">
@@ -101,7 +101,7 @@ export default function ExistingBuildingsPage() {
               </h2>
             </Reveal>
             <Reveal delay={0.06}>
-              <ul className="mp-lead__pillars" style={{ marginBlockStart: 0 }}>
+              <ul className="mp-pillars">
                 {TRIGGERS.map((t) => (
                   <li key={t.k}>
                     <b>{t.k}</b>
@@ -117,11 +117,7 @@ export default function ExistingBuildingsPage() {
       {/* ── Services in this track ── */}
       <section className="mp-section mp-surface--paper">
         <div className="mp-shell">
-          <SectionHeading
-            n="02"
-            label="Services"
-            meta={`${String(existing.length).padStart(2, '0')} services`}
-          />
+          <SectionHeading n="02" label="Services" />
           <div className="mp-svcgrid">
             {existing.map((s) => (
               <Link
@@ -129,16 +125,13 @@ export default function ExistingBuildingsPage() {
                 href={`/services/${s.slug}`}
                 className="mp-svccard"
               >
-                <div className="mp-svccard__top">
-                  <span className="mp-secnum">{s.n}</span>
-                  <span className="mp-svccard__track">Existing buildings</span>
-                </div>
                 <div className="mp-svccard__photo" aria-hidden="true">
                   <Img
                     photo={imagery.services[s.slug]}
                     sizes="(max-width: 720px) 100vw, 50vw"
                   />
                 </div>
+                <span className="mp-svccard__track">Existing buildings</span>
                 <h3 className="mp-svccard__title">{s.title}</h3>
                 <p className="mp-svccard__desc">{s.summary}</p>
                 <span className="mp-svccard__go">

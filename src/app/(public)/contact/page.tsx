@@ -57,11 +57,11 @@ export default function ContactPage() {
       />
 
       <section
-        className="mp-section mp-surface--paper"
+        className="mp-section mp-section--lg mp-surface--paper"
         aria-labelledby="mp-contact-title"
       >
         <div className="mp-shell">
-          <SectionHeading n="01" label="Inquiry" meta="Reviewed by an engineer" />
+          <SectionHeading n="01" label="Inquiry" />
           <h2 id="mp-contact-title" className="mp-form__hp">
             Project inquiry
           </h2>
@@ -122,11 +122,9 @@ export default function ContactPage() {
 
                 <div className="mp-info__block">
                   <span className="mp-info__label">What we cover</span>
-                  <ul className="mp-standards">
-                    {services.map((s) => (
-                      <li key={s.slug}>{s.shortTitle}</li>
-                    ))}
-                  </ul>
+                  <span className="mp-info__meta mp-info__list">
+                    {services.map((s) => s.shortTitle).join(' · ')}
+                  </span>
                   <span className="mp-info__meta">
                     {contact.responseNote}
                   </span>

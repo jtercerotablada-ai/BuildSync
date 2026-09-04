@@ -137,9 +137,9 @@ export const photo = {
     'concrete-frame-slabs', 2000, 1333,
     'Cast concrete frame under construction — flat slabs, columns and edge beams before cladding',
   ),
-  rebarMatWorkers: p(
-    'rebar-mat-workers', 2000, 1333,
-    'Crew working across a mat of slab reinforcement',
+  foundationMatPit: p(
+    'foundation-mat-pit', 2000, 1339,
+    'Mat foundation reinforcement laid out inside an excavation, a worker checking the bars',
   ),
   rebarBundles: p(
     'rebar-bundles', 2000, 3000,
@@ -159,9 +159,9 @@ export const photo = {
   ),
 
   /* ── Frames under construction ──────────────────────────────────────── */
-  frameColumnsSky: p(
-    'frame-columns-sky', 2000, 3000,
-    'Concrete columns and slab edges of a frame rising against the sky',
+  frameTowerSunlit: p(
+    'frame-tower-sunlit', 2000, 3000,
+    'Bare reinforced-concrete frame of a tower under construction, lit low from the side',
   ),
   frameSlabEdges: p(
     'frame-slab-edges', 2000, 2667,
@@ -171,9 +171,9 @@ export const photo = {
     'frame-under-construction', 2000, 1298,
     'Reinforced-concrete frame of a building under construction',
   ),
-  frameCurvedCrane: p(
-    'frame-curved-crane', 2000, 1333,
-    'Curved concrete structure under a tower crane',
+  frameCraneClean: p(
+    'frame-crane-clean', 2000, 2500,
+    'Multi-storey reinforced-concrete frame under a tower crane, floor plates open to the sky',
   ),
   frameTower: p(
     'frame-tower', 2000, 3000,
@@ -237,9 +237,9 @@ export const photo = {
     'inspect-wall', 2000, 3000,
     'Engineer examining a cracked masonry and concrete wall up close',
   ),
-  inspectRoofHelmets: p(
-    'inspect-roof-helmets', 2000, 1336,
-    'Hard hats and survey equipment set down at a roof edge',
+  facadeRepairRope: p(
+    'facade-repair-rope', 1870, 2949,
+    'Rope-access technician working on the rendered facade of an existing building',
   ),
 } as const;
 

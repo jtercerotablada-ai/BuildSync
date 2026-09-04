@@ -89,7 +89,7 @@ export default function AboutPage() {
       {/* ── Approach ── */}
       <section className="mp-section mp-surface--paper">
         <div className="mp-shell">
-          <SectionHeading n="01" label="Approach" meta="How we work" />
+          <SectionHeading n="01" label="Approach" />
           <div className="mp-split">
             <Reveal>
               <h2 className="mp-split__title">
@@ -123,13 +123,13 @@ export default function AboutPage() {
       {/* ── Principles ── */}
       <section className="mp-section mp-surface--concrete">
         <div className="mp-shell">
-          <SectionHeading n="02" label="Principles" meta="Non-negotiable" />
+          <SectionHeading n="02" label="Principles" />
           <div className="mp-split">
             <Reveal>
               <h2 className="mp-split__title">How we hold the line.</h2>
             </Reveal>
             <Reveal delay={0.06}>
-              <ul className="mp-lead__pillars" style={{ marginBlockStart: 0 }}>
+              <ul className="mp-pillars">
                 {PRINCIPLES.map((p) => (
                   <li key={p.k}>
                     <b>{p.k}</b>

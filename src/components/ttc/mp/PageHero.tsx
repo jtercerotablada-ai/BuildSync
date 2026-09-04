@@ -19,12 +19,6 @@ export type Crumb = { href?: string; label: string };
  * Shared opening band for every internal page — same surface, rhythm and
  * photographic treatment as the home hero, so the whole site opens the same
  * way. Each page supplies its own headline, facts and photograph.
- *
- * There is no line-art here any more. A drawing sitting next to a headline at
- * the top of every page read as decoration; the diagrams now appear only where
- * they carry information and have no photograph competing with them — the
- * service cards, the home expertise pane, the BIM viewer and the service-area
- * plate.
  */
 export function PageHero({
   eyebrow,
@@ -58,7 +52,6 @@ export function PageHero({
           <Img photo={photo} priority sizes="100vw" />
         </motion.div>
       ) : null}
-      <div className="mp-phero__grid-bg" aria-hidden="true" />
       <div className="mp-shell">
         {crumbs?.length ? (
           <nav aria-label="Breadcrumb">
@@ -79,7 +72,7 @@ export function PageHero({
         <div className="mp-phero__grid">
           <div>
             <Reveal y={12}>
-              <TechnicalEyebrow dot>{eyebrow}</TechnicalEyebrow>
+              <TechnicalEyebrow>{eyebrow}</TechnicalEyebrow>
             </Reveal>
 
             <RevealText
@@ -112,7 +105,6 @@ export function PageHero({
               </Reveal>
             ) : null}
           </div>
-
         </div>
       </div>
       <DarkHeroSentinel />

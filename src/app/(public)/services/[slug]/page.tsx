@@ -46,6 +46,7 @@ export default async function ServiceDetailPage({
   if (!service) notFound();
 
   const related = services.filter((s) => s.slug !== service.slug).slice(0, 3);
+  const isBim = service.slug === 'bim-coordination';
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -160,10 +161,7 @@ export default async function ServiceDetailPage({
                   authority is printed next to them. */}
               {service.timing ? (
                 <Reveal delay={0.1}>
-                  <div
-                    className="mp-callout"
-                    style={{ marginBlockStart: 'var(--mp-12)' }}
-                  >
+                  <div className="mp-callout mp-callout--spaced">
                     <h3>When it applies</h3>
                     <dl className="mp-timing">
                       {service.timing.rows.map((r) => (
@@ -186,11 +184,7 @@ export default async function ServiceDetailPage({
       {/* ── Process ── */}
       <section className="mp-section mp-surface--paper">
         <div className="mp-shell">
-          <SectionHeading
-            n="03"
-            label="Process"
-            meta={`${String(service.process.length).padStart(2, '0')} stages`}
-          />
+          <SectionHeading n="03" label="Process" />
           <div className="mp-timeline">
             <div className="mp-timeline__track" aria-hidden="true" />
             {service.process.map((p, i) => (
@@ -227,10 +221,7 @@ export default async function ServiceDetailPage({
               </Reveal>
 
               <Reveal delay={0.1}>
-                <div
-                  className="mp-callout"
-                  style={{ marginBlockStart: 'var(--mp-12)' }}
-                >
+                <div className="mp-callout mp-callout--spaced">
                   <h3>Considerations</h3>
                   <div className="mp-prose">
                     <ul>
@@ -243,14 +234,9 @@ export default async function ServiceDetailPage({
               </Reveal>
 
               <Reveal delay={0.14}>
-                <ul
-                  className="mp-standards"
-                  style={{ marginBlockStart: 'var(--mp-8)' }}
-                >
-                  {service.standards.map((s) => (
-                    <li key={s}>{s}</li>
-                  ))}
-                </ul>
+                <p className="mp-basis">
+                  Design basis · {service.standards.join(' · ')}
+                </p>
               </Reveal>
             </div>
           </div>
@@ -258,22 +244,19 @@ export default async function ServiceDetailPage({
       </section>
 
       {/* ── Toolchain, only where it is actually the subject ── */}
-      {service.slug === 'bim-coordination' ? <SoftwareBand n="05" /> : null}
+      {isBim ? <SoftwareBand n="05" variant="full" /> : null}
 
       {/* ── Related ── */}
       <section className="mp-section mp-surface--concrete">
         <div className="mp-shell">
-          <SectionHeading
-            n={service.slug === 'bim-coordination' ? '06' : '05'}
-            label="Related expertise"
-          />
+          <SectionHeading n={isBim ? '06' : '05'} label="Related expertise" />
           <div className="mp-more">
             {related.map((r) => (
               <Link key={r.slug} href={`/services/${r.slug}`}>
                 <span className="mp-secnum">{r.n}</span>
                 <span className="mp-more__t">{r.title}</span>
-                <span className="mp-mono" style={{ color: 'var(--mp-ink-3)' }}>
-                  Explore →
+                <span className="mp-more__go">
+                  Explore <i aria-hidden="true">→</i>
                 </span>
               </Link>
             ))}
@@ -281,7 +264,7 @@ export default async function ServiceDetailPage({
         </div>
       </section>
 
-      <ContactCTA n={service.slug === 'bim-coordination' ? '07' : '06'} />
+      <ContactCTA n={isBim ? '07' : '06'} />
     </>
   );
 }

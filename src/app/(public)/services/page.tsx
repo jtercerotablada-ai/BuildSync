@@ -6,7 +6,6 @@ import { PageHero } from '@/components/ttc/mp/PageHero';
 import { VideoBand } from '@/components/ttc/mp/VideoBand';
 import { Img } from '@/components/ttc/mp/media';
 import { EngineeringProcess } from '@/components/ttc/mp/EngineeringProcess';
-import { CredentialsBar } from '@/components/ttc/mp/CredentialsBar';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading } from '@/components/ttc/mp/primitives';
 
@@ -78,15 +77,11 @@ export default function ServicesPage() {
       />
 
       <section
-        className="mp-section mp-surface--paper"
+        className="mp-section mp-section--lg mp-surface--paper"
         aria-labelledby="mp-svcindex-title"
       >
         <div className="mp-shell">
-          <SectionHeading
-            n="01"
-            label="Capabilities"
-            meta={`${String(services.length).padStart(2, '0')} services`}
-          />
+          <SectionHeading n="01" label="Capabilities" />
           <h2 id="mp-svcindex-title" className="mp-form__hp">
             Capabilities
           </h2>
@@ -98,18 +93,13 @@ export default function ServicesPage() {
                 href={`/services/${s.slug}`}
                 className="mp-svccard"
               >
-                <div className="mp-svccard__top">
-                  <span className="mp-secnum">{s.n}</span>
-                  <span className="mp-svccard__track">
-                    {trackLabel[s.track]}
-                  </span>
-                </div>
                 <div className="mp-svccard__photo" aria-hidden="true">
                   <Img
                     photo={imagery.services[s.slug]}
                     sizes="(max-width: 720px) 100vw, (max-width: 1180px) 50vw, 33vw"
                   />
                 </div>
+                <span className="mp-svccard__track">{trackLabel[s.track]}</span>
                 <h3 className="mp-svccard__title">{s.title}</h3>
                 <p className="mp-svccard__desc">{s.summary}</p>
                 <span className="mp-svccard__go">
@@ -125,7 +115,6 @@ export default function ServicesPage() {
           structure seen from underneath, which is what the seven services above
           have in common and what no service card can show on its own. */}
       <VideoBand
-        n="02"
         eyebrow="One practice"
         titleLines={[
           'Seven services.',
@@ -142,9 +131,8 @@ export default function ServicesPage() {
         cta={{ href: '/contact', label: 'Start a project' }}
         clip={imagery.clips.practice}
       />
-      <EngineeringProcess n="03" />
-      <CredentialsBar n="04" />
-      <ContactCTA n="05" />
+      <EngineeringProcess n="02" />
+      <ContactCTA n="03" />
     </>
   );
 }

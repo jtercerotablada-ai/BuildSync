@@ -119,3 +119,15 @@ photography.
 BCF, buildingSMART). They are used nominatively to identify the tools in the
 workflow, shown unmodified apart from a CSS desaturation filter, and remain
 the property of their respective owners.
+
+## Provenance log — Pexels additions
+
+Pexels asks for nothing, but a file with no trail is a file nobody can
+re-verify. Record the source id of anything added from now on.
+
+| Added | File | Pexels id | Replaced |
+|-------|------|-----------|----------|
+| 2026-09-03 | site/frame-crane-clean.jpg | 12453934 | frame-curved-crane (busy construction shot) |
+| 2026-09-03 | site/facade-repair-rope.jpg | 26918635 | inspect-roof-helmets (hard hats on a roof, said nothing) |
+| 2026-09-03 | site/foundation-mat-pit.jpg | 37733181 | rebar-mat-workers |
+| 2026-09-03 | site/frame-tower-sunlit.jpg | 7459407 | frame-columns-sky (scaffold-heavy) |

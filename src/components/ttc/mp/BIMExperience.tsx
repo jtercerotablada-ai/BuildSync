@@ -1,37 +1,24 @@
 import React from 'react';
 import { bim, imagery } from '@/lib/ttc/site';
 import { VideoLoop } from './media';
-import {
-  AnimatedLine,
-  ButtonLink,
-  Reveal,
-  SectionHeading,
-} from './primitives';
+import { ButtonLink, Reveal, SectionHeading } from './primitives';
 
 /**
  * BIM is shown, not listed — and shown with a model rather than a drawing of
- * one.
+ * one. The clip is a structure assembling floor plate by floor plate: the one
+ * thing on this site a camera cannot be pointed at.
  *
- * This section used to hold an inline SVG wireframe with six layer toggles and
- * a wireframe/solid switch. It is gone for the same reason the line-art was
- * taken off the service cards: a diagram an engineer drew of a model is not a
- * model. It read as thin next to photography of real structure, and the
- * interactivity was demonstrating the drawing, not the practice.
- *
- * The clip is the thing itself — a structure assembling floor plate by floor
- * plate. Nothing left to toggle, no state to hold, so this is a plain server
- * component now; `VideoLoop` carries the only client code, and its poster is
- * what a reduced-motion visitor gets.
+ * Plain server component; `VideoLoop` carries the only client code, and its
+ * poster is what a reduced-motion visitor gets.
  */
-export function BIMExperience({ n = '04' }: { n?: string }) {
+export function BIMExperience({ n = '03' }: { n?: string }) {
   return (
     <section
-      className="mp-section mp-section--lg mp-surface--graphite mp-grain"
+      className="mp-section mp-section--lg mp-surface--graphite"
       aria-labelledby="mp-bim-title"
-      style={{ position: 'relative' }}
     >
-      <div className="mp-shell" style={{ position: 'relative', zIndex: 1 }}>
-        <SectionHeading n={n} label={bim.eyebrow} meta="Coordination" />
+      <div className="mp-shell">
+        <SectionHeading n={n} label={bim.eyebrow} />
 
         <div className="mp-bim__grid">
           <div>
@@ -63,7 +50,6 @@ export function BIMExperience({ n = '04' }: { n?: string }) {
             <div className="mp-bim__stage">
               <VideoLoop clip={imagery.clips.bim} className="mp-bim__clip" />
             </div>
-            <AnimatedLine delay={0.2} />
           </Reveal>
         </div>
       </div>

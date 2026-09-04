@@ -32,9 +32,7 @@ export function Gallery({ n = '04' }: { n?: string }) {
       <div className="mp-shell">
         <SectionHeading
           n={n}
-          label="The material"
-          meta={`${String(items.length).padStart(2, '0')} frames`}
-          className="mp-sechead--dark"
+          label="The material"
         />
         <h2 id="mp-gal-title" className="mp-form__hp">
           The material

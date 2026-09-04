@@ -92,7 +92,7 @@ export default function CreditsPage() {
 
       <section className="mp-section mp-surface--paper">
         <div className="mp-shell mp-shell--narrow">
-          <SectionHeading n="01" label="Photography" meta="Licensed" />
+          <SectionHeading n="01" label="Photography" />
 
           <div className="mp-prose" style={{ marginBlockEnd: 'var(--mp-12)' }}>
             <p>

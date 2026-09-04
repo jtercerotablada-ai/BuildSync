@@ -12,14 +12,14 @@ import {
 } from './primitives';
 
 /**
- * Closing band. Graphite, a faint structural grid, one gold rule — the same
- * language as the hero so the page closes where it opened.
+ * Closing band. Flat graphite, one headline, two buttons, one gold rule — the
+ * same language as the hero so the page closes where it opened.
  *
  * `asHero` is used on the Contact page, where this band sits directly under
  * the header and therefore needs to register as a dark hero.
  */
 export function ContactCTA({
-  n = '11',
+  n = '07',
   asHero = false,
 }: {
   n?: string;
@@ -27,12 +27,11 @@ export function ContactCTA({
 }) {
   return (
     <section
-      className="mp-section mp-section--lg mp-surface--graphite mp-close mp-grain"
+      className="mp-section mp-section--lg mp-surface--graphite mp-close"
       aria-labelledby="mp-close-title"
     >
-      <div className="mp-close__bg" aria-hidden="true" />
       <div className="mp-shell mp-close__inner">
-        <SectionHeading n={n} label="Start" meta="Next step" />
+        <SectionHeading n={n} label="Start" />
 
         <RevealText
           as="h2"

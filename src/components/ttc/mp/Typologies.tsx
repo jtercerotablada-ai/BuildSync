@@ -7,44 +7,41 @@ import { Img } from './media';
 import { Reveal, SectionHeading } from './primitives';
 
 /**
- * "What we design" — the section the site was missing.
+ * "What we design" — the section that answers the visitor's first question,
+ * *do you do my kind of building?*, in buildings rather than in services.
  *
- * Everything else here answers in the language of engineering: analysis,
- * detailing, coordination, peer review. A visitor with a house or a small
- * apartment building arrives asking something simpler — *do you do my kind of
- * building?* — and had no way to find out. This answers that first, in
- * buildings, and only then sends them to the service that covers it.
+ * Each card is a photograph, a title and one sentence. The number plates,
+ * track tags and deliverable chips that used to cover the card are gone; the
+ * service page a card links to carries all of that.
  *
  * ⚠ These photographs illustrate a TYPOLOGY, never a job. The footnote saying
  * so is part of the section, not decoration: it is what keeps a page full of
  * buildings from reading as a portfolio the practice has not published yet.
  */
-export function Typologies({ n = '03' }: { n?: string }) {
+export function Typologies({ n = '02' }: { n?: string }) {
   return (
     <section
-      className="mp-section mp-surface--paper mp-typo-sec"
+      className="mp-section mp-section--lg mp-surface--paper"
       aria-labelledby="mp-typo-title"
     >
-      <span className="mp-ghost" aria-hidden="true">
-        {n}
-      </span>
       <div className="mp-shell">
-        <SectionHeading
-          n={n}
-          label="What we design"
-          meta={`${typologies.length} typologies`}
-        />
+        <SectionHeading n={n} label="What we design" />
 
-        <div className="mp-typo-intro">
-          <h2 id="mp-typo-title" className="mp-typo-intro__title">
-            From a single house to a{' '}
-            <span className="mp-serif">mid-rise</span> concrete frame.
-          </h2>
-          <p className="mp-typo-intro__lede">
-            The same practice, the same load path, the same detailing standard —
-            scaled to the building in front of us. If your project is not on this
-            list, it is worth a conversation rather than an assumption.
-          </p>
+        <div className="mp-intro">
+          <Reveal>
+            <h2 id="mp-typo-title" className="mp-intro__title">
+              From a single house to a{' '}
+              <span className="mp-serif">mid-rise</span> concrete frame.
+            </h2>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <p className="mp-intro__lede">
+              The same practice, the same load path, the same detailing
+              standard — scaled to the building in front of us. If your
+              project is not on this list, it is worth a conversation rather
+              than an assumption.
+            </p>
+          </Reveal>
         </div>
 
         <ul className="mp-typo">
@@ -60,26 +57,15 @@ export function Typologies({ n = '03' }: { n?: string }) {
                   <Img
                     photo={t.photo}
                     className="mp-typo__img"
-                    sizes="(max-width: 720px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    sizes="(max-width: 720px) 100vw, (max-width: 1080px) 50vw, 33vw"
                   />
-                  <span className="mp-typo__num">{t.n}</span>
-                  <span className="mp-typo__track" aria-hidden="true">
-                    {t.track === 'new' ? 'New structure' : 'Existing building'}
-                  </span>
                 </span>
-
                 <span className="mp-typo__body">
-                  <span className="mp-typo__title">{t.title}</span>
-                  <span className="mp-typo__lede">{t.lede}</span>
-                  <span className="mp-typo__delivers">
-                    {t.delivers.map((d) => (
-                      <span key={d}>{d}</span>
-                    ))}
-                  </span>
-                  <span className="mp-typo__cta">
-                    See how we run it
+                  <span className="mp-typo__title">
+                    {t.title}
                     <i aria-hidden="true">→</i>
                   </span>
+                  <span className="mp-typo__lede">{t.lede}</span>
                 </span>
               </Link>
             </Reveal>
@@ -87,7 +73,7 @@ export function Typologies({ n = '03' }: { n?: string }) {
         </ul>
 
         <Reveal delay={0.1}>
-          <p className="mp-note mp-typo__note">
+          <p className="mp-note">
             Photographs illustrate the kind of structure described. They are not
             Tercero Tablada projects — published case studies appear on{' '}
             <Link href="/projects">Work</Link>, with client permission.

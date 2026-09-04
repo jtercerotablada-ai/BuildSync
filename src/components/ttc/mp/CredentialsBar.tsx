@@ -17,7 +17,7 @@ export function CredentialsBar({ n = '08' }: { n?: string }) {
       aria-labelledby="mp-creds-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={credentials.eyebrow} meta="Design basis" />
+        <SectionHeading n={n} label={credentials.eyebrow} />
         <h2 id="mp-creds-title" className="mp-form__hp">
           Standards and accountability
         </h2>

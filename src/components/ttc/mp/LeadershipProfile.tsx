@@ -47,7 +47,6 @@ export function LeadershipProfile({ n = '09' }: { n?: string }) {
         <SectionHeading
           n={n}
           label={published ? 'Leadership' : f.eyebrow}
-          meta={published ? leadership.role : 'How the practice is run'}
         />
 
         <div className="mp-lead__grid">
@@ -138,7 +137,7 @@ export function LeadershipProfile({ n = '09' }: { n?: string }) {
               </Reveal>
             ) : (
               <Reveal delay={0.14}>
-                <ul className="mp-lead__pillars">
+                <ul className="mp-pillars">
                   {f.pillars.map((p) => (
                     <li key={p.k}>
                       <b>{p.k}</b>

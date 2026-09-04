@@ -21,16 +21,13 @@ const CAPABILITIES = [
 
 /**
  * The hero is a slow aerial pass over the South Florida waterfront. It says
- * where the practice works before a word is read, which a still of an
- * anonymous facade never did.
+ * where the practice works before a word is read.
  *
- * It is still the same layer as the old photograph — same scrim, same grid,
- * same crop — so legibility does not depend on the clip arriving. `VideoLoop`
- * paints the poster first and only upgrades to video on the client; reduced
- * motion keeps the poster permanently. See `media.tsx`.
- *
- * The line-art lives only where there is no photograph (service diagrams, the
- * BIM viewer, the service-area plate, the leadership title block).
+ * Nothing sits between the footage and the type any more — no grid overlay,
+ * no scroll cue. The scrim is a fixed gradient so legibility never depends on
+ * where the bright water happens to be in a given frame. `VideoLoop` paints
+ * the poster first and only upgrades to video on the client; reduced motion
+ * keeps the poster permanently. See `media.tsx`.
  */
 export function Hero() {
   const reduce = useReducedMotion();
@@ -38,10 +35,8 @@ export function Hero() {
   return (
     <section className="mp-hero mp-surface--graphite" aria-labelledby="mp-hero-title">
       <div className="mp-hero__bg" aria-hidden="true" />
-      {/* Decorative — the headline carries the meaning — but it is the thing
-          you actually look at. */}
       <motion.div
-        className="mp-hero__photo mp-hero__photo--video"
+        className="mp-hero__photo"
         aria-hidden="true"
         initial={reduce ? false : { opacity: 0, scale: 1.04 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -49,23 +44,16 @@ export function Hero() {
       >
         <VideoLoop clip={imagery.hero} priority />
       </motion.div>
-      <motion.div
-        className="mp-hero__grid"
-        aria-hidden="true"
-        initial={reduce ? false : { opacity: 0 }}
-        animate={{ opacity: 0.55 }}
-        transition={{ duration: 1.4, ease: EASE }}
-      />
 
       <div className="mp-shell mp-hero__body">
         <div>
           <motion.p
-            className="mp-eyebrow mp-eyebrow--dot mp-hero__eyebrow"
+            className="mp-eyebrow mp-hero__eyebrow"
             initial={reduce ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: EASE, delay: 0.05 }}
           >
-            Structural Engineering · South Florida
+            Structural engineering · South Florida
           </motion.p>
 
           <RevealText
@@ -109,11 +97,10 @@ export function Hero() {
             </ButtonLink>
           </motion.div>
         </div>
-
       </div>
 
       <div className="mp-hero__foot">
-        <div className="mp-shell mp-hero__foot-inner">
+        <div className="mp-shell">
           <Reveal as="div" delay={0.7} y={10}>
             <ul className="mp-hero__caps">
               {CAPABILITIES.map((c) => (
@@ -121,10 +108,6 @@ export function Hero() {
               ))}
             </ul>
           </Reveal>
-          <a className="mp-hero__scroll" href="#statement">
-            <span aria-hidden="true" />
-            Scroll
-          </a>
         </div>
       </div>
 

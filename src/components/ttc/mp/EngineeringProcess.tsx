@@ -5,60 +5,42 @@ import { engineeringProcess as ep } from '@/lib/ttc/site';
 import { Reveal, SectionHeading, StaggerItem, StaggerList } from './primitives';
 
 /**
- * The six stages of an engagement. Horizontal on wide screens using native
- * scroll-snap — the page scroll is never hijacked, and the same list stacks
- * vertically on narrow screens. Keyboard users tab through the stages and the
- * container scrolls them into view natively.
+ * The six stages of an engagement, as a plain grid: number, title, what
+ * happens, what it settles. Three across on a desktop, two on a tablet, one
+ * on a phone — the page scroll is the only scroll.
+ *
+ * This used to be a horizontal scroll-snap rail with a "scroll for all six"
+ * hint. A rail hides four of the six stages behind a gesture on exactly the
+ * screens where the reader is least likely to make it; a grid shows all six
+ * at once and needs no hint.
  */
-export function EngineeringProcess({ n = '07' }: { n?: string }) {
+export function EngineeringProcess({ n = '05' }: { n?: string }) {
   return (
     <section
-      className="mp-section mp-surface--paper"
+      className="mp-section mp-section--lg mp-surface--concrete"
       aria-labelledby="mp-process-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={ep.eyebrow} meta="Assess → Deliver" />
-        <Reveal>
-          <h2
-            id="mp-process-title"
-            className="mp-h2"
-            style={{ marginBlockEnd: 'var(--mp-8)', maxWidth: '18ch' }}
-          >
-            {ep.title}
-          </h2>
-        </Reveal>
-      </div>
+        <SectionHeading n={n} label={ep.eyebrow} />
 
-      <div className="mp-shell">
-        {/* A horizontally scrollable region must be operable by keyboard —
-            tabbing to it lets arrow keys move through the six stages. */}
-        <StaggerList
-          className="mp-stages"
-          as="div"
-          tabIndex={0}
-          role="group"
-          ariaLabel="Engineering process stages — scroll horizontally"
-        >
+        <div className="mp-intro">
+          <Reveal>
+            <h2 id="mp-process-title" className="mp-intro__title">
+              {ep.title}
+            </h2>
+          </Reveal>
+        </div>
+
+        <StaggerList className="mp-stages" as="div">
           {ep.stages.map((s) => (
             <StaggerItem key={s.n} className="mp-stage" as="div">
-              <div className="mp-stage__top">
-                <h3 className="mp-stage__title">{s.title}</h3>
-                <span className="mp-stage__n">{s.n}</span>
-              </div>
+              <span className="mp-stage__n">{s.n}</span>
+              <h3 className="mp-stage__title">{s.title}</h3>
               <p className="mp-stage__action">{s.action}</p>
               <p className="mp-stage__result">{s.result}</p>
-              <dl className="mp-stage__deliverable">
-                <dt>Deliverable</dt>
-                <dd>{s.deliverable}</dd>
-              </dl>
             </StaggerItem>
           ))}
         </StaggerList>
-
-        <p className="mp-stages__hint" aria-hidden="true">
-          <span>Scroll for all six stages</span>
-          <span>→</span>
-        </p>
       </div>
     </section>
   );

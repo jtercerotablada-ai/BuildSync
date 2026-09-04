@@ -17,7 +17,6 @@ import { ButtonLink, Reveal, RevealText, TechnicalEyebrow } from './primitives';
  * happen to fall. Same reasoning as the hero.
  */
 export function VideoBand({
-  n,
   eyebrow,
   titleLines,
   plainTitle,
@@ -27,7 +26,6 @@ export function VideoBand({
   clip,
   align = 'left',
 }: {
-  n: string;
   eyebrow: string;
   titleLines: React.ReactNode[];
   /** Plain-text headline for the accessible name. */
@@ -38,7 +36,7 @@ export function VideoBand({
   clip: Clip;
   align?: 'left' | 'right';
 }) {
-  const id = `mp-band-${n}`;
+  const id = `mp-band-${plainTitle.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
   return (
     <section
       className={`mp-band mp-band--${align}`}
@@ -51,9 +49,7 @@ export function VideoBand({
       <div className="mp-shell mp-band__inner">
         <div className="mp-band__col">
           <Reveal y={12}>
-            <TechnicalEyebrow dot>
-              {n} · {eyebrow}
-            </TechnicalEyebrow>
+            <TechnicalEyebrow>{eyebrow}</TechnicalEyebrow>
           </Reveal>
 
           <RevealText as="h2" className="mp-band__title" lines={titleLines} />

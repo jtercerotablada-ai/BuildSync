@@ -60,7 +60,6 @@ export function ProcessTimeline({ n = '06' }: { n?: string }) {
         <SectionHeading
           n={n}
           label={rp.eyebrow}
-          meta="For owners, boards & managers"
         />
 
         <div className="mp-split" style={{ marginBlockEnd: 'var(--mp-12)' }}>

@@ -42,7 +42,6 @@ export function SelectedExperience({
         <SectionHeading
           n={n}
           label={label}
-          meta={`${String(items.length).padStart(2, '0')} profiles`}
         />
         <h2 id="mp-work-title" className="mp-form__hp">
           {label}
