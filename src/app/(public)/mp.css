@@ -2984,7 +2984,7 @@ no line-art.
 }/* ── Footer: signature line ──────────────────────────────────────────────── */
 .mp-footer__pe {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--mp-3);
   margin: var(--mp-6) 0 0;
   font-size: var(--mp-t-small);
@@ -2992,7 +2992,6 @@ no line-art.
 }
 .mp-footer__reg {
   display: inline-block;
-  margin-block-start: 0.15rem;
   font-family: var(--mp-mono);
   font-size: 0.78rem;
   letter-spacing: 0.04em;
