@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
-import { company, contact, leadership, municipalities, services } from '@/lib/ttc/site';
+import { company, contact, municipalities, services } from '@/lib/ttc/site';
 import './mp.css';
 
 /* ── Type system ──────────────────────────────────────────────────────────
@@ -134,34 +134,6 @@ const structuredData = {
           },
         })),
       },
-    },
-    {
-      '@type': 'Person',
-      '@id': `${company.url}/about#engineer`,
-      name: 'Juan Tercero',
-      honorificSuffix: 'PE., M.Sc.',
-      jobTitle: leadership.role,
-      worksFor: { '@id': `${company.url}/#organization` },
-      hasCredential: [
-        {
-          '@type': 'EducationalOccupationalCredential',
-          credentialCategory: 'license',
-          name: 'Professional Engineer (P.E.), State of Florida',
-          ...(leadership.license
-            ? { identifier: leadership.license.number, url: leadership.license.url }
-            : {}),
-        },
-        {
-          '@type': 'EducationalOccupationalCredential',
-          credentialCategory: 'degree',
-          name: 'Master in Construction Project Management, Universidad de Barcelona',
-        },
-        {
-          '@type': 'EducationalOccupationalCredential',
-          credentialCategory: 'degree',
-          name: 'Civil Engineer, National University of Engineering',
-        },
-      ],
     },
     {
       '@type': 'WebSite',

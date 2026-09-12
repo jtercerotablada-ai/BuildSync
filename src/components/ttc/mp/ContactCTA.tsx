@@ -61,7 +61,6 @@ export function ContactCTA({
         <AnimatedLine className="mp-rule mp-close__rule" delay={0.14} />
         <div className="mp-close__meta">
           <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>
-          <span>{c.leadership.name}</span>
           <span>{c.contact.serviceAreaLabel}</span>
         </div>
       </div>

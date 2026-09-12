@@ -33,6 +33,13 @@ export function EngineerSection({
   const e = c.leadership;
   const u = c.ui.engineer;
   const full = variant === 'full';
+  /**
+   * Only the full variant names anyone. The home teaser makes the same
+   * promise — one accountable engineer — without the name, because the name
+   * appears on About and Contact and nowhere else.
+   */
+  const named = full;
+  const plateRows = named ? e.plate : e.plate.filter((r) => r.v !== e.name);
 
   return (
     <section
@@ -41,7 +48,7 @@ export function EngineerSection({
       aria-labelledby="mp-eng-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={u.eyebrow} />
+        <SectionHeading n={n} label={named ? u.eyebrow : u.eyebrowTeaser} />
 
         <div className="mp-eng__grid">
           <Reveal>
@@ -75,7 +82,7 @@ export function EngineerSection({
                     decoding="async"
                   />
                   <dl className="mp-eng__plate-list">
-                    {e.plate.map((r) => (
+                    {plateRows.map((r) => (
                       <div key={r.k}>
                         <dt>{r.k}</dt>
                         <dd>{r.v}</dd>
@@ -85,7 +92,7 @@ export function EngineerSection({
                 </div>
               )}
               <figcaption className="mp-eng__caption">
-                <span>{e.name}</span>
+                <span>{named ? e.name : e.role}</span>
                 <span>{e.credential}</span>
               </figcaption>
             </figure>
@@ -97,7 +104,7 @@ export function EngineerSection({
                 {e.role} · {e.credential}
               </p>
               <h2 id="mp-eng-title" className="mp-eng__title">
-                {e.name}
+                {named ? e.name : e.teaserTitle}
               </h2>
             </Reveal>
 

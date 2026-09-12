@@ -29,7 +29,7 @@ export function SiteFooter() {
                 P.E.
               </span>
               <span>
-                {c.leadership.name} · {c.leadership.credential}
+                {c.leadership.credential}
                 {c.company.registry ? (
                   <>
                     <br />

@@ -2673,71 +2673,9 @@ no line-art.
 }
 .mp-menu__lang .mp-lang {
   font-size: 0.85rem;
-}/* ── Hero: engineer plate ────────────────────────────────────────────────── */
+}/* ── Hero ───────────────────────────────────────────────────────────────── */
 .mp-hero__col {
   max-width: min(100%, 64ch);
-}
-.mp-hero__plate {
-  display: inline-grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--mp-4);
-  margin-block-start: var(--mp-8);
-  padding: 0.8rem 1rem 0.8rem 0.8rem;
-  border: 1px solid var(--mp-line-dark);
-  background: rgba(11, 12, 13, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: var(--mp-snow);
-  text-decoration: none;
-  max-width: 100%;
-  transition: border-color var(--mp-dur) var(--mp-ease), background var(--mp-dur) var(--mp-ease);
-}
-.mp-hero__plate:hover,
-.mp-hero__plate:focus-visible {
-  border-color: var(--mp-gold);
-  background: rgba(11, 12, 13, 0.75);
-}
-.mp-hero__plate-mark {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--mp-gold);
-  font-family: var(--mp-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  color: var(--mp-gold);
-  flex: none;
-}
-.mp-hero__plate-body {
-  display: grid;
-  gap: 0.1rem;
-  min-width: 0;
-}
-.mp-hero__plate-label {
-  font-size: 0.68rem;
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-snow-3);
-}
-.mp-hero__plate-name {
-  font-size: 1.02rem;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-.mp-hero__plate-role {
-  font-size: 0.8rem;
-  color: var(--mp-snow-2);
-  line-height: 1.35;
-}
-.mp-hero__plate-go {
-  color: var(--mp-gold);
-  transition: transform var(--mp-dur) var(--mp-ease);
-}
-.mp-hero__plate:hover .mp-hero__plate-go {
-  transform: translateX(4px);
 }/* ── Two paths: service lists inside each door ───────────────────────────── */
 .mp-path__eyebrow {
   display: flex;
@@ -3377,14 +3315,8 @@ success ────────────────────────
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@media (max-width: 720px) {.mp-hero__plate {
-    grid-template-columns: auto 1fr;
-    width: 100%;
-  }
-.mp-hero__plate-go {
-    display: none;
-  }
-.mp-steps {
+@media (max-width: 720px) {
+  .mp-steps {
     grid-template-columns: minmax(0, 1fr);
     border-block-start: 0;
   }

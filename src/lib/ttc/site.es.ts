@@ -480,7 +480,7 @@ export const es: SiteContent = {
     discipline: 'Ingeniería Civil y Estructural',
     url: 'https://ttcivilstructural.com',
     description:
-      'Ingeniería estructural para el Sur de Florida — diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios, inspecciones milestone y de seguridad, y coordinación BIM en Miami-Dade y Broward. Dirigida por Juan Tercero, PE., M.Sc., Ingeniero Profesional (P.E.) licenciado en Florida.',
+      'Ingeniería estructural para el Sur de Florida — diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios, inspecciones milestone y de seguridad, y coordinación BIM en Miami-Dade y Broward.',
     tagline: 'Ingeniería Estructural para el Sur de Florida.',
     logo: {
       lockupDark: '/ttc/img/logo-horizontal.png',
@@ -586,6 +586,7 @@ export const es: SiteContent = {
     },
     engineer: {
       eyebrow: 'Conozca al ingeniero',
+      eyebrowTeaser: 'Quién responde',
       role: 'Ingeniero Principal',
       credential: 'Ingeniero Profesional (P.E.) licenciado en Florida',
       license: 'Licencia P.E. de Florida',
@@ -594,7 +595,7 @@ export const es: SiteContent = {
       focus: 'Enfoque de la práctica',
       approach: 'Cómo trabajo',
       forYou: 'Qué significa eso para usted',
-      readMore: 'Sobre Juan Tercero',
+      readMore: 'Conozca al ingeniero',
       plateNote: 'Retrato profesional próximamente',
     },
     work: {
@@ -612,7 +613,7 @@ export const es: SiteContent = {
       firmProjects: 'Proyectos de la firma',
       priorExperience: 'Experiencia profesional previa',
       priorNote:
-        'Trabajo realizado por Juan Tercero en otras firmas antes de fundar la práctica. Se lista solo como experiencia — no son proyectos de Tercero Tablada Civil & Structural Engineering Inc.',
+        'Trabajo realizado en otras firmas antes de fundar la práctica. Se lista solo como experiencia — no son proyectos de Tercero Tablada Civil & Structural Engineering Inc.',
     },
     form: {
       heading: 'Solicitar propuesta',
@@ -696,11 +697,6 @@ export const es: SiteContent = {
     sub: 'Diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios y coordinación BIM — dirigidos por un Ingeniero Profesional (P.E.) licenciado en Florida que acompaña su proyecto desde la primera llamada hasta el informe final.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
     secondary: { href: '/services', label: 'Explore nuestros servicios' },
-    plate: {
-      label: 'Dirigida por',
-      href: '/about#engineer',
-      cta: 'Conozca al ingeniero',
-    },
     caps: [
       'Diseño estructural',
       'Evaluación de edificios existentes',
@@ -886,6 +882,7 @@ export const es: SiteContent = {
     portrait: null,
     license: null,
     linkedin: null,
+    teaserTitle: 'Un solo ingeniero responsable de todo el proyecto.',
     teaser:
       'Cada proyecto en Tercero Tablada es diseñado, revisado y firmado por la misma persona. Usted habla con el ingeniero de registro desde la primera llamada, y la propuesta que aprueba es el alcance que se construye.',
     bio: [

@@ -13,7 +13,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     home: {
       title: 'Structural Engineering for South Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       description:
-        'Structural engineer in Miami-Dade and Broward — structural design for new buildings, evaluation of existing buildings, building recertification, milestone inspections and BIM coordination. Led by Juan Tercero, PE., M.Sc., Florida Professional Engineer.',
+        'Structural engineer in Miami-Dade and Broward — structural design for new buildings, evaluation of existing buildings, building recertification, milestone inspections and BIM coordination across Miami-Dade and Broward.',
       ogTitle: 'Structural Engineering for South Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       keywords: ['structural engineer Miami', 'structural engineer Broward', 'building recertification Miami-Dade', 'milestone inspection Florida', 'structural engineering South Florida'],
     },
@@ -52,7 +52,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     home: {
       title: 'Ingeniería Estructural para el Sur de Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       description:
-        'Ingeniero estructural en Miami-Dade y Broward — diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios, inspecciones milestone y coordinación BIM. Dirigido por Juan Tercero, PE., M.Sc., Ingeniero Profesional licenciado en Florida.',
+        'Ingeniero estructural en Miami-Dade y Broward — diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios, inspecciones milestone y coordinación BIM en Miami-Dade y Broward.',
       ogTitle: 'Ingeniería Estructural para el Sur de Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       keywords: ['ingeniero estructural Miami', 'ingeniero estructural Broward', 'recertificación de edificios Miami-Dade', 'inspección milestone Florida', 'ingeniería estructural Sur de Florida'],
     },

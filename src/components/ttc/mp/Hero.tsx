@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { motion, useReducedMotion } from 'motion/react';
 import { imagery } from '@/lib/ttc/site';
 import { ButtonLink, DarkHeroSentinel, EASE, Reveal, RevealText } from './primitives';
@@ -10,9 +9,10 @@ import { accentLines } from './text';
 import { useContent, useL } from './lang';
 
 /**
- * The first screen answers three questions before a word of body copy is
- * read: what we do (the headline), where (the eyebrow), who is responsible
- * (the engineer plate). One primary action, one secondary.
+ * The first screen answers two questions before a word of body copy is read:
+ * what we do (the headline) and where (the eyebrow). One primary action, one
+ * secondary. WHO is deliberately absent — the engineer is named on About and
+ * Contact only, so the hero stays about the practice.
  *
  * The footage is a slow aerial pass over the South Florida waterfront. The
  * scrim is a fixed gradient so legibility never depends on where the bright
@@ -82,30 +82,6 @@ export function Hero() {
             <ButtonLink href={l(h.secondary.href)} variant="line" arrow={false}>
               {h.secondary.label}
             </ButtonLink>
-          </motion.div>
-
-          {/* The engineer plate: name, licensure, one link. Small on purpose —
-              it is a signature under the headline, not a second hero. */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: EASE, delay: 0.5 }}
-          >
-            <Link href={l(h.plate.href)} className="mp-hero__plate">
-              <span className="mp-hero__plate-mark" aria-hidden="true">
-                P.E.
-              </span>
-              <span className="mp-hero__plate-body">
-                <span className="mp-hero__plate-label">{h.plate.label}</span>
-                <span className="mp-hero__plate-name">{c.leadership.name}</span>
-                <span className="mp-hero__plate-role">
-                  {c.leadership.role} · {c.leadership.credential}
-                </span>
-              </span>
-              <span className="mp-hero__plate-go" aria-hidden="true">
-                →
-              </span>
-            </Link>
           </motion.div>
         </div>
       </div>

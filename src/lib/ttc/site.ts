@@ -49,7 +49,7 @@ export const company = {
   url: 'https://ttcivilstructural.com',
   /** Used in <meta description> fallbacks and Organization schema. */
   description:
-    'Structural engineering for South Florida — structural design for new buildings, evaluation of existing buildings, building recertification, milestone and safety inspections, and BIM coordination across Miami-Dade and Broward. Led by Juan Tercero, PE., M.Sc., Florida Professional Engineer.',
+    'Structural engineering for South Florida — structural design for new buildings, evaluation of existing buildings, building recertification, milestone and safety inspections, and BIM coordination across Miami-Dade and Broward.',
   tagline: 'Structural Engineering for South Florida.',
   /**
    * Two real brand assets, both supplied by the client — never redraw either.
@@ -189,6 +189,8 @@ export const ui = {
   },
   engineer: {
     eyebrow: 'Meet the engineer',
+    /** Home teaser label. The name belongs to About and Contact only. */
+    eyebrowTeaser: 'Who is responsible',
     role: 'Principal Engineer',
     credential: 'Florida Professional Engineer',
     license: 'Florida P.E. license',
@@ -197,7 +199,7 @@ export const ui = {
     focus: 'Practice focus',
     approach: 'How I work',
     forYou: 'What that means for you',
-    readMore: 'About Juan Tercero',
+    readMore: 'Meet the engineer',
     plateNote: 'Professional portrait to follow',
   },
   work: {
@@ -215,7 +217,7 @@ export const ui = {
     firmProjects: 'Firm projects',
     priorExperience: 'Prior professional experience',
     priorNote:
-      'Work performed by Juan Tercero at other firms before founding the practice. Listed for experience only — not projects of Tercero Tablada Civil & Structural Engineering Inc.',
+      'Work performed at other firms before the practice was founded. Listed for experience only — not projects of Tercero Tablada Civil & Structural Engineering Inc.',
   },
   form: {
     heading: 'Request a proposal',
@@ -304,12 +306,6 @@ export const hero = {
   sub: 'Structural design for new buildings, evaluation of existing ones, building recertification and BIM coordination — led by a Florida Professional Engineer who stays on your project from the first call to the final report.',
   primary: { href: '/contact', label: 'Request a Proposal' },
   secondary: { href: '/services', label: 'Explore Our Services' },
-  /** Small credential plate under the CTAs. Links to the engineer profile. */
-  plate: {
-    label: 'Led by',
-    href: '/about#engineer',
-    cta: 'Meet the engineer',
-  },
   caps: [
     'Structural design',
     'Existing-building evaluation',
@@ -1148,6 +1144,8 @@ export const leadership = {
   license: null as { number: string; url: string } | null,
   linkedin: null as string | null,
   /** Home teaser: two sentences. */
+  /** Home-teaser headline. Carries the promise without naming anyone. */
+  teaserTitle: 'One engineer is responsible for the whole project.',
   teaser:
     'Every project at Tercero Tablada is engineered, reviewed and signed by the same person. You speak to the engineer of record from the first call, and the proposal you approve is the scope that gets built.',
   bio: [
