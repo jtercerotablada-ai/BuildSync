@@ -25,6 +25,9 @@ const publicPrefixes = [
   // Marketing: /services and every /services/<slug> detail page.
   // Safe as a prefix — the authenticated app has no /services route.
   "/services",
+  // Spanish mirror of the whole marketing site: /es and /es/<anything>.
+  // The trailing slash matters — "/es" alone would also match "/escalate".
+  "/es/",
   // Public form submission: /forms/<formId> and its render/submit/track API.
   // The whole point is an external submitter (architect, owner, property
   // manager) with NO account — behind the auth wall the link bounced to
@@ -66,6 +69,7 @@ const publicExactRoutes = Array.from(
     "/contact",
     "/existing-buildings",
     "/logo-styles",
+    "/es",
     ...primaryNav.map((item) => item.href),
     ...legal.links.map((link) => link.href),
   ]),
@@ -243,7 +247,7 @@ const PUBLIC_HOST = (process.env.PUBLIC_HOST ?? "").trim().toLowerCase();
  *  host; the marketing surface is small, known, and already enumerated above.
  *  Note `publicExactRoutes` is exact-match, which is what keeps the marketing
  *  `/projects` index separate from the app's `/projects/all`. */
-const marketingPrefixes = ["/services", "/resources", "/api/contact", "/api/load-gen"];
+const marketingPrefixes = ["/services", "/es", "/resources", "/api/contact", "/api/load-gen"];
 
 function isMarketingRoute(pathname: string): boolean {
   if (publicExactRoutes.includes(pathname)) return true;

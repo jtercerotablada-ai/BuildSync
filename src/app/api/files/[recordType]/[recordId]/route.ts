@@ -12,6 +12,8 @@ import {
   AuthorizationError,
   NotFoundError,
 } from "@/lib/auth-guards";
+import { canReadContactInbox } from "@/lib/contact-inbox";
+import { parseContactAttachments } from "@/lib/contact-attachments";
 
 /**
  * GET /api/files/:recordType/:recordId
@@ -24,12 +26,14 @@ import {
  *   attachment -> Attachment      (task attachment, or a comment's attachment)
  *   file       -> File            (the project Files tab)
  *   resource   -> ProjectResource (Overview "Key resources")
+ *   contact    -> ContactSubmission.files[?i=n] (public proposal-request
+ *                 attachments; gated on the FIRM's inbox, see contact-inbox.ts)
  *
  * Denials answer 404, never 403, matching project-access.ts: a caller who may
  * not read the file must not learn that it exists.
  */
 
-const RECORD_TYPES = ["attachment", "file", "resource"] as const;
+const RECORD_TYPES = ["attachment", "file", "resource", "contact"] as const;
 type RecordType = (typeof RECORD_TYPES)[number];
 
 function isRecordType(value: string): value is RecordType {
@@ -75,8 +79,24 @@ interface ResolvedRecord {
 async function resolveRecord(
   recordType: RecordType,
   recordId: string,
-  userId: string
+  userId: string,
+  index: number
 ): Promise<ResolvedRecord | null> {
+  if (recordType === "contact") {
+    // The inbox is global, so the gate is "may this user read the firm's
+    // leads at all", not a per-record rule. Same helper the inbox page uses.
+    if (!(await canReadContactInbox(userId))) return null;
+    const submission = await prisma.contactSubmission.findUnique({
+      where: { id: recordId },
+      select: { files: true },
+    });
+    if (!submission) return null;
+    const files = parseContactAttachments(submission.files);
+    const f = files[index];
+    if (!f) return null;
+    return { name: f.name, url: f.url, mimeType: f.type || null };
+  }
+
   if (recordType === "attachment") {
     const attachment = await prisma.attachment.findUnique({
       where: { id: recordId },
@@ -141,9 +161,14 @@ export async function GET(
       return notFound();
     }
 
+    const index = Math.max(
+      0,
+      parseInt(new URL(req.url).searchParams.get("i") || "0", 10) || 0
+    );
+
     let record: ResolvedRecord | null;
     try {
-      record = await resolveRecord(recordType, recordId, userId);
+      record = await resolveRecord(recordType, recordId, userId, index);
     } catch (error) {
       // Both denials collapse to 404 on purpose. The guards distinguish "you
       // cannot see this" from "you can see it but not act on it"; reading the

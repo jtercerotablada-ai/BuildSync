@@ -12,13 +12,14 @@ import {
   RevealText,
   TechnicalEyebrow,
 } from './primitives';
+import { useContent, useL } from './lang';
 
 export type Crumb = { href?: string; label: string };
 
 /**
  * Shared opening band for every internal page — same surface, rhythm and
- * photographic treatment as the home hero, so the whole site opens the same
- * way. Each page supplies its own headline, facts and photograph.
+ * photographic treatment as the home hero. Crumb hrefs are canonical (English)
+ * paths; they are localised here.
  */
 export function PageHero({
   eyebrow,
@@ -31,37 +32,40 @@ export function PageHero({
 }: {
   eyebrow: string;
   titleLines: React.ReactNode[];
-  /** Plain-text version of the headline, for the accessible heading. */
   plainTitle: string;
   sub?: string;
-  facts?: { k: string; v: string }[];
+  facts?: readonly { k: string; v: string }[];
   photo?: Photo;
   crumbs?: Crumb[];
 }) {
   const reduce = useReducedMotion();
+  const c = useContent();
+  const l = useL();
   return (
     <section className="mp-phero" aria-labelledby="mp-phero-title">
       {photo ? (
         <motion.div
           className="mp-phero__photo"
           aria-hidden="true"
-          initial={reduce ? false : { opacity: 0, scale: 1.04 }}
+          initial={reduce ? false : { opacity: 0, scale: 1.03 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1.4, ease: EASE }}
+          transition={{ duration: 1.1, ease: EASE }}
         >
           <Img photo={photo} priority sizes="100vw" />
         </motion.div>
-      ) : null}
+      ) : (
+        <div className="mp-grid-bg" aria-hidden="true" />
+      )}
       <div className="mp-shell">
         {crumbs?.length ? (
-          <nav aria-label="Breadcrumb">
+          <nav aria-label={c.ui.breadcrumb}>
             <ol className="mp-breadcrumbs">
-              {crumbs.map((c) => (
-                <li key={c.label}>
-                  {c.href ? (
-                    <Link href={c.href}>{c.label}</Link>
+              {crumbs.map((cr) => (
+                <li key={cr.label}>
+                  {cr.href ? (
+                    <Link href={l(cr.href)}>{cr.label}</Link>
                   ) : (
-                    <span aria-current="page">{c.label}</span>
+                    <span aria-current="page">{cr.label}</span>
                   )}
                 </li>
               ))}
@@ -71,7 +75,7 @@ export function PageHero({
 
         <div className="mp-phero__grid">
           <div>
-            <Reveal y={12}>
+            <Reveal y={8}>
               <TechnicalEyebrow>{eyebrow}</TechnicalEyebrow>
             </Reveal>
 
@@ -79,7 +83,7 @@ export function PageHero({
               as="h1"
               className="mp-phero__title"
               animateOnMount
-              delay={0.08}
+              delay={0.06}
               lines={titleLines}
             />
             <span id="mp-phero-title" className="mp-form__hp">
@@ -87,13 +91,13 @@ export function PageHero({
             </span>
 
             {sub ? (
-              <Reveal delay={0.22}>
+              <Reveal delay={0.16}>
                 <p className="mp-phero__sub">{sub}</p>
               </Reveal>
             ) : null}
 
             {facts?.length ? (
-              <Reveal delay={0.28}>
+              <Reveal delay={0.2}>
                 <dl className="mp-phero__facts">
                   {facts.map((f) => (
                     <div className="mp-phero__fact" key={f.k}>

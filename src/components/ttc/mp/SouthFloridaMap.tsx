@@ -1,24 +1,22 @@
 'use client';
 
 import React from 'react';
-import { imagery, serviceArea } from '@/lib/ttc/site';
+import { imagery } from '@/lib/ttc/site';
 import { Img } from './media';
 import { Reveal, SectionHeading } from './primitives';
+import { useContent } from './lang';
 
-/**
- * Service area — the territory, photographed from the air, beside the two
- * counties the practice works in. The county codes and coordinates that used
- * to annotate the list were drawing-set decoration; a client reads "Miami-Dade
- * County · High-Velocity Hurricane Zone" and has everything the plate said.
- */
+/** Service area — the territory from the air beside the two counties. */
 export function SouthFloridaMap({ n = '06' }: { n?: string }) {
+  const c = useContent();
+  const a = c.serviceArea;
   return (
     <section
       className="mp-section mp-section--lg mp-surface--paper"
       aria-labelledby="mp-geo-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={serviceArea.eyebrow} />
+        <SectionHeading n={n} label={a.eyebrow} />
 
         <div className="mp-geo__grid">
           <Reveal>
@@ -31,21 +29,20 @@ export function SouthFloridaMap({ n = '06' }: { n?: string }) {
           </Reveal>
 
           <div className="mp-geo__copy">
-            <Reveal delay={0.06}>
+            <Reveal delay={0.05}>
               <h2 id="mp-geo-title" className="mp-h2">
-                {serviceArea.title}
+                {a.title}
               </h2>
             </Reveal>
-            <Reveal delay={0.1}>
-              <p className="mp-lead mp-geo__body">{serviceArea.body}</p>
+            <Reveal delay={0.08}>
+              <p className="mp-lead mp-geo__body">{a.body}</p>
             </Reveal>
-
-            <Reveal delay={0.14}>
+            <Reveal delay={0.11}>
               <ul className="mp-geo__counties">
-                {serviceArea.counties.map((c) => (
-                  <li key={c.code}>
-                    <span className="mp-geo__name">{c.name}</span>
-                    <span className="mp-geo__note">{c.note}</span>
+                {a.counties.map((co) => (
+                  <li key={co.code}>
+                    <span className="mp-geo__name">{co.name}</span>
+                    <span className="mp-geo__note">{co.note}</span>
                   </li>
                 ))}
               </ul>

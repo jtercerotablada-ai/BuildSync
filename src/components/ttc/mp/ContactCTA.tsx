@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { closingCta, contact } from '@/lib/ttc/site';
 import {
   AnimatedLine,
   ButtonLink,
@@ -10,13 +9,13 @@ import {
   RevealText,
   SectionHeading,
 } from './primitives';
+import { accentLines } from './text';
+import { useContent, useL } from './lang';
 
 /**
- * Closing band. Flat graphite, one headline, two buttons, one gold rule — the
- * same language as the hero so the page closes where it opened.
- *
- * `asHero` is used on the Contact page, where this band sits directly under
- * the header and therefore needs to register as a dark hero.
+ * Closing band. Flat graphite over the plan grid, one headline, two buttons,
+ * one gold rule — the same language as the hero so the page closes where it
+ * opened. `asHero` registers it as a dark hero when it sits under the header.
  */
 export function ContactCTA({
   n = '07',
@@ -25,46 +24,45 @@ export function ContactCTA({
   n?: string;
   asHero?: boolean;
 }) {
+  const c = useContent();
+  const l = useL();
+  const k = c.closingCta;
   return (
     <section
       className="mp-section mp-section--lg mp-surface--graphite mp-close"
       aria-labelledby="mp-close-title"
     >
+      <div className="mp-grid-bg" aria-hidden="true" />
       <div className="mp-shell mp-close__inner">
-        <SectionHeading n={n} label="Start" />
+        <SectionHeading n={n} label={k.eyebrow} />
 
         <RevealText
           as="h2"
           className="mp-close__title"
-          lines={[
-            closingCta.line1,
-            <React.Fragment key="l2">
-              We’ll carry the{' '}
-              <span className="mp-serif">responsibility.</span>
-            </React.Fragment>,
-          ]}
+          lines={accentLines(k.titleLines, k.accentWord)}
         />
         <span id="mp-close-title" className="mp-form__hp">
-          {closingCta.line1} {closingCta.line2}
+          {k.plainTitle}
         </span>
 
-        <Reveal delay={0.12}>
-          <p className="mp-close__body">{closingCta.body}</p>
+        <Reveal delay={0.08}>
+          <p className="mp-close__body">{k.body}</p>
         </Reveal>
 
-        <Reveal delay={0.18} className="mp-cta-row">
-          <ButtonLink href={closingCta.primary.href} variant="solid">
-            {closingCta.primary.label}
+        <Reveal delay={0.12} className="mp-cta-row">
+          <ButtonLink href={l(k.primary.href)} variant="solid">
+            {k.primary.label}
           </ButtonLink>
-          <ButtonLink href={closingCta.secondary.href} variant="line">
-            {closingCta.secondary.label}
+          <ButtonLink href={l(k.secondary.href)} variant="line">
+            {k.secondary.label}
           </ButtonLink>
         </Reveal>
 
-        <AnimatedLine className="mp-rule mp-close__rule" delay={0.2} />
+        <AnimatedLine className="mp-rule mp-close__rule" delay={0.14} />
         <div className="mp-close__meta">
-          <a href={`mailto:${contact.email}`}>{contact.email}</a>
-          <span>{contact.serviceAreaLabel}</span>
+          <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>
+          <span>{c.leadership.name}</span>
+          <span>{c.contact.serviceAreaLabel}</span>
         </div>
       </div>
       {asHero ? <DarkHeroSentinel /> : null}

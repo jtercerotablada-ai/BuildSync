@@ -1,14 +1,12 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
-import {
-  company,
-  contact,
-  footerNav,
-  legal,
-  services,
-} from '@/lib/ttc/site';
+import { useContent, useL } from './lang';
 
 export function SiteFooter() {
+  const c = useContent();
+  const l = useL();
   const year = new Date().getFullYear();
 
   return (
@@ -19,21 +17,29 @@ export function SiteFooter() {
             <div className="mp-footer__brand-logo">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={company.logo.lockupLight}
-                alt={company.legalName}
-                width={company.logo.lockupSize.w}
-                height={company.logo.lockupSize.h}
+                src={c.company.logo.lockupLight}
+                alt={c.company.legalName}
+                width={c.company.logo.lockupSize.w}
+                height={c.company.logo.lockupSize.h}
               />
             </div>
-            <p className="mp-footer__tag">{company.positioning.body}</p>
+            <p className="mp-footer__tag">{c.company.description}</p>
+            <p className="mp-footer__pe">
+              <span className="mp-footer__pe-mark" aria-hidden="true">
+                P.E.
+              </span>
+              <span>
+                {c.leadership.name} · {c.leadership.credential}
+              </span>
+            </p>
           </div>
 
           <div className="mp-footer__cols">
-            {footerNav.map((group) => (
+            {c.footerNav.map((group) => (
               <div className="mp-footer__col" key={group.title}>
                 <h2>{group.title}</h2>
                 {group.items.map((item) => (
-                  <Link key={item.href} href={item.href}>
+                  <Link key={item.href} href={l(item.href)}>
                     {item.label}
                   </Link>
                 ))}
@@ -41,51 +47,54 @@ export function SiteFooter() {
             ))}
 
             <div className="mp-footer__col">
-              <h2>Services</h2>
-              {services.map((s) => (
-                <Link key={s.slug} href={`/services/${s.slug}`}>
+              <h2>{c.ui.footer.services}</h2>
+              {c.services.map((s) => (
+                <Link key={s.slug} href={l(`/services/${s.slug}`)}>
                   {s.shortTitle}
                 </Link>
               ))}
             </div>
 
             <div className="mp-footer__col">
-              <h2>Contact</h2>
-              <a href={`mailto:${contact.email}`}>{contact.email}</a>
-              {contact.phone ? (
-                <a href={contact.phone.href}>{contact.phone.display}</a>
+              <h2>{c.ui.footer.contact}</h2>
+              <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>
+              {c.contact.phone ? (
+                <a href={c.contact.phone.href}>{c.contact.phone.display}</a>
               ) : null}
-              {contact.address ? (
+              {c.contact.address ? (
                 <span>
-                  {contact.address.line1}
-                  {contact.address.line2 ? `, ${contact.address.line2}` : ''}
-                  {`, ${contact.address.city}, ${contact.address.state} ${contact.address.zip}`}
+                  {c.contact.address.line1}
+                  {c.contact.address.line2 ? `, ${c.contact.address.line2}` : ''}
+                  {`, ${c.contact.address.city}, ${c.contact.address.state} ${c.contact.address.zip}`}
                 </span>
               ) : null}
-              <span>{contact.serviceAreaLabel}</span>
-              {contact.social.linkedin ? (
+              <span>{c.contact.serviceAreaLabel}</span>
+              {c.contact.social.linkedin ? (
                 <a
-                  href={contact.social.linkedin}
+                  href={c.contact.social.linkedin}
                   rel="noopener noreferrer"
                   target="_blank"
                 >
-                  LinkedIn
+                  {c.ui.footer.linkedin}
                 </a>
               ) : null}
             </div>
           </div>
         </div>
 
-        <p className="mp-footer__notice">{legal.notice}</p>
+        <p className="mp-footer__notice">{c.legal.notice}</p>
 
         <div className="mp-footer__bottom">
           <span>
-            © {year} {company.legalName}
+            © {year} {c.company.legalName}
           </span>
           <div className="mp-footer__legal">
-            {legal.links.map((l) => (
-              <Link key={l.href} href={l.href}>
-                {l.label}
+            {c.legal.links.map((lk) => (
+              <Link
+                key={lk.href}
+                href={lk.href === '/credits' ? lk.href : l(lk.href)}
+              >
+                {lk.label}
               </Link>
             ))}
           </div>

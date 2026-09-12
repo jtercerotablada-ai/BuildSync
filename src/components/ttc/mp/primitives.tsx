@@ -46,7 +46,7 @@ type RevealProps = {
 export function Reveal({
   children,
   delay = 0,
-  y = 22,
+  y = 14,
   className,
   as = 'div',
   once = true,
@@ -67,8 +67,8 @@ export function Reveal({
       initial={reduce ? false : { opacity: 0, y }}
       animate={reduce ? { opacity: 1, y: 0 } : undefined}
       whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once, margin: '-60px' }}
-      transition={reduce ? { duration: 0 } : { duration: 0.72, ease: EASE, delay }}
+      viewport={{ once, margin: '-40px' }}
+      transition={reduce ? { duration: 0 } : { duration: 0.5, ease: EASE, delay }}
     >
       {children}
     </Comp>
@@ -142,7 +142,7 @@ export function RevealText({
             transition={
               reduce
                 ? { duration: 0 }
-                : { duration: 0.9, ease: EASE, delay: delay + i * 0.09 }
+                : { duration: 0.7, ease: EASE, delay: delay + i * 0.07 }
             }
           >
             {line}
@@ -289,12 +289,12 @@ export function TextLink({
 
 export const staggerParent: Variants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.055 } },
+  show: { transition: { staggerChildren: 0.045 } },
 };
 
 export const staggerChild: Variants = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE } },
 };
 
 export function StaggerList({

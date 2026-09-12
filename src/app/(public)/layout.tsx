@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
-import { company, contact, municipalities, services } from '@/lib/ttc/site';
+import { company, contact, leadership, municipalities, services } from '@/lib/ttc/site';
 import './mp.css';
 
 /* ── Type system ──────────────────────────────────────────────────────────
@@ -86,6 +86,8 @@ const structuredData = {
       logo: `${company.url}${company.logo.dark}`,
       email: contact.email,
       description: company.description,
+      founder: { '@id': `${company.url}/about#engineer` },
+      employee: { '@id': `${company.url}/about#engineer` },
       areaServed: [
         'Miami-Dade County, Florida',
         'Broward County, Florida',
@@ -134,12 +136,35 @@ const structuredData = {
       },
     },
     {
+      '@type': 'Person',
+      '@id': `${company.url}/about#engineer`,
+      name: 'Juan Tercero',
+      honorificSuffix: 'PE., M.Sc.',
+      jobTitle: leadership.role,
+      worksFor: { '@id': `${company.url}/#organization` },
+      hasCredential: [
+        {
+          '@type': 'EducationalOccupationalCredential',
+          credentialCategory: 'license',
+          name: 'Professional Engineer (P.E.), State of Florida',
+          ...(leadership.license
+            ? { identifier: leadership.license.number, url: leadership.license.url }
+            : {}),
+        },
+        {
+          '@type': 'EducationalOccupationalCredential',
+          credentialCategory: 'degree',
+          name: 'Master of Science (M.Sc.)',
+        },
+      ],
+    },
+    {
       '@type': 'WebSite',
       '@id': `${company.url}/#website`,
       url: company.url,
       name: company.name,
       publisher: { '@id': `${company.url}/#organization` },
-      inLanguage: 'en-US',
+      inLanguage: ['en-US', 'es-US'],
     },
   ],
 };

@@ -315,3 +315,18 @@ describe("isPublicRoute — workspace invitations", () => {
     expect(isPublicRoute("/api/workspace/invitations")).toBe(false);
   });
 });
+
+describe("isPublicRoute — Spanish marketing mirror", () => {
+  it("opens /es and everything under it", () => {
+    expect(isPublicRoute("/es")).toBe(true);
+    expect(isPublicRoute("/es/")).toBe(true);
+    expect(isPublicRoute("/es/services")).toBe(true);
+    expect(isPublicRoute("/es/services/building-recertification")).toBe(true);
+    expect(isPublicRoute("/es/contact")).toBe(true);
+  });
+
+  it("does not open app routes that merely start with the letters es", () => {
+    expect(isPublicRoute("/escalate")).toBe(false);
+    expect(isPublicRoute("/estimates")).toBe(false);
+  });
+});

@@ -2,21 +2,22 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion, useScroll, useSpring } from 'motion/react';
-import { recertificationProcess as rp } from '@/lib/ttc/site';
 import { ButtonLink, Reveal, SectionHeading } from './primitives';
+import { useContent, useL } from './lang';
 
 /**
- * Recertification timeline. The gold track fills as the section scrolls, and
- * each step's node fills as it enters view. With reduced motion the track is
- * simply drawn complete and the nodes are filled from the start.
+ * Recertification timeline. The gold track fills as the section scrolls and
+ * each node fills as it enters view; with reduced motion the track is drawn
+ * complete and the nodes are filled from the start.
  */
-export function ProcessTimeline({ n = '06' }: { n?: string }) {
+export function ProcessTimeline({ n = '03' }: { n?: string }) {
+  const c = useContent();
+  const l = useL();
+  const t = c.existingPage.timeline;
   const reduce = useReducedMotion();
   const listRef = useRef<HTMLDivElement>(null);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [seen, setSeen] = useState<boolean[]>(() =>
-    rp.steps.map(() => false),
-  );
+  const [seen, setSeen] = useState<boolean[]>(() => t.steps.map(() => false));
 
   const { scrollYProgress } = useScroll({
     target: listRef,
@@ -47,7 +48,7 @@ export function ProcessTimeline({ n = '06' }: { n?: string }) {
       },
       { rootMargin: '0px 0px -40% 0px', threshold: 0 },
     );
-    nodes.forEach((n) => io.observe(n));
+    nodes.forEach((node) => io.observe(node));
     return () => io.disconnect();
   }, []);
 
@@ -57,22 +58,19 @@ export function ProcessTimeline({ n = '06' }: { n?: string }) {
       aria-labelledby="mp-recert-title"
     >
       <div className="mp-shell">
-        <SectionHeading
-          n={n}
-          label={rp.eyebrow}
-        />
+        <SectionHeading n={n} label={t.eyebrow} />
 
         <div className="mp-split" style={{ marginBlockEnd: 'var(--mp-12)' }}>
           <Reveal>
             <h2 id="mp-recert-title" className="mp-split__title">
-              {rp.title}
+              {t.title}
             </h2>
           </Reveal>
-          <Reveal delay={0.08}>
-            <p className="mp-lead mp-measure">{rp.lede}</p>
+          <Reveal delay={0.06}>
+            <p className="mp-lead mp-measure">{t.lede}</p>
             <div className="mp-cta-row">
-              <ButtonLink href="/existing-buildings" variant="line">
-                Existing-building services
+              <ButtonLink href={l(t.cta.href)} variant="line">
+                {t.cta.label}
               </ButtonLink>
             </div>
           </Reveal>
@@ -83,14 +81,9 @@ export function ProcessTimeline({ n = '06' }: { n?: string }) {
           <motion.div
             className="mp-timeline__progress"
             aria-hidden="true"
-            style={
-              reduce
-                ? { height: '100%' }
-                : { height: '100%', scaleY: progress }
-            }
+            style={reduce ? { height: '100%' } : { height: '100%', scaleY: progress }}
           />
-
-          {rp.steps.map((s, i) => (
+          {t.steps.map((s, i) => (
             <div
               key={s.n}
               ref={(el) => {
@@ -108,7 +101,7 @@ export function ProcessTimeline({ n = '06' }: { n?: string }) {
           ))}
         </div>
 
-        <p className="mp-disclaimer">{rp.disclaimer}</p>
+        <p className="mp-disclaimer">{c.ui.processDisclaimer}</p>
       </div>
     </section>
   );

@@ -13,7 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SubmissionActions } from "@/components/admin/submission-actions";
-import { Mail } from "lucide-react";
+import { Mail, Paperclip } from "lucide-react";
+import { parseContactAttachments } from "@/lib/contact-attachments";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -102,6 +103,7 @@ export default async function AdminSubmissionsPage() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Service</TableHead>
                   <TableHead>Message</TableHead>
+                  <TableHead>Files</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
@@ -109,7 +111,7 @@ export default async function AdminSubmissionsPage() {
               </TableHeader>
               <TableBody>
                 {submissions.map((sub) => (
-                  <TableRow key={sub.id}>
+                  <TableRow key={sub.id} id={sub.id}>
                     <TableCell className="font-medium">{sub.name}</TableCell>
                     <TableCell>{sub.email}</TableCell>
                     <TableCell className="text-muted-foreground">
@@ -120,6 +122,34 @@ export default async function AdminSubmissionsPage() {
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate text-muted-foreground">
                       {sub.message}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const files = parseContactAttachments(sub.files);
+                        if (!files.length) {
+                          return <span className="text-muted-foreground">-</span>;
+                        }
+                        // Links go through /api/files/contact, which re-checks
+                        // the inbox gate and streams the PRIVATE blob.
+                        return (
+                          <ul className="flex flex-col gap-1">
+                            {files.map((f, i) => (
+                              <li key={f.url}>
+                                <a
+                                  href={`/api/files/contact/${sub.id}?i=${i}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-sm underline-offset-2 hover:underline"
+                                  title={`${Math.round(f.size / 1024)} KB`}
+                                >
+                                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="max-w-[160px] truncate">{f.name}</span>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {new Date(sub.createdAt).toLocaleDateString()}

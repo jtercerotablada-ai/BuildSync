@@ -4,8 +4,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { company, contact, primaryNav, primaryCta } from '@/lib/ttc/site';
+import { altPath, localePath, stripLang } from '@/lib/ttc/i18n';
 import { EASE } from './primitives';
+import { useContent, useLang } from './lang';
 
 /**
  * Header state is deliberately NOT React state.
@@ -23,7 +24,9 @@ import { EASE } from './primitives';
  *   .is-menu-open  — the mobile menu is covering the page
  */
 export function SiteHeader() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
+  const lang = useLang();
+  const c = useContent();
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
@@ -47,15 +50,8 @@ export function SiteHeader() {
       header.classList.remove('is-stuck');
       return;
     }
-
-    // The sentinel marks the BOTTOM edge of the dark hero, and the test is
-    // "has that edge risen above the header?" — not `isIntersecting`.
-    // isIntersecting is false in two opposite situations: the hero bottom is
-    // still below the fold (header should be transparent) and the hero has
-    // scrolled away entirely (header should be solid). On a viewport shorter
-    // than the hero — every phone — the first case is the one at page load,
-    // which made the header go solid over the dark hero. Reading the edge
-    // position tells the two apart.
+    // The sentinel marks the BOTTOM edge of the dark hero; the test is "has
+    // that edge risen above the header?", not `isIntersecting`.
     const update = (rect: DOMRectReadOnly | DOMRect) => {
       header.classList.toggle('is-stuck', rect.top <= header.offsetHeight);
       header.classList.toggle('is-floating', window.scrollY > 4);
@@ -66,10 +62,6 @@ export function SiteHeader() {
     );
     io.observe(sentinel);
     update(sentinel.getBoundingClientRect());
-
-    // IntersectionObserver only fires on threshold crossings; the floating
-    // state changes on the very first pixel of scroll, so it needs the
-    // listener regardless.
     const onScroll = () => update(sentinel.getBoundingClientRect());
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
@@ -90,8 +82,6 @@ export function SiteHeader() {
     const root = document.documentElement;
     const prevOverflow = root.style.overflow;
     root.style.overflow = 'hidden';
-    // Lenis drives the window scroll; pause it so the overlay cannot scroll
-    // the page underneath on wheel or touch.
     const lenis = (
       window as unknown as {
         __ttcLenis?: { stop: () => void; start: () => void };
@@ -121,7 +111,6 @@ export function SiteHeader() {
       }
     };
     document.addEventListener('keydown', onKeyDown);
-
     const focusTimer = window.setTimeout(() => {
       menuRef.current?.querySelector<HTMLElement>('a[href]')?.focus();
     }, 60);
@@ -134,52 +123,76 @@ export function SiteHeader() {
     };
   }, [open]);
 
+  const canonical = stripLang(pathname);
   const isActive = useCallback(
     (href: string) =>
       href === '/'
-        ? pathname === '/'
-        : pathname === href || pathname.startsWith(`${href}/`),
-    [pathname],
+        ? canonical === '/'
+        : canonical === href || canonical.startsWith(`${href}/`),
+    [canonical],
+  );
+
+  const l = (href: string) => localePath(href, lang);
+  const other = altPath(pathname);
+  const otherLang = lang === 'en' ? 'es' : 'en';
+
+  const langSwitch = (
+    <div className="mp-lang" role="group" aria-label={c.ui.language.label}>
+      <span aria-current="true">{c.ui.language[lang]}</span>
+      <span className="mp-lang__sep" aria-hidden="true">
+        /
+      </span>
+      <Link
+        href={other}
+        hrefLang={otherLang}
+        lang={otherLang}
+        title={c.ui.language.switchTo}
+        aria-label={c.ui.language.switchTo}
+      >
+        {c.ui.language[otherLang]}
+      </Link>
+    </div>
   );
 
   return (
     <>
+      <a className="mp-skip" href="#main">
+        {c.ui.skipToContent}
+      </a>
       <header className="mp-header" ref={headerRef}>
         <div className="mp-header__inner">
           <Link
-            href="/"
+            href={l('/')}
             className="mp-header__logo"
-            aria-label={`${company.name} — home`}
+            aria-label={`${c.company.name} — ${c.ui.home}`}
           >
-            {/* Compact square monogram (no wordmark) — the two are swapped by
-                header state: the dark mark on the light/stuck header, the white
-                mark on the dark hero. (.mp-header__lockup keeps its name; it
-                now carries the mark, not the horizontal lockup.) */}
+            {/* The real square monogram, swapped by header state: dark mark on
+                the light header, white mark over a dark hero. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={company.logo.dark}
+              src={c.company.logo.dark}
               alt=""
-              width={company.logo.markSize.w}
-              height={company.logo.markSize.h}
+              width={c.company.logo.markSize.w}
+              height={c.company.logo.markSize.h}
               className="mp-header__lockup mp-header__lockup--dark"
               aria-hidden="true"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={company.logo.light}
+              src={c.company.logo.light}
               alt=""
-              width={company.logo.markSize.w}
-              height={company.logo.markSize.h}
+              width={c.company.logo.markSize.w}
+              height={c.company.logo.markSize.h}
               className="mp-header__lockup mp-header__lockup--light"
               aria-hidden="true"
             />
           </Link>
 
-          <nav className="mp-header__nav" aria-label="Primary">
-            {primaryNav.map((item) => (
+          <nav className="mp-header__nav" aria-label={c.ui.primaryNavLabel}>
+            {c.primaryNav.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={l(item.href)}
                 aria-current={isActive(item.href) ? 'page' : undefined}
               >
                 {item.label}
@@ -188,11 +201,12 @@ export function SiteHeader() {
           </nav>
 
           <div className="mp-header__actions">
+            <div className="mp-header__lang">{langSwitch}</div>
             <Link
-              href={primaryCta.href}
+              href={l(c.primaryCta.href)}
               className="mp-btn mp-btn--solid mp-header__cta"
             >
-              <span>{primaryCta.label}</span>
+              <span>{c.primaryCta.label}</span>
             </Link>
             <button
               ref={burgerRef}
@@ -200,7 +214,7 @@ export function SiteHeader() {
               className="mp-burger"
               aria-expanded={open}
               aria-controls="mp-mobile-menu"
-              aria-label={open ? 'Close menu' : 'Open menu'}
+              aria-label={open ? c.ui.closeMenu : c.ui.openMenu}
               onClick={() => setOpen((v) => !v)}
             >
               <span className="mp-burger__box" aria-hidden="true">
@@ -221,27 +235,27 @@ export function SiteHeader() {
             data-lenis-prevent=""
             role="dialog"
             aria-modal="true"
-            aria-label="Site menu"
+            aria-label={c.ui.siteMenu}
             initial={reduce ? false : { opacity: 0, y: -14 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -14 }}
-            transition={{ duration: 0.32, ease: EASE }}
+            transition={{ duration: 0.28, ease: EASE }}
           >
-            <nav className="mp-menu__nav" aria-label="Primary">
-              {primaryNav.map((item, i) => (
+            <nav className="mp-menu__nav" aria-label={c.ui.primaryNavLabel}>
+              {c.primaryNav.map((item, i) => (
                 <motion.span
                   key={item.href}
-                  initial={reduce ? false : { opacity: 0, y: 16 }}
+                  initial={reduce ? false : { opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
-                    duration: 0.42,
+                    duration: 0.36,
                     ease: EASE,
-                    delay: 0.06 + i * 0.045,
+                    delay: 0.04 + i * 0.04,
                   }}
                   style={{ display: 'block' }}
                 >
                   <Link
-                    href={item.href}
+                    href={l(item.href)}
                     aria-current={isActive(item.href) ? 'page' : undefined}
                   >
                     <span className="mp-menu__n" aria-hidden="true">
@@ -254,17 +268,18 @@ export function SiteHeader() {
             </nav>
 
             <div className="mp-menu__foot">
-              <Link href={primaryCta.href} className="mp-btn mp-btn--solid">
-                <span>{primaryCta.label}</span>
+              <Link href={l(c.primaryCta.href)} className="mp-btn mp-btn--solid">
+                <span>{c.primaryCta.label}</span>
                 <span className="mp-btn__arrow" aria-hidden="true">
                   →
                 </span>
               </Link>
-              <a className="mp-menu__mail" href={`mailto:${contact.email}`}>
-                {contact.email}
+              <div className="mp-menu__lang">{langSwitch}</div>
+              <a className="mp-menu__mail" href={`mailto:${c.contact.email}`}>
+                {c.contact.email}
               </a>
               <span className="mp-menu__mail" style={{ opacity: 0.7 }}>
-                {contact.serviceAreaLabel}
+                {c.contact.serviceAreaLabel}
               </span>
             </div>
           </motion.div>
