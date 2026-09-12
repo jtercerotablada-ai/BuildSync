@@ -508,7 +508,16 @@ export const es: SiteContent = {
   },
 
   contact: {
-    email: 'info@tercerotablada.com',
+  /**
+     * The firm's mailbox. Google Workspace on ttcivilstructural.com — MX
+     * verified live 2026-09-12 (smtp.google.com), single root SPF
+     * (include:_spf.google.com), so this address genuinely receives.
+     *
+     * It replaced info@tercerotablada.com, which was published here for months
+     * on a domain with NO MX at all: anyone who wrote to it got a bounce and
+     * assumed they had reached us. Before changing this, dig the MX.
+     */
+    email: 'info@ttcivilstructural.com',
     phone: null,
     address: null,
     serviceAreaLabel: 'Condados de Miami-Dade y Broward, Florida',

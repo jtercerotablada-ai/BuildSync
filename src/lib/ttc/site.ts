@@ -91,7 +91,16 @@ export const company = {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const contact = {
-  email: 'info@tercerotablada.com',
+  /**
+   * The firm's mailbox. Google Workspace on ttcivilstructural.com — MX
+   * verified live 2026-09-12 (smtp.google.com), single root SPF
+   * (include:_spf.google.com), so this address genuinely receives.
+   *
+   * It replaced info@tercerotablada.com, which was published here for months
+   * on a domain with NO MX at all: anyone who wrote to it got a bounce and
+   * assumed they had reached us. Before changing this, dig the MX.
+   */
+  email: 'info@ttcivilstructural.com',
   /** e.g. { display: '(305) 555-0100', href: 'tel:+13055550100' } */
   phone: null as { display: string; href: string } | null,
   /** e.g. { line1: '…', city: 'Miami', state: 'FL', zip: '33131' } */

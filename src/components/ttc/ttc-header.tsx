@@ -129,8 +129,8 @@ export function TTCHeader() {
             <span className={language === 'es' ? 'lang-active' : 'lang-inactive'}>ES</span>
           </button>
 
-          <a href="mailto:info@tercerotablada.com" className="mobile-menu__email">
-            info@tercerotablada.com
+          <a href="mailto:info@ttcivilstructural.com" className="mobile-menu__email">
+            info@ttcivilstructural.com
           </a>
         </div>
       </div>

@@ -106,8 +106,8 @@ export function TTCFooter() {
                 </a>
               </div>
             )}
-            <a href="mailto:info@tercerotablada.com" className="footer__email">
-              info@tercerotablada.com
+            <a href="mailto:info@ttcivilstructural.com" className="footer__email">
+              info@ttcivilstructural.com
             </a>
           </div>
         </div>
