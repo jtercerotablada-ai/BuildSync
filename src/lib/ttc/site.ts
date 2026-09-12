@@ -66,6 +66,21 @@ export const company = {
     light: '/ttc/img/logo-white.png',
     markSize: { w: 1254, h: 1254 },
   },
+  /**
+   * Florida Engineering Business Registry number (DBPR).
+   *
+   * This is the FIRM's registration, not the engineer's personal P.E. licence,
+   * and it is the one that belongs in public view: it says the COMPANY may
+   * legally offer engineering services in Florida, which is what a board or a
+   * developer is actually hiring. Verified 2026-09-12 in the DBPR registry —
+   * #40285, status Current, no expiry (the Certificate of Authorization was
+   * replaced by a free, non-renewing registry in October 2019).
+   *
+   * Kept in English in both languages: it is the official designation someone
+   * would type into myfloridalicense.com to verify it. `null` removes the line
+   * from the footer entirely.
+   */
+  registry: 'FL Engineering Business No. 40285' as string | null,
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════

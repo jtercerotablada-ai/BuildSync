@@ -30,6 +30,12 @@ export function SiteFooter() {
               </span>
               <span>
                 {c.leadership.name} · {c.leadership.credential}
+                {c.company.registry ? (
+                  <>
+                    <br />
+                    <span className="mp-footer__reg">{c.company.registry}</span>
+                  </>
+                ) : null}
               </span>
             </p>
           </div>

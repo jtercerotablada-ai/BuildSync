@@ -2984,11 +2984,19 @@ no line-art.
 }/* ── Footer: signature line ──────────────────────────────────────────────── */
 .mp-footer__pe {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--mp-3);
   margin: var(--mp-6) 0 0;
   font-size: var(--mp-t-small);
   color: var(--mp-snow-2);
+}
+.mp-footer__reg {
+  display: inline-block;
+  margin-block-start: 0.15rem;
+  font-family: var(--mp-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--mp-snow-3);
 }
 .mp-footer__pe-mark {
   width: 34px;
