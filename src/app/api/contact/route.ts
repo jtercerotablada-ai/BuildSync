@@ -11,6 +11,22 @@ import {
   isContactBlobUrl,
   isContactFileAllowed,
 } from "@/lib/contact-attachments";
+import { contactServiceOptions as EN_SERVICES } from "@/lib/ttc/site";
+import { es as ES_BUNDLE } from "@/lib/ttc/site.es";
+
+/**
+ * The service field is a <select> with a fixed option list, but the endpoint is
+ * public and a hand-rolled POST can put anything in it — and that string is
+ * echoed back in the confirmation email, which goes to an address the SENDER
+ * supplied. Free text there turns this route into a way to deliver an
+ * attacker-authored line, from our authenticated sending domain, to a third
+ * party. Pinning it to the known options (both languages) is what keeps the
+ * "never echoes user input" rule in this file actually true.
+ */
+const ALLOWED_SERVICES = new Set<string>([
+  ...EN_SERVICES,
+  ...ES_BUNDLE.contactServiceOptions,
+]);
 
 /**
  * POST /api/contact — a proposal request from the public site.
@@ -112,6 +128,13 @@ export async function POST(request: Request) {
     }
     const { name, email, phone, company, location, service, message, lang } =
       parsed.data;
+
+    if (!ALLOWED_SERVICES.has(service)) {
+      return NextResponse.json(
+        { error: "Select the service you need" },
+        { status: 400 }
+      );
+    }
 
     // Attachments: only what our own token route could have produced.
     const files = (parsed.data.files ?? []).map((f) => ({

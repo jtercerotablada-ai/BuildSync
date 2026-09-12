@@ -62,5 +62,18 @@ export function hreflangFor(canonicalPath: string): Record<string, string> {
   };
 }
 
+/**
+ * Pages that exist in English only. `/credits` is image attribution and licence
+ * text, and `/logo-styles` is an internal brand sheet; neither has a Spanish
+ * twin. The header switcher must not offer `/es/...` for these — it would send
+ * the visitor to a 404, and it publishes a crawlable link to one.
+ */
+const EN_ONLY = ['/credits', '/logo-styles'];
+
+export function hasTranslation(pathname: string): boolean {
+  const base = stripLang(pathname).replace(/\/+$/, '') || '/';
+  return !EN_ONLY.includes(base);
+}
+
 export const htmlLang: Record<Lang, string> = { en: 'en', es: 'es' };
 export const ogLocale: Record<Lang, string> = { en: 'en_US', es: 'es_US' };

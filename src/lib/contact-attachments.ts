@@ -87,6 +87,26 @@ export type ContactAttachment = {
 const BLOB_HOST_SUFFIX = '.blob.vercel-storage.com';
 
 /**
+ * The store id, taken from the write token: `vercel_blob_rw_<STOREID>_<secret>`.
+ * The blob host is `<storeid lowercased>.<access>.blob.vercel-storage.com`.
+ *
+ * WHY THIS EXISTS: checking only the host SUFFIX accepts *any* Vercel Blob
+ * store, and anyone can create one for free. Without this, a stranger could
+ * POST /api/contact with a URL pointing at THEIR store under a `contact/`
+ * key, we would file it as an attachment, and the office notification and the
+ * admin inbox would both link staff — through our own domain — to bytes the
+ * attacker controls and can swap at any time. Server-only: the token is not
+ * exposed to the browser, and nothing in the client calls this.
+ */
+function blobStoreId(): string | null {
+  const t = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!t) return null;
+  const parts = t.split('_');
+  // vercel_blob_rw_<storeId>_<secret>
+  return parts.length >= 5 && parts[0] === 'vercel' ? parts[3].toLowerCase() : null;
+}
+
+/**
  * A URL the contact token route could actually have produced: our store, at
  * the configured access level, under the contact folder. Anything else on a
  * submission is a lie — someone else's host, another folder, or (once the
@@ -96,9 +116,20 @@ export function isContactBlobUrl(url: string): boolean {
   try {
     const u = new URL(url);
     if (u.protocol !== 'https:') return false;
+    // Reject credentials in the authority; `https://evil.com@ours...` parses
+    // with hostname `ours...` in some readers and is never legitimate here.
+    if (u.username || u.password) return false;
     if (!u.hostname.endsWith(BLOB_HOST_SUFFIX)) return false;
-    if (u.hostname.split('.')[1] !== CONTACT_BLOB_ACCESS) return false;
-    return u.pathname.replace(/^\/+/, '').startsWith(CONTACT_FOLDER);
+    const labels = u.hostname.split('.');
+    // Exactly `<store>.<access>.blob.vercel-storage.com` — no deeper host.
+    if (labels.length !== 5) return false;
+    if (labels[1] !== CONTACT_BLOB_ACCESS) return false;
+    const store = blobStoreId();
+    // No token configured means we cannot prove ownership, so trust nothing.
+    if (!store || labels[0] !== store) return false;
+    const path = u.pathname.replace(/^\/+/, '');
+    if (path.includes('..')) return false;
+    return path.startsWith(CONTACT_FOLDER);
   } catch {
     return false;
   }

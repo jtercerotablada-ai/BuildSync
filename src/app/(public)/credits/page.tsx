@@ -4,10 +4,17 @@ import { PageHero } from '@/components/ttc/mp/PageHero';
 import { SectionHeading } from '@/components/ttc/mp/primitives';
 
 export const metadata: Metadata = {
-  title: 'Image Credits · Tercero Tablada Civil & Structural Engineering Inc.',
+  // Not the full firm name: the (public) layout's title template appends it,
+  // and a title carrying it twice is what search results actually render.
+  title: 'Image Credits',
   description:
     'Attribution for the architectural photography used on this site, and the licence each image is published under.',
-  alternates: { canonical: '/credits' },
+  // One page serves both languages — there is no /es/credits — so both
+  // hreflang values point here rather than at a route that 404s.
+  alternates: {
+    canonical: '/credits',
+    languages: { en: '/credits', es: '/credits', 'x-default': '/credits' },
+  },
   robots: { index: true, follow: true },
 };
 

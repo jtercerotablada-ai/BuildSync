@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   altPath,
+  hasTranslation,
   hreflangFor,
   langFromPathname,
   localePath,
@@ -41,5 +42,23 @@ describe('stripLang / localePath', () => {
       es: '/es/about',
       'x-default': '/about',
     });
+  });
+});
+
+describe('hasTranslation', () => {
+  it('treats the English-only pages as untranslated in both languages', () => {
+    expect(hasTranslation('/credits')).toBe(false);
+    expect(hasTranslation('/credits/')).toBe(false);
+    expect(hasTranslation('/es/credits')).toBe(false);
+    expect(hasTranslation('/logo-styles')).toBe(false);
+  });
+
+  it('treats every mirrored page as translated', () => {
+    expect(hasTranslation('/')).toBe(true);
+    expect(hasTranslation('/es')).toBe(true);
+    expect(hasTranslation('/about')).toBe(true);
+    expect(hasTranslation('/es/services/building-recertification')).toBe(true);
+    // Not a prefix match: this is a different page that merely starts the same.
+    expect(hasTranslation('/credits-policy')).toBe(true);
   });
 });

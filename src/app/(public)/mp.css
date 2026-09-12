@@ -1494,6 +1494,9 @@ while the water and the
 
 .mp-close {
   position: relative;
+  /* Without this the z-index:-1 .mp-grid-bg child escapes behind the section
+     background and the motif is invisible — same reason .mp-hero isolates. */
+  isolation: isolate;
   overflow: clip;
 }
 .mp-close__inner {
@@ -2643,6 +2646,10 @@ no line-art.
 .mp-lang span[aria-current='true'] {
   border-block-end: 1px solid var(--mp-gold);
   padding-block-end: 1px;
+}
+.mp-lang__off {
+  opacity: 0.32;
+  cursor: default;
 }
 .mp-lang__sep {
   opacity: 0.4;

@@ -196,10 +196,11 @@ export function ContactForm({ presetService }: { presetService?: string }) {
         }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(
-          res.status === 429 ? t.errors.tooMany : body?.error || t.errors.generic,
-        );
+        // The server's own text is a Zod message: English-only and phrased for
+        // a developer ("Too big: expected string to have <=5000 characters").
+        // Rate limiting is the one case worth naming; everything else gets the
+        // form's localised fallback.
+        throw new Error(res.status === 429 ? t.errors.tooMany : t.errors.generic);
       }
       const body = (await res.json().catch(() => null)) as { ref?: string; confirmed?: boolean } | null;
       setRef(body?.ref ?? '');
@@ -252,6 +253,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
             setF({ ...EMPTY });
             setErrors({});
             setPending([]);
+            setFileError(null);
             setStatus('idle');
             setRef('');
             setConfirmed(false);
@@ -280,8 +282,8 @@ export function ContactForm({ presetService }: { presetService?: string }) {
       ) : null}
 
       <div className="mp-form__row">
-        <Field id="mp-name" name="name" label={t.name} value={f.name} onChange={set('name')} error={errors.name} autoComplete="name" required />
-        <Field id="mp-email" name="email" label={t.email} type="email" value={f.email} onChange={set('email')} error={errors.email} autoComplete="email" required />
+        <Field id="mp-name" name="name" label={t.name} value={f.name} onChange={set('name')} error={errors.name} autoComplete="name" maxLength={120} required />
+        <Field id="mp-email" name="email" label={t.email} type="email" value={f.email} onChange={set('email')} error={errors.email} autoComplete="email" maxLength={200} required />
       </div>
 
       <div className="mp-form__row">
@@ -312,7 +314,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
             </span>
           ) : null}
         </div>
-        <Field id="mp-location" name="location" label={t.location} value={f.location} onChange={set('location')} error={errors.location} placeholder={t.locationPlaceholder} autoComplete="address-level2" required />
+        <Field id="mp-location" name="location" label={t.location} value={f.location} onChange={set('location')} error={errors.location} placeholder={t.locationPlaceholder} autoComplete="address-level2" maxLength={160} required />
       </div>
 
       <div className="mp-field" data-invalid={errors.message ? 'true' : undefined}>
@@ -324,6 +326,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
           name="message"
           className="mp-field__input mp-field__textarea"
           rows={6}
+          maxLength={5000}
           value={f.message}
           onChange={set('message')}
           placeholder={t.messagePlaceholder}
@@ -399,8 +402,8 @@ export function ContactForm({ presetService }: { presetService?: string }) {
       </div>
 
       <div className="mp-form__row">
-        <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" />
-        <Field id="mp-company" name="company" label={t.company} optional optionalLabel={t.optional} value={f.company} onChange={set('company')} autoComplete="organization" placeholder={t.companyPlaceholder} />
+        <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" maxLength={40} />
+        <Field id="mp-company" name="company" label={t.company} optional optionalLabel={t.optional} value={f.company} onChange={set('company')} autoComplete="organization" placeholder={t.companyPlaceholder} maxLength={160} />
       </div>
 
       {/* Honeypot — hidden from users and assistive tech, visible to bots. */}
@@ -424,6 +427,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
           className="mp-btn mp-btn--solid"
           data-busy={busy || uploading ? 'true' : undefined}
           aria-busy={busy}
+          disabled={busy || uploading}
         >
           {busy ? <span className="mp-spinner" aria-hidden="true" /> : null}
           <span>{busy ? t.sending : uploading ? t.uploading : t.send}</span>
@@ -458,6 +462,7 @@ function Field({
   required,
   optional,
   optionalLabel,
+  maxLength,
 }: {
   id: string;
   name: string;
@@ -471,6 +476,8 @@ function Field({
   required?: boolean;
   optional?: boolean;
   optionalLabel?: string;
+  /** Mirrors the server's Zod cap so the value never gets there to be rejected. */
+  maxLength?: number;
 }) {
   return (
     <div className="mp-field" data-invalid={error ? 'true' : undefined}>
@@ -487,6 +494,7 @@ function Field({
         onChange={onChange}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        maxLength={maxLength}
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-err` : undefined}

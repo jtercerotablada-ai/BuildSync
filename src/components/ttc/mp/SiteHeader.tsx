@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { altPath, localePath, stripLang } from '@/lib/ttc/i18n';
+import { altPath, hasTranslation, localePath, stripLang } from '@/lib/ttc/i18n';
 import { EASE } from './primitives';
 import { useContent, useLang } from './lang';
 
@@ -136,21 +136,30 @@ export function SiteHeader() {
   const other = altPath(pathname);
   const otherLang = lang === 'en' ? 'es' : 'en';
 
+  // On an English-only page there is nothing to switch TO, so the other label
+  // is rendered inert rather than as a link to a route that does not exist.
+  const translated = hasTranslation(pathname);
   const langSwitch = (
     <div className="mp-lang" role="group" aria-label={c.ui.language.label}>
       <span aria-current="true">{c.ui.language[lang]}</span>
       <span className="mp-lang__sep" aria-hidden="true">
         /
       </span>
-      <Link
-        href={other}
-        hrefLang={otherLang}
-        lang={otherLang}
-        title={c.ui.language.switchTo}
-        aria-label={c.ui.language.switchTo}
-      >
-        {c.ui.language[otherLang]}
-      </Link>
+      {translated ? (
+        <Link
+          href={other}
+          hrefLang={otherLang}
+          lang={otherLang}
+          title={c.ui.language.switchTo}
+          aria-label={c.ui.language.switchTo}
+        >
+          {c.ui.language[otherLang]}
+        </Link>
+      ) : (
+        <span className="mp-lang__off" aria-disabled="true">
+          {c.ui.language[otherLang]}
+        </span>
+      )}
     </div>
   );
 
