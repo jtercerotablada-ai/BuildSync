@@ -31,7 +31,8 @@ export function AboutView({ lang }: { lang: Lang }) {
     worksFor: { '@id': `${company.url}/#organization` },
     hasCredential: [
       { '@type': 'EducationalOccupationalCredential', credentialCategory: 'license', name: 'Professional Engineer (P.E.), State of Florida', ...(e.license ? { identifier: e.license.number, url: e.license.url } : {}) },
-      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Master of Science (M.Sc.)' },
+      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Master in Construction Project Management, Universidad de Barcelona' },
+      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Civil Engineer, National University of Engineering' },
     ],
     knowsAbout: e.focus,
     ...(e.linkedin ? { sameAs: [e.linkedin] } : {}),

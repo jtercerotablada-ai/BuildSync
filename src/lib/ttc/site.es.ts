@@ -874,10 +874,14 @@ export const es: SiteContent = {
     teaser:
       'Cada proyecto en Tercero Tablada es diseñado, revisado y firmado por la misma persona. Usted habla con el ingeniero de registro desde la primera llamada, y la propuesta que aprueba es el alcance que se construye.',
     bio: [
-      'Juan Tercero es Ingeniero Profesional (P.E.) licenciado en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Tiene una Maestría en Ciencias en ingeniería y dirige personalmente cada encargo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
+      'Juan Tercero es Ingeniero Profesional (P.E.) licenciado en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Dirección de Proyectos de Construcción (Construction Project Management) por la Universidad de Barcelona, dirige personalmente cada encargo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
       'La práctica cubre las dos mitades del trabajo estructural en el Sur de Florida: el diseño de edificios nuevos de concreto reforzado, y la evaluación, recertificación y reparación de edificios que ya están en pie. Ambas se hacen con la misma disciplina — el razonamiento detrás de cada conclusión queda escrito, y nada sale de la oficina sin haberse revisado línea por línea.',
     ],
-    education: ['Maestría en Ciencias (M.Sc.), ingeniería', 'Ingeniero Profesional licenciado, Estado de Florida'],
+    education: [
+      'Máster en Construction Project Management — Universidad de Barcelona',
+      'Ingeniero Civil — Universidad Nacional de Ingeniería',
+      'Ingeniero Profesional (P.E.) licenciado, Estado de Florida',
+    ],
     focus: [
       'Diseño en concreto reforzado para casas, edificios de mediana altura y estructuras comerciales',
       'Recertificación, inspecciones milestone y evaluaciones de condición',

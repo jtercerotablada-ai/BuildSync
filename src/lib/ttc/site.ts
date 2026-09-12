@@ -1136,10 +1136,14 @@ export const leadership = {
   teaser:
     'Every project at Tercero Tablada is engineered, reviewed and signed by the same person. You speak to the engineer of record from the first call, and the proposal you approve is the scope that gets built.',
   bio: [
-    'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil & Structural Engineering Inc. He holds a Master of Science in engineering and leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
+    'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil & Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
     'The practice covers both halves of structural work in South Florida: the design of new reinforced-concrete buildings, and the evaluation, recertification and repair of buildings already standing. Both are done with the same discipline — the reasoning behind every conclusion is written down, and nothing leaves the office that has not been checked line by line.',
   ],
-  education: ['Master of Science (M.Sc.), engineering', 'Licensed Professional Engineer, State of Florida'],
+  education: [
+    'Master in Construction Project Management — Universidad de Barcelona',
+    'Civil Engineer — National University of Engineering',
+    'Licensed Professional Engineer (P.E.), State of Florida',
+  ],
   focus: [
     'Reinforced-concrete design for houses, mid-rise and commercial frames',
     'Recertification, milestone inspections and condition assessments',

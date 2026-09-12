@@ -154,7 +154,12 @@ const structuredData = {
         {
           '@type': 'EducationalOccupationalCredential',
           credentialCategory: 'degree',
-          name: 'Master of Science (M.Sc.)',
+          name: 'Master in Construction Project Management, Universidad de Barcelona',
+        },
+        {
+          '@type': 'EducationalOccupationalCredential',
+          credentialCategory: 'degree',
+          name: 'Civil Engineer, National University of Engineering',
         },
       ],
     },
