@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   File,
   FileText,
@@ -17,6 +17,7 @@ import {
   LayoutGrid,
   ExternalLink,
   Upload,
+  FileCheck2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -37,7 +38,10 @@ interface FileAttachment {
   taskId: string | null;
   taskName: string | null;
   messageId: string | null;
-  source: "task" | "message" | "resource";
+  source: "task" | "message" | "resource" | "deliverable";
+  /** For source "deliverable": the item the file belongs to (its sheet is
+   *  where the file is managed — the Files tab never deletes it). */
+  deliverableId?: string | null;
   /** For source "resource": whether it's an uploaded FILE or an external LINK. */
   resourceType?: "FILE" | "LINK" | null;
   uploader: {
@@ -126,6 +130,9 @@ function fileHref(file: FileAttachment): string | null {
       ? file.url || null
       : `/api/files/resource/${file.id}`;
   }
+  if (file.source === "deliverable") {
+    return `/api/files/deliverable/${file.id}`;
+  }
   if (file.source === "message") {
     return file.messageId
       ? `/api/messages/${file.messageId}/attachments?file=${file.id}`
@@ -186,6 +193,8 @@ function getFileIcon(type: FileType) {
 
 export function FilesView({ projectId }: FilesViewProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const shellPrefix = pathname?.startsWith("/portal") ? "/portal" : "";
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -318,7 +327,13 @@ export function FilesView({ projectId }: FilesViewProps) {
   };
 
   const openSource = (file: FileAttachment) => {
-    if (file.source === "resource") {
+    if (file.source === "deliverable") {
+      if (file.deliverableId) {
+        router.push(
+          `${shellPrefix}/projects/${projectId}?view=deliverables&deliverable=${file.deliverableId}`
+        );
+      }
+    } else if (file.source === "resource") {
       router.push(`/projects/${projectId}?view=overview`);
     } else if (file.taskId) {
       window.open(`/tasks/${file.taskId}`, "_blank");
@@ -486,6 +501,7 @@ function FileCard({
 }) {
   const isLink = file.source === "resource" && file.resourceType === "LINK";
   const isResource = file.source === "resource";
+  const isDeliverable = file.source === "deliverable";
   const fileType = getFileType(file.mimeType);
   const isImage = fileType === "image" && !isLink;
   const deletable = isResource || !!file.taskId;
@@ -535,14 +551,21 @@ function FileCard({
           }}
           className="flex items-center gap-1 text-xs text-[#335FB5] mt-1 truncate max-w-full hover:underline"
           title={
-            isResource
+            isDeliverable
+              ? `Manage in Deliverables${file.taskName ? ` — ${file.taskName}` : ""}`
+              : isResource
               ? "Open in Overview"
               : file.source === "message"
                 ? "Open message"
                 : file.taskName || "Open task"
           }
         >
-          {file.source === "message" ? (
+          {isDeliverable ? (
+            <>
+              <FileCheck2 className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{file.taskName || "Deliverables"}</span>
+            </>
+          ) : file.source === "message" ? (
             <>
               <MessageSquare className="w-3 h-3 flex-shrink-0" />
               <span className="truncate">Message</span>

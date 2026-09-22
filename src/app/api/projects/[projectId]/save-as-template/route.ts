@@ -205,6 +205,9 @@ export async function POST(
       );
     }
 
+    // Deliberately carries none of the job's regulatory data (jurisdiction,
+    // folio / permit / case numbers, regulatory deadline, client contact):
+    // those describe one building and one client, not a reusable plan.
     const template = await prisma.projectTemplate.create({
       data: {
         name,

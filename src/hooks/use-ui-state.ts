@@ -305,6 +305,12 @@ export function useUiState<T>(key: string, defaultValue: T) {
   // localStorage cache, so a consumer seeded from SSR can ignore the
   // cached value applied first.
   const [isServerConfirmed, setIsServerConfirmed] = useState(false);
+  // True once this mount's server fetch has SETTLED — resolved or failed —
+  // or at once when the session already confirmed with the server. Unlike
+  // isServerConfirmed it also flips on failure, so a consumer that waits
+  // for it before choosing a view (Home's Firm / My work) never spins
+  // forever when the preferences API is down.
+  const [serverSynced, setServerSynced] = useState(false);
   const hydratedRef = useRef(false);
   // Mirror of `value` so setValue can resolve the functional form OUTSIDE
   // React. It used to resolve inside a setValueState updater and write the
@@ -331,6 +337,7 @@ export function useUiState<T>(key: string, defaultValue: T) {
     hydratedRef.current = true;
     setIsHydrated(true);
     setIsServerConfirmed(serverConfirmed);
+    if (serverConfirmed) setServerSynced(true);
 
     const sync = () => {
       const v = cachedUiState?.[key];
@@ -341,10 +348,12 @@ export function useUiState<T>(key: string, defaultValue: T) {
     subscribers.add(sync);
     // Kick off (or join) the server fetch. When the server response
     // lands, sync runs again with the authoritative DB value.
-    fetchUiState().then(() => {
-      sync();
-      setIsServerConfirmed(serverConfirmed);
-    });
+    fetchUiState()
+      .then(() => {
+        sync();
+        setIsServerConfirmed(serverConfirmed);
+      })
+      .finally(() => setServerSynced(true));
     return () => {
       subscribers.delete(sync);
     };
@@ -371,5 +380,5 @@ export function useUiState<T>(key: string, defaultValue: T) {
     [key]
   );
 
-  return { value, setValue, isHydrated, isServerConfirmed };
+  return { value, setValue, isHydrated, isServerConfirmed, serverSynced };
 }

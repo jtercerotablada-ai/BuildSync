@@ -14,6 +14,7 @@ import { loadMessageWithAccess } from "@/lib/message-access";
 import { requireTeamStanding } from "@/lib/team-access";
 import { verifyTrackingToken } from "@/lib/tracking-token";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { getDeliverableAccess } from "@/lib/deliverable-access";
 import {
   type UploadTarget,
   assertFileAllowed,
@@ -29,6 +30,7 @@ import {
  * Vercel refuses a function request body over ~4.5MB before the handler runs,
  * so no upload of real size can stream THROUGH a route handler. Every upload
  * surface (task and comment attachments, project Key resources / Files tab,
+ * deliverable revision files,
  * project and team message attachments, public form attachments and tracking
  * replies) sends its bytes from the browser straight to blob storage with a
  * token minted here, then posts the finished url to the route that records
@@ -127,6 +129,9 @@ function parseTarget(clientPayload: string | null): {
     case "form-attachment":
       target = { kind: "form-attachment", formId: id(raw.formId) };
       break;
+    case "deliverable-file":
+      target = { kind: "deliverable-file", deliverableId: id(raw.deliverableId) };
+      break;
     case "tracking-reply":
       if (typeof raw.token !== "string" || raw.token.length > 4096) {
         throw new AuthorizationError("Unsupported upload target");
@@ -187,6 +192,21 @@ async function authorize(
     case "project-resource": {
       if (!userId) throw new AuthorizationError("Unauthorized");
       await verifyProjectAccess(userId, target.projectId, { requireWrite: true });
+      return;
+    }
+    case "deliverable-file": {
+      if (!userId) throw new AuthorizationError("Unauthorized");
+      // Same gate as POST /api/deliverables/:id/files, which records the row:
+      // the deliverable's project must be readable (else 404) and writable.
+      // Whether the target revision is still unlocked is decided there — the
+      // token only binds the bytes to this deliverable's folder.
+      const access = await getDeliverableAccess(target.deliverableId, userId);
+      if (!access.ok) throw new NotFoundError("Deliverable not found");
+      if (!access.canWrite) {
+        throw new AuthorizationError(
+          "You don't have permission to edit this project"
+        );
+      }
       return;
     }
     case "message-attachment": {

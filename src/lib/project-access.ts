@@ -204,6 +204,20 @@ export function decideProjectCapabilities(
   };
 }
 
+/**
+ * May this caller move the project's pipeline stage (PATCH /stage, and the
+ * stage offers the Deliverables tab makes after a seal request or an issue)?
+ *
+ * A stage move is an ordinary content edit, so this is exactly `canWrite` —
+ * owner, workspace OWNER/ADMIN, member ADMIN/EDITOR, and the implicit
+ * team / WORKSPACE-shared Editor grants. It exists as a named predicate so the
+ * route that moves the stage and the code that OFFERS the move can never
+ * disagree; change the rule here, not at a call site.
+ */
+export function canMoveStage(access: { canWrite: boolean }): boolean {
+  return access.canWrite;
+}
+
 interface MinimalProject {
   id: string;
   ownerId: string | null;

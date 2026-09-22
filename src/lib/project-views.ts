@@ -27,6 +27,9 @@ export const BUILTIN_VIEWS: BuiltinViewDef[] = [
   // someone on site reaches for — so they show on phones too.
   { key: "messages", label: "Messages", mobile: true },
   { key: "files", label: "Files", mobile: true },
+  // Drawing sets, calc packages, reports and letters — every revision, who
+  // sealed it and who it was issued to — plus RFIs and submittals.
+  { key: "deliverables", label: "Deliverables", mobile: true },
   { key: "notes", label: "Notes", mobile: false },
   { key: "workload", label: "Workload", mobile: false },
 ];
@@ -34,9 +37,9 @@ export const BUILTIN_VIEWS: BuiltinViewDef[] = [
 export const BUILTIN_VIEW_KEYS = new Set(BUILTIN_VIEWS.map((v) => v.key));
 
 /**
- * The tabs a NEW project opens with. The catalog has twelve; a job that has
+ * The tabs a NEW project opens with. The catalog has thirteen; a job that has
  * just been created has nothing to put in a Gantt, a Workload or a Dashboard,
- * so showing all twelve makes the ones that matter harder to find on the day
+ * so showing all thirteen makes the ones that matter harder to find on the day
  * the project is busiest.
  *
  * Everything else is one click away under "+", which un-hides it — this seeds
@@ -50,6 +53,7 @@ export const DEFAULT_VISIBLE_VIEWS = [
   "board",
   "messages",
   "files",
+  "deliverables",
 ] as const;
 
 /** Built-ins a new project starts with hidden — the catalog minus the above. */

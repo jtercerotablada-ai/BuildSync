@@ -1,7 +1,7 @@
-// Shared project-type vocabulary for the stage strip and the project
-// overview. The firm-wide cockpit these types once described (map, KPI
-// stack, quadrant grid) was never mounted and has been removed; only what
-// live screens import is kept here.
+// Shared project-type vocabulary for the stage strip, the project overview
+// and the Firm cockpit on /home. The cockpit's payload types live in
+// @/lib/cockpit (the route builds them); they are re-exported here so the
+// cockpit components have one place to import from.
 
 export type ProjectType =
   | "CONSTRUCTION"
@@ -9,7 +9,6 @@ export type ProjectType =
   | "RECERTIFICATION"
   | "PERMIT"
   | "BSIP";
-export type ProjectGate = "PRE_DESIGN" | "DESIGN" | "PERMITTING" | "CONSTRUCTION" | "CLOSEOUT";
 export type ProjectStatus = "ON_TRACK" | "AT_RISK" | "OFF_TRACK" | "ON_HOLD" | "COMPLETE";
 
 // ────────────────────────────────────────────────────────────
@@ -39,14 +38,6 @@ export const TYPE_COLOR: Record<ProjectType, string> = {
   BSIP: "#8a7028",         // dark bronze
 };
 
-export const GATE_LABEL: Record<ProjectGate, string> = {
-  PRE_DESIGN: "Pre-Design",
-  DESIGN: "Design",
-  PERMITTING: "Permitting",
-  CONSTRUCTION: "Construction",
-  CLOSEOUT: "Closeout",
-};
-
 // Status uses gold for active states, black for severe, gray for neutral.
 // "At risk" gets a darker bronze to read distinctly from on-track gold,
 // without resorting to amber/orange.
@@ -57,3 +48,13 @@ export const STATUS_COLOR: Record<ProjectStatus, string> = {
   ON_HOLD: "#888888",   // gray
   COMPLETE: "#d4b65a",  // bright gold (success, faded by context)
 };
+
+export type {
+  CockpitApprovalTask,
+  CockpitJob,
+  CockpitOverduePerson,
+  CockpitOverdueTask,
+  CockpitPayload,
+  CockpitStageMove,
+  CockpitUser,
+} from "@/lib/cockpit";

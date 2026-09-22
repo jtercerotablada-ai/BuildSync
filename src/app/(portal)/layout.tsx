@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import prisma from "@/lib/prisma";
 import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
+// The Home page (Firm view map) is re-exported under /portal — Leaflet's base
+// CSS must be global here too, as in the (dashboard) layout.
+import "leaflet/dist/leaflet.css";
 
 export default async function PortalLayout({
   children,

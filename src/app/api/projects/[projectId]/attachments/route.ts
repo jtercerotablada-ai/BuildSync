@@ -52,7 +52,11 @@ export async function GET(
     });
 
     // Get uploader info for all attachments
-    const uploaderIds = [...new Set(attachments.map(a => a.uploaderId))];
+    // uploaderId is required on Attachment but optional on DeliverableFile
+    // (SetNull on user delete), so nulls are filtered out of the lookup.
+    const uploaderIds = [
+      ...new Set(attachments.map((a) => a.uploaderId).filter((id): id is string => !!id)),
+    ];
     const uploaders = await prisma.user.findMany({
       where: { id: { in: uploaderIds } },
       select: { id: true, name: true, email: true, image: true },
@@ -146,8 +150,50 @@ export async function GET(
       uploader: r.uploader ?? null,
     }));
 
+    // Deliverable files (revision files and RFI attachments). Listed here so
+    // the Files tab shows every file in the project; they are managed — and
+    // deleted — only in the Deliverables tab. Same read rule as the tab.
+    const deliverableFiles = await prisma.deliverableFile.findMany({
+      where: { deliverable: { projectId } },
+      select: {
+        id: true,
+        name: true,
+        size: true,
+        mimeType: true,
+        createdAt: true,
+        deliverableId: true,
+        deliverable: { select: { number: true } },
+        revision: { select: { label: true } },
+        uploader: { select: { id: true, name: true, email: true, image: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const deliverableResult = deliverableFiles.map((f) => ({
+      id: f.id,
+      name: f.name,
+      url: fileReadUrl("deliverable", f.id),
+      size: f.size,
+      mimeType: f.mimeType,
+      createdAt: f.createdAt.toISOString(),
+      taskId: null,
+      taskName: f.revision
+        ? `${f.deliverable.number} · Rev ${f.revision.label}`
+        : f.deliverable.number,
+      messageId: null,
+      source: "deliverable" as const,
+      resourceType: null as "FILE" | "LINK" | null,
+      deliverableId: f.deliverableId,
+      uploader: f.uploader ?? null,
+    }));
+
     // Merge, newest first.
-    const result = [...taskResult, ...messageResult, ...resourceResult].sort(
+    const result = [
+      ...taskResult,
+      ...messageResult,
+      ...resourceResult,
+      ...deliverableResult,
+    ].sort(
       (x, y) => (x.createdAt < y.createdAt ? 1 : x.createdAt > y.createdAt ? -1 : 0)
     );
 

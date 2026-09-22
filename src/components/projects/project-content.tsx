@@ -51,6 +51,7 @@ import {
   Gauge,
   Link2,
   Building2,
+  FileCheck2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -103,6 +104,7 @@ import { CalendarView } from "@/components/views/calendar-view";
 import { WorkflowView } from "@/components/views/workflow-view";
 import { MessagesView } from "@/components/views/messages-view";
 import { FilesView } from "@/components/views/files-view";
+import { DeliverablesView } from "@/components/views/deliverables-view";
 import { NotesView } from "@/components/views/notes-view";
 import { WorkloadView } from "@/components/views/workload-view";
 import { ProjectTeamView } from "@/components/views/project-team-view";
@@ -227,6 +229,16 @@ interface Project {
   clientName?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  // Jurisdiction & regulatory data (src/lib/regulatory.ts). The deadline is an
+  // ISO string at UTC midnight, serialized by the page.
+  jurisdiction?: string | null;
+  folioNumber?: string | null;
+  permitNumber?: string | null;
+  caseNumber?: string | null;
+  regulatoryDeadline?: string | null;
+  clientContactName?: string | null;
+  clientContactEmail?: string | null;
+  clientContactPhone?: string | null;
 }
 
 // ─── Group-by (project List) ─────────────────────────────────────
@@ -422,6 +434,7 @@ const ADD_VIEW_GROUPS: {
       { view: "workload", label: "Resource management", desc: "See how busy the team is by tasks", Icon: Gauge },
       { view: "dashboard", label: "Dashboard", desc: "Monitor metrics and analysis", Icon: BarChart3 },
       { view: "files", label: "Files", desc: "See all attachments", Icon: FolderOpen },
+      { view: "deliverables", label: "Deliverables", desc: "Revisions, seals, RFIs and submittals", Icon: FileCheck2 },
       { view: "messages", label: "Messages", desc: "Communicate with others", Icon: MessageSquare },
       { view: "workflow", label: "Workflow", desc: "Automate work with rules", Icon: GitBranch },
       // Not a tab (see RENDERABLE_VIEWS in project-views.ts): this menu is
@@ -459,6 +472,7 @@ const VIEW_ICONS: Record<string, LucideIcon> = {
   workflow: GitBranch,
   messages: MessageSquare,
   files: FolderOpen,
+  deliverables: FileCheck2,
   notes: NotebookPen,
   workload: Gauge,
   team: Building2,
@@ -616,6 +630,14 @@ export function ProjectContent({
       budget: project.budget ?? null,
       currency: project.currency ?? null,
       description: project.description ?? null,
+      jurisdiction: project.jurisdiction ?? null,
+      folioNumber: project.folioNumber ?? null,
+      permitNumber: project.permitNumber ?? null,
+      caseNumber: project.caseNumber ?? null,
+      regulatoryDeadline: project.regulatoryDeadline ?? null,
+      clientContactName: project.clientContactName ?? null,
+      clientContactEmail: project.clientContactEmail ?? null,
+      clientContactPhone: project.clientContactPhone ?? null,
     }),
     [
       project.id,
@@ -633,6 +655,14 @@ export function ProjectContent({
       project.budget,
       project.currency,
       project.description,
+      project.jurisdiction,
+      project.folioNumber,
+      project.permitNumber,
+      project.caseNumber,
+      project.regulatoryDeadline,
+      project.clientContactName,
+      project.clientContactEmail,
+      project.clientContactPhone,
     ]
   );
 
@@ -2264,6 +2294,7 @@ export function ProjectContent({
               onManageMembers={() => setMembersDialogOpen(true)}
               onTaskClick={handleTaskClick}
               canEdit={canEditProject}
+              onEditDetails={() => setEditDialogOpen(true)}
             />
           )}
           {baseView === "list" && (
@@ -2414,6 +2445,14 @@ export function ProjectContent({
             <FilesView
               sections={project.sections}
               projectId={project.id}
+            />
+          )}
+          {baseView === "deliverables" && (
+            // Permissions come from the tab's own GET (the page's
+            // canEditProject is narrower than the API's write rule).
+            <DeliverablesView
+              projectId={project.id}
+              projectName={project.name}
             />
           )}
           {baseView === "team" && (

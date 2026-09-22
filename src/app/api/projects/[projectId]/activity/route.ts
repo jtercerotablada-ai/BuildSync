@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getProjectAccess } from "@/lib/project-access";
 import { taskPrivacyClause } from "@/lib/project-visibility";
+import { dispositionLabel, issuePartyLabel } from "@/lib/deliverables";
 
 // GET /api/projects/:projectId/activity
 //
@@ -32,7 +33,10 @@ type ActivityType =
   | "member_joined"
   | "task_completed"
   | "task_created"
-  | "file_uploaded";
+  | "file_uploaded"
+  | "deliverable_sealed"
+  | "deliverable_seal_revoked"
+  | "deliverable_issued";
 
 interface ActivityEvent {
   id: string;
@@ -40,6 +44,8 @@ interface ActivityEvent {
   title: string;
   detail?: string | null;
   status?: string | null; // For status_update
+  /** Deep link for rows that have one (deliverable events). */
+  href?: string | null;
   createdAt: string;
   actor: {
     id: string;
@@ -81,6 +87,7 @@ export async function GET(
       recentTasks,
       recentResources,
       recentAttachments,
+      deliverableEvents,
     ] = await Promise.all([
         prisma.statusUpdate.findMany({
           where: { projectId },
@@ -157,6 +164,33 @@ export async function GET(
             name: true,
             createdAt: true,
             uploader: {
+              select: { id: true, name: true, email: true, image: true },
+            },
+          },
+        }),
+        // Deliverables: the attestations worth seeing on the Overview — a
+        // seal, a revoked seal (kept visible on purpose), an issue, and a
+        // submittal returned with its disposition. Same read rule as the tab
+        // (project read), so nothing here needs its own privacy clause.
+        prisma.deliverableEvent.findMany({
+          where: {
+            type: { in: ["SEALED", "SEAL_REVOKED", "ISSUED", "REVIEWED"] },
+            deliverable: { projectId },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 15,
+          select: {
+            id: true,
+            type: true,
+            note: true,
+            actorName: true,
+            createdAt: true,
+            deliverableId: true,
+            deliverable: { select: { number: true } },
+            revision: {
+              select: { label: true, issuedToParty: true, disposition: true },
+            },
+            actor: {
               select: { id: true, name: true, email: true, image: true },
             },
           },
@@ -283,6 +317,53 @@ export async function GET(
         detail: f.name,
         createdAt: f.createdAt.toISOString(),
         actor: f.uploader ?? null,
+      });
+    }
+
+    for (const e of deliverableEvents) {
+      const rev = e.revision?.label ? ` Rev ${e.revision.label}` : "";
+      const subject = `${e.deliverable.number}${rev}`;
+      let type: ActivityType;
+      let title: string;
+      let detail: string | null = null;
+      if (e.type === "SEALED") {
+        type = "deliverable_sealed";
+        title = `sealed ${subject}`;
+      } else if (e.type === "SEAL_REVOKED") {
+        type = "deliverable_seal_revoked";
+        title = `revoked the seal on ${subject}`;
+        detail = e.note;
+      } else if (e.type === "ISSUED") {
+        type = "deliverable_issued";
+        // The party lives on the event's note ("Rev 0 → Client: Bayview");
+        // the revision's own column is gone once an issue is undone.
+        const party =
+          /→\s*([^:·]+)/.exec(e.note ?? "")?.[1]?.trim() ||
+          issuePartyLabel(e.revision?.issuedToParty) ||
+          null;
+        title = party ? `issued ${subject} → ${party}` : `issued ${subject}`;
+        detail = /preliminary/.test(e.note ?? "") ? "Preliminary (not sealed)" : null;
+      } else {
+        type = "deliverable_issued";
+        const disp =
+          /—\s*(.+)$/.exec(e.note ?? "")?.[1]?.trim() ||
+          dispositionLabel(e.revision?.disposition) ||
+          null;
+        title = disp ? `returned ${subject} — ${disp}` : `returned ${subject}`;
+      }
+      events.push({
+        id: `deliverable:${e.id}`,
+        type,
+        title,
+        detail,
+        href: `/projects/${projectId}?view=deliverables&deliverable=${e.deliverableId}`,
+        createdAt: e.createdAt.toISOString(),
+        // The actor row may be gone (user deleted); the snapshot name stays.
+        actor: e.actor
+          ? e.actor
+          : e.actorName
+            ? { id: "", name: e.actorName, email: null, image: null }
+            : null,
       });
     }
 

@@ -1,7 +1,14 @@
 "use client";
 
 /**
- * /home — Asana-style drag-drop widget grid.
+ * /home — two views behind one header: "Firm" (the stage/holder cockpit,
+ * src/components/cockpit/FirmCockpit.tsx) and "My work" (the Asana-style
+ * drag-drop widget grid below). The choice persists per user in
+ * uiState["home.view"]; with nothing stored, contributors land on Firm and
+ * GUEST/CLIENT seats on My work. The cockpit is never mounted — and never
+ * fetches — for a user whose stored choice is My work.
+ *
+ * My work, the widget grid:
  *
  * Behaviors kept from the original Asana paradigm:
  *   - Cards can be reordered by drag, resized to half/full row, hidden
@@ -17,8 +24,8 @@
  *
  * The header (greeting + period selector + two summary chips) stays.
  * The chips ("X tasks completed", "Y collaborators") consume
- * /api/dashboard/ceo, which returns just those two counts; everything
- * else on this page is per-widget self-fetching.
+ * /api/dashboard/ceo?slim=1, which returns just those two counts; every
+ * widget self-fetches, and the Firm view fetches its own payload.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -44,6 +51,12 @@ import {
   type SortingStrategy,
 } from "@dnd-kit/sortable";
 import { Loader2, Plus, Eye, LayoutGrid } from "lucide-react";
+import { isNonContributorRole } from "@/lib/workspace-roles";
+import { FirmCockpit } from "@/components/cockpit/FirmCockpit";
+import {
+  HomeViewSwitch,
+  type HomeView,
+} from "@/components/home/home-view-switch";
 import { useWidgetPreferences } from "@/hooks/use-widget-preferences";
 import { useUiState } from "@/hooks/use-ui-state";
 import {
@@ -87,6 +100,8 @@ import {
 // the DB so it follows the user across devices instead of dying in
 // localStorage. Default "week" matches the original behavior.
 const PERIOD_UI_STATE_KEY = "home.period";
+// Firm / My work. Null = never chosen; the default then follows the seat.
+const VIEW_UI_STATE_KEY = "home.view";
 
 // rectSortingStrategy assumes uniform item sizes, but widgets span 1
 // or 2 grid columns, so its mid-drag previews promised slots the real
@@ -96,9 +111,9 @@ const PERIOD_UI_STATE_KEY = "home.period";
 // the grid settles once, on the card the user actually pointed at.
 const staticGridSortingStrategy: SortingStrategy = () => null;
 
-// The header-chip counts from /api/dashboard/ceo. Optional so a
+// The header-chip counts from /api/dashboard/ceo?slim=1. Optional so a
 // response without them renders 0 instead of crashing.
-type HomeSummaryData = {
+type HomeChipsData = {
   summary?: { tasksCompleted: number; teamCount: number };
 };
 
@@ -140,7 +155,7 @@ export default function HomePage() {
   // We keep this fetch only for the two summary chips in HomeHeader
   // ("X tasks completed" + "Y collaborators"). All widgets below
   // self-fetch.
-  const [data, setData] = useState<HomeSummaryData | null>(null);
+  const [data, setData] = useState<HomeChipsData | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The Gmail-compose-style task composer is mounted ONCE at the
   // DashboardShell level; CTAs here open it via openQuickCreateTask()
@@ -156,6 +171,31 @@ export default function HomePage() {
     useUiState<HomeBackgroundId>(HOME_BACKGROUND_UI_STATE_KEY, "default");
   const background = getHomeBackground(backgroundId);
   const [activeId, setActiveId] = useState<WidgetType | null>(null);
+
+  // ── Firm / My work ───────────────────────────────────────────────
+  // The Firm default is pending the owner's sign-off; flipping it to
+  // "mine" for everyone is a one-line change to `defaultView`.
+  const {
+    value: storedView,
+    setValue: setView,
+    isHydrated: viewHydrated,
+    serverSynced: viewSynced,
+  } = useUiState<HomeView | null>(VIEW_UI_STATE_KEY, null);
+  // Until the session says otherwise, treat the viewer as a contributor.
+  const isContributorSeat = !isNonContributorRole(session?.user?.role);
+  const defaultView: HomeView = isContributorSeat ? "firm" : "mine";
+  // A GUEST/CLIENT seat never gets the Firm view: the cockpit endpoint is
+  // outside their API allowlist (proxy 403), so a stored "firm" is ignored.
+  const view: HomeView = !isContributorSeat
+    ? "mine"
+    : storedView === "firm" || storedView === "mine"
+      ? storedView
+      : defaultView;
+  // Decide only once the stored choice is known: this device's cache
+  // applies on hydration; with no cache, wait for the server (resolved or
+  // failed). That is what keeps a stored "mine" from ever mounting the
+  // cockpit or firing its request.
+  const viewDecided = viewHydrated && (storedView !== null || viewSynced);
 
   // ── Widget layout persistence (DB-backed) ────────────────────────
   const {
@@ -195,11 +235,11 @@ export default function HomePage() {
       try {
         const periodStart = periodStartFor(period).toISOString();
         const res = await fetch(
-          `/api/dashboard/ceo?periodStart=${encodeURIComponent(periodStart)}`,
+          `/api/dashboard/ceo?slim=1&periodStart=${encodeURIComponent(periodStart)}`,
           { cache: "no-store" }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as HomeSummaryData;
+        const json = (await res.json()) as HomeChipsData;
         if (!cancelled) setData(json);
       } catch (e) {
         if (!cancelled)
@@ -353,29 +393,33 @@ export default function HomePage() {
     }
   }
 
-  // ── Loading state ───────────────────────────────────────────────
-  // Carry the saved background tint here too — useUiState hydrates it
-  // from cache before widget prefs finish loading, so applying it on
-  // the spinner branch avoids a white flash on every Home mount for
-  // users who have a tint set.
-  if (!isLoaded) {
-    return (
-      <div
-        className="flex items-center justify-center h-[60vh]"
-        style={{ backgroundColor: background.bg ?? undefined }}
-      >
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-      </div>
-    );
-  }
-  // A chips-fetch failure must never blank the page: the fetch only
-  // feeds the two header chips, and every widget below self-fetches.
-  // On error the chips are simply hidden (see the `chips` memo).
-
   const visibleOrder = preferences.widgetOrder.filter((w) =>
     preferences.visibleWidgets.includes(w)
   );
 
+  const customize = (
+    <CustomizeWidgetsModal
+      preferences={preferences}
+      onToggleWidget={toggleWidget}
+      onReset={resetToDefaults}
+      backgroundId={backgroundId}
+      onBackgroundChange={setBackgroundId}
+    />
+  );
+
+  const spinner = (
+    <div className="flex items-center justify-center h-[50vh]">
+      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+    </div>
+  );
+
+  // A chips-fetch failure must never blank the page: the fetch only
+  // feeds the two header chips, and every widget below self-fetches.
+  // On error the chips are simply hidden (see the `chips` memo).
+  //
+  // The saved background tint wraps every branch — useUiState hydrates it
+  // from cache before anything else loads, so the spinner branches never
+  // flash white for users who have a tint set.
   return (
     <div
       className="flex-1 flex flex-col h-full overflow-auto transition-colors duration-300"
@@ -388,72 +432,75 @@ export default function HomePage() {
         tasksCompleted={chips.tasksCompleted}
         collaboratorsCount={chips.collaborators}
         actions={
-          <CustomizeWidgetsModal
-            preferences={preferences}
-            onToggleWidget={toggleWidget}
-            onReset={resetToDefaults}
-            backgroundId={backgroundId}
-            onBackgroundChange={setBackgroundId}
-          />
+          viewDecided ? (
+            <>
+              {isContributorSeat && (
+                <HomeViewSwitch value={view} onChange={setView} />
+              )}
+              {view === "mine" && isLoaded && customize}
+            </>
+          ) : null
         }
       />
 
-      {/* A fixed id: dnd-kit otherwise numbers its aria-describedby ids from
-          a module counter that differs between the server render and the
-          browser, which is a hydration mismatch React never repairs. */}
-      <DndContext
-        id="home-widget-grid"
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={visibleOrder}
-          strategy={staticGridSortingStrategy}
+      {!viewDecided ? (
+        spinner
+      ) : view === "firm" ? (
+        <FirmCockpit onGoToMine={() => setView("mine")} />
+      ) : !isLoaded ? (
+        spinner
+      ) : (
+        // A fixed id: dnd-kit otherwise numbers its aria-describedby ids from
+        // a module counter that differs between the server render and the
+        // browser, which is a hydration mismatch React never repairs.
+        <DndContext
+          id="home-widget-grid"
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
         >
-          {visibleOrder.length === 0 ? (
-            // Every widget removed: say so and offer the way back, instead
-            // of a header over an empty page.
-            <div className="px-4 md:px-6 py-4 pb-12">
-              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-white/70 px-6 py-16 text-center">
-                <LayoutGrid className="h-6 w-6 text-gray-400" />
-                <p className="text-sm text-gray-600">
-                  Your Home has no widgets. Add some back to get started.
-                </p>
-                <CustomizeWidgetsModal
-                  preferences={preferences}
-                  onToggleWidget={toggleWidget}
-                  onReset={resetToDefaults}
-                  backgroundId={backgroundId}
-                  onBackgroundChange={setBackgroundId}
-                />
+          <SortableContext
+            items={visibleOrder}
+            strategy={staticGridSortingStrategy}
+          >
+            {visibleOrder.length === 0 ? (
+              // Every widget removed: say so and offer the way back, instead
+              // of a header over an empty page.
+              <div className="px-4 md:px-6 py-4 pb-12">
+                <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-white/70 px-6 py-16 text-center">
+                  <LayoutGrid className="h-6 w-6 text-gray-400" />
+                  <p className="text-sm text-gray-600">
+                    Your Home has no widgets. Add some back to get started.
+                  </p>
+                  {customize}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="px-4 md:px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 auto-rows-[360px] pb-12">
-              {visibleOrder.map((id) => (
-                <WidgetContainer
-                  key={id}
-                  id={id}
-                  size={getWidgetSize(id)}
-                  onSizeChange={(s) => setWidgetSize(id, s)}
-                  onHide={() => toggleWidget(id)}
-                  menuActions={getWidgetMenuActions(id)}
-                  titleHref={getWidgetTitleHref(id)}
-                >
-                  {renderWidgetBody(id)}
-                </WidgetContainer>
-              ))}
-            </div>
-          )}
-        </SortableContext>
-        <DragOverlay>
-          {activeId ? (
-            <WidgetOverlay id={activeId} size={getWidgetSize(activeId)} />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+            ) : (
+              <div className="px-4 md:px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 auto-rows-[360px] pb-12">
+                {visibleOrder.map((id) => (
+                  <WidgetContainer
+                    key={id}
+                    id={id}
+                    size={getWidgetSize(id)}
+                    onSizeChange={(s) => setWidgetSize(id, s)}
+                    onHide={() => toggleWidget(id)}
+                    menuActions={getWidgetMenuActions(id)}
+                    titleHref={getWidgetTitleHref(id)}
+                  >
+                    {renderWidgetBody(id)}
+                  </WidgetContainer>
+                ))}
+              </div>
+            )}
+          </SortableContext>
+          <DragOverlay>
+            {activeId ? (
+              <WidgetOverlay id={activeId} size={getWidgetSize(activeId)} />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
     </div>
   );
 }

@@ -45,6 +45,7 @@ const CATALOG_ORDER = [
   "workflow",
   "messages",
   "files",
+  "deliverables",
   "notes",
   "workload",
 ];
@@ -83,6 +84,7 @@ describe("resolveProjectTabs — no saved order", () => {
       { viewKey: "workflow", baseView: "workflow", label: "Workflow", mobile: false, isCopy: false, isDefault: false },
       { viewKey: "messages", baseView: "messages", label: "Messages", mobile: true, isCopy: false, isDefault: false },
       { viewKey: "files", baseView: "files", label: "Files", mobile: true, isCopy: false, isDefault: false },
+      { viewKey: "deliverables", baseView: "deliverables", label: "Deliverables", mobile: true, isCopy: false, isDefault: false },
       { viewKey: "notes", baseView: "notes", label: "Notes", mobile: false, isCopy: false, isDefault: false },
       { viewKey: "workload", baseView: "workload", label: "Workload", mobile: false, isCopy: false, isDefault: false },
     ]);
@@ -97,7 +99,7 @@ describe("resolveProjectTabs — no saved order", () => {
     }
   });
 
-  it("renders the five seeded tabs for the 7-hidden-rows shape in production", () => {
+  it("renders the six seeded tabs for the 7-hidden-rows shape in production", () => {
     // Every project created since DEFAULT_VISIBLE_VIEWS shipped carries exactly
     // these seven hidden rows. This is the shape the owner is actually looking
     // at, so it is the one that must not move.
@@ -111,6 +113,7 @@ describe("resolveProjectTabs — no saved order", () => {
       "board",
       "messages",
       "files",
+      "deliverables",
     ]);
   });
 
@@ -184,7 +187,7 @@ describe("resolveProjectTabs — with a saved order", () => {
   );
 
   it("honours a full saved order", () => {
-    const savedOrder = ["files", "messages", "board", "list", "overview"];
+    const savedOrder = ["files", "deliverables", "messages", "board", "list", "overview"];
     expect(keysOf(resolveProjectTabs({ prefs: seeded, savedOrder }))).toEqual(savedOrder);
   });
 
@@ -192,7 +195,7 @@ describe("resolveProjectTabs — with a saved order", () => {
     // He dragged Files to the front and never touched anything else.
     expect(
       keysOf(resolveProjectTabs({ prefs: seeded, savedOrder: ["files"] }))
-    ).toEqual(["files", "overview", "list", "board", "messages"]);
+    ).toEqual(["files", "overview", "list", "board", "messages", "deliverables"]);
   });
 
   it("skips a key whose tab has since been hidden by a colleague", () => {
@@ -206,6 +209,7 @@ describe("resolveProjectTabs — with a saved order", () => {
       "list",
       "messages",
       "files",
+      "deliverables",
     ]);
   });
 
@@ -217,6 +221,7 @@ describe("resolveProjectTabs — with a saved order", () => {
       "list",
       "board",
       "messages",
+      "deliverables",
     ]);
   });
 
@@ -230,7 +235,7 @@ describe("resolveProjectTabs — with a saved order", () => {
     const savedOrder = ["files", "overview", "list", "board", "messages"];
     expect(
       keysOf(resolveProjectTabs({ prefs: seeded, savedOrder, catalog }))
-    ).toEqual([...savedOrder, "budget"]);
+    ).toEqual([...savedOrder, "deliverables", "budget"]);
   });
 
   it("lets a copy be dragged in between built-ins", () => {
@@ -249,6 +254,7 @@ describe("resolveProjectTabs — with a saved order", () => {
       "board",
       "messages",
       "files",
+      "deliverables",
     ]);
     expect(tabs.find((t) => t.viewKey === "list-copy-b")?.isCopy).toBe(true);
   });
@@ -258,7 +264,7 @@ describe("resolveProjectTabs — with a saved order", () => {
     // ?view= URL. First mention wins so the result is deterministic.
     const savedOrder = ["files", "list", "files", "overview", "list"];
     const tabs = resolveProjectTabs({ prefs: seeded, savedOrder });
-    expect(keysOf(tabs)).toEqual(["files", "list", "overview", "board", "messages"]);
+    expect(keysOf(tabs)).toEqual(["files", "list", "overview", "board", "messages", "deliverables"]);
     expect(new Set(keysOf(tabs)).size).toBe(tabs.length);
   });
 
@@ -267,6 +273,7 @@ describe("resolveProjectTabs — with a saved order", () => {
     // order must not resurrect a tab the firm deleted.
     const savedOrder = [...CATALOG_ORDER].reverse();
     expect(keysOf(resolveProjectTabs({ prefs: seeded, savedOrder }))).toEqual([
+      "deliverables",
       "files",
       "messages",
       "board",
@@ -353,7 +360,15 @@ describe("nextTabOrder", () => {
       prefs: INITIALLY_HIDDEN_VIEWS.map((viewKey) => pref({ viewKey, hidden: true })),
     });
     const written = nextTabOrder(rendered, { type: "append", viewKey: "gantt" });
-    expect(written).toEqual(["overview", "list", "board", "messages", "files", "gantt"]);
+    expect(written).toEqual([
+      "overview",
+      "list",
+      "board",
+      "messages",
+      "files",
+      "deliverables",
+      "gantt",
+    ]);
     // And the next render honours it.
     const prefs = INITIALLY_HIDDEN_VIEWS.filter((k) => k !== "gantt").map((viewKey) =>
       pref({ viewKey, hidden: true })

@@ -13,6 +13,7 @@ import {
   stageDirection,
   stagesForType,
 } from "@/lib/pipelines";
+import { regulatoryFields, toDeadline } from "@/lib/regulatory-schema";
 
 /**
  * The owner of a blob uploaded through a public form (`forms/<formId>/...`)
@@ -61,6 +62,10 @@ const updateProjectSchema = z.object({
   budget: z.number().optional().nullable(),
   currency: z.string().optional().nullable(),
   clientName: z.string().optional().nullable(),
+  // Jurisdiction, reference numbers, regulatory deadline and client contact —
+  // the same fields the create schema spreads. Omitted = no change; null or ''
+  // clears.
+  ...regulatoryFields,
 });
 
 // GET /api/projects/:projectId - Get project details
@@ -290,6 +295,9 @@ export async function PATCH(
           ...data,
           startDate: data.startDate ? new Date(data.startDate) : data.startDate === null ? null : undefined,
           endDate: data.endDate ? new Date(data.endDate) : data.endDate === null ? null : undefined,
+          // Overrides the raw string spread from `...data`: always stored at
+          // UTC midnight of the chosen day (undefined = untouched).
+          regulatoryDeadline: toDeadline(data.regulatoryDeadline),
           // A STATUS HAS TO BE EARNED. `status` defaults to ON_TRACK, so every
           // project claimed to be fine from the moment it was created, whether
           // or not anybody looked — which reads as information and is worse
@@ -403,10 +411,11 @@ export async function DELETE(
     }
 
     // The cascade removes the File / ProjectResource / Attachment /
-    // MessageAttachment ROWS but not the blobs behind them, and legacy uploads
-    // are public: a deleted job's sealed PDFs stayed downloadable forever by
-    // anyone holding a link. Collect the URLs before the rows go.
-    const [files, resources, attachments, messageAttachments] =
+    // MessageAttachment / DeliverableFile ROWS but not the blobs behind them,
+    // and legacy uploads are public: a deleted job's sealed PDFs stayed
+    // downloadable forever by anyone holding a link. Collect the URLs before
+    // the rows go.
+    const [files, resources, attachments, messageAttachments, deliverableFiles] =
       await Promise.all([
         prisma.file.findMany({ where: { projectId }, select: { url: true } }),
         prisma.projectResource.findMany({
@@ -426,12 +435,20 @@ export async function DELETE(
           where: { message: { projectId } },
           select: { url: true },
         }),
+        prisma.deliverableFile.findMany({
+          where: { deliverable: { projectId } },
+          select: { url: true },
+        }),
       ]);
     const blobUrls = [
       ...new Set(
-        [...files, ...resources, ...attachments, ...messageAttachments].map(
-          (r) => r.url
-        )
+        [
+          ...files,
+          ...resources,
+          ...attachments,
+          ...messageAttachments,
+          ...deliverableFiles,
+        ].map((r) => r.url)
       ),
     ];
 
@@ -540,7 +557,8 @@ export async function DELETE(
           (await prisma.file.count({ where: { url } })) +
           (await prisma.projectResource.count({ where: { url } })) +
           (await prisma.attachment.count({ where: { url } })) +
-          (await prisma.messageAttachment.count({ where: { url } }));
+          (await prisma.messageAttachment.count({ where: { url } })) +
+          (await prisma.deliverableFile.count({ where: { url } }));
         if (stillUsed === 0) await deleteFile(url);
       })
     ).then((results) => {

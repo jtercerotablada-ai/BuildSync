@@ -1,0 +1,58 @@
+/* Firm view map. Leaflet's base CSS loads globally from (dashboard)/layout.tsx;
+ * only the cockpit's own map rules live here. */
+
+.cockpit-hero-map {
+  /* z-index: 0 forces a new stacking context so all of Leaflet's internal
+   * panes (z 200-700) stay confined inside this element. Without it the
+   * map's z-700 popup pane sits on top of shadcn/Radix dialogs (z-50),
+   * which is what made the "Create project" modal render behind the map. */
+  position: relative;
+  z-index: 0;
+}
+
+.cockpit-hero-map .cockpit-marker-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.cockpit-hero-map .cockpit-marker {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+.cockpit-hero-map .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+.cockpit-hero-map .leaflet-popup-content {
+  margin: 10px 12px;
+  font-family: inherit;
+}
+
+.cockpit-hero-map .cockpit-popup__type {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8f6c1f;
+}
+
+.cockpit-hero-map .cockpit-popup__name {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #000;
+}
+
+.cockpit-hero-map .cockpit-popup__line {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.cockpit-hero-map .cockpit-popup__link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8f6c1f;
+}

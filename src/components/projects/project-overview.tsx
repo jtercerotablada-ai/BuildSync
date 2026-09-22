@@ -31,6 +31,7 @@ import {
   Sparkles,
   Loader2,
   AlertTriangle,
+  Stamp,
 } from "lucide-react";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { ProjectBriefEditor } from "@/components/projects/project-brief-editor";
@@ -56,6 +57,10 @@ import { ProjectStageStrip } from "@/components/cockpit/PipelineStrip";
 import type { ProjectType } from "@/components/cockpit/types";
 import { isStageValidForType, resolveStage } from "@/lib/pipelines";
 import { uploadDirect, responseError } from "@/lib/direct-upload";
+import {
+  DeadlineRailLine,
+  JobInfoCard,
+} from "@/components/projects/job-info-card";
 import {
   NO_STATUS_LABEL,
   countOverdue,
@@ -126,6 +131,19 @@ interface ProjectShape {
   sections?: SectionRow[];
   startDate?: string | null;
   endDate?: string | null;
+  isArchived?: boolean;
+  // Client & jurisdiction — rendered by the Job info card
+  // (src/components/projects/job-info-card.tsx).
+  clientName?: string | null;
+  location?: string | null;
+  jurisdiction?: string | null;
+  folioNumber?: string | null;
+  permitNumber?: string | null;
+  caseNumber?: string | null;
+  regulatoryDeadline?: string | Date | null;
+  clientContactName?: string | null;
+  clientContactEmail?: string | null;
+  clientContactPhone?: string | null;
   // Team sharing (Asana model): the team this project is shared with. Its
   // members get access and are listed in "Project roles" as team members.
   teamId?: string | null;
@@ -152,6 +170,9 @@ interface ProjectOverviewProps {
   // team sharing, workspace visibility or workspace role, so it hides controls
   // from people the API lets write.
   canEdit?: boolean;
+  // Open the parent's Edit details dialog (the Job info card's Edit / "Add
+  // job info" buttons). The card is read-only without it.
+  onEditDetails?: () => void;
 }
 
 interface MilestoneRow {
@@ -259,10 +280,15 @@ interface ActivityEvent {
     | "member_joined"
     | "task_completed"
     | "task_created"
-    | "file_uploaded";
+    | "file_uploaded"
+    | "deliverable_sealed"
+    | "deliverable_seal_revoked"
+    | "deliverable_issued";
   title: string;
   detail?: string | null;
   status?: string | null;
+  /** Deep link (deliverable events): /projects/<id>?view=deliverables&… */
+  href?: string | null;
   createdAt: string;
   actor: {
     id: string;
@@ -403,6 +429,7 @@ export function ProjectOverview({
   onManageMembers,
   onTaskClick,
   canEdit: canEditProp,
+  onEditDetails,
 }: ProjectOverviewProps) {
   const router = useRouter();
   // The page is mounted in both shells; every internal link keeps the one
@@ -1591,6 +1618,15 @@ export function ProjectOverview({
           />
         </div>
 
+        {/* Job info — jurisdiction, reference numbers, regulatory deadline,
+            client contact. Gated on the same server-derived canEdit as the
+            rest of this view (the PATCH gate). */}
+        <JobInfoCard
+          project={{ ...project, stage }}
+          canEdit={canEdit}
+          onEdit={onEditDetails}
+        />
+
         {/* Project roles */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
@@ -2181,6 +2217,10 @@ export function ProjectOverview({
                   </button>
                 )
               )}
+              {/* The regulatory deadline, read against the (optimistic)
+                  stage so "Submitted" replaces the pill as soon as the job
+                  moves to the city. */}
+              <DeadlineRailLine project={{ ...project, stage }} />
               <div>
                 <button
                   type="button"
@@ -2668,7 +2708,22 @@ export function ProjectOverview({
                                 ? a.actor.name || a.actor.email || "Someone"
                                 : "Someone"}
                             </span>{" "}
-                            <span className="text-slate-500">{a.title}</span>
+                            {a.href ? (
+                              // Deliverable events open the item's sheet in
+                              // the Deliverables tab, in whichever shell the
+                              // user is in.
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(`${shellPrefix}${a.href}`)
+                                }
+                                className="text-slate-500 text-left hover:text-slate-900 hover:underline"
+                              >
+                                {a.title}
+                              </button>
+                            ) : (
+                              <span className="text-slate-500">{a.title}</span>
+                            )}
                           </p>
                           {a.detail && (
                             <p className="text-[12px] text-slate-500 truncate mt-0.5">
@@ -2835,8 +2890,22 @@ function ActivityIconCell({
       icon: <Paperclip className="w-3 h-3 text-slate-600" />,
       bg: "bg-slate-200",
     },
+    deliverable_sealed: {
+      icon: <Stamp className="w-3 h-3 text-white" />,
+      bg: "bg-[#c9a84c]",
+    },
+    deliverable_seal_revoked: {
+      icon: <Stamp className="w-3 h-3 text-slate-500" />,
+      bg: "bg-slate-200",
+    },
+    deliverable_issued: {
+      icon: <Send className="w-3 h-3 text-slate-600" />,
+      bg: "bg-slate-200",
+    },
   };
-  const v = map[type];
+  // The API can grow a type before this file learns it; an unknown type
+  // must render as a plain row, never crash the whole Overview.
+  const v = map[type] ?? map.file_uploaded;
   return (
     <div
       className={cn(

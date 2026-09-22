@@ -41,6 +41,7 @@ import {
   Building2,
   GanttChart,
   ChevronDown,
+  CalendarClock,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -51,7 +52,7 @@ import {
 import { cn } from "@/lib/utils";
 import { GanttTimeline } from "@/components/projects/gantt-timeline";
 import { computePmiSnapshot, healthVisual } from "@/lib/pmi-metrics";
-import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
 import { useToday } from "@/lib/use-today";
 import {
   PIPELINES,
@@ -60,6 +61,18 @@ import {
   stageLabel,
   type PipelineId,
 } from "@/lib/pipelines";
+import {
+  DEADLINE_STATE_LABEL,
+  deadlineBucket,
+  deadlineCopyFor,
+  deadlineState,
+  deadlineToneClass,
+  formatDaysOut,
+  formatDeadlineDate,
+  isDeadlineLive,
+  jurisdictionKey,
+  normalizeJurisdiction,
+} from "@/lib/regulatory";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -100,6 +113,13 @@ interface Project {
   projectNumber: string | null;
   startDate: string | null;
   endDate: string | null;
+  // Jurisdiction & regulatory data (src/lib/regulatory.ts). The deadline is
+  // an ISO string at UTC midnight.
+  jurisdiction: string | null;
+  regulatoryDeadline: string | null;
+  permitNumber: string | null;
+  folioNumber: string | null;
+  caseNumber: string | null;
   owner: { id: string; name: string | null; image: string | null } | null;
   members: { user: { id: string; name: string | null; image: string | null } }[];
   tasks?: {
@@ -144,6 +164,54 @@ function stageOptions(typeFilter: ProjectType | "ALL") {
         typeFilter === "ALL" ? `${pipeline.label} · ${stage.label}` : stage.label,
     }))
   );
+}
+
+type DeadlineFilter = "ALL" | "OVERDUE" | "7" | "30" | "60" | "NONE";
+
+const DEADLINE_FILTER_LABEL: Record<DeadlineFilter, string> = {
+  ALL: "All",
+  OVERDUE: "Overdue",
+  "7": "Next 7 days",
+  "30": "Next 30 days",
+  "60": "Next 60 days",
+  NONE: "No deadline",
+};
+
+/**
+ * The Deadline chip. Overdue = live and already past; "Next N days" = live and
+ * 0..N days out (overdue has its own chip, so it is excluded here); No
+ * deadline = none set. Until the viewer's day is known (`today` null) only
+ * "No deadline" can filter: every other option keeps the row rather than
+ * guessing a day.
+ */
+function matchesDeadlineFilter(
+  p: Project,
+  filter: DeadlineFilter,
+  today: Date | null
+): boolean {
+  if (filter === "ALL") return true;
+  if (filter === "NONE") return !p.regulatoryDeadline;
+  if (!today) return true;
+  if (!p.regulatoryDeadline || !isDeadlineLive(p)) return false;
+  const n = daysFromToday(p.regulatoryDeadline, today);
+  if (filter === "OVERDUE") return n < 0;
+  return n >= 0 && n <= Number(filter);
+}
+
+/** One row of the deadline readout: live gives days out; otherwise the state. */
+function deadlineInfo(p: Project, today: Date | null) {
+  if (!p.regulatoryDeadline) return null;
+  const copy = deadlineCopyFor(p.type);
+  const state = deadlineState(p);
+  const daysOut =
+    state === "live" && today ? daysFromToday(p.regulatoryDeadline, today) : null;
+  return {
+    copy,
+    state,
+    daysOut,
+    shortDate: formatDeadlineDate(p.regulatoryDeadline, { year: false }),
+    fullDate: formatDeadlineDate(p.regulatoryDeadline),
+  };
 }
 
 const STATUS_DOT: Record<ProjectStatus, string> = {
@@ -204,6 +272,11 @@ function ProjectsPageContent() {
   const [typeFilter, setTypeFilter] = useState<ProjectType | "ALL">("ALL");
   const [gateFilter, setGateFilter] = useState<ProjectGate | "ALL">("ALL");
   const [stageFilter, setStageFilter] = useState<string>("ALL");
+  const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("ALL");
+  // A jurisdictionKey (case-insensitive, trimmed) or "ALL".
+  const [jurisdictionFilter, setJurisdictionFilter] = useState<string>("ALL");
+  // The viewer's day, null until mounted: the deadline chip compares days.
+  const today = useToday();
   // Archive scope stays plain useState on purpose: it's somewhere you
   // go to retrieve one old project, never how you want to browse
   // tomorrow, so it must not survive the session like `view` does.
@@ -317,14 +390,48 @@ function ProjectsPageContent() {
     [projects, scope]
   );
 
+  // Distinct jurisdictions, grouped case-insensitively; each chip option shows
+  // the most frequent spelling. Sorted A to Z.
+  const jurisdictionOptions = useMemo(() => {
+    const groups = new Map<string, Map<string, number>>();
+    for (const p of inScope) {
+      if (!p.jurisdiction || !p.jurisdiction.trim()) continue;
+      const key = jurisdictionKey(p.jurisdiction);
+      const spelling = normalizeJurisdiction(p.jurisdiction);
+      const counts = groups.get(key) ?? new Map<string, number>();
+      counts.set(spelling, (counts.get(spelling) ?? 0) + 1);
+      groups.set(key, counts);
+    }
+    return [...groups.entries()]
+      .map(([key, counts]) => ({
+        value: key,
+        label: [...counts.entries()].sort(
+          (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+        )[0][0],
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [inScope]);
+
   const filtered = useMemo(() => {
     return inScope.filter(
       (p) =>
         (typeFilter === "ALL" || p.type === typeFilter) &&
         (gateFilter === "ALL" || p.gate === gateFilter) &&
-        (stageFilter === "ALL" || p.stage === stageFilter)
+        (stageFilter === "ALL" || p.stage === stageFilter) &&
+        matchesDeadlineFilter(p, deadlineFilter, today) &&
+        (jurisdictionFilter === "ALL" ||
+          (!!p.jurisdiction &&
+            jurisdictionKey(p.jurisdiction) === jurisdictionFilter))
     );
-  }, [inScope, typeFilter, gateFilter, stageFilter]);
+  }, [
+    inScope,
+    typeFilter,
+    gateFilter,
+    stageFilter,
+    deadlineFilter,
+    jurisdictionFilter,
+    today,
+  ]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -357,7 +464,7 @@ function ProjectsPageContent() {
           )}
           <Input
             type="search"
-            placeholder="Search for a project"
+            placeholder="Search name, client, permit or folio no."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-10 w-full bg-gray-50 border-gray-200 focus-visible:bg-white"
@@ -421,6 +528,35 @@ function ProjectsPageContent() {
             value={gateFilter}
             onChange={(v) => setGateFilter(v as ProjectGate | "ALL")}
           />
+          <FilterChip
+            label="Deadline"
+            activeLabel={
+              deadlineFilter === "ALL" ? null : DEADLINE_FILTER_LABEL[deadlineFilter]
+            }
+            options={(Object.keys(DEADLINE_FILTER_LABEL) as DeadlineFilter[]).map(
+              (f) => ({ value: f, label: DEADLINE_FILTER_LABEL[f] })
+            )}
+            value={deadlineFilter}
+            onChange={(v) => setDeadlineFilter(v as DeadlineFilter)}
+          />
+          {/* Only worth a chip when there is something to choose between. A
+              selection that is no longer in the list stays visible so it can
+              be cleared. */}
+          {(jurisdictionOptions.length >= 2 || jurisdictionFilter !== "ALL") && (
+            <FilterChip
+              label="Jurisdiction"
+              activeLabel={
+                jurisdictionFilter === "ALL"
+                  ? null
+                  : (jurisdictionOptions.find((o) => o.value === jurisdictionFilter)
+                      ?.label ?? jurisdictionFilter)
+              }
+              options={[{ value: "ALL", label: "All" }, ...jurisdictionOptions]}
+              value={jurisdictionFilter}
+              onChange={setJurisdictionFilter}
+              wide
+            />
+          )}
 
           {/* Archive scope. Until this existed, archiving a project
               dropped it out of every list in the app with no way back
@@ -530,7 +666,7 @@ function ProjectsPageContent() {
               </h3>
               <p className="text-sm text-gray-500 max-w-sm text-center mb-4">
                 {inScope.length > 0
-                  ? "Try adjusting the type, stage or gate filters above."
+                  ? "Try adjusting the type, stage, gate, deadline or jurisdiction filters above."
                   : debouncedSearch
                     ? "Try a different term, or clear the search box to see everything here."
                     : scope === "archived"
@@ -692,6 +828,21 @@ function ProjectsGridView({
             )}
           </div>
 
+          {p.regulatoryDeadline && (
+            <p
+              className="flex items-center gap-1.5 text-[11px] text-gray-600 mb-2 min-w-0"
+              title={`${deadlineCopyFor(p.type).label}: ${formatDeadlineDate(p.regulatoryDeadline)}`}
+            >
+              <CalendarClock className="h-3 w-3 flex-shrink-0 text-gray-400" />
+              <span className="truncate">
+                {deadlineCopyFor(p.type).short} ·{" "}
+                <span className="tabular-nums">
+                  {formatDeadlineDate(p.regulatoryDeadline, { year: false })}
+                </span>
+              </span>
+            </p>
+          )}
+
           <div className="flex items-center justify-between text-[11px] text-gray-500">
             <div className="flex items-center gap-1.5">
               <span
@@ -744,21 +895,26 @@ function ProjectsListView({
   const today = useToday();
   // Same gridTemplate shared by header, rows, AND ghost-column
   // overlay so every divider lands on the same pixel boundary.
-  const gridTemplate = "100px minmax(220px, 1fr) 160px 130px 100px 56px";
+  //
+  // Two templates: at lg (1024 minus the 240px sidebar) Health and Owner are
+  // dropped so the table never scrolls sideways; from xl the full set shows.
+  // Below lg the card stack renders instead.
+  const gridClass =
+    "lg:grid-cols-[100px_minmax(200px,1fr)_140px_128px_130px] xl:grid-cols-[100px_minmax(220px,1fr)_140px_128px_130px_100px_56px]";
   return (
     <div className="font-sans">
       {/* Compact header — six columns. Per-cell `border-l` provides
           vertical dividers; same approach used on every row below
           for guaranteed alignment across browsers (no overlay
           stacking-context games). */}
-      <div className="hidden md:grid items-stretch border-b border-[#e6e9ef] text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 sticky top-0 z-10"
-           style={{ gridTemplateColumns: gridTemplate }}>
+      <div className={cn("hidden lg:grid items-stretch border-b border-[#e6e9ef] text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 sticky top-0 z-10", gridClass)}>
         <div className="px-3 py-2 border-l border-[#e6e9ef] first:border-l-0">#</div>
         <div className="px-3 py-2 border-l border-[#e6e9ef]">Project</div>
         <div className="px-3 py-2 border-l border-[#e6e9ef]">Stage</div>
+        <div className="px-3 py-2 border-l border-[#e6e9ef]">Deadline</div>
         <div className="px-3 py-2 border-l border-[#e6e9ef]">% Comp</div>
-        <div className="px-3 py-2 border-l border-[#e6e9ef]">Health</div>
-        <div className="px-2 py-2 border-l border-[#e6e9ef] text-center">Owner</div>
+        <div className="hidden xl:block px-3 py-2 border-l border-[#e6e9ef]">Health</div>
+        <div className="hidden xl:block px-2 py-2 border-l border-[#e6e9ef] text-center">Owner</div>
       </div>
 
       {/* Rows */}
@@ -792,6 +948,7 @@ function ProjectsListView({
           p.endDate !== null &&
           dueDateToLocalMidnight(p.endDate) < today &&
           p.status !== "COMPLETE";
+        const deadline = deadlineInfo(p, today);
 
         return (
           <div
@@ -800,8 +957,10 @@ function ProjectsListView({
             // Per-cell `border-l` restored on each column cell —
             // guaranteed vertical dividers, immune to stacking-
             // context bugs.
-            className="hidden md:grid items-stretch hover:bg-gray-50 cursor-pointer border-b border-[#e6e9ef] text-[12px] group"
-            style={{ gridTemplateColumns: gridTemplate }}
+            className={cn(
+              "hidden lg:grid items-stretch hover:bg-gray-50 cursor-pointer border-b border-[#e6e9ef] text-[12px] group",
+              gridClass
+            )}
           >
             {/* # */}
             <div className="px-3 py-2.5 flex items-center font-mono tabular-nums text-[11px] text-gray-600">
@@ -824,6 +983,7 @@ function ProjectsListView({
                 <p className="text-[10px] text-gray-500 truncate uppercase tracking-wider">
                   {p.type ? TYPE_LABEL[p.type] : "—"}
                   {p.clientName ? ` · ${p.clientName}` : ""}
+                  {p.jurisdiction ? ` · ${p.jurisdiction}` : ""}
                 </p>
               </div>
             </div>
@@ -841,6 +1001,41 @@ function ProjectsListView({
               >
                 {stage?.stage.label ?? (p.gate ? GATE_LABEL[p.gate] : "—")}
               </span>
+            </div>
+
+            {/* Regulatory deadline: date + days pill while the job is still
+                ours; the date greyed with the state word as a tooltip once it
+                is at the city, closed, complete or archived. */}
+            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center gap-1.5 min-w-0">
+              {!deadline ? (
+                <span className="text-gray-300">—</span>
+              ) : deadline.state !== "live" ? (
+                <span
+                  className="tabular-nums text-gray-400"
+                  title={`${deadline.copy.label}: ${deadline.fullDate} · ${DEADLINE_STATE_LABEL[deadline.state]}`}
+                >
+                  {deadline.shortDate}
+                </span>
+              ) : (
+                <>
+                  <span
+                    className="tabular-nums text-gray-700 whitespace-nowrap"
+                    title={`${deadline.copy.label}: ${deadline.fullDate}`}
+                  >
+                    {deadline.shortDate}
+                  </span>
+                  {deadline.daysOut !== null && (
+                    <span
+                      className={cn(
+                        "px-1 py-px rounded border text-[10px] font-medium tabular-nums whitespace-nowrap truncate",
+                        deadlineToneClass(deadlineBucket(deadline.daysOut))
+                      )}
+                    >
+                      {formatDaysOut(deadline.daysOut)}
+                    </span>
+                  )}
+                </>
+              )}
             </div>
 
             {/* % Complete with planned-vs-actual mini bars */}
@@ -870,7 +1065,7 @@ function ProjectsListView({
             </div>
 
             {/* Health pill */}
-            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center">
+            <div className="hidden xl:flex px-3 py-2.5 border-l border-[#e6e9ef] items-center">
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tabular-nums"
                 style={{ backgroundColor: hv.hex, color: hv.textHex }}
@@ -881,7 +1076,7 @@ function ProjectsListView({
             </div>
 
             {/* Owner */}
-            <div className="px-2 py-2.5 border-l border-[#e6e9ef] flex items-center justify-center">
+            <div className="hidden xl:flex px-2 py-2.5 border-l border-[#e6e9ef] items-center justify-center">
               {p.owner ? (
                 <Avatar className="h-6 w-6">
                   <AvatarImage src={p.owner.image || undefined} />
@@ -898,7 +1093,7 @@ function ProjectsListView({
       })}
 
       {/* Mobile card-stack — same data, vertical layout */}
-      <div className="md:hidden divide-y">
+      <div className="lg:hidden divide-y">
         {projects.map((p) => {
           const taskList = p.tasks || [];
           // Root-task count (see desktop rows above) — _count.tasks includes
@@ -914,6 +1109,7 @@ function ProjectsListView({
             completedTaskCount: completedTasks,
           });
           const hv = healthVisual(pmi.health);
+          const deadline = deadlineInfo(p, today);
           return (
             <Link
               key={p.id}
@@ -939,6 +1135,16 @@ function ProjectsListView({
                 </div>
                 <p className="text-[10px] text-gray-500 truncate font-mono">
                   {p.projectNumber || "—"} · {pmi.percentComplete}% complete
+                  {deadline && deadline.daysOut !== null && (
+                    <span
+                      className={cn(
+                        "font-sans",
+                        deadline.daysOut < 0 && "text-red-600 font-medium"
+                      )}
+                    >
+                      {` · ${deadline.copy.short} ${formatDaysOut(deadline.daysOut)}`}
+                    </span>
+                  )}
                 </p>
               </div>
             </Link>

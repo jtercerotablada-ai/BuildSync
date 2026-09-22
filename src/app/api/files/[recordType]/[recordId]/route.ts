@@ -26,6 +26,8 @@ import { parseContactAttachments } from "@/lib/contact-attachments";
  *   attachment -> Attachment      (task attachment, or a comment's attachment)
  *   file       -> File            (the project Files tab)
  *   resource   -> ProjectResource (Overview "Key resources")
+ *   deliverable -> DeliverableFile (the Deliverables tab: revision files and
+ *                 RFI attachments; gated on the deliverable's project)
  *   contact    -> ContactSubmission.files[?i=n] (public proposal-request
  *                 attachments; gated on the FIRM's inbox, see contact-inbox.ts)
  *
@@ -33,7 +35,13 @@ import { parseContactAttachments } from "@/lib/contact-attachments";
  * not read the file must not learn that it exists.
  */
 
-const RECORD_TYPES = ["attachment", "file", "resource", "contact"] as const;
+const RECORD_TYPES = [
+  "attachment",
+  "file",
+  "resource",
+  "deliverable",
+  "contact",
+] as const;
 type RecordType = (typeof RECORD_TYPES)[number];
 
 function isRecordType(value: string): value is RecordType {
@@ -126,6 +134,25 @@ async function resolveRecord(
     if (!file) return null;
     await verifyProjectAccess(userId, file.projectId);
     return file;
+  }
+
+  if (recordType === "deliverable") {
+    // Explicit branch: it must never fall through to the ProjectResource
+    // lookup below. The file's deliverable decides the project, and the
+    // project's read rule decides the caller — the same rule the Deliverables
+    // tab's GET applies.
+    const file = await prisma.deliverableFile.findUnique({
+      where: { id: recordId },
+      select: {
+        name: true,
+        url: true,
+        mimeType: true,
+        deliverable: { select: { projectId: true } },
+      },
+    });
+    if (!file) return null;
+    await verifyProjectAccess(userId, file.deliverable.projectId);
+    return { name: file.name, url: file.url, mimeType: file.mimeType };
   }
 
   const resource = await prisma.projectResource.findUnique({

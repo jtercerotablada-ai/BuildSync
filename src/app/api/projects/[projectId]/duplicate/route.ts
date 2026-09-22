@@ -11,6 +11,7 @@ import {
 import { legacyGateFor } from "@/lib/pipelines";
 import { INITIALLY_HIDDEN_VIEWS } from "@/lib/project-views";
 import { allocateProjectNumber } from "@/lib/project-number";
+import { regulatoryFieldsForDuplicate } from "@/lib/regulatory";
 
 /**
  * POST /api/projects/:projectId/duplicate
@@ -196,6 +197,12 @@ export async function POST(
             budget: source.budget,
             currency: source.currency,
             clientName: source.clientName,
+            // Who has jurisdiction and who to call carry over; the folio,
+            // permit and case numbers and the regulatory deadline do NOT —
+            // they identify one building's filing (same reason projectNumber
+            // is re-allocated), and a copied deadline would fire false
+            // warnings from day one. See regulatoryFieldsForDuplicate.
+            ...regulatoryFieldsForDuplicate(source),
             projectNumber,
             members: { create: { userId, role: "ADMIN" } },
             // The project's custom-field COLUMNS. Definitions are

@@ -30,6 +30,15 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { MapPin, Loader2 } from "lucide-react";
+import {
+  REFERENCE_LABEL,
+  deadlineCopyFor,
+  isValidEmail,
+  isValidPhone,
+  referenceFieldsFor,
+  type ReferenceField,
+} from "@/lib/regulatory";
+import { AhjDatalist } from "@/components/projects/ahj-datalist";
 
 // Shape used when prefilling the dialog in edit mode. Keep it
 // permissive — only the id is required.
@@ -52,7 +61,22 @@ export interface ProjectInitial {
   budget?: number | string | null;
   currency?: string | null;
   description?: string | null;
+  // Jurisdiction & regulatory data (src/lib/regulatory.ts)
+  jurisdiction?: string | null;
+  folioNumber?: string | null;
+  permitNumber?: string | null;
+  caseNumber?: string | null;
+  regulatoryDeadline?: string | null;
+  clientContactName?: string | null;
+  clientContactEmail?: string | null;
+  clientContactPhone?: string | null;
 }
+
+const REFERENCE_PLACEHOLDER: Record<ReferenceField, string> = {
+  folioNumber: "e.g., 01-3131-051-0010",
+  permitNumber: "e.g., BD25-004512",
+  caseNumber: "e.g., 2025-RC-00123",
+};
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -150,7 +174,32 @@ export function CreateProjectDialog({
   // Description
   const [description, setDescription] = useState("");
 
+  // Client contact
+  const [clientContactName, setClientContactName] = useState("");
+  const [clientContactEmail, setClientContactEmail] = useState("");
+  const [clientContactPhone, setClientContactPhone] = useState("");
+  // Inline contact errors, shown after blur (and on a blocked submit).
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  // Site & jurisdiction
+  const [jurisdiction, setJurisdiction] = useState("");
+  const [folioNumber, setFolioNumber] = useState("");
+  const [permitNumber, setPermitNumber] = useState("");
+  const [caseNumber, setCaseNumber] = useState("");
+  const [regulatoryDeadline, setRegulatoryDeadline] = useState("");
+
   const resetForm = () => {
+    setClientContactName("");
+    setClientContactEmail("");
+    setClientContactPhone("");
+    setEmailError(null);
+    setPhoneError(null);
+    setJurisdiction("");
+    setFolioNumber("");
+    setPermitNumber("");
+    setCaseNumber("");
+    setRegulatoryDeadline("");
     setName("");
     setType("");
     setColor("#c9a84c");
@@ -191,6 +240,16 @@ export function CreateProjectDialog({
       setBudget(initialProject.budget != null ? String(initialProject.budget) : "");
       setCurrency(initialProject.currency ?? "USD");
       setDescription(initialProject.description ?? "");
+      setClientContactName(initialProject.clientContactName ?? "");
+      setClientContactEmail(initialProject.clientContactEmail ?? "");
+      setClientContactPhone(initialProject.clientContactPhone ?? "");
+      setEmailError(null);
+      setPhoneError(null);
+      setJurisdiction(initialProject.jurisdiction ?? "");
+      setFolioNumber(initialProject.folioNumber ?? "");
+      setPermitNumber(initialProject.permitNumber ?? "");
+      setCaseNumber(initialProject.caseNumber ?? "");
+      setRegulatoryDeadline(toDateInput(initialProject.regulatoryDeadline));
     } else {
       resetForm();
     }
@@ -230,6 +289,20 @@ export function CreateProjectDialog({
       toast.error("Project name is required");
       return;
     }
+    // Same rules the server applies (regulatory-schema.ts), checked here so
+    // the error sits next to the field instead of only in a toast.
+    const emailTrim = clientContactEmail.trim();
+    if (emailTrim && !isValidEmail(emailTrim)) {
+      setEmailError("Enter a valid email");
+      toast.error("Check the contact email");
+      return;
+    }
+    const phoneTrim = clientContactPhone.trim();
+    if (phoneTrim && !isValidPhone(phoneTrim)) {
+      setPhoneError("Enter a valid phone number");
+      toast.error("Check the contact phone");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -257,6 +330,15 @@ export function CreateProjectDialog({
         setField("endDate", endDate || null, true);
         const budgetNum = budget ? parseFloat(budget) : null;
         setField("budget", budgetNum != null && !Number.isNaN(budgetNum) ? budgetNum : null, true);
+        setField("jurisdiction", jurisdiction.trim() || null, true);
+        setField("folioNumber", folioNumber.trim() || null, true);
+        setField("permitNumber", permitNumber.trim() || null, true);
+        setField("caseNumber", caseNumber.trim() || null, true);
+        // The date input already yields "YYYY-MM-DD".
+        setField("regulatoryDeadline", regulatoryDeadline || null, true);
+        setField("clientContactName", clientContactName.trim() || null, true);
+        setField("clientContactEmail", clientContactEmail.trim() || null, true);
+        setField("clientContactPhone", clientContactPhone.trim() || null, true);
         if (currency) p.currency = currency;
         // Strip any explicit undefined so JSON.stringify doesn't drop a `null`
         Object.keys(p).forEach((k) => p[k] === undefined && delete p[k]);
@@ -323,10 +405,26 @@ export function CreateProjectDialog({
     ? stagesForType((type || null) as ProjectType | null)[0] ?? null
     : null;
 
+  // Relabels live as the Type changes; typed values are kept either way.
+  const deadlineCopy = deadlineCopyFor(type || null);
+  const referenceValues: Record<ReferenceField, [string, (v: string) => void]> = {
+    folioNumber: [folioNumber, setFolioNumber],
+    permitNumber: [permitNumber, setPermitNumber],
+    caseNumber: [caseNumber, setCaseNumber],
+  };
+  const visibleReferences: ReferenceField[] = referenceFieldsFor(type || null);
+  // A case number already typed stays visible after switching to a type that
+  // does not normally carry one, so it can still be seen and cleared.
+  if (!visibleReferences.includes("caseNumber") && caseNumber.trim()) {
+    visibleReferences.push("caseNumber");
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <form onSubmit={handleSubmit}>
+        {/* noValidate: the browser's type=email bubble would otherwise pre-empt
+            our own inline errors and toasts. */}
+        <form onSubmit={handleSubmit} noValidate>
           <DialogHeader>
             <DialogTitle>
               {isEdit ? (
@@ -416,13 +514,13 @@ export function CreateProjectDialog({
               </div>
             </section>
 
-            {/* ── Block 2: Client & location ──────────────────────────── */}
+            {/* ── Block 2: Client ─────────────────────────────────────── */}
             <section className="space-y-3">
               <h3 className="text-[11px] font-semibold tracking-[2px] uppercase text-gray-500">
-                Client &amp; location
+                Client
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="clientName">Client name</Label>
                   <Input
                     id="clientName"
@@ -431,7 +529,82 @@ export function CreateProjectDialog({
                     onChange={(e) => setClientName(e.target.value)}
                   />
                 </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="clientContactName">Contact person</Label>
+                  <Input
+                    id="clientContactName"
+                    placeholder="e.g., Ana Pérez, board president"
+                    maxLength={120}
+                    value={clientContactName}
+                    onChange={(e) => setClientContactName(e.target.value)}
+                  />
+                </div>
                 <div className="space-y-1.5">
+                  <Label htmlFor="clientContactEmail">Contact email</Label>
+                  <Input
+                    id="clientContactEmail"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="off"
+                    placeholder="name@company.com"
+                    maxLength={254}
+                    value={clientContactEmail}
+                    aria-invalid={!!emailError}
+                    aria-describedby={emailError ? "clientContactEmail-error" : undefined}
+                    onChange={(e) => {
+                      setClientContactEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    onBlur={() => {
+                      const v = clientContactEmail.trim();
+                      setEmailError(v && !isValidEmail(v) ? "Enter a valid email" : null);
+                    }}
+                    className={emailError ? "border-red-300 focus-visible:ring-red-200" : undefined}
+                  />
+                  {emailError && (
+                    <p id="clientContactEmail-error" className="text-[11px] text-red-600">
+                      {emailError}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="clientContactPhone">Contact phone</Label>
+                  <Input
+                    id="clientContactPhone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="off"
+                    placeholder="(305) 555-0142"
+                    maxLength={40}
+                    value={clientContactPhone}
+                    aria-invalid={!!phoneError}
+                    aria-describedby={phoneError ? "clientContactPhone-error" : undefined}
+                    onChange={(e) => {
+                      setClientContactPhone(e.target.value);
+                      if (phoneError) setPhoneError(null);
+                    }}
+                    onBlur={() => {
+                      const v = clientContactPhone.trim();
+                      setPhoneError(v && !isValidPhone(v) ? "Enter a valid phone number" : null);
+                    }}
+                    className={phoneError ? "border-red-300 focus-visible:ring-red-200" : undefined}
+                  />
+                  {phoneError && (
+                    <p id="clientContactPhone-error" className="text-[11px] text-red-600">
+                      {phoneError}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* ── Block 3: Site & jurisdiction ────────────────────────── */}
+            <section className="space-y-3">
+              <h3 className="text-[11px] font-semibold tracking-[2px] uppercase text-gray-500">
+                Site &amp; jurisdiction
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="location">
                     Location
                     {geocodeStatus === "ok" && (
@@ -468,10 +641,54 @@ export function CreateProjectDialog({
                     </div>
                   </div>
                 </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="jurisdiction">Jurisdiction (AHJ)</Label>
+                  <Input
+                    id="jurisdiction"
+                    list="ahj-options"
+                    maxLength={120}
+                    autoComplete="off"
+                    placeholder="e.g., City of Hialeah"
+                    value={jurisdiction}
+                    onChange={(e) => setJurisdiction(e.target.value)}
+                  />
+                  <AhjDatalist id="ahj-options" />
+                  <p className="text-[11px] text-gray-500">
+                    Pick a suggestion or type any authority.
+                  </p>
+                </div>
+                {visibleReferences.map((field) => {
+                  const [value, setValue] = referenceValues[field];
+                  return (
+                    <div key={field} className="space-y-1.5">
+                      <Label htmlFor={field}>{REFERENCE_LABEL[field]}</Label>
+                      <Input
+                        id={field}
+                        className="font-mono"
+                        autoComplete="off"
+                        maxLength={field === "folioNumber" ? 32 : 64}
+                        placeholder={REFERENCE_PLACEHOLDER[field]}
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                      />
+                    </div>
+                  );
+                })}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="regulatoryDeadline">{deadlineCopy.label}</Label>
+                  <Input
+                    id="regulatoryDeadline"
+                    type="date"
+                    className="sm:max-w-[50%]"
+                    value={regulatoryDeadline}
+                    onChange={(e) => setRegulatoryDeadline(e.target.value)}
+                  />
+                  <p className="text-[11px] text-gray-500">{deadlineCopy.help}</p>
+                </div>
               </div>
             </section>
 
-            {/* ── Block 3: Schedule & budget ──────────────────────────── */}
+            {/* ── Block 4: Schedule & budget ──────────────────────────── */}
             <section className="space-y-3">
               <h3 className="text-[11px] font-semibold tracking-[2px] uppercase text-gray-500">
                 Schedule &amp; budget
@@ -526,7 +743,7 @@ export function CreateProjectDialog({
               </div>
             </section>
 
-            {/* ── Block 4: Description ────────────────────────────────── */}
+            {/* ── Block 5: Description ────────────────────────────────── */}
             <section className="space-y-3">
               <h3 className="text-[11px] font-semibold tracking-[2px] uppercase text-gray-500">
                 Description

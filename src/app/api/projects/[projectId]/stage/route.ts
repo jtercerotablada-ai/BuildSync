@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getProjectAccess } from "@/lib/project-access";
+import { canMoveStage, getProjectAccess } from "@/lib/project-access";
 import {
   isStageValidForType,
   legacyGateFor,
@@ -110,8 +110,9 @@ export async function PATCH(
     // canonical resolver. A stage move is an ordinary content edit; the
     // private owner/ADMIN/EDITOR copy that stood here had already drifted
     // from it, and locked out workspace managers, team members and every
-    // colleague on a WORKSPACE-visible job.
-    if (!access.canWrite) {
+    // colleague on a WORKSPACE-visible job. canMoveStage is that rule by name,
+    // shared with the Deliverables tab's stage offers.
+    if (!canMoveStage(access)) {
       return NextResponse.json(
         { error: "You don't have permission to edit this project" },
         { status: 403 }

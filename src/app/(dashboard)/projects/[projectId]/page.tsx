@@ -361,6 +361,7 @@ export default async function ProjectPage({
     updatedAt: project.updatedAt.toISOString(),
     startDate: project.startDate?.toISOString() || null,
     endDate: project.endDate?.toISOString() || null,
+    regulatoryDeadline: project.regulatoryDeadline?.toISOString() || null,
     members: project.members.map((m) => ({
       ...m,
       joinedAt: m.joinedAt.toISOString(),

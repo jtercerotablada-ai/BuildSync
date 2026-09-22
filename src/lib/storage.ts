@@ -262,6 +262,7 @@ export type UploadTarget =
   | { kind: "message-attachment"; messageId: string }
   | { kind: "team-message-attachment"; teamId: string; messageId: string }
   | { kind: "form-attachment"; formId: string }
+  | { kind: "deliverable-file"; deliverableId: string }
   | {
       kind: "tracking-reply";
       formId: string;
@@ -283,6 +284,8 @@ export function uploadFolderFor(target: UploadTarget): string {
       return `forms/${target.formId}/`;
     case "tracking-reply":
       return `tracking/${target.submissionId}/`;
+    case "deliverable-file":
+      return `deliverables/${target.deliverableId}/`;
   }
 }
 
@@ -483,7 +486,7 @@ export async function deleteFile(url: string) {
  * out; the read route re-runs the owning record's access rule on every hit.
  */
 export function fileReadUrl(
-  recordType: "attachment" | "file" | "resource",
+  recordType: "attachment" | "file" | "resource" | "deliverable",
   id: string
 ): string {
   return `/api/files/${recordType}/${id}`;

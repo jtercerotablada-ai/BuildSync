@@ -20,6 +20,7 @@ import {
   firmTodayDateOnly,
 } from "@/lib/project-number";
 import { isStatusEarned } from "@/lib/project-status";
+import { regulatoryFields, toDeadline } from "@/lib/regulatory-schema";
 
 /**
  * What the "N tasks" count on a project card means: top-level tasks the caller
@@ -50,6 +51,9 @@ const createProjectSchema = z.object({
   budget: z.number().optional(),
   currency: z.string().optional(),
   clientName: z.string().optional(),
+  // Jurisdiction, reference numbers, regulatory deadline and client contact.
+  // Shared with the PATCH schema so the two cannot drift.
+  ...regulatoryFields,
   // Explicit initial sections — when provided (e.g. from a project
   // template gallery pick) we use these instead of the default
   // "To do / In progress / Done" so the kanban columns reflect the
@@ -233,7 +237,28 @@ export async function GET(req: Request) {
     const where: Prisma.ProjectWhereInput = {
       AND: [
         workspaceId ? { workspaceId } : {},
-        query ? { name: { contains: query, mode: "insensitive" } } : {},
+        // One search box over everything the firm types in to find a job:
+        // the name, the TT number, the client and the numbers the city asks
+        // for. Folio/permit numbers match AS TYPED (no normalized column).
+        query
+          ? {
+              OR: (
+                [
+                  "name",
+                  "projectNumber",
+                  "clientName",
+                  "jurisdiction",
+                  "folioNumber",
+                  "permitNumber",
+                  "caseNumber",
+                ] as const
+              ).map(
+                (field): Prisma.ProjectWhereInput => ({
+                  [field]: { contains: query, mode: "insensitive" },
+                })
+              ),
+            }
+          : {},
         archivedOnly
           ? { isArchived: true }
           : includeArchived
@@ -256,6 +281,14 @@ export async function GET(req: Request) {
           // ON_TRACK, so a summary row without this cannot tell a judgement
           // from a default and every card claimed "On track".
           statusSetAt: true,
+          // What the cockpit's deadline panel needs to decide whether a
+          // regulatory deadline is still live (src/lib/regulatory.ts).
+          type: true,
+          stage: true,
+          isArchived: true,
+          projectNumber: true,
+          jurisdiction: true,
+          regulatoryDeadline: true,
           // Counted with the caller's own visibility, not a bare
           // `tasks: true`. A relation count ignores privacy, so the card
           // said "3 tasks" to someone who could open one of them — the
@@ -363,6 +396,14 @@ export async function POST(req: Request) {
       budget,
       currency,
       clientName,
+      jurisdiction,
+      folioNumber,
+      permitNumber,
+      caseNumber,
+      regulatoryDeadline,
+      clientContactName,
+      clientContactEmail,
+      clientContactPhone,
       sections: explicitSections,
       tasks: explicitTasks,
       customFields: explicitCustomFields,
@@ -537,6 +578,14 @@ export async function POST(req: Request) {
             budget: budget ?? null,
             currency: currency ?? "USD",
             clientName: clientName ?? null,
+            jurisdiction: jurisdiction ?? null,
+            folioNumber: folioNumber ?? null,
+            permitNumber: permitNumber ?? null,
+            caseNumber: caseNumber ?? null,
+            regulatoryDeadline: toDeadline(regulatoryDeadline) ?? null,
+            clientContactName: clientContactName ?? null,
+            clientContactEmail: clientContactEmail ?? null,
+            clientContactPhone: clientContactPhone ?? null,
             projectNumber,
             members: {
               create: {

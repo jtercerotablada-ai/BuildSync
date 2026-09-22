@@ -47,6 +47,7 @@ import {
   isStageValidForType,
   nextStage,
   resolveStage,
+  stageDirection,
   type Stage,
 } from "@/lib/pipelines";
 
@@ -171,4 +172,76 @@ export function stageAdvanceDetail(offer: StageAdvanceOffer): string {
     return `${tasks}, all complete.`;
   }
   return `${tasks} in ${name}, all complete.`;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Deliverable stage offers
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * "You just asked for the PE's seal / issued the set to the city — move the
+ * job too?"
+ *
+ * Same vocabulary and the same guards as stageAdvanceOffer: the stage must be
+ * valid for the type, not terminal, and the target must exist in THIS
+ * pipeline. It only OFFERS — the Deliverables routes never write
+ * Project.stage or Project.gate; accepting goes through PATCH /stage.
+ *
+ * Multi-stage FORWARD jumps are offered on purpose (a recert in Report
+ * Drafting issued straight to the city skips Awaiting PE and Submitted to
+ * Client). The prompt names both stages so the skip is visible before it is
+ * accepted. A target at or behind the current stage is never offered.
+ */
+export type DeliverableStageEvent = "SEAL_REQUESTED" | "ISSUED";
+
+export interface DeliverableStageOfferInput {
+  type: ProjectType | null | undefined;
+  stage: string | null | undefined;
+  event: DeliverableStageEvent;
+  /** ISSUED only: who the revision went to. */
+  issuedToParty?: string | null;
+  /** canMoveStage(access) — the same predicate PATCH /stage enforces. */
+  canMoveStage: boolean;
+}
+
+export interface DeliverableStageOffer {
+  from: Stage;
+  to: Stage;
+}
+
+function deliverableTargetSlug(
+  event: DeliverableStageEvent,
+  issuedToParty: string | null | undefined
+): string | null {
+  if (event === "SEAL_REQUESTED") return "awaiting_pe";
+  if (issuedToParty === "CLIENT") return "submitted_to_client";
+  if (issuedToParty === "CITY") return "submitted_to_city";
+  return null;
+}
+
+export function deliverableStageOffer(
+  input: DeliverableStageOfferInput
+): DeliverableStageOffer | null {
+  if (!input.canMoveStage || !input.type) return null;
+  if (!isStageValidForType(input.type, input.stage)) return null;
+  const current = resolveStage(input.stage);
+  if (!current) return null;
+  // Terminal: nothing comes after Recertified / Permit Issued / Closed Out.
+  if (!nextStage(current.stage.key)) return null;
+
+  const slug = deliverableTargetSlug(input.event, input.issuedToParty);
+  if (!slug) return null;
+  const target = resolveStage(`${current.pipelineId}.${slug}`);
+  if (!target || target.pipelineId !== current.pipelineId) return null;
+  if (!isStageValidForType(input.type, target.stage.key)) return null;
+  // Strictly forward by pipeline order.
+  if (stageDirection(current.stage.key, target.stage.key) !== "FORWARD") return null;
+  if (target.index <= current.index) return null;
+
+  return { from: current.stage, to: target.stage };
+}
+
+/** "Move from Report Drafting to Submitted to City?" */
+export function deliverableStageOfferPrompt(offer: DeliverableStageOffer): string {
+  return `Move from ${offer.from.label} to ${offer.to.label}?`;
 }

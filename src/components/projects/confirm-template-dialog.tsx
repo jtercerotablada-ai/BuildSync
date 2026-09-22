@@ -41,6 +41,8 @@ import {
 import type { CustomProjectTemplate } from "@/lib/custom-templates";
 import { resolveStage } from "@/lib/pipelines";
 import { notifySidebarRefresh } from "@/lib/open-create-project";
+import { deadlineCopyFor } from "@/lib/regulatory";
+import { AhjDatalist } from "./ahj-datalist";
 
 interface ConfirmTemplateDialogProps {
   template: ProjectTemplate | null;
@@ -127,6 +129,11 @@ export function ConfirmTemplateDialog({
   const router = useRouter();
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
+  // Optional, typed templates only: who has jurisdiction and the one date the
+  // authority holds this job to. Reference numbers and the client contact are
+  // filled later from the Overview's Job info card.
+  const [jurisdiction, setJurisdiction] = useState("");
+  const [regulatoryDeadline, setRegulatoryDeadline] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const counts = useMemo(
@@ -155,6 +162,8 @@ export function ConfirmTemplateDialog({
   useEffect(() => {
     setName("");
     setStartDate("");
+    setJurisdiction("");
+    setRegulatoryDeadline("");
     setSubmitting(false);
   }, [template?.id]);
 
@@ -170,6 +179,8 @@ export function ConfirmTemplateDialog({
     ? template.workflowTemplateId
     : undefined;
   const stageLabel = resolveStage(startingStage(template))?.stage.label;
+  const templateType = template.defaults.type ?? null;
+  const deadlineCopy = deadlineCopyFor(templateType);
 
   async function handleCreate() {
     if (!template) return;
@@ -182,6 +193,9 @@ export function ConfirmTemplateDialog({
     setSubmitting(true);
     try {
       const start = startDate ? dateOnly(startDate) : null;
+      const deadline =
+        templateType && regulatoryDeadline ? dateOnly(regulatoryDeadline) : null;
+      const ahj = templateType ? jurisdiction.trim() : "";
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -198,6 +212,8 @@ export function ConfirmTemplateDialog({
           // JOB, so the project opens with its description empty instead of
           // with the template's pitch pasted into its Overview.
           ...(start ? { startDate: start } : {}),
+          ...(ahj ? { jurisdiction: ahj } : {}),
+          ...(deadline ? { regulatoryDeadline: deadline } : {}),
           ...(teamId ? { teamId } : {}),
         }),
       });
@@ -280,7 +296,7 @@ export function ConfirmTemplateDialog({
 
   return (
     <Dialog open={!!template} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[460px] p-0 overflow-hidden">
+      <DialogContent className="max-w-[460px] p-0 overflow-x-hidden overflow-y-auto max-h-[90vh]">
         <DialogTitle className="sr-only">Use template — {template.name}</DialogTitle>
         <div
           className={cn(
@@ -347,6 +363,51 @@ export function ConfirmTemplateDialog({
               <p className="mt-1 text-[11px] text-gray-400">
                 Due dates are offset from this day. Leave it empty to start
                 today.
+              </p>
+            </div>
+          )}
+
+          {templateType && (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label
+                  htmlFor="template-jurisdiction"
+                  className="block text-[12px] font-medium text-gray-700 mb-1.5"
+                >
+                  Jurisdiction{" "}
+                  <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="template-jurisdiction"
+                  type="text"
+                  list="template-ahj-options"
+                  maxLength={120}
+                  autoComplete="off"
+                  value={jurisdiction}
+                  onChange={(e) => setJurisdiction(e.target.value)}
+                  placeholder="e.g., City of Hialeah"
+                  className="w-full h-9 px-3 text-[13px] border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-black/10 placeholder:text-gray-400"
+                />
+                <AhjDatalist id="template-ahj-options" />
+              </div>
+              <div>
+                <label
+                  htmlFor="template-deadline"
+                  className="block text-[12px] font-medium text-gray-700 mb-1.5"
+                >
+                  {deadlineCopy.label}{" "}
+                  <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="template-deadline"
+                  type="date"
+                  value={regulatoryDeadline}
+                  onChange={(e) => setRegulatoryDeadline(e.target.value)}
+                  className="w-full h-9 px-3 text-[13px] border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-black/10"
+                />
+              </div>
+              <p className="sm:col-span-2 -mt-1 text-[11px] text-gray-400">
+                {deadlineCopy.help}
               </p>
             </div>
           )}
