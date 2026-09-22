@@ -12,8 +12,11 @@
  *
  *   1. `prewarmEmojiData()` fires a background request to the CDN as
  *      soon as the trigger mounts, so the data is already in the
- *      browser's HTTP cache (and frimousse's localStorage) by the time
- *      the user actually clicks. It only runs once per session.
+ *      browser's HTTP cache by the time the user actually clicks. It
+ *      must request the exact URLs frimousse will fetch, so the picker
+ *      is handed the same base via `emojibaseUrl`. frimousse fills its
+ *      own localStorage after its first fetch; once that exists the
+ *      prewarm is skipped. It only runs once per session.
  *   2. We override the default shadcn popover animation (zoom + slide)
  *      with a 100 ms fade — the heavy spring felt "stuck" against the
  *      picker content settling. Matches Asana's snappier vibe.
@@ -29,17 +32,25 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-const CDN = "https://cdn.jsdelivr.net/npm/emojibase-data";
+// Shared with EmojiPicker.Root below: the prewarm only helps if both hit
+// the same URL (frimousse's own default is the `@latest` path).
+const EMOJIBASE_URL = "https://cdn.jsdelivr.net/npm/emojibase-data@latest";
 
 let prewarmed = false;
 function prewarmEmojiData(locale = "en") {
   if (typeof window === "undefined" || prewarmed) return;
   prewarmed = true;
+  // frimousse already has the dataset cached locally — nothing to warm.
+  try {
+    if (window.localStorage.getItem(`frimousse/data/${locale}`)) return;
+  } catch {
+    // Storage blocked (private mode etc.) — fall through to the fetch.
+  }
   // No-await — fire and forget. Two parallel fetches because frimousse
   // pulls both data.json and messages.json on first open.
   Promise.all([
-    fetch(`${CDN}/${locale}/data.json`, { cache: "force-cache" }).catch(() => {}),
-    fetch(`${CDN}/${locale}/messages.json`, { cache: "force-cache" }).catch(() => {}),
+    fetch(`${EMOJIBASE_URL}/${locale}/data.json`, { cache: "force-cache" }).catch(() => {}),
+    fetch(`${EMOJIBASE_URL}/${locale}/messages.json`, { cache: "force-cache" }).catch(() => {}),
   ]);
 }
 
@@ -87,6 +98,7 @@ export function EmojiPickerPopover({
       >
         <EmojiPicker.Root
           className="isolate flex h-[400px] w-full flex-col bg-white"
+          emojibaseUrl={EMOJIBASE_URL}
           onEmojiSelect={({ emoji }) => {
             onSelect(emoji);
             setOpen(false);

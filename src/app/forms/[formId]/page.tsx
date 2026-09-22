@@ -29,14 +29,19 @@ import {
   type PublicFormRow,
   isFieldVisible,
 } from "@/lib/form-types";
+import {
+  PUBLIC_UPLOAD_MAX_BYTES,
+  PUBLIC_UPLOAD_MAX_FILES,
+} from "@/lib/storage";
+import { uploadDirect, responseError } from "@/lib/direct-upload";
 
 /**
  * Public form submission page. Anyone with the URL can fill it (or
  * any workspace member, depending on form.visibility).
  *
  * Renders ALL 10 field types defined in lib/form-types.ts, runs
- * branching logic in real time, uploads ATTACHMENT files as part of
- * the submit multipart payload, and respects ?embed=1 (strips chrome
+ * branching logic in real time, uploads ATTACHMENT files straight to blob
+ * storage at submit time (then posts their urls), and respects ?embed=1 (strips chrome
  * for iframe embedding on external sites).
  */
 
@@ -45,10 +50,11 @@ import {
  *  (typical RFI: marked-up drawing + 2-3 site photos). */
 type LocalAttachment = { file: File; previewUrl: string };
 
-/** Per-file ceiling enforced by lib/storage.ts on the server. Mirrored
- *  here so an oversized file is caught at pick time, not after the
- *  submitter has filled in the whole form and waited out the upload. */
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+/** Per-file ceiling the upload token and the submit route enforce
+ *  (lib/storage.ts). Mirrored here so an oversized file is caught at pick
+ *  time, not after the submitter has filled in the whole form. */
+const MAX_ATTACHMENT_BYTES = PUBLIC_UPLOAD_MAX_BYTES;
+const MAX_ATTACHMENT_LABEL = `${Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024))}MB`;
 
 /** Same shape the browser's own type=email check enforced before this form
  *  went noValidate. Deliberately loose — we only reject addresses that can
@@ -74,6 +80,10 @@ export default function PublicFormPage() {
   const [form, setForm] = useState<PublicFormRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // An ORGANIZATION form answers 401 to a signed-out visitor. /forms/ is a
+  // public route, so nothing else sends them to the login page — the error
+  // card has to offer it or the link dead-ends on a phone with no session.
+  const [needsSignIn, setNeedsSignIn] = useState(false);
 
   const [answers, setAnswers] = useState<FormSubmissionPayload>({});
   const [attachments, setAttachments] = useState<
@@ -100,9 +110,11 @@ export default function PublicFormPage() {
     (async () => {
       setLoading(true);
       setLoadError(null);
+      setNeedsSignIn(false);
       try {
         const res = await fetch(`/api/forms/${formId}`);
         if (!res.ok) {
+          if (res.status === 401 && !canceled) setNeedsSignIn(true);
           const body = await res.json().catch(() => null);
           throw new Error(
             body?.error ||
@@ -199,8 +211,8 @@ export default function PublicFormPage() {
     if (tooBig.length > 0) {
       toast.error(
         tooBig.length === 1
-          ? `${tooBig[0].name} exceeds the 10MB limit`
-          : `${tooBig.length} files exceed the 10MB limit and weren't added`
+          ? `${tooBig[0].name} exceeds the ${MAX_ATTACHMENT_LABEL} limit`
+          : `${tooBig.length} files exceed the ${MAX_ATTACHMENT_LABEL} limit and weren't added`
       );
     }
     const accepted = picked.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
@@ -296,35 +308,42 @@ export default function PublicFormPage() {
     setFieldErrors({});
     setSubmitting(true);
     try {
-      // If any attachments are pending, send multipart; otherwise
-      // plain JSON keeps the wire smaller.
-      const hasAttachments = Object.keys(attachments).length > 0;
-      let res: Response;
-      if (hasAttachments) {
-        const fd = new FormData();
-        fd.append("answers", JSON.stringify(answers));
-        // Each file goes under the same key `attachment:<fieldId>`
-        // — the server uses formData.getAll() to collect them all.
-        for (const [fieldId, list] of Object.entries(attachments)) {
-          for (const att of list) {
-            fd.append(`attachment:${fieldId}`, att.file, att.file.name);
+      // Files go from the browser straight to blob storage first — a
+      // function refuses a request body over ~4.5MB, which two phone photos
+      // already clear — and the submission carries only their urls.
+      const fileTotal = Object.values(attachments).reduce(
+        (n, list) => n + list.length,
+        0
+      );
+      if (fileTotal > PUBLIC_UPLOAD_MAX_FILES) {
+        throw new Error(
+          `Attach at most ${PUBLIC_UPLOAD_MAX_FILES} files per submission.`
+        );
+      }
+      const uploads: Record<string, { blobUrl: string; name: string }[]> = {};
+      for (const [fieldId, list] of Object.entries(attachments)) {
+        for (const att of list) {
+          try {
+            const { url } = await uploadDirect(att.file, {
+              kind: "form-attachment",
+              formId: form.id,
+            });
+            (uploads[fieldId] ??= []).push({ blobUrl: url, name: att.file.name });
+          } catch (err) {
+            throw new Error(
+              `${att.file.name}: ${err instanceof Error ? err.message : "upload failed"}`
+            );
           }
         }
-        res = await fetch(`/api/forms/${form.id}/submit`, {
-          method: "POST",
-          body: fd,
-        });
-      } else {
-        res = await fetch(`/api/forms/${form.id}/submit`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ answers }),
-        });
       }
+      const res = await fetch(`/api/forms/${form.id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers, uploads }),
+      });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Submission failed");
+        throw new Error(await responseError(res, "Submission failed"));
       }
       const body = await res.json().catch(() => null);
       setConfirmationText(
@@ -364,9 +383,23 @@ export default function PublicFormPage() {
             Form unavailable
           </h1>
           <p className="text-sm text-slate-500">
-            {loadError ||
-              "We couldn't load this form. Double-check the link or contact the project owner."}
+            {needsSignIn
+              ? "This form is only for members of the organization. Sign in with your workspace account to open it."
+              : loadError ||
+                "We couldn't load this form. Double-check the link or contact the project owner."}
           </p>
+          {needsSignIn && formId && (
+            <Button asChild className="mt-5">
+              <a
+                href={`/login?callbackUrl=${encodeURIComponent(
+                  `/forms/${formId}${isEmbed ? "?embed=1" : ""}`
+                )}`}
+                target={isEmbed ? "_top" : undefined}
+              >
+                Sign in to continue
+              </a>
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -478,6 +511,19 @@ export default function PublicFormPage() {
       )}
     >
       <div className="max-w-2xl mx-auto">
+        {form.settings?.coverImageUrl && (
+          // Staff-set image from the builder's Cover option; any https URL,
+          // so a plain <img> rather than next/image's host allowlist.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={form.settings.coverImageUrl}
+            alt=""
+            className={cn(
+              "w-full object-cover rounded-lg border mb-6",
+              isEmbed ? "h-28" : "h-40 sm:h-52"
+            )}
+          />
+        )}
         {!isEmbed && (
           <header className="text-center mb-6">
             <h1 className="text-2xl font-semibold text-slate-900">

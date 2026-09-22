@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { uploadDirect, responseError } from "@/lib/direct-upload";
 
 // ============================================
 // TYPES
@@ -110,8 +111,8 @@ function getFileType(mimeType: string): FileType {
 /**
  * Where a tile's BYTES come from.
  *
- * Uploads are private blobs, so the url on the row is an address only the
- * server can fetch — following it from the browser gets nothing. Each file is
+ * The url on the row is a storage address that is never handed out (a private
+ * blob, or an unguessable public one that must not leak). Each file is
  * read back through the route that re-runs its owning record's access rule,
  * and which route that is depends on what the file hangs off: task
  * attachments and key resources have record types on /api/files, while a
@@ -255,21 +256,32 @@ export function FilesView({ projectId }: FilesViewProps) {
     setUploading(true);
     try {
       for (const f of chosen) {
-        const fd = new FormData();
-        fd.append("file", f);
-        const res = await fetch(`/api/projects/${projectId}/resources`, {
-          method: "POST",
-          body: fd,
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          // Show the server's reason — a read-only member, an oversized file
-          // and a rejected type are all different problems.
-          toast.error(data?.error || `${f.name}: upload failed`);
-          continue;
+        // Browser → blob storage, then a small JSON call records the row: a
+        // function refuses a request body over ~4.5MB, which a drawing set
+        // clears easily.
+        try {
+          const { url } = await uploadDirect(f, {
+            kind: "project-resource",
+            projectId,
+          });
+          const res = await fetch(`/api/projects/${projectId}/resources`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "FILE", blobUrl: url, name: f.name }),
+          });
+          if (!res.ok) {
+            // Show the server's reason — a read-only member, an oversized file
+            // and a rejected type are all different problems.
+            throw new Error(await responseError(res, "upload failed"));
+          }
+          const data = await res.json();
+          setFiles((prev) => [resourceToFile(data as ResourceRow), ...prev]);
+          toast.success(`${f.name} uploaded`);
+        } catch (err) {
+          toast.error(
+            `${f.name}: ${err instanceof Error ? err.message : "upload failed"}`
+          );
         }
-        setFiles((prev) => [resourceToFile(data as ResourceRow), ...prev]);
-        toast.success(`${f.name} uploaded`);
       }
     } finally {
       setUploading(false);

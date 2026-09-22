@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canPostInPortfolio,
   canPostInProject,
@@ -24,11 +24,11 @@ import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
  * is not called here. What IS reachable, and is where the whole decision
  * actually lives, are the three pure predicates it composes — one per parent a
  * Message can hang from (project / portfolio / workspace announcement) — plus
- * `resolveProjectAccess`, which is DB-free for exactly the callers that matter
- * most: the project OWNER and anyone holding an explicit ProjectMember row.
- * No test below opens a connection (DATABASE_URL points at PRODUCTION and is
- * blanked by vitest.config.ts; a stray query would fail loudly, not quietly
- * succeed against live data).
+ * `resolveProjectAccess`, whose one lookup (the caller's seat in the project's
+ * workspace) is served by the in-memory seat table below. No test opens a
+ * connection (DATABASE_URL points at PRODUCTION and is blanked by
+ * vitest.config.ts; a stray query would fail loudly, not quietly succeed
+ * against live data).
  *
  * Two personas run through all of it:
  *   OWNER  — runs the firm's workspace, is NOT a member of every project.
@@ -40,13 +40,32 @@ const WS_FIRM = "ws_firm";
 const OWNER = "user_owner";
 const MEMBER = "user_member";
 
+const db = vi.hoisted(() => ({ seats: new Map<string, string>() }));
+vi.mock("@/lib/prisma", () => ({
+  default: {
+    workspaceMember: {
+      findUnique: async ({
+        where,
+      }: {
+        where: { userId_workspaceId: { userId: string; workspaceId: string } };
+      }) => {
+        const { userId, workspaceId } = where.userId_workspaceId;
+        const role = db.seats.get(`${userId}@${workspaceId}`);
+        return role ? { role, user: { position: null } } : null;
+      },
+    },
+    project: { findUnique: async () => null },
+    teamMember: { findFirst: async () => null },
+  },
+}));
+
+beforeEach(() => {
+  db.seats.clear();
+});
+
 type ProjectFixture = Parameters<typeof resolveProjectAccess>[0];
 
-/**
- * A project inside the firm's workspace. Members are given explicitly so that
- * every caller in these tests is either the owner or a member — the two paths
- * `resolveProjectAccess` resolves without touching the database.
- */
+/** A project inside the firm's workspace, with explicit members. */
 function project(
   members: { userId: string; role: string }[],
   overrides: Partial<ProjectFixture> = {}
@@ -131,19 +150,36 @@ describe("project channel — a read-only colleague cannot post", () => {
     }
   );
 
-  it("an explicit VIEWER row silences even the person who owns the workspace", async () => {
-    // Real, deliberate behaviour worth pinning: an explicit ProjectMember row
-    // short-circuits the workspace-role lookup entirely, so the OWNER persona
-    // who was deliberately restricted to VIEWER on one project does NOT get
-    // their leadership override back. Restricting someone means restricting
-    // them. If this ever flips, workspace leadership silently outranks an
-    // explicit restriction.
+  it("an explicit VIEWER row does not silence the person who owns the workspace", async () => {
+    // Workspace OWNER/ADMIN read, write, comment and manage every project in
+    // their workspace whether or not they also hold a member row (owner
+    // decision, 2026-09-21): adding the owner to a project as a VIEWER to get
+    // its notifications must not take his voice away there.
+    db.seats.set(`${OWNER}@${WS_FIRM}`, "OWNER");
     const access = await resolveProjectAccess(
       project([{ userId: OWNER, role: "VIEWER" }], { ownerId: "user_other" }),
       OWNER
     );
-    expect(access.isWorkspaceManager).toBe(false);
-    expect(canPostInProject(access)).toBe(false);
+    expect(access.isWorkspaceManager).toBe(true);
+    expect(canPostInProject(access)).toBe(true);
+  });
+
+  it("a VIEWER who is an ordinary staff member stays silent", async () => {
+    db.seats.set(`${MEMBER}@${WS_FIRM}`, "MEMBER");
+    expect(
+      await mayPost(
+        project([{ userId: MEMBER, role: "VIEWER" }], { visibility: "WORKSPACE" }),
+        MEMBER
+      )
+    ).toBe(false);
+  });
+
+  it("a staff member with no row may post in a WORKSPACE project", async () => {
+    // WORKSPACE visibility is an Editor-level grant for every contributor.
+    db.seats.set(`${MEMBER}@${WS_FIRM}`, "MEMBER");
+    expect(
+      await mayPost(project([], { visibility: "WORKSPACE" }), MEMBER)
+    ).toBe(true);
   });
 });
 
@@ -191,7 +227,13 @@ describe("canPostInProject — the composed rule", () => {
       ),
       "utf8"
     );
-    expect(route).toMatch(/canComment\s*\|\|\s*access\.access\.isWorkspaceManager/);
+    // Either the named predicate or its inline spelling, inside POST itself
+    // (GET already calls canPostInProject for the composer flag).
+    const post = route.slice(route.indexOf("export async function POST"));
+    expect(post.length).toBeLessThan(route.length);
+    expect(post).toMatch(
+      /canPostInProject\(\s*access\.access\s*\)|canComment\s*\|\|\s*access\.access\.isWorkspaceManager/
+    );
   });
 });
 
@@ -223,6 +265,23 @@ describe("portfolio channel — a VIEWER reads, an EDITOR speaks", () => {
     expect(canPostInPortfolio({ isOwner: false, memberRole: null })).toBe(false);
     expect(
       canPostInPortfolio({ isOwner: false, memberRole: undefined })
+    ).toBe(false);
+  });
+
+  it("a workspace OWNER/ADMIN can post without a portfolio role", () => {
+    expect(
+      canPostInPortfolio({
+        isOwner: false,
+        memberRole: null,
+        isWorkspaceManager: true,
+      })
+    ).toBe(true);
+    expect(
+      canPostInPortfolio({
+        isOwner: false,
+        memberRole: "VIEWER",
+        isWorkspaceManager: false,
+      })
     ).toBe(false);
   });
 

@@ -28,7 +28,8 @@ export async function POST(
     const originalTask = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        subtasks: true,
+        subtasks: { orderBy: { position: "asc" } },
+        collaborators: { select: { userId: true } },
       },
     });
 
@@ -36,83 +37,138 @@ export async function POST(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    // Get the max position in the same section/project
-    const maxPosition = await prisma.task.aggregate({
-      where: {
-        projectId: originalTask.projectId,
-        sectionId: originalTask.sectionId,
-        parentTaskId: null,
-      },
-      _max: {
-        position: true,
-      },
-    });
+    // A private task's copy must stay private — the flag defaulted to false,
+    // so "Copy of <confidential note>" landed on the board for the whole
+    // project. The copy's audience is the original's: a private task is seen
+    // only by its creator, assignee and followers, so the copy keeps all three
+    // (the same rule project duplication applies). Otherwise whoever clicked
+    // Duplicate would become the only creator and the original's author and
+    // assignee would be locked out of the copy. The caller rides along as a
+    // follower so they can still open what they just made.
+    const isPrivate = originalTask.isPrivate;
 
-    // Create the duplicated task
-    const duplicatedTask = await prisma.task.create({
-      data: {
-        name: `Copy of ${originalTask.name}`,
-        description: originalTask.description,
-        completed: false,
-        startDate: originalTask.startDate,
-        dueDate: originalTask.dueDate,
-        priority: originalTask.priority,
-        taskStatus: originalTask.taskStatus,
-        taskType: originalTask.taskType,
-        position: (maxPosition._max.position ?? 0) + 1,
-        projectId: originalTask.projectId,
-        sectionId: originalTask.sectionId,
-        creatorId: userId,
-        // Don't copy assignee - let user assign manually
-      },
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-          },
-        },
-        section: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
+    // A projectless task lives only in its assignee's My Tasks, so an
+    // unassigned projectless copy showed up in no view at all. Give it to the
+    // caller, the same rule POST /api/tasks applies to a My Tasks quick-add.
+    // Project tasks still leave the assignee for the user to choose.
+    const defaultAssigneeId = originalTask.projectId ? null : userId;
+    const assigneeId = isPrivate
+      ? originalTask.assigneeId ?? defaultAssigneeId
+      : defaultAssigneeId;
+    const creatorId = isPrivate ? originalTask.creatorId ?? userId : userId;
+    const collaboratorIds = isPrivate
+      ? [
+          ...new Set([
+            ...originalTask.collaborators.map((c) => c.userId),
+            userId,
+          ]),
+        ].filter((uid) => uid !== creatorId && uid !== assigneeId)
+      : [];
 
-    // Duplicate subtasks if any
-    if (originalTask.subtasks.length > 0) {
-      await prisma.task.createMany({
-        data: originalTask.subtasks.map((subtask, index) => ({
-          name: subtask.name,
-          description: subtask.description,
+    const duplicatedTask = await prisma.$transaction(async (tx) => {
+      // A duplicated subtask is a sibling under the same parent, so its
+      // position is counted among those siblings rather than the column's
+      // top-level tasks.
+      const maxPosition = await tx.task.aggregate({
+        where: originalTask.parentTaskId
+          ? { parentTaskId: originalTask.parentTaskId }
+          : {
+              projectId: originalTask.projectId,
+              sectionId: originalTask.sectionId,
+              parentTaskId: null,
+            },
+        _max: {
+          position: true,
+        },
+      });
+
+      const created = await tx.task.create({
+        data: {
+          name: `Copy of ${originalTask.name}`,
+          description: originalTask.description,
           completed: false,
-          position: index,
-          parentTaskId: duplicatedTask.id,
+          startDate: originalTask.startDate,
+          dueDate: originalTask.dueDate,
+          priority: originalTask.priority,
+          taskStatus: originalTask.taskStatus,
+          taskType: originalTask.taskType,
+          isPrivate,
+          myTaskSection: originalTask.myTaskSection,
+          position: (maxPosition._max.position ?? 0) + 1,
           projectId: originalTask.projectId,
           sectionId: originalTask.sectionId,
-          creatorId: userId,
-        })),
+          parentTaskId: originalTask.parentTaskId,
+          assigneeId,
+          creatorId,
+        },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+          section: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
-    }
+
+      if (collaboratorIds.length > 0) {
+        await tx.taskCollaborator.createMany({
+          data: collaboratorIds.map((uid) => ({ taskId: created.id, userId: uid })),
+          skipDuplicates: true,
+        });
+      }
+
+      // Duplicate subtasks in the same transaction, so a failure never leaves
+      // a copy that silently lost its checklist.
+      if (originalTask.subtasks.length > 0) {
+        await tx.task.createMany({
+          data: originalTask.subtasks.map((subtask, index) => ({
+            name: subtask.name,
+            description: subtask.description,
+            completed: false,
+            startDate: subtask.startDate,
+            dueDate: subtask.dueDate,
+            priority: subtask.priority,
+            taskType: subtask.taskType,
+            isPrivate: subtask.isPrivate,
+            position: index,
+            parentTaskId: created.id,
+            projectId: originalTask.projectId,
+            sectionId: originalTask.sectionId,
+            // A private subtask keeps its own audience, like the parent copy.
+            assigneeId: subtask.isPrivate
+              ? subtask.assigneeId ?? assigneeId
+              : assigneeId,
+            creatorId: subtask.isPrivate ? subtask.creatorId ?? creatorId : userId,
+          })),
+        });
+      }
+
+      return created;
+    });
 
     // Create activity log
     await prisma.activity.create({

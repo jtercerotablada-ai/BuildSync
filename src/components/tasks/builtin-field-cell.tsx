@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EditablePriorityCell } from "@/components/tasks/editable-priority-cell";
 import { EditableTagsCell } from "@/components/tasks/editable-tags-cell";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 
 interface TaskRefMin {
   id: string;
@@ -45,10 +46,18 @@ interface TaskForBuiltins {
   _count?: { likes?: number };
 }
 
-function formatShortDate(iso: string | null | undefined): string | null {
+/** `dateOnly` is for stored calendar days (startDate), which arrive as UTC
+ *  midnight: read with local getters they print the day BEFORE west of UTC,
+ *  so they are rebuilt as local midnight of their UTC day first. Real
+ *  timestamps (created/updated/completed) are formatted as-is. */
+function formatShortDate(
+  iso: string | null | undefined,
+  dateOnly = false
+): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
+  const raw = new Date(iso);
+  if (Number.isNaN(raw.getTime())) return null;
+  const d = dateOnly ? dueDateToLocalMidnight(raw) : raw;
   const now = new Date();
   const sameYear = d.getFullYear() === now.getFullYear();
   return d.toLocaleDateString("en-US", {
@@ -72,9 +81,13 @@ export function BuiltinFieldCell({
   builtinId,
   task,
   onPatchTask,
+  readOnly = false,
 }: {
   builtinId: string;
   task: TaskForBuiltins;
+  /** No write access: Priority and Tags render as plain values instead of
+   *  editors whose every save would be refused. */
+  readOnly?: boolean;
   /** Optimistic update hook — parent passes a function that splices
    *  the task in its in-memory list so the cell reflects the change
    *  immediately. Optional: when omitted, the cell still saves but
@@ -83,6 +96,9 @@ export function BuiltinFieldCell({
 }) {
   switch (builtinId) {
     case "priority": {
+      if (readOnly) {
+        return <BuiltinFieldCell builtinId="_priority_static" task={task} />;
+      }
       return (
         <EditablePriorityCell
           taskId={task.id}
@@ -120,7 +136,7 @@ export function BuiltinFieldCell({
       return <span className="text-[13px] text-slate-600">{s}</span>;
     }
     case "start_date": {
-      const s = formatShortDate(task.startDate);
+      const s = formatShortDate(task.startDate, true);
       if (!s) return null;
       return <span className="text-[13px] text-slate-600">{s}</span>;
     }
@@ -194,6 +210,34 @@ export function BuiltinFieldCell({
       );
     }
     case "tags": {
+      if (readOnly) {
+        const tags = task.taskTags || [];
+        if (tags.length === 0) return null;
+        return (
+          <span
+            className="flex items-center gap-1 min-w-0"
+            title={tags.map((t) => t.tag.name).join(", ")}
+          >
+            {tags.slice(0, 2).map((t) => (
+              <span
+                key={t.tag.id}
+                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium truncate max-w-[80px]"
+                style={{
+                  backgroundColor: `${t.tag.color}1a`,
+                  color: t.tag.color,
+                }}
+              >
+                {t.tag.name}
+              </span>
+            ))}
+            {tags.length > 2 && (
+              <span className="text-[11px] text-slate-400 tabular-nums">
+                +{tags.length - 2}
+              </span>
+            )}
+          </span>
+        );
+      }
       return (
         <EditableTagsCell
           taskId={task.id}

@@ -18,10 +18,10 @@ import { parseContactAttachments } from "@/lib/contact-attachments";
 /**
  * GET /api/files/:recordType/:recordId
  *
- * The one door to an uploaded file's BYTES. Uploads are private blobs now, so
- * the URL stored on the row is not a link anyone can follow — this route
- * resolves the row, re-runs the owning record's own access rule, and only then
- * streams the content.
+ * The one door to an uploaded file's BYTES. The URL stored on the row is never
+ * handed out as a link — this route resolves the row, re-runs the owning
+ * record's own access rule, and only then streams the content (private blob)
+ * or redirects to it (public blob, see below).
  *
  *   attachment -> Attachment      (task attachment, or a comment's attachment)
  *   file       -> File            (the project Files tab)
@@ -208,13 +208,14 @@ export async function GET(
       });
     }
 
-    // ── LEGACY PUBLIC BLOBS — DO NOT DELETE ──────────────────────────────
-    // Everything uploaded before storage.ts switched to `access: "private"`
-    // is a PUBLIC blob, and its public URL is the only address we have for
-    // it: Vercel Blob has no operation that flips an existing blob's access,
-    // so those files cannot be retrofitted. Without this branch every file
-    // the firm uploaded up to now stops opening. New uploads never reach it —
-    // they take the private branch above.
+    // ── PUBLIC BLOBS — DO NOT DELETE ─────────────────────────────────────
+    // Legacy uploads, and every upload while SAAS_BLOB_ACCESS (storage.ts)
+    // is "public" — the firm's store refuses private writes — are PUBLIC
+    // blobs whose url is the only address we have: Vercel Blob has no
+    // operation that flips an existing blob's access. The owning record's
+    // rule has just passed, so the caller gets the bytes' address. Only a
+    // url of OUR store is followed; anything else would make this route an
+    // open redirect to a host someone else controls.
     if (!isVercelBlobUrl(record.url)) return notFound();
     // Carry `?download=1` across the hop. `<a download>` is ignored once a
     // navigation crosses origins, so dropping the parameter here is what made

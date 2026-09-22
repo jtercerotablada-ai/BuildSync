@@ -3,20 +3,8 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { resolveAllowedPortfolioMentionUserIds } from "@/lib/mentions";
-
-/**
- * Edit capability for a portfolio: the owner or a member whose role is
- * OWNER/EDITOR. VIEWERs (and public read-only viewers) cannot post.
- */
-function canEditPortfolio(
-  portfolio: { ownerId: string | null },
-  member: { role: string } | null,
-  userId: string
-): boolean {
-  if (portfolio.ownerId === userId) return true;
-  if (!member) return false;
-  return member.role === "OWNER" || member.role === "EDITOR";
-}
+import { shouldNotify } from "@/lib/notification-prefs";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 /**
  * GET /api/portfolios/:portfolioId/messages
@@ -62,18 +50,74 @@ async function assertPortfolioAccess(portfolioId: string, userId: string) {
       userId_workspaceId: { userId, workspaceId: portfolio.workspaceId },
     },
   });
+  if (!wsMember) return { ok: false as const, status: 404 };
+
+  // Same rule as decidePortfolioAccess in ../route.ts: WORKSPACE opens the
+  // portfolio to every contributor, and workspace OWNER/ADMIN see every
+  // portfolio. Posting is an edit: owner, member OWNER/EDITOR or workspace
+  // manager — VIEWERs and people let in by privacy alone read only.
+  const isContributor = !isNonContributorRole(wsMember.role);
+  const isWorkspaceManager =
+    wsMember.role === "OWNER" || wsMember.role === "ADMIN";
   const allowed =
-    !!wsMember && (isOwner || isMember || portfolio.privacy === "PUBLIC");
+    isOwner ||
+    isMember ||
+    isWorkspaceManager ||
+    portfolio.privacy === "PUBLIC" ||
+    (portfolio.privacy === "WORKSPACE" && isContributor);
+  if (!allowed) return { ok: false as const, status: 404 };
 
-  if (allowed) {
-    return { ok: true as const, portfolio, member };
-  }
+  const canPost =
+    isContributor &&
+    (isOwner ||
+      isWorkspaceManager ||
+      member?.role === "OWNER" ||
+      member?.role === "EDITOR");
+  return { ok: true as const, portfolio, member, canPost };
+}
 
-  return { ok: false as const, status: 404 };
+const MAX_AUDIENCE = 200;
+
+/**
+ * Everyone who can READ the portfolio — the people an @mention can reach.
+ * Same rule as resolveAllowedPortfolioMentionUserIds (the write path): the
+ * owner and members with a seat, workspace OWNER/ADMIN, everyone on PUBLIC,
+ * every contributor on WORKSPACE.
+ */
+async function loadMentionAudience(portfolio: {
+  ownerId: string | null;
+  privacy: string;
+  workspaceId: string;
+  members: { userId: string }[];
+}) {
+  const explicit = new Set<string>(portfolio.members.map((m) => m.userId));
+  if (portfolio.ownerId) explicit.add(portfolio.ownerId);
+  const seats = await prisma.workspaceMember.findMany({
+    where: { workspaceId: portfolio.workspaceId },
+    select: { userId: true, role: true },
+    orderBy: { joinedAt: "asc" },
+  });
+  const readerIds = seats
+    .filter(
+      (wm) =>
+        explicit.has(wm.userId) ||
+        wm.role === "OWNER" ||
+        wm.role === "ADMIN" ||
+        portfolio.privacy === "PUBLIC" ||
+        (portfolio.privacy === "WORKSPACE" && !isNonContributorRole(wm.role))
+    )
+    .map((wm) => wm.userId)
+    .slice(0, MAX_AUDIENCE);
+  const users = await prisma.user.findMany({
+    where: { id: { in: readerIds } },
+    select: { id: true, name: true, email: true, image: true, jobTitle: true },
+    orderBy: { name: "asc" },
+  });
+  return users.map((user) => ({ user }));
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ portfolioId: string }> }
 ) {
   try {
@@ -90,6 +134,19 @@ export async function GET(
         { status: access.status }
       );
     }
+
+    // `?audience=1` answers what the caller may do in this channel and who
+    // they can @mention, instead of the feed (same contract as the project
+    // messages route).
+    if (new URL(req.url).searchParams.get("audience") === "1") {
+      return NextResponse.json({
+        canPost: access.canPost,
+        people: await loadMentionAudience(access.portfolio),
+      });
+    }
+    // Moderation (pin, delete anyone's message) is the same set that may
+    // post — see canPostInPortfolio in message-access.ts.
+    const canModerate = access.canPost;
 
     // Root messages only — replies live under their parent and are
     // fetched on demand via /api/messages/:id/replies when a thread
@@ -175,11 +232,15 @@ export async function GET(
         reactions: Object.values(reactionsByEmoji).sort(
           (a, b) => b.count - a.count
         ),
+        // The stored url is a storage address; hand out the authenticated
+        // read door instead, which re-checks this portfolio's access rule.
         attachments: m.attachments.map((a) => ({
           ...a,
+          url: `/api/messages/${m.id}/attachments?file=${a.id}`,
           createdAt: a.createdAt.toISOString(),
         })),
         mine: m.author?.id === userId,
+        canDelete: m.author?.id === userId || canModerate,
         replyCount: m._count.replies,
         lastReplyAt: m.replies[0]?.createdAt.toISOString() ?? null,
         mentions: m.mentions.map((mn) => ({
@@ -220,7 +281,7 @@ export async function POST(
     }
 
     // Only editors and above may post — VIEWER/public access is read-only.
-    if (!canEditPortfolio(access.portfolio, access.member, userId)) {
+    if (!access.canPost) {
       return NextResponse.json(
         { error: "You don't have permission to post in this portfolio" },
         { status: 403 }
@@ -290,8 +351,13 @@ export async function POST(
           }));
 
           // Notify everyone mentioned except the author (pinging
-          // yourself is noise). Type MENTIONED so it lands in the inbox.
-          const recipients = allowed.filter((mid) => mid !== userId);
+          // yourself is noise) and anyone who turned mention
+          // notifications off. Type MENTIONED so it lands in the inbox.
+          const others = allowed.filter((mid) => mid !== userId);
+          const wants = await Promise.all(
+            others.map((mid) => shouldNotify(mid, "MENTIONED"))
+          );
+          const recipients = others.filter((_, i) => wants[i]);
           if (recipients.length > 0) {
             const authorName =
               created.author?.name || created.author?.email || "Someone";
@@ -329,6 +395,7 @@ export async function POST(
         reactions: [],
         attachments: [],
         mine: true,
+        canDelete: true,
         replyCount: 0,
         lastReplyAt: null,
         mentions: resolvedMentions,

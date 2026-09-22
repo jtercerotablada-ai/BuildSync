@@ -130,7 +130,7 @@ export async function PUT(req: Request) {
 
     const { id, term, definition, category, tags, incrementView } = await req.json();
 
-    if (!id) {
+    if (!id || typeof id !== "string") {
       return NextResponse.json({ error: "Entry ID required" }, { status: 400 });
     }
 
@@ -147,13 +147,19 @@ export async function PUT(req: Request) {
       throw new AuthorizationError("You don't have access to this knowledge entry");
     }
 
-    // If just incrementing view count
+    // Just counting a view. A raw UPDATE on purpose: Prisma's update() rewrites the @updatedAt
+    // column, so every view would make the entry look freshly edited, and the
+    // "updated" date is how staff judge whether a code note may be stale.
     if (incrementView) {
-      const entry = await prisma.knowledgeEntry.update({
-        where: { id },
-        data: { viewCount: { increment: 1 } },
-      });
-      return NextResponse.json(entry);
+      const rows = await prisma.$queryRaw<{ viewCount: number }[]>`
+        UPDATE "KnowledgeEntry"
+        SET "viewCount" = "viewCount" + 1
+        WHERE "id" = ${id}
+        RETURNING "viewCount"`;
+      if (!rows.length) {
+        throw new NotFoundError("Knowledge entry not found");
+      }
+      return NextResponse.json({ id, viewCount: rows[0].viewCount });
     }
 
     if (!term?.trim() || !definition?.trim()) {

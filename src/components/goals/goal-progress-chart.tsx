@@ -11,12 +11,18 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
+import { useToday } from "@/lib/use-today";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { goalPeriodRange } from "@/components/goals/views/types";
 
 interface GoalProgressChartProps {
   progress: number;
   period?: string;
-  startDate: string;
+  /** The goal's own start/due dates (date-only, stored at UTC midnight). */
+  startDate?: string;
   endDate?: string;
+  /** Last-resort start when neither a start date nor a period is set. */
+  createdAt: string;
 }
 
 export function GoalProgressChart({
@@ -24,13 +30,32 @@ export function GoalProgressChart({
   period,
   startDate,
   endDate,
+  createdAt,
 }: GoalProgressChartProps) {
+  // From the browser's clock after mount — never during a server render.
+  const today = useToday();
+
   const chartInfo = useMemo(() => {
-    const start = new Date(startDate);
-    const end = endDate
-      ? new Date(endDate)
-      : new Date(start.getFullYear(), start.getMonth() + 3, 0);
-    const today = new Date();
+    // The expected-pace line runs across the goal's window: its own dates
+    // when set, otherwise the period it belongs to ("Q4 FY26" = Oct 1 to
+    // Dec 31). It used to ignore the period and plot createdAt + 3 months,
+    // so an FY goal created in September was "due" at the end of November.
+    const periodRange = goalPeriodRange(period);
+    const start = startDate
+      ? dueDateToLocalMidnight(startDate)
+      : periodRange?.start ??
+        (() => {
+          const c = new Date(createdAt);
+          return new Date(c.getFullYear(), c.getMonth(), c.getDate());
+        })();
+    let end = endDate
+      ? dueDateToLocalMidnight(endDate)
+      : periodRange?.end ??
+        new Date(start.getFullYear(), start.getMonth() + 3, 0);
+    // A due date before the start leaves no window to draw.
+    if (end.getTime() <= start.getTime()) {
+      end = new Date(start.getFullYear(), start.getMonth() + 3, 0);
+    }
 
     const data = [];
     const totalDays = Math.ceil(
@@ -88,7 +113,7 @@ export function GoalProgressChart({
     // on an exact date match — the points are month-firsts, so an exact
     // match would only ever hit on the 1st.
     let todayIdx = -1;
-    if (today >= start && today <= end) {
+    if (today && today >= start && today <= end) {
       for (let i = 0; i < data.length; i++) {
         if (new Date(data[i].date) <= today) todayIdx = i;
       }
@@ -96,7 +121,7 @@ export function GoalProgressChart({
     if (todayIdx >= 0) data[todayIdx].actual = progress;
 
     return { data, todayIdx };
-  }, [progress, startDate, endDate]);
+  }, [progress, period, startDate, endDate, createdAt, today]);
 
   const { data: chartData, todayIdx } = chartInfo;
   const todayData = todayIdx >= 0 ? chartData[todayIdx] : null;

@@ -10,8 +10,9 @@
  * (see lib/custom-templates.ts) so picking it later creates a project through
  * the shared inline path.
  *
- * This starts a template from scratch (name + sections). To capture a rich
- * template from real work, use "Save as template" on an existing project.
+ * This starts a template from scratch (name, project type + sections). To
+ * capture a rich template from real work, use "Save as template" on an
+ * existing project.
  */
 
 import { useEffect, useState } from "react";
@@ -24,9 +25,13 @@ import {
   ACCENT_CHOICES,
   ACCENT_HEX,
   ICON_CHOICES,
+  TemplateTypeField,
   resolveTemplateIcon,
 } from "./template-visuals";
-import type { CustomTemplateRow } from "@/lib/custom-templates";
+import type {
+  CustomTemplateRow,
+  TemplateProjectType,
+} from "@/lib/custom-templates";
 import type { ProjectTemplate } from "@/lib/project-templates";
 
 interface NewTemplateDialogProps {
@@ -49,6 +54,7 @@ export function NewTemplateDialog({
   const [sectionDraft, setSectionDraft] = useState("");
   const [icon, setIcon] = useState<string>(ICON_CHOICES[0]);
   const [accent, setAccent] = useState<ProjectTemplate["accent"]>("amber");
+  const [type, setType] = useState<TemplateProjectType | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -59,6 +65,7 @@ export function NewTemplateDialog({
       setSectionDraft("");
       setIcon(ICON_CHOICES[0]);
       setAccent("amber");
+      setType(undefined);
       setSubmitting(false);
     }
   }, [open]);
@@ -108,7 +115,9 @@ export function NewTemplateDialog({
           icon,
           color: ACCENT_HEX[accent],
           isPublic: false,
-          structure: { sections, accent },
+          // The type is what gives a project made from this template its
+          // pipeline (stage strip + stage-bound columns).
+          structure: { sections, accent, ...(type ? { defaults: { type } } : {}) },
         }),
       });
       if (!res.ok) {
@@ -179,6 +188,8 @@ export function NewTemplateDialog({
               className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-black/10 placeholder:text-gray-400 resize-none"
             />
           </div>
+
+          <TemplateTypeField value={type} onChange={setType} />
 
           {/* Sections */}
           <div>

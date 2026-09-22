@@ -5,9 +5,10 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
 import { canAccessSection } from "@/lib/access-control";
 import {
-  buildProjectVisibilityClauses,
-  taskPrivacyClause,
-} from "@/lib/project-visibility";
+  buildReportAccessScopes,
+  firmMidnightUtc,
+  instantToFirmDay,
+} from "@/lib/report-query";
 
 const COLORS = [
   "#3b82f6", // blue
@@ -58,16 +59,14 @@ export async function GET(req: Request) {
     // The level gate above answers "may you open org-wide reporting at all";
     // it says nothing about WHICH rows. Scoping on workspaceId alone let a
     // PRIVATE project the caller cannot open contribute its name and its task
-    // counts to every chart here. Same rule as the project list, mentions and
-    // search — one function, never a fourth copy.
-    const visibilityClauses = await buildProjectVisibilityClauses(userId);
-    // Each clause carries its OWN workspaceId, so AND-ing the set with this
-    // report's workspace narrows to exactly this workspace's clause rather
-    // than widening to every workspace the caller belongs to. An empty OR
-    // matches nothing — the safe answer for a caller with no membership,
-    // which getEffectiveAccess has already ruled out above.
+    // counts to every chart here. The row gates (project visibility, task
+    // privacy, goal privacy) are built by the same function the custom chart
+    // engine uses, so the two kinds of chart cannot disagree.
+    const scopes = await buildReportAccessScopes(userId, access);
+    // Archived jobs are off every list in the app; they must not inflate the
+    // firm's live numbers either.
     const projectScope: Prisma.ProjectWhereInput = {
-      AND: [{ workspaceId: workspaceId }, { OR: visibilityClauses ?? [] }],
+      AND: [scopes.project, { isArchived: false }],
     };
     // The project-entity aggregates narrow further to the caller's own
     // projects in the "my impact" view.
@@ -75,25 +74,7 @@ export async function GET(req: Request) {
       ...projectScope,
       ...(isMyImpact ? { ownerId: userId } : {}),
     };
-    // Goals answer to their own flag. A goal marked private is readable by
-    // its owner, the people named on it and whoever runs the workspace
-    // (decideObjectiveAccess) — so a workspace OWNER/ADMIN is deliberately
-    // NOT narrowed here: hiding a row from this donut that the goals page
-    // hands them one click away would only make the two disagree.
-    const seesEveryObjective =
-      access.workspaceRole === "OWNER" || access.workspaceRole === "ADMIN";
-    const objectiveScope: Prisma.ObjectiveWhereInput = {
-      workspaceId: workspaceId,
-      ...(seesEveryObjective
-        ? {}
-        : {
-            OR: [
-              { isPrivate: false },
-              { ownerId: userId },
-              { members: { some: { userId } } },
-            ],
-          }),
-    };
+    const objectiveScope: Prisma.ObjectiveWhereInput = scopes.objective;
     // taskPrivacyClause is itself an `OR`, and query 6 below carries a
     // top-level `OR` of its own — spreading the clause in the way /api/search
     // can would let that query's OR overwrite the gate. Both gates sit INSIDE
@@ -102,7 +83,7 @@ export async function GET(req: Request) {
     const baseWhere: Prisma.TaskWhereInput = {
       AND: [
         { project: projectScope },
-        taskPrivacyClause(userId),
+        scopes.task,
         ...(isMyImpact ? [{ assigneeId: userId }] : []),
       ],
     };
@@ -113,17 +94,6 @@ export async function GET(req: Request) {
     // current instant counted every task due TODAY as overdue — the report
     // never matched My Tasks, which uses this boundary.
     const overdueBefore = startOfTodayUtc(now);
-    // Month bounds have to be whole UTC days like the rest of this file.
-    // `new Date(y, m + 1, 0)` is LOCAL midnight of the LAST day of the month,
-    // so with `lte` everything completed after 00:00 on that day fell outside
-    // the window, and tasks due on the 1st (stored at UTC midnight) sat below
-    // the local start bound — the month really ran from day 2 to day 30.
-    const startOfMonth = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-    );
-    const endOfMonthExclusive = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
-    );
     // Snap to whole UTC days like every other counter here. Built from
     // `new Date(now)` these carried the current TIME, so a task due today was
     // excluded from "this week" before mid-day and included after — the same
@@ -135,8 +105,27 @@ export async function GET(req: Request) {
       startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000
     );
 
-    // Calculate 6 months ago for tasksCompletedByMonth
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    // completedAt is a real instant, not a date-only value: read by the UTC
+    // month, work finished after 8 PM in Miami on the last day of a month
+    // counted toward the next one. Completion windows use the firm calendar.
+    const firmToday = instantToFirmDay(now);
+    const firmYear = firmToday.getUTCFullYear();
+    const firmMonth = firmToday.getUTCMonth();
+    const completedMonthStart = firmMidnightUtc(firmYear, firmMonth, 1);
+    const completedMonthEnd = firmMidnightUtc(firmYear, firmMonth + 1, 1);
+    // Due-date month bounds are whole UTC days (due dates are stored at UTC
+    // midnight), but WHICH month is "this month" comes from the firm calendar
+    // too. Taken from the UTC clock, the due side rolled to next month at
+    // 8 PM Miami on the last day while the completion side had not, so the
+    // same widget counted two different months.
+    // `new Date(y, m + 1, 0)` is LOCAL midnight of the LAST day of the month,
+    // so with `lte` everything completed after 00:00 on that day fell outside
+    // the window — hence exclusive whole-day bounds.
+    const startOfMonth = new Date(Date.UTC(firmYear, firmMonth, 1));
+    const endOfMonthExclusive = new Date(Date.UTC(firmYear, firmMonth + 1, 1));
+
+    // Calculate 6 months ago for tasksCompletedByMonth (firm calendar).
+    const sixMonthsAgo = firmMidnightUtc(firmYear, firmMonth - 5, 1);
 
     // Fetch all metrics in parallel
     const [
@@ -204,7 +193,7 @@ export async function GET(req: Request) {
           ...baseWhere,
           OR: [
             { dueDate: { gte: startOfMonth, lt: endOfMonthExclusive } },
-            { completedAt: { gte: startOfMonth, lt: endOfMonthExclusive } },
+            { completedAt: { gte: completedMonthStart, lt: completedMonthEnd } },
           ],
         },
         select: {
@@ -452,14 +441,14 @@ export async function GET(req: Request) {
     const monthCounts = new Map<string, number>();
     // Initialize last 6 months
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const d = new Date(Date.UTC(firmYear, firmMonth - i, 1));
+      const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
       monthCounts.set(key, 0);
     }
     for (const task of tasksCompletedByMonthRaw) {
       if (task.completedAt) {
-        const d = new Date(task.completedAt);
-        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const d = instantToFirmDay(new Date(task.completedAt));
+        const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
         if (monthCounts.has(key)) {
           monthCounts.set(key, monthCounts.get(key)! + 1);
         }

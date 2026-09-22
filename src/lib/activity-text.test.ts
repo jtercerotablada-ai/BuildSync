@@ -80,6 +80,41 @@ describe("activityText", () => {
     expect(activityText("SUBTASK_ADDED")).toBe("added a subtask");
   });
 
+  it("says when a workflow rule, not the person, made the change", () => {
+    expect(
+      activityText("COMMENT_ADDED", { viaWorkflowRule: true })
+    ).toBe("added a comment via workflow rule");
+    expect(
+      activityText("TASK_ASSIGNED", { viaWorkflowRule: true })
+    ).toBe("assigned this task via workflow rule");
+    expect(
+      activityText("CUSTOM_FIELD_CHANGED", {
+        fieldName: "Priority",
+        viaWorkflowRule: true,
+      })
+    ).toBe("updated Priority via workflow rule");
+    // Only a real `true` counts; anything else is a manual change.
+    expect(activityText("COMMENT_ADDED", { viaWorkflowRule: "yes" })).toBe(
+      "added a comment"
+    );
+  });
+
+  it("reads a rule's add-to-project as an addition, not a move", () => {
+    expect(
+      activityText("TASK_MOVED", {
+        addedToProjectId: "proj_1",
+        viaWorkflowRule: true,
+      })
+    ).toBe("added this task to another project via workflow rule");
+    expect(activityText("TASK_MOVED", { addedToProjectId: "proj_1" })).toBe(
+      "added this task to another project"
+    );
+    expect(activityText("TASK_MOVED")).toBe("moved this task");
+    expect(activityText("TASK_MOVED", { addedToProjectId: 42 })).toBe(
+      "moved this task"
+    );
+  });
+
   it("humanises an unknown type instead of dropping the row", () => {
     // A type added to the schema later must still read as something.
     expect(activityText("SOMETHING_NEW_HAPPENED")).toBe(

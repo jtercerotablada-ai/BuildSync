@@ -6,6 +6,7 @@
 
 export type ColumnKey =
   | "type"
+  | "stage"
   | "gate"
   | "status"
   | "progress"
@@ -23,6 +24,9 @@ export interface ColumnDef {
 
 export const COLUMN_DEFS: ColumnDef[] = [
   { key: "type", label: "Type", span: 1 },
+  // The pipeline stage (src/lib/pipelines.ts) is where the firm actually
+  // tracks a job; Gate is the coarse legacy value derived from it.
+  { key: "stage", label: "Stage", span: 2 },
   { key: "gate", label: "Gate", span: 1 },
   { key: "status", label: "Status", span: 2 },
   { key: "progress", label: "Progress", span: 2 },
@@ -33,7 +37,7 @@ export const COLUMN_DEFS: ColumnDef[] = [
 
 export const DEFAULT_COLUMNS: ColumnKey[] = [
   "type",
-  "gate",
+  "stage",
   "status",
   "progress",
   "due",

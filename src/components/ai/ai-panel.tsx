@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { toast } from 'sonner';
+import { toDateOnlyISO } from '@/lib/date-only';
 
 interface Message {
   id: string;
@@ -155,6 +155,10 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
           prompt: 'You are TT AI Assistant, an assistant for project management. Answer the last User message in the conversation below helpfully and concisely.',
           text: conversation,
           mode: 'qa',
+          // The caller's calendar day, read at send time (an event handler,
+          // not a render): the server runs in UTC and would otherwise call
+          // tasks due today overdue every evening.
+          today: toDateOnlyISO(new Date()),
         }),
       });
 
@@ -373,7 +377,22 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
               className="flex-1 text-sm outline-none bg-transparent"
               disabled={isLoading}
             />
-            <button className="p-1 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Mentions coming soon")}>
+            {/* The assistant resolves "@Project name" / "@Person name" typed in
+                the question, so this starts a mention instead of promising a
+                picker that does not exist. */}
+            <button
+              type="button"
+              className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+              aria-label="Mention a project or person"
+              title="Mention a project or person: type @ followed by its full name"
+              disabled={isLoading}
+              onClick={() => {
+                setInput((prev) =>
+                  prev && !/\s$/.test(prev) ? `${prev} @` : `${prev}@`
+                );
+                inputRef.current?.focus();
+              }}
+            >
               <AtSign className="h-4 w-4" />
             </button>
             <button

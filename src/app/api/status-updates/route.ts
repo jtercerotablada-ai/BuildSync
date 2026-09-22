@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 
 // GET /api/status-updates - Get recent status updates
 export async function GET(req: Request) {
@@ -22,9 +23,19 @@ export async function GET(req: Request) {
       100
     );
 
+    // Status write-ups are project content: only projects the caller could
+    // open (the canonical list clause) and that are not archived. Without it
+    // every PRIVATE project's name and summary was readable by any member.
+    const visibility = await buildProjectVisibilityClauses(userId);
+    if (!visibility) return NextResponse.json([]);
+
     const statusUpdates = await prisma.statusUpdate.findMany({
       where: {
-        project: { workspaceId },
+        project: {
+          workspaceId,
+          isArchived: false,
+          OR: visibility,
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,

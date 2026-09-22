@@ -1,13 +1,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { GoalProgressService } from "@/lib/goal-progress";
+import { GoalProgressService, objectiveReadClause } from "@/lib/goal-progress";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import {
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+  contributorSeatSatisfied,
+} from "@/lib/auth-guards";
+import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
 import {
   resolveObjectiveAccess,
   verifyObjectiveAccess,
 } from "@/lib/objective-access";
+
+/** A date field as the detail page sends it (an ISO string), or null to
+ *  clear. Checked here because `new Date("31/12/2026")` is an Invalid Date
+ *  that Prisma rejects deep in the update, which surfaced as a bare 500. */
+const optionalDateString = z
+  .string()
+  .refine((s) => !Number.isNaN(new Date(s).getTime()), {
+    message: "Invalid date",
+  })
+  .optional()
+  .nullable();
 
 const updateObjectiveSchema = z.object({
   name: z.string().min(1).optional(),
@@ -16,9 +33,15 @@ const updateObjectiveSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   progressSource: z.enum(["MANUAL", "KEY_RESULTS", "SUB_OBJECTIVES", "PROJECTS"]).optional(),
   period: z.string().optional().nullable(),
-  startDate: z.string().optional().nullable(),
-  endDate: z.string().optional().nullable(),
+  startDate: optionalDateString,
+  endDate: optionalDateString,
   teamId: z.string().optional().nullable(),
+  // Hand-over and privacy. Both are restricted below to the goal's owner and
+  // the workspace OWNER/ADMIN; without them a goal could never be reassigned
+  // or opened up, and an ownerless goal (owner deleted → SetNull) could not
+  // be given a new owner at all.
+  ownerId: z.string().min(1).optional(),
+  isPrivate: z.boolean().optional(),
   // Editable parent so the user can re-parent an objective from the
   // detail page ("Connect a parent objective"). Passing null detaches.
   parentId: z.string().optional().nullable(),
@@ -45,6 +68,10 @@ export async function GET(
     // Read gate first, so the page-sized include below is only ever paid for
     // by a caller who is allowed to see the goal.
     const access = await verifyObjectiveAccess(userId, objectiveId);
+
+    // Linked projects are shown by name and status, so only the ones this
+    // reader may open are included; the goal's roll-up still counts them all.
+    const projectClauses = (await buildProjectVisibilityClauses(userId)) ?? [];
 
     const objective = await prisma.objective.findUnique({
       where: { id: objectiveId },
@@ -76,7 +103,12 @@ export async function GET(
             name: true,
           },
         },
+        // A private sub-goal stays hidden from readers of its parent who may
+        // not open it; its name, owner and key results used to ride along.
         children: {
+          where: objectiveReadClause(userId, access.objective.workspaceId, {
+            isWorkspaceManager: access.isWorkspaceManager,
+          }),
           include: {
             owner: {
               select: {
@@ -97,6 +129,7 @@ export async function GET(
           },
         },
         projects: {
+          where: { project: { OR: projectClauses } },
           include: {
             project: {
               select: {
@@ -136,23 +169,12 @@ export async function GET(
       return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
 
-    // ── Privacy gate (Asana parity) ──────────────────────────
-    // Visible to: owner, explicit ObjectiveMember, or team member of
-    // the objective's team. Workspace membership alone doesn't
-    // auto-grant access. 404 masks existence from id-pokers. This stays ON TOP
-    // of the shared gate above, which admits any workspace contributor to an
-    // ordinary goal — a wider rule than this page has ever used.
-    let isTeamMember = false;
-    if (objective.teamId) {
-      const teamMembership = await prisma.teamMember.findUnique({
-        where: { userId_teamId: { userId, teamId: objective.teamId } },
-        select: { id: true },
-      });
-      isTeamMember = !!teamMembership;
-    }
-    if (!access.isOwner && !access.isMember && !isTeamMember) {
-      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
-    }
+    // No second, narrower gate here. The page used to demand owner, member or
+    // team membership on top of the shared gate, while every sub-route
+    // (check-in, key results, comments, Coach) admitted the wider set — so the
+    // firm owner could write to a colleague's goal through the API but not
+    // open its page, and a goal created for a colleague 404'd for its creator
+    // right after the redirect. One rule now: decideObjectiveAccess.
 
     // Determine if current user liked this objective
     const myLike = await prisma.objectiveLike.findUnique({
@@ -179,26 +201,31 @@ export async function GET(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
     );
 
-    // Calculate progress based on source
-    let calculatedProgress = objective.progress;
+    // Same read rule as the children above: a public sub-goal of a PRIVATE
+    // parent must not reveal that parent's name to a reader who cannot open it.
+    const parent =
+      objective.parent &&
+      (await prisma.objective.findFirst({
+        where: {
+          id: objective.parent.id,
+          ...objectiveReadClause(userId, access.objective.workspaceId, {
+            isWorkspaceManager: access.isWorkspaceManager,
+          }),
+        },
+        select: { id: true },
+      }))
+        ? objective.parent
+        : null;
 
-    if (objective.progressSource === "KEY_RESULTS" && objective.keyResults.length > 0) {
-      const krProgress = objective.keyResults.map((kr) => {
-        const range = kr.targetValue - kr.startValue;
-        if (range === 0) return kr.currentValue >= kr.targetValue ? 100 : 0;
-        return Math.min(100, Math.max(0, ((kr.currentValue - kr.startValue) / range) * 100));
-      });
-      calculatedProgress = Math.round(krProgress.reduce((a, b) => a + b, 0) / krProgress.length);
-    } else if (objective.progressSource === "SUB_OBJECTIVES" && objective.children.length > 0) {
-      calculatedProgress = Math.round(
-        objective.children.reduce((sum, c) => sum + c.progress, 0) / objective.children.length
-      );
-    }
+    // Live, from every child and linked project — not only the ones included
+    // above for display — so each reader sees the goal's one true number.
+    const live = await GoalProgressService.liveProgress([objective]);
 
     return NextResponse.json({
       ...objective,
+      parent,
       statusUpdates,
-      progress: calculatedProgress,
+      progress: live.get(objective.id) ?? objective.progress,
       likedByMe: !!myLike,
     });
   } catch (error) {
@@ -233,36 +260,58 @@ export async function PATCH(
       requireWrite: true,
     });
     const existingObj = access.objective;
+    const isOwner = access.isOwner;
 
     // ── Edit gate ────────────────────────────────────────────
-    // Edit allowed for: owner, ObjectiveMember with role EDITOR,
-    // or team member of the objective's team. VIEWER role members
-    // and non-members get 403. Narrower than the gate above, which grants
-    // write on an ordinary goal to any workspace contributor and does not
-    // read ObjectiveMemberRole at all — so it stays.
-    const isOwner = existingObj.ownerId === userId;
-    const editorMembership = await prisma.objectiveMember.findUnique({
-      where: { objectiveId_userId: { objectiveId, userId } },
-      select: { role: true },
-    });
-    const isEditorMember = editorMembership?.role === "EDITOR";
-    let isTeamMember = false;
-    if (existingObj.teamId) {
-      const teamMembership = await prisma.teamMember.findUnique({
-        where: { userId_teamId: { userId, teamId: existingObj.teamId } },
-        select: { id: true },
-      });
-      isTeamMember = !!teamMembership;
-    }
-    if (!isOwner && !isEditorMember && !isTeamMember) {
-      return NextResponse.json(
-        { error: "Only the objective owner or an editor can edit" },
-        { status: 403 }
-      );
-    }
+    // Whoever may write the goal's key results, check-ins and links (the
+    // shared gate above) may also edit its fields. The Read-only (VIEWER)
+    // narrowing on a private goal is applied by verifyObjectiveAccess itself;
+    // on a public goal a VIEWER row narrows nothing (see objective-access.ts).
 
     const body = await req.json();
     const data = updateObjectiveSchema.parse(body);
+
+    // Hand-over and privacy decide who else can see the goal, so they belong
+    // to the owner and to the workspace OWNER/ADMIN (the only way to recover a
+    // goal whose owner left), not to every editor.
+    if (
+      (data.ownerId !== undefined || data.isPrivate !== undefined) &&
+      !isOwner &&
+      !access.isWorkspaceManager
+    ) {
+      return NextResponse.json(
+        { error: "Only the goal owner or a workspace admin can change its owner or privacy" },
+        { status: 403 }
+      );
+    }
+    if (data.ownerId !== undefined && data.ownerId !== existingObj.ownerId) {
+      const ownerMember = await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId: data.ownerId,
+            workspaceId: existingObj.workspaceId,
+          },
+        },
+        select: { role: true },
+      });
+      if (!ownerMember || !contributorSeatSatisfied(ownerMember.role)) {
+        return NextResponse.json(
+          { error: "Owner not found in workspace" },
+          { status: 404 }
+        );
+      }
+    }
+    // Same check POST makes. An unchecked id was a foreign-key 500 when it did
+    // not exist, and was stored as-is when it named another workspace's team.
+    if (data.teamId) {
+      const team = await prisma.team.findUnique({
+        where: { id: data.teamId },
+        select: { workspaceId: true },
+      });
+      if (!team || team.workspaceId !== existingObj.workspaceId) {
+        return NextResponse.json({ error: "Team not found" }, { status: 404 });
+      }
+    }
 
     const updateData: Record<string, unknown> = {};
     // The parent the goal is LEAVING. Read below, and only when this request
@@ -286,6 +335,12 @@ export async function PATCH(
     if (data.confidenceScore !== undefined) {
       updateData.confidenceScore = data.confidenceScore;
     }
+    if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
+    if (data.isPrivate !== undefined) updateData.isPrivate = data.isPrivate;
+    // An owner handing the goal to someone else keeps working on it as an
+    // editor; otherwise handing over a private goal locks them out of it.
+    const keepPreviousOwner =
+      data.ownerId !== undefined && data.ownerId !== userId && isOwner;
     if (data.parentId !== undefined) {
       // Guard against self-parenting (would create an immediate cycle)
       // and reject cross-workspace parents.
@@ -342,27 +397,38 @@ export async function PATCH(
       updateData.parentId = data.parentId;
     }
 
-    const objective = await prisma.objective.update({
-      where: { id: objectiveId },
-      data: updateData,
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
+    const [objective] = await prisma.$transaction([
+      prisma.objective.update({
+        where: { id: objectiveId },
+        data: updateData,
+        include: {
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+          keyResults: true,
+          _count: {
+            select: {
+              keyResults: true,
+              children: true,
+            },
           },
         },
-        keyResults: true,
-        _count: {
-          select: {
-            keyResults: true,
-            children: true,
-          },
-        },
-      },
-    });
+      }),
+      ...(keepPreviousOwner
+        ? [
+            prisma.objectiveMember.upsert({
+              where: { objectiveId_userId: { objectiveId, userId } },
+              create: { objectiveId, userId, role: "EDITOR" },
+              update: { role: "EDITOR" },
+            }),
+          ]
+        : []),
+    ]);
 
     // Roll the change up the ancestor chain. The library knew how to do this
     // all along; the route simply never called it, so moving a child's number
@@ -425,24 +491,68 @@ export async function DELETE(
 
     // Write gate: 404 while the goal is unknown or hidden from this caller,
     // 403 once they can open it but may not change it.
-    const { objective: obj } = await verifyObjectiveAccess(userId, objectiveId, {
+    const access = await verifyObjectiveAccess(userId, objectiveId, {
       requireWrite: true,
     });
 
-    // Only the objective owner can delete it. Team members can
-    // edit but not destroy.
-    if (obj.ownerId !== userId) {
+    // Only the objective owner can delete it — or the workspace OWNER/ADMIN,
+    // without whom a goal whose owner left the firm could never be removed.
+    // Editors can edit but not destroy.
+    if (!access.isOwner && !access.isWorkspaceManager) {
       return NextResponse.json(
-        { error: "Only the objective owner can delete it" },
+        { error: "Only the goal owner or a workspace admin can delete it" },
         { status: 403 }
       );
     }
 
-    await prisma.objective.delete({
+    const current = await prisma.objective.findUnique({
       where: { id: objectiveId },
+      select: { parentId: true },
     });
 
-    return NextResponse.json({ success: true });
+    // Sub-goals cascade with their parent (schema: onDelete Cascade), and a
+    // colleague may have parented their own goal here — possibly a private
+    // one this caller cannot even see. Walk the subtree: goals the caller owns
+    // go with the deletion, anyone else's is detached first and survives as a
+    // top-level goal, with its key results and history intact. The hop cap
+    // keeps a cycle already in the data from spinning here.
+    const detach: string[] = [];
+    const seen = new Set<string>([objectiveId]);
+    let frontier = [objectiveId];
+    for (let depth = 0; frontier.length > 0 && depth < 20; depth++) {
+      const kids = await prisma.objective.findMany({
+        where: { parentId: { in: frontier } },
+        select: { id: true, ownerId: true },
+      });
+      frontier = [];
+      for (const kid of kids) {
+        if (seen.has(kid.id)) continue;
+        seen.add(kid.id);
+        if (kid.ownerId === userId) frontier.push(kid.id);
+        else detach.push(kid.id);
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.objective.updateMany({
+        where: { id: { in: detach } },
+        data: { parentId: null },
+      }),
+      prisma.objective.delete({
+        where: { id: objectiveId },
+      }),
+    ]);
+
+    // The parent loses a child, so its sub-goal average changes.
+    if (current?.parentId) {
+      try {
+        await GoalProgressService.recalculateProgress(current.parentId);
+      } catch (err) {
+        console.error("[objective DELETE] parent roll-up failed:", err);
+      }
+    }
+
+    return NextResponse.json({ success: true, detachedSubGoals: detach.length });
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);

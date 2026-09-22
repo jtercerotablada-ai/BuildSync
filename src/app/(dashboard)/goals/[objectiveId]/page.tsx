@@ -46,6 +46,9 @@ import {
   Send,
   UserPlus,
   X,
+  Check,
+  Globe,
+  Lock,
 } from "lucide-react";
 import {
   Select,
@@ -74,6 +77,9 @@ import {
   getTimeRemaining as sharedGetTimeRemaining,
 } from "@/lib/date-utils";
 import { useUiState } from "@/hooks/use-ui-state";
+import { useToday } from "@/lib/use-today";
+import { goalPeriodOptions } from "@/components/goals/views/types";
+import { dueDateToLocalMidnight, toDateOnlyISO } from "@/lib/date-only";
 
 interface KeyResult {
   id: string;
@@ -106,11 +112,13 @@ interface Objective {
   createdAt: string;
   confidenceScore?: number | null;
   lastCheckInAt?: string | null;
+  isPrivate?: boolean;
+  // Null once the owner's account is deleted (Objective.owner is SetNull).
   owner: {
     id: string;
     name: string | null;
     image: string | null;
-  };
+  } | null;
   team: {
     id: string;
     name: string;
@@ -126,6 +134,7 @@ interface Objective {
     name: string;
     status: string;
     progress: number;
+    owner?: { id: string; name: string | null; image: string | null } | null;
   }[];
   projects: {
     id: string;
@@ -178,7 +187,18 @@ interface WorkspaceMemberLite {
   name: string | null;
   email: string | null;
   image: string | null;
+  workspaceRole?: string;
 }
+
+// Radix Select cannot hold an empty-string value, so "none" needs a token.
+const NONE = "__none__";
+
+const PROGRESS_SOURCES = [
+  { value: "MANUAL", label: "Manual progress" },
+  { value: "SUB_OBJECTIVES", label: "From sub-objectives" },
+  { value: "KEY_RESULTS", label: "From key results" },
+  { value: "PROJECTS", label: "From linked projects" },
+] as const;
 
 // Re-export the shared options under the local names so the rest of
 // the file (which already references `STATUS_OPTIONS`, `getInitials`,
@@ -240,10 +260,200 @@ export default function GoalDetailPage() {
     "EDITOR"
   );
   const [addingMemberId, setAddingMemberId] = useState<string | null>(null);
+  // The caller's workspace role (from the directory). Owner and privacy
+  // belong to the goal's owner and the workspace OWNER/ADMIN — the same
+  // rule the PATCH route enforces — so only they get those pickers.
+  const [callerRole, setCallerRole] = useState<string | null>(null);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [savingField, setSavingField] = useState<string | null>(null);
+  // The objective payload carries only the newest check-ins/comments; the
+  // full history is fetched on demand from GET /comments.
+  const [olderUpdates, setOlderUpdates] = useState<
+    NonNullable<Objective["statusUpdates"]> | null
+  >(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  useEffect(() => {
+    setOlderUpdates(null);
+  }, [objectiveId]);
+
+  async function loadOlderActivity() {
+    if (loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const res = await fetch(`/api/objectives/${objectiveId}/comments`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Couldn't load older activity");
+      }
+      const rows = await res.json();
+      setOlderUpdates(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't load older activity"
+      );
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+  const [duplicating, setDuplicating] = useState(false);
+  const [newSubgoalName, setNewSubgoalName] = useState("");
+  const [addingSubgoal, setAddingSubgoal] = useState(false);
+  const today = useToday();
 
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const isCreator =
     !!currentUserId && objective?.owner?.id === currentUserId;
+  const isWorkspaceManager = callerRole === "OWNER" || callerRole === "ADMIN";
+  const canManage = isCreator || isWorkspaceManager;
+
+  /**
+   * PATCH one or more goal fields, then reload the goal so derived values
+   * (progress, owner, team) come from the server. Surfaces the route's own
+   * reason on failure — a 403 for a read-only member used to vanish.
+   */
+  async function patchObjective(
+    field: string,
+    body: Record<string, unknown>,
+    successMessage: string
+  ): Promise<boolean> {
+    setSavingField(field);
+    try {
+      const res = await fetch(`/api/objectives/${objectiveId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || `Couldn't update the goal (HTTP ${res.status})`);
+      }
+      await fetchObjective();
+      toast.success(successMessage);
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update the goal");
+      return false;
+    } finally {
+      setSavingField(null);
+    }
+  }
+
+  async function handleAddSubgoal() {
+    const name = newSubgoalName.trim();
+    if (!objective || !name || addingSubgoal) return;
+    setAddingSubgoal(true);
+    try {
+      // A sub-goal starts in its parent's period and team, and is measured by
+      // its own key results like every goal created elsewhere.
+      const res = await fetch("/api/objectives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          parentId: objective.id,
+          period: objective.period ?? undefined,
+          teamId: objective.team?.id,
+          progressSource: "KEY_RESULTS",
+          // Privacy is deliberately NOT inherited. The server creates the child
+          // with no members, so a private child would be visible to its creator
+          // alone and vanish for the parent's owner and members, while still
+          // moving the parent's progress. The parent's name stays safe anyway:
+          // the server only returns a parent the reader may open.
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Couldn't add the sub-goal");
+      }
+      setNewSubgoalName("");
+      toast.success("Sub-goal added");
+      await fetchObjective();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add the sub-goal");
+    } finally {
+      setAddingSubgoal(false);
+    }
+  }
+
+  async function handleDuplicate() {
+    if (!objective || duplicating) return;
+    setDuplicating(true);
+    try {
+      // Copy the KR scaffold (names, units, targets, start values) but reset
+      // currentValue so the new goal starts at 0% — duplicating a goal at 80%
+      // and inheriting that 80% wouldn't be useful. Team, privacy and parent
+      // come along: without them a team goal's copy was hidden from the team
+      // and a private goal's copy was public.
+      //
+      // POST /api/objectives refuses a zero-range seed (target === start), and
+      // goals saved before that guard (the old FISP template: 12 -> 12) carry
+      // such rows. Those restart from 0 when the target is non-zero; a 0 -> 0
+      // row has nothing to repair it with and is left out.
+      let repaired = 0;
+      const seeds = objective.keyResults.flatMap((kr) => {
+        const start = kr.startValue ?? 0;
+        if (kr.targetValue !== start) return [{ kr, start }];
+        if (kr.targetValue === 0) return [];
+        repaired++;
+        return [{ kr, start: 0 }];
+      });
+      const skipped = objective.keyResults.length - seeds.length;
+      const krCount = (n: number) => `${n} key result${n === 1 ? "" : "s"}`;
+      const res = await fetch("/api/objectives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${objective.name} (copy)`,
+          period: objective.period,
+          description: objective.description,
+          progressSource: objective.progressSource,
+          teamId: objective.team?.id,
+          isPrivate: objective.isPrivate ?? false,
+          parentId: objective.parent?.id,
+          keyResults: seeds.map(({ kr, start }) => ({
+            name: kr.name,
+            description: kr.description ?? undefined,
+            targetValue: kr.targetValue,
+            startValue: start,
+            currentValue: start,
+            unit: kr.unit ?? undefined,
+            format:
+              kr.format === "NUMBER" ||
+              kr.format === "PERCENTAGE" ||
+              kr.format === "CURRENCY" ||
+              kr.format === "BOOLEAN"
+                ? kr.format
+                : "NUMBER",
+          })),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to duplicate");
+      }
+      const newObj = await res.json();
+      toast.success(
+        `Goal duplicated with ${krCount(seeds.length)}`
+      );
+      if (repaired > 0 || skipped > 0) {
+        toast.message(
+          [
+            repaired > 0 &&
+              `${krCount(repaired)} had the same start and target, so ${repaired === 1 ? "it starts" : "they start"} from 0 in the copy.`,
+            skipped > 0 &&
+              `${krCount(skipped)} with a 0 target and 0 start ${skipped === 1 ? "was" : "were"} skipped.`,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        );
+      }
+      router.push(`/goals/${newObj.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to duplicate");
+    } finally {
+      setDuplicating(false);
+    }
+  }
 
   async function handleConfidenceChange(next: number) {
     try {
@@ -314,15 +524,30 @@ export default function GoalDetailPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data || !Array.isArray(data.members)) return;
+        setCallerRole(typeof data.callerRole === "string" ? data.callerRole : null);
         setWorkspaceMembers(
-          (data.members as { id: string; name: string | null; email: string | null; image: string | null }[]).map(
+          (data.members as { id: string; name: string | null; email: string | null; image: string | null; workspaceRole?: string }[]).map(
             (m) => ({
               id: m.id,
               name: m.name,
               email: m.email,
               image: m.image,
+              workspaceRole: m.workspaceRole,
             })
           )
+        );
+      })
+      .catch(() => {});
+    // Teams of the goal's workspace, for the Responsible team picker.
+    fetch("/api/teams")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        setTeams(
+          (data as { id: string; name: string }[]).map((t) => ({
+            id: t.id,
+            name: t.name,
+          }))
         );
       })
       .catch(() => {});
@@ -634,8 +859,15 @@ export default function GoalDetailPage() {
       );
     }
 
+    const data = await res.json().catch(() => null);
+    const detached =
+      typeof data?.detachedSubGoals === "number" ? data.detachedSubGoals : 0;
     setDeleteOpen(false);
-    toast.success("Goal deleted");
+    toast.success(
+      detached > 0
+        ? `Goal deleted. ${detached} sub-goal${detached === 1 ? "" : "s"} owned by colleagues ${detached === 1 ? "was" : "were"} kept as top-level goals`
+        : "Goal deleted"
+    );
     router.push("/goals");
   }
 
@@ -669,6 +901,15 @@ export default function GoalDetailPage() {
 
   const currentStatus = getStatusOption(objective.status);
   const hasNoSubgoals = objective.children.length === 0;
+  const periodOptions = today
+    ? goalPeriodOptions(today, { extra: [objective.period] })
+    : objective.period
+      ? [objective.period]
+      : [];
+  // Anyone who can hold a goal: the create/PATCH routes refuse GUEST/CLIENT.
+  const ownerCandidates = workspaceMembers.filter(
+    (m) => m.workspaceRole !== "GUEST" && m.workspaceRole !== "CLIENT"
+  );
 
   // Spelled out from the counts already on the page: the delete cascades, and
   // the number of sub-goals it takes with it is the part nobody expects.
@@ -678,7 +919,9 @@ export default function GoalDetailPage() {
     objective._count.statusUpdates ?? objective.statusUpdates?.length ?? 0;
   const deleteConsequences = [
     objective._count.children > 0 &&
-      `${plural(objective._count.children, "sub-goal")} — and everything inside them`,
+      // No count here: the total includes colleagues' sub-goals, which the
+      // delete detaches instead of removing.
+      "Sub-goals you own — and everything inside them. Sub-goals owned by colleagues are kept and become top-level goals",
     objective._count.keyResults > 0 &&
       `${plural(objective._count.keyResults, "key result")} and their update history`,
     checkInCount > 0 &&
@@ -695,25 +938,14 @@ export default function GoalDetailPage() {
           Goals of {objective.workspace?.name || "My workspace"}
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-gray-500 hidden md:inline-flex"
-            onClick={() =>
-              window.open(
-                "mailto:feedback@ttcivilstructural.com?subject=Goals%20Feedback",
-                "_blank"
-              )
-            }
-          >
-            Send feedback
-          </Button>
-          <Avatar className="h-8 w-8 border-2 border-black">
-            <AvatarImage src={objective.owner.image || ""} />
-            <AvatarFallback className="text-xs bg-white text-black">
-              {getInitials(objective.owner.name)}
-            </AvatarFallback>
-          </Avatar>
+          {objective.owner && (
+            <Avatar className="h-8 w-8 border-2 border-black">
+              <AvatarImage src={objective.owner.image || ""} />
+              <AvatarFallback className="text-xs bg-white text-black">
+                {getInitials(objective.owner.name)}
+              </AvatarFallback>
+            </Avatar>
+          )}
           <Button
             size="sm"
             className="bg-black hover:bg-black"
@@ -750,44 +982,8 @@ export default function GoalDetailPage() {
               <Edit2 className="h-4 w-4 mr-2" />
               Edit objective
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={async () => {
-              try {
-                // Copy the KR scaffold (names, units, targets, start
-                // values) but reset currentValue so the new goal
-                // starts at 0% — duplicating a goal at 80% progress
-                // and inheriting that 80% wouldn't be useful.
-                const res = await fetch('/api/objectives', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    name: `${objective.name} (copy)`,
-                    period: objective.period,
-                    description: objective.description,
-                    progressSource: objective.progressSource,
-                    keyResults: objective.keyResults.map((kr) => ({
-                      name: kr.name,
-                      description: kr.description ?? undefined,
-                      targetValue: kr.targetValue,
-                      startValue: kr.startValue,
-                      currentValue: kr.startValue,
-                      unit: kr.unit ?? undefined,
-                      format: kr.format === "NUMBER" ||
-                              kr.format === "PERCENTAGE" ||
-                              kr.format === "CURRENCY" ||
-                              kr.format === "BOOLEAN"
-                        ? kr.format
-                        : "NUMBER",
-                    })),
-                  }),
-                });
-                if (res.ok) {
-                  const newObj = await res.json();
-                  toast.success(`Goal duplicated with ${objective.keyResults.length} key results`);
-                  router.push(`/goals/${newObj.id}`);
-                }
-              } catch { toast.error('Failed to duplicate'); }
-            }}>
-              Duplicate
+            <DropdownMenuItem disabled={duplicating} onClick={handleDuplicate}>
+              {duplicating ? "Duplicating..." : "Duplicate"}
             </DropdownMenuItem>
             <DropdownMenuItem className="text-black" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-2" />
@@ -868,27 +1064,52 @@ export default function GoalDetailPage() {
             {/* Objective owner */}
             <div className="flex items-center">
               <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Objective owner</span>
-              <div className="flex items-center gap-2 min-w-0">
-                <Avatar className="h-6 w-6 border border-black flex-shrink-0">
-                  <AvatarImage src={objective.owner.image || ""} />
-                  <AvatarFallback className="text-xs bg-white text-black">
-                    {getInitials(objective.owner.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm truncate">{objective.owner.name}</span>
-              </div>
+              {canManage && ownerCandidates.length > 0 ? (
+                <Select
+                  value={objective.owner?.id ?? NONE}
+                  disabled={savingField === "owner"}
+                  onValueChange={(value) => {
+                    if (value === NONE || value === objective.owner?.id) return;
+                    void patchObjective("owner", { ownerId: value }, "Owner updated").then(
+                      (ok) => {
+                        // Handing a goal over can change who is on it.
+                        if (ok) fetchMembers();
+                      }
+                    );
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-auto min-w-[180px] max-w-full border-none shadow-none px-2 -mx-2 hover:bg-gray-50">
+                    <OwnerChip owner={objective.owner} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!objective.owner && (
+                      <SelectItem value={NONE} disabled>
+                        No owner
+                      </SelectItem>
+                    )}
+                    {ownerCandidates.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name || m.email || "Unnamed"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <OwnerChip owner={objective.owner} />
+              )}
             </div>
 
             {/* Members — stack of avatars + add button. Mirrors the
-                Asana "Miembros" row in the objective dialog. Only
-                the creator sees the "Add member" affordance + remove
-                X's (server enforces this too, but UI matches). */}
+                Asana "Miembros" row in the objective dialog. Only the
+                owner and a workspace OWNER/ADMIN see the "Add member"
+                affordance + remove X's (the members route allows exactly
+                them), so an ownerless goal can still be staffed. */}
             <div className="flex items-start">
               <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0 pt-1">
                 Members
               </span>
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                {members.length === 0 && !isCreator && (
+                {members.length === 0 && !canManage && (
                   <span className="text-sm text-gray-400">No members</span>
                 )}
                 {members.map((m) => (
@@ -908,7 +1129,7 @@ export default function GoalDetailPage() {
                         m.user.email?.split("@")[0] ??
                         "—"}
                     </span>
-                    {isCreator && (
+                    {canManage && (
                       <button
                         type="button"
                         onClick={() => handleRemoveMember(m.userId)}
@@ -920,7 +1141,7 @@ export default function GoalDetailPage() {
                     )}
                   </div>
                 ))}
-                {isCreator && (
+                {canManage && (
                   <button
                     type="button"
                     onClick={() => setAddMemberOpen(true)}
@@ -936,7 +1157,27 @@ export default function GoalDetailPage() {
             {/* Period */}
             <div className="flex items-center">
               <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Period</span>
-              <span className="text-sm">{objective.period || "No period"}</span>
+              <Select
+                value={objective.period || NONE}
+                disabled={savingField === "period"}
+                onValueChange={(value) => {
+                  const next = value === NONE ? null : value;
+                  if (next === objective.period) return;
+                  void patchObjective("period", { period: next }, "Period updated");
+                }}
+              >
+                <SelectTrigger className="h-8 w-auto min-w-[140px] border-none shadow-none px-2 -mx-2 text-sm hover:bg-gray-50">
+                  <span>{objective.period || "No period"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>No period</SelectItem>
+                  {periodOptions.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Due date — popover-based picker. The previous implementation
@@ -957,7 +1198,7 @@ export default function GoalDetailPage() {
                   >
                     <Calendar className="h-4 w-4" />
                     {objective.endDate
-                      ? new Date(objective.endDate).toLocaleDateString("en-US", {
+                      ? dueDateToLocalMidnight(objective.endDate).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
@@ -969,10 +1210,15 @@ export default function GoalDetailPage() {
                   <CalendarComponent
                     mode="single"
                     selected={
-                      objective.endDate ? new Date(objective.endDate) : undefined
+                      objective.endDate
+                        ? dueDateToLocalMidnight(objective.endDate)
+                        : undefined
                     }
                     onSelect={async (date) => {
-                      const iso = date ? date.toISOString() : null;
+                      // Date-only, stored at UTC midnight like every other
+                      // due date; the local-midnight instant this used to
+                      // send read back as the previous day west of UTC.
+                      const iso = date ? toDateOnlyISO(date) : null;
                       try {
                         const res = await fetch(
                           `/api/objectives/${objectiveId}`,
@@ -1020,6 +1266,9 @@ export default function GoalDetailPage() {
                                 prev ? { ...prev, endDate: null } : null
                               );
                               toast.success("Due date cleared");
+                            } else {
+                              const err = await res.json().catch(() => null);
+                              toast.error(err?.error || "Error clearing date");
                             }
                           } catch {
                             toast.error("Error clearing date");
@@ -1037,10 +1286,73 @@ export default function GoalDetailPage() {
             {/* Responsible team */}
             <div className="flex items-center">
               <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Responsible team</span>
-              <div className="flex items-center gap-2 text-sm text-gray-500 min-w-0">
-                <Users className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">{objective.team?.name || "No team"}</span>
-              </div>
+              <Select
+                value={objective.team?.id ?? NONE}
+                disabled={savingField === "team"}
+                onValueChange={(value) => {
+                  const next = value === NONE ? null : value;
+                  if (next === (objective.team?.id ?? null)) return;
+                  void patchObjective("team", { teamId: next }, "Team updated");
+                }}
+              >
+                <SelectTrigger className="h-8 w-auto min-w-[140px] max-w-full border-none shadow-none px-2 -mx-2 text-sm text-gray-500 hover:bg-gray-50">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Users className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{objective.team?.name || "No team"}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>No team</SelectItem>
+                  {/* Keep the current team listed even when this reader is
+                      not on it (the list is the teams they can see). */}
+                  {objective.team &&
+                    !teams.some((t) => t.id === objective.team?.id) && (
+                      <SelectItem value={objective.team.id}>
+                        {objective.team.name}
+                      </SelectItem>
+                    )}
+                  {teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Privacy — owner and workspace OWNER/ADMIN only (the PATCH
+                route enforces the same). */}
+            <div className="flex items-center">
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Privacy</span>
+              {canManage ? (
+                <Select
+                  value={objective.isPrivate ? "private" : "public"}
+                  disabled={savingField === "privacy"}
+                  onValueChange={(value) => {
+                    const next = value === "private";
+                    if (next === !!objective.isPrivate) return;
+                    void patchObjective(
+                      "privacy",
+                      { isPrivate: next },
+                      next ? "Goal is now private" : "Goal is now public"
+                    );
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-auto min-w-[140px] border-none shadow-none px-2 -mx-2 text-sm hover:bg-gray-50">
+                    <PrivacyLabel isPrivate={!!objective.isPrivate} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="public">
+                      Public — everyone in the workspace
+                    </SelectItem>
+                    <SelectItem value="private">
+                      Private — owner and members only
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <PrivacyLabel isPrivate={!!objective.isPrivate} />
+              )}
             </div>
 
           </div>
@@ -1098,7 +1410,7 @@ export default function GoalDetailPage() {
               <div className="flex items-center gap-2 flex-wrap min-w-0">
                 <h3 className="font-semibold text-gray-900">Progress</h3>
                 <Zap className="h-4 w-4 text-black flex-shrink-0" />
-                {hasNoSubgoals && (
+                {hasNoSubgoals && objective.progressSource === "SUB_OBJECTIVES" && (
                   <span className="text-xs md:text-sm text-black flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3 flex-shrink-0" />
                     No sub-objectives connected
@@ -1113,48 +1425,33 @@ export default function GoalDetailPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/objectives/${objectiveId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ progressSource: 'MANUAL' }),
-                      });
-                      if (!res.ok) throw new Error();
-                      setObjective((prev) => prev ? { ...prev, progressSource: 'MANUAL' } : null);
-                      toast.success('Progress: Manual');
-                    } catch { toast.error('Error'); }
-                  }}>
-                    Manual progress
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/objectives/${objectiveId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ progressSource: 'SUB_OBJECTIVES' }),
-                      });
-                      if (!res.ok) throw new Error();
-                      setObjective((prev) => prev ? { ...prev, progressSource: 'SUB_OBJECTIVES' } : null);
-                      toast.success('Progress: From sub-objectives');
-                    } catch { toast.error('Error'); }
-                  }}>
-                    From sub-objectives
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/objectives/${objectiveId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ progressSource: 'KEY_RESULTS' }),
-                      });
-                      if (!res.ok) throw new Error();
-                      setObjective((prev) => prev ? { ...prev, progressSource: 'KEY_RESULTS' } : null);
-                      toast.success('Progress: From key results');
-                    } catch { toast.error('Error'); }
-                  }}>
-                    From key results
-                  </DropdownMenuItem>
+                  {/* Each choice reloads the goal: the server recomputes the
+                      number from the new source, and keeping the old one on
+                      screen showed a stale percentage until a reload. */}
+                  {PROGRESS_SOURCES.map((src) => (
+                    <DropdownMenuItem
+                      key={src.value}
+                      disabled={savingField === "progressSource"}
+                      onClick={() => {
+                        if (src.value === objective.progressSource) return;
+                        void patchObjective(
+                          "progressSource",
+                          { progressSource: src.value },
+                          `Progress: ${src.label}`
+                        );
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "h-4 w-4 mr-2",
+                          src.value === objective.progressSource
+                            ? "opacity-100"
+                            : "opacity-0"
+                        )}
+                      />
+                      {src.label}
+                    </DropdownMenuItem>
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1223,8 +1520,9 @@ export default function GoalDetailPage() {
             <GoalProgressChart
               progress={objective.progress}
               period={objective.period || undefined}
-              startDate={objective.startDate || objective.createdAt}
+              startDate={objective.startDate || undefined}
               endDate={objective.endDate || undefined}
+              createdAt={objective.createdAt}
             />
 
             {/* CTA — only when progress is actually derived from something
@@ -1234,17 +1532,21 @@ export default function GoalDetailPage() {
                 <p className="text-sm text-gray-500 text-center my-6">
                   {objective.progressSource === "SUB_OBJECTIVES"
                     ? "Sub-objectives keep this objective's progress up to date."
-                    : "Key results keep this objective's progress up to date."}
+                    : objective.progressSource === "PROJECTS"
+                      ? "Task completion in the linked projects keeps this objective's progress up to date."
+                      : "Key results keep this objective's progress up to date."}
                 </p>
-                <div className="flex justify-center">
-                  <Button
-                    className="bg-black hover:bg-black gap-2"
-                    onClick={() => setAddKROpen(true)}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add key result
-                  </Button>
-                </div>
+                {objective.progressSource === "KEY_RESULTS" && (
+                  <div className="flex justify-center">
+                    <Button
+                      className="bg-black hover:bg-black gap-2"
+                      onClick={() => setAddKROpen(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add key result
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1334,6 +1636,92 @@ export default function GoalDetailPage() {
             />
           </div>
 
+          {/* ========== SUB-GOALS ========== */}
+          {/* The children behind a "From sub-objectives" roll-up, and the
+              place to add one without going through another goal's parent
+              picker. Only the sub-goals this reader may open are listed. */}
+          <div className="mb-8">
+            <h3 className="font-semibold text-gray-900 mb-3">
+              Sub-goals
+              <span className="ml-2 text-xs font-normal text-gray-400 tabular-nums">
+                {objective.children.length}
+              </span>
+            </h3>
+            {objective.children.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {objective.children.map((child) => {
+                  const childStatus = getStatusOption(child.status);
+                  return (
+                    <Link
+                      key={child.id}
+                      href={`/goals/${child.id}`}
+                      className="flex items-center gap-3 border rounded-lg px-3 py-2 bg-white hover:border-gray-400 transition-colors"
+                    >
+                      <div
+                        className={cn(
+                          "h-2.5 w-2.5 rounded-full flex-shrink-0",
+                          childStatus.color
+                        )}
+                        title={childStatus.label}
+                      />
+                      <span className="flex-1 min-w-0 text-sm font-medium text-black truncate">
+                        {child.name}
+                      </span>
+                      <div className="hidden sm:block w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
+                        <div
+                          className="h-full bg-black rounded-full"
+                          style={{ width: `${child.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500 tabular-nums w-9 text-right flex-shrink-0">
+                        {child.progress}%
+                      </span>
+                      {child.owner && (
+                        <Avatar className="h-6 w-6 flex-shrink-0">
+                          <AvatarImage src={child.owner.image || ""} />
+                          <AvatarFallback className="text-[10px] bg-white border border-black text-black">
+                            {getInitials(child.owner.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddSubgoal();
+              }}
+            >
+              <Input
+                value={newSubgoalName}
+                onChange={(e) => setNewSubgoalName(e.target.value)}
+                placeholder="Add a sub-goal..."
+                className="h-9 text-sm"
+                disabled={addingSubgoal}
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                className="h-9"
+                disabled={addingSubgoal || !newSubgoalName.trim()}
+              >
+                {addingSubgoal ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </>
+                )}
+              </Button>
+            </form>
+          </div>
+
           {/* ========== PARENT OBJECTIVE ========== */}
           <div className="mb-8">
             <h3 className="font-semibold text-gray-900 mb-3">Parent objective</h3>
@@ -1410,17 +1798,32 @@ export default function GoalDetailPage() {
 
               const items: FeedItem[] = [];
 
-              for (const update of objective.statusUpdates || []) {
+              // Newest rows from the objective payload, plus the full history
+              // once "Show older activity" has loaded it (deduplicated, since
+              // a fresh comment lands in the payload after the history).
+              const shownUpdates = new Map<
+                string,
+                NonNullable<Objective["statusUpdates"]>[number]
+              >();
+              for (const update of [
+                ...(objective.statusUpdates || []),
+                ...(olderUpdates || []),
+              ]) {
+                if (!shownUpdates.has(update.id)) {
+                  shownUpdates.set(update.id, update);
+                }
+              }
+              const hasOlderActivity =
+                (objective._count.statusUpdates ?? 0) > shownUpdates.size;
+
+              for (const update of shownUpdates.values()) {
                 items.push({
                   kind: "checkin",
                   id: `c-${update.id}`,
                   createdAt: update.createdAt,
                   status: update.status,
                   summary: update.summary,
-                  author: update.author || {
-                    name: objective.owner.name,
-                    image: objective.owner.image,
-                  },
+                  author: update.author ?? null,
                 });
               }
 
@@ -1439,12 +1842,16 @@ export default function GoalDetailPage() {
                 }
               }
 
-              items.push({
-                kind: "created",
-                id: `created-${objective.id}`,
-                createdAt: objective.createdAt,
-                author: objective.owner,
-              });
+              // Ending on "created this objective" while older check-ins are
+              // still unloaded would present a truncated history as the whole.
+              if (!hasOlderActivity) {
+                items.push({
+                  kind: "created",
+                  id: `created-${objective.id}`,
+                  createdAt: objective.createdAt,
+                  author: objective.owner ?? { name: null, image: null },
+                });
+              }
 
               items.sort(
                 (a, b) =>
@@ -1533,7 +1940,7 @@ export default function GoalDetailPage() {
                             </p>
                             {item.note && (
                               <p className="text-xs text-gray-500 mt-1 italic">
-                                "{item.note}"
+                                &ldquo;{item.note}&rdquo;
                               </p>
                             )}
                           </div>
@@ -1565,6 +1972,19 @@ export default function GoalDetailPage() {
                       </div>
                     );
                   })}
+                  {hasOlderActivity && (
+                    <button
+                      type="button"
+                      onClick={() => void loadOlderActivity()}
+                      disabled={loadingOlder}
+                      className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 disabled:opacity-50"
+                    >
+                      {loadingOlder && (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      )}
+                      Show older activity
+                    </button>
+                  )}
                 </div>
               );
             })()}
@@ -1821,8 +2241,13 @@ export default function GoalDetailPage() {
                   </SelectItem>
                   <SelectItem value="VIEWER">
                     <span className="font-medium">Viewer</span>
+                    {/* The server narrows a VIEWER row only on a PRIVATE
+                        goal (objective-access.ts); on a shared goal every
+                        colleague edits, so say when it applies. */}
                     <span className="text-[11px] text-gray-500 ml-2">
-                      Read-only
+                      {objective.isPrivate
+                        ? "Read-only"
+                        : "Read-only while the goal is private"}
                     </span>
                   </SelectItem>
                 </SelectContent>
@@ -1832,7 +2257,7 @@ export default function GoalDetailPage() {
               {(() => {
                 const onAlready = new Set([
                   ...members.map((m) => m.userId),
-                  objective.owner.id,
+                  ...(objective.owner ? [objective.owner.id] : []),
                 ]);
                 const q = memberSearch.trim().toLowerCase();
                 const candidates = workspaceMembers
@@ -1903,5 +2328,40 @@ export default function GoalDetailPage() {
         onConfirm={handleDeleteObjective}
       />
     </div>
+  );
+}
+
+/** The goal's owner, or a placeholder once that account is gone. */
+function OwnerChip({
+  owner,
+}: {
+  owner: { name: string | null; image: string | null } | null;
+}) {
+  if (!owner) {
+    return <span className="text-sm text-gray-400">No owner</span>;
+  }
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <Avatar className="h-6 w-6 border border-black flex-shrink-0">
+        <AvatarImage src={owner.image || ""} />
+        <AvatarFallback className="text-xs bg-white text-black">
+          {getInitials(owner.name)}
+        </AvatarFallback>
+      </Avatar>
+      <span className="text-sm truncate">{owner.name || "Unnamed"}</span>
+    </div>
+  );
+}
+
+function PrivacyLabel({ isPrivate }: { isPrivate: boolean }) {
+  return (
+    <span className="flex items-center gap-2 text-sm">
+      {isPrivate ? (
+        <Lock className="h-4 w-4 text-gray-500" />
+      ) : (
+        <Globe className="h-4 w-4 text-gray-500" />
+      )}
+      {isPrivate ? "Private" : "Public"}
+    </span>
   );
 }

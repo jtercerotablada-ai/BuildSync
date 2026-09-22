@@ -84,7 +84,9 @@ async function assertProjectAccess(projectId: string, userId: string) {
   if (!project) return { ok: false as const, status: 404 };
 
   const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
+  // 404, not 403: an unreadable project must look like a missing one so
+  // ids cannot be probed (same as getProjectAccess).
+  if (!access.ok) return { ok: false as const, status: 404 };
   // canWrite = owner / project ADMIN or EDITOR — the gate for driving the
   // live project.status badge (posting the record itself is open to readers).
   return { ok: true as const, project, canWrite: access.canWrite };

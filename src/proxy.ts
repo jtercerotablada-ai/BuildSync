@@ -93,16 +93,25 @@ export function isPublicRoute(pathname: string): boolean {
    carries the caller's session and is authorised in-handler (getCurrentUserId
    plus verifyTaskAccess with requireWrite on the target task), so it must stay
    subject to the role gate: minting an upload token is a WRITE credential for
-   the firm's blob store, and a read-only role has no business holding one. The
-   upload-completed callback comes from Vercel Blob server-to-server with no
+   the firm's blob store, and a read-only role has no business holding one.
+   The only exception is the public-form kinds, which a signed-out stranger may
+   mint anyway (see isRoleAgnosticUploadRequest). The upload-completed callback comes from Vercel Blob server-to-server with no
    cookie at all; handleUpload authenticates it by verifying x-vercel-signature
    against the store token and rejects it outright when that is missing or
    wrong. It is the callback, and only the callback, that the blanket 401 was
    killing.
 
+   /api/cron/due-dates is Vercel Cron: it arrives with no cookie, only
+   `Authorization: Bearer <CRON_SECRET>` (which getToken tries, and fails, to
+   decode as a session). The handler authorises it with a timing-safe compare
+   of that secret and fails closed when CRON_SECRET is unset, so waiving the
+   401 here hands nothing to an anonymous caller. Being in this list also makes
+   it host-neutral (see isHostNeutral): Vercel Cron does not follow redirects.
+
    EXACT match, not a prefix: /api/blob/upload-avatar and anything else that
-   later lands under /api/blob/ must not inherit this by accident. */
-const sessionOptionalApiExact = ["/api/blob/upload"];
+   later lands under /api/blob/ (or /api/cron/) must not inherit this by
+   accident. */
+const sessionOptionalApiExact = ["/api/blob/upload", "/api/cron/due-dates"];
 
 /** Exported for tests — pure string matching, no request needed. */
 export function isSessionOptionalApi(pathname: string): boolean {
@@ -193,6 +202,38 @@ export function isApiForbiddenForRole(
   if (!isNonContributorRole(role)) return false;
   if (!pathname.startsWith("/api/")) return false;
   return !isClientApi(pathname);
+}
+
+/* Upload-token kinds that a stranger with no session may already mint (a
+   public intake form, a tracking reply). The handler authorises them by the
+   form's own rules or the tracking token, never by workspace role, so denying
+   them to a signed-in GUEST/CLIENT would only refuse someone what the same
+   person could do signed out. */
+const ROLE_AGNOSTIC_UPLOAD_KINDS = new Set(["form-attachment", "tracking-reply"]);
+
+/**
+ * True when a /api/blob/upload body asks for a token of a role-agnostic kind.
+ * Pure over the parsed JSON body; exported for tests. The handler parses the
+ * exact same body, so what is admitted here is what it authorises there. Any
+ * other shape (including the signed completion callback) answers false and
+ * stays under the role gate.
+ */
+export function isRoleAgnosticUploadRequest(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const b = body as { type?: unknown; payload?: { clientPayload?: unknown } };
+  if (b.type !== "blob.generate-client-token") return false;
+  const raw = b.payload?.clientPayload;
+  if (typeof raw !== "string") return false;
+  try {
+    const target = JSON.parse(raw) as { kind?: unknown } | null;
+    return (
+      !!target &&
+      typeof target.kind === "string" &&
+      ROLE_AGNOSTIC_UPLOAD_KINDS.has(target.kind)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -297,6 +338,20 @@ function isHostNeutral(pathname: string): boolean {
   );
 }
 
+/**
+ * Where an app-host request for a marketing-only path should land instead.
+ *
+ * "/" and "/projects" are marketing pages, so on the app host they used to be
+ * 307'd to the apex: typing the app's own address, or an in-app link to
+ * "/projects", landed staff on the public site. On the app host they mean the
+ * app's home and the project list. Exported for tests.
+ */
+export function appHostLanding(pathname: string): string | null {
+  if (pathname === "/") return "/home";
+  if (pathname === "/projects") return "/projects/all";
+  return null;
+}
+
 /** Returns a redirect when the request reached the wrong host, else null. */
 function hostSplit(request: NextRequest): NextResponse | null {
   if (!APP_HOST || !PUBLIC_HOST) return null;
@@ -312,6 +367,13 @@ function hostSplit(request: NextRequest): NextResponse | null {
 
   const { pathname, search } = request.nextUrl;
   if (isHostNeutral(pathname)) return null;
+
+  if (isAppHost) {
+    const landing = appHostLanding(pathname);
+    if (landing) {
+      return NextResponse.redirect(new URL(`${landing}${search}`, request.url), 307);
+    }
+  }
 
   const marketing = isMarketingRoute(pathname);
   if (isAppHost && marketing) {
@@ -340,6 +402,30 @@ function isMaintenanceActive(): boolean {
   // makes the dev server think it's in prod and redirects every request
   // to /maintenance — Juan hit this on first run.
   return process.env.NODE_ENV === "production";
+}
+
+/**
+ * The /login redirect for a signed-out page request. Keeps the query string:
+ * emailed deep links carry the task in it (/projects/X?task=Y), and dropping
+ * it landed the user on the project with no task open after signing in. The
+ * login page still restricts callbackUrl to same-origin paths. Exported for
+ * tests.
+ */
+export function loginRedirectUrl(
+  requestUrl: string,
+  pathname: string,
+  search: string,
+): URL {
+  const loginUrl = new URL("/login", requestUrl);
+  loginUrl.searchParams.set("callbackUrl", `${pathname}${search}`);
+  return loginUrl;
+}
+
+/** NextAuth's session cookie, including the chunked (.0, .1…) and
+ *  __Secure- variants. Exported for tests. */
+export function isSessionCookieName(name: string): boolean {
+  const base = name.replace(/^__Secure-/, "").replace(/\.\d+$/, "");
+  return base === "next-auth.session-token";
 }
 
 export async function proxy(request: NextRequest) {
@@ -389,8 +475,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for valid session token
-  const token = await getToken({ req: request });
+  // Check for valid session token. A token flagged `invalid` (the password
+  // was changed after it was issued — see the jwt callback in @/lib/auth)
+  // still decodes, but every handler already treats it as signed out; letting
+  // it through left the user in a shell whose every request 401s, with nothing
+  // sending them to /login.
+  const decoded = await getToken({ req: request });
+  const tokenInvalidated =
+    !!decoded && !!(decoded as Record<string, unknown>).invalid;
+  const token = tokenInvalidated ? null : decoded;
 
   if (!token) {
     // A server-to-server caller that authenticates itself in the handler. Only
@@ -400,14 +493,32 @@ export async function proxy(request: NextRequest) {
     if (isSessionOptionalApi(pathname)) {
       return NextResponse.next();
     }
-    // API routes return 401
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // API routes return 401; page routes redirect to login.
+    const response = pathname.startsWith("/api/")
+      ? NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      : NextResponse.redirect(
+          loginRedirectUrl(request.url, pathname, request.nextUrl.search),
+        );
+    // Clear the dead cookie so it stops riding on every request. It is
+    // housekeeping, not what keeps /login from looping (the session callback
+    // already reports this token as signed out). cookies.delete() cannot do it
+    // in production: it omits Secure, and a browser drops any Set-Cookie for a
+    // __Secure- name without it, so the expiry is written with the attributes
+    // NextAuth set the cookie with.
+    if (tokenInvalidated) {
+      for (const { name } of request.cookies.getAll()) {
+        if (isSessionCookieName(name)) {
+          response.cookies.set(name, "", {
+            expires: new Date(0),
+            path: "/",
+            secure: name.startsWith("__Secure-"),
+            httpOnly: true,
+            sameSite: "lax",
+          });
+        }
+      }
     }
-    // Page routes redirect to login
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+    return response;
   }
 
   // Role-based redirects for authenticated users
@@ -424,6 +535,19 @@ export async function proxy(request: NextRequest) {
   // "client-role" returns only this line — no client, test or log consumer —
   // so nothing keys off the old string.
   if (isApiForbiddenForRole(userRole, pathname)) {
+    // The public form kinds of the upload-token route are not role-gated in
+    // the handler (see isRoleAgnosticUploadRequest); every other kind still
+    // gets the 403, so a read-only role never holds a write token for a
+    // project, task or message.
+    if (pathname === "/api/blob/upload") {
+      let body: unknown = null;
+      try {
+        body = await request.clone().json();
+      } catch {
+        body = null;
+      }
+      if (isRoleAgnosticUploadRequest(body)) return NextResponse.next();
+    }
     return NextResponse.json(
       { error: "Forbidden", code: "non-contributor-role" },
       { status: 403 },

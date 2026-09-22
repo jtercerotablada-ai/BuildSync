@@ -340,8 +340,8 @@ describe("the composer writes back the day the user picked", () => {
 // ---------------------------------------------------------------------------
 
 describe("the server counts a task due TODAY as due, not overdue", () => {
-  // The four counters: /api/dashboard/stats, /api/reports, /api/ai/coach and
-  // the team workload route all bucket with `dueDate < startOfTodayUtc(now)`.
+  // The three counters: /api/reports, /api/ai/coach and the team workload
+  // route all bucket with `dueDate < startOfTodayUtc(now)`.
   const now = new Date("2026-08-27T15:00:00.000Z");
   const dueToday = new Date("2026-08-27T00:00:00.000Z"); // as Prisma stores it
   const dueYesterday = new Date("2026-08-26T00:00:00.000Z");

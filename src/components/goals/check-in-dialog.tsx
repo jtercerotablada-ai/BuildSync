@@ -52,14 +52,18 @@ export function CheckInDialog({
   onSuccess?: () => void;
 }) {
   const [status, setStatus] = useState(currentStatus);
-  const [confidence, setConfidence] = useState<number>(currentConfidence ?? 7);
+  // Null until someone rates it: a default written on every check-in put a
+  // 7/10 on goals nobody had ever rated.
+  const [confidence, setConfidence] = useState<number | null>(
+    currentConfidence
+  );
   const [summary, setSummary] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setStatus(currentStatus);
-      setConfidence(currentConfidence ?? 7);
+      setConfidence(currentConfidence);
       setSummary("");
     }
   }, [open, currentStatus, currentConfidence]);
@@ -76,7 +80,7 @@ export function CheckInDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status,
-          confidenceScore: confidence,
+          ...(confidence !== null ? { confidenceScore: confidence } : {}),
           summary: summary.trim(),
         }),
       });
@@ -135,16 +139,25 @@ export function CheckInDialog({
                 Confidence (1-10)
               </Label>
               <span className="text-sm font-semibold text-black">
-                {confidence}
+                {confidence ?? "Not rated"}
               </span>
             </div>
             <input
               type="range"
               min={1}
               max={10}
-              value={confidence}
+              value={confidence ?? 5}
               onChange={(e) => setConfidence(Number(e.target.value))}
-              className="w-full accent-black"
+              // Clicking the untouched slider at its resting spot fires no
+              // change event, so a click also counts as rating it.
+              onClick={(e) =>
+                setConfidence(Number((e.target as HTMLInputElement).value))
+              }
+              aria-label="Confidence from 1 to 10"
+              className={cn(
+                "w-full accent-black",
+                confidence === null && "opacity-50"
+              )}
             />
             <div className="flex justify-between text-[10px] text-gray-400 uppercase tracking-wider">
               <span>Low</span>

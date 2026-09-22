@@ -75,8 +75,16 @@ export async function GET(
     const taskIds = tasks.map((t) => t.id);
     const estimatedMinutesByTask = new Map<string, number>();
     if (taskIds.length) {
+      // Only this project's own Time-tracking fields. Every TIME_TRACKING
+      // definition in the workspace also matched fields deleted from the
+      // project (their values used to survive the delete) and other people's
+      // personal My Tasks fields, inflating the load.
       const timeDefs = await prisma.customFieldDefinition.findMany({
-        where: { workspaceId: project.workspaceId, type: "TIME_TRACKING" },
+        where: {
+          workspaceId: project.workspaceId,
+          type: "TIME_TRACKING",
+          projectFields: { some: { projectId } },
+        },
         select: { id: true },
       });
       const timeFieldIds = timeDefs.map((d) => d.id);

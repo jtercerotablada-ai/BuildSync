@@ -18,11 +18,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
-  Sparkles,
-  Download,
   Plus,
+  Pencil,
   Trash2,
   FilePlus2,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import {
   CATEGORY_LABELS,
   FOR_YOU_TEMPLATE_IDS,
   findProjectTemplate,
+  workflowFitsSections,
   type ProjectTemplate,
   type ProjectTemplateCategory,
 } from "@/lib/project-templates";
@@ -43,7 +44,11 @@ import {
   type CustomTemplateRow,
 } from "@/lib/custom-templates";
 import { ACCENT_BG, resolveTemplateIcon } from "@/components/projects/template-visuals";
-import { ConfirmTemplateDialog } from "@/components/projects/confirm-template-dialog";
+import {
+  ConfirmTemplateDialog,
+  templateContentCounts,
+} from "@/components/projects/confirm-template-dialog";
+import { EditTemplateDialog } from "@/components/projects/edit-template-dialog";
 import { NewTemplateDialog } from "@/components/projects/new-template-dialog";
 
 type TabKey = "for_you" | ProjectTemplateCategory | "custom";
@@ -70,19 +75,30 @@ export default function TemplatesGalleryPage() {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<TabKey>("for_you");
-  const [custom, setCustom] = useState<CustomProjectTemplate[]>([]);
+  // The RAW rows are what state holds, as in the modal gallery: the edit
+  // dialog re-sends a template's stored structure, and the mapped
+  // ProjectTemplate is a lossy view of it.
+  const [rows, setRows] = useState<CustomTemplateRow[]>([]);
   const [picked, setPicked] = useState<ProjectTemplate | null>(null);
   const [newTemplateOpen, setNewTemplateOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<CustomTemplateRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // A failed load must not read as an empty library.
+  const [loadError, setLoadError] = useState(false);
+
+  const custom = useMemo<CustomProjectTemplate[]>(
+    () => rows.map(customRowToProjectTemplate),
+    [rows]
+  );
 
   const loadCustom = useCallback(async () => {
     try {
       const res = await fetch("/api/workspace/templates");
-      if (!res.ok) return;
-      const rows = (await res.json()) as CustomTemplateRow[];
-      setCustom(rows.map(customRowToProjectTemplate));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRows((await res.json()) as CustomTemplateRow[]);
+      setLoadError(false);
     } catch {
-      /* non-fatal */
+      setLoadError(true);
     }
   }, []);
 
@@ -128,7 +144,7 @@ export default function TemplatesGalleryPage() {
         throw new Error(err.error || "Failed to delete template");
       }
       toast.success("Template deleted");
-      setCustom((prev) => prev.filter((c) => c.id !== id));
+      setRows((prev) => prev.filter((r) => r.id !== dbId));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete template");
     } finally {
@@ -157,29 +173,9 @@ export default function TemplatesGalleryPage() {
               <FilePlus2 className="h-4 w-4" />
               New template
             </Button>
-            {/* Neither of these has a destination yet: the AI step does not
-                exist and there is no importer, so both used to drop the user
-                on the same blank project form as "Blank project". */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              disabled
-              title="Coming soon"
-            >
-              <Sparkles className="h-4 w-4" />
-              Create with AI
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              disabled
-              title="Coming soon"
-            >
-              <Download className="h-4 w-4" />
-              Import
-            </Button>
+            {/* No "Create with AI" or "Import": neither has a destination
+                (no AI step, no importer), and the modal gallery offers
+                neither, so the two entry points stay the same. */}
             <Button
               size="sm"
               className="gap-2 bg-black hover:bg-black"
@@ -234,40 +230,72 @@ export default function TemplatesGalleryPage() {
         </div>
 
         {/* Templates Grid */}
-        {currentTemplates.length > 0 ? (
+        {activeTab === "custom" && loadError && currentTemplates.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-50 flex items-center justify-center">
+              <AlertTriangle className="h-8 w-8 text-amber-600" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900">
+              {"Couldn't load your team's templates"}
+            </h3>
+            <p className="text-gray-500 mt-1">
+              Check your connection and try again.
+            </p>
+            <Button variant="outline" className="mt-5" onClick={loadCustom}>
+              Retry
+            </Button>
+          </div>
+        ) : currentTemplates.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentTemplates.map((template) => {
               const Icon = resolveTemplateIcon(template.icon);
               const isCustom = "custom" in template;
               const c = template as CustomProjectTemplate;
-              const subCount =
-                template.tasks?.reduce(
-                  (acc, t) => acc + (t.subtasks?.length ?? 0),
-                  0
-                ) ?? 0;
+              // What the template will really create — the same counts the
+              // modal gallery and the confirm dialog show.
+              const counts = templateContentCounts(template);
               return (
                 <div
                   key={template.id}
                   className="group relative rounded-2xl border border-gray-200 bg-white hover:border-[#c9a84c] hover:shadow-lg transition-all overflow-hidden flex flex-col"
                 >
-                  {isCustom && c.mine && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (
-                          window.confirm(
-                            `Delete the "${template.name}" template? This can't be undone.`
+                  {/* Creator or workspace OWNER/ADMIN only (the API gate).
+                      Always visible where there is no hover (touch) or when
+                      focused by keyboard. */}
+                  {isCustom && c.canManage && (
+                    <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const row = rows.find(
+                            (r) => r.id === customIdToDbId(template.id)
+                          );
+                          if (row) setEditingRow(row);
+                        }}
+                        className="w-8 h-8 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-900"
+                        aria-label="Edit template"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            window.confirm(
+                              `Delete the "${template.name}" template? This can't be undone.`
+                            )
                           )
-                        )
-                          handleDeleteCustom(template.id);
-                      }}
-                      disabled={deletingId === template.id}
-                      className="absolute top-3 right-3 z-10 w-8 h-8 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40"
-                      aria-label="Delete template"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                            handleDeleteCustom(template.id);
+                        }}
+                        disabled={deletingId === template.id}
+                        className="w-8 h-8 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-600 disabled:opacity-40"
+                        aria-label="Delete template"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                   <button
                     type="button"
@@ -298,23 +326,39 @@ export default function TemplatesGalleryPage() {
                       <div className="mt-4 flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                         <span>
                           <span className="font-medium tabular-nums text-gray-700">
-                            {template.sections.length}
+                            {counts.sections}
                           </span>{" "}
-                          section{template.sections.length === 1 ? "" : "s"}
+                          section{counts.sections === 1 ? "" : "s"}
                         </span>
-                        {template.tasks && template.tasks.length > 0 && (
+                        {counts.tasks > 0 && (
                           <>
                             <span className="text-gray-300">·</span>
                             <span>
                               <span className="font-medium tabular-nums text-gray-700">
-                                {template.tasks.length}
+                                {counts.tasks}
                               </span>{" "}
-                              task{template.tasks.length === 1 ? "" : "s"}
-                              {subCount > 0 ? ` + ${subCount} subtasks` : ""}
+                              task{counts.tasks === 1 ? "" : "s"}
+                              {counts.subtasks > 0
+                                ? ` + ${counts.subtasks} subtasks`
+                                : ""}
                             </span>
                           </>
                         )}
-                        {template.workflowTemplateId && (
+                        {counts.customFields > 0 && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span>
+                              <span className="font-medium tabular-nums text-gray-700">
+                                {counts.customFields}
+                              </span>{" "}
+                              field{counts.customFields === 1 ? "" : "s"}
+                            </span>
+                          </>
+                        )}
+                        {workflowFitsSections(
+                          template.workflowTemplateId,
+                          template.sections
+                        ) && (
                           <>
                             <span className="text-gray-300">·</span>
                             <span className="text-[#a8893a] font-medium">
@@ -326,6 +370,9 @@ export default function TemplatesGalleryPage() {
                       {isCustom && (
                         <p className="mt-3 text-xs text-gray-400">
                           Created by {c.creator?.name || "your team"}
+                          {c.canManage
+                            ? ""
+                            : " · only its creator or an admin can edit or delete it"}
                         </p>
                       )}
                     </div>
@@ -365,6 +412,17 @@ export default function TemplatesGalleryPage() {
         template={picked}
         onClose={() => setPicked(null)}
         onCreated={() => setPicked(null)}
+      />
+
+      {/* Edit a custom template (creator or admin — see the card actions) */}
+      <EditTemplateDialog
+        row={editingRow}
+        onClose={() => setEditingRow(null)}
+        onSaved={(saved) =>
+          setRows((prev) =>
+            prev.map((r) => (r.id === saved.id ? { ...r, ...saved } : r))
+          )
+        }
       />
 
       {/* New custom template */}

@@ -21,7 +21,9 @@ export async function getCurrentUser() {
       id: true,
       name: true,
       email: true,
-      image: true,
+      // No `image`: it can be a data URL of up to ~300 KB and this runs on
+      // every API call (via getCurrentUserId). No caller reads it; select the
+      // avatar explicitly where it is actually rendered.
     },
   });
 

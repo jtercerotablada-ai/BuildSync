@@ -1,114 +1,26 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import prisma from "@/lib/prisma";
-import { createToken } from "@/lib/tokens";
-import { sendVerificationEmail } from "@/lib/email";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
 
-const registerSchema = z.object({
-  email: z.string().email("Invalid email address"),
-});
-
-export async function POST(req: Request) {
-  try {
-    // Throttle signups per IP to curb automated registration / email
-    // dispatch abuse — audit AUTH-02.
-    const ip = clientIp(req.headers);
-    const limited = rateLimit(`register:${ip}`, 10, 15 * 60 * 1000);
-    if (!limited.ok) {
-      return NextResponse.json(
-        { message: "If this email is not already registered, a verification email has been sent." },
-        { status: 200, headers: { "Retry-After": String(limited.retryAfter) } }
-      );
-    }
-
-    const body = await req.json();
-    const { email } = registerSchema.parse(body);
-
-    // Normalize email
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        email: {
-          equals: normalizedEmail,
-          mode: 'insensitive'
-        }
-      },
-    });
-
-    if (existingUser) {
-      /* A row with no password is a signup that never finished. Registering
-         again is the ONLY move such a person has — the link expires in an hour
-         (tokens.ts) and /api/auth/resend-verification sits behind a login — so
-         this branch has to actually re-send. It used to return the reassuring
-         message and mint nothing, which made an expired link a permanent dead
-         end and turned the "we've sent it a link" screen into a lie. */
-      if (!existingUser.password) {
-        // Same 2-minute throttle as resend-verification: a token minted less
-        // than 2 minutes ago still expires more than 58 minutes from now.
-        const recentToken = await prisma.verificationToken.findFirst({
-          where: {
-            identifier: `email-verify:${normalizedEmail}`,
-            expires: { gt: new Date(Date.now() + 58 * 60 * 1000) },
-          },
-        });
-
-        if (!recentToken) {
-          try {
-            const token = await createToken(`email-verify:${normalizedEmail}`);
-            await sendVerificationEmail(normalizedEmail, token);
-          } catch (emailError) {
-            console.error("Failed to resend verification email:", emailError);
-          }
-        }
-      }
-
-      /* Identical body and status for "resent", "throttled" and "already a
-         full account", so the response still cannot be used to probe which
-         addresses exist. The 201-vs-200 split below is the remaining tell and
-         is tracked separately. */
-      return NextResponse.json(
-        { message: "If this email is not already registered, a verification email has been sent." },
-        { status: 200 }
-      );
-    }
-
-    // Create user with just email (no password yet)
-    const user = await prisma.user.create({
-      data: {
-        email: normalizedEmail,
-      },
-    });
-
-    // Send verification email (non-blocking)
-    try {
-      const token = await createToken(`email-verify:${normalizedEmail}`);
-      await sendVerificationEmail(normalizedEmail, token);
-    } catch (emailError) {
-      console.error("Failed to send verification email:", emailError);
-    }
-
-    return NextResponse.json(
-      {
-        message: "If this email is not already registered, a verification email has been sent.",
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const zodError = error as z.ZodError;
-      return NextResponse.json(
-        { error: zodError.issues[0]?.message || "Validation error" },
-        { status: 400 }
-      );
-    }
-
-    console.error("Registration error:", error);
-    return NextResponse.json(
-      { error: "Something went wrong" },
-      { status: 500 }
-    );
-  }
+/**
+ * Self-service sign-up is CLOSED.
+ *
+ * BuildSync is the firm's internal, staff-only tool. Open registration let any
+ * internet user mint a password-less row for any address, finish onboarding
+ * and land as OWNER of a fresh empty workspace — an authenticated session on
+ * the production app and database, at the firm's expense (AI routes, blob
+ * store). A new hire who used it instead of their invitation also ended up
+ * alone in that empty workspace instead of in the firm.
+ *
+ * Accounts are created by accepting a workspace invitation
+ * (/invite/<token> → POST /api/invite/<token>/accept), which proves control of
+ * the address and joins the right workspace in one step. The same answer for
+ * every address, so this cannot be used to probe which emails exist.
+ */
+export async function POST() {
+  return NextResponse.json(
+    {
+      error:
+        "BuildSync accounts are created by invitation only. Ask a workspace admin to invite you, then open the link in the invitation email.",
+    },
+    { status: 403 }
+  );
 }

@@ -110,7 +110,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
         Reset password
       </a>
       <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.5">
-        If you didn't request a password reset, you can safely ignore this email. This link expires in 1 hour.
+        If you didn't request a password reset, you can safely ignore this email. This link expires in 30 minutes.
       </p>
     </div>
   </div>
@@ -144,6 +144,8 @@ interface InvitationEmailParams {
   roleLabel: string;
   personalMessage?: string | null;
   projectName?: string | null;
+  /** Label shown next to projectName — "Portfolio" for a portfolio invite. */
+  contextLabel?: string;
 }
 
 function escapeHtml(value: string): string {
@@ -164,12 +166,14 @@ export async function sendInvitationEmail(params: InvitationEmailParams) {
     roleLabel,
     personalMessage,
     projectName,
+    contextLabel = "Starting project",
   } = params;
   const acceptUrl = `${APP_URL}/invite/${token}`;
   const safeInviter = escapeHtml(inviterName);
   const safeWorkspace = escapeHtml(workspaceName);
   const safeRole = escapeHtml(roleLabel);
   const safeProject = projectName ? escapeHtml(projectName) : null;
+  const safeContextLabel = escapeHtml(contextLabel);
   const safeNote = personalMessage ? escapeHtml(personalMessage) : null;
 
   try {
@@ -213,7 +217,7 @@ export async function sendInvitationEmail(params: InvitationEmailParams) {
             ${
               safeProject
                 ? `<tr>
-              <td style="color:#64748b;font-size:12px;padding:2px 8px 2px 0">Starting project</td>
+              <td style="color:#64748b;font-size:12px;padding:2px 8px 2px 0">${safeContextLabel}</td>
               <td style="color:#0f172a;font-size:13px;font-weight:600;padding:2px 0;text-align:right">${safeProject}</td>
             </tr>`
                 : ""
@@ -298,11 +302,11 @@ export async function sendTaskAssignedEmail(
   } = params;
 
   // Deep link: if there's a project, drop the user on the project
-  // page with the task pre-selected. Otherwise send them to /my-tasks
-  // where the assignment lives.
+  // page with the task panel open (?task=). Otherwise open the task on
+  // its full-page route.
   const url = projectId
     ? `${APP_URL}/projects/${projectId}?task=${taskId}`
-    : `${APP_URL}/my-tasks?task=${taskId}`;
+    : `${APP_URL}/tasks/${taskId}`;
 
   const safeTask = escapeHtml(taskName);
   const safeAssigner = escapeHtml(assignerName);

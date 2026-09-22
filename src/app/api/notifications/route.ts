@@ -15,6 +15,17 @@ export async function GET(req: Request) {
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "30") || 30, 1), 100);
     const archived = searchParams.get("archived") === "true";
     const cursor = searchParams.get("cursor") || undefined;
+    // ?ids=a,b,c fetches specific rows regardless of archived state. The
+    // inbox's Favorites tab uses it: starred ids live in uiState, and once a
+    // starred row was archived it could no longer be found in the archived=false
+    // stream the tab used to filter. Capped, and never paginated.
+    const idsParam = searchParams.get("ids");
+    const ids =
+      idsParam !== null
+        ? Array.from(
+            new Set(idsParam.split(",").map((s) => s.trim()).filter(Boolean))
+          ).slice(0, 100)
+        : null;
 
     // Resolve the cursor row so we can page by (createdAt desc, id tiebreak).
     // cuid ids aren't time-ordered, so we filter on the cursor's createdAt.
@@ -26,7 +37,7 @@ export async function GET(req: Request) {
           )[];
         }
       | undefined;
-    if (cursor) {
+    if (cursor && !ids) {
       const cursorRow = await prisma.notification.findFirst({
         where: { id: cursor, userId },
         select: { id: true, createdAt: true },
@@ -47,13 +58,15 @@ export async function GET(req: Request) {
     }
 
     const notifications = await prisma.notification.findMany({
-      where: {
-        userId,
-        archived,
-        ...(cursorFilter ?? {}),
-      },
+      where: ids
+        ? { userId, id: { in: ids } }
+        : {
+            userId,
+            archived,
+            ...(cursorFilter ?? {}),
+          },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: limit,
+      take: ids ? ids.length || 1 : limit,
     });
 
     // Unread count is independent of the current filter/page.
@@ -94,6 +107,10 @@ export async function GET(req: Request) {
           undefined,
         rootMessageId:
           (data.rootMessageId as string | undefined) ?? undefined,
+        // Goal shares and portfolio invitations / message mentions carry
+        // these; dropping them left those rows with nowhere to go.
+        objectiveId: (data.objectiveId as string | undefined) ?? undefined,
+        portfolioId: (data.portfolioId as string | undefined) ?? undefined,
         sender: {
           name: senderName,
           avatar: senderImage,
@@ -106,7 +123,7 @@ export async function GET(req: Request) {
 
     // Full page returned -> more may exist; expose the last id as the cursor.
     const nextCursor =
-      notifications.length === limit
+      !ids && notifications.length === limit
         ? notifications[notifications.length - 1].id
         : null;
 
@@ -133,7 +150,17 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
+    // A malformed body is the client's fault, not a server failure.
+    let body: Record<string, unknown>;
+    try {
+      const parsed = await req.json();
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("not an object");
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
     const { ids, read, archived, markAllRead, archiveAll } = body;
 
     if (markAllRead) {
@@ -197,6 +224,13 @@ export async function PATCH(req: Request) {
     const updateData: { read?: boolean; archived?: boolean } = {};
     if (typeof read === "boolean") updateData.read = read;
     if (typeof archived === "boolean") updateData.archived = archived;
+    // ids with neither flag used to run an empty update and report success.
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: "Nothing to update: send read and/or archived" },
+        { status: 400 }
+      );
+    }
 
     await prisma.notification.updateMany({
       where: {

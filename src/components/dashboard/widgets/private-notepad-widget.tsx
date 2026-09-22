@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Plus,
@@ -54,6 +54,18 @@ import { cn } from '@/lib/utils';
 const STORAGE_KEY_PREFIX = 'buildsync-private-notepad';
 const storageKeyFor = (userId: string) => `${STORAGE_KEY_PREFIX}:${userId}`;
 const NOTEPAD_TITLE = '__home_private_notepad__';
+// Tags a drag that began inside the note, so its drop is left to the browser.
+const INTERNAL_DRAG_TYPE = 'application/x-buildsync-notepad-move';
+
+// Anything that could load a remote resource (a read-receipt beacon) is
+// dropped. Inline styles stay: quotes, code blocks and mentions are styled
+// with them. The same rule runs on paste/drop and on load, so what the user
+// sees in the editor is what gets stored and what comes back.
+const sanitizeNoteHtml = (html: string) =>
+  DOMPurify.sanitize(html, {
+    FORBID_TAGS: ['img', 'picture', 'source', 'video', 'audio', 'svg', 'math', 'style', 'link', 'form', 'input'],
+    FORBID_ATTR: ['srcset', 'background', 'poster'],
+  });
 
 // Emoji picker data
 const emojiCategories = [
@@ -99,6 +111,9 @@ export function PrivateNotepadWidget() {
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [aiResult, setAiResult] = useState('');
+  // Kept apart from aiResult: an error in the Result box could be written
+  // into the note by 'Replace text' and then autosaved.
+  const [aiError, setAiError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mentionsError, setMentionsError] = useState<string | null>(null);
   const [mentionsLoading, setMentionsLoading] = useState(false);
@@ -107,6 +122,34 @@ export function PrivateNotepadWidget() {
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error' | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  // Where the emoji / mention / link pickers open. They sit in a fixed
+  // overlay, so a hardcoded offset put them in the viewport's bottom-left
+  // corner, far from the widget; anchor them to this widget's toolbar.
+  const [pickerPos, setPickerPos] = useState<React.CSSProperties>({
+    bottom: '80px',
+    left: '20px',
+  });
+  const anyPickerOpen = showEmojiPicker || showMentionPicker || showLinkPicker;
+  useLayoutEffect(() => {
+    if (!anyPickerOpen) return;
+    const rect = toolbarRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const PICKER_WIDTH = 288; // the widest picker (w-72)
+    const PICKER_HEIGHT = 320; // roughly the tallest one
+    const GAP = 8;
+    const left = Math.max(
+      GAP,
+      Math.min(rect.left, window.innerWidth - PICKER_WIDTH - GAP)
+    );
+    // Open above the toolbar (next to the text being edited) unless there
+    // is not enough room, then below it.
+    setPickerPos(
+      rect.top >= PICKER_HEIGHT + GAP
+        ? { left, bottom: window.innerHeight - rect.top + GAP }
+        : { left, top: rect.bottom + GAP }
+    );
+  }, [anyPickerOpen]);
 
   // AI Assist options
   const aiOptions = [
@@ -250,7 +293,7 @@ export function PrivateNotepadWidget() {
     if (!isLoaded || initialSyncDoneRef.current || !editorRef.current) return;
     initialSyncDoneRef.current = true;
     if (content) {
-      editorRef.current.innerHTML = DOMPurify.sanitize(content);
+      editorRef.current.innerHTML = sanitizeNoteHtml(content);
     }
   }, [isLoaded, content]);
 
@@ -400,6 +443,76 @@ export function PrivateNotepadWidget() {
     }
     editorRef.current?.focus();
   }, []);
+
+  // Rich paste/drop from a web page or email would otherwise put media into
+  // the note that the load-time sanitizer strips later, silently losing it
+  // on the next autosave. Filter it on the way in instead.
+  const insertTransfer = useCallback((data: DataTransfer) => {
+    const html = data.getData('text/html');
+    if (html) {
+      document.execCommand('insertHTML', false, sanitizeNoteHtml(html));
+    } else {
+      const text = data.getData('text/plain');
+      if (text) document.execCommand('insertText', false, text);
+    }
+  }, []);
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLDivElement>) => {
+      const types = Array.from(e.clipboardData.types);
+      // An image-only clipboard (a screenshot) has no text/html, yet Firefox
+      // and Safari paste it natively as an <img> that is stripped on reload.
+      const carriesMedia =
+        types.includes('Files') || types.some((t) => t.startsWith('image/'));
+      if (!types.includes('text/html') && !carriesMedia) return; // plain text is safe
+      e.preventDefault();
+      insertTransfer(e.clipboardData);
+    },
+    [insertTransfer]
+  );
+
+  // A drag that starts inside the note is the user moving their own
+  // (already clean) text. Intercepting it would cancel the browser's move
+  // and leave a copy at both places. The drag is tagged on its own
+  // dataTransfer rather than in a ref: dragend fires on the source node, and
+  // when that node is removed mid-drag it never reaches us, so a ref flag
+  // could stay set and swallow the next drop from outside.
+  const handleDragStart = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData(INTERNAL_DRAG_TYPE, '1');
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      if (Array.from(e.dataTransfer.types).includes(INTERNAL_DRAG_TYPE)) return;
+      const types = Array.from(e.dataTransfer.types);
+      if (!types.includes('text/html') && !types.includes('Files')) return;
+      e.preventDefault();
+      // Put the caret where the drop landed before inserting there.
+      // Firefox has only the standard caretPositionFromPoint.
+      const doc = document as Document & {
+        caretPositionFromPoint?: (
+          x: number,
+          y: number
+        ) => { offsetNode: Node; offset: number } | null;
+      };
+      let range = doc.caretRangeFromPoint?.(e.clientX, e.clientY) ?? null;
+      if (!range) {
+        const pos = doc.caretPositionFromPoint?.(e.clientX, e.clientY);
+        if (pos) {
+          range = document.createRange();
+          range.setStart(pos.offsetNode, pos.offset);
+          range.collapse(true);
+        }
+      }
+      if (range) {
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      insertTransfer(e.dataTransfer);
+    },
+    [insertTransfer]
+  );
 
   // Handle content change
   const handleContentChange = useCallback(() => {
@@ -702,6 +815,7 @@ export function PrivateNotepadWidget() {
 
     setAiLoading(option.id);
     setAiResult('');
+    setAiError(null);
 
     try {
       const response = await fetch('/api/ai/assist', {
@@ -713,13 +827,26 @@ export function PrivateNotepadWidget() {
         }),
       });
 
-      if (!response.ok) throw new Error('AI request failed');
-
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setAiError(
+          response.status === 503
+            ? "AI features aren't configured for this workspace."
+            : typeof data?.error === 'string'
+              ? data.error
+              : 'Could not process your request. Please try again.'
+        );
+        return;
+      }
+      // An empty answer is a failure too: nothing to replace the text with.
+      if (typeof data?.result !== 'string' || !data.result.trim()) {
+        setAiError('The AI returned an empty answer. Please try again.');
+        return;
+      }
       setAiResult(data.result);
     } catch (error) {
       console.error('AI assist error:', error);
-      setAiResult('Error: Could not process your request. Please try again.');
+      setAiError('Could not process your request. Please try again.');
     } finally {
       setAiLoading(null);
     }
@@ -756,6 +883,7 @@ export function PrivateNotepadWidget() {
       saveSelection();
     }
     setAiResult('');
+    setAiError(null);
     setShowAIAssist(true);
   }, [saveSelection]);
 
@@ -987,6 +1115,9 @@ export function PrivateNotepadWidget() {
             '[&_li]:my-1'
           )}
           onInput={handleContentChange}
+          onPaste={handlePaste}
+          onDrop={handleDrop}
+          onDragStart={handleDragStart}
           onFocus={saveSelection}
           onBlur={saveNote}
           onKeyDown={handleKeyDown}
@@ -997,7 +1128,7 @@ export function PrivateNotepadWidget() {
 
       {/* TOOLBAR */}
       <TooltipProvider>
-        <div className="flex flex-wrap items-center gap-0.5 pt-2 border-t border-gray-200">
+        <div ref={toolbarRef} className="flex flex-wrap items-center gap-0.5 pt-2 border-t border-gray-200">
           {/* INSERT MENU (+) */}
           <DropdownMenu open={insertMenuOpen} onOpenChange={setInsertMenuOpen}>
             <DropdownMenuTrigger asChild>
@@ -1086,7 +1217,7 @@ export function PrivateNotepadWidget() {
             role="dialog"
             aria-label="Emoji picker"
             className="absolute bg-white border rounded-lg shadow-lg p-3 w-72"
-            style={{ bottom: '80px', left: '20px' }}
+            style={pickerPos}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="space-y-3 max-h-64 overflow-y-auto">
@@ -1119,7 +1250,7 @@ export function PrivateNotepadWidget() {
             role="dialog"
             aria-label="Mention a teammate"
             className="absolute bg-white border rounded-lg shadow-lg p-3 w-64"
-            style={{ bottom: '80px', left: '20px' }}
+            style={pickerPos}
             onClick={(e) => e.stopPropagation()}
           >
             <Input
@@ -1181,7 +1312,7 @@ export function PrivateNotepadWidget() {
             role="dialog"
             aria-label="Insert link"
             className="absolute bg-white border rounded-lg shadow-lg p-3 w-72"
-            style={{ bottom: '80px', left: '20px' }}
+            style={pickerPos}
             onClick={(e) => e.stopPropagation()}
           >
             <form
@@ -1252,6 +1383,12 @@ export function PrivateNotepadWidget() {
                   {selectedText || 'No text selected'}
                 </div>
               </div>
+
+              {aiError && !aiResult && (
+                <p role="alert" className="mb-3 text-sm text-red-600">
+                  {aiError}
+                </p>
+              )}
 
               {/* AI Options */}
               {!aiResult && (

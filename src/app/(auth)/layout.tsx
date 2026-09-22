@@ -1,18 +1,12 @@
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-
-export default async function AuthLayout({
+/* No "already signed in → /home" redirect here. This layout wraps the
+   token-bearing pages too (reset-password, verify-email), and a blanket
+   redirect made a reset link unusable in any browser where someone was signed
+   in. The login page sends an authenticated visitor on by itself. */
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
-
-  if (session) {
-    redirect("/home");
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md p-8">

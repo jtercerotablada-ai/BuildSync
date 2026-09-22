@@ -54,6 +54,10 @@ export async function fileToAvatarDataUrl(file: File): Promise<string> {
     canvas.height = AVATAR_SIZE;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new AvatarError("Canvas unavailable");
+    // JPEG has no alpha channel: without an opaque fill first, the transparent
+    // background of a PNG/WEBP logo is exported as solid black.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, AVATAR_SIZE, AVATAR_SIZE);
     // Center-crop to a square, then scale.
     ctx.drawImage(
       img,

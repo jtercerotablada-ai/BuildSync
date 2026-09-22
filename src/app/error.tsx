@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { startTransition, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export default function Error({
@@ -11,9 +12,22 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
+
   useEffect(() => {
     console.error(error);
   }, [error]);
+
+  /* reset() alone only clears the boundary and re-renders the SAME payload,
+     so a server-component failure (a database timeout, a cold start) just
+     came straight back. Refetch from the server first, in one transition with
+     the reset, so "Try again" actually retries. */
+  const retry = () => {
+    startTransition(() => {
+      router.refresh();
+      reset();
+    });
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#fafafa] px-6">
@@ -39,7 +53,7 @@ export default function Error({
           </p>
         )}
         <div className="flex items-center justify-center gap-2">
-          <Button onClick={reset}>Try again</Button>
+          <Button onClick={retry}>Try again</Button>
           <Button variant="outline" asChild>
             <Link href="/home">Back to home</Link>
           </Button>

@@ -23,9 +23,13 @@ import { FileText, Inbox, ArrowRight } from "lucide-react";
  * intake (Asana parity) — distinct from the marketing /contact form
  * which lives in /portal/admin/submissions.
  */
+
+/** The firm works in Miami; this page renders on the server in UTC. */
+const FIRM_TIME_ZONE = "America/New_York";
+
 export default async function AdminFormsPage() {
   const userId = await getCurrentUserId();
-  if (!userId) redirect("/auth/signin");
+  if (!userId) redirect("/login?callbackUrl=%2Fportal%2Fadmin%2Fforms");
 
   // The PRIMARY membership, the same one the APIs behind this page resolve.
   // A bare findFirst returned an arbitrary workspace, so the page could list
@@ -135,7 +139,12 @@ export default async function AdminFormsPage() {
                       {form._count.submissions}
                     </TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">
-                      {new Date(form.updatedAt).toLocaleDateString()}
+                      {new Date(form.updatedAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        timeZone: FIRM_TIME_ZONE,
+                      })}
                     </TableCell>
                     <TableCell>
                       <Link

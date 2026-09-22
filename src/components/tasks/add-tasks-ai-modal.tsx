@@ -9,6 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sparkles, Upload, X, FileText, Loader2, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { dueDateToLocalMidnight, toDateOnlyISO } from "@/lib/date-only";
 
 interface GeneratedTask {
   name: string;
@@ -23,6 +25,15 @@ interface AddTasksAIModalProps {
 }
 
 type ModalStep = "input" | "review" | "creating";
+
+/** The model answers date-only "YYYY-MM-DD", which `new Date()` reads as UTC
+ *  midnight — the previous day west of UTC. Show the calendar day it names. */
+function formatAiDueDate(value: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const d = dueDateToLocalMidnight(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasksAIModalProps) {
   const [step, setStep] = useState<ModalStep>("input");
@@ -40,7 +51,8 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const hasInput = inputMode === "paste" ? pastedText.trim().length > 0 : file !== null;
+  const hasInput =
+    inputMode === "paste" ? pastedText.trim().length > 0 : file !== null && fileContent.trim().length > 0;
 
   function resetState() {
     setStep("input");
@@ -81,33 +93,32 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
   }, []);
 
   function processFile(f: File) {
-    const validTypes = [
-      "text/plain", "text/markdown", "text/csv",
-      "application/pdf", "image/png", "image/jpeg", "image/webp",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
-    const validExts = [".txt", ".md", ".csv", ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".docx"];
+    // Only plain-text files: the extraction route receives text, so a PDF,
+    // Word file or image would reach the model as nothing but its filename
+    // and come back empty or with invented tasks.
+    const validTypes = ["text/plain", "text/markdown", "text/csv"];
+    const validExts = [".txt", ".md", ".csv"];
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
 
     if (!validTypes.includes(f.type) && !validExts.includes(ext)) {
-      setError("Unsupported file type. Use txt, md, csv, pdf, docx, or image files.");
+      setError(
+        "Unsupported file type. Use a .txt, .md or .csv file, or paste the text of a PDF or Word document instead."
+      );
       return;
     }
 
     setFile(f);
+    setFileContent("");
     setError("");
 
-    // Read text-based files
-    if (f.type.startsWith("text/") || ext === ".md" || ext === ".csv") {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setFileContent(e.target?.result as string || "");
-      };
-      reader.readAsText(f);
-    } else {
-      // For non-text files, we'll send the filename as context
-      setFileContent(`[File: ${f.name} (${f.type})]`);
-    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setFileContent((e.target?.result as string) || "");
+    };
+    reader.onerror = () => {
+      setError("Couldn't read that file. Try pasting its text instead.");
+    };
+    reader.readAsText(f);
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -131,12 +142,18 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
       const res = await fetch("/api/ai/generate-tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, instructions: instructions.trim() || undefined }),
+        body: JSON.stringify({
+          text,
+          instructions: instructions.trim() || undefined,
+          // The viewer's calendar day, so "due tomorrow" is counted from the
+          // same day they see (the server's own clock is UTC).
+          today: toDateOnlyISO(new Date()),
+        }),
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to generate tasks");
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to generate tasks");
       }
 
       const data = await res.json();
@@ -174,15 +191,20 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
   }
 
   async function handleCreateTasks() {
-    const tasksToCreate = generatedTasks.filter((_, i) => selectedTasks.has(i));
-    if (tasksToCreate.length === 0) return;
+    const indexes = generatedTasks
+      .map((_, i) => i)
+      .filter((i) => selectedTasks.has(i));
+    if (indexes.length === 0) return;
 
     setStep("creating");
     setIsCreating(true);
     setCreatedCount(0);
+    setError("");
 
-    let successCount = 0;
-    for (const task of tasksToCreate) {
+    const failed: number[] = [];
+    let lastError = "";
+    for (const i of indexes) {
+      const task = generatedTasks[i];
       try {
         const res = await fetch("/api/tasks", {
           method: "POST",
@@ -193,22 +215,39 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
             priority: task.priority !== "NONE" ? task.priority : undefined,
           }),
         });
-        if (res.ok) successCount++;
+        if (!res.ok) {
+          failed.push(i);
+          const data = await res.json().catch(() => null);
+          if (data?.error) lastError = data.error;
+        }
       } catch {
-        // continue with remaining tasks
+        failed.push(i);
       }
       setCreatedCount((prev) => prev + 1);
     }
 
     setIsCreating(false);
+    const successCount = indexes.length - failed.length;
 
-    if (successCount > 0) {
-      onTasksCreated();
+    if (successCount > 0) onTasksCreated();
+
+    if (failed.length === 0) {
+      toast.success(`Created ${successCount} task${successCount !== 1 ? "s" : ""}`);
       handleClose();
-    } else {
-      setError("Failed to create tasks. Please try again.");
-      setStep("review");
+      return;
     }
+
+    // Keep only the tasks that failed in the review list, so a retry cannot
+    // create the successful ones twice.
+    const failedTasks = failed.map((i) => generatedTasks[i]);
+    setGeneratedTasks(failedTasks);
+    setSelectedTasks(new Set(failedTasks.map((_, i) => i)));
+    setError(
+      `Created ${successCount} of ${indexes.length} tasks. ${failed.length} failed${
+        lastError ? ` (${lastError})` : ""
+      } and ${failed.length === 1 ? "is" : "are"} still listed below.`
+    );
+    setStep("review");
   }
 
   const selectedCount = selectedTasks.size;
@@ -270,7 +309,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                         Drop a file here, or <span className="text-black underline underline-offset-2">browse</span>
                       </p>
                       <p className="text-[12px] text-gray-400 mt-1">
-                        Supports txt, md, csv, pdf, docx, and images
+                        Supports .txt, .md and .csv. For a PDF or Word file, paste its text instead.
                       </p>
                     </div>
                   </div>
@@ -293,7 +332,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  accept=".txt,.md,.csv,.pdf,.docx,.png,.jpg,.jpeg,.webp"
+                  accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"
                   onChange={handleFileSelect}
                 />
                 <button
@@ -381,9 +420,9 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                   <div className="flex-1 min-w-0" onClick={() => toggleTask(index)}>
                     <p className="text-[13px] font-medium text-gray-800">{task.name}</p>
                     <div className="flex items-center gap-3 mt-1">
-                      {task.dueDate && (
+                      {task.dueDate && formatAiDueDate(task.dueDate) && (
                         <span className="text-[11px] text-gray-400">
-                          Due {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          Due {formatAiDueDate(task.dueDate)}
                         </span>
                       )}
                       {task.priority !== "NONE" && (

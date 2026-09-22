@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
+  AlertTriangle,
   Loader2,
   Plus,
   Mail,
@@ -18,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -29,8 +31,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import {
+  canChangeWorkspaceRole,
+  canRemoveWorkspaceMember,
+} from "@/lib/people-types";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 type Role = "OWNER" | "ADMIN" | "MEMBER" | "WORKER" | "GUEST";
 
@@ -136,6 +142,14 @@ export function WorkspaceSection() {
 
   const canManage = myRole === "OWNER" || myRole === "ADMIN";
 
+  // People who can take over a removed member's open tasks.
+  const taskHeirs = members
+    .filter((m) => !isNonContributorRole(m.role))
+    .map((m) => ({
+      userId: m.userId,
+      name: m.user.name || m.user.email || "Unnamed",
+    }));
+
   async function handleInvite() {
     const email = inviteEmail.trim().toLowerCase();
     if (!email) {
@@ -237,19 +251,15 @@ export function WorkspaceSection() {
     }
   }
 
-  // Throws on failure so the confirmation dialog stays open and shows the
-  // API's own reason (last owner, projects with no heir).
-  async function handleRemove(member: MemberRow) {
-    const res = await fetch(
-      `/api/workspace/members?userId=${member.userId}`,
-      { method: "DELETE" }
-    );
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || "Could not remove");
-    }
+  function handleRemoved(
+    member: MemberRow,
+    result: RemoveMemberResult,
+    heirName: string | null
+  ) {
     setRemoveTarget(null);
-    toast.success("Member removed");
+    toast.success(
+      removedMessage(member.user.name || member.user.email, result, heirName)
+    );
     setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
   }
 
@@ -293,7 +303,6 @@ export function WorkspaceSection() {
           <ul className="divide-y">
             {members.map((m) => {
               const isSelf = m.userId === meUserId;
-              const isOwner = m.role === "OWNER";
               return (
                 <li
                   key={m.id}
@@ -323,7 +332,7 @@ export function WorkspaceSection() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {canManage && !isOwner && !isSelf ? (
+                    {canChangeWorkspaceRole(myRole, m.role, isSelf) ? (
                       <Select
                         value={m.role}
                         onValueChange={(v) =>
@@ -337,7 +346,13 @@ export function WorkspaceSection() {
                           <SelectItem value="ADMIN">Admin</SelectItem>
                           <SelectItem value="MEMBER">Member</SelectItem>
                           <SelectItem value="WORKER">Worker</SelectItem>
-                          <SelectItem value="GUEST">Guest</SelectItem>
+                          {/* Listed only so an existing guest's role renders;
+                              GUEST can no longer be granted. */}
+                          {m.role === "GUEST" && (
+                            <SelectItem value="GUEST" disabled>
+                              Guest
+                            </SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     ) : (
@@ -349,7 +364,8 @@ export function WorkspaceSection() {
                         {m.role}
                       </Badge>
                     )}
-                    {canManage && !isOwner && !isSelf && (
+                    {!isSelf &&
+                      canRemoveWorkspaceMember(myRole, m.role, isSelf) && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -427,27 +443,22 @@ export function WorkspaceSection() {
       )}
 
       {/* Remove-from-workspace confirmation */}
-      <ConfirmDialog
-        open={!!removeTarget}
-        onOpenChange={(open) => !open && setRemoveTarget(null)}
-        title="Remove from workspace"
-        description={
+      <RemoveMemberDialog
+        target={
           removeTarget
-            ? `${
-                removeTarget.user.name || removeTarget.user.email || "This person"
-              } loses access to this workspace immediately.`
-            : undefined
+            ? {
+                userId: removeTarget.userId,
+                name:
+                  removeTarget.user.name ||
+                  removeTarget.user.email ||
+                  "This person",
+              }
+            : null
         }
-        consequences={[
-          "Removed from every project and team in this workspace",
-          "Projects they own are transferred to another owner or admin",
-          "Their tasks, comments and files stay — nothing they made is deleted",
-          "They can be invited back later, but project access must be granted again",
-        ]}
-        confirmLabel="Remove"
-        onConfirm={() => {
-          if (!removeTarget) return;
-          return handleRemove(removeTarget);
+        heirs={taskHeirs}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        onRemoved={(result, heirName) => {
+          if (removeTarget) handleRemoved(removeTarget, result, heirName);
         }}
       />
 
@@ -482,7 +493,6 @@ export function WorkspaceSection() {
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="MEMBER">Member</SelectItem>
                   <SelectItem value="WORKER">Worker</SelectItem>
-                  <SelectItem value="GUEST">Guest</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -503,5 +513,161 @@ export function WorkspaceSection() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export interface RemoveMemberResult {
+  openTasksReassigned?: number;
+  reassignedTo?: string | null;
+}
+
+/** Toast copy after a removal, naming where the open tasks went. */
+export function removedMessage(
+  name: string | null | undefined,
+  result: RemoveMemberResult,
+  heirName: string | null
+): string {
+  const who = name || "Member";
+  const n = result.openTasksReassigned ?? 0;
+  if (n === 0) return `${who} removed from the workspace`;
+  const tasks = `${n} open ${n === 1 ? "task" : "tasks"}`;
+  return result.reassignedTo
+    ? `${who} removed · ${tasks} reassigned${heirName ? ` to ${heirName}` : ""}`
+    : `${who} removed · ${tasks} left unassigned`;
+}
+
+const UNASSIGNED = "_UNASSIGNED";
+
+/**
+ * Remove-from-workspace confirmation, shared by Settings > Workspace and the
+ * People directory. It asks who takes over the person's open tasks: left on
+ * them, the tasks sat in nobody's My Tasks and kept mailing reminders to an
+ * account that had left the firm. DELETE /api/workspace/members applies the
+ * choice in the same transaction as the removal.
+ */
+export function RemoveMemberDialog({
+  target,
+  heirs,
+  onOpenChange,
+  onRemoved,
+}: {
+  target: { userId: string; name: string } | null;
+  /** Contributors of the workspace; the target itself is filtered out here. */
+  heirs: { userId: string; name: string }[];
+  onOpenChange: (open: boolean) => void;
+  onRemoved: (result: RemoveMemberResult, heirName: string | null) => void;
+}) {
+  const [heirId, setHeirId] = useState<string>(UNASSIGNED);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const targetUserId = target?.userId ?? null;
+  useEffect(() => {
+    if (targetUserId) {
+      setHeirId(UNASSIGNED);
+      setBusy(false);
+      setError(null);
+    }
+  }, [targetUserId]);
+
+  const options = heirs.filter((h) => h.userId !== targetUserId);
+
+  const confirm = async () => {
+    if (!target || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const qs = new URLSearchParams({ userId: target.userId });
+      if (heirId !== UNASSIGNED) qs.set("reassignTo", heirId);
+      const res = await fetch(`/api/workspace/members?${qs.toString()}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Stay open with the API's own reason (last owner, projects with no
+        // heir, an admin removing an admin).
+        setError(data.error || "Could not remove this person");
+        return;
+      }
+      const heirName =
+        heirId === UNASSIGNED
+          ? null
+          : options.find((h) => h.userId === heirId)?.name ?? null;
+      onRemoved(data.removed ?? {}, heirName);
+    } catch {
+      setError("Network error — check your connection");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!target} onOpenChange={(next) => !busy && onOpenChange(next)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            Remove from workspace
+          </DialogTitle>
+          {target ? (
+            <DialogDescription>
+              {target.name} loses access to this workspace immediately.
+            </DialogDescription>
+          ) : null}
+        </DialogHeader>
+
+        <ul className="list-disc space-y-1 rounded-md border border-gray-200 bg-gray-50 px-6 py-3 text-sm text-gray-700">
+          <li>Removed from every project and team in this workspace</li>
+          <li>Projects they own are transferred to another owner or admin</li>
+          <li>
+            Their open tasks go to the person you pick below, or become
+            unassigned
+          </li>
+          <li>
+            Completed tasks, comments and files stay — nothing they made is
+            deleted
+          </li>
+          <li>
+            They can be invited back later, but project access must be granted
+            again
+          </li>
+        </ul>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Reassign their open tasks to</Label>
+          <Select value={heirId} onValueChange={setHeirId} disabled={busy}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-[260px]">
+              <SelectItem value={UNASSIGNED}>Leave unassigned</SelectItem>
+              {options.map((h) => (
+                <SelectItem key={h.userId} value={h.userId}>
+                  {h.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <DialogFooter>
+          {/* Not disabled while busy: a request that never settles would
+              otherwise trap the user in the dialog. */}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={confirm} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Remove
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { syncMentionsForEditedMessage } from "@/lib/mentions";
 import { loadMessageWithAccess } from "@/lib/message-access";
+import { deleteFile } from "@/lib/storage";
 
 /**
  * PATCH /api/messages/:messageId — edit content (author only).
@@ -146,7 +147,28 @@ export async function DELETE(
       );
     }
 
+    // The attachment rows of this message and of its replies cascade in the
+    // DB, but their blobs do not: read the urls first so the bytes go too.
+    // Otherwise a "deleted" file stays in storage for good, reachable by
+    // anyone who kept its public url.
+    const attachments = await prisma.messageAttachment.findMany({
+      where: {
+        OR: [{ messageId }, { message: { parentMessageId: messageId } }],
+      },
+      select: { url: true },
+    });
+
     await prisma.message.delete({ where: { id: messageId } });
+
+    // Best-effort, after the rows are gone: a storage hiccup must not undo
+    // or fail a delete the user already sees as done.
+    await Promise.all(
+      attachments.map((a) =>
+        deleteFile(a.url).catch((err) => {
+          console.error("[message DELETE] blob delete failed (row removed):", err);
+        })
+      )
+    );
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[message DELETE] error:", err);

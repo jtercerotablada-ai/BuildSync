@@ -13,11 +13,10 @@
  *     dialog). An email that isn't a workspace member yet gets a real
  *     emailed invitation that binds this project on accept ("Invitation
  *     sent to {email}"). → POST /api/projects/:id/members
- *   • "Notify when tasks are added to this project" → per-user preference
- *     persisted via useUiState('projectNotifyOnTasks') keyed by project
- *     id (no backing server column — memory forbids schema changes).
  *   • Workspace-access row ("My workspace") → PATCH /api/projects/:id
- *     { visibility } (Private / Workspace / Public). Gated on canEdit.
+ *     { visibility }. Gated on canEdit (the caller passes the manage flag;
+ *     the route requires canManage). Each option states exactly what
+ *     resolveProjectAccess grants — see @/lib/project-access.
  *   • "Who has access" list → per-row role dropdown (4 roles + Remove),
  *     PATCH { userId, role } / DELETE ?userId=. The owner row is locked.
  *   • "This project is connected to N portfolio(s)." line, sourced from
@@ -34,7 +33,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
@@ -59,7 +57,6 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useUiState } from "@/hooks/use-ui-state";
 import { PROJECT_ROLE_META, type ProjectRole } from "@/lib/people-types";
 
 // ── Types ───────────────────────────────────────────────────
@@ -113,6 +110,9 @@ interface Props {
   canManageMembers: boolean;
   /** Push a visibility change back to the page so its state stays in sync. */
   onVisibilityChange: (visibility: ProjectVisibility) => void;
+  /** Called after an invite, role change or removal succeeds, so the page
+   *  can refresh its roster and its server-resolved edit/manage flags. */
+  onMembersChange?: () => void;
 }
 
 // All four native ProjectRole values, in Asana's display order. Used for
@@ -134,23 +134,30 @@ interface Props {
 // src/app/api/projects/[projectId]/members/route.ts.
 const ROLE_ORDER: ProjectRole[] = ["ADMIN", "EDITOR", "COMMENTER", "VIEWER"];
 
+// Each label states what the server actually grants (resolveProjectAccess).
+// WORKSPACE and PUBLIC grant the same thing — every staff member of this
+// workspace gets Editor access — so PUBLIC is only offered while a project
+// still carries it, never as a separate choice.
 const VISIBILITY_META: Record<
   ProjectVisibility,
   { label: string; hint: string; icon: React.ReactNode }
 > = {
   PRIVATE: {
-    label: "Private to members",
-    hint: "Only invited people can access",
+    label: "Private",
+    // canReadProject also admits the project's team (as editors) and senior
+    // staff (Position level 4+, read only) to a private project, so "only"
+    // must not be promised here.
+    hint: "Members you add, the project's team and workspace admins. Senior staff can view",
     icon: <Lock className="h-4 w-4" />,
   },
   WORKSPACE: {
-    label: "Members with the link",
-    hint: "People you invite plus the workspace",
+    label: "Everyone at the firm",
+    hint: "Everyone at the firm can view and edit",
     icon: <Building2 className="h-4 w-4" />,
   },
   PUBLIC: {
-    label: "Everyone in the workspace",
-    hint: "Anyone in the workspace can view",
+    label: "Everyone at the firm (legacy)",
+    hint: "Same as Everyone at the firm: everyone can view and edit",
     icon: <Globe className="h-4 w-4" />,
   },
 };
@@ -173,6 +180,7 @@ export function ProjectShareDialog({
   canEdit,
   canManageMembers,
   onVisibilityChange,
+  onMembersChange,
 }: Props) {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -188,11 +196,6 @@ export function ProjectShareDialog({
   const [inviting, setInviting] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // "Notify when tasks are added" — per-user pref keyed by project.
-  const { value: notifyPrefs, setValue: setNotifyPrefs } = useUiState<
-    Record<string, boolean>
-  >("projectNotifyOnTasks", {});
-  const notifyOnTasks = notifyPrefs[projectId] ?? false;
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -296,8 +299,6 @@ export function ProjectShareDialog({
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        // Persist the notify preference alongside the invite.
-        setNotifyPrefs((prev) => ({ ...prev, [projectId]: notifyOnTasks }));
         // Two shapes come back: an existing member is added immediately
         // (MemberRow), while a non-member email gets a pending emailed
         // invitation ({ invited: true, ... }).
@@ -318,6 +319,7 @@ export function ProjectShareDialog({
         setSelectedUserId(null);
         setShowSuggestions(false);
         await fetchMembers();
+        onMembersChange?.();
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || "Failed to invite");
@@ -340,6 +342,7 @@ export function ProjectShareDialog({
       if (res.ok) {
         toast.success("Role updated");
         await fetchMembers();
+        onMembersChange?.();
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || "Failed to update role");
@@ -361,6 +364,7 @@ export function ProjectShareDialog({
       if (res.ok) {
         toast.success("Access removed");
         await fetchMembers();
+        onMembersChange?.();
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || "Failed to remove access");
@@ -524,22 +528,6 @@ export function ProjectShareDialog({
                 Invites give access to the internal project, with its budget,
                 hours and private messages. Not for clients.
               </p>
-
-              <label className="flex items-start gap-2 cursor-pointer select-none pt-1">
-                <Checkbox
-                  checked={notifyOnTasks}
-                  onCheckedChange={(v) =>
-                    setNotifyPrefs((prev) => ({
-                      ...prev,
-                      [projectId]: v === true,
-                    }))
-                  }
-                  className="mt-0.5"
-                />
-                <span className="text-sm text-gray-700">
-                  Notify me when tasks are added to this project
-                </span>
-              </label>
             </div>
           )}
 
@@ -569,7 +557,9 @@ export function ProjectShareDialog({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
                     {(
-                      ["PRIVATE", "WORKSPACE", "PUBLIC"] as ProjectVisibility[]
+                      (visibility === "PUBLIC"
+                        ? ["PRIVATE", "WORKSPACE", "PUBLIC"]
+                        : ["PRIVATE", "WORKSPACE"]) as ProjectVisibility[]
                     ).map((v) => (
                       <DropdownMenuItem
                         key={v}

@@ -14,8 +14,7 @@ import {
 } from "@/lib/gantt-prefs";
 import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
-import { getLevel } from "@/lib/people-types";
-import { canReadProject } from "@/lib/project-access";
+import { resolveProjectAccess } from "@/lib/project-access";
 import { isNonContributorRole } from "@/lib/workspace-roles";
 import { taskPrivacyClause } from "@/lib/project-visibility";
 
@@ -100,6 +99,21 @@ export default async function ProjectPage({
     return null;
   }
 
+  // Workspace OWNER/ADMIN of the project's workspace read private tasks, as
+  // decideTaskAccess and the project sub-routes (attachments, activity,
+  // duplicate) already let them. The section tasks load in the query below,
+  // before resolveProjectAccess runs, so the same fact is read up front: it is
+  // the very workspaceMember row the resolver reads for isWorkspaceManager.
+  const managerSeat = await prisma.workspaceMember.findFirst({
+    where: {
+      userId: user.id,
+      role: { in: ["OWNER", "ADMIN"] },
+      workspace: { projects: { some: { id: projectId } } },
+    },
+    select: { id: true },
+  });
+  const sectionTaskPrivacy = managerSeat ? {} : taskPrivacyClause(user.id);
+
   // Defence in depth: never even LOAD a project the viewer has no possible
   // claim on. The OR below is a superset of every grant path canReadProject
   // recognises (workspace membership, ownership, project membership, team
@@ -146,8 +160,9 @@ export default async function ProjectPage({
               // the board is the widest surface it appears on: without this a
               // colleague reads its name, assignee and due date in List, Board
               // and Timeline, then gets a 404 on opening it. Same clause the
-              // task list and search use — never a fourth copy.
-              ...taskPrivacyClause(user.id),
+              // task list and search use — never a fourth copy. Workspace
+              // managers are exempt (see sectionTaskPrivacy above).
+              ...sectionTaskPrivacy,
             },
             orderBy: { position: "asc" },
             include: TASK_INCLUDE,
@@ -184,131 +199,39 @@ export default async function ProjectPage({
   const defaultViewPref = project.viewPrefs.find((p) => p.isDefault && !p.hidden);
   const view = viewParam ?? defaultViewPref?.viewKey ?? "list";
 
-  // ── Per-workspace access check ───────────────────────────────
-  // Read the user's role + position relative to THIS project's
-  // workspace (not the user's primary workspace) so multi-workspace
-  // users don't get leaked access via their OWNER status elsewhere.
-  const isProjectOwner = project.ownerId === user.id;
-  const isProjectMember = project.members.some((m) => m.userId === user.id);
-  // Team sharing: members of the project's team have access too (mirrors
-  // resolveProjectAccess, the canonical rule the API sub-routes enforce). Only
-  // honor a team that lives in the project's OWN workspace — never grant or
-  // display across the workspace boundary.
+  // ── Access ───────────────────────────────────────────────
+  // Delegated to resolveProjectAccess — the SAME decision every API route
+  // makes — rather than an inline copy of it: the copies are how this page,
+  // the portal page and the API ended up granting different people.
+  const access = await resolveProjectAccess(project, user.id);
+  if (!access.ok) {
+    notFound();
+  }
+
+  // Team sharing: only honor a team that lives in the project's OWN
+  // workspace — never display across the workspace boundary.
   const sharedTeam =
     project.team && project.team.workspaceId === project.workspaceId
       ? project.team
       : null;
-  // Resolve the viewer's standing in the PROJECT's workspace ONCE, before any
-  // grant is computed — both IMPLICIT grants below (team sharing, and the
-  // workspace-wide PUBLIC grant) are gated on it.
-  //
-  // A NON-CONTRIBUTOR (GUEST / CLIENT — see NON_CONTRIBUTOR_ROLES) gets neither.
-  // This page is a server component: past the gate below it serializes budget,
-  // member emails, every task and the view prefs into the response, and a
-  // read-only role has no business receiving any of it. `level >= 4` has to sit
-  // behind the same check — Position is independent of WorkspaceRole, so a
-  // GUEST carrying an executive Position would otherwise become a workspace
-  // manager and read PRIVATE projects too.
-  //
-  // EXPLICIT grants are deliberately untouched: a non-contributor who owns the
-  // project or holds a real ProjectMember row still gets in. Only the "everyone
-  // in the workspace / everyone on the team" shortcuts are withdrawn.
-  //
-  // Mirrors the identical condition in resolveProjectAccess — the two copies
-  // existing at all is the drift hazard project-access.ts warns about, kept
-  // only because this page resolves membership inline.
-  const viewerMembership = await prisma.workspaceMember.findUnique({
-    where: {
-      userId_workspaceId: {
-        userId: user.id,
-        workspaceId: project.workspaceId,
-      },
-    },
-    include: { user: { select: { position: true } } },
-  });
-  // CONTRIBUTOR membership, not merely "has a row": a viewer with NO membership
-  // at all must be refused by the team branch too. Removing someone from a
-  // workspace deletes only their WorkspaceMember row and leaves their
-  // TeamMember rows behind, so an offboarded user with a stale team row would
-  // otherwise keep reading every project shared with that team.
-  const viewerIsContributor =
-    !!viewerMembership && !isNonContributorRole(viewerMembership.role);
-
-  const isProjectTeamMember =
-    viewerIsContributor &&
-    (sharedTeam?.members.some((m) => m.userId === user.id) ?? false);
-
-  let isWorkspaceManager = false;
-  const viewerWorkspaceIds: string[] = [];
-  // Owner/member only — team membership must NOT suppress this, because
-  // resolveProjectAccess resolves the team AFTER the workspace role and never
-  // lets it. Adding a third term here made a workspace OWNER who happens to
-  // sit on the team a project is shared with stop being a manager of it, and
-  // the delete gate below reads this flag.
-  if (!isProjectOwner && !isProjectMember) {
-    if (viewerIsContributor && viewerMembership) {
-      viewerWorkspaceIds.push(project.workspaceId);
-      const role = viewerMembership.role;
-      const level = getLevel(viewerMembership.user.position);
-      isWorkspaceManager = role === "OWNER" || role === "ADMIN" || level >= 4;
-    }
-  }
-
-  // One shared decision with the API routes — see canReadProject's comment.
-  const hasAccess = canReadProject({
-    visibility: project.visibility,
-    projectWorkspaceId: project.workspaceId,
-    viewerWorkspaceIds,
-    isOwner: isProjectOwner,
-    isMember: isProjectMember,
-    isWorkspaceManager,
-    isTeamMember: isProjectTeamMember,
-  });
-
-  if (!hasAccess) {
-    notFound();
-  }
 
   // ── Which CONTROLS the page may render ───────────────────────
   // Resolved here rather than in <ProjectContent>: the client can only match
   // the session email against the project's owner and members, which is blind
-  // to WORKSPACE role. Deletion turns on exactly that role, so the client
-  // could not state the rule at all and the menu item ended up gated on
-  // nothing — a reader was offered the irreversible control and denied the
-  // reversible one. Each flag mirrors the route its control calls; neither may
-  // be more permissive than that route, or the button dead-ends in a 403.
-  const viewerProjectRole =
-    project.members.find((m) => m.userId === user.id)?.role ?? null;
-  // A NON-CONTRIBUTOR (GUEST / CLIENT) gets no write affordance at all, not
-  // even through the explicit ownership/membership grant that let them read:
-  // src/proxy.ts default-denies those roles across the /api/ surface, so every
-  // one of these controls would answer 403 for them.
+  // to WORKSPACE role and visibility grants. Each flag mirrors the route its
+  // control calls, so no button dead-ends in a 403.
   //
-  // It has to be the role that gate actually reads — the PRIMARY workspace
-  // one, off the JWT — not `viewerIsContributor`, which is standing in THIS
-  // project's workspace. The two are different values for anyone who belongs
-  // to more than one workspace, and reading the wrong one both hid the
-  // controls from owners the API obeys and offered them where the middleware
-  // answers 403 before the handler is reached.
+  // A NON-CONTRIBUTOR (GUEST / CLIENT) gets no write affordance at all:
+  // src/proxy.ts default-denies those roles across the /api/ surface, so every
+  // control would answer 403. It has to be the role that gate actually reads —
+  // the PRIMARY workspace one, off the JWT — not standing in THIS project's
+  // workspace; the two differ for anyone in more than one workspace.
   const viewerMayCallApi = !isNonContributorRole(session.user.role);
 
-  // canEdit mirrors PATCH /api/projects/[projectId] — owner, or a project
-  // ADMIN/EDITOR. Archive and Unarchive ARE that PATCH, so they ride on it.
-  // Deliberately not `canWrite` from project-access: the route grants neither
-  // team members nor workspace managers the edit.
-  const canEditProject =
-    viewerMayCallApi &&
-    (isProjectOwner ||
-      viewerProjectRole === "ADMIN" ||
-      viewerProjectRole === "EDITOR");
-  // canManage mirrors DELETE, which enforces `access.canManage` — owner,
-  // project ADMIN, or workspace manager. It is NOT a subset of canEditProject:
-  // the two routes genuinely disagree, and a workspace manager may delete a
-  // project he may not rename. Mirroring each route beats reconciling them
-  // here; the server stays the gate.
-  const canManageProject =
-    viewerMayCallApi &&
-    (isProjectOwner || viewerProjectRole === "ADMIN" || isWorkspaceManager);
+  // canEdit mirrors PATCH /api/projects/[projectId] (access.canWrite); Archive
+  // and Unarchive ARE that PATCH. canManage mirrors DELETE (access.canManage).
+  const canEditProject = viewerMayCallApi && access.canWrite;
+  const canManageProject = viewerMayCallApi && access.canManage;
 
   // Multi-homing: tasks whose HOME is another project but that were
   // added to THIS project (TaskProject rows). Render them under the
@@ -329,6 +252,11 @@ export default async function ProjectPage({
       parentTaskId: null,
       taskProjects: { some: { projectId } },
       OR: [{ projectId: null }, { projectId: { not: projectId } }],
+      // A private task added to this project is still private: without the
+      // clause its name, assignee and dates render on this board for every
+      // reader, who then gets a 404 opening it. Nested under AND because the
+      // clause carries its own OR. Workspace managers are exempt, as above.
+      AND: [access.isWorkspaceManager ? {} : taskPrivacyClause(user.id)],
     },
     orderBy: { position: "asc" },
     include: {
@@ -336,10 +264,13 @@ export default async function ProjectPage({
       taskProjects: { where: { projectId }, select: { sectionId: true } },
     },
   });
-  // What DELETE /api/sections/:id actually removes: every task carrying that
-  // sectionId — sub-tasks included, guest (multi-homed) tasks excluded, since
-  // those keep their HOME section id. The rendered section.tasks list is
-  // neither (it hides sub-tasks and adds guests), so the delete confirm needs
+  // What DELETE /api/sections/:id actually removes: the section's TOP-LEVEL
+  // tasks (their sub-task trees go with them, and the dialog says "plus their
+  // sub-tasks"). Counted by parentTaskId: null because a sub-task carrying
+  // this sectionId may belong to a parent in another column (the route
+  // re-homes those) or already be covered by its parent here. Guest
+  // (multi-homed) tasks are excluded, since those keep their HOME section id.
+  // The rendered section.tasks list adds guests, so the delete confirm needs
   // this number rather than a row count.
   const sectionTaskCounts = {
     // Seeded with an explicit zero for EVERY section before the real counts
@@ -355,12 +286,23 @@ export default async function ProjectPage({
       (
         await prisma.task.groupBy({
           by: ["sectionId"],
-          where: { sectionId: { in: project.sections.map((s) => s.id) } },
+          where: {
+            sectionId: { in: project.sections.map((s) => s.id) },
+            parentTaskId: null,
+          },
           _count: { _all: true },
         })
       ).map((g) => [g.sectionId as string, g._count._all])
     ),
   } as Record<string, number>;
+
+  // What deleting the PROJECT destroys: every task homed here, sub-tasks and
+  // tasks outside any column included. The per-section counts above are
+  // top-level only (the right number for a column delete), so summing them
+  // understated a project delete by every checklist item.
+  const projectTaskCount = await prisma.task.count({
+    where: { projectId: project.id },
+  });
 
   const multiHomedBySection = new Map<
     string,
@@ -460,6 +402,7 @@ export default async function ProjectPage({
       project={serializedProject}
       currentView={view}
       sectionTaskCounts={sectionTaskCounts}
+      projectTaskCount={projectTaskCount}
       canEdit={canEditProject}
       canManage={canManageProject}
       initialTabOrder={savedTabOrder}

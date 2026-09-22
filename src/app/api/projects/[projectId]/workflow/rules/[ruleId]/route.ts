@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { resolveProjectAccess } from "@/lib/project-access";
 import { validateRuleTargets } from "../route";
+import { stableStringify } from "@/lib/workflow-types";
 
 /**
  * PATCH /api/projects/:projectId/workflow/rules/:ruleId
@@ -53,6 +54,7 @@ const patchRuleSchema = z.object({
   actions: z.array(actionSchema).min(1).optional(),
 });
 
+
 async function assertRuleAccess(
   projectId: string,
   ruleId: string,
@@ -89,6 +91,8 @@ async function assertRuleAccess(
   // resolveProjectAccess.canWrite, and this must agree.
   const project = rule.workflow.project;
   const access = await resolveProjectAccess(project, userId);
+  // Unreadable = missing (no existence probe); readable but read-only = 403.
+  if (!access.ok) return { ok: false as const, status: 404 };
   if (!access.canWrite) return { ok: false as const, status: 403 };
   return { ok: true as const, rule, project };
 }
@@ -122,13 +126,23 @@ export async function PATCH(
       );
     }
 
-    // Validate the RESULTING rule's targets (merging the patched fields with
-    // the stored ones) so a PATCH can't smuggle a foreign section/project/user.
-    const mergedTrigger = parsed.data.trigger ?? access.rule.trigger;
-    const mergedActions = (parsed.data.actions ??
-      access.rule.actions) as unknown[];
+    // Validate only what this PATCH introduces: a new trigger, and actions
+    // that were not already stored on the rule. That still stops a PATCH
+    // smuggling in a foreign section/project/user, but a stored action that
+    // has since gone stale (a collaborator who left the workspace) no longer
+    // blocks removing or editing an unrelated sibling. A kept action was
+    // validated when it was first saved, and the engine re-checks assignees,
+    // collaborators and target sections every time it runs.
+    const storedActionKeys = new Set(
+      (Array.isArray(access.rule.actions) ? access.rule.actions : []).map(
+        (a) => stableStringify(a)
+      )
+    );
+    const introducedActions = (parsed.data.actions ?? []).filter(
+      (a) => !storedActionKeys.has(stableStringify(a))
+    );
     const targetError = await validateRuleTargets(
-      { trigger: mergedTrigger, actions: mergedActions },
+      { trigger: parsed.data.trigger ?? null, actions: introducedActions },
       access.project,
       userId
     );

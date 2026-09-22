@@ -4,8 +4,10 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getCurrentUserId } from '@/lib/auth-utils';
 import { getUserWorkspaceId } from '@/lib/auth-guards';
-import { formatPosition, getLevel } from '@/lib/people-types';
+import { formatPosition } from '@/lib/people-types';
+import { buildProjectVisibilityClauses } from '@/lib/project-visibility';
 import { rateLimit } from '@/lib/rate-limit';
+import { startOfTodayUtc as utcTodayStart } from '@/lib/date-only';
 
 const MAX_TEXT_LENGTH = 10000;
 // Every first-party caller sends a short fixed instruction (< 200 chars);
@@ -20,6 +22,26 @@ const MAX_TASKS_PER_MENTION = 5;
 const MAX_MENTIONED_ENTITIES = 3;
 const MAX_MENTION_CANDIDATES = 100;
 const UPCOMING_DAYS = 7;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// The caller's calendar day, sent by the client as "YYYY-MM-DD". The server
+// runs in UTC, so from 20:00 in Miami its own date is already tomorrow and
+// every task due today was reported as overdue. A client-sent day is only
+// trusted within one day of the UTC day (every real time zone falls inside
+// that window); otherwise fall back to the UTC day.
+function resolveToday(value: unknown): Date {
+  const utcToday = utcTodayStart();
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    if (
+      !Number.isNaN(parsed.getTime()) &&
+      Math.abs(parsed.getTime() - utcToday.getTime()) <= MS_PER_DAY
+    ) {
+      return parsed;
+    }
+  }
+  return utcToday;
+}
 
 const formatDay = (d: Date) => d.toISOString().slice(0, 10);
 const clip = (s: string) => (s.length > 120 ? `${s.slice(0, 117)}…` : s);
@@ -34,49 +56,37 @@ const taskLine = (t: {
 // assembled server-side, the way /api/ai/coach does for objectives: the
 // caller's overdue/upcoming tasks plus summaries of any @mentioned
 // projects/people, resolved by name against the DB. Transform callers
-// (notepad, inbox, ai-panel) never reach this path.
-async function buildQaContext(userId: string, text: string): Promise<string> {
+// (notepad, inbox) never reach this path; the TT AI side panel does.
+async function buildQaContext(
+  userId: string,
+  text: string,
+  startOfTodayUtc: Date
+): Promise<string> {
   const workspaceId = await getUserWorkspaceId(userId);
 
-  const membership = await prisma.workspaceMember.findFirst({
-    where: { userId, workspaceId },
-    include: { user: { select: { position: true } } },
-  });
-  const seesAllProjects =
-    !!membership &&
-    (membership.role === 'OWNER' ||
-      membership.role === 'ADMIN' ||
-      getLevel(membership.user.position) >= 4);
+  // The canonical project list rule (the same one /api/projects applies),
+  // narrowed to the workspace this context describes. A local copy of the
+  // rule drifted: it missed WORKSPACE-visibility and team projects.
+  const visibility = await buildProjectVisibilityClauses(userId);
+  const projectScope: Prisma.ProjectWhereInput = {
+    workspaceId,
+    isArchived: false,
+    ...(visibility ? { OR: visibility } : { id: { in: [] } }),
+  };
 
-  // Mirror /api/projects visibility: leadership/L4+ see every workspace
-  // project; everyone else only owned, joined or PUBLIC projects.
-  const projectScope: Prisma.ProjectWhereInput = seesAllProjects
-    ? { workspaceId, isArchived: false }
-    : {
-        workspaceId,
-        isArchived: false,
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId } } },
-          { visibility: 'PUBLIC' as const },
-        ],
-      };
-
-  // Due dates are stored at UTC midnight of the due day. Bucket by the
-  // UTC calendar day so a task due TODAY is never overdue and still
-  // counts as upcoming.
-  const now = new Date();
-  const startOfTodayUtc = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  );
+  // Due dates are stored at UTC midnight of the due day, and
+  // startOfTodayUtc is UTC midnight of the CALLER's calendar day, so a task
+  // due today is never overdue and still counts as upcoming.
   const upcomingEnd = new Date(
-    startOfTodayUtc.getTime() + UPCOMING_DAYS * 24 * 60 * 60 * 1000
+    startOfTodayUtc.getTime() + UPCOMING_DAYS * MS_PER_DAY
   );
 
+  // Archived projects are closed out; their leftover open tasks are not
+  // work the caller still owes.
   const myTaskScope: Prisma.TaskWhereInput = {
     assigneeId: userId,
     completed: false,
-    OR: [{ projectId: null }, { project: { workspaceId } }],
+    OR: [{ projectId: null }, { project: { workspaceId, isArchived: false } }],
   };
 
   const [
@@ -258,7 +268,7 @@ async function buildQaContext(userId: string, text: string): Promise<string> {
   );
 
   const sections = [
-    `Today's date (UTC): ${formatDay(startOfTodayUtc)}. Due dates are date-only; a task due today is NOT overdue.`,
+    `Today's date: ${formatDay(startOfTodayUtc)}. Due dates are date-only; a task due today is NOT overdue.`,
     myOverdue.length
       ? `MY OVERDUE TASKS (showing ${myOverdue.length} of ${myOverdueCount}):\n${myOverdue.map(taskLine).join('\n')}`
       : 'MY OVERDUE TASKS: none',
@@ -292,7 +302,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prompt, text, mode } = await request.json();
+    const { prompt, text, mode, today } = await request.json();
 
     if (!text || !prompt || typeof text !== 'string' || typeof prompt !== 'string') {
       return NextResponse.json(
@@ -324,11 +334,13 @@ export async function POST(request: NextRequest) {
     }
     const anthropic = new Anthropic({ apiKey });
 
-    // Transform callers (notepad, inbox, ai-panel) want only the rewritten
-    // text back; Q&A callers want a normal answer. Default to 'transform'
-    // for existing callers that don't send a mode.
+    // Transform callers (notepad) want only the rewritten text back; Q&A
+    // callers want a normal answer built on their workspace context;
+    // 'summary' callers (inbox) want the prompt answered as asked over the
+    // text they sent, with no workspace context. Default to 'transform' for
+    // existing callers that don't send a mode.
     const suffix =
-      mode === 'qa'
+      mode === 'qa' || mode === 'summary'
         ? ''
         : '\n\nRespond only with the improved/modified text, without any explanations or additional commentary.';
 
@@ -337,7 +349,7 @@ export async function POST(request: NextRequest) {
     let contextBlock = '';
     if (mode === 'qa') {
       try {
-        contextBlock = await buildQaContext(userId, text);
+        contextBlock = await buildQaContext(userId, text, resolveToday(today));
       } catch (contextError) {
         console.error('AI Assist context error:', contextError);
       }
@@ -348,7 +360,9 @@ export async function POST(request: NextRequest) {
       : '';
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      // Pinned dated model ids are retired eventually and then answer 404;
+      // the env var lets the model move without a deploy (same as the Coach).
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
       max_tokens: 1024,
       messages: [
         {
@@ -361,15 +375,31 @@ export async function POST(request: NextRequest) {
     // Extract text from response — join every text block so a non-text
     // first block doesn't collapse the whole answer to ''.
     const responseText = message.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .join('');
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
+
+    // An empty answer is a failure, not a successful blank reply; saying so
+    // lets every caller show its error state instead of an empty result.
+    if (!responseText) {
+      return NextResponse.json(
+        { error: 'The model returned no answer. Try again.' },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ result: responseText });
   } catch (error) {
     console.error('AI Assist error:', error);
-    return NextResponse.json(
-      { error: 'Failed to process AI request' },
-      { status: 500 }
-    );
+    // Pass the SDK's status and message through so a retired model id and a
+    // revoked key are distinguishable from the UI.
+    const status =
+      error instanceof Anthropic.APIError ? error.status ?? 502 : 500;
+    const detail =
+      error instanceof Anthropic.APIError
+        ? `AI provider error ${error.status}: ${error.message}`
+        : 'Failed to process AI request';
+    return NextResponse.json({ error: detail }, { status });
   }
 }

@@ -22,12 +22,6 @@ import {
   List,
   ToggleLeft,
   Users,
-  Sparkles,
-  FileText,
-  Flag,
-  AlertTriangle,
-  Zap,
-  Star,
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,21 +34,13 @@ import {
 
 // ─── Types ───────────────────────────────────────────────
 
-type TabId = "create" | "library" | "ai_studio";
+type TabId = "create" | "library";
 
 interface FieldType {
   id: string;
   label: string;
   icon: typeof Type;
   description: string;
-}
-
-interface AIFieldCard {
-  id: string;
-  title: string;
-  description: string;
-  icon: typeof Sparkles;
-  badge?: string;
 }
 
 export interface CreatedFieldInfo {
@@ -80,10 +66,13 @@ interface CustomFieldModalProps {
   initialTab?: TabId;
   /** When provided, the modal POSTs the new field to the project's
    *  custom-fields endpoint and onFieldCreated receives the persisted
-   *  ids. When absent (e.g. /my-tasks which spans projects) the modal
-   *  falls back to its cosmetic-callback behavior. */
+   *  ids. When absent (e.g. /my-tasks which spans projects) the CALLER
+   *  persists the field: the modal awaits the callback and stays open
+   *  (no success toast) when it returns or resolves to `false`. */
   projectId?: string;
-  onFieldCreated?: (field: CreatedFieldInfo) => void;
+  onFieldCreated?: (
+    field: CreatedFieldInfo
+  ) => void | boolean | Promise<void | boolean>;
 }
 
 // Map the UI's field-type ids to the Prisma CustomFieldType enum the
@@ -124,7 +113,14 @@ const FIELD_TYPES: FieldType[] = [
   { id: "rollup", label: "Roll-up", icon: Hash, description: "Aggregate subtask values" },
 ];
 
-// ─── Color options ───────────────────────────────────────
+/** Formula and Roll-up read the project's numeric fields; with no project
+ *  in context (My Tasks) there is nothing to build them from. */
+const PROJECT_ONLY_TYPES = new Set(["formula", "rollup"]);
+
+/** Same cap as the custom-field routes' `name` schema. */
+const MAX_FIELD_NAME = 80;
+
+// ─── Option colors ───────────────────────────────────────
 
 const FIELD_COLORS = [
   { id: "none", color: "transparent", label: "No color" },
@@ -137,59 +133,11 @@ const FIELD_COLORS = [
   { id: "pink", color: "#E93D82", label: "Pink" },
 ];
 
-// ─── AI Studio cards ─────────────────────────────────────
-
-const AI_FIELD_CARDS: AIFieldCard[] = [
-  {
-    id: "task_summary",
-    title: "Task summary",
-    description: "Automatically summarizes the task description and comments.",
-    icon: FileText,
-    badge: "AI",
-  },
-  {
-    id: "priority",
-    title: "Smart priority",
-    description: "Suggests priority based on due date and description.",
-    icon: Flag,
-    badge: "AI",
-  },
-  {
-    id: "risk",
-    title: "Risk assessment",
-    description: "Identifies potential risks or blockers in the task.",
-    icon: AlertTriangle,
-    badge: "AI",
-  },
-  {
-    id: "next_steps",
-    title: "Next steps",
-    description: "Generates suggested next steps from task context.",
-    icon: Zap,
-    badge: "AI",
-  },
-  {
-    id: "effort",
-    title: "Effort estimation",
-    description: "Estimates the effort needed to complete the task.",
-    icon: Star,
-    badge: "AI",
-  },
-  {
-    id: "category",
-    title: "Auto-categorization",
-    description: "Automatically classifies the task into the appropriate category.",
-    icon: Sparkles,
-    badge: "AI",
-  },
-];
-
 // ─── Tabs ────────────────────────────────────────────────
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "create", label: "Create" },
   { id: "library", label: "From library" },
-  { id: "ai_studio", label: "AI Studio fields" },
 ];
 
 // ─── CustomFieldModal ────────────────────────────────────
@@ -206,10 +154,7 @@ export function CustomFieldModal({
   const [activeTab, setActiveTab] = useState<TabId>("create");
   const [fieldTitle, setFieldTitle] = useState("");
   const [fieldType, setFieldType] = useState("text");
-  const [fieldColor, setFieldColor] = useState("none");
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-  const [onlyForThisProject, setOnlyForThisProject] = useState(false);
-  const [addToAllNewTasks, setAddToAllNewTasks] = useState(true);
   const [librarySearch, setLibrarySearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // User-defined options for Single/Multi select fields (Asana lets you
@@ -272,11 +217,15 @@ export function CustomFieldModal({
     if (initialTab) setActiveTab(initialTab);
     if (initialFieldType) {
       // Map the field-types.ts id to the local FIELD_TYPES id (they may differ)
-      const match = FIELD_TYPES.find((ft) => ft.id === initialFieldType);
+      const match = FIELD_TYPES.find(
+        (ft) =>
+          ft.id === initialFieldType &&
+          (!!projectId || !PROJECT_ONLY_TYPES.has(ft.id))
+      );
       if (match) setFieldType(match.id);
     }
     if (initialFieldName) setFieldTitle(initialFieldName);
-  }, [open, initialTab, initialFieldType, initialFieldName]);
+  }, [open, initialTab, initialFieldType, initialFieldName, projectId]);
 
   async function handleCreate() {
     const name = fieldTitle.trim();
@@ -294,7 +243,7 @@ export function CustomFieldModal({
 
     // Build the `options` payload per type:
     //  - DROPDOWN/MULTI_SELECT → user-named option array (hex colors)
-    //  - FORMULA → { leftFieldId, op, rightFieldId }
+    //  - FORMULA → { expr: tokens }
     //  - ROLLUP  → { sourceFieldId, fn }
     let options: unknown;
     if (prismaType === "DROPDOWN" || prismaType === "MULTI_SELECT") {
@@ -327,18 +276,47 @@ export function CustomFieldModal({
       options = { sourceFieldId: rollup.source, fn: rollup.fn };
     }
 
-    // No projectId in context (e.g. the /my-tasks toolbar, which spans
-    // projects): the caller persists the definition itself. Hand it the
-    // options too — dropping them left the field unusable.
-    if (!projectId) {
-      onFieldCreated?.({ name, type: fieldType, color: fieldColor, options });
-      toast.success(`Field "${name}" created`);
-      resetAndClose();
+    await persistField(name, fieldType, options);
+  }
+
+  /**
+   * Save a field and only then report success. Shared by the Create tab and
+   * the library, so a library pick is persisted exactly like a typed field
+   * (it used to only fire the callback, which on a project list saved
+   * nothing while the toast said it was added).
+   */
+  async function persistField(
+    name: string,
+    uiType: string,
+    options: unknown
+  ): Promise<void> {
+    if (submitting) return;
+    const prismaType = UI_TO_PRISMA_TYPE[uiType];
+    if (!prismaType) {
+      toast.error("This field type isn't supported yet");
       return;
     }
 
     setSubmitting(true);
     try {
+      // No projectId in context (e.g. the /my-tasks toolbar, which spans
+      // projects): the caller persists the definition itself. Hand it the
+      // options too — dropping them left the field unusable.
+      if (!projectId) {
+        const result = await onFieldCreated?.({
+          name,
+          type: uiType,
+          color: "none",
+          options,
+        });
+        // The caller reports its own failure; keep the modal (and what was
+        // typed) open instead of claiming success.
+        if (result === false) return;
+        toast.success(`Field "${name}" created`);
+        resetAndClose();
+        return;
+      }
+
       const res = await fetch(
         `/api/projects/${projectId}/custom-fields`,
         {
@@ -357,12 +335,12 @@ export function CustomFieldModal({
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
       const created = await res.json();
-      onFieldCreated?.({
+      await onFieldCreated?.({
         id: created.id,
         linkId: created.linkId,
         name: created.name,
-        type: fieldType,
-        color: fieldColor,
+        type: uiType,
+        color: "none",
       });
       toast.success(`Field "${name}" created`);
       resetAndClose();
@@ -375,27 +353,24 @@ export function CustomFieldModal({
     }
   }
 
-  function handleAddFromLibrary(field: { name: string; uiTypeId: string }) {
-    // Use the prefab's declared uiTypeId so the resulting column
-    // renders with the right Prisma type (DROPDOWN, NUMBER, etc.)
-    // instead of defaulting to TEXT.
-    onFieldCreated?.({ name: field.name, type: field.uiTypeId, color: "none" });
-    toast.success(`Field "${field.name}" added from library`);
-    resetAndClose();
-  }
-
-  function handleAddAIField(card: AIFieldCard) {
-    toast.success(`AI field "${card.title}" added`);
-    resetAndClose();
+  async function handleAddFromLibrary(field: LibraryField) {
+    // The prefab's own type plus starter options, so a library dropdown is
+    // created with choices to pick (not an empty or "Option 1/2/3" list).
+    const palette = FIELD_COLORS.filter((c) => c.id !== "none");
+    const options = field.options
+      ? field.options.map((label, i) => ({
+          id: `opt-${i + 1}`,
+          label,
+          color: palette[i % palette.length].color,
+        }))
+      : undefined;
+    await persistField(field.name, field.uiTypeId, options);
   }
 
   function resetAndClose() {
     setFieldTitle("");
     setFieldType("text");
-    setFieldColor("none");
     setShowTypeDropdown(false);
-    setOnlyForThisProject(false);
-    setAddToAllNewTasks(true);
     setLibrarySearch("");
     setOptionDrafts([
       { label: "", colorId: "blue" },
@@ -408,7 +383,11 @@ export function CustomFieldModal({
     onOpenChange(false);
   }
 
-  const selectedType = FIELD_TYPES.find((t) => t.id === fieldType)!;
+  const availableTypes = projectId
+    ? FIELD_TYPES
+    : FIELD_TYPES.filter((t) => !PROJECT_ONLY_TYPES.has(t.id));
+  const selectedType =
+    availableTypes.find((t) => t.id === fieldType) ?? availableTypes[0];
 
   // Gate the Create button: Formula/Roll-up can't be created until they're
   // properly configured (so we don't loop on a "pick both fields" toast).
@@ -463,14 +442,9 @@ export function CustomFieldModal({
               onFieldTitleChange={setFieldTitle}
               fieldType={fieldType}
               onFieldTypeChange={setFieldType}
-              fieldColor={fieldColor}
-              onFieldColorChange={setFieldColor}
+              fieldTypes={availableTypes}
               showTypeDropdown={showTypeDropdown}
               onShowTypeDropdownChange={setShowTypeDropdown}
-              onlyForThisProject={onlyForThisProject}
-              onOnlyForThisProjectChange={setOnlyForThisProject}
-              addToAllNewTasks={addToAllNewTasks}
-              onAddToAllNewTasksChange={setAddToAllNewTasks}
               selectedType={selectedType}
               optionDrafts={optionDrafts}
               onOptionDraftsChange={setOptionDrafts}
@@ -486,10 +460,8 @@ export function CustomFieldModal({
               search={librarySearch}
               onSearchChange={setLibrarySearch}
               onAddField={handleAddFromLibrary}
+              disabled={submitting}
             />
-          )}
-          {activeTab === "ai_studio" && (
-            <AIStudioTab onAddField={handleAddAIField} />
           )}
         </div>
 
@@ -523,14 +495,9 @@ function CreateTab({
   onFieldTitleChange,
   fieldType,
   onFieldTypeChange,
-  fieldColor,
-  onFieldColorChange,
+  fieldTypes,
   showTypeDropdown,
   onShowTypeDropdownChange,
-  onlyForThisProject,
-  onOnlyForThisProjectChange,
-  addToAllNewTasks,
-  onAddToAllNewTasksChange,
   selectedType,
   optionDrafts,
   onOptionDraftsChange,
@@ -544,14 +511,9 @@ function CreateTab({
   onFieldTitleChange: (v: string) => void;
   fieldType: string;
   onFieldTypeChange: (v: string) => void;
-  fieldColor: string;
-  onFieldColorChange: (v: string) => void;
+  fieldTypes: FieldType[];
   showTypeDropdown: boolean;
   onShowTypeDropdownChange: (v: boolean) => void;
-  onlyForThisProject: boolean;
-  onOnlyForThisProjectChange: (v: boolean) => void;
-  addToAllNewTasks: boolean;
-  onAddToAllNewTasksChange: (v: boolean) => void;
   selectedType: FieldType;
   optionDrafts: { label: string; colorId: string }[];
   onOptionDraftsChange: (v: { label: string; colorId: string }[]) => void;
@@ -578,7 +540,8 @@ function CreateTab({
           type="text"
           value={fieldTitle}
           onChange={(e) => onFieldTitleChange(e.target.value)}
-          placeholder="e.g., Status, Priority, Sprint..."
+          placeholder="e.g., Status, Priority, Permit #..."
+          maxLength={MAX_FIELD_NAME}
           className="w-full h-9 px-3 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/10 placeholder:text-gray-400 transition-shadow"
           autoFocus
         />
@@ -610,7 +573,7 @@ function CreateTab({
             sideOffset={4}
             className="w-[var(--radix-popover-trigger-width)] p-1.5 rounded-xl border border-gray-100/60 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] max-h-[min(260px,var(--radix-popover-content-available-height))] overflow-y-auto"
           >
-            {FIELD_TYPES.map((type) => {
+            {fieldTypes.map((type) => {
               const Icon = type.icon;
               const isSelected = type.id === fieldType;
               return (
@@ -788,111 +751,60 @@ function CreateTab({
           )}
         </div>
       )}
-
-      {/* Color */}
-      <div>
-        <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-          Color
-        </label>
-        <div className="flex items-center gap-1.5">
-          {FIELD_COLORS.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => onFieldColorChange(c.id)}
-              className={cn(
-                "w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all",
-                fieldColor === c.id
-                  ? "border-gray-900 scale-110"
-                  : "border-gray-200 hover:border-gray-400"
-              )}
-              title={c.label}
-            >
-              {c.id === "none" ? (
-                <div className="w-4 h-4 rounded-full border border-dashed border-gray-300" />
-              ) : (
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: c.color }}
-                />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Checkboxes */}
-      <div className="space-y-2.5 pt-1">
-        <label className="flex items-center gap-2.5 cursor-pointer group">
-          <button
-            onClick={() => onOnlyForThisProjectChange(!onlyForThisProject)}
-            className={cn(
-              "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors",
-              onlyForThisProject
-                ? "bg-black border-black"
-                : "border-gray-300 group-hover:border-gray-400"
-            )}
-          >
-            {onlyForThisProject && <Check className="w-3 h-3 text-white" />}
-          </button>
-          <span className="text-[13px] text-gray-700">Only for this project</span>
-        </label>
-
-        <label className="flex items-center gap-2.5 cursor-pointer group">
-          <button
-            onClick={() => onAddToAllNewTasksChange(!addToAllNewTasks)}
-            className={cn(
-              "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors",
-              addToAllNewTasks
-                ? "bg-black border-black"
-                : "border-gray-300 group-hover:border-gray-400"
-            )}
-          >
-            {addToAllNewTasks && <Check className="w-3 h-3 text-white" />}
-          </button>
-          <span className="text-[13px] text-gray-700">Add to all new tasks</span>
-        </label>
-      </div>
     </div>
   );
 }
 
 // ─── Library Tab ─────────────────────────────────────────
 
-// Prefab field templates — Asana's "Desde la biblioteca" picks plus a
-// few BuildSync-specific ones (Esfuerzo, Asignación %). Each carries
-// the matching UI-type id so handleAddFromLibrary creates the field
-// with the right Prisma type instead of falling back to TEXT.
-const LIBRARY_FIELDS: {
+// Prefab field templates. Each carries the matching UI-type id so the field
+// is created with the right Prisma type, and each dropdown carries starter
+// options so it is usable the moment it is added.
+interface LibraryField {
   id: string;
   name: string;
   type: string;
   uiTypeId: string;
-  usedBy: number;
-}[] = [
-  { id: "status", name: "Status", type: "Dropdown", uiTypeId: "single_select", usedBy: 12 },
-  { id: "priority", name: "Priority", type: "Dropdown", uiTypeId: "single_select", usedBy: 8 },
-  { id: "sprint", name: "Sprint", type: "Dropdown", uiTypeId: "single_select", usedBy: 5 },
-  { id: "effort", name: "Effort", type: "Number", uiTypeId: "number", usedBy: 3 },
-  { id: "department", name: "Department", type: "Dropdown", uiTypeId: "single_select", usedBy: 6 },
-  { id: "cost", name: "Cost", type: "Currency", uiTypeId: "currency", usedBy: 2 },
-  { id: "stage", name: "Stage", type: "Dropdown", uiTypeId: "single_select", usedBy: 4 },
-  { id: "tshirt", name: "T-shirt size", type: "Dropdown", uiTypeId: "single_select", usedBy: 6 },
-  { id: "allocation", name: "Asignación %", type: "Percentage", uiTypeId: "percentage", usedBy: 3 },
+  options?: string[];
+}
+
+const LIBRARY_FIELDS: LibraryField[] = [
+  { id: "status", name: "Status", type: "Dropdown", uiTypeId: "single_select", options: ["Not started", "In progress", "Waiting", "Done"] },
+  { id: "priority", name: "Priority", type: "Dropdown", uiTypeId: "single_select", options: ["Low", "Medium", "High"] },
+  { id: "sprint", name: "Sprint", type: "Dropdown", uiTypeId: "single_select", options: ["Sprint 1", "Sprint 2", "Sprint 3"] },
+  { id: "effort", name: "Effort", type: "Number", uiTypeId: "number" },
+  { id: "department", name: "Department", type: "Dropdown", uiTypeId: "single_select", options: ["Structural", "Civil", "Drafting", "Admin"] },
+  { id: "cost", name: "Cost", type: "Currency", uiTypeId: "currency" },
+  { id: "stage", name: "Stage", type: "Dropdown", uiTypeId: "single_select", options: ["Design", "Permit", "Construction", "Closeout"] },
+  { id: "tshirt", name: "T-shirt size", type: "Dropdown", uiTypeId: "single_select", options: ["XS", "S", "M", "L", "XL"] },
+  { id: "allocation", name: "Allocation %", type: "Percentage", uiTypeId: "percentage" },
+];
+
+const LIBRARY_FILTERS: { id: string; label: string; types: string[] | null }[] = [
+  { id: "all", label: "All", types: null },
+  { id: "number", label: "Number", types: ["Number", "Currency", "Percentage"] },
+  { id: "dropdown", label: "Dropdown", types: ["Dropdown"] },
 ];
 
 function LibraryTab({
   search,
   onSearchChange,
   onAddField,
+  disabled,
 }: {
   search: string;
   onSearchChange: (v: string) => void;
-  onAddField: (field: { name: string; uiTypeId: string }) => void;
+  onAddField: (field: LibraryField) => void;
+  disabled: boolean;
 }) {
+  const [filterId, setFilterId] = useState("all");
+  const activeFilter =
+    LIBRARY_FILTERS.find((f) => f.id === filterId) ?? LIBRARY_FILTERS[0];
+  const q = search.toLowerCase();
   const filtered = LIBRARY_FIELDS.filter(
     (f) =>
-      f.name.toLowerCase().includes(search.toLowerCase()) ||
-      f.type.toLowerCase().includes(search.toLowerCase())
+      (!activeFilter.types || activeFilter.types.includes(f.type)) &&
+      (f.name.toLowerCase().includes(q) || f.type.toLowerCase().includes(q))
   );
 
   return (
@@ -912,18 +824,22 @@ function LibraryTab({
       {/* Filter chips */}
       <div className="flex items-center gap-1.5">
         <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Filter:</span>
-        <button className="px-2 h-6 text-[11px] font-medium text-gray-600 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
-          All
-        </button>
-        <button className="px-2 h-6 text-[11px] text-gray-500 rounded-full hover:bg-gray-100 transition-colors">
-          Text
-        </button>
-        <button className="px-2 h-6 text-[11px] text-gray-500 rounded-full hover:bg-gray-100 transition-colors">
-          Number
-        </button>
-        <button className="px-2 h-6 text-[11px] text-gray-500 rounded-full hover:bg-gray-100 transition-colors">
-          List
-        </button>
+        {LIBRARY_FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setFilterId(f.id)}
+            aria-pressed={filterId === f.id}
+            className={cn(
+              "px-2 h-6 text-[11px] rounded-full transition-colors",
+              filterId === f.id
+                ? "font-medium text-gray-600 bg-gray-100 hover:bg-gray-200"
+                : "text-gray-500 hover:bg-gray-100"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {/* Field list */}
@@ -932,16 +848,19 @@ function LibraryTab({
           filtered.map((field) => (
             <button
               key={field.id}
-              onClick={() => onAddField({ name: field.name, uiTypeId: field.uiTypeId })}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-black/[0.03] transition-colors text-left group"
+              type="button"
+              disabled={disabled}
+              onClick={() => onAddField(field)}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-black/[0.03] transition-colors text-left group disabled:opacity-50 disabled:cursor-wait"
             >
-              <div>
+              <div className="min-w-0">
                 <div className="text-[13px] font-medium text-gray-900">{field.name}</div>
-                <div className="text-[11px] text-gray-400 mt-0.5">
-                  {field.type} &middot; Used in {field.usedBy} {field.usedBy === 1 ? "project" : "projects"}
+                <div className="text-[11px] text-gray-400 mt-0.5 truncate">
+                  {field.type}
+                  {field.options ? ` · ${field.options.join(", ")}` : ""}
                 </div>
               </div>
-              <span className="text-[12px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-[12px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                 + Add
               </span>
             </button>
@@ -953,48 +872,6 @@ function LibraryTab({
             <p className="text-[11px] text-gray-400 mt-0.5">Try a different search term</p>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ─── AI Studio Tab ───────────────────────────────────────
-
-function AIStudioTab({
-  onAddField,
-}: {
-  onAddField: (card: AIFieldCard) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-[13px] text-gray-500">
-        AI fields are automatically filled with intelligent information based on task content.
-      </p>
-
-      <div className="grid grid-cols-2 gap-2.5">
-        {AI_FIELD_CARDS.map((card) => {
-          const Icon = card.icon;
-          return (
-            <button
-              key={card.id}
-              onClick={() => onAddField(card)}
-              className="flex flex-col items-start p-3.5 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all text-left group"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-100 border border-gray-200 flex items-center justify-center">
-                  <Icon className="w-4 h-4 text-black" />
-                </div>
-                {card.badge && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-semibold text-black bg-gray-100 rounded-md">
-                    {card.badge}
-                  </span>
-                )}
-              </div>
-              <span className="text-[13px] font-medium text-gray-900 mb-0.5">{card.title}</span>
-              <span className="text-[11px] text-gray-400 leading-tight">{card.description}</span>
-            </button>
-          );
-        })}
       </div>
     </div>
   );

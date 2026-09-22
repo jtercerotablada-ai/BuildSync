@@ -3,27 +3,45 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  getUserWorkspaceId,
+  getPrimaryWorkspaceMembership,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
+  contributorSeatSatisfied,
 } from "@/lib/auth-guards";
 import { resolveObjectiveAccess } from "@/lib/objective-access";
+import { GoalProgressService, objectiveReadClause } from "@/lib/goal-progress";
 
-const keyResultSeedSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  targetValue: z.number(),
-  startValue: z.number().optional(),
-  currentValue: z.number().optional(),
-  unit: z.string().optional(),
-  format: z.enum(["NUMBER", "PERCENTAGE", "CURRENCY", "BOOLEAN"]).optional(),
-});
+const keyResultSeedSchema = z
+  .object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    targetValue: z.number(),
+    startValue: z.number().optional(),
+    currentValue: z.number().optional(),
+    unit: z.string().optional(),
+    format: z.enum(["NUMBER", "PERCENTAGE", "CURRENCY", "BOOLEAN"]).optional(),
+  })
+  // Same zero-range guard as POST /key-results: a seed whose target equals its
+  // start has nothing to measure and reads as 100% the moment it is created.
+  // The message names the key result because Duplicate posts a whole list,
+  // and a goal saved before this guard can carry one such row.
+  .superRefine((d, ctx) => {
+    if (d.targetValue === (d.startValue ?? 0)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Key result "${d.name}": target must differ from the start value`,
+        path: ["targetValue"],
+      });
+    }
+  });
 
 const createObjectiveSchema = z.object({
   name: z.string().min(1),
-  description: z.string().optional(),
-  period: z.string().optional(),
+  // Nullable because Duplicate re-posts a goal as it was loaded, and a goal
+  // created without a description or period stores null for both.
+  description: z.string().nullable().optional(),
+  period: z.string().nullable().optional(),
   parentId: z.string().optional(),
   teamId: z.string().optional(),
   ownerId: z.string().optional(),
@@ -63,38 +81,32 @@ export async function GET(req: Request) {
     // The user's real workspace. A bare findFirst can return the personal
     // singleton workspace instead of the firm they were invited to (SEC-06),
     // making goals list from / land in the wrong workspace.
-    const workspaceId = await getUserWorkspaceId(userId);
+    const membership = await getPrimaryWorkspaceMembership(userId);
+    if (!membership) {
+      throw new AuthorizationError("No workspace found");
+    }
+    const workspaceId = membership.workspaceId;
+    // GUEST/CLIENT seats have no goals surface; the detail gate refuses them
+    // every goal, so the list must not name any either.
+    if (!contributorSeatSatisfied(membership.role)) {
+      return NextResponse.json([]);
+    }
+    const isWorkspaceManager =
+      membership.role === "OWNER" || membership.role === "ADMIN";
 
-    // ── Privacy gate (Asana parity) ──────────────────────────
-    // A user sees an objective when:
-    //   - they own it (created it), OR
-    //   - they're an explicit member (ObjectiveMember row), OR
-    //   - they're a member of the team assigned to it
-    //
-    // Workspace membership alone doesn't auto-grant access.
-    const where: Record<string, unknown> = {
-      workspaceId,
-      OR: [
-        { ownerId: userId },
-        { members: { some: { userId } } },
-        { team: { members: { some: { userId } } } },
-      ],
-      // A goal marked private is not team-wide work, so the team clause above
-      // must not reach it: only its owner and the people explicitly named on
-      // it may list it. This belongs in the WHERE and never in a filter over
-      // the result, because `take` (the Home widget sends ?limit=4) is applied
-      // by the database — dropping rows afterwards would silently return fewer
-      // goals than the caller is entitled to see.
-      AND: [
-        {
-          OR: [
-            { isPrivate: false },
-            { ownerId: userId },
-            { members: { some: { userId } } },
-          ],
-        },
-      ],
-    };
+    // The same rule the goal page and every goal sub-route apply
+    // (decideObjectiveAccess): a non-private goal is visible to every
+    // contributor of the workspace, a private one to its owner, its members
+    // and the workspace OWNER/ADMIN. The list used to be narrower (owner,
+    // member or team only), so a goal created for a colleague vanished from
+    // its creator's list, and the firm owner could not find goals he could
+    // still check in on. The rule lives in the WHERE, never in a filter over
+    // the result, because `take` (the Home widget sends ?limit=4) is applied
+    // by the database.
+    const readClause = objectiveReadClause(userId, workspaceId, {
+      isWorkspaceManager,
+    });
+    const where: Record<string, unknown> = { ...readClause };
 
     if (period) where.period = period;
     if (teamId) where.teamId = teamId;
@@ -127,7 +139,11 @@ export async function GET(req: Request) {
           },
         },
         keyResults: true,
+        // Only the sub-goals this reader may see: a private child must not be
+        // disclosed through its parent. The roll-up below still averages
+        // every child, server-side.
         children: {
+          where: readClause,
           select: {
             id: true,
             name: true,
@@ -147,28 +163,11 @@ export async function GET(req: Request) {
       ...(take ? { take } : {}),
     });
 
-    // Calculate progress for each objective
-    const objectivesWithProgress = objectives.map((obj) => {
-      let calculatedProgress = obj.progress;
-
-      if (obj.progressSource === "KEY_RESULTS" && obj.keyResults.length > 0) {
-        const krProgress = obj.keyResults.map((kr) => {
-          const range = kr.targetValue - kr.startValue;
-          if (range === 0) return kr.currentValue >= kr.targetValue ? 100 : 0;
-          return Math.min(100, Math.max(0, ((kr.currentValue - kr.startValue) / range) * 100));
-        });
-        calculatedProgress = Math.round(krProgress.reduce((a, b) => a + b, 0) / krProgress.length);
-      } else if (obj.progressSource === "SUB_OBJECTIVES" && obj.children.length > 0) {
-        calculatedProgress = Math.round(
-          obj.children.reduce((sum, c) => sum + c.progress, 0) / obj.children.length
-        );
-      }
-
-      return {
-        ...obj,
-        progress: calculatedProgress,
-      };
-    });
+    const live = await GoalProgressService.liveProgress(objectives);
+    const objectivesWithProgress = objectives.map((obj) => ({
+      ...obj,
+      progress: live.get(obj.id) ?? obj.progress,
+    }));
 
     return NextResponse.json(objectivesWithProgress);
   } catch (error) {
@@ -196,7 +195,15 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = createObjectiveSchema.parse(body);
 
-    const workspaceId = await getUserWorkspaceId(userId);
+    const membership = await getPrimaryWorkspaceMembership(userId);
+    if (!membership) {
+      throw new AuthorizationError("No workspace found");
+    }
+    // Every goal route refuses GUEST/CLIENT seats; creating one must too.
+    if (!contributorSeatSatisfied(membership.role)) {
+      throw new AuthorizationError("Your role is view-only and can't create goals");
+    }
+    const workspaceId = membership.workspaceId;
 
     // Verify parentId is a goal this caller may actually open, and that it
     // belongs to the workspace the new goal is being created in. Checking the
@@ -221,17 +228,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // Verify ownerId belongs to user's workspace
+    // Verify ownerId is a contributor of the user's workspace (a GUEST owner
+    // would be refused their own goal by the shared gate).
     let resolvedOwnerId = userId;
     if (data.ownerId && data.ownerId !== userId) {
-      const ownerMember = await prisma.workspaceMember.findFirst({
+      const ownerMember = await prisma.workspaceMember.findUnique({
         where: {
-          userId: data.ownerId,
-          workspaceId,
+          userId_workspaceId: { userId: data.ownerId, workspaceId },
         },
-        select: { userId: true },
+        select: { role: true },
       });
-      if (!ownerMember) {
+      if (!ownerMember || !contributorSeatSatisfied(ownerMember.role)) {
         return NextResponse.json({ error: "Owner not found in workspace" }, { status: 404 });
       }
       resolvedOwnerId = data.ownerId;
@@ -248,6 +255,12 @@ export async function POST(req: Request) {
         progressSource: data.progressSource || "MANUAL",
         workspaceId,
         ownerId: resolvedOwnerId,
+        // Creating a goal FOR someone else must not lock its creator out: a
+        // private goal is readable only by its owner and members, and the
+        // dialog redirects the creator straight to the new goal's page.
+        ...(resolvedOwnerId !== userId
+          ? { members: { create: { userId, role: "EDITOR" as const } } }
+          : {}),
         // Template path: seed all KRs in the same transaction so the
         // created objective is immediately useful (progress = 0% across
         // the predefined KRs rather than an empty shell).
@@ -281,17 +294,40 @@ export async function POST(req: Request) {
           select: {
             id: true,
             name: true,
+            color: true,
           },
         },
         keyResults: true,
+        // Same shape as the list GET, so a new goal can be dropped straight
+        // into the list. Empty for a new goal.
+        children: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            progress: true,
+          },
+        },
         _count: {
           select: {
             keyResults: true,
             children: true,
+            projects: true,
           },
         },
       },
     });
+
+    // A new child changes its parent's sub-goal average. Without this the
+    // parent's stored roll-up (read by portfolios, the grandparent and the
+    // Coach) kept the old number until some unrelated edit.
+    if (data.parentId) {
+      try {
+        await GoalProgressService.recalculateProgress(data.parentId);
+      } catch (err) {
+        console.error("[objective POST] parent roll-up failed:", err);
+      }
+    }
 
     return NextResponse.json(objective, { status: 201 });
   } catch (error) {

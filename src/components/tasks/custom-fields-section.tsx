@@ -22,7 +22,7 @@
  *                                  AssigneeSelector here)
  */
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   Calendar,
   ChevronDown,
@@ -187,6 +187,7 @@ export function CustomFieldsSection({
         <CustomFieldRow
           key={def.id}
           def={def}
+          taskId={taskId}
           value={valueMap.get(def.id)}
           saving={saving === def.id}
           onChange={(value) => saveValue(def.id, value)}
@@ -231,11 +232,13 @@ function FieldRow({
 
 function CustomFieldRow({
   def,
+  taskId,
   value,
   saving,
   onChange,
 }: {
   def: FieldDef;
+  taskId: string;
   value: unknown;
   saving: boolean;
   onChange: (value: unknown) => void;
@@ -312,7 +315,11 @@ function CustomFieldRow({
     case "PEOPLE":
       return (
         <FieldRow label={def.name} required={def.isRequired} saving={saving}>
-          <PeopleFieldEditor value={value} onChange={onChange} />
+          <PeopleFieldEditor
+            value={value}
+            onChange={onChange}
+            taskId={taskId}
+          />
         </FieldRow>
       );
     case "TIME_TRACKING":
@@ -464,19 +471,92 @@ function DateEditor({
   return (
     <div className="flex items-center -ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] focus-within:bg-[#f3f4f6] gap-1.5 w-full">
       {!iso && <Calendar className="w-3.5 h-3.5 text-[#9aa0a6]" />}
-      <input
-        type="date"
+      <DateOnlyInput
         value={iso}
-        onChange={(e) => {
-          const v = e.target.value;
-          onCommit(v ? new Date(v).toISOString() : null);
-        }}
-        className={cn(
-          "flex-1 text-[13px] bg-transparent outline-none",
-          iso ? "text-[#1e1f21]" : "text-[#9aa0a6]"
-        )}
+        onCommit={(v) => onCommit(v ? new Date(v).toISOString() : null)}
       />
     </div>
+  );
+}
+
+const DATE_COMMIT_DELAY_MS = 800;
+
+/** A plausible complete year — a native date input reports every
+ *  intermediate year while one is typed (0002, 0020, 0202, 2027). */
+function isCompleteDate(v: string): boolean {
+  const m = /^(\d{4})-\d{2}-\d{2}$/.exec(v);
+  return !!m && Number(m[1]) >= 1900;
+}
+
+/**
+ * Native date input that saves once, not per keystroke. A change is held
+ * briefly (so a picked date saves without leaving the field) and flushed
+ * on blur, Enter or unmount; partial years are never sent.
+ */
+function DateOnlyInput({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (next: string | null) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const pendingRef = useRef<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCommitRef = useRef(onCommit);
+  const valueRef = useRef(value);
+  onCommitRef.current = onCommit;
+  valueRef.current = value;
+
+  // Follow the saved value unless an edit is still waiting to be sent.
+  useEffect(() => {
+    if (pendingRef.current === null) setLocal(value);
+  }, [value]);
+
+  const flush = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    const next = pendingRef.current;
+    pendingRef.current = null;
+    if (next === null) return;
+    if (next === "") {
+      if (valueRef.current) onCommitRef.current(null);
+      return;
+    }
+    if (isCompleteDate(next) && next !== valueRef.current) {
+      onCommitRef.current(next);
+    }
+  }, []);
+
+  useEffect(() => flush, [flush]);
+
+  return (
+    <input
+      type="date"
+      value={local}
+      min="1900-01-01"
+      onChange={(e) => {
+        const v = e.target.value;
+        setLocal(v);
+        pendingRef.current = v;
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(flush, DATE_COMMIT_DELAY_MS);
+      }}
+      onBlur={() => {
+        flush();
+        // A partial year that was never sent snaps back to the saved date.
+        setLocal((cur) => (cur === "" || isCompleteDate(cur) ? cur : valueRef.current));
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+      className={cn(
+        "flex-1 text-[13px] bg-transparent outline-none",
+        local ? "text-[#1e1f21]" : "text-[#9aa0a6]"
+      )}
+    />
   );
 }
 
@@ -707,17 +787,11 @@ function TimerEditor({
   return (
     <div className="flex items-center px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] focus-within:bg-[#f3f4f6] gap-1.5 w-full">
       {!iso && <Calendar className="w-3.5 h-3.5 text-[#9aa0a6]" />}
-      <input
-        type="date"
+      <DateOnlyInput
         value={iso}
-        onChange={(e) => {
-          const v = e.target.value;
-          onCommit(v ? { targetIso: new Date(v).toISOString() } : null);
-        }}
-        className={cn(
-          "flex-1 text-[13px] bg-transparent outline-none",
-          iso ? "text-[#1e1f21]" : "text-[#9aa0a6]"
-        )}
+        onCommit={(v) =>
+          onCommit(v ? { targetIso: new Date(v).toISOString() } : null)
+        }
       />
     </div>
   );

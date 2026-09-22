@@ -20,13 +20,16 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────
 
+// Only criteria the My Tasks list can actually apply. "Include subtasks"
+// and "Located in" used to be offered too, but My Tasks never lists
+// subtasks and has no other location, so they could not narrow anything
+// while looking like they did.
 export interface AdvancedSearchCriteria {
   words: string;
+  /** "task" = any type; the Include boxes then narrow it. */
   type: "task" | "milestone" | "approval";
-  includeSubtasks: boolean;
   includeMilestones: boolean;
   includeApprovals: boolean;
-  location: string;
   status: "any" | "incomplete" | "complete";
   assignees: string[];
   dueDate: "any" | "today" | "this_week" | "next_week" | "overdue" | "no_date";
@@ -45,10 +48,8 @@ function getDefaults(): AdvancedSearchCriteria {
   return {
     words: "",
     type: "task",
-    includeSubtasks: true,
     includeMilestones: true,
     includeApprovals: true,
-    location: "anywhere",
     status: "any",
     assignees: [],
     dueDate: "any",
@@ -64,13 +65,30 @@ export function AdvancedSearchModal({
   onSearch,
 }: AdvancedSearchModalProps) {
   const [criteria, setCriteria] = useState<AdvancedSearchCriteria>(getDefaults);
+  // Name typed in "Assigned to" but not yet confirmed with Enter.
+  const [assigneeDraft, setAssigneeDraft] = useState("");
 
   function handleReset() {
     setCriteria(getDefaults());
+    setAssigneeDraft("");
   }
 
   function handleSearch() {
-    onSearch(criteria);
+    // A name still in the box counts: dropping it silently searched for
+    // everyone while the user could see the name they had typed.
+    const draft = assigneeDraft.trim();
+    const assignees =
+      draft && !criteria.assignees.includes(draft)
+        ? [...criteria.assignees, draft]
+        : criteria.assignees;
+    onSearch({
+      ...criteria,
+      words: criteria.words.trim(),
+      collaborators: criteria.collaborators.trim(),
+      assignees,
+    });
+    setCriteria((prev) => ({ ...prev, assignees }));
+    setAssigneeDraft("");
     onOpenChange(false);
   }
 
@@ -101,7 +119,7 @@ export function AdvancedSearchModal({
 
         {/* Body */}
         <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
-          {/* Contiene las palabras */}
+          {/* Contains the words */}
           <FieldRow label="Contains the words">
             <div className="flex items-center gap-2">
               <input
@@ -122,7 +140,7 @@ export function AdvancedSearchModal({
             </div>
           </FieldRow>
 
-          {/* Tipo */}
+          {/* Type */}
           <FieldRow label="Type">
             <Select
               value={criteria.type}
@@ -134,63 +152,40 @@ export function AdvancedSearchModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="task">Task</SelectItem>
+                <SelectItem value="task">Any</SelectItem>
                 <SelectItem value="milestone">Milestone</SelectItem>
                 <SelectItem value="approval">Approval</SelectItem>
               </SelectContent>
             </Select>
           </FieldRow>
 
-          {/* Incluir */}
-          <FieldRow label="Include">
-            <div className="flex items-center gap-5">
-              <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
-                <Checkbox
-                  checked={criteria.includeSubtasks}
-                  onCheckedChange={(v) =>
-                    update({ includeSubtasks: v === true })
-                  }
-                />
-                Subtasks
-              </label>
-              <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
-                <Checkbox
-                  checked={criteria.includeMilestones}
-                  onCheckedChange={(v) =>
-                    update({ includeMilestones: v === true })
-                  }
-                />
-                Milestones
-              </label>
-              <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
-                <Checkbox
-                  checked={criteria.includeApprovals}
-                  onCheckedChange={(v) =>
-                    update({ includeApprovals: v === true })
-                  }
-                />
-                Approvals
-              </label>
-            </div>
-          </FieldRow>
+          {/* Include — only meaningful while Type is Any */}
+          {criteria.type === "task" && (
+            <FieldRow label="Include">
+              <div className="flex items-center gap-5">
+                <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
+                  <Checkbox
+                    checked={criteria.includeMilestones}
+                    onCheckedChange={(v) =>
+                      update({ includeMilestones: v === true })
+                    }
+                  />
+                  Milestones
+                </label>
+                <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
+                  <Checkbox
+                    checked={criteria.includeApprovals}
+                    onCheckedChange={(v) =>
+                      update({ includeApprovals: v === true })
+                    }
+                  />
+                  Approvals
+                </label>
+              </div>
+            </FieldRow>
+          )}
 
-          {/* Ubicado */}
-          <FieldRow label="Located in">
-            <Select
-              value={criteria.location}
-              onValueChange={(v) => update({ location: v })}
-            >
-              <SelectTrigger className="h-9 text-[13px] w-full rounded-lg">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="anywhere">Anywhere</SelectItem>
-                <SelectItem value="my_tasks">My tasks</SelectItem>
-              </SelectContent>
-            </Select>
-          </FieldRow>
-
-          {/* Estado */}
+          {/* Status */}
           <FieldRow label="Status">
             <Select
               value={criteria.status}
@@ -209,7 +204,7 @@ export function AdvancedSearchModal({
             </Select>
           </FieldRow>
 
-          {/* Asignada a */}
+          {/* Assigned to */}
           <FieldRow label="Assigned to">
             <div className="flex flex-wrap items-center gap-1.5 min-h-[36px] px-3 py-1.5 border border-gray-200 rounded-lg bg-white">
               {criteria.assignees.map((name, idx) => (
@@ -234,29 +229,27 @@ export function AdvancedSearchModal({
               ))}
               <input
                 type="text"
+                value={assigneeDraft}
+                onChange={(e) => setAssigneeDraft(e.target.value)}
                 placeholder={
-                  criteria.assignees.length === 0 ? "Search people..." : ""
+                  criteria.assignees.length === 0 ? "Type a name, press Enter" : ""
                 }
                 className="flex-1 min-w-[80px] text-[13px] outline-none bg-transparent placeholder:text-gray-400"
                 onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    (e.target as HTMLInputElement).value.trim()
-                  ) {
-                    update({
-                      assignees: [
-                        ...criteria.assignees,
-                        (e.target as HTMLInputElement).value.trim(),
-                      ],
-                    });
-                    (e.target as HTMLInputElement).value = "";
+                  const name = assigneeDraft.trim();
+                  if (e.key === "Enter" && name) {
+                    e.preventDefault();
+                    if (!criteria.assignees.includes(name)) {
+                      update({ assignees: [...criteria.assignees, name] });
+                    }
+                    setAssigneeDraft("");
                   }
                 }}
               />
             </div>
           </FieldRow>
 
-          {/* Fecha de entrega */}
+          {/* Due date */}
           <FieldRow label="Due date">
             <Select
               value={criteria.dueDate}
@@ -278,7 +271,7 @@ export function AdvancedSearchModal({
             </Select>
           </FieldRow>
 
-          {/* Colaboradores */}
+          {/* Collaborators */}
           <FieldRow label="Collaborators">
             <input
               type="text"
@@ -293,9 +286,6 @@ export function AdvancedSearchModal({
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
           <div className="flex items-center gap-4">
-            <button className="text-[13px] text-[#a8893a] hover:text-[#a8893a] font-medium transition-colors">
-              Add filter
-            </button>
             <button
               onClick={handleReset}
               className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors"

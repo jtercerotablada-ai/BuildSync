@@ -110,6 +110,8 @@ export interface PublicFormRow {
   projectId: string;
   confirmationMessage: string | null;
   visibility: "PUBLIC" | "ORGANIZATION";
+  /** Same bag as FormRow.settings — the public page renders the cover. */
+  settings?: { coverImageUrl?: string | null } | null;
 }
 
 /**
@@ -202,6 +204,119 @@ export function pruneHiddenAnswers(
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Answer shape enforcement
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Keep only answers whose SHAPE matches their field's type, from a payload
+ * the submit endpoint received from an anonymous caller.
+ *
+ * The browser only ever sends strings (string[] for MULTI_SELECT), but the
+ * endpoint is reachable directly, and every surface that renders a stored
+ * answer (inbox, print view, tracking page) shows an object shaped like
+ * {name,url,size} as a downloadable file. Without this, anyone could plant a
+ * link to their own site dressed up as "Stamped drawings.pdf". ATTACHMENT
+ * answers are dropped outright: the route fills them from files it verified
+ * itself. Unknown field ids and HEADING fields are dropped too.
+ */
+export function coerceSubmittedAnswers(
+  fields: FormField[],
+  raw: unknown
+): FormSubmissionPayload {
+  const out: FormSubmissionPayload = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  const src = raw as Record<string, unknown>;
+  for (const f of fields) {
+    if (f.type === "HEADING" || f.type === "ATTACHMENT") continue;
+    if (!Object.prototype.hasOwnProperty.call(src, f.id)) continue;
+    const v = src[f.id];
+    if (v === null) {
+      out[f.id] = null;
+      continue;
+    }
+    if (f.type === "MULTI_SELECT") {
+      if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
+        out[f.id] = v as string[];
+      }
+      continue;
+    }
+    if (typeof v === "string") {
+      out[f.id] = v;
+    } else if (
+      f.type === "NUMBER" &&
+      typeof v === "number" &&
+      Number.isFinite(v)
+    ) {
+      out[f.id] = String(v);
+    }
+  }
+  return out;
+}
+
+/**
+ * Prepare stored answers for display. Attachment-shaped values survive only
+ * on ATTACHMENT fields, and a file link survives only when `isTrustedUrl`
+ * vouches for it (our own blob store) — anything else keeps its name and
+ * loses its url, so the renderers show it as plain text instead of a link.
+ * Covers rows stored before the submit route enforced shapes.
+ *
+ * `isTrustedUrl` is injected because the store check needs a server secret
+ * and this module is shared with the browser.
+ */
+export function neutralizeStoredAnswers(
+  fields: FormField[],
+  data: FormSubmissionPayload,
+  isTrustedUrl: (url: string) => boolean
+): FormSubmissionPayload {
+  const byId = new Map(fields.map((f) => [f.id, f] as const));
+  const out: FormSubmissionPayload = {};
+  for (const [id, value] of Object.entries(data || {})) {
+    const field = byId.get(id);
+    const list = Array.isArray(value) ? value : value != null ? [value] : [];
+    const hasObjects = list.some((v) => typeof v === "object" && v !== null);
+    if (!hasObjects) {
+      out[id] = value;
+      continue;
+    }
+    if (field?.type === "ATTACHMENT") {
+      out[id] = list.filter(isAttachment).map((a) => ({
+        name: String(a.name),
+        url: typeof a.url === "string" && isTrustedUrl(a.url) ? a.url : "",
+        size: Number(a.size) || 0,
+        mimeType: typeof a.mimeType === "string" ? a.mimeType : "",
+      }));
+      continue;
+    }
+    // Objects on a non-file field are never legitimate: flatten them to
+    // their names so nothing downstream renders them as links.
+    out[id] = list
+      .map((v) =>
+        typeof v === "string"
+          ? v
+          : isAttachment(v)
+            ? String(v.name)
+            : ""
+      )
+      .filter(Boolean)
+      .join(", ");
+  }
+  return out;
+}
+
+/** The first EMAIL-type answer, trimmed — the submitter's contact address. */
+export function firstEmailAnswer(
+  fields: FormField[],
+  answers: FormSubmissionPayload
+): string | null {
+  for (const f of fields) {
+    if (f.type !== "EMAIL") continue;
+    const v = answers[f.id];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Submission → Task mapping
 // ─────────────────────────────────────────────────────────────────
 
@@ -233,19 +348,22 @@ export function formatAnswerForText(
   return text;
 }
 
+function formatAttachment(v: FormAttachment): string {
+  // A neutralized attachment (untrusted link stripped) keeps only its name.
+  return v.url ? `${v.name} (${v.url})` : v.name;
+}
+
 function formatAnswerValue(value: FormAnswerValue): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
     // Array could be MULTI_SELECT strings OR attachment[].
     return value
-      .map((v) =>
-        isAttachment(v) ? `${v.name} (${v.url})` : String(v)
-      )
+      .map((v) => (isAttachment(v) ? formatAttachment(v) : String(v)))
       .join(", ");
   }
   // Single attachment (legacy single-file shape).
-  if (isAttachment(value)) return `${value.name} (${value.url})`;
+  if (isAttachment(value)) return formatAttachment(value);
   return String(value);
 }
 
@@ -343,4 +461,23 @@ export function appendFormFooter(
   const byLine = submitterDisplay ? `\nby ${submitterDisplay}` : "";
   const linkLine = `\n${formUrl}`;
   return `${description}${divider}${submittedLine}${byLine}${linkLine}`;
+}
+
+/**
+ * One RFC 4180 CSV cell, safe to open in a spreadsheet.
+ *
+ * Answers come from anonymous submitters, and Excel evaluates a cell that
+ * starts with = + - @ (or a tab / carriage return before one) as a formula —
+ * quoting alone does not stop it — so a public form could plant
+ * =HYPERLINK(...) payloads that read neighbouring cells when staff open the
+ * export. A leading apostrophe makes the spreadsheet treat it as text
+ * (OWASP CSV-injection guidance).
+ */
+export function csvCell(value: string): string {
+  // A plain signed number ("-2", "+1.5") cannot run anything, and escaping it
+  // would turn a NUMBER column into text and break SUM/AVG in the sheet.
+  const isPlainNumber = /^[+-]?\d+(\.\d+)?$/.test(value);
+  const safe =
+    !isPlainNumber && /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
 }

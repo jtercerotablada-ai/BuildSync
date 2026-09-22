@@ -11,9 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target, Sparkles, Menu, MessageSquare, UserPlus } from "lucide-react";
+import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target, Sparkles, Menu, UserPlus } from "lucide-react";
 import { useAIPanel } from "@/contexts/ai-panel-context";
-import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { requestTeamInvite } from "@/lib/team-invite";
@@ -134,13 +133,6 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               <FolderKanban className="mr-2 h-4 w-4 text-gray-500" />
               Project
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => toast.info("Messages coming soon — use the Messages tab inside a project for now")}
-              className="cursor-pointer"
-            >
-              <MessageSquare className="mr-2 h-4 w-4 text-gray-500" />
-              Message
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreatePortfolio} className="cursor-pointer">
               <Briefcase className="mr-2 h-4 w-4 text-gray-500" />
               Portfolio
@@ -224,13 +216,16 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           )}
         </Link>
 
-        <button
-          type="button"
-          onClick={() => toast.info("Help center coming soon")}
+        {/* Help opens the firm's knowledge base wiki. Unprefixed: the wiki
+            has no /portal copy. */}
+        <Link
+          href="/knowledge"
+          aria-label="Knowledge base"
+          title="Knowledge base"
           className="hidden md:flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
           <HelpCircle className="h-[18px] w-[18px]" />
-        </button>
+        </Link>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

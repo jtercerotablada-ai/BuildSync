@@ -10,7 +10,9 @@ import {
   Layers,
   SlidersHorizontal,
   CalendarRange,
+  AlertCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,11 +34,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useToday } from "@/lib/use-today";
+import { isTaskOverdue, taskSpan } from "@/lib/task-span";
 
 interface WorkloadTask {
   id: string;
   name: string | null;
   assigneeId: string | null;
+  startDate: string | null;
   dueDate: string | null;
   completed: boolean;
   projectId: string | null;
@@ -98,9 +102,6 @@ const STATUS_LABELS: Record<string, string> = {
 const UNASSIGNED = "_unassigned";
 const NO_PROJECT = "_noproject";
 
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
 function addDays(d: Date, n: number) {
   const r = new Date(d);
   r.setDate(r.getDate() + n);
@@ -112,6 +113,14 @@ function sameDay(a: Date, b: Date) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Whole days from `from` to `to`, both local midnights. Rounded so a DST
+ *  day (23 or 25 hours) still counts as one. */
+function dayDiff(from: Date, to: Date) {
+  return Math.round((to.getTime() - from.getTime()) / DAY_MS);
 }
 
 /** Round to one decimal for hour display without trailing ".0" noise. */
@@ -135,13 +144,21 @@ export function PortfolioWorkloadView({
     ? `/api/projects/${projectId}/workload`
     : `/api/portfolios/${portfolioId}/workload`;
 
-  const [anchor, setAnchor] = useState<Date>(() => startOfDay(new Date()));
+  // Local midnight of today, null until mounted. The window used to be
+  // seeded with `new Date()` during render, which on the server is the UTC
+  // day, so from 20:00 Miami the whole grid was dated a day ahead.
+  const today = useToday();
+  // null = "follow today". Paging sets an explicit first day.
+  const [anchorOverride, setAnchorOverride] = useState<Date | null>(null);
+  const anchor = anchorOverride ?? today;
   const [windowSize, setWindowSize] = useState<WindowSize>(14);
   const [measure, setMeasure] = useState<Measure>("tasks");
   const [tasks, setTasks] = useState<WorkloadTask[]>([]);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [projects, setProjects] = useState<ProjectRef[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // ── Toolbar state ──────────────────────────────────────────
   const [groupBy, setGroupBy] = useState<GroupBy>("assignee");
@@ -158,16 +175,22 @@ export function PortfolioWorkloadView({
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setLoadError(false);
       try {
         const res = await fetch(endpoint);
-        if (res.ok && !cancelled) {
-          const data = await res.json();
-          setTasks(data.tasks || []);
-          setAssignees(data.assignees || []);
-          setProjects(data.projects || []);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setTasks(data.tasks || []);
+        setAssignees(data.assignees || []);
+        setProjects(data.projects || []);
       } catch (err) {
+        // A failed load must not render as "nobody has work".
         console.error("Error loading workload:", err);
+        if (!cancelled) {
+          setLoadError(true);
+          toast.error("Couldn't load workload");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -176,7 +199,7 @@ export function PortfolioWorkloadView({
     return () => {
       cancelled = true;
     };
-  }, [endpoint]);
+  }, [endpoint, reloadKey]);
 
   // Adapt column width to window size so longer ranges still fit
   // legibly on wide screens.
@@ -184,6 +207,7 @@ export function PortfolioWorkloadView({
 
   const days = useMemo(() => {
     const arr: Date[] = [];
+    if (!anchor) return arr;
     for (let i = 0; i < windowSize; i++) arr.push(addDays(anchor, i));
     return arr;
   }, [anchor, windowSize]);
@@ -213,31 +237,43 @@ export function PortfolioWorkloadView({
     });
   }, [tasks, assigneeFilter, projectFilter, statusFilter]);
 
-  // The value a task contributes to a cell: 1 task, or its estimated
-  // minutes (converted to hours at render time).
-  const taskValue = (t: WorkloadTask) =>
-    measure === "hours" ? t.estimatedMinutes : 1;
+  const rowIdOf = (t: WorkloadTask) =>
+    groupBy === "project"
+      ? t.projectId || NO_PROJECT
+      : t.assigneeId || UNASSIGNED;
 
-  // counts[`${rowId}|${dayIdx}`] = summed measure value that day.
-  // In "hours" mode the accumulated value is in MINUTES; we divide by 60
-  // only for display so the running totals stay exact.
-  const counts = useMemo(() => {
+  // counts[`${rowId}|${dayIdx}`] = summed measure value that day, and
+  // tasksInWindow[rowId] = distinct tasks touching the window (what the
+  // Total column shows in task-count mode: a 10-day task is one task, not
+  // ten). A task loads every day of its [startDate, dueDate] span, the same
+  // rule as the project Workload view; a due-only task loads its due day.
+  // taskSpan reads the UTC-midnight date-only values by their UTC calendar
+  // day (local getters put every task one column early west of UTC). In
+  // "hours" mode the estimate is spread evenly over the span and kept in
+  // MINUTES; we divide by 60 only for display so the totals stay exact.
+  const { counts, tasksInWindow } = useMemo(() => {
     const map = new Map<string, number>();
+    const perRow = new Map<string, number>();
+    if (!anchor) return { counts: map, tasksInWindow: perRow };
     for (const t of filteredTasks) {
-      if (!t.dueDate) continue;
-      const d = startOfDay(new Date(t.dueDate));
-      const idx = Math.round(
-        (d.getTime() - anchor.getTime()) / (24 * 60 * 60 * 1000)
-      );
-      if (idx < 0 || idx >= windowSize) continue;
-      const rowId =
-        groupBy === "project"
-          ? t.projectId || NO_PROJECT
-          : t.assigneeId || UNASSIGNED;
-      const key = `${rowId}|${idx}`;
-      map.set(key, (map.get(key) || 0) + taskValue(t));
+      const span = taskSpan(t);
+      if (!span) continue;
+      const i0 = dayDiff(anchor, span.start);
+      const j0 = dayDiff(anchor, span.end);
+      const i = Math.max(0, i0);
+      const j = Math.min(windowSize - 1, j0);
+      if (i > j) continue;
+      const rowId = rowIdOf(t);
+      const perDay =
+        measure === "hours" ? t.estimatedMinutes / (j0 - i0 + 1) : 1;
+      for (let k = i; k <= j; k++) {
+        const key = `${rowId}|${k}`;
+        map.set(key, (map.get(key) || 0) + perDay);
+      }
+      perRow.set(rowId, (perRow.get(rowId) || 0) + 1);
     }
-    return map;
+    return { counts: map, tasksInWindow: perRow };
+    // rowIdOf only reads groupBy.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredTasks, anchor, windowSize, measure, groupBy]);
 
@@ -247,15 +283,30 @@ export function PortfolioWorkloadView({
   const unscheduledByRow = useMemo(() => {
     const map = new Map<string, number>();
     for (const t of filteredTasks) {
-      if (t.dueDate) continue;
-      const rowId =
-        groupBy === "project"
-          ? t.projectId || NO_PROJECT
-          : t.assigneeId || UNASSIGNED;
+      if (t.dueDate || t.startDate) continue;
+      const rowId = rowIdOf(t);
       map.set(rowId, (map.get(rowId) || 0) + 1);
     }
     return map;
+    // rowIdOf only reads groupBy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredTasks, groupBy]);
+
+  // Open work already past its due date. The window opens on today, so it
+  // fell before the first column and the person carrying the most late work
+  // looked free. Counted against today rather than the paged window, because
+  // "overdue" is a fact about the task, not about the view.
+  const overdueByRow = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of filteredTasks) {
+      if (!isTaskOverdue(t, today)) continue;
+      const rowId = rowIdOf(t);
+      map.set(rowId, (map.get(rowId) || 0) + 1);
+    }
+    return map;
+    // rowIdOf only reads groupBy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredTasks, groupBy, today]);
 
   // Row descriptors (assignee or project depending on groupBy).
   interface RowMeta {
@@ -310,26 +361,14 @@ export function PortfolioWorkloadView({
   // "show empty rows" is on). Unassigned/No-project bucket respects the
   // showUnassigned option and always sorts to the bottom.
   const visibleRows = useMemo(() => {
-    const inWindow = new Set<string>();
-    for (const t of filteredTasks) {
-      const rowId =
-        groupBy === "project"
-          ? t.projectId || NO_PROJECT
-          : t.assigneeId || UNASSIGNED;
-      // Undated work has no cell to sit in, but dropping the row entirely
-      // made a loaded-up engineer look available. Keep the row and let the
-      // label carry the unscheduled count.
-      if (!t.dueDate) {
-        inWindow.add(rowId);
-        continue;
-      }
-      const d = startOfDay(new Date(t.dueDate));
-      const idx = Math.round(
-        (d.getTime() - anchor.getTime()) / (24 * 60 * 60 * 1000)
-      );
-      if (idx < 0 || idx >= windowSize) continue;
-      inWindow.add(rowId);
-    }
+    // Undated and overdue work has no cell in the window, but dropping the
+    // row entirely made a loaded-up engineer look available. Keep the row
+    // and let the label carry those counts.
+    const inWindow = new Set<string>([
+      ...tasksInWindow.keys(),
+      ...unscheduledByRow.keys(),
+      ...overdueByRow.keys(),
+    ]);
     const named = allRows
       .filter((r) => !r.isUnassigned)
       .filter((r) => showEmptyRows || inWindow.has(r.id))
@@ -345,16 +384,17 @@ export function PortfolioWorkloadView({
     }
     return named;
   }, [
-    filteredTasks,
+    tasksInWindow,
+    unscheduledByRow,
+    overdueByRow,
     allRows,
-    anchor,
-    windowSize,
     groupBy,
     showUnassigned,
     showEmptyRows,
   ]);
 
-  // Per-row totals (for the right-hand aggregate + overload tag).
+  // Per-row summed daily load across the window (drives the overload tag,
+  // and is the displayed total in hours mode).
   const rowTotals = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of visibleRows) {
@@ -367,16 +407,29 @@ export function PortfolioWorkloadView({
     return map;
   }, [visibleRows, counts, windowSize]);
 
-  // Local midnight, null until mounted. Computed during render this came
-  // from the server's UTC clock, so from 20:00 Miami the gold "today" column
-  // tinted tomorrow — and React does not repair a className on hydration.
-  const today = useToday();
   // Capacity is only earned on working days — counting Saturdays and Sundays
   // as capacity made a 7-day window look 40% roomier than the week really is.
   const workingDays = useMemo(
     () => Math.max(days.filter((d) => d.getDay() !== 0 && d.getDay() !== 6).length, 1),
     [days]
   );
+  // Count-mode load summed over WORKING-day columns only, for the overload
+  // test. A task now loads every calendar day of its span, so summing
+  // weekend cells against a working-days-only capacity flagged two tasks
+  // running all window as overloaded while the Total column read "2".
+  const rowWorkingLoad = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of visibleRows) {
+      let sum = 0;
+      for (let i = 0; i < windowSize; i++) {
+        const d = days[i];
+        if (!d || d.getDay() === 0 || d.getDay() === 6) continue;
+        sum += counts.get(`${r.id}|${i}`) || 0;
+      }
+      map.set(r.id, sum);
+    }
+    return map;
+  }, [visibleRows, counts, windowSize, days]);
   const totalPx = windowSize * dayPx;
   const LEFT_PX = 260;
   const TOTAL_COL_PX = 72;
@@ -415,7 +468,10 @@ export function PortfolioWorkloadView({
           variant="outline"
           size="icon"
           className="h-8 w-8"
-          onClick={() => setAnchor(addDays(anchor, -windowSize))}
+          disabled={!anchor}
+          onClick={() =>
+            anchor && setAnchorOverride(addDays(anchor, -windowSize))
+          }
           aria-label="Previous"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -424,7 +480,7 @@ export function PortfolioWorkloadView({
           variant="outline"
           size="sm"
           className="h-8"
-          onClick={() => setAnchor(startOfDay(new Date()))}
+          onClick={() => setAnchorOverride(null)}
         >
           <Calendar className="h-3.5 w-3.5 sm:mr-1.5" />
           <span className="hidden sm:inline">Today</span>
@@ -433,7 +489,10 @@ export function PortfolioWorkloadView({
           variant="outline"
           size="icon"
           className="h-8 w-8"
-          onClick={() => setAnchor(addDays(anchor, windowSize))}
+          disabled={!anchor}
+          onClick={() =>
+            anchor && setAnchorOverride(addDays(anchor, windowSize))
+          }
           aria-label="Next"
         >
           <ChevronRight className="h-4 w-4" />
@@ -482,14 +541,15 @@ export function PortfolioWorkloadView({
               <button
                 type="button"
                 className={cn(
-                  "hidden md:inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md",
+                  "inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md",
                   activeFilterCount > 0
                     ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/20"
                     : "text-gray-700 hover:bg-gray-100"
                 )}
+                aria-label="Filter"
               >
                 <Filter className="h-3.5 w-3.5" />
-                <span>Filter</span>
+                <span className="hidden md:inline">Filter</span>
                 {activeFilterCount > 0 && (
                   <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-[#a8893a] text-white text-[10px]">
                     {activeFilterCount}
@@ -579,10 +639,11 @@ export function PortfolioWorkloadView({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="hidden md:inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+                className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+                aria-label="Group"
               >
                 <Layers className="h-3.5 w-3.5" />
-                <span>Group</span>
+                <span className="hidden md:inline">Group</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -609,14 +670,15 @@ export function PortfolioWorkloadView({
               <button
                 type="button"
                 className={cn(
-                  "hidden md:inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md",
+                  "inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md",
                   optionsChanged
                     ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/20"
                     : "text-gray-700 hover:bg-gray-100"
                 )}
+                aria-label="Options"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                <span>Options</span>
+                <span className="hidden md:inline">Options</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -641,9 +703,29 @@ export function PortfolioWorkloadView({
       </div>
 
       {/* ── Body ────────────────────────────────────────────── */}
-      {loading ? (
+      {loading || !anchor ? (
         <div className="p-12 flex justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </div>
+      ) : loadError ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mb-3">
+            <AlertCircle className="h-6 w-6 text-red-500" />
+          </div>
+          <h3 className="text-base font-medium text-black mb-1">
+            Couldn&apos;t load workload
+          </h3>
+          <p className="text-sm text-gray-500 max-w-md mb-4">
+            Something went wrong while loading tasks. This is not an empty
+            schedule.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReloadKey((k) => k + 1)}
+          >
+            Retry
+          </Button>
         </div>
       ) : visibleRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -733,11 +815,15 @@ export function PortfolioWorkloadView({
             {/* Rows */}
             {visibleRows.map((a) => {
               const rowTotal = rowTotals.get(a.id) || 0;
-              // Overload threshold scales with the measure. Tasks: >2/working
-              // day avg over the window. Hours: >6h/working day (≈overbooked).
+              // Overload threshold scales with the measure. Tasks: >2 open
+              // tasks per working day on average over the window. Hours:
+              // >6h/working day (≈overbooked).
               const overloadTotal =
                 measure === "hours" ? workingDays * 6 * 60 : workingDays * 2;
-              const rowOverloaded = rowTotal > overloadTotal;
+              const rowOverloaded =
+                (measure === "hours"
+                  ? rowTotal
+                  : rowWorkingLoad.get(a.id) || 0) > overloadTotal;
               return (
                 <div
                   key={a.id}
@@ -790,10 +876,18 @@ export function PortfolioWorkloadView({
                           {a.jobTitle}
                         </div>
                       )}
+                      {(overdueByRow.get(a.id) || 0) > 0 && (
+                        <div
+                          className="text-[11px] text-red-600 truncate"
+                          title="Open tasks past their due date"
+                        >
+                          +{overdueByRow.get(a.id)} overdue
+                        </div>
+                      )}
                       {(unscheduledByRow.get(a.id) || 0) > 0 && (
                         <div
                           className="text-[11px] text-amber-700 truncate"
-                          title="Tasks with no due date, so they don't appear in the grid"
+                          title="Tasks with no dates, so they don't appear in the grid"
                         >
                           +{unscheduledByRow.get(a.id)} unscheduled
                         </div>
@@ -831,7 +925,9 @@ export function PortfolioWorkloadView({
                             : "text-gray-300"
                       )}
                     >
-                      {measure === "hours" ? fmtHours(rowTotal) : rowTotal}
+                      {measure === "hours"
+                        ? fmtHours(rowTotal)
+                        : tasksInWindow.get(a.id) || 0}
                     </span>
                   </div>
                 </div>

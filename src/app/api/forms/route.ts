@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getProjectAccess } from "@/lib/project-access";
+import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
+import { canBeFormAssignee } from "@/lib/form-notifications";
 
 const fieldSchema = z.object({
   id: z.string().min(1),
@@ -72,23 +75,20 @@ export async function GET(req: Request) {
       100
     );
 
-    const userProjects = await prisma.projectMember.findMany({
-      where: { userId },
-      select: { projectId: true },
-    });
-    const ownedProjects = await prisma.project.findMany({
-      where: { ownerId: userId },
-      select: { id: true },
-    });
-    const projectIds = [
-      ...new Set([
-        ...userProjects.map((p) => p.projectId),
-        ...ownedProjects.map((p) => p.id),
-      ]),
-    ];
+    // Same project scope as the project list (and so the widget's project
+    // picker): member/owner-only scoping hid every form in a colleague's
+    // project from the workspace owner, and kept forms of archived projects.
+    const clauses = await buildProjectVisibilityClauses(userId);
+    if (!clauses) return NextResponse.json([]);
 
     const forms = await prisma.form.findMany({
-      where: { projectId: { in: projectIds } },
+      // Active forms only, filtered BEFORE the limit: "Delete form" is a
+      // soft close that bumps updatedAt, so closed rows used to take the top
+      // slots and push live forms out of the widget's 20.
+      where: {
+        isActive: true,
+        project: { OR: clauses, isArchived: false },
+      },
       include: {
         project: { select: { id: true, name: true } },
         _count: { select: { submissions: true } },
@@ -161,34 +161,21 @@ export async function POST(req: Request) {
     }
     const data = parsed.data;
 
-    // Verify user can EDIT the target project. Creating a form is a build
-    // action, so mirror the role gate on POST /api/projects/:id/forms
-    // (owner or ADMIN/EDITOR) — plain COMMENTER/VIEWER members must not be
-    // able to create forms via this endpoint.
-    const project = await prisma.project.findUnique({
-      where: { id: data.projectId },
-      select: {
-        id: true,
-        name: true,
-        ownerId: true,
-        members: { where: { userId }, select: { role: true } },
-      },
-    });
-    if (!project) {
-      return NextResponse.json(
-        { error: "Project not found or you don't have access" },
-        { status: 403 }
-      );
+    // Creating a form is a build action: the caller needs write access to
+    // the target project under the canonical rule (which also admits the
+    // workspace owner/admin and team or workspace-shared Editors). A plain
+    // COMMENTER/VIEWER member cannot.
+    const access = await getProjectAccess(data.projectId, userId);
+    if (!access.ok) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
-    const role = project.members[0]?.role;
-    const canEdit =
-      project.ownerId === userId || role === "ADMIN" || role === "EDITOR";
-    if (!canEdit) {
+    if (!access.canWrite) {
       return NextResponse.json(
         { error: "You don't have permission to create forms in this project" },
         { status: 403 }
       );
     }
+    const project = { id: access.projectId };
 
     // Validate defaultSectionId belongs to this project if provided.
     if (data.defaultSectionId) {
@@ -204,9 +191,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // Validate defaultAssigneeId is in the workspace if provided.
-    // (Loose check — full workspace membership validation would
-    // require another query path; we trust the picker to filter.)
+    // The default assignee is emailed every submission's answers, so it
+    // must be someone who can read this project — never trust the picker.
+    if (data.defaultAssigneeId) {
+      const ok = await canBeFormAssignee(project.id, data.defaultAssigneeId);
+      if (!ok) {
+        return NextResponse.json(
+          { error: "The default assignee must have access to this project." },
+          { status: 400 }
+        );
+      }
+    }
 
     const form = await prisma.form.create({
       data: {

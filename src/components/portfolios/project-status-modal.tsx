@@ -24,7 +24,8 @@
  * /api/projects/[id] for the panel's description + members AND, in both
  * variants, the project's own `statusSetAt` — the portfolio row handed in
  * here does not carry it, and without it an untouched project would show a
- * green "On track" nobody ever chose. Posting reuses the existing POST
+ * green "On track" nobody ever chose. The panel's "Connected goals" reads
+ * GET /api/projects/[id]/objectives. Posting reuses the existing POST
  * /status-updates. Comments / reactions / followers need backend and are
  * intentionally not shipped as dead stub controls.
  */
@@ -47,6 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useToday } from "@/lib/use-today";
+import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
 import {
   NO_STATUS_LABEL,
   countOverdue,
@@ -68,37 +70,52 @@ type ProjectStatusKey =
  *  accent-bar / sidebar-dot colour; `chip` styles the badge. */
 const STATUS_VISUAL: Record<
   ProjectStatusKey,
-  { label: string; dot: string; chip: string; accent: string }
+  { label: string; dot: string; chip: string; accent: string; border: string }
 > = {
   ON_TRACK: {
     label: "On track",
     dot: "bg-[#c9a84c]",
     chip: "bg-[#c9a84c]/15 text-[#a8893a]",
     accent: "bg-[#c9a84c]",
+    // Written out, not derived from `accent`: Tailwind only emits classes
+    // that appear literally in the source.
+    border: "border-t-[#c9a84c]",
   },
   AT_RISK: {
     label: "At risk",
     dot: "bg-amber-500",
     chip: "bg-amber-100 text-amber-800",
     accent: "bg-amber-500",
+    // Written out, not derived from `accent`: Tailwind only emits classes
+    // that appear literally in the source.
+    border: "border-t-amber-500",
   },
   OFF_TRACK: {
     label: "Off track",
     dot: "bg-black",
     chip: "bg-gray-100 text-black",
     accent: "bg-black",
+    // Written out, not derived from `accent`: Tailwind only emits classes
+    // that appear literally in the source.
+    border: "border-t-black",
   },
   ON_HOLD: {
     label: "On hold",
     dot: "bg-gray-400",
     chip: "bg-gray-100 text-gray-700",
     accent: "bg-gray-400",
+    // Written out, not derived from `accent`: Tailwind only emits classes
+    // that appear literally in the source.
+    border: "border-t-gray-400",
   },
   COMPLETE: {
     label: "Complete",
     dot: "bg-[#a8893a]",
     chip: "bg-[#a8893a]/15 text-[#a8893a]",
     accent: "bg-[#a8893a]",
+    // Written out, not derived from `accent`: Tailwind only emits classes
+    // that appear literally in the source.
+    border: "border-t-[#a8893a]",
   },
 };
 
@@ -115,6 +132,7 @@ const NO_STATUS_VISUAL = {
   dot: "bg-gray-300",
   chip: "bg-gray-100 text-gray-500",
   accent: "bg-gray-300",
+  border: "border-t-gray-300",
 };
 
 const STATUS_ORDER: ProjectStatusKey[] = [
@@ -167,6 +185,12 @@ interface UpcomingTask {
   dueDate: string | null;
   completed?: boolean;
   assignee: { id: string; name: string | null; image: string | null } | null;
+}
+
+interface ConnectedGoal {
+  id: string;
+  name: string;
+  progress: number;
 }
 
 interface ProjectMember {
@@ -226,8 +250,9 @@ function startOfDay(d: Date): Date {
   return x;
 }
 
-/** Whole calendar days from `today` to an instant, or null while today is
- *  still unknown (the first client frame).
+/** Whole calendar days from `today` to an INSTANT (a createdAt), or null
+ *  while today is still unknown (the first client frame). Date-only values
+ *  (project and task dates) go through `daysFromToday` instead.
  *
  *  Every "Today"/"Yesterday" word below goes through it. They read the clock
  *  during render, and the server's clock is UTC — from 20:00 Miami an update
@@ -265,15 +290,18 @@ function formatDayLabel(iso: string, today: Date | null): string {
   });
 }
 
+/** "Aug 3" for a DATE-ONLY value (project / task start or due). Those are
+ *  stored at UTC midnight, so they are read by their UTC calendar day —
+ *  a local read shows the day before for everyone west of UTC. */
 function monthDay(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return dueDateToLocalMidnight(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
 }
 
-function longDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+function longDate(day: Date): string {
+  return day.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -287,7 +315,7 @@ function dateRangeLabel(
   today: Date | null
 ): string | null {
   const s = start
-    ? dayOffsetFrom(today, start) === 0
+    ? today && daysFromToday(start, today) === 0
       ? "Today"
       : monthDay(start)
     : null;
@@ -302,9 +330,9 @@ function dateRangeLabel(
  *  single "Aug 7" when only a due date exists. */
 function taskRange(start: string | null, due: string | null): string {
   if (start && due) {
-    const s = new Date(start);
-    const e = new Date(due);
-    if (s.toDateString() === e.toDateString()) return monthDay(due);
+    const s = dueDateToLocalMidnight(start);
+    const e = dueDateToLocalMidnight(due);
+    if (s.getTime() === e.getTime()) return monthDay(due);
     if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
       return `${monthDay(start)} – ${e.getDate()}`;
     }
@@ -353,6 +381,8 @@ export function ProjectStatusModal({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<UpcomingTask[]>([]);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
+  // null = still loading (panel variant only).
+  const [goals, setGoals] = useState<ConnectedGoal[] | null>(null);
 
   // Composer state (Asana "Update status" / "New status update").
   const [composing, setComposing] = useState(false);
@@ -430,6 +460,23 @@ export function ProjectStatusModal({
     };
   }, [project.id]);
 
+  // Goals linked to this project (panel only — the modal has no goals block).
+  useEffect(() => {
+    if (variant !== "panel") return;
+    let cancelled = false;
+    fetch(`/api/projects/${project.id}/objectives`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: ConnectedGoal[]) => {
+        if (!cancelled) setGoals(Array.isArray(d) ? d : []);
+      })
+      .catch(() => {
+        if (!cancelled) setGoals([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, variant]);
+
   const selected = useMemo(
     () => updates.find((u) => u.id === selectedId) || updates[0] || null,
     [updates, selectedId]
@@ -445,14 +492,17 @@ export function ProjectStatusModal({
     return tasks
       .filter((t) => !t.completed && t.dueDate)
       .filter((t) => {
-        const due = new Date(t.dueDate as string);
-        const s = new Date(t.startDate || (t.dueDate as string));
+        // Date-only values, compared by calendar day against local-midnight
+        // `today`: read as instants, a task due today (00:00 UTC) falls on
+        // yesterday evening west of UTC and drops out of the list.
+        const due = dueDateToLocalMidnight(t.dueDate as string);
+        const s = dueDateToLocalMidnight(t.startDate || (t.dueDate as string));
         return due >= today && s <= end;
       })
       .sort(
         (a, b) =>
-          new Date(a.startDate || (a.dueDate as string)).getTime() -
-          new Date(b.startDate || (b.dueDate as string)).getTime()
+          dueDateToLocalMidnight(a.startDate || (a.dueDate as string)).getTime() -
+          dueDateToLocalMidnight(b.startDate || (b.dueDate as string)).getTime()
       )
       .slice(0, 12);
   }, [tasks, today]);
@@ -684,7 +734,7 @@ export function ProjectStatusModal({
           {today && (
             <>
               <span className="text-gray-300">·</span>
-              <span>Starting: {longDate(today.toISOString())}</span>
+              <span>Starting: {longDate(today)}</span>
             </>
           )}
         </div>
@@ -1042,7 +1092,7 @@ export function ProjectStatusModal({
           <div
             className={cn(
               "border rounded-xl border-t-4 p-4",
-              statusVisual(selected.status).accent.replace("bg-", "border-t-")
+              statusVisual(selected.status).border
             )}
           >
             {statusBody}
@@ -1119,18 +1169,39 @@ export function ProjectStatusModal({
             <Target className="h-4 w-4 text-gray-400" />
             Connected goals
           </h3>
-          <div className="rounded-xl border bg-gray-50/60 px-4 py-4">
-            <p className="text-sm text-gray-500 mb-2.5">
-              Connect a goal to link this project to a bigger purpose.
-            </p>
-            <button
-              onClick={openProject}
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-700 border bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-50"
-            >
-              <Target className="h-3.5 w-3.5" />
-              Add goal
-            </button>
-          </div>
+          {goals === null ? (
+            <div className="h-3 w-40 rounded bg-gray-100 animate-pulse" />
+          ) : goals.length > 0 ? (
+            <div className="border rounded-xl divide-y overflow-hidden">
+              {goals.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => router.push(`/goals/${g.id}`)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50"
+                >
+                  <span className="flex-1 text-sm text-gray-800 truncate">
+                    {g.name}
+                  </span>
+                  <span className="text-xs text-gray-500 tabular-nums flex-shrink-0">
+                    {Math.round(g.progress)}%
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-gray-50/60 px-4 py-4">
+              <p className="text-sm text-gray-500 mb-2.5">
+                Connect a goal to link this project to a bigger purpose.
+              </p>
+              <button
+                onClick={openProject}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-700 border bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-50"
+              >
+                <Target className="h-3.5 w-3.5" />
+                Add goal
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

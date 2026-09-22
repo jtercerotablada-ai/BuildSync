@@ -201,16 +201,29 @@ export function GanttTimeline({
     }));
   }, [dated, groupBy]);
 
-  function shift(days: number) {
+  // Pan in WHOLE MONTHS. The window snaps to the 1st of a month, so a pan
+  // measured in days (14 in week zoom) often left the snapped start where it
+  // was and the click did nothing. Moving the center by whole months always
+  // moves the snapped start by the same number of months. The day is clamped
+  // so Jan 31 + 1 month is Feb 28, not an overflow into March.
+  function shift(months: number) {
     const next = new Date(centerDate);
-    next.setDate(next.getDate() + days);
+    const day = next.getDate();
+    next.setDate(1);
+    next.setMonth(next.getMonth() + months);
+    const lastDay = new Date(
+      next.getFullYear(),
+      next.getMonth() + 1,
+      0
+    ).getDate();
+    next.setDate(Math.min(day, lastDay));
     setCenterDate(next);
   }
 
   const shiftAmountByZoom: Record<ZoomLevel, number> = {
-    week: 14,
-    month: 60,
-    quarter: 180,
+    week: 1,
+    month: 2,
+    quarter: 6,
   };
 
   return (

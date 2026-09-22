@@ -1,6 +1,7 @@
-// Shared types for the CEO cockpit. Mirrors the shape returned by
-// /api/dashboard/ceo. Kept loose on enums (string) so the UI doesn't
-// crash if the DB has a value the client hasn't been recompiled for.
+// Shared project-type vocabulary for the stage strip and the project
+// overview. The firm-wide cockpit these types once described (map, KPI
+// stack, quadrant grid) was never mounted and has been removed; only what
+// live screens import is kept here.
 
 export type ProjectType =
   | "CONSTRUCTION"
@@ -11,107 +12,8 @@ export type ProjectType =
 export type ProjectGate = "PRE_DESIGN" | "DESIGN" | "PERMITTING" | "CONSTRUCTION" | "CLOSEOUT";
 export type ProjectStatus = "ON_TRACK" | "AT_RISK" | "OFF_TRACK" | "ON_HOLD" | "COMPLETE";
 
-export interface CockpitProject {
-  id: string;
-  name: string;
-  color: string;
-  status: ProjectStatus;
-  type: ProjectType | null;
-  gate: ProjectGate | null;
-  // Pipeline stage — the key stored in Project.stage, resolved through
-  // src/lib/pipelines.ts. Optional because a payload cached from before the
-  // column existed must still render: the tile then shows the project's
-  // stages with none reached rather than inventing progress.
-  stage?: string | null;
-  stageEnteredAt?: string | null;
-  location: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  budget: number | null;
-  currency: string | null;
-  clientName: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  updatedAt: string;
-  owner: { id: string; name: string | null; image: string | null } | null;
-  // `completedTasks` is populated by /api/dashboard/ceo so PMI tiles
-  // can compute real EV → SPI → % complete instead of always-zero.
-  // Defaults to 0 for projects with no tasks completed yet.
-  _count: { tasks: number; completedTasks: number };
-}
-
-export interface TeamMember {
-  id: string;
-  name: string | null;
-  email: string;
-  image: string | null;
-  role: string;
-  load: number; // number of in-flight tasks assigned
-}
-
-export interface CriticalTask {
-  id: string;
-  name: string;
-  dueDate: string;
-  priority: string;
-  // `taskType` lets the Upcoming Milestones tile narrow to actual
-  // milestones (taskType === "MILESTONE") instead of any task. Other
-  // tiles (Priority Queue) ignore the field.
-  taskType: "TASK" | "MILESTONE" | "APPROVAL" | null;
-  project: { id: string; name: string; color: string; type: ProjectType | null };
-  assignee: { id: string; name: string | null; image: string | null } | null;
-}
-
-export interface ActivityItem {
-  id: string;
-  name: string;
-  completedAt: string | null;
-  updatedAt: string;
-  project: { id: string; name: string; color: string };
-  assignee: { id: string; name: string | null; image: string | null } | null;
-  creator: { id: string; name: string | null; image: string | null } | null;
-}
-
-export interface RevenueMonth {
-  month: string;
-  revenue: number;
-}
-
-// Capabilities flag returned alongside the data so the UI can
-// gracefully degrade for lower-hierarchy viewers (L1–L3) without
-// hard-coding role logic on the client. Mirrors what the API
-// already computes from getEffectiveAccess() and isWorkspaceOwner().
-export interface CockpitViewerCapabilities {
-  canSeeFinancials: boolean;
-  canSeeAllProjects: boolean;
-  /** Hierarchy level 1-7; 5+ is "executive". */
-  level: number;
-}
-
-export interface CockpitData {
-  projects: CockpitProject[];
-  countsByType: Record<ProjectType, number>;
-  countsByGate: Record<ProjectGate, number>;
-  kpis: {
-    activeProjects: number;
-    totalBudget: number;
-    currency: string;
-    pendingSignatures: number;
-    teamUtilization: number;
-  };
-  team: TeamMember[];
-  criticalPath: CriticalTask[];
-  compliance: CockpitProject[];
-  revenuePipeline: RevenueMonth[];
-  activity: ActivityItem[];
-  // Always present in the API response (route.ts line ~340). Made
-  // optional here so older cached payloads parsed before this field
-  // was typed don't crash the UI on first paint after a deploy.
-  viewerCapabilities?: CockpitViewerCapabilities;
-}
-
 // ────────────────────────────────────────────────────────────
-// Type label + color helpers used by every cockpit panel
+// Type label + color helpers
 // ────────────────────────────────────────────────────────────
 
 export const TYPE_LABEL: Record<ProjectType, string> = {

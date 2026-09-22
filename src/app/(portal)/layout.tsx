@@ -30,10 +30,10 @@ export default async function PortalLayout({
 
       const role = membership?.role;
       if (role !== "WORKER" && role !== "ADMIN" && role !== "OWNER") {
-        redirect("/");
+        redirect("/home");
       }
     } else {
-      redirect("/");
+      redirect("/home");
     }
   }
 

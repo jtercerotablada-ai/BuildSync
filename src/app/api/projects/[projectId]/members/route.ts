@@ -4,16 +4,19 @@ import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  verifyWorkspaceAccess,
   verifyProjectAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import {
+  getProjectAccess,
+  type ProjectAccessResult,
+} from "@/lib/project-access";
 import { notifyMembershipGranted } from "@/lib/membership-notifications";
 import { sendInvitationEmail } from "@/lib/email";
 import { PROJECT_ROLE_META } from "@/lib/people-types";
-import type { ProjectRole } from "@prisma/client";
+import { Prisma, type ProjectRole } from "@prisma/client";
 
 /**
  * Clients never enter a project through the Share dialog. There is no
@@ -54,44 +57,30 @@ const addMemberSchema = z
   });
 
 /**
- * Only the project's OWNER or an ADMIN-level ProjectMember can
- * mutate the project's membership. Workspace members at large CANNOT
- * — that was a leak that let anyone in the workspace add/remove/
- * re-role themselves and others on projects they had no business
- * touching.
- *
- * Returns null on success. Returns an error NextResponse the caller
- * should return directly when the user fails the gate.
+ * Membership changes need `canManage` from the canonical resolver: the
+ * project owner, a project ADMIN, or a workspace OWNER/ADMIN. Workspace
+ * members at large CANNOT — that was a leak that let anyone in the workspace
+ * add/remove/re-role themselves and others. The private owner-or-ADMIN copy
+ * this replaced left out workspace managers, so the firm's owner could delete
+ * a colleague's project but not staff it, and a project whose owner had left
+ * could never be re-staffed at all.
  */
-async function requireProjectAdmin(
-  userId: string,
-  projectId: string
-): Promise<NextResponse | null> {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      ownerId: true,
-      members: {
-        where: { userId },
-        select: { role: true },
-      },
-    },
-  });
-  if (!project) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  }
-  const isProjectOwner = project.ownerId === userId;
-  const isProjectAdmin = project.members[0]?.role === "ADMIN";
-  if (!isProjectOwner && !isProjectAdmin) {
+function requireManage(access: ProjectAccessResult): NextResponse | null {
+  if (!access.canManage) {
     return NextResponse.json(
       {
         error:
-          "Only the project owner or an ADMIN member can modify project members",
+          "Only the project owner, a project admin or a workspace admin can change project members",
       },
       { status: 403 }
     );
   }
   return null;
+}
+
+/** 404 for a project the caller cannot read — never confirm it exists. */
+function notFound(): NextResponse {
+  return NextResponse.json({ error: "Project not found" }, { status: 404 });
 }
 
 /**
@@ -101,8 +90,18 @@ async function requireProjectAdmin(
  * project bind on accept. Sends the invitation email best-effort — the
  * row is kept even if delivery fails so the inviter can Resend later.
  *
- * The caller (project members POST) has already verified admin rights and
- * validated the companyId against the project.
+ * The caller (project members POST) has already verified that the inviter is
+ * a workspace OWNER/ADMIN and validated the companyId against the project.
+ *
+ * One row per (email, workspace) — @@unique — so:
+ *   - a live PENDING invitation keeps its token: re-tokenizing it broke the
+ *     link already sitting in the invitee's inbox. It takes this project's
+ *     bind only when it has none (or already has this one); a bind to a
+ *     DIFFERENT project is refused, because the row holds a single project
+ *     and overwriting it silently dropped the first one.
+ *   - any other row (accepted by someone later removed, declined, revoked,
+ *     expired) is reset to a fresh invitation instead of a create that hits
+ *     the unique constraint as an opaque 500.
  */
 async function inviteByEmail(args: {
   email: string;
@@ -115,31 +114,72 @@ async function inviteByEmail(args: {
 }): Promise<NextResponse> {
   const { email, projectId, projectName, workspaceId, inviterId, role } = args;
 
-  // Reuse any still-pending invitation for this email/workspace so a
-  // second invite doesn't pile up duplicate rows — refresh its project
-  // bind + token + expiry instead (upsert semantics on the email flow).
-  const existingInvite = await prisma.workspaceInvitation.findFirst({
-    where: { email, workspaceId, status: "PENDING" },
-    select: { id: true },
+  const existingInvite = await prisma.workspaceInvitation.findUnique({
+    where: { email_workspaceId: { email, workspaceId } },
+    select: { id: true, status: true, token: true, expiresAt: true, projectId: true },
   });
 
-  const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
-  const invitation = existingInvite
+  const livePending =
+    existingInvite?.status === "PENDING" &&
+    existingInvite.expiresAt.getTime() > Date.now();
+
+  if (
+    livePending &&
+    existingInvite.projectId &&
+    existingInvite.projectId !== projectId
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "This person already has a pending invitation for another project. Add them here once they accept it.",
+      },
+      { status: 409 }
+    );
+  }
+
+  const token = livePending
+    ? existingInvite.token
+    : crypto.randomBytes(32).toString("hex");
+
+  const invitation = livePending
     ? await prisma.workspaceInvitation.update({
         where: { id: existingInvite.id },
         data: {
-          token,
           expiresAt,
-          inviterId,
           projectId,
           companyId: args.companyId,
           projectRole: role,
         },
       })
-    : await prisma.workspaceInvitation.create({
+    : existingInvite
+      ? await prisma.workspaceInvitation.update({
+          where: { id: existingInvite.id },
+          data: {
+            role: "MEMBER",
+            status: "PENDING",
+            token,
+            expiresAt,
+            inviterId,
+            projectId,
+            companyId: args.companyId,
+            projectRole: role,
+            // A fresh invitation: nothing from the old row's binds or
+            // bookkeeping may ride along into this one.
+            position: null,
+            customTitle: null,
+            department: null,
+            personalMessage: null,
+            portfolioId: null,
+            portfolioRole: null,
+            teamId: null,
+            acceptedAt: null,
+            acceptedUserId: null,
+          },
+        })
+      : await prisma.workspaceInvitation.create({
         data: {
           email,
           role: "MEMBER",
@@ -272,20 +312,19 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const access = await getProjectAccess(projectId, userId);
+    if (!access.ok) return notFound();
+
+    // Gate: project owner/ADMIN or workspace OWNER/ADMIN may add members.
+    const forbidden = requireManage(access);
+    if (forbidden) return forbidden;
+
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: { workspaceId: true, name: true },
     });
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    await verifyWorkspaceAccess(userId, project.workspaceId);
-
-    // Gate: only project Owner or Admin may add members.
-    const forbidden = await requireProjectAdmin(userId, projectId);
-    if (forbidden) return forbidden;
+    if (!project) return notFound();
 
     const body = await req.json();
     const data = addMemberSchema.parse(body);
@@ -336,6 +375,20 @@ export async function POST(
       // role on accept (the accept route already handles the project bind)
       // and send the invitation email.
       if (!targetUserId) {
+        // Inviting an email that is not in the workspace makes that person a
+        // workspace MEMBER on accept — the firm's main boundary. That is the
+        // workspace OWNER/ADMIN's call (the same rule as the Members settings
+        // invite), not any project owner's.
+        if (!access.isWorkspaceManager) {
+          return NextResponse.json(
+            {
+              error:
+                "Only a workspace owner or admin can invite someone who isn't in the workspace yet. Ask an admin to invite them first.",
+            },
+            { status: 403 }
+          );
+        }
+
         // GUARD 1 — this email was already invited to the workspace AS A
         // CLIENT. inviteByEmail() REUSES a pending row, so without this it
         // would stamp an internal projectId + an EDITOR projectRole onto a
@@ -419,35 +472,49 @@ export async function POST(
       },
     });
 
-    if (existing) {
-      return NextResponse.json(
+    const alreadyMember = () =>
+      NextResponse.json(
         { error: "User is already a member of this project" },
         { status: 400 }
       );
-    }
 
-    const member = await prisma.projectMember.create({
-      data: {
-        userId: targetUserId!,
-        projectId,
-        role: data.role || "EDITOR",
-        companyId: data.companyId ?? null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-            jobTitle: true,
-            position: true,
-            customTitle: true,
-          },
+    if (existing) return alreadyMember();
+
+    let member;
+    try {
+      member = await prisma.projectMember.create({
+        data: {
+          userId: targetUserId!,
+          projectId,
+          role: data.role || "EDITOR",
+          companyId: data.companyId ?? null,
         },
-        company: { select: { id: true, name: true, role: true } },
-      },
-    });
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+              jobTitle: true,
+              position: true,
+              customTitle: true,
+            },
+          },
+          company: { select: { id: true, name: true, role: true } },
+        },
+      });
+    } catch (err) {
+      // A concurrent add (double click, two tabs) passed the check above;
+      // the unique (userId, projectId) index turns the loser into P2002.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        return alreadyMember();
+      }
+      throw err;
+    }
 
     // Notify the newly-added member that they now have project access.
     // Best-effort (never throws). This is a genuine change of access — an
@@ -493,16 +560,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { workspaceId: true, ownerId: true },
-    });
-
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    await verifyWorkspaceAccess(userId, project.workspaceId);
+    const access = await getProjectAccess(projectId, userId);
+    if (!access.ok) return notFound();
 
     const { searchParams } = new URL(req.url);
     const targetUserId = searchParams.get("userId");
@@ -514,29 +573,32 @@ export async function DELETE(
       );
     }
 
-    // Gate: only project Owner/Admin may remove members. EXCEPT
-    // members can always remove themselves (leave the project).
+    // Gate: only a manager may remove members. EXCEPT members can always
+    // remove themselves (leave the project).
     if (targetUserId !== userId) {
-      const forbidden = await requireProjectAdmin(userId, projectId);
+      const forbidden = requireManage(access);
       if (forbidden) return forbidden;
     }
 
     // Owner cannot be removed via this endpoint
-    if (targetUserId === project.ownerId) {
+    if (targetUserId === access.ownerId) {
       return NextResponse.json(
         { error: "Cannot remove the project owner" },
         { status: 400 }
       );
     }
 
-    await prisma.projectMember.delete({
-      where: {
-        userId_projectId: {
-          userId: targetUserId,
-          projectId,
-        },
-      },
+    // deleteMany, not delete: a user with no member row (team-shared access,
+    // or already removed from another tab) is a 404, not a P2025 500.
+    const removed = await prisma.projectMember.deleteMany({
+      where: { userId: targetUserId, projectId },
     });
+    if (removed.count === 0) {
+      return NextResponse.json(
+        { error: "Not a member of this project" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -565,20 +627,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { workspaceId: true, ownerId: true },
-    });
+    const access = await getProjectAccess(projectId, userId);
+    if (!access.ok) return notFound();
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    await verifyWorkspaceAccess(userId, project.workspaceId);
-
-    // Gate: only project Owner/Admin may change other members'
-    // roles or company bindings.
-    const forbidden = await requireProjectAdmin(userId, projectId);
+    // Gate: only a manager may change members' roles or company bindings.
+    const forbidden = requireManage(access);
     if (forbidden) return forbidden;
 
     const body = await req.json();
@@ -591,7 +644,7 @@ export async function PATCH(
     });
     const data = schema.parse(body);
 
-    if (data.userId === project.ownerId && data.role !== undefined) {
+    if (data.userId === access.ownerId && data.role !== undefined) {
       return NextResponse.json(
         { error: "Cannot change owner role here" },
         { status: 400 }
@@ -609,6 +662,17 @@ export async function PATCH(
           { status: 400 }
         );
       }
+    }
+
+    const existingMember = await prisma.projectMember.findUnique({
+      where: { userId_projectId: { userId: data.userId, projectId } },
+      select: { id: true },
+    });
+    if (!existingMember) {
+      return NextResponse.json(
+        { error: "Not a member of this project" },
+        { status: 404 }
+      );
     }
 
     const updated = await prisma.projectMember.update({

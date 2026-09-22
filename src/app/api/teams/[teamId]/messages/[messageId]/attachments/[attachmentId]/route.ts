@@ -3,17 +3,17 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { deleteFile } from "@/lib/storage";
 import {
-  verifyTeamAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 
 /**
  * DELETE /api/teams/:teamId/messages/:messageId/attachments/:attachmentId
  *
- * Remove a file from a team message. Author of the message OR team
- * LEAD may delete (mirrors the message-deletion permission model:
+ * Remove a file from a team message. Author of the message, team LEAD or
+ * workspace OWNER/ADMIN may delete (mirrors the message-deletion permission model:
  * authors own their content, but team leadership can moderate).
  *
  * Best-effort blob cleanup — the DB row is removed first; if the
@@ -38,7 +38,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { teamId, messageId, attachmentId } = await params;
-    await verifyTeamAccess(userId, teamId);
+    const standing = await requireTeamStanding(userId, teamId);
 
     const attachment = await prisma.messageAttachment.findFirst({
       where: { id: attachmentId, teamMessageId: messageId },
@@ -57,12 +57,8 @@ export async function DELETE(
     }
 
     const isAuthor = attachment.teamMessage.authorId === userId;
-    const teamMember = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId } },
-    });
-    const isLead = teamMember?.role === "LEAD";
 
-    if (!isAuthor && !isLead) {
+    if (!isAuthor && !standing.canManageMembers) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

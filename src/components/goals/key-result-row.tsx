@@ -4,13 +4,34 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash2, Edit2, Loader2, Check, X } from "lucide-react";
+import {
+  MoreHorizontal,
+  Trash2,
+  Edit2,
+  Loader2,
+  Check,
+  SlidersHorizontal,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { calculateKRProgress } from "@/lib/goal-utils";
@@ -41,6 +62,13 @@ function formatKRValue(
   if (format === "BOOLEAN") return value >= 1 ? "Yes" : "No";
   return `${value.toLocaleString()}${unit ? " " + unit : ""}`;
 }
+
+const KR_FORMATS = [
+  { value: "NUMBER", label: "Number" },
+  { value: "PERCENTAGE", label: "Percentage" },
+  { value: "CURRENCY", label: "Currency" },
+  { value: "BOOLEAN", label: "Done / not done" },
+] as const;
 
 interface KeyResult {
   id: string;
@@ -92,6 +120,70 @@ export function KeyResultRow({
   const savingRef = useRef(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const valueInputRef = useRef<HTMLInputElement>(null);
+  // Target / start / unit / format editor. A mistyped target could only be
+  // fixed by deleting the key result, which also threw away its history.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState({
+    startValue: "",
+    targetValue: "",
+    unit: "",
+    format: "NUMBER",
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  function openSettings() {
+    setSettingsDraft({
+      startValue: String(kr.startValue),
+      targetValue: String(kr.targetValue),
+      unit: kr.unit ?? "",
+      format: KR_FORMATS.some((f) => f.value === kr.format)
+        ? kr.format
+        : "NUMBER",
+    });
+    setSettingsOpen(true);
+  }
+
+  const draftStart = parseFloat(settingsDraft.startValue);
+  const draftTarget = parseFloat(settingsDraft.targetValue);
+  const settingsError =
+    Number.isNaN(draftStart) || Number.isNaN(draftTarget)
+      ? "Enter a number for both values"
+      : draftStart === draftTarget
+        ? "Target must differ from the start value"
+        : null;
+
+  async function saveSettings() {
+    if (settingsError || savingSettings) return;
+    setSavingSettings(true);
+    try {
+      const res = await fetch(
+        `/api/objectives/${objectiveId}/key-results?keyResultId=${kr.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            startValue: draftStart,
+            targetValue: draftTarget,
+            unit: settingsDraft.unit.trim() || null,
+            format: settingsDraft.format,
+          }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Couldn't update the key result");
+      }
+      toast.success("Key result updated");
+      setSettingsOpen(false);
+      onChanged();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Couldn't update the key result"
+      );
+    } finally {
+      setSavingSettings(false);
+    }
+  }
 
   useEffect(() => {
     setName(kr.name);
@@ -247,6 +339,10 @@ export function KeyResultRow({
                 <Edit2 className="h-4 w-4 mr-2" />
                 Rename
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={openSettings}>
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Edit target and unit
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-black"
                 onClick={() => onDelete(kr.id)}
@@ -311,6 +407,93 @@ export function KeyResultRow({
       <div className="text-xs text-gray-400 mt-2">
         {Math.round(progress)}% completed
       </div>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit key result</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-gray-600 break-words">{kr.name}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor={`kr-start-${kr.id}`}>Start value</Label>
+                <Input
+                  id={`kr-start-${kr.id}`}
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  value={settingsDraft.startValue}
+                  onChange={(e) =>
+                    setSettingsDraft((d) => ({ ...d, startValue: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`kr-target-${kr.id}`}>Target value</Label>
+                <Input
+                  id={`kr-target-${kr.id}`}
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  value={settingsDraft.targetValue}
+                  onChange={(e) =>
+                    setSettingsDraft((d) => ({ ...d, targetValue: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`kr-unit-${kr.id}`}>Unit (optional)</Label>
+                <Input
+                  id={`kr-unit-${kr.id}`}
+                  placeholder="permits, %, USD"
+                  value={settingsDraft.unit}
+                  onChange={(e) =>
+                    setSettingsDraft((d) => ({ ...d, unit: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Format</Label>
+                <Select
+                  value={settingsDraft.format}
+                  onValueChange={(v) =>
+                    setSettingsDraft((d) => ({ ...d, format: v }))
+                  }
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {KR_FORMATS.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {settingsError && (
+              <p className="text-sm text-gray-500">{settingsError}</p>
+            )}
+            <Button
+              className="w-full"
+              onClick={saveSettings}
+              disabled={savingSettings || settingsError !== null}
+            >
+              {savingSettings ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

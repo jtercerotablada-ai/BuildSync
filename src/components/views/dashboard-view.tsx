@@ -2,16 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ListFilter, BarChart3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { ListFilter, BarChart3 } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -103,13 +94,15 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
   }, [sections]);
 
   // createdAt/completedAt aren't part of the section props — fetch the
-  // raw rows once for the completion-over-time burnup (Asana's 4th chart).
+  // raw rows for the completion-over-time burnup (Asana's 4th chart). The
+  // slim summary mode carries exactly those fields; the full include (people,
+  // subtasks, custom fields…) was refetched on every refresh for nothing.
   const [timeRows, setTimeRows] = useState<
     { createdAt?: string | null; completedAt?: string | null; completed: boolean }[]
   >([]);
   useEffect(() => {
     let canceled = false;
-    fetch(`/api/tasks?projectId=${projectId}`)
+    fetch(`/api/tasks?projectId=${projectId}&fields=summary`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         if (canceled) return;
@@ -239,36 +232,15 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
 
   return (
     <div className="flex-1 overflow-auto bg-white p-6">
-      {/* Header — Asana shows a single "+ Agregar widget" control */}
-      <div className="flex items-center justify-between mb-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add widget
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem
-              onClick={() => toast.info("Chart widget coming soon")}
-            >
-              Chart
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => toast.info("KPI card coming soon")}
-            >
-              KPI card
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
+      {/* No "Add widget" control: the panel is a fixed set of cards, and a
+          menu whose items only said "coming soon" promised otherwise. The
+          footers state what each card actually counts. */}
       {/* KPI tiles row — Asana order: Complete, Incomplete, Overdue, Total */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <KPICard title="Total complete tasks" value={kpis.completed} filterLabel="1 filter" />
-        <KPICard title="Total incomplete tasks" value={kpis.incomplete} filterLabel="1 filter" />
-        <KPICard title="Total overdue tasks" value={kpis.overdue} filterLabel="1 filter" />
-        <KPICard title="Total tasks" value={kpis.total} filterLabel="No filters" />
+        <KPICard title="Total complete tasks" value={kpis.completed} filterLabel="Completed only" />
+        <KPICard title="Total incomplete tasks" value={kpis.incomplete} filterLabel="Incomplete only" />
+        <KPICard title="Total overdue tasks" value={kpis.overdue} filterLabel="Incomplete, past due" />
+        <KPICard title="Total tasks" value={kpis.total} filterLabel="All tasks" />
       </div>
 
       {/* Charts grid — 2 columns, 4 cards like Asana's default Panel */}
@@ -276,7 +248,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
         {/* 1. Column chart — incomplete tasks by section */}
         <ChartCard
           title="Total incomplete tasks by section"
-          filterLabel="2 filters"
+          filterLabel="Incomplete only"
           onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
         >
           {tasksBySection.length > 0 ? (
@@ -341,7 +313,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
         {/* 2. Donut — tasks by completion status, total in the center */}
         <ChartCard
           title="Total tasks by completion status"
-          filterLabel="1 filter"
+          filterLabel="All tasks"
           onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
         >
           {tasksByStatus.length > 0 ? (
@@ -397,7 +369,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
             stem + dot, avatar under each category) */}
         <ChartCard
           title="Total upcoming tasks by assignee"
-          filterLabel="2 filters"
+          filterLabel="Incomplete only"
           onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
         >
           {tasksByAssignee.length > 0 ? (
@@ -474,7 +446,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
         {/* 4. Burnup — task completion over time (Total vs Complete) */}
         <ChartCard
           title="Task completion over time"
-          filterLabel="No filters"
+          filterLabel="Last 15 days"
           onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
         >
           <ResponsiveContainer width="100%" height={250}>
@@ -571,7 +543,7 @@ function LollipopBar(props: {
 
 // ============================================
 // KPI TILE — Asana's stat card: 16px/500 title top-left, 48px/300
-// number centered, "≡ N filters" footer bottom-left. 8px radius,
+// number centered, "≡ scope" footer bottom-left. 8px radius,
 // 1px #E0E1E3 ring, no hover effects.
 // ============================================
 
@@ -603,7 +575,7 @@ function KPICard({
 
 // ============================================
 // CHART CARD — Asana's widget card: 16px/500 title, chart body,
-// footer with "≡ N filters" left and a "View all" button right.
+// footer with the "≡ scope" line left and a "View all" button right.
 // ============================================
 
 function ChartCard({

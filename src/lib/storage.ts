@@ -1,4 +1,30 @@
-import { put, del, get } from "@vercel/blob";
+import { put, del, get, head } from "@vercel/blob";
+
+/**
+ * Access level of every signed-in (SaaS) upload.
+ *
+ * The firm's blob store is a PUBLIC store, and Vercel refuses `access:
+ * 'private'` on a public store ("Cannot use private access on a public
+ * store", verified again 2026-09-21 — no SaaS upload had succeeded since the
+ * switch to private on 2026-08-28). A private store would be a new store with
+ * a new token. Until one exists, uploads are public blobs at an unguessable
+ * address — `<folder>/<uuid>/<name>-<random suffix>` — that no screen links
+ * to: every list still hands out the /api/files/... door (or a message's own
+ * door), which re-runs the owning record's access rule on each read.
+ *
+ * Flip this to 'private' (and swap BLOB_READ_WRITE_TOKEN) once a private store
+ * exists. uploadFile, the client upload() calls, the token route and every
+ * url check read it from here, so the flip is this one line.
+ */
+export const SAAS_BLOB_ACCESS: "public" | "private" = "public";
+
+/**
+ * Per-file ceiling for ANONYMOUS uploads (public forms, tracking replies).
+ * Narrower than maxUploadBytes() on purpose: a stranger is holding the token.
+ */
+export const PUBLIC_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+/** Files per anonymous request (one form submission or one tracking reply). */
+export const PUBLIC_UPLOAD_MAX_FILES = 10;
 
 /**
  * Ceiling for a single upload, in bytes.
@@ -9,13 +35,19 @@ import { put, del, get } from "@vercel/blob";
  * MAX_UPLOAD_BYTES in the environment moves the cap without a deploy, which is
  * why the value is read here rather than baked into a constant.
  *
- * NOTE: every upload today goes through a route handler, and Vercel caps a
- * function's request body far below this, so the PLATFORM is what a big file
- * actually hits first. This ceiling only starts to bind once the bytes go
- * from the browser straight to blob storage.
+ * Vercel caps a function's request body at ~4.5MB, so anything bigger has to
+ * go from the browser straight to blob storage (see direct-upload.ts and
+ * /api/blob/upload); this ceiling is what the token route pins.
+ *
+ * The browser only sees NEXT_PUBLIC_* variables, so a client-side pre-check
+ * reads the default unless NEXT_PUBLIC_MAX_UPLOAD_BYTES mirrors the override.
  */
 export function maxUploadBytes(): number {
-  return Number(process.env.MAX_UPLOAD_BYTES) || 250 * 1024 * 1024;
+  return (
+    Number(process.env.MAX_UPLOAD_BYTES) ||
+    Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_BYTES) ||
+    250 * 1024 * 1024
+  );
 }
 
 const ALLOWED_MIME_TYPES = [
@@ -107,6 +139,12 @@ const ALLOWED_EXTENSIONS = [
   ".edb", ".sdb", ".fdb", ".std", ".r3d",
 ];
 
+/**
+ * The `accept` attribute for an upload input: every extension the server
+ * admits, so a picker never hides a .dwg or .rvt the allowlist would take.
+ */
+export const UPLOAD_ACCEPT = ALLOWED_EXTENSIONS.join(",");
+
 function sanitizeFilename(filename: string): string {
   return filename
     .replace(/\.\.\//g, "")
@@ -150,13 +188,43 @@ export function assertFileAllowed(filename: string, mimeType: string) {
 
 const BLOB_HOST_SUFFIX = ".blob.vercel-storage.com";
 
+/**
+ * The store id, taken from the write token: `vercel_blob_rw_<STOREID>_<secret>`.
+ * The blob host is `<storeid lowercased>.<access>.blob.vercel-storage.com`.
+ * Server-only in effect: the token never reaches the browser, so there this
+ * returns null and every ownership check below fails closed.
+ */
+function blobStoreId(): string | null {
+  const t = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!t) return null;
+  const parts = t.split("_");
+  return parts.length >= 5 && parts[0] === "vercel" ? parts[3].toLowerCase() : null;
+}
+
+/** `[storeId, access]` for a blob url of OUR store, else null. */
+function ownBlobHost(url: string): [string, string] | null {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || u.username || u.password) return null;
+    if (!u.hostname.endsWith(BLOB_HOST_SUFFIX)) return null;
+    const labels = u.hostname.split(".");
+    // Exactly `<store>.<access>.blob.vercel-storage.com` — no deeper host.
+    if (labels.length !== 5) return null;
+    // Checking only the host SUFFIX accepts ANY Vercel Blob store, and anyone
+    // can create one for free: a url on a stranger's store would be recorded
+    // as an attachment and served (via the legacy redirect) from our domain,
+    // with bytes the stranger can swap at will. No token, no proof: fail closed.
+    const store = blobStoreId();
+    if (!store || labels[0] !== store) return null;
+    return [labels[0], labels[1]];
+  } catch {
+    return null;
+  }
+}
+
 /** A URL we actually own, i.e. one this app wrote to its own blob store. */
 export function isVercelBlobUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.endsWith(BLOB_HOST_SUFFIX);
-  } catch {
-    return false;
-  }
+  return ownBlobHost(url) !== null;
 }
 
 /**
@@ -168,15 +236,7 @@ export function isVercelBlobUrl(url: string): boolean {
  * every authenticated file read asks this question first.
  */
 export function isPrivateBlobUrl(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname;
-    return (
-      hostname.endsWith(BLOB_HOST_SUFFIX) &&
-      hostname.split(".")[1] === "private"
-    );
-  } catch {
-    return false;
-  }
+  return ownBlobHost(url)?.[1] === "private";
 }
 
 /**
@@ -186,6 +246,157 @@ export function isPrivateBlobUrl(url: string): boolean {
  */
 export async function readPrivateBlob(url: string) {
   return get(url, { access: "private" });
+}
+
+// ── Direct (browser → store) uploads ─────────────────────────────────────
+//
+// Shared by the browser (direct-upload.ts), the token route
+// (/api/blob/upload) and every route that records a finished blob, so the
+// folder a token pins, the access it expects and the ceiling it enforces are
+// the same three facts everywhere.
+
+/** Where a direct upload is headed. The token route authorises each kind. */
+export type UploadTarget =
+  | { kind: "task-attachment"; taskId: string; commentId?: string }
+  | { kind: "project-resource"; projectId: string }
+  | { kind: "message-attachment"; messageId: string }
+  | { kind: "team-message-attachment"; teamId: string; messageId: string }
+  | { kind: "form-attachment"; formId: string }
+  | {
+      kind: "tracking-reply";
+      formId: string;
+      submissionId: string;
+      token: string;
+    };
+
+/** The folder (with trailing slash) every blob for this target lives under. */
+export function uploadFolderFor(target: UploadTarget): string {
+  switch (target.kind) {
+    case "task-attachment":
+      return `tasks/${target.taskId}/`;
+    case "project-resource":
+      return `projects/${target.projectId}/resources/`;
+    case "message-attachment":
+    case "team-message-attachment":
+      return `messages/${target.messageId}/`;
+    case "form-attachment":
+      return `forms/${target.formId}/`;
+    case "tracking-reply":
+      return `tracking/${target.submissionId}/`;
+  }
+}
+
+/**
+ * Public forms and tracking replies are read by people with no session, so
+ * they stay public even once SAAS_BLOB_ACCESS flips to private.
+ */
+export function uploadAccessFor(target: UploadTarget): "public" | "private" {
+  return target.kind === "form-attachment" || target.kind === "tracking-reply"
+    ? "public"
+    : SAAS_BLOB_ACCESS;
+}
+
+export function uploadMaxBytesFor(target: UploadTarget): number {
+  return target.kind === "form-attachment" || target.kind === "tracking-reply"
+    ? PUBLIC_UPLOAD_MAX_BYTES
+    : maxUploadBytes();
+}
+
+const UUID_SEGMENT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^/]+$/i;
+
+/**
+ * `<folder><uuid>/<name>` — the only shape the token route accepts. The uuid
+ * segment is what makes a PUBLIC blob's address unguessable (the store adds a
+ * random suffix on top), and the folder is what binds the blob to the one
+ * record the token was minted for.
+ */
+// `..` as a whole path segment. A bare substring test also refused honest
+// names like "Foundation plan..pdf", and a dotted name cannot climb anything.
+const PARENT_SEGMENT = /(^|\/)\.\.(\/|$)/;
+
+export function isDirectUploadPath(pathname: string, folder: string): boolean {
+  const clean = pathname.replace(/^\/+/, "");
+  if (!clean.startsWith(folder) || PARENT_SEGMENT.test(clean)) return false;
+  return UUID_SEGMENT.test(clean.slice(folder.length));
+}
+
+/** A user-caused rejection of a posted blob url; the message is safe to show. */
+export class BlobRejectedError extends Error {
+  constructor(
+    message: string,
+    public status = 400
+  ) {
+    super(message);
+    this.name = "BlobRejectedError";
+  }
+}
+
+/**
+ * Accept a blob url the BROWSER says it just uploaded, or throw
+ * BlobRejectedError.
+ *
+ * The url is the caller's word. A token cannot pin `access` (the SDK has no
+ * such field), so this is where a blob at the wrong access level is refused;
+ * head() — which resolves through OUR store token — is the only answer to
+ * "does it exist, and what is actually in it"; and the folder check binds the
+ * bytes to the record being written, which matters beyond read scope because
+ * deleting a row deletes the blob behind it. Size and type are the STORE's
+ * numbers, never the caller's.
+ */
+export async function verifyUploadedBlob(
+  url: string,
+  name: string,
+  folder: string,
+  access: "public" | "private",
+  maxBytes: number
+): Promise<{ url: string; name: string; size: number; mimeType: string }> {
+  const host = ownBlobHost(url);
+  if (!host) {
+    throw new BlobRejectedError("That file is not in this app's storage");
+  }
+  if (host[1] !== access) {
+    throw new BlobRejectedError(`Files here must be uploaded as ${access} files`);
+  }
+  // A store address never carries a query or hash; one that does is another
+  // spelling of some blob, aimed at the recording routes' url dedupe.
+  const parsed = new URL(url);
+  if (parsed.search || parsed.hash) {
+    throw new BlobRejectedError("That file is not in this app's storage");
+  }
+
+  let blob;
+  try {
+    blob = await head(url);
+  } catch {
+    throw new BlobRejectedError("That file is not in this app's storage");
+  }
+
+  const blobPath = blob.pathname.replace(/^\/+/, "");
+  if (!blobPath.startsWith(folder) || PARENT_SEGMENT.test(blobPath)) {
+    throw new BlobRejectedError("That file was not uploaded here");
+  }
+
+  if (blob.size > maxBytes) {
+    throw new BlobRejectedError(
+      `File size exceeds ${Math.floor(maxBytes / (1024 * 1024))}MB limit`
+    );
+  }
+
+  const cleanName = sanitizeFilename(name.trim()) || "file";
+  const mimeType = blob.contentType || "application/octet-stream";
+  try {
+    assertFileAllowed(cleanName, mimeType);
+  } catch (err) {
+    throw new BlobRejectedError(
+      err instanceof Error ? err.message : "File type is not allowed"
+    );
+  }
+
+  // The store's own spelling, never the caller's: every recording route
+  // dedupes on this string, and a query, hash or case variant of one blob
+  // would otherwise slip past it and leave two rows sharing one blob.
+  return { url: blob.url ?? parsed.href, name: cleanName, size: blob.size, mimeType };
 }
 
 export async function uploadFile(file: File, folder: string) {
@@ -199,16 +410,16 @@ export async function uploadFile(file: File, folder: string) {
   assertFileAllowed(file.name, file.type);
 
   const safeName = sanitizeFilename(file.name);
-  const pathname = `${folder}/${crypto.randomUUID()}-${safeName}`;
+  const pathname = `${folder}/${crypto.randomUUID()}/${safeName}`;
 
-  // PRIVATE, not public. A public blob URL is a permanent, login-less link to
-  // the bytes: every permission check in this app guards the database row, and
-  // a sealed drawing handed out as a public URL stays readable by anyone who
-  // ever saw it, even after the row is deleted. Private blobs are readable
-  // only through /api/files/[recordType]/[recordId], which re-runs the owning
-  // record's own access rule on every read.
+  // SAAS_BLOB_ACCESS, not a literal: the store decides what it accepts (see
+  // the constant). While it is public the address itself is the secret — a
+  // uuid folder plus the store's random suffix — and the row's url is never
+  // handed out: reads go through /api/files/[recordType]/[recordId] (or a
+  // message's own door), which re-runs the owning record's access rule.
   const blob = await put(pathname, file, {
-    access: "private",
+    access: SAAS_BLOB_ACCESS,
+    addRandomSuffix: true,
   });
 
   return { url: blob.url, pathname: blob.pathname };
@@ -224,12 +435,12 @@ export async function uploadFile(file: File, folder: string) {
  * hand the external submitter a 403 for the file they just uploaded.
  *
  * Use this ONLY where the reader is deliberately anonymous. Everything with a
- * signed-in audience belongs on `uploadFile`, which gates the bytes behind the
- * owning record's own rule. The two are separate functions rather than a flag
- * so that choosing "public" is a visible decision at the call site.
+ * signed-in audience belongs on `uploadFile`, which follows SAAS_BLOB_ACCESS.
+ * The two are separate functions rather than a flag so that choosing "public"
+ * is a visible decision at the call site.
  */
 export async function uploadPublicFile(file: File, folder: string) {
-  const maxBytes = maxUploadBytes();
+  const maxBytes = PUBLIC_UPLOAD_MAX_BYTES;
   if (file.size > maxBytes) {
     throw new Error(
       `File size exceeds ${Math.floor(maxBytes / (1024 * 1024))}MB limit`
@@ -239,14 +450,21 @@ export async function uploadPublicFile(file: File, folder: string) {
   assertFileAllowed(file.name, file.type);
 
   const safeName = sanitizeFilename(file.name);
-  const pathname = `${folder}/${crypto.randomUUID()}-${safeName}`;
+  const pathname = `${folder}/${crypto.randomUUID()}/${safeName}`;
 
-  const blob = await put(pathname, file, { access: "public" });
+  const blob = await put(pathname, file, {
+    access: "public",
+    addRandomSuffix: true,
+  });
 
   return { url: blob.url, pathname: blob.pathname };
 }
 
 export async function deleteFile(url: string) {
+  // Only ever a blob of OUR store. A stored url is not always one we wrote
+  // (a legacy row, a value somebody PATCHed in), and del() with the firm's
+  // token must never be aimed at an address a caller chose.
+  if (!isVercelBlobUrl(url)) return;
   try {
     await del(url);
   } catch (error) {
@@ -258,8 +476,9 @@ export async function deleteFile(url: string) {
 /**
  * The address a browser should use to read a stored file.
  *
- * Private blob URLs are not fetchable from the browser, and legacy public ones
- * must stop being handed out, so nothing that reaches a client should carry a
+ * Private blob URLs are not fetchable from the browser, and public ones (legacy
+ * uploads, and every upload while SAAS_BLOB_ACCESS is public) must not be
+ * handed out as permanent links, so nothing that reaches a client should carry a
  * raw `record.url` any more. Routes rewrite the field through this on the way
  * out; the read route re-runs the owning record's access rule on every hit.
  */

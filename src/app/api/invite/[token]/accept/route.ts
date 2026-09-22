@@ -17,8 +17,11 @@ import { notifyMembershipGranted } from "@/lib/membership-notifications";
  *  B) Already signed in with a DIFFERENT email
  *     → 409 — we don't move the invitation to another user silently.
  *
- *  C1) Not signed in + email already has a User
+ *  C1) Not signed in + email already has a User with a password
  *     → 401 with code "needs-login". Page redirects to /login.
+ *     A row WITHOUT a password (a sign-up that was never finished) can't
+ *     sign in at all, so it takes path C2 instead: the password is set on
+ *     that existing row. The invitation token already proves the address.
  *
  *  C2) Not signed in + email is brand new
  *     → require password in body, create User + WorkspaceMember +
@@ -30,6 +33,12 @@ import { notifyMembershipGranted } from "@/lib/membership-notifications";
  *
  * Returns { ok: true, redirect, email, isNewUser } on success.
  */
+
+/** The password-less row got a password between the check and the tx. */
+class InviteConflictError extends Error {}
+
+/** The invitation left PENDING (declined or revoked) while this accept ran. */
+class InviteNoLongerPendingError extends Error {}
 
 const bodySchema = z.object({
   password: z.string().optional(),
@@ -80,6 +89,8 @@ export async function POST(
     let isNewUser = false;
     let acceptingUserId: string | null = null;
     let hashedPassword: string | null = null;
+    // Path C2 on an existing password-less row: update it instead of creating.
+    let unfinishedUserId: string | null = null;
 
     if (currentUserId) {
       const me = await prisma.user.findUnique({
@@ -107,11 +118,13 @@ export async function POST(
       // Path A — already authenticated as the right person.
       acceptingUserId = me.id;
     } else {
-      const existing = await prisma.user.findUnique({
-        where: { email: invitation.email },
-        select: { id: true },
+      // Case-insensitive like every other auth lookup, so a legacy mixed-case
+      // row is found instead of a duplicate User being created next to it.
+      const existing = await prisma.user.findFirst({
+        where: { email: { equals: invitation.email, mode: "insensitive" } },
+        select: { id: true, password: true },
       });
-      if (existing) {
+      if (existing?.password) {
         // Path C1 — log in first.
         return NextResponse.json(
           {
@@ -136,8 +149,10 @@ export async function POST(
       if (!pwCheck.valid) {
         return NextResponse.json({ error: pwCheck.message }, { status: 400 });
       }
-      hashedPassword = await hash(password, 10);
+      // Same cost as every other password write in the app.
+      hashedPassword = await hash(password, 12);
       isNewUser = true;
+      unfinishedUserId = existing?.id ?? null;
     }
 
     // ── Pre-validate the optional project + company ─────────────
@@ -189,7 +204,36 @@ export async function POST(
     const txResult = await prisma.$transaction(async (tx) => {
       // 1. Create the user (Path C2) or reuse the current one.
       let userId = acceptingUserId;
-      if (!userId) {
+      if (!userId && unfinishedUserId) {
+        if (!hashedPassword) {
+          throw new Error("Missing hashed password for new user");
+        }
+        // Path C2 on a password-less row. Re-checked inside the tx so a
+        // password set in the meantime (onboarding, reset) is never replaced.
+        const row = await tx.user.findUnique({
+          where: { id: unfinishedUserId },
+          select: { password: true, name: true, position: true, customTitle: true, department: true },
+        });
+        if (!row || row.password) {
+          throw new InviteConflictError();
+        }
+        await tx.user.update({
+          where: { id: unfinishedUserId },
+          data: {
+            password: hashedPassword,
+            name: row.name || name || invitation.email.split("@")[0],
+            // No passwordChangedAt: a password-less row never had a session
+            // to evict, and stamping it could invalidate the sign-in the page
+            // performs right after this response.
+            emailVerified: new Date(),
+            // Pre-assigned profile fields only fill blanks, as on path A.
+            ...(!row.position && invitation.position ? { position: invitation.position } : {}),
+            ...(!row.customTitle && invitation.customTitle ? { customTitle: invitation.customTitle } : {}),
+            ...(!row.department && invitation.department ? { department: invitation.department } : {}),
+          },
+        });
+        userId = unfinishedUserId;
+      } else if (!userId) {
         if (!hashedPassword) {
           throw new Error("Missing hashed password for new user");
         }
@@ -211,18 +255,19 @@ export async function POST(
       } else {
         // Path A — sync the pre-assigned profile fields only when
         // the user hasn't set them yet (don't clobber existing data).
+        // Position is NOT synced here: it is user-level and drives seniority
+        // (read access) across every workspace, so an admin of some other
+        // workspace could otherwise stamp a firm member as CEO through an
+        // invitation. Position on an existing account changes only through
+        // the People/Settings flows that check the firm's admins.
         const me = await tx.user.findUnique({
           where: { id: userId },
-          select: { position: true, customTitle: true, department: true },
+          select: { customTitle: true, department: true },
         });
         const updates: {
-          position?: typeof invitation.position;
           customTitle?: string | null;
           department?: string | null;
         } = {};
-        if (!me?.position && invitation.position) {
-          updates.position = invitation.position;
-        }
         if (!me?.customTitle && invitation.customTitle) {
           updates.customTitle = invitation.customTitle;
         }
@@ -350,15 +395,21 @@ export async function POST(
 
       // 4. Flip invitation status. Done inside the tx so a partial
       //    failure also rolls the status back — Resend can retry
-      //    the same row later.
-      await tx.workspaceInvitation.update({
-        where: { id: invitation.id },
+      //    the same row later. Conditional on PENDING: the status check
+      //    above ran before this transaction, and a decline or revoke that
+      //    committed since must win rather than be overwritten — otherwise
+      //    the inviter is told "declined" about someone who joined.
+      const flipped = await tx.workspaceInvitation.updateMany({
+        where: { id: invitation.id, status: "PENDING" },
         data: {
           status: "ACCEPTED",
           acceptedAt: new Date(),
           acceptedUserId: userId,
         },
       });
+      if (flipped.count === 0) {
+        throw new InviteNoLongerPendingError();
+      }
 
       // 5. Final sanity check — re-read the membership to confirm
       //    it exists. If the tx commits with no member row, the
@@ -467,6 +518,21 @@ export async function POST(
       isNewUser,
     });
   } catch (err) {
+    if (err instanceof InviteNoLongerPendingError) {
+      return NextResponse.json(
+        { error: "This invitation is no longer pending" },
+        { status: 410 }
+      );
+    }
+    if (err instanceof InviteConflictError) {
+      return NextResponse.json(
+        {
+          error: "Please sign in to accept this invitation",
+          code: "needs-login",
+        },
+        { status: 401 }
+      );
+    }
     console.error("[invite accept] error:", err);
     return NextResponse.json(
       { error: "Failed to accept invitation" },

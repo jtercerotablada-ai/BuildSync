@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   MoreHorizontal,
@@ -56,9 +56,11 @@ import { AddFieldFlow } from "@/components/teams/add-field-flow";
 import {
   TeamFieldCell,
   type TeamFieldDef,
+  type TeamFieldOption,
 } from "@/components/teams/team-field-cell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 
 interface TeamMember {
   id: string;
@@ -98,6 +100,11 @@ interface TeamViewer {
   canManageMembers: boolean;
   canAddMembers: boolean;
   isArchived: boolean;
+  /**
+   * Workspace OWNER/ADMIN. Only they (or the person themselves) may edit a
+   * job title: it is the user's workspace-wide profile, not a team setting.
+   */
+  isWorkspaceManager: boolean;
 }
 
 /**
@@ -128,6 +135,12 @@ type SortKey = "name" | "jobTitle";
 type SortDir = "asc" | "desc";
 type RoleFilter = "all" | "LEAD" | "MEMBER";
 
+// New select options cycle through a fixed palette, as in the Add field flow.
+const OPTION_COLORS = [
+  "#ef4444", "#f97316", "#eab308", "#22c55e",
+  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
+];
+
 const AVATAR_COLORS = [
   "#4573d2", "#6457c9", "#8f4bd6", "#c057b8", "#d64b6a",
   "#e07b39", "#3aa35a", "#2aa8a8", "#b8a534", "#5c6a7a",
@@ -156,6 +169,7 @@ function displayName(m: TeamMember): string {
 
 export default function TeamMembersPage() {
   const params = useParams();
+  const router = useRouter();
   const teamId = params.teamId as string;
   const { data: session } = useSession();
   const currentUserId =
@@ -176,6 +190,14 @@ export default function TeamMembersPage() {
     name: string;
   } | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  // The select field whose option list is being edited, and the draft list.
+  // Existing options keep their ids: member values store option ids.
+  const [optionsTarget, setOptionsTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [optionsDraft, setOptionsDraft] = useState<TeamFieldOption[]>([]);
+  const [savingOptions, setSavingOptions] = useState(false);
   // The member the "Remove from team" confirmation is open for.
   const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null);
   // The custom field the "Delete field" confirmation is open for.
@@ -206,6 +228,10 @@ export default function TeamMembersPage() {
         fetch(`/api/teams/${teamId}/members?viewer=1`),
       ]);
       if (tRes.ok) setTeam(await tRes.json());
+      // 403/404 = the caller no longer stands on this team (a PRIVATE team
+      // answers 404 once you are off it). Keeping the last copy would leave a
+      // grid full of controls that now all 403.
+      else if (tRes.status === 403 || tRes.status === 404) setTeam(null);
       if (fRes.ok) {
         const data = await fRes.json();
         setFields(data.fields || []);
@@ -216,6 +242,8 @@ export default function TeamMembersPage() {
         // Absent or unreadable standing leaves every action hidden — the safe
         // direction: nothing offered is nothing that dead-ends in a 403.
         setViewer(data.viewer ?? null);
+      } else if (vRes.status === 403 || vRes.status === 404) {
+        setViewer(null);
       }
     } catch (error) {
       console.error("Error fetching team:", error);
@@ -244,7 +272,18 @@ export default function TeamMembersPage() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "Error removing member");
     }
+    const leftTeam =
+      !!currentUserId &&
+      team?.members.find((m) => m.id === memberId)?.user.id === currentUserId;
     setRemoveTarget(null);
+    if (leftTeam) {
+      // Off the team, this page has nothing left to offer (and on a PRIVATE
+      // team it now 404s); the sidebar's cached team list drops it too.
+      toast.success("You left the team");
+      notifySidebarRefresh();
+      router.push("/teams");
+      return;
+    }
     toast.success("Member removed from team");
     loadAll();
   };
@@ -369,6 +408,60 @@ export default function TeamMembersPage() {
       refetchFields();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't rename field");
+    }
+  }
+
+  function openEditOptions(f: TeamFieldDef) {
+    setOptionsTarget({ id: f.id, name: f.name });
+    setOptionsDraft((f.options || []).map((o) => ({ ...o })));
+  }
+
+  function addDraftOption() {
+    setOptionsDraft((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        name: "",
+        color: OPTION_COLORS[prev.length % OPTION_COLORS.length],
+      },
+    ]);
+  }
+
+  async function handleSaveOptions() {
+    if (!optionsTarget) return;
+    const options = optionsDraft
+      .map((o) => ({ id: o.id, name: o.name.trim(), color: o.color }))
+      .filter((o) => o.name);
+    if (options.length === 0) {
+      toast.error("A select field needs at least one option");
+      return;
+    }
+    setSavingOptions(true);
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/fields/${optionsTarget.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ options }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed");
+      const updated = data.field as TeamFieldDef | undefined;
+      if (updated) {
+        setFields((prev) =>
+          prev.map((f) => (f.id === updated.id ? { ...f, ...updated } : f))
+        );
+      } else {
+        refetchFields();
+      }
+      toast.success("Options updated");
+      setOptionsTarget(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't update options");
+    } finally {
+      setSavingOptions(false);
     }
   }
 
@@ -530,7 +623,7 @@ export default function TeamMembersPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <TeamHeader team={team} activeTab="members" />
+      <TeamHeader team={team} activeTab="members" onTeamChanged={loadAll} />
 
       {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 px-4 md:px-6 py-3">
@@ -808,6 +901,13 @@ export default function TeamMembersPage() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Rename field
                           </DropdownMenuItem>
+                          {(f.type === "single_select" ||
+                            f.type === "multi_select") && (
+                            <DropdownMenuItem onClick={() => openEditOptions(f)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit options
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="text-black"
                             onClick={() =>
@@ -868,8 +968,9 @@ export default function TeamMembersPage() {
                   </div>
                 </td>
 
-                {/* Job title — inline editable. A lead can set anyone's; a
-                    member can set their own. Others see it read-only. */}
+                {/* Job title — inline editable. It is the person's
+                    workspace-wide profile, so only a workspace OWNER/ADMIN
+                    can set anyone's; everyone else can set their own. */}
                 <td className="border-r px-3 py-1.5 text-gray-700">
                   {editingJobTitle === member.id ? (
                     <input
@@ -889,7 +990,8 @@ export default function TeamMembersPage() {
                       maxLength={120}
                       className="w-full rounded border border-[#c9a84c] bg-white px-1.5 py-1 text-sm text-gray-900 outline-none"
                     />
-                  ) : canManageMembers || member.user.id === currentUserId ? (
+                  ) : viewer?.isWorkspaceManager ||
+                    member.user.id === currentUserId ? (
                     <button
                       type="button"
                       onClick={() => setEditingJobTitle(member.id)}
@@ -938,11 +1040,11 @@ export default function TeamMembersPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={() =>
-                            (window.location.href = `/teams/${teamId}/messages`)
+                            router.push(`/teams/${teamId}/messages`)
                           }
                         >
                           <Mail className="h-4 w-4 mr-2" />
-                          Send message
+                          Open team messages
                         </DropdownMenuItem>
                         {/* Role changes are gated the way PATCH
                             /api/teams/:id/members/:memberId is — LEAD or
@@ -1055,6 +1157,79 @@ export default function TeamMembersPage() {
               onClick={handleRenameField}
               disabled={!renameDraft.trim()}
             >
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit select-field options dialog */}
+      <Dialog
+        open={!!optionsTarget}
+        onOpenChange={(open) => !open && setOptionsTarget(null)}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit options</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-gray-500">
+            Renaming an option keeps it on every member who has it. Removing
+            one clears it from those members.
+          </p>
+          <div className="max-h-72 space-y-2 overflow-y-auto">
+            {optionsDraft.map((o) => (
+              <div key={o.id} className="flex items-center gap-2">
+                <span
+                  className="h-3 w-3 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: o.color }}
+                />
+                <Input
+                  value={o.name}
+                  onChange={(e) =>
+                    setOptionsDraft((prev) =>
+                      prev.map((x) =>
+                        x.id === o.id ? { ...x, name: e.target.value } : x
+                      )
+                    )
+                  }
+                  placeholder="Option name"
+                  className="h-8"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOptionsDraft((prev) => prev.filter((x) => x.id !== o.id))
+                  }
+                  disabled={optionsDraft.length <= 1}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30"
+                  aria-label="Remove option"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addDraftOption}
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"
+          >
+            <Plus className="h-4 w-4" />
+            Add option
+          </button>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOptionsTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveOptions}
+              disabled={
+                savingOptions || !optionsDraft.some((o) => o.name.trim())
+              }
+            >
+              {savingOptions ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
               Save
             </Button>
           </div>

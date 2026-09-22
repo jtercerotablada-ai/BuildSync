@@ -5,6 +5,11 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 import { daysFromToday, startOfLocalDay } from "@/lib/date-only";
+import {
+  buildProjectVisibilityClauses,
+  taskPrivacyClause,
+} from "@/lib/project-visibility";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 const createPortfolioSchema = z.object({
   name: z.string().min(1),
@@ -36,19 +41,28 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
     }
 
-    // ── Privacy gate (Asana parity) ──────────────────────────
-    // A user sees a portfolio only when they own it, are an
-    // explicit member, or it's marked PUBLIC. PRIVATE and the
-    // default WORKSPACE visibility no longer auto-grant access —
-    // sharing requires explicit membership.
+    // ── Privacy gate ─────────────────────────────────────────
+    // The list twin of decidePortfolioAccess in ./[portfolioId]/route.ts:
+    // owner | member | PUBLIC (anyone in the workspace) | WORKSPACE (any
+    // contributor — what the create dialog promises: "Anyone in your
+    // workspace"). Workspace OWNER/ADMIN see every portfolio, so one whose
+    // owner left the firm never becomes unreachable.
+    const role = workspaceMember.role;
+    const isWorkspaceManager = role === "OWNER" || role === "ADMIN";
+    const privacyGrants: Prisma.PortfolioWhereInput[] = [
+      { ownerId: userId },
+      { members: { some: { userId } } },
+      { privacy: "PUBLIC" },
+    ];
+    if (!isNonContributorRole(role)) privacyGrants.push({ privacy: "WORKSPACE" });
     const where: Prisma.PortfolioWhereInput = {
       workspaceId: workspaceMember.workspaceId,
-      OR: [
-        { ownerId: userId },
-        { members: { some: { userId } } },
-        { privacy: "PUBLIC" },
-      ],
+      ...(isWorkspaceManager ? {} : { OR: privacyGrants }),
     };
+
+    // A portfolio's PRIVATE projects stay members-only: rows the viewer
+    // cannot open are left out of the counts, the rollups and the list.
+    const projectClauses = (await buildProjectVisibilityClauses(userId)) ?? [];
 
     // Lightweight mode (?fields=summary): the home widget only needs
     // id/name/color and the project count — skip the task/stats join.
@@ -63,7 +77,9 @@ export async function GET(req: Request) {
             select: {
               // Archived projects are off the portfolio's own list below, so
               // the widget's count must not include them either.
-              projects: { where: { project: { isArchived: false } } },
+              projects: {
+                where: { project: { isArchived: false, OR: projectClauses } },
+              },
             },
           },
         },
@@ -85,6 +101,7 @@ export async function GET(req: Request) {
           },
         },
         projects: {
+          where: { project: { OR: projectClauses } },
           include: {
             project: {
               select: {
@@ -103,7 +120,10 @@ export async function GET(req: Request) {
                   // detail route counts. Counting subtasks here made the list
                   // card and the portfolio it opens report different
                   // percentages for the same project.
-                  where: { parentTaskId: null },
+                  // Private tasks the viewer cannot open do not count either.
+                  where: {
+                    AND: [{ parentTaskId: null }, taskPrivacyClause(userId)],
+                  },
                   select: { id: true, completed: true, dueDate: true },
                 },
               },
@@ -112,7 +132,9 @@ export async function GET(req: Request) {
         },
         _count: {
           select: {
-            projects: { where: { project: { isArchived: false } } },
+            projects: {
+              where: { project: { isArchived: false, OR: projectClauses } },
+            },
           },
         },
       },
@@ -260,11 +282,8 @@ export async function POST(req: Request) {
         description: data.description,
         color: data.color || "#a8893a",
         // Fallback for callers that omit the field — the create dialog always
-        // sends one. The read gate above grants on owner / explicit member /
-        // PUBLIC and nothing else, so PRIVATE is the only default that names
-        // what a stored row actually does; teaching the gate to honour
-        // WORKSPACE instead would open every portfolio ever created to the
-        // whole workspace at once.
+        // sends one. PRIVATE is the conservative default for a caller that
+        // did not say who should see the portfolio.
         privacy: data.privacy || "PRIVATE",
         workspaceId: workspaceMember.workspaceId,
         ownerId: userId,

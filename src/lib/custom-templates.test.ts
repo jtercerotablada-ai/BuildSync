@@ -626,6 +626,43 @@ describe("capture — what carries over and what does not", () => {
     expect(JSON.stringify(structure)).not.toContain("user_1");
   });
 
+  it("never carries the last job's dates, checkboxes or free-text values", () => {
+    const { structure } = buildTemplateStructure(
+      capture({
+        customFields: [
+          { id: "f1", name: "Inspection date", type: "DATE" },
+          { id: "f2", name: "Reports sealed", type: "CHECKBOX" },
+          { id: "f3", name: "Permit #", type: "TEXT" },
+          { id: "f4", name: "Fee", type: "CURRENCY" },
+          { id: "f5", name: "Trades", type: "MULTI_SELECT", options: [{ id: "str", label: "Structural" }] },
+        ],
+        tasks: [
+          task({
+            id: "t1",
+            name: "Site visit",
+            customFieldValues: [
+              { fieldId: "f1", value: "2026-03-02" },
+              { fieldId: "f2", value: true },
+              { fieldId: "f3", value: "BD-26-0001" },
+              { fieldId: "f4", value: 4500 },
+              { fieldId: "f5", value: ["str"] },
+            ],
+          }),
+        ],
+      })
+    );
+
+    // Every field is part of the plan; only the choice value carries over.
+    expect(structure.customFields?.map((f) => f.name)).toEqual([
+      "Inspection date",
+      "Reports sealed",
+      "Permit #",
+      "Fee",
+      "Trades",
+    ]);
+    expect(structure.tasks?.[0].customFieldValues).toEqual({ Trades: ["str"] });
+  });
+
   it("captures the skeleton only when includeTasks is false", () => {
     const { structure } = buildTemplateStructure(
       capture({

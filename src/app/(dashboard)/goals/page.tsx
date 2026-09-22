@@ -42,6 +42,7 @@ import {
   Kanban,
   Network,
   Sparkles,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateKRProgress } from "@/lib/goal-utils";
@@ -55,6 +56,12 @@ import {
   type GoalTemplate,
 } from "@/lib/goal-templates-data";
 import { useUiState } from "@/hooks/use-ui-state";
+import { useToday } from "@/lib/use-today";
+import {
+  currentQuarterPeriod,
+  goalPeriodOptions,
+  goalPeriodRank,
+} from "@/components/goals/views/types";
 
 interface KeyResult {
   id: string;
@@ -107,7 +114,7 @@ interface Objective {
  * when ViewType="tree" AND there are zero goals; once at least one goal
  * exists, the tree view renders the real hierarchy.
  */
-type FilterMode = "all" | "my" | "team";
+type FilterMode = "all" | "my" | "team" | "starred";
 type ViewType = "list" | "kanban" | "cards" | "tree";
 
 // Server-backed per-user prefs (uiState), not localStorage — the choice
@@ -124,16 +131,9 @@ const STATUS_UI_STATE_KEY = "goalsStatus";
 const LEGACY_VIEW_STORAGE_KEY = "goals.view";
 const LEGACY_FILTER_STORAGE_KEY = "goals.filter";
 
-const PERIODS = [
-  "All",
-  "Q1 FY26",
-  "Q2 FY26",
-  "Q3 FY26",
-  "Q4 FY26",
-  "H1 FY26",
-  "H2 FY26",
-  "FY26",
-];
+// Stars are written by the goal page (per-user uiState); the "Starred" pill
+// here is what reads them.
+const STARRED_UI_STATE_KEY = "starredGoals";
 
 // useSearchParams must live under a Suspense boundary in Next 15, so the
 // page body is a child component and the default export only wraps it.
@@ -162,6 +162,12 @@ function GoalsPageContent() {
   // mounted, only the header shows that something is in flight.
   const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  // Set when a team page deep-links here (?new=1&teamId=): the goal is
+  // created for that team. Cleared whenever the dialog closes.
+  const [pendingTeam, setPendingTeam] = useState<{
+    id: string;
+    name: string | null;
+  } | null>(null);
   const [creating, setCreating] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { value: filterMode, setValue: setFilterMode } = useUiState<FilterMode>(
@@ -186,8 +192,44 @@ function GoalsPageContent() {
   );
   const [newObjective, setNewObjective] = useState({
     name: "",
-    period: "Q1 FY26",
+    // Filled with the current quarter each time the dialog is opened.
+    period: "",
   });
+  const { value: starredGoals } = useUiState<Record<string, boolean>>(
+    STARRED_UI_STATE_KEY,
+    {}
+  );
+  const today = useToday();
+  // Last, this and next fiscal year, plus whatever the saved filter holds so
+  // an older choice stays selectable. Before mount (today === null) only the
+  // saved choice is listed, which is all the first frame needs.
+  const periods = [
+    "All",
+    ...(today
+      ? goalPeriodOptions(today, {
+          extra: [selectedPeriod === "All" ? null : selectedPeriod],
+        })
+      : selectedPeriod !== "All"
+        ? [selectedPeriod]
+        : []),
+  ];
+  const createPeriodOptions = today
+    ? goalPeriodOptions(today, { yearsBack: 0, extra: [newObjective.period] })
+    : newObjective.period
+      ? [newObjective.period]
+      : [];
+
+  // Opens the create dialog with the period defaulted to the current
+  // quarter. Read in an event handler / effect, never during render.
+  const openCreateDialog = (template: GoalTemplate | null) => {
+    setPendingTemplate(template);
+    setPendingTeam(null);
+    setNewObjective({
+      name: template?.objective.name ?? "",
+      period: currentQuarterPeriod(new Date()),
+    });
+    setCreateOpen(true);
+  };
 
   // Strategy map onboarding state — only used when tree view + empty list.
   const [showStrategyOnboarding, setShowStrategyOnboarding] = useState(true);
@@ -243,8 +285,26 @@ function GoalsPageContent() {
   // back-navigation) doesn't re-trigger the dialog.
   useEffect(() => {
     if (searchParams.get("new") === "1") {
+      const teamId = searchParams.get("teamId");
+      setPendingTemplate(null);
+      setPendingTeam(teamId ? { id: teamId, name: null } : null);
+      setNewObjective({ name: "", period: currentQuarterPeriod(new Date()) });
       setCreateOpen(true);
       router.replace("/goals");
+      if (teamId) {
+        // Name only for the dialog; the POST validates the team itself.
+        fetch(`/api/teams/${teamId}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((team) => {
+            const name =
+              team && typeof team.name === "string" ? team.name : null;
+            if (!name) return;
+            setPendingTeam((prev) =>
+              prev?.id === teamId ? { id: teamId, name } : prev
+            );
+          })
+          .catch(() => {});
+      }
     }
   }, [searchParams, router]);
 
@@ -292,6 +352,8 @@ function GoalsPageContent() {
       //          OR team-member — so client-side we just filter out
       //          the ones I created).
       // "all" = everything the API returns (anything I can access).
+      // "starred" = "all", narrowed at render by the stars in uiState (the
+      // stars can load after this response, so they are not applied here).
       if (filterMode === "my") params.set("ownerId", "me");
       if (selectedPeriod && selectedPeriod !== "All") {
         params.set("period", selectedPeriod);
@@ -347,27 +409,39 @@ function GoalsPageContent() {
         body: JSON.stringify({
           name,
           description: tpl?.objective.description,
-          period: newObjective.period,
+          period: newObjective.period || undefined,
           progressSource: tpl?.objective.progressSource ?? "KEY_RESULTS",
           keyResults: tpl?.keyResults,
+          teamId: pendingTeam?.id,
         }),
       });
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || `HTTP ${res.status}`);
       }
 
       const objective = await res.json();
-      setObjectives([objective, ...objectives]);
+      // The POST response carries no `children`; the list reads it on every
+      // row, so give a new goal the empty list it really has.
+      setObjectives((prev) => [
+        { ...objective, children: objective.children ?? [] },
+        ...prev,
+      ]);
       setCreateOpen(false);
       setPendingTemplate(null);
-      setNewObjective({ name: "", period: "Q1 FY26" });
+      setPendingTeam(null);
+      setNewObjective({ name: "", period: "" });
       // Close dialog first, then navigate — the redirect was happening while
       // the dialog was still mounted, which caused an awkward double-layer.
       router.push(`/goals/${objective.id}`);
     } catch (error) {
       console.error("Error creating objective:", error);
-      toast.error("Couldn't create goal — check your connection and try again");
+      toast.error(
+        error instanceof Error && !error.message.startsWith("HTTP")
+          ? error.message
+          : "Couldn't create goal — check your connection and try again"
+      );
     } finally {
       setCreating(false);
     }
@@ -399,15 +473,15 @@ function GoalsPageContent() {
   };
 
   const cyclePeriod = (direction: "prev" | "next") => {
-    const currentIndex = PERIODS.indexOf(selectedPeriod);
+    const currentIndex = periods.indexOf(selectedPeriod);
     if (direction === "prev" && currentIndex > 0) {
-      setSelectedPeriod(PERIODS[currentIndex - 1]);
-    } else if (direction === "next" && currentIndex < PERIODS.length - 1) {
-      setSelectedPeriod(PERIODS[currentIndex + 1]);
+      setSelectedPeriod(periods[currentIndex - 1]);
+    } else if (direction === "next" && currentIndex < periods.length - 1) {
+      setSelectedPeriod(periods[currentIndex + 1]);
     }
   };
 
-  const periodIndex = PERIODS.indexOf(selectedPeriod);
+  const periodIndex = periods.indexOf(selectedPeriod);
 
   if (loading) {
     return (
@@ -420,10 +494,19 @@ function GoalsPageContent() {
   // Apply the client-side status filter on top of the fetched (and
   // server-filtered by mode/period) objectives. Done here once so all
   // four views render the same dataset.
-  const filteredObjectives =
-    statusFilter === "all"
-      ? objectives
-      : objectives.filter((o) => o.status === statusFilter);
+  // An un-star is stored as an explicit `false`, so only `=== true` counts.
+  const filteredObjectives = objectives.filter(
+    (o) =>
+      (statusFilter === "all" || o.status === statusFilter) &&
+      (filterMode !== "starred" || starredGoals[o.id] === true)
+  );
+  const hasActiveFilters =
+    filterMode !== "all" || statusFilter !== "all" || selectedPeriod !== "All";
+  const resetFilters = () => {
+    setFilterMode("all");
+    setStatusFilter("all");
+    setSelectedPeriod("All");
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -438,14 +521,6 @@ function GoalsPageContent() {
             />
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-black text-xs md:text-sm"
-          onClick={() => window.open('mailto:feedback@ttcivilstructural.com?subject=Goals%20Feedback', '_blank')}
-        >
-          Send feedback
-        </Button>
       </div>
 
       {/* Filter pills (replace old tabs) */}
@@ -455,6 +530,7 @@ function GoalsPageContent() {
             { id: "all" as FilterMode, label: "All goals", icon: Target },
             { id: "my" as FilterMode, label: "My goals", icon: User },
             { id: "team" as FilterMode, label: "Team goals", icon: Users },
+            { id: "starred" as FilterMode, label: "Starred", icon: Star },
           ] as const
         ).map((opt) => {
           const Icon = opt.icon;
@@ -492,12 +568,7 @@ function GoalsPageContent() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuItem
-                onClick={() => {
-                  setPendingTemplate(null);
-                  setCreateOpen(true);
-                }}
-              >
+              <DropdownMenuItem onClick={() => openCreateDialog(null)}>
                 <Target className="w-4 h-4 mr-2 text-gray-500" />
                 <div className="flex-1">
                   <p className="text-sm font-medium">Blank goal</p>
@@ -522,12 +593,7 @@ function GoalsPageContent() {
                     // button then calls handleCreate() which sees
                     // pendingTemplate and POSTs the KRs along with the
                     // chosen period.
-                    setPendingTemplate(tpl);
-                    setNewObjective({
-                      name: tpl.objective.name,
-                      period: "Q1 FY26",
-                    });
-                    setCreateOpen(true);
+                    openCreateDialog(tpl);
                   }}
                   className="cursor-pointer"
                 >
@@ -560,7 +626,7 @@ function GoalsPageContent() {
               onChange={(e) => setSelectedPeriod(e.target.value)}
               className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-transparent border-none outline-none focus-visible:ring-2 focus-visible:ring-[#c9a84c] cursor-pointer max-w-[120px] md:max-w-none"
             >
-              {PERIODS.map((period) => (
+              {periods.map((period) => (
                 <option key={period} value={period}>
                   {period}
                 </option>
@@ -568,7 +634,7 @@ function GoalsPageContent() {
             </select>
             <button
               onClick={() => cyclePeriod("next")}
-              disabled={periodIndex === PERIODS.length - 1}
+              disabled={periodIndex === periods.length - 1}
               className="p-1.5 hover:bg-gray-100 rounded-r-md border-l transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               aria-label="Next period"
             >
@@ -700,32 +766,30 @@ function GoalsPageContent() {
         {selectedView === "tree" &&
         showStrategyOnboarding &&
         objectives.length === 0 ? (
-          <StrategyMapView
-            objectives={objectives}
-            showOnboarding={true}
-            onCreateGoal={async (name?: string) => {
-              if (name) {
-                try {
-                  const res = await fetch("/api/objectives", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      name,
-                      period: "Q1 FY26",
-                      progressSource: "KEY_RESULTS",
-                    }),
-                  });
-                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                  const objective = await res.json();
-                  setObjectives([objective, ...objectives]);
-                  setShowStrategyOnboarding(false);
-                  router.push(`/goals/${objective.id}`);
-                } catch (error) {
-                  console.error("Error creating goal:", error);
-                  toast.error("Couldn't create goal");
-                }
-              } else {
-                setCreateOpen(true);
+          <StrategyMapOnboarding
+            period={today ? currentQuarterPeriod(today) : ""}
+            onCreateGoal={async (name: string) => {
+              try {
+                const res = await fetch("/api/objectives", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name,
+                    period: currentQuarterPeriod(new Date()),
+                    progressSource: "KEY_RESULTS",
+                  }),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const objective = await res.json();
+                setObjectives((prev) => [
+                  { ...objective, children: objective.children ?? [] },
+                  ...prev,
+                ]);
+                setShowStrategyOnboarding(false);
+                router.push(`/goals/${objective.id}`);
+              } catch (error) {
+                console.error("Error creating goal:", error);
+                toast.error("Couldn't create goal");
               }
             }}
             onSkipOnboarding={() => setShowStrategyOnboarding(false)}
@@ -746,8 +810,10 @@ function GoalsPageContent() {
             expandedIds={expandedIds}
             onToggleExpand={toggleExpand}
             onRowClick={(id) => router.push(`/goals/${id}`)}
-            onCreateGoal={() => setCreateOpen(true)}
+            onCreateGoal={() => openCreateDialog(null)}
             getStatusColor={getStatusColor}
+            // A filter that hides everything is not "no goals yet".
+            onResetFilters={hasActiveFilters ? resetFilters : undefined}
           />
         )}
       </div>
@@ -760,7 +826,10 @@ function GoalsPageContent() {
           // Clear the staged template when the dialog closes so the next
           // "Blank goal" doesn't accidentally inherit KRs from a prior
           // template choice.
-          if (!o) setPendingTemplate(null);
+          if (!o) {
+            setPendingTemplate(null);
+            setPendingTeam(null);
+          }
         }}
       >
         <DialogContent>
@@ -770,6 +839,13 @@ function GoalsPageContent() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {pendingTeam && (
+              <p className="text-xs text-gray-600">
+                {pendingTeam.name
+                  ? `This goal will belong to the ${pendingTeam.name} team.`
+                  : "This goal will belong to the team you came from."}
+              </p>
+            )}
             {pendingTemplate && (
               <div className="border rounded-lg p-3 bg-gray-50">
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
@@ -806,7 +882,7 @@ function GoalsPageContent() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PERIODS.filter((p) => p !== "All").map((period) => (
+                  {createPeriodOptions.map((period) => (
                     <SelectItem key={period} value={period}>
                       {period}
                     </SelectItem>
@@ -859,15 +935,18 @@ const SORT_VALUES: Record<SortKey, (o: Objective) => string | number> = {
   name: (o) => o.name.toLowerCase(),
   status: (o) => STATUS_SORT_RANK[o.status] ?? 99,
   progress: (o) => o.progress,
-  // PERIODS is already in chronological order, so its index is the only
-  // ranking that reads right — "FY26" sorts before "Q1 FY26" alphabetically.
-  period: (o) => {
-    const i = PERIODS.indexOf(o.period ?? "");
-    return i === -1 ? PERIODS.length : i;
-  },
+  // The pickers' own order — "FY26" sorts before "Q1 FY26" alphabetically.
+  period: (o) => goalPeriodRank(o.period),
   team: (o) => o.team?.name.toLowerCase() ?? "",
   owner: (o) => o.owner?.name?.toLowerCase() ?? "",
 };
+
+// The chevron shows only when expanding reveals something: the listing's
+// sub-goals are already filtered to the ones this reader may see, so the raw
+// _count can promise rows that never render.
+function hasExpandableContent(o: Objective): boolean {
+  return o.keyResults.length > 0 || o.children.length > 0;
+}
 
 function sortObjectives(objectives: Objective[], sort: SortState): Objective[] {
   const value = sort ? SORT_VALUES[sort.key] : undefined;
@@ -898,6 +977,7 @@ function GoalsListView({
   onRowClick,
   onCreateGoal,
   getStatusColor,
+  onResetFilters,
 }: {
   objectives: Objective[];
   expandedIds: Set<string>;
@@ -905,6 +985,8 @@ function GoalsListView({
   onRowClick: (id: string) => void;
   onCreateGoal: () => void;
   getStatusColor: (status: string) => string;
+  /** Present when a filter is narrowing the list. */
+  onResetFilters?: () => void;
 }) {
   const columns: { id: SortKey; label: string; className: string }[] = [
     { id: "name", label: "Name", className: "flex-1" },
@@ -933,6 +1015,25 @@ function GoalsListView({
   };
 
   const rows = sortObjectives(objectives, sort);
+
+  if (objectives.length === 0 && onResetFilters) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-16">
+        <div className="w-16 h-16 bg-white border border-black rounded-full flex items-center justify-center mb-4">
+          <Filter className="h-8 w-8 text-black" />
+        </div>
+        <h3 className="text-lg font-medium text-black mb-2">
+          No goals match these filters
+        </h3>
+        <p className="text-sm text-black text-center max-w-sm mb-4">
+          Try another status or period, or clear the filters to see every goal.
+        </p>
+        <Button variant="outline" onClick={onResetFilters}>
+          Clear filters
+        </Button>
+      </div>
+    );
+  }
 
   if (objectives.length === 0) {
     return (
@@ -1004,8 +1105,7 @@ function GoalsListView({
             >
               {/* Name */}
               <div className="flex-1 px-3 py-3 flex items-center justify-center gap-2">
-                {(objective._count.keyResults > 0 ||
-                  objective._count.children > 0) && (
+                {hasExpandableContent(objective) && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1087,8 +1187,7 @@ function GoalsListView({
               className="flex md:hidden items-center gap-3 py-3 px-3 hover:bg-gray-50 cursor-pointer"
               onClick={() => onRowClick(objective.id)}
             >
-              {(objective._count.keyResults > 0 ||
-                objective._count.children > 0) && (
+              {hasExpandableContent(objective) && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1137,8 +1236,53 @@ function GoalsListView({
             {/* Expanded Key Results — match parent's column dividers
                 so the gridlines run continuously through KR sub-rows */}
             {expandedIds.has(objective.id) &&
-              objective.keyResults.length > 0 && (
+              hasExpandableContent(objective) && (
                 <div className="bg-gray-50/50">
+                  {/* Sub-goals first: they are goals in their own right and
+                      open their own page. */}
+                  {objective.children.map((child) => (
+                    <div
+                      key={child.id}
+                      onClick={() => onRowClick(child.id)}
+                      className="flex items-stretch text-sm border-b border-[#e6e9ef] cursor-pointer hover:bg-gray-100/60"
+                    >
+                      <div className="flex-1 min-w-0 pl-10 md:pl-12 pr-3 py-2 flex items-center md:justify-center gap-2 text-black">
+                        <div
+                          className={cn(
+                            "w-2 h-2 rounded-full flex-shrink-0",
+                            getStatusColor(child.status)
+                          )}
+                        />
+                        <span className="truncate md:text-center">
+                          {child.name}
+                        </span>
+                        <span className="text-[10px] text-gray-400 uppercase tracking-wider flex-shrink-0">
+                          Sub-goal
+                        </span>
+                      </div>
+                      <div className="md:hidden px-3 py-2 flex items-center text-xs text-gray-500">
+                        {child.progress}%
+                      </div>
+                      <div className="hidden md:block w-[80px] px-3 border-l border-[#e6e9ef]" />
+                      <div className="hidden md:flex w-[140px] px-3 py-2 border-l border-[#e6e9ef] items-center justify-center">
+                        <div className="flex items-center gap-2 w-full">
+                          <div className="flex-1 h-1.5 bg-white border border-black rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-black rounded-full"
+                              style={{ width: `${child.progress}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-black text-center">
+                            {child.progress}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="hidden md:block w-[100px] px-3 border-l border-[#e6e9ef]" />
+                      <div className="hidden md:block w-[140px] px-3 border-l border-[#e6e9ef]" />
+                      <div className="hidden md:block w-[80px] px-3 border-l border-[#e6e9ef]" />
+                      <div className="hidden md:block w-10 border-l border-[#e6e9ef]" />
+                    </div>
+                  ))}
                   {objective.keyResults.map((kr) => {
                     // Shared helper, so a zero-range key result (a
                     // done/not-done one) reads 100% here exactly like it
@@ -1146,12 +1290,24 @@ function GoalsListView({
                     // replaced always showed 0% for those.
                     const progress = calculateKRProgress(kr);
                     return (
-                      // KR sub-row — per-cell border-l matches parent
-                      // rows so the column dividers run continuously
-                      // when an objective is expanded.
+                      <div key={kr.id}>
+                      {/* Mobile KR row — the desktop grid below is hidden
+                          under md, which left the chevron expanding to
+                          nothing on a phone. */}
+                      <div className="flex md:hidden items-center gap-2 pl-10 pr-3 py-2 text-sm border-b border-[#e6e9ef]">
+                        <div className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
+                        <span className="flex-1 min-w-0 truncate text-black">
+                          {kr.name}
+                        </span>
+                        <span className="text-xs text-gray-500 flex-shrink-0">
+                          {kr.currentValue}/{kr.targetValue}
+                        </span>
+                      </div>
+                      {/* KR sub-row — per-cell border-l matches parent
+                          rows so the column dividers run continuously
+                          when an objective is expanded. */}
                       <div
-                        key={kr.id}
-                        className="hidden md:flex items-stretch text-sm border-b border-[#e6e9ef] last:border-b-0"
+                        className="hidden md:flex items-stretch text-sm border-b border-[#e6e9ef]"
                       >
                         <div className="flex-1 pl-12 pr-3 py-2 flex items-center justify-center gap-2 text-black">
                           <div className="w-2 h-2 rounded-full bg-black" />
@@ -1176,6 +1332,7 @@ function GoalsListView({
                         <div className="w-[80px] px-3 border-l border-[#e6e9ef]" />
                         <div className="w-10 border-l border-[#e6e9ef]" />
                       </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -1187,108 +1344,89 @@ function GoalsListView({
   );
 }
 
-// Strategy Map View Component
-function StrategyMapView({
-  objectives,
-  showOnboarding,
+// Strategy map onboarding — shown for the tree view while there are no goals
+// yet. Once a goal exists, GoalsTreeView renders the real hierarchy.
+function StrategyMapOnboarding({
+  period,
   onCreateGoal,
   onSkipOnboarding,
 }: {
-  objectives: Objective[];
-  showOnboarding: boolean;
-  onCreateGoal: (name?: string) => void;
+  period: string;
+  onCreateGoal: (name: string) => Promise<void>;
   onSkipOnboarding: () => void;
 }) {
   const [newGoalName, setNewGoalName] = useState("");
-
-  if (showOnboarding) {
-    return (
-      <div className="flex flex-col md:flex-row h-full">
-        {/* Left: Onboarding Form */}
-        <div className="w-full md:w-1/2 p-4 md:p-8 md:border-r">
-          <p className="text-sm text-black mb-4">Step 1 of 2</p>
-
-          <h2 className="text-2xl font-semibold text-black mb-4">
-            Welcome to the goals
-            <br />
-            strategy map
-          </h2>
-
-          <p className="text-black mb-6">
-            Try the strategy map by creating a goal that only you can see. You
-            can invite members and add details to the goal later.
-          </p>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-black mb-1">
-                Goal name <span className="text-black">*</span>
-              </label>
-              <Input
-                type="text"
-                value={newGoalName}
-                onChange={(e) => setNewGoalName(e.target.value)}
-                placeholder="e.g., Increase customer satisfaction"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-black mb-1">
-                Period
-              </label>
-              <p className="text-black">Q1 FY26</p>
-            </div>
-          </div>
-
-          <div className="mt-8 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <p className="text-sm text-black">0 people will be notified</p>
-            <div className="flex items-center gap-2 md:gap-3">
-              <Button variant="ghost" onClick={onSkipOnboarding}>
-                Go to map
-              </Button>
-              <Button
-                disabled={!newGoalName.trim()}
-                onClick={() => onCreateGoal(newGoalName)}
-                className="bg-black hover:bg-black"
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Strategy Map Preview */}
-        <div className="hidden md:block w-1/2 p-8 bg-white overflow-auto">
-          <StrategyMapPreview />
-        </div>
-      </div>
-    );
-  }
-
-  if (objectives.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full py-16">
-        <div className="w-16 h-16 bg-white border border-black rounded-full flex items-center justify-center mb-4">
-          <Target className="h-8 w-8 text-black" />
-        </div>
-        <h3 className="text-lg font-medium text-black mb-2">
-          No goals in strategy map
-        </h3>
-        <p className="text-sm text-black text-center max-w-sm mb-4">
-          Create goals to visualize your strategy hierarchy.
-        </p>
-        <Button onClick={() => onCreateGoal()} className="bg-black hover:bg-black">
-          <Plus className="w-4 h-4 mr-2" />
-          Create your first goal
-        </Button>
-      </div>
-    );
-  }
+  const [creating, setCreating] = useState(false);
 
   return (
-    <div className="p-4 md:p-8 overflow-auto">
-      <div className="min-w-max">
-        <StrategyMapTree objectives={objectives} />
+    <div className="flex flex-col md:flex-row h-full">
+      {/* Left: Onboarding Form */}
+      <div className="w-full md:w-1/2 p-4 md:p-8 md:border-r">
+        <p className="text-sm text-black mb-4">Step 1 of 2</p>
+
+        <h2 className="text-2xl font-semibold text-black mb-4">
+          Welcome to the goals
+          <br />
+          strategy map
+        </h2>
+
+        <p className="text-black mb-6">
+          Start the strategy map by creating a top-level goal. You can invite
+          members, change its privacy and add details to the goal later.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-black mb-1">
+              Goal name <span className="text-black">*</span>
+            </label>
+            <Input
+              type="text"
+              value={newGoalName}
+              onChange={(e) => setNewGoalName(e.target.value)}
+              placeholder="e.g., Increase customer satisfaction"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-black mb-1">
+              Period
+            </label>
+            <p className="text-black">{period || "\u00a0"}</p>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-sm text-black">0 people will be notified</p>
+          <div className="flex items-center gap-2 md:gap-3">
+            <Button variant="ghost" onClick={onSkipOnboarding}>
+              Go to map
+            </Button>
+            <Button
+              disabled={creating || !newGoalName.trim()}
+              onClick={async () => {
+                setCreating(true);
+                try {
+                  await onCreateGoal(newGoalName.trim());
+                } finally {
+                  setCreating(false);
+                }
+              }}
+              className="bg-black hover:bg-black"
+            >
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Continue"
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Right: Strategy Map Preview */}
+      <div className="hidden md:block w-1/2 p-8 bg-white overflow-auto">
+        <StrategyMapPreview />
       </div>
     </div>
   );
@@ -1358,72 +1496,6 @@ function GoalCard({ highlight = false }: { highlight?: boolean }) {
           You
         </div>
       )}
-    </div>
-  );
-}
-
-// Strategy Map Tree (Real)
-function StrategyMapTree({ objectives }: { objectives: Objective[] }) {
-  const rootGoals = objectives.filter((g) => !g.parentId);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "ON_TRACK":
-        return "bg-[#c9a84c]";
-      case "AT_RISK":
-        return "bg-[#a8893a]";
-      case "OFF_TRACK":
-        return "bg-black";
-      case "ACHIEVED":
-        return "bg-[#c9a84c]";
-      default:
-        return "bg-gray-400";
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center gap-8">
-      {rootGoals.map((goal) => (
-        <div key={goal.id} className="flex flex-col items-center">
-          <div className="bg-white border rounded-lg p-4 shadow-sm w-64 hover:shadow-md transition-shadow cursor-pointer">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={cn("w-3 h-3 rounded-full", getStatusColor(goal.status))} />
-              <span className="font-medium text-sm text-black">{goal.name}</span>
-            </div>
-            <div className="h-2 bg-white border border-black rounded-full overflow-hidden">
-              <div
-                className="h-full bg-black rounded-full"
-                style={{ width: `${goal.progress}%` }}
-              />
-            </div>
-            <p className="text-xs text-black mt-2">{goal.period}</p>
-          </div>
-
-          {goal.children && goal.children.length > 0 && (
-            <>
-              <div className="w-px h-8 bg-black" />
-              <div className="flex gap-8">
-                {goal.children.map((child) => (
-                  <div key={child.id} className="flex flex-col items-center">
-                    <div className="bg-white border rounded-lg p-3 w-48 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className={cn("w-2 h-2 rounded-full", getStatusColor(child.status))} />
-                        <span className="text-sm text-black">{child.name}</span>
-                      </div>
-                      <div className="h-1.5 bg-white border border-black rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-black rounded-full"
-                          style={{ width: `${child.progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      ))}
     </div>
   );
 }

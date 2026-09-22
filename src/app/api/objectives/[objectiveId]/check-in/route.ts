@@ -8,6 +8,7 @@ import {
   getErrorStatus,
 } from "@/lib/auth-guards";
 import { verifyObjectiveAccess } from "@/lib/objective-access";
+import { notifyObjectiveActivity } from "@/lib/objective-notifications";
 import type { ObjectiveStatus } from "@prisma/client";
 
 /**
@@ -85,6 +86,16 @@ export async function POST(
         },
       }),
     ]);
+
+    // Best-effort inbox note to the owner and members; never fails the
+    // check-in itself.
+    await notifyObjectiveActivity({
+      objectiveId,
+      actorUserId: userId,
+      kind: "check-in",
+      summary: parsed.summary,
+      status: newStatus,
+    });
 
     return NextResponse.json({ success: true, statusUpdate });
   } catch (error) {

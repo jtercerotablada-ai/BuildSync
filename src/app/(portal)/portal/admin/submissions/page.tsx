@@ -16,6 +16,10 @@ import { SubmissionActions } from "@/components/admin/submission-actions";
 import { Mail, Paperclip } from "lucide-react";
 import { parseContactAttachments } from "@/lib/contact-attachments";
 
+/** The firm works in Miami; this page renders on the server in UTC, so an
+ *  evening lead would otherwise show the next day's date. */
+const FIRM_TIME_ZONE = "America/New_York";
+
 function getStatusColor(status: string) {
   switch (status) {
     case "NEW":
@@ -31,7 +35,7 @@ function getStatusColor(status: string) {
 
 export default async function AdminSubmissionsPage() {
   const userId = await getCurrentUserId();
-  if (!userId) redirect("/auth/signin");
+  if (!userId) redirect("/login?callbackUrl=%2Fportal%2Fadmin%2Fsubmissions");
 
   // This page reads the GLOBAL ContactSubmission table directly, so it must
   // gate on the FIRM's workspace — not on the caller's role in whatever
@@ -152,7 +156,9 @@ export default async function AdminSubmissionsPage() {
                       })()}
                     </TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">
-                      {new Date(sub.createdAt).toLocaleDateString()}
+                      {new Date(sub.createdAt).toLocaleDateString("en-US", {
+                        timeZone: FIRM_TIME_ZONE,
+                      })}
                     </TableCell>
                     <TableCell>
                       <Badge variant={getStatusColor(sub.status)}>

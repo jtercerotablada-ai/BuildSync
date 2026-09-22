@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
@@ -33,23 +34,32 @@ export async function POST(
     });
 
     if (existingLike) {
-      // Unlike - remove the like
-      await prisma.taskLike.delete({
-        where: {
-          id: existingLike.id,
-        },
+      // Unlike. deleteMany, not delete: a double click sends two unlikes, and
+      // the second must find nothing to remove rather than throw a 500.
+      await prisma.taskLike.deleteMany({
+        where: { taskId, userId },
       });
 
       const count = await prisma.taskLike.count({ where: { taskId } });
       return NextResponse.json({ liked: false, count });
     } else {
-      // Like - create new like
-      await prisma.taskLike.create({
-        data: {
-          taskId,
-          userId,
-        },
-      });
+      // Like. Two quick clicks can both miss the row above; the unique index
+      // stops the second insert, and the outcome — liked — is the same.
+      try {
+        await prisma.taskLike.create({
+          data: {
+            taskId,
+            userId,
+          },
+        });
+      } catch (err) {
+        if (
+          !(err instanceof Prisma.PrismaClientKnownRequestError) ||
+          err.code !== "P2002"
+        ) {
+          throw err;
+        }
+      }
 
       const count = await prisma.taskLike.count({ where: { taskId } });
       return NextResponse.json({ liked: true, count });

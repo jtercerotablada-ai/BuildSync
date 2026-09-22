@@ -4,8 +4,7 @@
  * Workload view — Asana's "Workload" timeline, cloned 1:1.
  *
  * Layout: 50px toolbar (Add task, ‹ Today ›, and the right-side controls
- * Days (small) / Filter / Group / Task count / Options /
- * Send feedback), a 265px fixed resource column, and a horizontally
+ * Days (small) / Filter / Group / Task count / Options), a 265px fixed resource column, and a horizontally
  * scrollable day timeline with month/day headers, weekend bands, a today
  * line with dot, per-row stepped lavender load charts, and a custom bottom
  * scrollbar with arrow buttons.
@@ -204,8 +203,6 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   const [showUnassigned, setShowUnassigned] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState("");
 
   const dayW = ZOOMS.find((z) => z.key === zoom)!.width;
   const zoomLabel = ZOOMS.find((z) => z.key === zoom)!.label;
@@ -360,6 +357,15 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   }, [groupBy, assignees, hiddenAssignees, visibleTasks, showUnassigned, project]);
 
   const totalLoad = useMemo(() => loadOf(visibleTasks), [loadOf, visibleTasks]);
+
+  // Open a task in the project's detail panel. ProjectContent opens the panel
+  // from `?task=` and Next keeps useSearchParams in sync with replaceState, so
+  // the same deep link notifications use works from here without a new prop.
+  const openTask = useCallback((taskId: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("task", taskId);
+    window.history.replaceState(null, "", url.toString());
+  }, []);
 
   // ── Scrolling: one scroll container; left column + header are sticky.
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -582,13 +588,24 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
           dueDate: form.dueDate || form.startDate || null,
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // The API names the reason (e.g. a start date after the due date);
+        // a bare "couldn't create" left the user guessing which field to fix.
+        const data = await res.json().catch(() => null);
+        throw new Error(
+          typeof data?.error === "string" ? data.error : "Couldn't create task"
+        );
+      }
       toast.success("Task created");
       setAddOpen(false);
       setForm({ name: "", assigneeId: "", startDate: "", dueDate: "" });
       setReloadKey((k) => k + 1);
-    } catch {
-      toast.error("Couldn't create task");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't create task"
+      );
     } finally {
       setSaving(false);
     }
@@ -755,13 +772,6 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
               Show “Unassigned”
             </DropdownMenuCheckboxItem>
           </ToolMenu>
-          <button
-            type="button"
-            onClick={() => setFeedbackOpen(true)}
-            className="ml-2 text-[11px] text-[#55585D] underline hover:text-[#1E1F21]"
-          >
-            Send feedback
-          </button>
         </div>
       </div>
 
@@ -913,7 +923,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                     strokeWidth={1.5}
                   />
                   <span className="text-[12px] text-[#44464B]">
-                    Total tasks
+                    {measure === "count" ? "Total tasks" : "Total hours"}
                   </span>
                 </div>
               }
@@ -1029,17 +1039,22 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                             height={SUB_ROW_H}
                             laneW={timelineW}
                             left={
-                              <span
-                                className="block truncate pl-[46px] pr-2 text-[11px] text-[#44464B]"
+                              <button
+                                type="button"
+                                onClick={() => openTask(t.id)}
+                                className="block w-full truncate pl-[46px] pr-2 text-left text-[11px] text-[#44464B] hover:text-[#1E1F21] hover:underline"
                                 title={t.name}
                               >
                                 {t.name}
-                              </span>
+                              </button>
                             }
                           >
                             {span && span[1] >= 0 && span[0] < totalDays && (
-                              <div
-                                className="absolute flex items-center overflow-hidden rounded-[4px] border border-[#A5A3E8] bg-[#CBC9F2] px-1.5"
+                              <button
+                                type="button"
+                                onClick={() => openTask(t.id)}
+                                title={t.name}
+                                className="absolute flex items-center overflow-hidden rounded-[4px] border border-[#A5A3E8] bg-[#CBC9F2] px-1.5 hover:border-[#7C79D8]"
                                 style={{
                                   left: Math.max(0, span[0]) * dayW + 1,
                                   width:
@@ -1055,7 +1070,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                                 <span className="truncate text-[10px] leading-none text-[#3F3D6E]">
                                   {t.name}
                                 </span>
-                              </div>
+                              </button>
                             )}
                           </Row>
                         );
@@ -1173,6 +1188,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                 <input
                   type="date"
                   value={form.dueDate}
+                  min={form.startDate || undefined}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, dueDate: e.target.value }))
                   }
@@ -1204,47 +1220,6 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
               className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
             >
               {saving ? "Creating…" : "Create task"}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ───────────── Feedback modal ───────────── */}
-      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-        <DialogContent
-          showCloseButton={false}
-          aria-describedby={undefined}
-          className="w-[420px] gap-0 rounded-[10px] border-[#E0E1E3] bg-white p-4 shadow-xl sm:max-w-[420px]"
-        >
-          <DialogTitle className="text-sm font-semibold text-[#1E1F21]">
-            Send feedback
-          </DialogTitle>
-          <textarea
-            autoFocus
-            value={feedbackText}
-            onChange={(e) => setFeedbackText(e.target.value)}
-            className="mt-3 h-28 w-full resize-none rounded-[6px] border border-[#E0E1E3] p-2 text-[13px] text-[#1E1F21] outline-none placeholder:text-[#9A9C9F] focus:border-[#c9a84c]"
-            placeholder="Share your feedback…"
-          />
-          <div className="mt-3 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setFeedbackOpen(false)}
-              className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={!feedbackText.trim()}
-              onClick={() => {
-                setFeedbackOpen(false);
-                setFeedbackText("");
-                toast.success("Thanks for your feedback!");
-              }}
-              className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
-            >
-              Send
             </button>
           </div>
         </DialogContent>

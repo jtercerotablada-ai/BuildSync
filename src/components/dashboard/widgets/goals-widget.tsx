@@ -32,7 +32,10 @@ interface GoalsWidgetProps {
   onCreateGoal?: () => void;
 }
 
-type TabType = 'my' | 'team' | 'company';
+// 'all' is every open goal the reader may see in the workspace (the
+// /api/objectives read rule). There is no company-level goal concept, so
+// the tab is not labelled "Company".
+type TabType = 'my' | 'team' | 'all';
 
 // Progress bar color based on percentage
 const getProgressColor = (progress: number, status: string) => {
@@ -83,7 +86,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
     fetchTeams();
   }, []);
 
-  // Derived so my/company tabs don't refetch when the teams request
+  // Derived so my/all tabs don't refetch when the teams request
   // settles — only the Team tab depends on it.
   const teamId = activeTab === 'team' ? selectedTeam?.id ?? null : null;
   const teamsSettled = activeTab !== 'team' || teamsLoaded;
@@ -112,7 +115,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
       } else if (activeTab === 'team' && teamId) {
         params.append('teamId', teamId);
       }
-      // For 'company' tab, fetch all goals (no filter)
+      // 'all' tab: no filter beyond the server's read rule.
 
       // Top-level open goals only, filtered server-side so limit
       // counts against the rows that actually render.
@@ -152,7 +155,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
   const tabs = [
     { id: 'my' as TabType, label: 'My goals' },
     { id: 'team' as TabType, label: 'Team' },
-    { id: 'company' as TabType, label: 'Company' },
+    { id: 'all' as TabType, label: 'All' },
   ];
 
   const getEmptyMessage = () => {
@@ -167,10 +170,10 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
           title: "You haven't added team goals yet.",
           subtitle: "Add a goal so your team knows what you plan to achieve."
         };
-      case 'company':
+      case 'all':
         return {
-          title: "No company goals yet.",
-          subtitle: "Add company-wide goals to align your organization."
+          title: "No open goals yet.",
+          subtitle: "Add a goal so the firm knows what it plans to achieve."
         };
     }
   };

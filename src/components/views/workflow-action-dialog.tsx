@@ -52,6 +52,10 @@ interface Props {
   // for the assignee/collaborator pickers and to exclude it from
   // the "Add to project" picker.
   projectId: string;
+  /** The project's workspace. Scopes both pickers to it: the rule routes
+   *  reject a person or project from any other workspace, so offering them
+   *  only led to a failed save. */
+  workspaceId?: string | null;
 }
 
 export function actionNeedsConfig(type: WorkflowActionType): boolean {
@@ -64,6 +68,7 @@ export function WorkflowActionDialog({
   actionType,
   onConfirm,
   projectId,
+  workspaceId,
 }: Props) {
   // Shared state for each action subtype
   const [users, setUsers] = useState<WorkflowUser[]>([]);
@@ -113,16 +118,19 @@ export function WorkflowActionDialog({
         ) {
           // Workspace user search — same endpoint AssigneeSelector
           // uses. Empty query returns recent members.
-          const res = await fetch(
-            `/api/users/search?q=${encodeURIComponent(userQuery)}`
-          );
+          const params = new URLSearchParams({ q: userQuery });
+          if (workspaceId) params.set("workspaceId", workspaceId);
+          const res = await fetch(`/api/users/search?${params.toString()}`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = (await res.json()) as WorkflowUser[];
           if (!canceled) setUsers(Array.isArray(data) ? data : []);
         } else if (actionType === "ADD_TO_PROJECT") {
-          // List of projects in the workspace, excluding the current
-          // project (you can't "Add to another project" with itself).
-          const res = await fetch(`/api/projects`);
+          // Only projects in this workspace the author can WRITE, excluding
+          // the current one. The general project list is filtered by read
+          // access, so it offered projects the save then refused with a 400.
+          const res = await fetch(
+            `/api/projects/${encodeURIComponent(projectId)}/workflow?targets=projects`
+          );
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = (await res.json()) as Array<{
             id: string;
@@ -147,7 +155,7 @@ export function WorkflowActionDialog({
     return () => {
       canceled = true;
     };
-  }, [open, actionType, projectId, userQuery, retryKey]);
+  }, [open, actionType, projectId, workspaceId, userQuery, retryKey]);
 
   // ─── Confirm button ──────────────────────────────────────────
   function handleConfirm() {
@@ -331,14 +339,15 @@ export function WorkflowActionDialog({
               <Textarea
                 value={commentContent}
                 onChange={(e) => setCommentContent(e.target.value)}
-                placeholder="e.g. @lead please review — this is ready for sign-off"
+                placeholder="e.g. Ready for PE review before sign-off"
                 rows={4}
                 maxLength={4000}
                 className="resize-none"
                 autoFocus
               />
               <p className="text-[11px] text-slate-400 tabular-nums">
-                {commentContent.length}/4000
+                {commentContent.length}/4000 · Posted as plain text; @mentions
+                are not resolved. Task followers are notified.
               </p>
             </>
           )}
@@ -351,6 +360,8 @@ export function WorkflowActionDialog({
               </p>
               {loadingTargets ? (
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              ) : loadError ? (
+                <LoadFailed onRetry={() => setRetryKey((k) => k + 1)} />
               ) : projects.length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-4">
                   No other projects available

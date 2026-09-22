@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { contributorSeatSatisfied } from "@/lib/auth-guards";
 
 // GET /api/tasks/assigned - Get tasks assigned by current user to others
 export async function GET() {
@@ -18,6 +19,19 @@ export async function GET() {
     // Completed history is windowed to the last 30 days so old done work
     // doesn't eat into the 200-row budget; completedAt: null rows are kept
     // (pending tasks, plus legacy completions from before the column).
+    // A creator tie only counts while the caller still holds a contributor
+    // seat in the task's workspace (see decideTaskAccess): someone removed
+    // from the firm must not keep listing the tasks they created there, whose
+    // details now answer 404. Personal (projectless) tasks have no workspace
+    // and always count.
+    const memberships = await prisma.workspaceMember.findMany({
+      where: { userId },
+      select: { workspaceId: true, role: true },
+    });
+    const seatWorkspaceIds = memberships
+      .filter((m) => contributorSeatSatisfied(m.role))
+      .map((m) => m.workspaceId);
+
     const completedCutoff = new Date();
     completedCutoff.setDate(completedCutoff.getDate() - 30);
 
@@ -28,10 +42,20 @@ export async function GET() {
           not: userId,
         },
         parentTaskId: null, // Only top-level tasks
-        OR: [
-          { completed: false },
-          { completedAt: null },
-          { completedAt: { gte: completedCutoff } },
+        AND: [
+          {
+            OR: [
+              { completed: false },
+              { completedAt: null },
+              { completedAt: { gte: completedCutoff } },
+            ],
+          },
+          {
+            OR: [
+              { projectId: null },
+              { project: { workspaceId: { in: seatWorkspaceIds } } },
+            ],
+          },
         ],
       },
       select: {

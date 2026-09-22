@@ -48,12 +48,20 @@ export function CreateTaskDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>();
+  // Every label follows the type being created: a milestone opened from
+  // Overview > Milestones must not read "Task name" / "Create task".
+  const noun =
+    defaultTaskType === "MILESTONE"
+      ? "Milestone"
+      : defaultTaskType === "APPROVAL"
+        ? "Approval"
+        : "Task";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name.trim()) {
-      toast.error("Task name is required");
+      toast.error(`${noun} name is required`);
       return;
     }
 
@@ -74,19 +82,22 @@ export function CreateTaskDialog({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create task");
+        // Surface the server's reason (read-only access, bad date range,
+        // missing section) instead of a generic failure.
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || `Failed to create ${noun.toLowerCase()}`);
       }
 
-      toast.success(
-        defaultTaskType === "MILESTONE"
-          ? "Milestone created successfully"
-          : "Task created successfully"
-      );
+      toast.success(`${noun} created successfully`);
       onOpenChange(false);
       resetForm();
       router.refresh();
     } catch (error) {
-      toast.error("Failed to create task");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : `Failed to create ${noun.toLowerCase()}`
+      );
     } finally {
       setLoading(false);
     }
@@ -110,21 +121,27 @@ export function CreateTaskDialog({
           <DialogHeader>
             <DialogTitle>
               {defaultTaskType === "MILESTONE"
-                ? "Create new milestone"
-                : "Create new task"}
+                ? "Add milestone"
+                : `Create new ${noun.toLowerCase()}`}
             </DialogTitle>
             <DialogDescription>
               {defaultTaskType === "MILESTONE"
                 ? "Mark an important point in your project's schedule."
-                : "Add a new task to track your work."}
+                : defaultTaskType === "APPROVAL"
+                  ? "Ask for a sign-off on a piece of work."
+                  : "Add a new task to track your work."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="task-name">Task name</Label>
+              <Label htmlFor="task-name">{noun} name</Label>
               <Input
                 id="task-name"
-                placeholder="What needs to be done?"
+                placeholder={
+                  defaultTaskType === "MILESTONE"
+                    ? "What point are you marking?"
+                    : "What needs to be done?"
+                }
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
@@ -176,7 +193,7 @@ export function CreateTaskDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create task"}
+              {loading ? "Creating..." : `Create ${noun.toLowerCase()}`}
             </Button>
           </DialogFooter>
         </form>

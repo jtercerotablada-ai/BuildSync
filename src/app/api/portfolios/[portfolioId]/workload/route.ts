@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { taskPrivacyClause } from "@/lib/project-visibility";
+import {
+  projectVisibilityClauseFor,
+  taskPrivacyClause,
+} from "@/lib/project-visibility";
 import { readTimeTracking, WORK_HOURS_PER_DAY } from "@/lib/duration";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 // GET /api/portfolios/:portfolioId/workload
-// Returns all open tasks across projects in this portfolio + the
+// Returns all open tasks across the portfolio's projects the caller may
+// read (archived ones excluded) + the
 // distinct assignees, so the Workload view can render a member×day
 // heatmap without making one request per project.
 //
@@ -66,14 +71,41 @@ export async function GET(
       where: {
         userId_workspaceId: { userId, workspaceId: portfolio.workspaceId },
       },
+      select: { role: true, user: { select: { position: true } } },
     });
+    // Same view rule as GET /api/portfolios/[portfolioId] (decidePortfolioAccess):
+    // owner | member | workspace OWNER/ADMIN | PUBLIC | WORKSPACE + contributor seat.
     const allowed =
-      !!wsMember && (isOwner || isMember || portfolio.privacy === "PUBLIC");
-    if (!allowed) {
+      !!wsMember &&
+      (isOwner ||
+        isMember ||
+        wsMember.role === "OWNER" ||
+        wsMember.role === "ADMIN" ||
+        portfolio.privacy === "PUBLIC" ||
+        (portfolio.privacy === "WORKSPACE" &&
+          !isNonContributorRole(wsMember.role)));
+    if (!wsMember || !allowed) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const projectIds = portfolio.projects.map((p) => p.projectId);
+    // Reading the portfolio is not permission to read every project in it:
+    // a PRIVATE project the caller is not on would otherwise leak its task
+    // names and assignees through this grid. Keep only the projects the
+    // canonical list rule lets this caller see, and drop archived ones so the
+    // grid agrees with the portfolio's own project list.
+    const readableProjects = await prisma.project.findMany({
+      where: {
+        id: { in: portfolio.projects.map((p) => p.projectId) },
+        isArchived: false,
+        ...projectVisibilityClauseFor(userId, {
+          workspaceId: portfolio.workspaceId,
+          role: wsMember.role,
+          position: wsMember.user.position,
+        }),
+      },
+      select: { id: true },
+    });
+    const projectIds = readableProjects.map((p) => p.id);
     if (projectIds.length === 0) {
       return NextResponse.json({ tasks: [], assignees: [], projects: [] });
     }
@@ -97,6 +129,7 @@ export async function GET(
         id: true,
         name: true,
         assigneeId: true,
+        startDate: true,
         dueDate: true,
         completed: true,
         projectId: true,
@@ -110,12 +143,18 @@ export async function GET(
     // MINUTES (see PATCH /api/tasks/[id]/custom-fields/[fieldId]). We sum
     // estimatedMin across every TIME_TRACKING field on the task, then let
     // the client convert to hours. No schema change — we join the existing
-    // CustomFieldValue rows for TIME_TRACKING defs in this workspace.
+    // CustomFieldValue rows for TIME_TRACKING defs linked to the portfolio's
+    // readable projects — same scoping as the project workload route, so
+    // orphaned and personal definitions don't inflate the hours.
     const taskIds = tasks.map((t) => t.id);
     const estimatedMinutesByTask = new Map<string, number>();
     if (taskIds.length) {
       const timeDefs = await prisma.customFieldDefinition.findMany({
-        where: { workspaceId: portfolio.workspaceId, type: "TIME_TRACKING" },
+        where: {
+          workspaceId: portfolio.workspaceId,
+          type: "TIME_TRACKING",
+          projectFields: { some: { projectId: { in: projectIds } } },
+        },
         select: { id: true },
       });
       const timeFieldIds = timeDefs.map((d) => d.id);
@@ -167,6 +206,7 @@ export async function GET(
     return NextResponse.json({
       tasks: tasks.map((t) => ({
         ...t,
+        startDate: t.startDate ? t.startDate.toISOString() : null,
         dueDate: t.dueDate ? t.dueDate.toISOString() : null,
         estimatedMinutes: estimatedMinutesByTask.get(t.id) || 0,
       })),

@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
+import {
+  canChangeWorkspaceRole,
+  canRemoveWorkspaceMember,
+} from "@/lib/people-types";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 // GET /api/workspace/members - Get all workspace members
 export async function GET() {
@@ -76,15 +81,24 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
-    // Check if current user is admin/owner
     const currentMember = await getPrimaryWorkspaceMembership(userId);
 
-    if (!currentMember || !["OWNER", "ADMIN"].includes(currentMember.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    if (!currentMember) {
+      return NextResponse.json({ error: "No workspace found" }, { status: 404 });
     }
 
-    // An ADMIN could otherwise re-role themselves down (or an OWNER out of
-    // their own workspace) from a control the UI never shows for yourself.
+    // Same rule as PATCH /api/team/directory (canChangeWorkspaceRole): only
+    // an owner changes roles. This route let an ADMIN mint or demote other
+    // admins while the People screen said only the owner could.
+    if (currentMember.role !== "OWNER") {
+      return NextResponse.json(
+        { error: "Only the workspace owner can change roles" },
+        { status: 403 }
+      );
+    }
+
+    // An owner could otherwise re-role themselves out of their own workspace
+    // from a control the UI never shows for yourself.
     if (targetUserId === userId) {
       return NextResponse.json(
         { error: "You can't change your own role" },
@@ -92,8 +106,8 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Prevent changing owner role; the lookup is scoped to the caller's
-    // workspace, so a member of another workspace reads as not found.
+    // The lookup is scoped to the caller's workspace, so a member of another
+    // workspace reads as not found.
     const targetMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -107,7 +121,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    if (targetMember.role === "OWNER") {
+    if (!canChangeWorkspaceRole(currentMember.role, targetMember.role, false)) {
       return NextResponse.json(
         { error: "Cannot change owner role" },
         { status: 400 }
@@ -179,6 +193,41 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
+    // An admin removes regular members but not another admin — removing an
+    // admin would otherwise be the way around the owner-only role rule
+    // (canRemoveWorkspaceMember). Owner targets have their own rule below.
+    if (
+      targetMember.role !== "OWNER" &&
+      !canRemoveWorkspaceMember(currentMember.role, targetMember.role, isSelf)
+    ) {
+      return NextResponse.json(
+        { error: "Only an owner can remove an admin" },
+        { status: 403 }
+      );
+    }
+
+    // Open tasks go to the person the remover picked, or become unassigned.
+    // Left on the departing person they sit in nobody's My Tasks and the
+    // due-date reminders mail an account that has left the firm. The heir
+    // must be a contributor of this workspace, or the tasks would land on
+    // someone who can't work them.
+    const reassignTo = searchParams.get("reassignTo") || null;
+    if (reassignTo) {
+      const heirSeat =
+        reassignTo === targetUserId
+          ? null
+          : await prisma.workspaceMember.findUnique({
+              where: { userId_workspaceId: { userId: reassignTo, workspaceId } },
+              select: { role: true },
+            });
+      if (!heirSeat || isNonContributorRole(heirSeat.role)) {
+        return NextResponse.json(
+          { error: "Pick a current member of this workspace to take over the tasks" },
+          { status: 400 }
+        );
+      }
+    }
+
     // The workspace must never be left ownerless. An owner may be removed —
     // people do leave the firm — but only by another owner, and never the
     // last one: workspace leadership is what grants access to a PRIVATE
@@ -208,11 +257,15 @@ export async function DELETE(req: Request) {
     // forever. Nothing in the app can transfer project ownership, so the
     // removal does it here — leadership inherits, and every project keeps a
     // named owner.
-    const ownedProjects = await prisma.project.count({
-      where: { workspaceId, ownerId: targetUserId },
-    });
+    // Goals and portfolios follow the same heir: an ownerless one is still
+    // reachable by leadership, but nobody would be answering for it.
+    const [ownedProjects, ownedGoals, ownedPortfolios] = await Promise.all([
+      prisma.project.count({ where: { workspaceId, ownerId: targetUserId } }),
+      prisma.objective.count({ where: { workspaceId, ownerId: targetUserId } }),
+      prisma.portfolio.count({ where: { workspaceId, ownerId: targetUserId } }),
+    ]);
     let heirId: string | null = null;
-    if (ownedProjects > 0) {
+    if (ownedProjects + ownedGoals + ownedPortfolios > 0) {
       const heir =
         (await prisma.workspaceMember.findFirst({
           where: { workspaceId, role: "OWNER", userId: { not: targetUserId } },
@@ -225,8 +278,9 @@ export async function DELETE(req: Request) {
           select: { userId: true },
         }));
       // Refusing beats orphaning: an ownerless project is readable only by
-      // workspace leadership, and there is none here to read it.
-      if (!heir) {
+      // workspace leadership, and there is none here to read it. Goals and
+      // portfolios alone don't block the removal; they just stay ownerless.
+      if (!heir && ownedProjects > 0) {
         return NextResponse.json(
           {
             error:
@@ -235,7 +289,7 @@ export async function DELETE(req: Request) {
           { status: 409 }
         );
       }
-      heirId = heir.userId;
+      heirId = heir?.userId ?? null;
     }
 
     // One transaction: a half-removal that looks done is worse than the
@@ -248,7 +302,20 @@ export async function DELETE(req: Request) {
           where: { workspaceId, ownerId: targetUserId },
           data: { ownerId: heirId },
         });
+        await tx.objective.updateMany({
+          where: { workspaceId, ownerId: targetUserId },
+          data: { ownerId: heirId },
+        });
+        await tx.portfolio.updateMany({
+          where: { workspaceId, ownerId: targetUserId },
+          data: { ownerId: heirId },
+        });
       }
+      // A PortfolioMember row opens the portfolio (and its roll-ups) on its
+      // own, without asking about workspace membership.
+      const portfolios = await tx.portfolioMember.deleteMany({
+        where: { userId: targetUserId, portfolio: { workspaceId } },
+      });
       // canRead/canWrite say yes to an explicit ProjectMember row first thing.
       const projects = await tx.projectMember.deleteMany({
         where: { userId: targetUserId, project: { workspaceId } },
@@ -264,12 +331,25 @@ export async function DELETE(req: Request) {
       const follows = await tx.taskCollaborator.deleteMany({
         where: { userId: targetUserId, task: { project: { workspaceId } } },
       });
+      const reassigned = await tx.task.updateMany({
+        where: {
+          assigneeId: targetUserId,
+          completed: false,
+          project: { workspaceId },
+        },
+        data: { assigneeId: reassignTo },
+      });
       await tx.workspaceMember.delete({ where: { id: targetMember.id } });
       return {
+        openTasksReassigned: reassigned.count,
+        reassignedTo: reassignTo,
         projectMemberships: projects.count,
         teamMemberships: teams.count,
         taskFollows: follows.count,
+        portfolioMemberships: portfolios.count,
         projectsTransferred: ownedProjects,
+        goalsTransferred: heirId ? ownedGoals : 0,
+        portfoliosTransferred: heirId ? ownedPortfolios : 0,
       };
     });
 

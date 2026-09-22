@@ -115,11 +115,17 @@ export async function GET(
         reactions: Object.values(reactionsByEmoji).sort(
           (a, b) => b.count - a.count
         ),
+        // The stored url is a storage address; hand out the authenticated
+        // read door instead, which re-checks the thread's access rule.
         attachments: m.attachments.map((a) => ({
           ...a,
+          url: `/api/messages/${m.id}/attachments?file=${a.id}`,
           createdAt: a.createdAt.toISOString(),
         })),
         mine: m.author?.id === userId,
+        // Same rule DELETE applies, so the thread hides a Delete the server
+        // would refuse.
+        canDelete: m.author?.id === userId || access.isAdmin,
         mentions: m.mentions.map((mn) => ({
           userId: mn.userId,
           name: mn.user.name,
@@ -268,6 +274,7 @@ export async function POST(
         reactions: [],
         attachments: [],
         mine: true,
+        canDelete: true,
         mentions: resolvedMentions,
       },
       { status: 201 }

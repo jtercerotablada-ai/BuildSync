@@ -2,8 +2,8 @@
  * Workflow engine — runs WorkflowRule actions when their trigger
  * matches a state change.
  *
- * Currently only handles "TASK_MOVED_TO_SECTION" triggers because
- * that's the only trigger type the schema models today. Adding more
+ * Handles the two trigger types in workflow-types: "TASK_MOVED_TO_SECTION"
+ * and "TASK_COMPLETED". Rules only ever run on top-level tasks. Adding more
  * triggers is additive: extend the trigger union in workflow-types,
  * add a new public `executeRulesOnX()` function here, hook it in
  * whatever API endpoint owns that state transition.
@@ -47,6 +47,28 @@ interface ExecuteContext {
 
 /** A rule chain deeper than this is a misconfiguration (e.g. A→B→A). */
 const MAX_CHAIN_DEPTH = 5;
+
+/** Every descendant of `rootId` (subtasks, their subtasks, ...), not
+ *  including the root, walked level by level. `seen` guards a corrupt cycle. */
+async function collectDescendantIds(rootId: string): Promise<string[]> {
+  const seen = new Set<string>([rootId]);
+  const out: string[] = [];
+  let frontier = [rootId];
+  while (frontier.length > 0) {
+    const children = await prisma.task.findMany({
+      where: { parentTaskId: { in: frontier } },
+      select: { id: true },
+    });
+    frontier = [];
+    for (const c of children) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push(c.id);
+      frontier.push(c.id);
+    }
+  }
+  return out;
+}
 
 /**
  * Apply every rule on the project's workflow whose trigger matches
@@ -97,10 +119,33 @@ async function executeRulesMatching(
     return;
   }
   try {
+    // Section and completion rules govern top-level tasks only, the same
+    // rule POST /api/tasks applies. Subtasks carry their parent's projectId
+    // and sectionId, so without this every checklist tick re-ran the
+    // project's completion rules on the subtask (duplicate comments, hidden
+    // subtasks moved between columns, sub-subtasks created).
+    const subject = await prisma.task.findUnique({
+      where: { id: ctx.taskId },
+      select: { parentTaskId: true },
+    });
+    if (!subject || subject.parentTaskId) return;
+
     const workflows = await prisma.workflow.findMany({
       where: { projectId, isActive: true },
-      include: { rules: true },
+      orderBy: { createdAt: "asc" },
+      // Deterministic order: rules run in the order they were created, so
+      // two rules touching the same field always resolve the same way
+      // instead of following Postgres heap order.
+      include: { rules: { orderBy: { createdAt: "asc" } } },
     });
+
+    // One trigger event moves the task at most once. Several "Task
+    // completed → moved here" slots can exist; letting each run would bounce
+    // the task through every target (and each one's chained rules), so the
+    // oldest rule wins and the rest are skipped. The slot is claimed only by
+    // a move that actually lands: a stale rule aimed at a deleted section
+    // must not silently swallow the valid move behind it.
+    let moved = false;
 
     for (const wf of workflows) {
       for (const rule of wf.rules) {
@@ -109,13 +154,35 @@ async function executeRulesMatching(
 
         const actions = (rule.actions as unknown as WorkflowAction[]) || [];
         for (const action of actions) {
+          if (action.type === "MOVE_TO_SECTION") {
+            if (moved) {
+              console.warn(
+                `[workflow-engine] MOVE_TO_SECTION in rule ${rule.id} skipped: the task was already moved by an earlier rule for this trigger`
+              );
+              continue;
+            }
+          }
           try {
-            await runAction(ctx, action);
+            const landed = await runAction(ctx, action);
+            if (action.type === "MOVE_TO_SECTION" && landed === true) {
+              moved = true;
+            }
           } catch (err) {
             console.error(
               `[workflow-engine] action ${action.type} failed for rule ${rule.id}:`,
               err
             );
+            // The move may have landed before a later step (a chained rule)
+            // threw; if the task sits in the target now, the slot is used.
+            if (action.type === "MOVE_TO_SECTION" && action.sectionId) {
+              const now = await prisma.task
+                .findUnique({
+                  where: { id: ctx.taskId },
+                  select: { sectionId: true },
+                })
+                .catch(() => null);
+              if (now?.sectionId === action.sectionId) moved = true;
+            }
           }
         }
       }
@@ -131,10 +198,15 @@ async function executeRulesMatching(
  * so re-running a rule (e.g. user moves task back and forth) doesn't
  * compound side effects.
  */
+/**
+ * Runs one action. MOVE_TO_SECTION resolves to whether the task ends up in
+ * the target section (true when it moved or was already there, false when
+ * the move was skipped); every other action resolves to nothing.
+ */
 async function runAction(
   ctx: ExecuteContext,
   action: WorkflowAction
-): Promise<void> {
+): Promise<boolean | void> {
   switch (action.type) {
     case "SET_ASSIGNEE": {
       // null = unassign (intentional config). The target is re-checked at
@@ -209,13 +281,19 @@ async function runAction(
         }
       }
       if (allowed.length === 0) return;
-      await prisma.taskCollaborator.createMany({
+      const added = await prisma.taskCollaborator.createMany({
         data: allowed.map((uid) => ({
           taskId: ctx.taskId,
           userId: uid,
         })),
         skipDuplicates: true,
       });
+      if (added.count > 0) {
+        await logActivity(ctx, "CUSTOM_FIELD_CHANGED", {
+          fieldName: "Collaborators",
+          addedUserIds: allowed,
+        });
+      }
       return;
     }
 
@@ -306,22 +384,35 @@ async function runAction(
       return;
     }
 
-    case "SET_PRIORITY":
+    case "SET_PRIORITY": {
+      const task = await prisma.task.findUnique({
+        where: { id: ctx.taskId },
+        select: { priority: true },
+      });
+      if (!task || task.priority === action.priority) return;
       await prisma.task.update({
         where: { id: ctx.taskId },
         data: { priority: action.priority },
       });
+      // Without a history row nobody can tell why the priority changed.
+      await logActivity(ctx, "CUSTOM_FIELD_CHANGED", {
+        fieldName: "Priority",
+        from: task.priority,
+        to: action.priority,
+      });
       return;
+    }
 
     case "MOVE_TO_SECTION": {
       // Move the task into the configured section (e.g. "when a task
       // is completed → move it to Done").
-      if (!action.sectionId) return;
+      if (!action.sectionId) return false;
       const task = await prisma.task.findUnique({
         where: { id: ctx.taskId },
         select: { sectionId: true, projectId: true },
       });
-      if (!task || task.sectionId === action.sectionId) return;
+      if (!task) return false;
+      if (task.sectionId === action.sectionId) return true;
       // Never let a rule fling a task into another project's board.
       const dest = await prisma.section.findUnique({
         where: { id: action.sectionId },
@@ -331,7 +422,7 @@ async function runAction(
         console.warn(
           "[workflow-engine] MOVE_TO_SECTION skipped: section is not in the task's project"
         );
-        return;
+        return false;
       }
       // Land at the end of the column — without a position the task keeps
       // its old index and collides with whatever already sits there.
@@ -347,6 +438,15 @@ async function runAction(
           position: (last?.position ?? -1) + 1,
         },
       });
+      // Subtasks live in their parent's column (same rule as PATCH
+      // /api/tasks/:id); moving only the parent stranded them in the old one.
+      const descendantIds = await collectDescendantIds(ctx.taskId);
+      if (descendantIds.length > 0) {
+        await prisma.task.updateMany({
+          where: { id: { in: descendantIds } },
+          data: { sectionId: action.sectionId },
+        });
+      }
       await logActivity(ctx, "TASK_MOVED", { sectionId: action.sectionId });
 
       // Chain: the task just entered a section, so that section's own
@@ -358,7 +458,7 @@ async function runAction(
           task.projectId
         );
       }
-      return;
+      return true;
     }
 
     case "ADD_SUBTASK": {
@@ -386,7 +486,7 @@ async function runAction(
         orderBy: { position: "desc" },
         select: { position: true },
       });
-      await prisma.task.create({
+      const sub = await prisma.task.create({
         data: {
           name: action.name.trim(),
           parentTaskId: ctx.taskId,
@@ -395,6 +495,12 @@ async function runAction(
           creatorId: ctx.actorUserId,
           position: (lastSub?.position ?? -1) + 1,
         },
+        select: { id: true, name: true },
+      });
+      // Same parent-feed row the manual subtask path writes.
+      await logActivity(ctx, "SUBTASK_ADDED", {
+        subtaskId: sub.id,
+        subtaskName: sub.name,
       });
       return;
     }
@@ -486,7 +592,9 @@ async function logActivity(
     | "TASK_ASSIGNED"
     | "TASK_UNASSIGNED"
     | "TASK_MOVED"
-    | "COMMENT_ADDED",
+    | "COMMENT_ADDED"
+    | "SUBTASK_ADDED"
+    | "CUSTOM_FIELD_CHANGED",
   data: Record<string, unknown>
 ) {
   try {

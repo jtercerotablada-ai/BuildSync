@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import type { ProjectType } from "@prisma/client";
+import { usePathname, useRouter } from "next/navigation";
 import { notifySidebarRefresh } from "@/lib/open-create-project";
+import {
+  isStageValidForType,
+  stageLabel,
+  stagesForType,
+} from "@/lib/pipelines";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +38,9 @@ export interface ProjectInitial {
   projectNumber?: string | null;
   name?: string | null;
   type?: string | null;
+  /** Current pipeline stage key — lets the dialog warn before a Type change
+   *  that would reset it. */
+  stage?: string | null;
   gate?: string | null;
   color?: string | null;
   clientName?: string | null;
@@ -53,6 +62,9 @@ interface CreateProjectDialogProps {
   initialProject?: ProjectInitial | null;
   /** Called after a successful edit (use to refresh the parent). */
   onProjectUpdated?: () => void;
+  /** Create mode only: share the new project with this team (the gallery's
+   *  team context carried into the blank form). Ignored when editing. */
+  teamId?: string | null;
 }
 
 // Monochrome + gold palette only — six shades along black → white → gold.
@@ -86,6 +98,12 @@ const CURRENCIES = [
   { value: "CAD", label: "CAD — Canadian Dollar" },
 ];
 
+/** The route's error text, or `fallback` when the body has none. */
+async function responseError(res: Response, fallback: string): Promise<string> {
+  const data = await res.json().catch(() => null);
+  return typeof data?.error === "string" && data.error ? data.error : fallback;
+}
+
 function toDateInput(value: string | null | undefined): string {
   if (!value) return "";
   // accept ISO strings ("2026-05-11T00:00:00.000Z") or plain "yyyy-mm-dd"
@@ -100,8 +118,12 @@ export function CreateProjectDialog({
   onProjectCreated,
   initialProject,
   onProjectUpdated,
+  teamId,
 }: CreateProjectDialogProps) {
   const router = useRouter();
+  // Mounted in both shells; a new project opens in the one the user is in.
+  const pathname = usePathname();
+  const shellPrefix = pathname?.startsWith("/portal") ? "/portal" : "";
   const [loading, setLoading] = useState(false);
 
   const isEdit = !!initialProject;
@@ -144,9 +166,17 @@ export function CreateProjectDialog({
     setDescription("");
   };
 
-  // Prefill from initialProject whenever the dialog opens in edit mode.
+  // Prefill once per opening. Running on every `initialProject` change would
+  // reset the form whenever the parent re-renders with a new object (e.g. a
+  // session refetch on window focus) and throw away what the user typed.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
     if (initialProject) {
       setName(initialProject.name ?? "");
       setType(initialProject.type ?? "");
@@ -240,33 +270,58 @@ export function CreateProjectDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (!response.ok) throw new Error("Failed to update project");
+        if (!response.ok) {
+          throw new Error(await responseError(response, "Failed to update project"));
+        }
         toast.success("Project updated");
         notifySidebarRefresh();
         onOpenChange(false);
         onProjectUpdated?.();
       } else {
         const payload = buildPayload(false);
+        // The route's schema is `z.string().optional()`: omit, never null.
+        if (teamId) payload.teamId = teamId;
         const response = await fetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (!response.ok) throw new Error("Failed to create project");
+        if (!response.ok) {
+          throw new Error(await responseError(response, "Failed to create project"));
+        }
         const project = await response.json();
         toast.success(`Project ${project.projectNumber ?? ""} created`.trim());
         notifySidebarRefresh();
         onOpenChange(false);
         resetForm();
         onProjectCreated?.();
-        router.push(`/projects/${project.id}`);
+        router.push(`${shellPrefix}/projects/${project.id}`);
       }
-    } catch {
-      toast.error(isEdit ? "Failed to update project" : "Failed to create project");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : isEdit
+            ? "Failed to update project"
+            : "Failed to create project"
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  // The server moves the job to the first stage of the new pipeline when its
+  // current stage does not belong there, and switching back does not restore
+  // it. Say so before Save rather than let the stage vanish silently.
+  const currentStage = initialProject?.stage ?? null;
+  const typeChanged = isEdit && type !== (initialProject?.type ?? "");
+  const stageWillReset =
+    typeChanged &&
+    !!currentStage &&
+    !isStageValidForType((type || null) as ProjectType | null, currentStage);
+  const resetTo = stageWillReset
+    ? stagesForType((type || null) as ProjectType | null)[0] ?? null
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -325,6 +380,15 @@ export function CreateProjectDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  {stageWillReset && (
+                    <p className="text-[12px] text-amber-800" role="note">
+                      The current stage ({stageLabel(currentStage) ?? currentStage})
+                      doesn&apos;t exist for this type.{" "}
+                      {resetTo
+                        ? `Saving moves the job to "${resetTo.label}", and switching the type back won't restore it.`
+                        : "Saving clears the stage, and switching the type back won't restore it."}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="color">Color</Label>

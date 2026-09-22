@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { getStatusOption } from "@/lib/goal-utils";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 
 type PortfolioStatus =
   | "ON_TRACK"
@@ -195,9 +196,11 @@ function timeAgo(iso: string) {
   });
 }
 
+/** The portfolio end date is date-only (stored at UTC midnight), so it is
+ *  read by its UTC calendar day; a local read shows the day before. */
 function formatDueDate(iso: string | null) {
   if (!iso) return "No due date";
-  return new Date(iso).toLocaleDateString("en-US", {
+  return dueDateToLocalMidnight(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",

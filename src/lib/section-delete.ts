@@ -2,8 +2,9 @@
  * The one copy of what "Delete section" warns about.
  *
  * DELETE /api/sections/:id is the most destructive verb on the project
- * surface: it hard-deletes every task carrying that sectionId — sub-tasks
- * included — with no trash and no undo. Three views can fire it (List, Board
+ * surface: it hard-deletes every top-level task in that section together with
+ * its whole sub-task tree, with no trash and no undo. (A stray sub-task whose
+ * parent now lives in another column follows that parent instead.) Three views can fire it (List, Board
  * and the Workflow builder) and each carried its own confirmation string, so
  * the Workflow copy had already drifted away from the other two: it did not
  * name the section, did not say the count includes completed and hidden
@@ -12,8 +13,9 @@
  * Worse, it counted `section.tasks.length` — the RENDERED rows, which hide
  * sub-tasks, hide whatever the active filter hides, and include multi-homed
  * guest tasks the delete does NOT touch (those keep their HOME section id).
- * A column showing 3 cards can hold 12 rows. The honest number is computed
- * server-side as `sectionTaskCounts` in the project page; every caller here
+ * A column showing 3 cards can hold 12 rows. The honest number (top-level
+ * tasks; the sentence adds "plus their sub-tasks") is computed server-side as
+ * `sectionTaskCounts` in the project page; every caller here
  * takes it as `rawTaskCount` and only falls back to a rendered length when
  * the prop is missing.
  *

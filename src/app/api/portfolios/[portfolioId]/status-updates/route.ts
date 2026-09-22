@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 const STATUS_VALUES = [
   "ON_TRACK",
@@ -48,24 +49,29 @@ async function assertPortfolioAccess(portfolioId: string, userId: string) {
       userId_workspaceId: { userId, workspaceId: portfolio.workspaceId },
     },
   });
+  if (!wsMember) return { ok: false as const, status: 404 };
+
+  // Same rule as decidePortfolioAccess in ../route.ts: WORKSPACE opens the
+  // portfolio to every contributor, and workspace OWNER/ADMIN see and edit
+  // every portfolio.
+  const isContributor = !isNonContributorRole(wsMember.role);
+  const isWorkspaceManager =
+    wsMember.role === "OWNER" || wsMember.role === "ADMIN";
   const allowed =
-    !!wsMember && (isOwner || isMember || portfolio.privacy === "PUBLIC");
+    isOwner ||
+    isMember ||
+    isWorkspaceManager ||
+    portfolio.privacy === "PUBLIC" ||
+    (portfolio.privacy === "WORKSPACE" && isContributor);
+  if (!allowed) return { ok: false as const, status: 404 };
 
-  if (allowed) {
-    return { ok: true as const, portfolio, member };
-  }
-
-  return { ok: false as const, status: 404 };
-}
-
-function canEditPortfolio(
-  portfolio: { ownerId: string | null },
-  member: { role: string } | null,
-  userId: string
-): boolean {
-  if (portfolio.ownerId === userId) return true;
-  if (!member) return false;
-  return member.role === "OWNER" || member.role === "EDITOR";
+  const canEdit =
+    isContributor &&
+    (isOwner ||
+      isWorkspaceManager ||
+      member?.role === "OWNER" ||
+      member?.role === "EDITOR");
+  return { ok: true as const, portfolio, member, canEdit };
 }
 
 // GET /api/portfolios/:portfolioId/status-updates
@@ -141,7 +147,7 @@ export async function POST(
     // capability (owner or member OWNER/EDITOR) BEFORE we create the row,
     // regardless of whether it also syncs the portfolio's header status.
     // VIEWER/public callers are read-only here.
-    if (!canEditPortfolio(access.portfolio, access.member, userId)) {
+    if (!access.canEdit) {
       return NextResponse.json(
         {
           error:
@@ -162,26 +168,30 @@ export async function POST(
 
     const wantsSync = parsed.data.syncPortfolioStatus;
 
-    const created = await prisma.portfolioStatusUpdate.create({
-      data: {
-        portfolioId,
-        authorId: userId,
-        status: parsed.data.status,
-        summary: parsed.data.summary.trim(),
-      },
-      include: {
-        author: {
-          select: { id: true, name: true, email: true, image: true },
+    // One transaction: an update that lands without its header sync (or
+    // the reverse) would leave the badge contradicting the latest post.
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.portfolioStatusUpdate.create({
+        data: {
+          portfolioId,
+          authorId: userId,
+          status: parsed.data.status,
+          summary: parsed.data.summary.trim(),
         },
-      },
-    });
-
-    if (wantsSync) {
-      await prisma.portfolio.update({
-        where: { id: portfolioId },
-        data: { status: parsed.data.status },
+        include: {
+          author: {
+            select: { id: true, name: true, email: true, image: true },
+          },
+        },
       });
-    }
+      if (wantsSync) {
+        await tx.portfolio.update({
+          where: { id: portfolioId },
+          data: { status: parsed.data.status },
+        });
+      }
+      return row;
+    });
 
     return NextResponse.json(
       {

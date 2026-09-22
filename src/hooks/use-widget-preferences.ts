@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import {
   WidgetType,
   WidgetSize,
@@ -34,7 +35,8 @@ const REMOVED_WIDGET_ID_SET: ReadonlySet<string> = new Set(REMOVED_WIDGET_IDS);
  * Strip any widget IDs that no longer exist in AVAILABLE_WIDGETS
  * (typically widgets we've sunset, like the May 2026 PMI tiles).
  * Falls back to the default preferences if filtering leaves the
- * user with nothing visible — better than an empty home page.
+ * user with nothing visible because every stored id was retired —
+ * better than an empty home page. A deliberately empty list is kept.
  */
 function migratePreferences(
   raw: Partial<UserWidgetPreferences>
@@ -59,8 +61,14 @@ function migratePreferences(
   }
   // If migration would leave the page empty (e.g. user only had
   // PMI tiles enabled), restore the defaults so they're not stuck
-  // staring at a blank grid.
-  if (visible.length === 0) return getDefaultPreferences();
+  // staring at a blank grid. A stored list that was ALREADY empty is the
+  // user's own choice (they removed every widget) and is kept: resetting
+  // it here re-added the defaults on every reload and PATCHed them back.
+  // A payload with no list at all is still "nothing saved" -> defaults.
+  const rawVisible = raw.visibleWidgets;
+  if (visible.length === 0 && (!Array.isArray(rawVisible) || rawVisible.length > 0)) {
+    return getDefaultPreferences();
+  }
   // Repair an order missing visible IDs (e.g. a partial payload from
   // an old client) — a widget that is visible but absent from the
   // order would otherwise render nowhere.
@@ -230,18 +238,29 @@ export function useWidgetPreferences() {
       }
     }
 
-    // Debounced API save
+    // Debounced API save. A failed save (4xx/5xx or network) is not
+    // silent: the server layout would overwrite the local change on the
+    // next load. It warns once and leaves the save pending, so the next
+    // change or the unmount flush sends the latest layout again.
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     pendingSaveRef.current = true;
     saveTimeoutRef.current = setTimeout(() => {
       pendingSaveRef.current = false;
+      const onFail = () => {
+        pendingSaveRef.current = true;
+        toast.error("Couldn't save your Home layout", {
+          id: 'home-layout-save-failed',
+        });
+      };
       fetch('/api/users/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ widgetPreferences: preferences }),
-      }).catch(() => {
-        // ignore network errors — local copy is the fallback
-      });
+      })
+        .then((res) => {
+          if (!res.ok) onFail();
+        })
+        .catch(onFail);
     }, 500);
 
     return () => {

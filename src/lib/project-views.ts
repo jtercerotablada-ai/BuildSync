@@ -22,8 +22,11 @@ export const BUILTIN_VIEWS: BuiltinViewDef[] = [
   { key: "calendar", label: "Calendar", mobile: true },
   { key: "gantt", label: "Gantt", mobile: true },
   { key: "workflow", label: "Workflow", mobile: false },
-  { key: "messages", label: "Messages", mobile: false },
-  { key: "files", label: "Files", mobile: false },
+  // Messages and Files are two of the five tabs a new project opens with
+  // (DEFAULT_VISIBLE_VIEWS), and the drawings and the project thread are what
+  // someone on site reaches for — so they show on phones too.
+  { key: "messages", label: "Messages", mobile: true },
+  { key: "files", label: "Files", mobile: true },
   { key: "notes", label: "Notes", mobile: false },
   { key: "workload", label: "Workload", mobile: false },
 ];

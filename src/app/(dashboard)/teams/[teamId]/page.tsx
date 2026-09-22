@@ -8,7 +8,7 @@
  *   1. Cover header — team color band with the team name, a favorite
  *      star, and a palette button to recolor the team.
  *   2. Tab strip    — Overview · Members · All work · Messages ·
- *      Calendar · Knowledge, plus an "Add tab" affordance.
+ *      Calendar · Knowledge.
  *   3. Description  — click-to-edit inline description (leads only).
  *   4. Setup checklist — "Finish setting up your team" with the three
  *      Asana onboarding steps (add description / add work / add
@@ -37,7 +37,6 @@ import {
   Settings,
   UserPlus,
   Star,
-  Plus,
   Check,
   Image as ImageIcon,
   Upload,
@@ -49,12 +48,11 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { consumeTeamInvite } from "@/lib/team-invite";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 import { teamJoinMode, teamPrivacyMeta } from "@/lib/team-privacy";
 import { toast } from "sonner";
 import {
@@ -221,14 +219,19 @@ export default function TeamOverviewPage() {
     (session?.user as { role?: string | null } | undefined)?.role ?? null;
   const isWorkspaceAdmin =
     workspaceRole === "ADMIN" || workspaceRole === "OWNER";
-  // Exactly the gate POST /api/teams/:teamId/invite enforces: on the team,
-  // and then LEAD or workspace ADMIN/OWNER. This button used to render for
+  // Exactly the set requireTeamMemberManagement admits on POST
+  // /api/teams/:teamId/invite: the team's LEAD, or a workspace ADMIN/OWNER
+  // whether or not he is on the team. This button used to render for
   // everyone, so a colleague typed an address and got "Only team leads or
   // workspace admins can invite members" — the same dead-end control the
   // schedule charts shipped, and it is not to be repeated.
-  const canInvite = isMember && (isLead || isWorkspaceAdmin);
-  // PATCH { isArchived } enforces the same set, in BOTH directions.
-  const canArchive = canInvite;
+  const canManageTeam = isLead || isWorkspaceAdmin;
+  // An archived team takes no new members (assertTeamAcceptsNewMembers), so
+  // the invite entry points go quiet with it instead of ending in a 403.
+  const canInvite = canManageTeam && !team?.isArchived;
+  // PATCH { isArchived } enforces the lead-or-workspace-manager set, in BOTH
+  // directions, with no team-membership requirement.
+  const canArchive = canManageTeam;
 
   /**
    * The same rule, answerable against a team payload that hasn't reached
@@ -237,8 +240,9 @@ export default function TeamOverviewPage() {
    */
   function mayInvite(t: Team): boolean {
     if (!currentUserId) return false;
+    if (t.isArchived) return false;
     const me = t.members.find((m) => m.user.id === currentUserId);
-    return !!me && (me.role === "LEAD" || isWorkspaceAdmin);
+    return me?.role === "LEAD" || isWorkspaceAdmin;
   }
 
   function startEditDesc() {
@@ -305,8 +309,10 @@ export default function TeamOverviewPage() {
       toast.error("Please choose an image file");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Image must be under 10MB");
+    // Same cap the avatar route enforces, so an oversized file is refused
+    // here instead of after the upload.
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Image must be under 4MB");
       return;
     }
     setShowColorMenu(false);
@@ -367,6 +373,7 @@ export default function TeamOverviewPage() {
       }
       toast.success("Team restored");
       fetchTeam();
+      notifySidebarRefresh();
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Couldn't restore this team"
@@ -397,6 +404,8 @@ export default function TeamOverviewPage() {
         if (res.ok) {
           toast.success(`You joined ${team.name}`);
           fetchTeam();
+          // The sidebar caches its own team list and only refetches on this.
+          notifySidebarRefresh();
           return;
         }
         if (!data?.requiresRequest) {
@@ -427,6 +436,8 @@ export default function TeamOverviewPage() {
       // The checklist is shown to every member, but only some of them can
       // act on this step — say so instead of opening a dialog that 403s.
       if (canInvite) setShowInvite(true);
+      else if (team?.isArchived)
+        toast.error("This team is archived and isn't taking new members.");
       else
         toast.error(
           "Only team leads or workspace admins can add people to this team."
@@ -676,36 +687,6 @@ export default function TeamOverviewPage() {
               </Link>
             );
           })}
-          {/* Add tab */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="ml-1 h-7 w-7 inline-flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"
-                title="Add tab"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-52">
-              <DropdownMenuItem
-                onClick={() => router.push(`/teams/${teamId}/knowledge`)}
-              >
-                <BookOpen className="h-4 w-4 mr-2" />
-                Knowledge base
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => router.push(`/teams/${teamId}/calendar`)}
-              >
-                <Calendar className="h-4 w-4 mr-2" />
-                Calendar
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>
-                <Plus className="h-4 w-4 mr-2" />
-                App integrations (soon)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         {/* Right-side actions */}
@@ -869,7 +850,13 @@ export default function TeamOverviewPage() {
               />
             </div>
             <div className="space-y-5">
-              <TeamMembersWidget teamId={teamId} members={team.members} />
+              <TeamMembersWidget
+                teamId={teamId}
+                members={team.members}
+                canManage={canInvite}
+                privacy={team.privacy}
+                onChanged={fetchTeam}
+              />
               <TeamGoalsWidget teamId={teamId} goals={team.objectives} />
             </div>
           </div>
@@ -894,11 +881,16 @@ export default function TeamOverviewPage() {
         }}
         open={showSettings}
         onClose={() => setShowSettings(false)}
-        onSave={fetchTeam}
-        // Name / description / privacy stay lead-only in PATCH; archive does
-        // not. A workspace admin who is not the lead gets Members + Danger
-        // zone, and no General tab whose Update button would 403.
-        canEditDetails={isLead}
+        onSave={() => {
+          fetchTeam();
+          // Save and archive/restore both land here; the sidebar lists the
+          // team by name and drops it when archived.
+          notifySidebarRefresh();
+        }}
+        // PATCH admits the team LEAD or a workspace OWNER/ADMIN for name /
+        // privacy (and archive); DELETE stays LEAD-only.
+        canEditDetails={canManageTeam}
+        canDelete={isLead}
       />
 
       {/* Hidden file input driving the cover "Upload image" action */}

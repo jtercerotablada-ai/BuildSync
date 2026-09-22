@@ -22,6 +22,10 @@ interface AssigneeSelectorProps {
   value: User | null;
   onChange: (user: User | null) => void;
   trigger: React.ReactNode;
+  /** The task being assigned. Sent to the search so the server can offer
+   *  only members of that task's workspace — the caller may belong to other
+   *  workspaces whose people must never be assignable here. */
+  taskId?: string;
 }
 
 function getInitials(name: string): string {
@@ -33,7 +37,7 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorProps) {
+export function AssigneeSelector({ value, onChange, trigger, taskId }: AssigneeSelectorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState(value?.name || '');
   const [users, setUsers] = useState<User[]>([]);
@@ -52,7 +56,9 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
       const fetchId = ++fetchIdRef.current;
       setLoading(true);
       try {
-        const res = await fetch(`/api/users/search?q=${encodeURIComponent(search)}`);
+        const params = new URLSearchParams({ q: search });
+        if (taskId) params.set('taskId', taskId);
+        const res = await fetch(`/api/users/search?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           if (fetchId !== fetchIdRef.current) return;
@@ -69,7 +75,7 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
 
     const debounce = setTimeout(fetchUsers, 200);
     return () => clearTimeout(debounce);
-  }, [search, open]);
+  }, [search, open, taskId]);
 
   // Focus input when popover opens
   useEffect(() => {

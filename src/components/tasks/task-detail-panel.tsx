@@ -21,9 +21,16 @@ import {
   forwardRef,
   type ButtonHTMLAttributes,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { upload } from "@vercel/blob/client";
+import { uploadDirect, responseError } from "@/lib/direct-upload";
+import {
+  UPLOAD_ACCEPT,
+  assertFileAllowed,
+  uploadMaxBytesFor,
+} from "@/lib/storage";
+import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -63,6 +70,8 @@ import {
   Printer,
   CornerUpRight,
   CheckSquare,
+  ArrowUpRight,
+  CornerLeftUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -103,8 +112,10 @@ interface TaskDetailPanelProps {
   onAttachmentsChange?: () => void;
   /** How the panel is presented. "slideover" (default) is the right-side
    *  drawer used by project / task-detail views; "centered" is a centered
-   *  modal with a click-to-close backdrop, used by the Home My-Tasks widget. */
-  presentation?: "slideover" | "centered";
+   *  modal with a click-to-close backdrop, used by the Home My-Tasks widget;
+   *  "page" is static and fills its container, for the full-page /tasks/[id]
+   *  route (a fixed drawer there sat beside an empty column). */
+  presentation?: "slideover" | "centered" | "page";
   /** Personal My-Tasks sections. When supplied (by /my-tasks), the panel
    *  shows a "Section" row that moves the task between the user's personal
    *  buckets via onMoveToSection. Absent everywhere else. */
@@ -215,6 +226,7 @@ interface TaskCustomFieldValue {
 interface TaskDetail {
   id: string;
   name: string;
+  parentTaskId?: string | null;
   description: string | null;
   completed: boolean;
   isPrivate?: boolean;
@@ -283,7 +295,7 @@ interface TaskDetail {
  * the multipart envelope, the filename and the boundary all ride along with
  * the bytes, so a file measured at exactly the platform limit still arrives
  * over it. Anything below keeps the simpler single-request path — it is one
- * round trip, and it is the path every other upload surface in the app uses.
+ * round trip.
  */
 const DIRECT_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
 
@@ -316,6 +328,12 @@ export function TaskDetailPanel({
   // ── Data state ────────────────────────────────────────────────
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  // Why the CURRENT task could not be shown. Keyed by task id so a failure
+  // for task A can never render over task B.
+  const [loadError, setLoadError] = useState<{
+    taskId: string;
+    status: number;
+  } | null>(null);
 
   // The viewer's own calendar day — the only day the due-date label and the
   // overdue strip may be measured against. Reading the clock while rendering
@@ -340,6 +358,10 @@ export function TaskDetailPanel({
   // ── Subtask inline-add ─────────────────────────────────────────
   const [newSubtaskName, setNewSubtaskName] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  // Enter pressed twice while the first POST is in flight must not create
+  // the subtask twice. The ref is the guard; the state only drives the UI.
+  const addingSubtaskRef = useRef(false);
+  const [addingSubtask, setAddingSubtask] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
   // ── Subtask inline rename (click the name to edit) ─────────────
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
@@ -381,6 +403,7 @@ export function TaskDetailPanel({
   const capsKnown = taskDetail?.id === taskId;
   const canWrite = capsKnown && taskDetail?.canWrite !== false;
   const canComment = capsKnown && taskDetail?.canComment !== false;
+  const currentLoadError = loadError?.taskId === taskId ? loadError : null;
   const [commentViewer, setCommentViewer] = useState<{
     files: TaskAttachment[];
     index: number;
@@ -388,11 +411,16 @@ export function TaskDetailPanel({
   // Inline edit of an existing (own) comment.
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
-  // @-mention typeahead: who can be mentioned (the home project's members)
-  // and which mentions the user confirmed in the current draft.
-  const [mentionCandidates, setMentionCandidates] = useState<
-    MentionCandidate[]
-  >([]);
+  // Enter saves and the blur that follows would save again; one PATCH at a
+  // time, and the editor stays open until the server has the text.
+  const savingCommentEditRef = useRef(false);
+  const [savingCommentEdit, setSavingCommentEdit] = useState(false);
+  // @-mention typeahead: who can be mentioned (everyone the server will let
+  // the mention reach) and which mentions the user confirmed in the draft.
+  const [projectAudience, setProjectAudience] = useState<MentionCandidate[]>(
+    []
+  );
+  const [workspaceManagerIds, setWorkspaceManagerIds] = useState<string[]>([]);
   const [stagedMentions, setStagedMentions] = useState<MentionCandidate[]>([]);
 
   // ── Like state ─────────────────────────────────────────────────
@@ -414,28 +442,72 @@ export function TaskDetailPanel({
   // the whole panel for a spinner on every save.
   const loadedTaskIdRef = useRef<string | null>(null);
 
+  // Only the newest request may write the panel. The panel stays mounted
+  // across taskId changes, so without this a slow response for task A that
+  // lands after task B's would put A's title on screen while every edit
+  // PATCHes B.
+  const latestFetchRef = useRef(0);
+
+  // The task shown NOW. A handler from task A's render (a save that resolves
+  // after the user clicked task B) calls its own copy of fetchTaskDetail; if
+  // that stale call took a newer sequence number it would discard B's load
+  // and leave B's panel on a spinner with nothing pending.
+  const taskIdRef = useRef(taskId);
+  taskIdRef.current = taskId;
+
   const fetchTaskDetail = async () => {
-    if (loadedTaskIdRef.current !== taskId) setLoading(true);
+    const requestedId = taskId;
+    if (requestedId !== taskIdRef.current) return;
+    const seq = ++latestFetchRef.current;
+    const isSwitch = loadedTaskIdRef.current !== requestedId;
+    if (isSwitch) {
+      setLoading(true);
+      setLoadError(null);
+    }
     try {
       const [detailRes, likeRes] = await Promise.all([
-        fetch(`/api/tasks/${taskId}`),
-        fetch(`/api/tasks/${taskId}/like`),
+        fetch(`/api/tasks/${requestedId}`),
+        fetch(`/api/tasks/${requestedId}/like`),
       ]);
-      if (!detailRes.ok) throw new Error("Failed to fetch task");
+      if (seq !== latestFetchRef.current) return;
+      if (!detailRes.ok) {
+        // 403/404: deleted, made private, or never visible. Anything else on
+        // a task already on screen is a hiccup — keep the content and say so.
+        // On a switch there is nothing of THIS task to keep, so the previous
+        // task's content must go rather than sit under the new id.
+        const gone = detailRes.status === 404 || detailRes.status === 403;
+        if (gone || isSwitch) {
+          loadedTaskIdRef.current = null;
+          setTaskDetail(null);
+          setName("");
+          setDescription("");
+          setLoadError({ taskId: requestedId, status: detailRes.status });
+        } else {
+          toast.error("Couldn't refresh this task");
+        }
+        return;
+      }
       const data: TaskDetail = await detailRes.json();
+      const likeData = likeRes.ok ? await likeRes.json().catch(() => null) : null;
+      if (seq !== latestFetchRef.current) return;
       setTaskDetail(data);
       setName(data.name);
       setDescription(data.description || "");
       setLikeCount(data._count?.likes ?? 0);
-      if (likeRes.ok) {
-        const likeData = await likeRes.json();
-        setLiked(Boolean(likeData.liked));
-      }
-      loadedTaskIdRef.current = taskId;
+      if (likeData) setLiked(Boolean(likeData.liked));
+      setLoadError(null);
+      loadedTaskIdRef.current = requestedId;
     } catch {
-      toast.error("Failed to load task");
+      if (seq !== latestFetchRef.current) return;
+      if (isSwitch) {
+        loadedTaskIdRef.current = null;
+        setTaskDetail(null);
+        setLoadError({ taskId: requestedId, status: 0 });
+      } else {
+        toast.error("Couldn't refresh this task");
+      }
     } finally {
-      setLoading(false);
+      if (seq === latestFetchRef.current) setLoading(false);
     }
   };
 
@@ -448,6 +520,11 @@ export function TaskDetailPanel({
     setStagedMentions([]);
     setPendingCommentFiles([]);
     setEditingCommentId(null);
+    // Same for a half-typed subtask or subtask rename: Enter on task B would
+    // otherwise create or rename under B what was typed against A.
+    setIsAddingSubtask(false);
+    setNewSubtaskName("");
+    setEditingSubtaskId(null);
     // Never carry a "send this to the client" opt-in into another task.
     setShareWithSubmitter(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -496,69 +573,89 @@ export function TaskDetailPanel({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose, viewerIndex, commentViewer]);
 
-  // Load the home project's sections so the Section row can move the task.
+  // Load the home project once: its sections feed the Section row, and its
+  // audience feeds the @-mention typeahead. The audience is everyone who can
+  // READ the project, the rule the server applies to mentions
+  // (resolveAllowedMentionUserIds): the owner, explicit members, the
+  // workspace OWNER/ADMINs, and, unless the project is PRIVATE, every
+  // contributor of its workspace. Offering only the ProjectMember rows left
+  // most of the firm unmentionable on the default WORKSPACE projects.
+  // Team-granted readers of a PRIVATE project are not listed here; the
+  // server still accepts them. Tasks without a project get no typeahead —
+  // the server ignores mentions there.
   useEffect(() => {
     const pid = taskDetail?.project?.id;
     if (!pid) {
       setProjectSections([]);
+      setProjectAudience([]);
+      setWorkspaceManagerIds([]);
       return;
     }
     let cancelled = false;
-    fetch(`/api/projects/${pid}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { sections?: { id: string; name: string }[] } | null) => {
-        if (!cancelled && d?.sections) {
-          setProjectSections(d.sections.map((s) => ({ id: s.id, name: s.name })));
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
+    type UserLite = {
+      id: string;
+      name: string | null;
+      email: string | null;
+      image: string | null;
     };
-  }, [taskDetail?.project?.id]);
-
-  // Load the project's members for the @-mention typeahead. The server
-  // gates mention fan-out to project membership, so this is the same
-  // audience it will accept. Tasks without a project keep an empty list
-  // (typeahead simply never opens).
-  useEffect(() => {
-    const pid = taskDetail?.project?.id;
-    if (!pid) {
-      setMentionCandidates([]);
-      return;
-    }
-    let cancelled = false;
-    fetch(`/api/projects/${pid}/members`)
-      .then((r) => (r.ok ? r.json() : []))
+    Promise.all([
+      fetch(`/api/projects/${pid}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/workspace/members`).then((r) => (r.ok ? r.json() : [])),
+    ])
       .then(
-        (
-          rows:
-            | {
-                userId: string;
-                user: {
-                  id: string;
-                  name: string | null;
-                  email: string | null;
-                  image: string | null;
-                };
-              }[]
-            | unknown
-        ) => {
-          if (cancelled || !Array.isArray(rows)) return;
-          const seen = new Set<string>();
-          const list: MentionCandidate[] = [];
-          for (const row of rows) {
-            const u = row?.user;
-            if (!u?.id || seen.has(u.id)) continue;
-            seen.add(u.id);
-            list.push({
+        ([project, wsRows]: [
+          {
+            sections?: { id: string; name: string }[];
+            owner?: UserLite | null;
+            members?: { user?: UserLite | null }[];
+            visibility?: string;
+            workspaceId?: string;
+          } | null,
+          unknown,
+        ]) => {
+          if (cancelled || !project) return;
+          if (project.sections) {
+            setProjectSections(
+              project.sections.map((s) => ({ id: s.id, name: s.name }))
+            );
+          }
+          const byId = new Map<string, MentionCandidate>();
+          const add = (u?: UserLite | null) => {
+            if (!u?.id || byId.has(u.id)) return;
+            byId.set(u.id, {
               id: u.id,
               name: u.name ?? null,
               email: u.email ?? null,
               image: u.image ?? null,
             });
+          };
+          add(project.owner);
+          for (const m of project.members ?? []) add(m?.user);
+          const managers: string[] = [];
+          const rows = Array.isArray(wsRows)
+            ? (wsRows as {
+                workspaceId?: string;
+                role?: string;
+                user?: UserLite | null;
+              }[])
+            : [];
+          for (const row of rows) {
+            // /api/workspace/members lists the caller's primary workspace,
+            // which need not be the project's.
+            if (!row?.user || row.workspaceId !== project.workspaceId) continue;
+            const role = row.role ?? "";
+            const isManager = role === "OWNER" || role === "ADMIN";
+            if (isManager) managers.push(row.user.id);
+            if (
+              isManager ||
+              (project.visibility !== "PRIVATE" &&
+                !NON_CONTRIBUTOR_ROLES.has(role))
+            ) {
+              add(row.user);
+            }
           }
-          setMentionCandidates(list);
+          setProjectAudience(Array.from(byId.values()));
+          setWorkspaceManagerIds(managers);
         }
       )
       .catch(() => {});
@@ -566,6 +663,19 @@ export function TaskDetailPanel({
       cancelled = true;
     };
   }, [taskDetail?.project?.id]);
+
+  // A private task narrows that audience to the people who can open it —
+  // its creator, assignee, collaborators and the workspace leadership. The
+  // server drops anyone else, so offering them would be a silent no-op.
+  const mentionCandidates: MentionCandidate[] = taskDetail?.isPrivate
+    ? (() => {
+        const allowed = new Set<string>(workspaceManagerIds);
+        if (taskDetail.creator?.id) allowed.add(taskDetail.creator.id);
+        if (taskDetail.assignee?.id) allowed.add(taskDetail.assignee.id);
+        for (const c of taskDetail.collaborators ?? []) allowed.add(c.id);
+        return projectAudience.filter((u) => allowed.has(u.id));
+      })()
+    : projectAudience;
 
   async function handleToggleLike() {
     if (likeBusy) return;
@@ -593,7 +703,9 @@ export function TaskDetailPanel({
   // FIELD UPDATES (generic PATCH)
   // ─────────────────────────────────────────────────────────────
 
-  async function handleUpdate(field: string, value: unknown) {
+  /** Resolves true only when the server saved the change, so callers can
+   *  tell the user it worked (or not) truthfully. */
+  async function handleUpdate(field: string, value: unknown): Promise<boolean> {
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
@@ -610,10 +722,16 @@ export function TaskDetailPanel({
       await fetchTaskDetail();
       onUpdate?.();
       router.refresh();
+      return true;
     } catch (err) {
+      // The inline editors hold their own draft; put the saved value back so
+      // a refused edit does not stay on screen looking saved.
+      if (field === "name") setName(taskDetail?.name ?? "");
+      if (field === "description") setDescription(taskDetail?.description ?? "");
       toast.error(
         err instanceof Error ? err.message : "Failed to update task"
       );
+      return false;
     }
   }
 
@@ -655,47 +773,15 @@ export function TaskDetailPanel({
       return;
     }
 
-    const mimeType = file.type || "application/octet-stream";
-    const safeName = file.name.replace(/[/\\]/g, "_");
-
-    let blob;
-    try {
-      blob = await upload(`tasks/${taskId}/${safeName}`, file, {
-        // PRIVATE — this is a security control, not a default worth tidying.
-        // The signed token CANNOT pin access (onBeforeGenerateToken has no such
-        // field), so this argument is the only thing that decides it, and
-        // "public" would mint a permanent login-less link to a client's sealed
-        // drawing. The server refuses to create a row for a non-private url and
-        // deletes the blob behind it, so changing this does not simplify
-        // anything — it makes every large upload fail after transferring the
-        // whole file.
-        access: "private",
-        handleUploadUrl: "/api/blob/upload",
-        // Declared here AND in the payload so they agree: the token pins this
-        // exact content type, and a mismatch is rejected by the store.
-        contentType: mimeType,
-        clientPayload: JSON.stringify({
-          kind: "task-attachment",
-          taskId,
-          mimeType,
-        }),
-        multipart: true,
-        onUploadProgress: ({ percentage }) =>
-          setUploadProgress({ name: file.name, percentage }),
-      });
-    } catch (err) {
-      // The SDK throws one fixed string for EVERY server rejection here — it
-      // discards the response body — so the real reason (file type, no write
-      // access, task deleted mid-upload) never reaches this catch. Say what is
-      // actually knowable rather than surfacing that string to the user.
-      throw new Error(
-        err instanceof Error && /client token/i.test(err.message)
-          ? "Upload refused — check the file type and your access to this task"
-          : err instanceof Error
-            ? err.message
-            : "Upload failed"
-      );
-    }
+    // The helper every upload surface uses: it pins the path to this task's
+    // folder under an unguessable uuid, and takes the access level from
+    // storage.ts (SAAS_BLOB_ACCESS) — the store refuses any other value, and
+    // the attachments route refuses a blob at any other level.
+    const blob = await uploadDirect(
+      file,
+      { kind: "task-attachment", taskId, ...(commentId ? { commentId } : {}) },
+      (percentage) => setUploadProgress({ name: file.name, percentage })
+    );
 
     // Url and display name only. Size and type are read off the stored blob
     // by the server — sending them would just be a number it has to ignore.
@@ -803,7 +889,7 @@ export function TaskDetailPanel({
         fetchTaskDetail();
         onUpdate?.();
       } else {
-        toast.error("Failed to rename subtask");
+        toast.error(await responseError(res, "Failed to rename subtask"));
       }
     } catch {
       toast.error("Failed to rename subtask");
@@ -819,17 +905,83 @@ export function TaskDetailPanel({
         onUpdate?.();
         toast.success("Subtask deleted");
       } else {
-        toast.error("Failed to delete subtask");
+        toast.error(await responseError(res, "Failed to delete subtask"));
       }
     } catch {
       toast.error("Failed to delete subtask");
     }
   }
 
+  async function handleToggleSubtask(subtask: TaskSubtask) {
+    try {
+      const res = await fetch(`/api/tasks/${subtask.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !subtask.completed }),
+      });
+      if (!res.ok) {
+        toast.error(await responseError(res, "Failed to update subtask"));
+        return;
+      }
+      fetchTaskDetail();
+      onUpdate?.();
+    } catch {
+      toast.error("Failed to update subtask");
+    }
+  }
+
+  async function handleAddSubtask() {
+    const subtaskName = newSubtaskName.trim();
+    if (!subtaskName || addingSubtaskRef.current) return;
+    addingSubtaskRef.current = true;
+    setAddingSubtask(true);
+    try {
+      // POST /api/tasks places a subtask in its parent's project and section
+      // and leaves it unassigned.
+      const res = await fetch(`/api/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: subtaskName, parentTaskId: taskId }),
+      });
+      if (!res.ok) {
+        toast.error(await responseError(res, "Failed to add subtask"));
+        return;
+      }
+      setNewSubtaskName("");
+      fetchTaskDetail();
+      onUpdate?.();
+      toast.success("Subtask added");
+    } catch {
+      toast.error("Failed to add subtask");
+    } finally {
+      addingSubtaskRef.current = false;
+      setAddingSubtask(false);
+      // The input was disabled for the request, which drops focus; put it
+      // back so the next subtask can be typed straight away.
+      setTimeout(() => subtaskInputRef.current?.focus(), 0);
+    }
+  }
+
+  /**
+   * Swap to another task (a subtask, or back to the parent). Inside the
+   * project page that task's own panel opens in place through ?task=, and
+   * Back returns here; anywhere else it opens on the full task page.
+   */
+  function openRelatedTask(id: string) {
+    const pid = taskDetail?.project?.id;
+    if (pid && window.location.pathname.endsWith(`/projects/${pid}`)) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("task", id);
+      router.push(`${url.pathname}${url.search}`);
+    } else {
+      router.push(`/tasks/${id}`);
+    }
+  }
+
   async function handleConvertTo(
     newType: "TASK" | "MILESTONE" | "APPROVAL"
   ) {
-    await handleUpdate("taskType", newType);
+    if (!(await handleUpdate("taskType", newType))) return;
     toast.success(
       newType === "MILESTONE"
         ? "Converted to milestone"
@@ -844,12 +996,16 @@ export function TaskDetailPanel({
       const res = await fetch(`/api/tasks/${taskId}/duplicate`, {
         method: "POST",
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(await responseError(res, "Failed to duplicate task"));
+      }
       toast.success("Task duplicated");
       onUpdate?.();
       router.refresh();
-    } catch {
-      toast.error("Failed to duplicate task");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to duplicate task"
+      );
     }
   }
 
@@ -864,10 +1020,83 @@ export function TaskDetailPanel({
     }
   }
 
+  /**
+   * Print the task alone. The dashboard has no print stylesheet, so
+   * window.print() put the sidebar and the page behind the drawer on paper
+   * and cut the panel at its scroll height. Instead, a copy of the panel —
+   * unclipped, without the composer and the header buttons — goes into a
+   * hidden frame that carries the app's own stylesheets, and that frame is
+   * printed.
+   */
   function handlePrintTask() {
-    // Browser's native print dialog — uses the print stylesheet
-    // applied at the app shell so headers/sidebars hide cleanly.
-    window.print();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const clone = panel.cloneNode(true) as HTMLElement;
+    // A textarea's typed value is not part of its markup; print what is on
+    // screen (the title and the description are textareas).
+    const liveFields = panel.querySelectorAll("textarea");
+    clone.querySelectorAll("textarea").forEach((ta, i) => {
+      const div = document.createElement("div");
+      div.className = ta.className;
+      div.style.whiteSpace = "pre-wrap";
+      div.textContent = liveFields[i]?.value ?? "";
+      ta.replaceWith(div);
+    });
+    clone.querySelectorAll("[data-print-hide]").forEach((el) => el.remove());
+
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText =
+      "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument;
+    const win = frame.contentWindow;
+    if (!doc || !win) {
+      frame.remove();
+      toast.error("Couldn't prepare the task for printing");
+      return;
+    }
+    const styles = Array.from(
+      document.querySelectorAll('link[rel="stylesheet"], style')
+    )
+      .map((el) => el.outerHTML)
+      .join("");
+    doc.open();
+    doc.write(
+      `<!doctype html><html><head><base href="${document.baseURI}"><title>${escapeHtml(
+        taskDetail?.name || "Task"
+      )}</title>${styles}<style>
+        html,body{background:#fff!important;height:auto!important;overflow:visible!important}
+        [data-print-root]{position:static!important;inset:auto!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;transform:none!important;box-shadow:none!important;border:0!important;border-radius:0!important;animation:none!important}
+        [data-print-root] [data-print-scroll]{overflow:visible!important;flex:none!important;height:auto!important}
+      </style></head><body></body></html>`
+    );
+    doc.close();
+    clone.setAttribute("data-print-root", "");
+    doc.body.appendChild(doc.importNode(clone, true));
+
+    const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
+    let printed = false;
+    const print = () => {
+      if (printed) return;
+      printed = true;
+      win.focus();
+      win.print();
+      // Removing the frame while the dialog is up cancels it in some
+      // browsers; the dialog blocks, so this runs after it closes.
+      setTimeout(() => frame.remove(), 1000);
+    };
+    Promise.all(
+      links.map(
+        (l) =>
+          new Promise<void>((resolve) => {
+            l.addEventListener("load", () => resolve(), { once: true });
+            l.addEventListener("error", () => resolve(), { once: true });
+          })
+      )
+    ).then(print);
+    // Stylesheets that were already cached may never fire load.
+    setTimeout(print, 1500);
   }
 
   async function handleDeleteTask() {
@@ -879,13 +1108,15 @@ export function TaskDetailPanel({
       return;
     try {
       const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(await responseError(res, "Failed to delete task"));
+      }
       toast.success("Task deleted");
       onUpdate?.();
       onClose();
       router.refresh();
-    } catch {
-      toast.error("Failed to delete task");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
     }
   }
 
@@ -899,7 +1130,9 @@ export function TaskDetailPanel({
         `/api/tasks/${taskId}/dependencies?id=${dependencyId}`,
         { method: "DELETE" }
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(await responseError(res, "Couldn't remove dependency"));
+      }
       toast.success("Dependency removed");
       await fetchTaskDetail();
       onUpdate?.();
@@ -921,7 +1154,7 @@ export function TaskDetailPanel({
         `/api/tasks/${dependentTaskId}/dependencies?id=${dependencyId}`,
         { method: "DELETE" }
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await responseError(res, "Couldn't remove"));
       toast.success("Removed");
       await fetchTaskDetail();
       onUpdate?.();
@@ -942,8 +1175,7 @@ export function TaskDetailPanel({
         body: JSON.stringify({ projectId }),
       });
       if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.error || `HTTP ${res.status}`);
+        throw new Error(await responseError(res, "Couldn't add to project"));
       }
       toast.success("Added to project");
       await fetchTaskDetail();
@@ -961,7 +1193,11 @@ export function TaskDetailPanel({
         `/api/tasks/${taskId}/projects?projectId=${projectId}`,
         { method: "DELETE" }
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(
+          await responseError(res, "Couldn't remove from project")
+        );
+      }
       toast.success("Removed from project");
       await fetchTaskDetail();
       onUpdate?.();
@@ -978,12 +1214,15 @@ export function TaskDetailPanel({
 
   async function handleAddComment() {
     const hasText = newComment.trim().length > 0;
-    const hasFiles = pendingCommentFiles.length > 0;
+    const files = pendingCommentFiles;
+    const hasFiles = files.length > 0;
     if (!hasText && !hasFiles) return;
     setPostingComment(true);
     try {
       // Wrap confirmed @-mentions in the data-user-id spans the server
       // parses for MENTIONED notifications; plain comments go unchanged.
+      // A files-only comment is a single space: the route requires content,
+      // and the thread hides a blank body.
       const content = hasText
         ? buildCommentContent(newComment, stagedMentions)
         : " ";
@@ -993,21 +1232,20 @@ export function TaskDetailPanel({
         body: JSON.stringify({ content, shareWithSubmitter }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${res.status}`);
+        throw new Error(await responseError(res, "Couldn't post comment"));
       }
       const created = await res.json();
 
-      let attachmentsUploaded = 0;
-      for (const file of pendingCommentFiles) {
+      const failed: File[] = [];
+      for (const file of files) {
         try {
           // Same helper as the Attachments panel. Left on the multipart path,
           // this control would keep dying on the platform body cap for a file
           // the panel right above it accepts — with the comment already
           // published and referencing a file that never arrived.
           await uploadAttachment(file, created.id);
-          attachmentsUploaded++;
         } catch (err) {
+          failed.push(file);
           toast.error(
             err instanceof Error
               ? `${file.name}: ${err.message}`
@@ -1017,18 +1255,29 @@ export function TaskDetailPanel({
           setUploadProgress(null);
         }
       }
+      const uploaded = files.length - failed.length;
 
-      setNewComment("");
-      setStagedMentions([]);
-      // One opt-in publishes ONE comment.
-      setShareWithSubmitter(false);
-      setPendingCommentFiles([]);
+      // A files-only comment whose every file failed is an empty row in the
+      // thread; take it back (best effort) instead of leaving it there.
+      if (!hasText && uploaded === 0) {
+        await fetch(`/api/tasks/${taskId}/comments/${created.id}`, {
+          method: "DELETE",
+        }).catch(() => {});
+      } else {
+        setNewComment("");
+        setStagedMentions([]);
+        // One opt-in publishes ONE comment.
+        setShareWithSubmitter(false);
+      }
+      // Files that did not make it stay in the composer, so posting again
+      // retries them instead of making the user pick them a second time.
+      setPendingCommentFiles(failed);
       if (commentFileInputRef.current) commentFileInputRef.current.value = "";
       await fetchTaskDetail();
       // The comment count changed either way — let the parent refresh its
       // counters (not only when files were attached).
       onUpdate?.();
-      if (attachmentsUploaded > 0) {
+      if (uploaded > 0) {
         onAttachmentsChange?.();
       }
     } catch (err) {
@@ -1040,39 +1289,63 @@ export function TaskDetailPanel({
     }
   }
 
-  async function handleSaveCommentEdit(commentId: string) {
+  async function handleSaveCommentEdit(comment: TaskComment) {
+    if (savingCommentEditRef.current) return;
     const text = editingCommentText.trim();
-    setEditingCommentId(null);
-    if (!text) return;
+    // Nothing to send: an emptied box or an untouched one. Skipping the
+    // untouched save also keeps the comment's mention chips, which a
+    // text-only edit drops.
+    if (!text || text === commentToPlainText(comment.content).trim()) {
+      setEditingCommentId(null);
+      return;
+    }
+    savingCommentEditRef.current = true;
+    setSavingCommentEdit(true);
     try {
-      const res = await fetch(`/api/tasks/${taskId}/comments/${commentId}`, {
+      const res = await fetch(`/api/tasks/${taskId}/comments/${comment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to edit comment");
+        throw new Error(await responseError(res, "Failed to edit comment"));
       }
+      // Close only once the server has the text: closing first threw the
+      // rewrite away whenever the save failed.
+      setEditingCommentId(null);
       await fetchTaskDetail();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to edit comment"
       );
+    } finally {
+      savingCommentEditRef.current = false;
+      setSavingCommentEdit(false);
     }
   }
 
-  async function handleDeleteComment(commentId: string) {
+  async function handleDeleteComment(comment: TaskComment) {
+    const fileCount = comment.attachments?.length ?? 0;
+    if (
+      !confirm(
+        fileCount > 0
+          ? `Delete this comment? Its ${fileCount} attached file${
+              fileCount === 1 ? "" : "s"
+            } will stay in the task's attachments.`
+          : "Delete this comment? This cannot be undone."
+      )
+    )
+      return;
     try {
-      const res = await fetch(`/api/tasks/${taskId}/comments/${commentId}`, {
+      const res = await fetch(`/api/tasks/${taskId}/comments/${comment.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to delete comment");
+        throw new Error(await responseError(res, "Failed to delete comment"));
       }
       await fetchTaskDetail();
       onUpdate?.();
+      if (fileCount > 0) onAttachmentsChange?.();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to delete comment"
@@ -1083,10 +1356,24 @@ export function TaskDetailPanel({
   function handleCommentFilesPicked(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    // The same ceiling and type rules the upload itself enforces, checked
+    // before anything is posted — a file refused only after the comment
+    // exists leaves an empty comment behind and has already notified people.
+    const maxBytes = uploadMaxBytesFor({ kind: "task-attachment", taskId });
     const ok: File[] = [];
     for (const f of Array.from(files)) {
-      if (f.size > 10 * 1024 * 1024) {
-        toast.error(`${f.name}: exceeds 10 MB limit`);
+      if (f.size > maxBytes) {
+        toast.error(
+          `${f.name}: exceeds the ${Math.floor(maxBytes / (1024 * 1024))} MB limit`
+        );
+        continue;
+      }
+      try {
+        assertFileAllowed(f.name, f.type);
+      } catch (err) {
+        toast.error(
+          `${f.name}: ${err instanceof Error ? err.message : "file type not allowed"}`
+        );
         continue;
       }
       ok.push(f);
@@ -1122,15 +1409,19 @@ export function TaskDetailPanel({
       <div
         ref={panelRef}
         className={cn(
-          presentation === "centered"
+          presentation === "page"
+            ? "h-full min-h-full w-full bg-white flex flex-col text-[#1e1f21]"
+            : presentation === "centered"
             ? "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-[560px] max-h-[88vh] border border-[#e8e8e8] bg-white rounded-2xl flex flex-col overflow-hidden shadow-2xl text-[#1e1f21] animate-in fade-in zoom-in-95 duration-200"
             : "fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[500px] z-50 border-l border-[#e8e8e8] bg-white rounded-t-2xl md:rounded-none flex flex-col shadow-[-12px_0_32px_-12px_rgba(0,0,0,0.06)] md:shadow-2xl transition-transform duration-200 animate-in slide-in-from-bottom md:slide-in-from-right text-[#1e1f21]"
         )}
       >
       {/* ── Mobile drag handle ──────────────────────────────── */}
-      <div className="md:hidden flex justify-center py-2">
-        <div className="w-10 h-1 rounded-full bg-gray-300" />
-      </div>
+      {presentation !== "page" && (
+        <div className="md:hidden flex justify-center py-2" data-print-hide>
+          <div className="w-10 h-1 rounded-full bg-gray-300" />
+        </div>
+      )}
 
       {/* ── Top action row ─────────────────────────────────────
           Left: Mark-complete pill (Asana style — turns green when
@@ -1138,10 +1429,13 @@ export function TaskDetailPanel({
           more / close. Title intentionally NOT in this row. */}
       <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0">
         <button
+          data-print-hide
           onClick={handleToggleComplete}
           disabled={!canWrite}
           title={
-            canWrite ? undefined : "You have view-only access to this task"
+            !capsKnown || canWrite
+              ? undefined
+              : "You have view-only access to this task"
           }
           className={cn(
             "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[13px] font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
@@ -1158,14 +1452,14 @@ export function TaskDetailPanel({
           />
           {taskDetail?.completed ? "Completed" : "Mark complete"}
         </button>
-        <div className="flex items-center gap-0.5 text-[#6f7782]">
+        <div className="flex items-center gap-0.5 text-[#6f7782]" data-print-hide>
           <input
             ref={fileInputRef}
             type="file"
             multiple
             className="hidden"
             onChange={handleAttachmentUpload}
-            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+            accept={UPLOAD_ACCEPT}
           />
           <div className="flex items-center">
             <ActionIconButton
@@ -1204,12 +1498,14 @@ export function TaskDetailPanel({
           >
             <Link2 className="h-[15px] w-[15px]" />
           </ActionIconButton>
-          <ActionIconButton
-            onClick={() => window.open(`/tasks/${taskId}`, "_blank")}
-            title="Open full task"
-          >
-            <Maximize2 className="h-[15px] w-[15px]" />
-          </ActionIconButton>
+          {presentation !== "page" && (
+            <ActionIconButton
+              onClick={() => window.open(`/tasks/${taskId}`, "_blank")}
+              title="Open full task"
+            >
+              <Maximize2 className="h-[15px] w-[15px]" />
+            </ActionIconButton>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <ActionIconButton title="More options">
@@ -1247,6 +1543,7 @@ export function TaskDetailPanel({
                   <DropdownMenuItem
                     onClick={() => handleConvertTo("TASK")}
                     disabled={
+                      !canWrite ||
                       !taskDetail?.taskType ||
                       taskDetail.taskType === "TASK"
                     }
@@ -1256,7 +1553,7 @@ export function TaskDetailPanel({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => handleConvertTo("MILESTONE")}
-                    disabled={taskDetail?.taskType === "MILESTONE"}
+                    disabled={!canWrite || taskDetail?.taskType === "MILESTONE"}
                   >
                     <Diamond
                       className="mr-2 h-4 w-4"
@@ -1267,7 +1564,7 @@ export function TaskDetailPanel({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => handleConvertTo("APPROVAL")}
-                    disabled={taskDetail?.taskType === "APPROVAL"}
+                    disabled={!canWrite || taskDetail?.taskType === "APPROVAL"}
                   >
                     <ThumbsUp
                       className="mr-2 h-4 w-4"
@@ -1285,7 +1582,7 @@ export function TaskDetailPanel({
                 <Copy className="mr-2 h-4 w-4 text-[#6f7782]" />
                 <span>Duplicate task</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handlePrintTask}>
+              <DropdownMenuItem onClick={handlePrintTask} disabled={!capsKnown}>
                 <Printer className="mr-2 h-4 w-4 text-[#6f7782]" />
                 <span>Print</span>
               </DropdownMenuItem>
@@ -1306,12 +1603,41 @@ export function TaskDetailPanel({
         </div>
       </div>
 
-      {loading ? (
+      {currentLoadError ? (
+        // Nothing of this task may be shown or edited: a deleted or hidden
+        // task used to render as an empty, editable form.
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 text-center">
+          <p className="text-[14px] font-medium text-[#1e1f21]">
+            {currentLoadError.status === 404 || currentLoadError.status === 403
+              ? "This task was deleted or you no longer have access to it."
+              : "Couldn't load this task."}
+          </p>
+          <div className="flex items-center gap-2">
+            {currentLoadError.status !== 404 &&
+              currentLoadError.status !== 403 && (
+                <button
+                  type="button"
+                  onClick={() => fetchTaskDetail()}
+                  className="h-8 px-3 rounded-md border border-[#e8e8e8] text-[13px] text-[#1e1f21] hover:bg-[#f3f4f6]"
+                >
+                  Try again
+                </button>
+              )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-8 px-3 rounded-md bg-[#1e1f21] text-white text-[13px] hover:bg-black"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      ) : loading || !capsKnown ? (
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-black" />
         </div>
       ) : (
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" data-print-scroll>
           {/* Overdue strip — compares by UTC calendar day (date-only.ts)
               so a task due today is never falsely flagged overdue for
               viewers west of UTC. */}
@@ -1325,8 +1651,8 @@ export function TaskDetailPanel({
           {/* Visibility bar — reads Task.isPrivate and lets the user
               switch between project-visible and private-to-collaborators. */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-full px-5 h-9 bg-[#f6f7f8] text-[12px] text-[#6f7782] flex items-center gap-1.5 hover:bg-[#eef0f2] transition-colors">
+            <DropdownMenuTrigger asChild disabled={!canWrite}>
+              <button className="w-full px-5 h-9 bg-[#f6f7f8] text-[12px] text-[#6f7782] flex items-center gap-1.5 hover:bg-[#eef0f2] disabled:hover:bg-[#f6f7f8] disabled:cursor-default transition-colors">
                 {taskDetail?.isPrivate ? (
                   <Lock className="h-3 w-3" />
                 ) : (
@@ -1334,8 +1660,10 @@ export function TaskDetailPanel({
                 )}
                 {taskDetail?.isPrivate
                   ? "This task is private — only its collaborators can see it"
-                  : "This task is visible to everyone in the workspace"}
-                <ChevronDown className="h-3 w-3 ml-auto" />
+                  : taskDetail?.project
+                    ? "This task is visible to everyone with access to the project"
+                    : "This task is visible only to its creator, assignee and collaborators"}
+                {canWrite && <ChevronDown className="h-3 w-3 ml-auto" />}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[320px]">
@@ -1370,6 +1698,20 @@ export function TaskDetailPanel({
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Parent task — a subtask's way back up. */}
+          {taskDetail?.parentTaskId && (
+            <div className="px-5 pt-3 -mb-2" data-print-hide>
+              <button
+                type="button"
+                onClick={() => openRelatedTask(taskDetail.parentTaskId!)}
+                className="inline-flex items-center gap-1 text-[12px] text-[#6f7782] hover:text-[#1e1f21] hover:underline"
+              >
+                <CornerLeftUp className="h-3 w-3" />
+                Open parent task
+              </button>
+            </div>
+          )}
+
           {/* Task title */}
           <div className="px-5 pt-4 pb-3 flex items-start gap-2">
             {taskDetail?.taskType === "MILESTONE" && (
@@ -1387,8 +1729,10 @@ export function TaskDetailPanel({
             )}
             <textarea
               value={name}
+              readOnly={!canWrite}
               onChange={(e) => setName(e.target.value)}
               onBlur={() => {
+                if (!canWrite) return;
                 if (name.trim() && name !== taskDetail?.name) {
                   handleUpdate("name", name);
                 } else if (!name.trim()) {
@@ -1434,13 +1778,17 @@ export function TaskDetailPanel({
           <div className="px-5 pb-2">
             <PropertyRow label="Assignee">
               <AssigneeSelector
+                taskId={taskId}
                 value={taskDetail?.assignee || null}
                 onChange={(user) =>
                   handleUpdate("assigneeId", user?.id || null)
                 }
                 trigger={
                   taskDetail?.assignee ? (
-                    <button className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer">
+                    <button
+                      disabled={!canWrite}
+                      className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer disabled:cursor-default disabled:hover:bg-transparent"
+                    >
                       <Avatar className="h-5 w-5">
                         <AvatarFallback className="text-[10px] bg-[#1e1f21] text-white">
                           {taskDetail.assignee.name?.charAt(0) || "?"}
@@ -1451,7 +1799,10 @@ export function TaskDetailPanel({
                       </span>
                     </button>
                   ) : (
-                    <button className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer">
+                    <button
+                      disabled={!canWrite}
+                      className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-[#6f7782]"
+                    >
                       <UserPlus2 className="h-3.5 w-3.5" />
                       No assignee
                     </button>
@@ -1516,6 +1867,7 @@ export function TaskDetailPanel({
                     : null
                 }
                 onChange={async (start, due) => {
+                  if (!canWrite) return;
                   try {
                     const res = await fetch(`/api/tasks/${taskId}`, {
                       method: "PATCH",
@@ -1525,7 +1877,11 @@ export function TaskDetailPanel({
                         dueDate: due ? toDateOnlyISO(due) : null,
                       }),
                     });
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    if (!res.ok) {
+                      throw new Error(
+                        await responseError(res, "Couldn't save the date range")
+                      );
+                    }
                     // Surface cascade so the user knows we shifted
                     // downstream tasks.
                     const payload = (await res.json()) as {
@@ -1541,15 +1897,20 @@ export function TaskDetailPanel({
                     }
                     await fetchTaskDetail();
                     onUpdate?.();
-                  } catch {
-                    toast.error("Couldn't save the date range");
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error
+                        ? err.message
+                        : "Couldn't save the date range"
+                    );
                   }
                 }}
                 trigger={
                   <button
                     type="button"
+                    disabled={!canWrite}
                     className={cn(
-                      "flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] hover:bg-[#f3f4f6] cursor-pointer",
+                      "flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] hover:bg-[#f3f4f6] cursor-pointer disabled:cursor-default disabled:hover:bg-transparent",
                       taskDetail?.dueDate || taskDetail?.startDate
                         ? "text-[#1e1f21]"
                         : "text-[#6f7782] hover:text-[#1e1f21]"
@@ -1599,6 +1960,7 @@ export function TaskDetailPanel({
                         key={dep.id}
                         dependency={dep}
                         taskId={taskId}
+                        readOnly={!canWrite}
                         onChanged={() => {
                           fetchTaskDetail();
                           onUpdate?.();
@@ -1612,6 +1974,7 @@ export function TaskDetailPanel({
                           key={dep.id}
                           dependency={dep}
                           taskId={taskId}
+                          readOnly={!canWrite}
                           onChanged={() => {
                             fetchTaskDetail();
                             onUpdate?.();
@@ -1619,21 +1982,27 @@ export function TaskDetailPanel({
                           onRemove={() => handleDependencyRemove(dep.id)}
                         />
                       ))}
-                    <DependenciesPicker
-                      taskId={taskId}
-                      existingBlockingTaskIds={allDeps.map(
-                        (d) => d.blockingTask.id
-                      )}
-                      onAdded={() => {
-                        fetchTaskDetail();
-                        onUpdate?.();
-                      }}
-                      trigger={
-                        <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
-                          Add dependencies
-                        </button>
-                      }
-                    />
+                    {canWrite ? (
+                      <DependenciesPicker
+                        taskId={taskId}
+                        existingBlockingTaskIds={allDeps.map(
+                          (d) => d.blockingTask.id
+                        )}
+                        onAdded={() => {
+                          fetchTaskDetail();
+                          onUpdate?.();
+                        }}
+                        trigger={
+                          <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
+                            Add dependencies
+                          </button>
+                        }
+                      />
+                    ) : (
+                      allDeps.length === 0 && (
+                        <span className="text-[13px] text-[#9aa0a6]">None</span>
+                      )
+                    )}
                     {completedDeps.length > 0 && (
                       <button
                         type="button"
@@ -1693,33 +2062,41 @@ export function TaskDetailPanel({
                         >
                           {dep.dependentTask.name}
                         </span>
-                        <button
-                          onClick={() =>
-                            handleDependentRemove(dep.id, dep.dependentTask.id)
-                          }
-                          className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
-                          aria-label={`Stop blocking ${dep.dependentTask.name}`}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                        {canWrite && (
+                          <button
+                            onClick={() =>
+                              handleDependentRemove(dep.id, dep.dependentTask.id)
+                            }
+                            className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+                            aria-label={`Stop blocking ${dep.dependentTask.name}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     ))}
-                    <DependenciesPicker
-                      taskId={taskId}
-                      mode="blocks"
-                      existingBlockingTaskIds={deps.map(
-                        (d) => d.dependentTask.id
-                      )}
-                      onAdded={() => {
-                        fetchTaskDetail();
-                        onUpdate?.();
-                      }}
-                      trigger={
-                        <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
-                          Add tasks this blocks
-                        </button>
-                      }
-                    />
+                    {canWrite ? (
+                      <DependenciesPicker
+                        taskId={taskId}
+                        mode="blocks"
+                        existingBlockingTaskIds={deps.map(
+                          (d) => d.dependentTask.id
+                        )}
+                        onAdded={() => {
+                          fetchTaskDetail();
+                          onUpdate?.();
+                        }}
+                        trigger={
+                          <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
+                            Add tasks this blocks
+                          </button>
+                        }
+                      />
+                    ) : (
+                      deps.length === 0 && (
+                        <span className="text-[13px] text-[#9aa0a6]">None</span>
+                      )
+                    )}
                   </div>
                 </PropertyRow>
               );
@@ -1738,8 +2115,30 @@ export function TaskDetailPanel({
                 ) : undefined;
               })()}
             >
-              <div className="flex-1 min-w-0">
-                {/* Home project (Task.projectId) */}
+              {/* A disabled fieldset disables every control the selectors
+                  render, which have no read-only mode of their own. */}
+              <fieldset disabled={!canWrite} className="flex-1 min-w-0">
+                {/* Home project (Task.projectId). Read-only viewers get a
+                    plain link: the selector keeps "Open project" in the same
+                    menu as "Remove from project", and the fieldset disables
+                    that menu's trigger along with the write actions. */}
+                {capsKnown && !canWrite && taskDetail?.project ? (
+                  <Link
+                    href={`/projects/${taskDetail.project.id}`}
+                    className="flex items-center gap-2 py-1.5 rounded hover:bg-gray-50"
+                    title="Open project"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-sm flex-shrink-0"
+                      style={{
+                        backgroundColor: taskDetail.project.color || "#22C55E",
+                      }}
+                    />
+                    <span className="text-sm font-medium hover:underline">
+                      {taskDetail.project.name}
+                    </span>
+                  </Link>
+                ) : (
                 <ProjectSelector
                   value={
                     taskDetail?.project
@@ -1757,6 +2156,7 @@ export function TaskDetailPanel({
                     taskDetail?.taskProjects?.map((tp) => tp.projectId) ?? []
                   }
                 />
+                )}
                 {taskDetail?.project && taskDetail.project.type && (
                   <div className="mt-1 flex items-center gap-1.5">
                     <span
@@ -1786,6 +2186,7 @@ export function TaskDetailPanel({
                           </span>
                           <button
                             type="button"
+                            hidden={!canWrite}
                             onClick={() => handleRemoveFromProject(tp.projectId)}
                             aria-label={`Remove from ${tp.project.name}`}
                             className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
@@ -1798,7 +2199,7 @@ export function TaskDetailPanel({
                   )}
 
                 {/* Add to another project (only once it has a home) */}
-                {taskDetail?.project && (
+                {taskDetail?.project && canWrite && (
                   <div className="mt-1">
                     <ProjectSelector
                       value={null}
@@ -1813,7 +2214,7 @@ export function TaskDetailPanel({
                     />
                   </div>
                 )}
-              </div>
+              </fieldset>
             </PropertyRow>
 
             {/* Section — the task's column/group inside its home project.
@@ -1821,10 +2222,10 @@ export function TaskDetailPanel({
             {taskDetail?.project && (
               <PropertyRow label="Section">
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                  <DropdownMenuTrigger asChild disabled={!canWrite}>
                     <button
                       type="button"
-                      className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer text-left"
+                      className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer disabled:cursor-default disabled:hover:bg-transparent text-left"
                     >
                       {taskDetail?.section?.name ? (
                         <span className="text-[13px] text-[#1e1f21]">
@@ -1860,10 +2261,10 @@ export function TaskDetailPanel({
 
             <PropertyRow label="Priority">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger asChild disabled={!canWrite}>
                   <button
                     type="button"
-                    className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer"
+                    className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer disabled:cursor-default disabled:hover:bg-transparent"
                   >
                     {taskDetail?.priority && taskDetail.priority !== "NONE" ? (
                       <PriorityTag value={taskDetail.priority} />
@@ -1905,10 +2306,10 @@ export function TaskDetailPanel({
                 (the field was editable there but absent here). */}
             <PropertyRow label="Status">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger asChild disabled={!canWrite}>
                   <button
                     type="button"
-                    className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer"
+                    className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer disabled:cursor-default disabled:hover:bg-transparent"
                   >
                     {taskDetail?.taskStatus === "ON_TRACK" ? (
                       <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[#85D7A2] text-[#06321B]">
@@ -1970,6 +2371,7 @@ export function TaskDetailPanel({
                 ) : undefined
               }
             >
+              <fieldset disabled={!canWrite} className="min-w-0 flex-1">
               <EditableTagsCell
                 taskId={taskId}
                 value={taskDetail?.taskTags ?? []}
@@ -1978,9 +2380,11 @@ export function TaskDetailPanel({
                   onUpdate?.();
                 }}
               />
+              </fieldset>
             </PropertyRow>
 
             {/* Project's custom fields */}
+            <fieldset disabled={!canWrite} className="contents">
             <CustomFieldsSection
               taskId={taskId}
               projectId={taskDetail?.project?.id ?? null}
@@ -1993,6 +2397,7 @@ export function TaskDetailPanel({
                 onUpdate?.();
               }}
             />
+            </fieldset>
           </div>
 
           {/* Description */}
@@ -2002,12 +2407,16 @@ export function TaskDetailPanel({
             </h4>
             <textarea
               value={description}
+              readOnly={!canWrite}
               onChange={(e) => setDescription(e.target.value)}
-              onBlur={() =>
-                description !== taskDetail?.description &&
-                handleUpdate("description", description)
-              }
-              placeholder="What is this task about?"
+              onBlur={() => {
+                // A task with no description stores null; an untouched empty
+                // box is not an edit.
+                if (canWrite && description !== (taskDetail?.description ?? "")) {
+                  handleUpdate("description", description);
+                }
+              }}
+              placeholder={canWrite ? "What is this task about?" : "No description"}
               rows={2}
               className="w-full text-[13px] leading-relaxed bg-transparent outline-none resize-none placeholder:text-[#9aa0a6] text-[#1e1f21] focus:bg-[#f9fafb] focus:rounded-md focus:px-2 focus:py-1 transition-[background-color] -mx-0"
             />
@@ -2141,16 +2550,19 @@ export function TaskDetailPanel({
                 {taskDetail?.subtasks && taskDetail.subtasks.length > 0 &&
                   `(${taskDetail.subtasks.length})`}
               </h4>
-              <button
-                onClick={() => {
-                  setIsAddingSubtask(true);
-                  setTimeout(() => subtaskInputRef.current?.focus(), 0);
-                }}
-                className="flex items-center justify-center h-4 w-4 rounded text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21]"
-                title="Add subtask"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
+              {canWrite && (
+                <button
+                  onClick={() => {
+                    setIsAddingSubtask(true);
+                    setTimeout(() => subtaskInputRef.current?.focus(), 0);
+                  }}
+                  className="flex items-center justify-center h-4 w-4 rounded text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21]"
+                  title="Add subtask"
+                  data-print-hide
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
             <div className="space-y-0">
               {taskDetail?.subtasks?.map((subtask) => (
@@ -2159,24 +2571,14 @@ export function TaskDetailPanel({
                   className="flex items-center gap-2 group py-1.5 border-b border-[#eeeeee] last:border-b-0"
                 >
                   <button
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(`/api/tasks/${subtask.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            completed: !subtask.completed,
-                          }),
-                        });
-                        if (res.ok) {
-                          fetchTaskDetail();
-                          onUpdate?.();
-                        }
-                      } catch {
-                        toast.error("Failed to update subtask");
-                      }
-                    }}
-                    className="flex-shrink-0"
+                    onClick={() => handleToggleSubtask(subtask)}
+                    disabled={!canWrite}
+                    className="flex-shrink-0 disabled:cursor-default"
+                    aria-label={
+                      subtask.completed
+                        ? `Mark ${subtask.name} incomplete`
+                        : `Mark ${subtask.name} complete`
+                    }
                   >
                     <div
                       className={cn(
@@ -2218,11 +2620,13 @@ export function TaskDetailPanel({
                   ) : (
                     <span
                       onClick={() => {
+                        if (!canWrite) return;
                         setEditingSubtaskId(subtask.id);
                         setEditingSubtaskName(subtask.name);
                       }}
                       className={cn(
-                        "text-[13px] flex-1 cursor-text",
+                        "text-[13px] flex-1",
+                        canWrite && "cursor-text",
                         subtask.completed
                           ? "line-through text-[#9aa0a6]"
                           : "text-[#1e1f21]"
@@ -2242,46 +2646,48 @@ export function TaskDetailPanel({
                       </AvatarFallback>
                     </Avatar>
                   )}
+                  {/* Open the subtask itself — assignee, dates, description and
+                      its own thread live in its panel, not on this row. */}
                   <button
                     type="button"
-                    onClick={() => handleDeleteSubtask(subtask.id)}
-                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#e2564f] transition-opacity"
-                    title="Delete subtask"
+                    onClick={() => openRelatedTask(subtask.id)}
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+                    title="Open subtask"
+                    aria-label={`Open ${subtask.name}`}
+                    data-print-hide
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
+                  {canWrite && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSubtask(subtask.id)}
+                      className="flex-shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[#9aa0a6] hover:text-[#e2564f] transition-opacity"
+                      title="Delete subtask"
+                      data-print-hide
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
-              {isAddingSubtask ? (
+              {isAddingSubtask && canWrite ? (
                 <div className="flex items-center gap-2 py-1.5 border-b border-[#eeeeee]">
-                  <div className="w-[15px] h-[15px] rounded-full border border-[#c4c7cf] flex-shrink-0" />
+                  {addingSubtask ? (
+                    <Loader2 className="w-[15px] h-[15px] animate-spin text-[#9aa0a6] flex-shrink-0" />
+                  ) : (
+                    <div className="w-[15px] h-[15px] rounded-full border border-[#c4c7cf] flex-shrink-0" />
+                  )}
                   <input
                     ref={subtaskInputRef}
                     type="text"
                     value={newSubtaskName}
+                    disabled={addingSubtask}
                     onChange={(e) => setNewSubtaskName(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === "Enter" && newSubtaskName.trim()) {
-                        try {
-                          const res = await fetch(`/api/tasks`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              name: newSubtaskName.trim(),
-                              parentTaskId: taskId,
-                            }),
-                          });
-                          if (res.ok) {
-                            setNewSubtaskName("");
-                            fetchTaskDetail();
-                            onUpdate?.();
-                            toast.success("Subtask added");
-                          } else {
-                            toast.error("Failed to add subtask");
-                          }
-                        } catch {
-                          toast.error("Failed to add subtask");
-                        }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddSubtask();
                       }
                       if (e.key === "Escape") {
                         setIsAddingSubtask(false);
@@ -2289,19 +2695,20 @@ export function TaskDetailPanel({
                       }
                     }}
                     onBlur={() => {
-                      if (!newSubtaskName.trim()) {
+                      if (!newSubtaskName.trim() && !addingSubtaskRef.current) {
                         setIsAddingSubtask(false);
                         setNewSubtaskName("");
                       }
                     }}
                     placeholder="Type a subtask name"
-                    className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6]"
+                    className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] disabled:opacity-60"
                     autoFocus
                   />
                 </div>
-              ) : (
+              ) : canWrite ? (
                 <button
                   className="flex items-center gap-2 py-1.5 w-full text-left text-[13px] text-[#6f7782] hover:text-[#1e1f21]"
+                  data-print-hide
                   onClick={() => {
                     setIsAddingSubtask(true);
                     setTimeout(() => subtaskInputRef.current?.focus(), 0);
@@ -2310,7 +2717,7 @@ export function TaskDetailPanel({
                   <Plus className="h-3.5 w-3.5" />
                   Add subtask
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -2446,7 +2853,7 @@ export function TaskDetailPanel({
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="text-black"
-                                  onClick={() => handleDeleteComment(comment.id)}
+                                  onClick={() => handleDeleteComment(comment)}
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   Delete comment
@@ -2459,19 +2866,20 @@ export function TaskDetailPanel({
                           <textarea
                             autoFocus
                             value={editingCommentText}
+                            readOnly={savingCommentEdit}
                             onChange={(e) =>
                               setEditingCommentText(e.target.value)
                             }
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
-                                handleSaveCommentEdit(comment.id);
+                                handleSaveCommentEdit(comment);
                               } else if (e.key === "Escape") {
                                 e.preventDefault();
-                                setEditingCommentId(null);
+                                if (!savingCommentEdit) setEditingCommentId(null);
                               }
                             }}
-                            onBlur={() => handleSaveCommentEdit(comment.id)}
+                            onBlur={() => handleSaveCommentEdit(comment)}
                             rows={2}
                             className="mt-1 w-full text-sm border border-[#c4c7cf] rounded-md px-2 py-1.5 outline-none focus:border-[#1e1f21] resize-none"
                           />
@@ -2574,7 +2982,8 @@ export function TaskDetailPanel({
       )}
 
       {/* Comment Input (anchored bottom) */}
-      <div className="px-5 py-3 border-t border-[#e8e8e8] bg-white flex-shrink-0">
+      {!currentLoadError && (
+      <div className="px-5 py-3 border-t border-[#e8e8e8] bg-white flex-shrink-0" data-print-hide>
         <div className="flex gap-2.5 items-start">
           <Avatar className="h-7 w-7 flex-shrink-0 mt-0.5">
             <AvatarImage src={sessionUser?.image || undefined} />
@@ -2599,7 +3008,9 @@ export function TaskDetailPanel({
                   if (!postingComment) handleAddComment();
                 }}
                 placeholder={
-                  !canComment
+                  !capsKnown
+                    ? "Loading…"
+                    : !canComment
                     ? "You have view-only access to this task"
                     : pendingCommentFiles.length > 0
                     ? "Caption (optional)…"
@@ -2614,7 +3025,7 @@ export function TaskDetailPanel({
                 multiple
                 className="hidden"
                 onChange={handleCommentFilesPicked}
-                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+                accept={UPLOAD_ACCEPT}
               />
               <button
                 type="button"
@@ -2685,7 +3096,11 @@ export function TaskDetailPanel({
         </div>
       </div>
 
-      {/* Collaborators footer */}
+      )}
+
+      {/* Collaborators footer — only once THIS task is loaded: its buttons
+          act on taskId, and nothing else of the task is on screen before. */}
+      {capsKnown && (
       <div className="px-5 py-2.5 border-t border-[#e8e8e8] flex items-center justify-between text-[12px] bg-white flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="text-[#6f7782]">Collaborators</span>
@@ -2698,35 +3113,47 @@ export function TaskDetailPanel({
                     {(collab.name || "U").charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <button
-                  type="button"
-                  aria-label={`Remove ${collab.name || "collaborator"}`}
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(
-                        `/api/tasks/${taskId}/collaborators?userId=${collab.id}`,
-                        { method: "DELETE" }
-                      );
-                      if (res.ok) {
-                        fetchTaskDetail();
-                      } else {
+                {/* Removing someone else needs write access; anyone may
+                    remove themselves. */}
+                {(canWrite || collab.id === sessionUser?.id) && (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${collab.name || "collaborator"}`}
+                    data-print-hide
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(
+                          `/api/tasks/${taskId}/collaborators?userId=${collab.id}`,
+                          { method: "DELETE" }
+                        );
+                        if (res.ok) {
+                          fetchTaskDetail();
+                        } else {
+                          toast.error(
+                            await responseError(
+                              res,
+                              "Failed to remove collaborator"
+                            )
+                          );
+                        }
+                      } catch {
                         toast.error("Failed to remove collaborator");
                       }
-                    } catch {
-                      toast.error("Failed to remove collaborator");
-                    }
-                  }}
-                  className="absolute -top-1 -right-1 hidden group-hover:flex h-3 w-3 items-center justify-center rounded-full bg-[#1e1f21] text-white"
-                >
-                  <X className="h-2 w-2" />
-                </button>
+                    }}
+                    className="absolute -top-1 -right-1 hidden group-hover:flex h-3 w-3 items-center justify-center rounded-full bg-[#1e1f21] text-white"
+                  >
+                    <X className="h-2 w-2" />
+                  </button>
+                )}
               </div>
             ))}
             {(!taskDetail?.collaborators ||
               taskDetail.collaborators.length === 0) && (
               <span className="text-[12px] text-[#9aa0a6]">None yet</span>
             )}
+            {canWrite && (
             <AssigneeSelector
+              taskId={taskId}
               value={null}
               onChange={async (user) => {
                 if (!user) return;
@@ -2745,22 +3172,35 @@ export function TaskDetailPanel({
                   } else if (res.status === 409) {
                     toast.info("Already a collaborator");
                   } else {
-                    toast.error("Failed to add collaborator");
+                    toast.error(
+                      await responseError(res, "Failed to add collaborator")
+                    );
                   }
                 } catch {
                   toast.error("Failed to add collaborator");
                 }
               }}
               trigger={
-                <button className="h-5 w-5 rounded-full border border-dashed border-[#c4c7cf] flex items-center justify-center hover:border-[#1e1f21] hover:bg-[#f3f4f6] cursor-pointer">
+                <button
+                  className="h-5 w-5 rounded-full border border-dashed border-[#c4c7cf] flex items-center justify-center hover:border-[#1e1f21] hover:bg-[#f3f4f6] cursor-pointer"
+                  data-print-hide
+                  aria-label="Add collaborator"
+                >
                   <Plus className="h-2.5 w-2.5 text-[#9aa0a6]" />
                 </button>
               }
             />
+            )}
           </div>
         </div>
+        {/* Only a follower can leave: the creator and the assignee are not
+            collaborator rows, and the server answers them "Not a
+            collaborator". */}
+        {!!sessionUser?.id &&
+          taskDetail?.collaborators?.some((c) => c.id === sessionUser.id) && (
         <button
           className="text-[12px] text-[#6f7782] hover:text-[#1e1f21]"
+          data-print-hide
           onClick={async () => {
             try {
               const res = await fetch(`/api/tasks/${taskId}/collaborators`, {
@@ -2770,7 +3210,7 @@ export function TaskDetailPanel({
                 toast.success("You left this task");
                 fetchTaskDetail();
               } else {
-                toast.error("Failed to leave task");
+                toast.error(await responseError(res, "Failed to leave task"));
               }
             } catch {
               toast.error("Failed to leave task");
@@ -2779,7 +3219,9 @@ export function TaskDetailPanel({
         >
           Leave task
         </button>
+        )}
       </div>
+      )}
 
       {viewerIndex !== null && taskDetail?.attachments?.[viewerIndex] && (
         <FileViewerModal
@@ -2802,6 +3244,14 @@ export function TaskDetailPanel({
 }
 
 // ─── Helpers (same look as /my-tasks panel) ──────────────────────
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 // forwardRef + props-spread is REQUIRED so this button works as a
 // `DropdownMenuTrigger asChild` child. Radix injects onClick + ref +
@@ -2876,11 +3326,14 @@ function PriorityTag({ value }: { value: string }) {
 function DependencyChip({
   dependency,
   taskId,
+  readOnly = false,
   onChanged,
   onRemove,
 }: {
   dependency: TaskDependency;
   taskId: string;
+  /** No write access: show the link, offer neither retype nor remove. */
+  readOnly?: boolean;
   onChanged: () => void;
   onRemove: () => void;
 }) {
@@ -2905,7 +3358,9 @@ function DependencyChip({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: next }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(await responseError(res, "Couldn't update dependency"));
+      }
       toast.success("Dependency type updated");
       onChanged();
     } catch (err) {
@@ -2918,13 +3373,13 @@ function DependencyChip({
   return (
     <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] -ml-1.5 px-1.5 py-1 rounded hover:bg-[#f9fafb]">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="inline-flex items-center gap-1 text-[#6f7782] hover:text-[#1e1f21] cursor-pointer">
+        <DropdownMenuTrigger asChild disabled={readOnly}>
+          <button className="inline-flex items-center gap-1 text-[#6f7782] hover:text-[#1e1f21] cursor-pointer disabled:cursor-default disabled:hover:text-[#6f7782]">
             <ArrowLeftRight className="h-3 w-3 -rotate-90" />
             <span>Blocked by</span>
             <span className="text-[#9aa0a6]">·</span>
             <span className="font-medium tabular-nums">{meta.short}</span>
-            <ChevronDown className="h-3 w-3" />
+            {!readOnly && <ChevronDown className="h-3 w-3" />}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-[180px]">
@@ -2976,13 +3431,15 @@ function DependencyChip({
         </>
       )}
 
-      <button
-        onClick={onRemove}
-        className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
-        aria-label={`Remove dependency on ${bt.name}`}
-      >
-        <X className="w-3 h-3" />
-      </button>
+      {!readOnly && (
+        <button
+          onClick={onRemove}
+          className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+          aria-label={`Remove dependency on ${bt.name}`}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
 }

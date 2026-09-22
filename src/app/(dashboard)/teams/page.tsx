@@ -28,6 +28,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { peekTeamInvite, consumeTeamInvite } from "@/lib/team-invite";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,6 +40,7 @@ import {
   FolderKanban,
   UserPlus,
   Archive,
+  RotateCw,
 } from "lucide-react";
 import { teamJoinMode, teamPrivacyMeta } from "@/lib/team-privacy";
 import { toast } from "sonner";
@@ -286,6 +288,9 @@ function TeamsPageContent() {
         if (res.ok) {
           toast.success(`You joined ${team.name}`);
           setReloadKey((k) => k + 1);
+          // The sidebar caches its own team list; without this the team
+          // stays missing there until a full reload.
+          notifySidebarRefresh();
           return;
         }
         if (!data?.requiresRequest) {
@@ -376,7 +381,7 @@ function TeamsPageContent() {
                 onClick={() => setReloadKey((k) => k + 1)}
                 className="gap-1.5"
               >
-                <Loader2 className="h-4 w-4" />
+                <RotateCw className="h-4 w-4" />
                 Retry
               </Button>
             </div>

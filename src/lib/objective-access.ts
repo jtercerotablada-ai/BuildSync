@@ -32,10 +32,17 @@ import {
  * comparing a goal's workspace against it hides every goal that lives in any
  * of their others. Same lookup project-access.ts makes, for the same reason.
  *
- * PER-MEMBER ROLE — ObjectiveMemberRole (EDITOR | VIEWER) is deliberately not
- * consulted. The flags below answer "is this person on the goal at all"; the
- * route that cares about the finer role (objective PATCH, which requires
- * EDITOR) keeps its own check on top of these.
+ * PER-MEMBER ROLE — ObjectiveMemberRole (EDITOR | VIEWER) narrows WRITE only,
+ * and only on a PRIVATE goal. There, being on the goal is what grants access,
+ * so a member the owner named as VIEWER ("Read-only") can open it but not
+ * change it: key results, check-ins, status, links and fields alike. On a
+ * non-private goal every colleague already writes, so a VIEWER row there
+ * would leave the one person the goal was shared with worse off than
+ * everyone who is not on it; it narrows nothing. The goal's owner and
+ * workspace OWNER/ADMIN are never narrowed by a member row.
+ *
+ * Commenting and liking are part of reading the goal, not changing it, so
+ * every reader may do both (canComment), a read-only member included.
  */
 
 /** The objective fields the decision needs, and the ones routes re-read most. */
@@ -57,6 +64,8 @@ export interface ObjectiveAccessFailure {
 export interface ObjectiveAccessDecision {
   canRead: boolean;
   canWrite: boolean;
+  /** May comment on and like the goal: everyone who may read it. */
+  canComment: boolean;
   isOwner: boolean;
   /** The caller holds an ObjectiveMember row on this objective. */
   isMember: boolean;
@@ -85,6 +94,12 @@ export interface ObjectiveAccessDecisionInput {
   workspaceRole: string | null;
   isOwner: boolean;
   isMember: boolean;
+  /**
+   * The caller's ObjectiveMember.role on this goal (EDITOR | VIEWER), or
+   * null/undefined when they hold no member row. Only VIEWER changes the
+   * answer, and only for canWrite on a private goal.
+   */
+  memberRole?: string | null;
 }
 
 /**
@@ -127,16 +142,21 @@ export function decideObjectiveAccess(
 
   const canRead = isContributor && passesPrivacy;
 
-  // Spelled out rather than aliased to canRead. The two sets coincide only
-  // because the people allowed to SEE a private goal are exactly the people
-  // allowed to change it; narrowing one of them later must not silently move
-  // the other. For a non-private goal this stays true for every contributor,
-  // unchanged from before this gate existed.
-  const canWrite = canRead && passesPrivacy;
+  // Spelled out rather than aliased to canRead: everyone who may SEE the goal
+  // may change it, except a member the owner named VIEWER ("Read-only") on a
+  // private goal, where membership is the only way in. The owner and
+  // workspace managers are never narrowed by their own member row.
+  const isReadOnlyMember =
+    input.isPrivate &&
+    input.memberRole === "VIEWER" &&
+    !input.isOwner &&
+    !isWorkspaceManager;
+  const canWrite = canRead && passesPrivacy && !isReadOnlyMember;
 
   return {
     canRead,
     canWrite,
+    canComment: canRead,
     isOwner: input.isOwner,
     isMember: input.isMember,
     isWorkspaceManager,
@@ -176,7 +196,7 @@ export async function resolveObjectiveAccess(
     }),
     prisma.objectiveMember.findUnique({
       where: { objectiveId_userId: { objectiveId, userId } },
-      select: { userId: true },
+      select: { role: true },
     }),
   ]);
 
@@ -185,6 +205,7 @@ export async function resolveObjectiveAccess(
     workspaceRole: membership?.role ?? null,
     isOwner: !!objective.ownerId && objective.ownerId === userId,
     isMember: !!member,
+    memberRole: member?.role ?? null,
   });
 
   if (!decision.canRead) {
@@ -199,12 +220,13 @@ export async function resolveObjectiveAccess(
  * same shape as verifyProjectAccess: throws NotFoundError (→ 404) when the
  * objective is unknown or unreadable, AuthorizationError (→ 403) when the
  * caller may read it but not change it, and otherwise hands back the resolved
- * access so the handler doesn't pay for a second lookup.
+ * access so the handler doesn't pay for a second lookup. `requireComment` is
+ * the gate for comments and likes, which a read-only member keeps.
  */
 export async function verifyObjectiveAccess(
   userId: string,
   objectiveId: string,
-  opts: { requireWrite?: boolean } = {}
+  opts: { requireWrite?: boolean; requireComment?: boolean } = {}
 ): Promise<ObjectiveAccessGranted> {
   const access = await resolveObjectiveAccess(objectiveId, userId);
   if (!access.ok) {
@@ -213,6 +235,11 @@ export async function verifyObjectiveAccess(
   if (opts.requireWrite && !access.canWrite) {
     throw new AuthorizationError(
       "You don't have permission to modify this objective"
+    );
+  }
+  if (opts.requireComment && !access.canComment) {
+    throw new AuthorizationError(
+      "You don't have permission to comment on this objective"
     );
   }
   return access;

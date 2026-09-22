@@ -5,7 +5,6 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { taskPrivacyClause } from "@/lib/project-visibility";
 import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
-import { getTemplateById } from "@/lib/templates-data";
 import { readJson, jsonErrorResponse } from "@/lib/http";
 import {
   legacyGateFor,
@@ -14,6 +13,22 @@ import {
 } from "@/lib/pipelines";
 import { INITIALLY_HIDDEN_VIEWS } from "@/lib/project-views";
 import { templateTaskDates } from "@/lib/template-schedule";
+import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
+import { isNonContributorRole } from "@/lib/workspace-roles";
+import {
+  allocateProjectNumber,
+  firmTodayDateOnly,
+} from "@/lib/project-number";
+import { isStatusEarned } from "@/lib/project-status";
+
+/**
+ * What the "N tasks" count on a project card means: top-level tasks the caller
+ * may see. Panel subtasks now carry projectId, so without the parentTaskId
+ * filter the card would also count checklist items.
+ */
+function rootTaskCountClause(userId: string): Prisma.TaskWhereInput {
+  return { AND: [taskPrivacyClause(userId), { parentTaskId: null }] };
+}
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -22,7 +37,6 @@ const createProjectSchema = z.object({
   icon: z.string().optional(),
   workspaceId: z.string().optional(),
   teamId: z.string().optional(),
-  templateId: z.string().optional(), // Template to use for project creation
   startDate: z.string().optional(), // For calculating relative due dates
   endDate: z.string().optional(), // Target completion date
   // Engineering firm extensions
@@ -125,22 +139,43 @@ const createProjectSchema = z.object({
 // GET /api/projects - Get user's projects
 //
 // ── Access control ────────────────────────────────────────────
-// Visibility is hierarchical, not flat:
-//
-//   OWNER + L5+ Executive  → all workspace projects, period.
-//   L4 Management          → all workspace projects (PM/PE/Office
-//                            Admin need cross-project visibility
-//                            to coordinate).
-//   L1–L3                  → ONLY projects where they are the
-//                            owner or an explicit ProjectMember.
-//                            visibility=WORKSPACE no longer auto-
-//                            grants access — that was leaking
-//                            projects to invited users who were
-//                            only meant to see one specific
-//                            project.
-//
-// PUBLIC visibility still bypasses for everyone (intentionally
-// open content like demo / showcase projects).
+// The list shows exactly the projects the caller can open: the rule lives in
+// buildProjectVisibilityClauses (@/lib/project-visibility), the list-query
+// sibling of canReadProject (@/lib/project-access). Do not restate it here.
+
+/**
+ * "Status" sort, most urgent first. The enum's own order (ON_TRACK first) put
+ * the healthy — and the never-rated, which default to ON_TRACK — ahead of
+ * everything, so a 4-row widget never showed the job that was off track.
+ * A status nobody chose ranks after every real one (see isStatusEarned).
+ */
+function statusSortRank(p: {
+  status: string;
+  statusSetAt: Date | null;
+}): number {
+  if (p.status === "COMPLETE") return 5;
+  if (!isStatusEarned(p.statusSetAt)) return 4;
+  switch (p.status) {
+    case "OFF_TRACK":
+      return 0;
+    case "AT_RISK":
+      return 1;
+    case "ON_HOLD":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function sortByStatusSeverity<
+  T extends { status: string; statusSetAt: Date | null },
+>(rows: T[], take: number | undefined): T[] {
+  // Array.prototype.sort is stable, so the updatedAt-desc order the query
+  // returned survives inside each bucket.
+  const sorted = [...rows].sort((a, b) => statusSortRank(a) - statusSortRank(b));
+  return take ? sorted.slice(0, take) : sorted;
+}
+
 export async function GET(req: Request) {
   try {
     const userId = await getCurrentUserId();
@@ -167,14 +202,12 @@ export async function GET(req: Request) {
     const limit = limitParam ? parseInt(limitParam, 10) : null;
     const take = limit && limit > 0 ? limit : undefined;
     const sort = searchParams.get("sort");
-    const orderBy:
-      | Prisma.ProjectOrderByWithRelationInput
-      | Prisma.ProjectOrderByWithRelationInput[] =
-      sort === "alphabetical"
-        ? { name: "asc" }
-        : sort === "status"
-          ? [{ status: "asc" }, { updatedAt: "desc" }]
-          : { updatedAt: "desc" };
+    // The status sort is a severity ranking that Prisma cannot express, so it
+    // is applied in JS after the query (sortByStatusSeverity) — the query then
+    // must not cap the rows, or the urgent ones could be cut before ranking.
+    const byStatus = sort === "status";
+    const orderBy: Prisma.ProjectOrderByWithRelationInput =
+      sort === "alphabetical" ? { name: "asc" } : { updatedAt: "desc" };
     // ?fields=summary returns a slim row (id/name/color/icon/status +
     // task count) for lightweight consumers like the home projects
     // widget and @mention pickers — no owner, members or task rows.
@@ -229,14 +262,16 @@ export async function GET(req: Request) {
           // number disagreed with every list that renders it.
           _count: {
             select: {
-              tasks: { where: taskPrivacyClause(userId) },
+              tasks: { where: rootTaskCountClause(userId) },
             },
           },
         },
         orderBy,
-        ...(take ? { take } : {}),
+        ...(take && !byStatus ? { take } : {}),
       });
-      return NextResponse.json(projects);
+      return NextResponse.json(
+        byStatus ? sortByStatusSeverity(projects, take) : projects
+      );
     }
 
     const projects = await prisma.project.findMany({
@@ -277,7 +312,7 @@ export async function GET(req: Request) {
         _count: {
           select: {
             // See the privacy note on the list query above.
-            tasks: { where: taskPrivacyClause(userId) },
+            tasks: { where: rootTaskCountClause(userId) },
             sections: true,
           },
         },
@@ -287,10 +322,12 @@ export async function GET(req: Request) {
       // every root task, per project). Without a cap one call could pull the
       // entire workspace; 500 is far above any realistic project count, and
       // ?limit still narrows it further for widgets.
-      take: take ?? 500,
+      take: byStatus ? 500 : take ?? 500,
     });
 
-    return NextResponse.json(projects);
+    return NextResponse.json(
+      byStatus ? sortByStatusSeverity(projects, take) : projects
+    );
   } catch (error) {
     console.error("Error fetching projects:", error);
     return NextResponse.json(
@@ -317,7 +354,6 @@ export async function POST(req: Request) {
       icon,
       workspaceId,
       teamId,
-      templateId,
       startDate,
       endDate,
       type,
@@ -332,29 +368,18 @@ export async function POST(req: Request) {
       customFields: explicitCustomFields,
     } = createProjectSchema.parse(body);
 
-    // Get template if provided
-    const template = templateId ? getTemplateById(templateId) : null;
-
     // Get or create default workspace
     let targetWorkspaceId = workspaceId;
 
     if (!targetWorkspaceId) {
-      // Find user's first workspace or create one
-      const workspace = await prisma.workspace.findFirst({
-        where: {
-          members: {
-            some: {
-              userId,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
-      });
+      // The SAME workspace the rest of the app resolves to (PRIMARY pin,
+      // then the firm heuristic). A private "oldest workspace I belong to"
+      // rule here could file a job made from a firm template into a personal
+      // workspace the firm never sees.
+      const primary = await getPrimaryWorkspaceMembership(userId);
 
-      if (workspace) {
-        targetWorkspaceId = workspace.id;
+      if (primary) {
+        targetWorkspaceId = primary.workspaceId;
       } else {
         // Create a default workspace
         const user = await prisma.user.findUnique({
@@ -396,6 +421,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // GUEST/CLIENT seats are view-only; creating a project would make them
+    // its owner, with full control.
+    if (isNonContributorRole(workspaceMember.role)) {
+      return NextResponse.json(
+        { error: "Your role is view-only and can't create projects" },
+        { status: 403 }
+      );
+    }
+
     // If sharing with a team at creation, that team must live in THIS
     // workspace — otherwise its members would gain access to a project in a
     // workspace they don't belong to (mirrors the /team PUT validation).
@@ -412,39 +446,19 @@ export async function POST(req: Request) {
       }
     }
 
-    // Auto-generate the next human-readable project number for this
-    // workspace. Format: TT-YYYY-NNN (3-digit zero-padded). Scoped to
-    // the year + workspace so different workspaces keep independent
-    // counters and a new year restarts at 001.
-    const year = new Date().getFullYear();
-    const prefix = `TT-${year}-`;
-    const lastNumberedProject = await prisma.project.findFirst({
-      where: {
-        workspaceId: targetWorkspaceId,
-        projectNumber: { startsWith: prefix },
-      },
-      orderBy: { projectNumber: "desc" },
-      select: { projectNumber: true },
-    });
-    let nextSeq = 1;
-    if (lastNumberedProject?.projectNumber) {
-      const tail = lastNumberedProject.projectNumber.slice(prefix.length);
-      const parsed = parseInt(tail, 10);
-      if (!Number.isNaN(parsed)) nextSeq = parsed + 1;
-    }
-    const projectNumber = `${prefix}${String(nextSeq).padStart(3, "0")}`;
+    // Without an explicit start the job starts on the firm's calendar day,
+    // stored at UTC midnight like every other date-only value. `new Date()`
+    // stamped the instant, which after 20:00 in Miami is already tomorrow.
+    const projectStartDate = startDate ? new Date(startDate) : firmTodayDateOnly();
 
-    // Determine sections — priority: explicit `sections` from a
-    // project-template gallery pick → legacy `template.sections` →
-    // default "To do / In progress / Done".
+    // Determine sections — explicit `sections` from a project-template
+    // gallery pick, else the default "To do / In progress / Done".
     const requestedSections: { name: string; stage?: string | null }[] =
       explicitSections && explicitSections.length > 0
         ? explicitSections.map((entry) =>
             typeof entry === "string" ? { name: entry } : entry
           )
-        : template
-          ? template.sections.map((section) => ({ name: section.name }))
-          : [{ name: "To do" }, { name: "In progress" }, { name: "Done" }];
+        : [{ name: "To do" }, { name: "In progress" }, { name: "Done" }];
 
     // ── The board column ↔ stage join ───────────────────────────────
     // A recert board column IS a pipeline stage. The template gallery sends
@@ -476,20 +490,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // Determine views based on template or default
-    const viewsToCreate = template
-      ? [
-          { name: "List", type: "LIST" as const, isDefault: template.defaultView === "LIST" },
-          { name: "Board", type: "BOARD" as const, isDefault: template.defaultView === "BOARD" },
-          { name: "Timeline", type: "TIMELINE" as const, isDefault: template.defaultView === "TIMELINE" },
-          { name: "Calendar", type: "CALENDAR" as const, isDefault: template.defaultView === "CALENDAR" },
-        ]
-      : [
-          { name: "List", type: "LIST" as const, isDefault: true },
-          { name: "Board", type: "BOARD" as const, isDefault: false },
-          { name: "Timeline", type: "TIMELINE" as const, isDefault: false },
-          { name: "Calendar", type: "CALENDAR" as const, isDefault: false },
-        ];
+    const viewsToCreate = [
+      { name: "List", type: "LIST" as const, isDefault: true },
+      { name: "Board", type: "BOARD" as const, isDefault: false },
+      { name: "Timeline", type: "TIMELINE" as const, isDefault: false },
+      { name: "Calendar", type: "CALENDAR" as const, isDefault: false },
+    ];
 
     // A typed project starts at its pipeline's first stage — exactly what the
     // backfill did to the live rows, so a job created today behaves like every
@@ -505,16 +511,20 @@ export async function POST(req: Request) {
     // raised because large templates do many sequential writes.
     const project = await prisma.$transaction(
       async (tx) => {
+        // Allocated inside the transaction, under a per-workspace lock — see
+        // allocateProjectNumber (TT-YYYY-NNN, one counter per workspace/year).
+        const projectNumber = await allocateProjectNumber(tx, targetWorkspaceId);
+
         const created = await tx.project.create({
           data: {
             name,
-            description: description || template?.description,
-            color: color || template?.color || "#c9a84c",
-            icon: icon || template?.icon,
+            description: description || undefined,
+            color: color || "#c9a84c",
+            icon: icon || undefined,
             workspaceId: targetWorkspaceId,
             teamId: teamId || null,
             ownerId: userId,
-            startDate: startDate ? new Date(startDate) : new Date(),
+            startDate: projectStartDate,
             endDate: endDate ? new Date(endDate) : null,
             type: type ?? null,
             stage: initialStage?.key ?? null,
@@ -586,6 +596,42 @@ export async function POST(req: Request) {
           string,
           { id: string; type: string }
         >();
+        // Definitions are workspace-level. Creating a fresh one per project
+        // left the workspace with dozens of identical "Responsible" fields
+        // (and orphans once the projects were deleted), so a definition with
+        // the same name and type is reused — but only when it already offers
+        // every option id the template's values refer to; otherwise those
+        // values would point at options the field does not have. Only
+        // definitions some project already links are candidates: a definition
+        // with no project link is someone's personal My Tasks field (see
+        // /api/my-tasks/custom-fields), and linking it here would publish it.
+        const existingDefs =
+          explicitCustomFields && explicitCustomFields.length > 0
+            ? await tx.customFieldDefinition.findMany({
+                where: {
+                  workspaceId: targetWorkspaceId,
+                  projectFields: { some: {} },
+                  OR: explicitCustomFields.map((cf) => ({
+                    name: cf.name,
+                    type: cf.type,
+                  })),
+                },
+                select: { id: true, name: true, type: true, options: true },
+                orderBy: { id: "asc" },
+              })
+            : [];
+        const optionIdsOf = (options: unknown): Set<string> =>
+          new Set(
+            Array.isArray(options)
+              ? options
+                  .map((o) =>
+                    o && typeof o === "object" && "id" in o
+                      ? String((o as { id: unknown }).id)
+                      : null
+                  )
+                  .filter((id): id is string => id !== null)
+              : []
+          );
         if (explicitCustomFields && explicitCustomFields.length > 0) {
           for (let i = 0; i < explicitCustomFields.length; i++) {
             const cf = explicitCustomFields[i];
@@ -596,16 +642,26 @@ export async function POST(req: Request) {
             if (needsOptions && (!cf.options || cf.options.length === 0)) {
               continue;
             }
-            const def = await tx.customFieldDefinition.create({
-              data: {
-                name: cf.name,
-                type: cf.type,
-                options: needsOptions && cf.options
-                  ? JSON.parse(JSON.stringify(cf.options))
-                  : null,
-                workspaceId: targetWorkspaceId,
-              },
+            // The same template field listed twice must not link twice.
+            if (customFieldDefByName.has(cf.name)) continue;
+            const wanted = needsOptions ? (cf.options ?? []).map((o) => o.id) : [];
+            const reusable = existingDefs.find((d) => {
+              if (d.name !== cf.name || d.type !== cf.type) return false;
+              const have = optionIdsOf(d.options);
+              return wanted.every((id) => have.has(id));
             });
+            const def =
+              reusable ??
+              (await tx.customFieldDefinition.create({
+                data: {
+                  name: cf.name,
+                  type: cf.type,
+                  options: needsOptions && cf.options
+                    ? JSON.parse(JSON.stringify(cf.options))
+                    : null,
+                  workspaceId: targetWorkspaceId,
+                },
+              }));
             await tx.projectCustomField.create({
               data: { projectId: created.id, fieldId: def.id, position: i },
             });
@@ -632,7 +688,7 @@ export async function POST(req: Request) {
             // schedule of real durations — see templateTaskDates(), which
             // also clamps a start the template put after its own due date.
             const { startDate: taskStartDate, dueDate } = templateTaskDates(
-              new Date(created.startDate ?? new Date()),
+              new Date(created.startDate ?? projectStartDate),
               t.relativeStartDate,
               t.relativeDueDate
             );
@@ -701,66 +757,6 @@ export async function POST(req: Request) {
           }
         }
 
-        // If template has tasks, create them
-        if (template && template.tasks.length > 0) {
-          const projectStartDate = startDate ? new Date(startDate) : new Date();
-
-          for (const templateTask of template.tasks) {
-            const section = created.sections[templateTask.sectionIndex];
-            if (!section) continue;
-
-            // The SECOND copy of this write — the built-in templates land
-            // here, the custom/payload ones above. Both go through the same
-            // helper on purpose: fixing one copy of a duplicated write and
-            // shipping a no-op is a mistake this file has made before.
-            // Read optionally: templates-data.ts's TemplateTask (the legacy
-            // generic family this path serves) has no relativeStartDate field
-            // yet, so this path behaves exactly as before until one of those
-            // definitions grows a start offset — at which point the duration
-            // shows up with no further change here.
-            const relativeStartDate = (
-              templateTask as { relativeStartDate?: number }
-            ).relativeStartDate;
-            const { startDate: taskStartDate, dueDate } = templateTaskDates(
-              projectStartDate,
-              relativeStartDate,
-              templateTask.relativeDueDate
-            );
-
-            const createdTask = await tx.task.create({
-              data: {
-                name: templateTask.name,
-                description: templateTask.description || null,
-                projectId: created.id,
-                sectionId: section.id,
-                creatorId: userId,
-                priority: templateTask.priority || "NONE",
-                taskType: templateTask.taskType || "TASK",
-                startDate: taskStartDate,
-                dueDate,
-                position: 0,
-              },
-            });
-
-            if (templateTask.subtasks && templateTask.subtasks.length > 0) {
-              for (let i = 0; i < templateTask.subtasks.length; i++) {
-                const subtask = templateTask.subtasks[i];
-                await tx.task.create({
-                  data: {
-                    name: subtask.name,
-                    description: subtask.description || null,
-                    projectId: created.id,
-                    sectionId: section.id,
-                    creatorId: userId,
-                    parentTaskId: createdTask.id,
-                    position: i,
-                  },
-                });
-              }
-            }
-          }
-        }
-
         // The first row of the job's history, so "how long has this been on
         // someone's desk" has a start even for a project nobody has moved yet.
         // SEED, not FORWARD: arriving at the first stage is not progress.
@@ -799,7 +795,7 @@ export async function POST(req: Request) {
         views: true,
         _count: {
           select: {
-            tasks: { where: taskPrivacyClause(userId) },
+            tasks: { where: rootTaskCountClause(userId) },
           },
         },
       },

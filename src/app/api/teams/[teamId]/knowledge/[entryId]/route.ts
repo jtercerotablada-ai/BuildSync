@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
+import { getErrorStatus } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 
 // PATCH /api/teams/:teamId/knowledge/:entryId — edit an entry.
 // Any team member may edit (collaborative shared context, Asana parity).
@@ -16,7 +17,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await verifyTeamAccess(userId, teamId);
+    await requireTeamStanding(userId, teamId);
 
     const body = await req.json();
     const data: { term?: string; definition?: string } = {};
@@ -68,7 +69,7 @@ export async function PATCH(
 }
 
 // DELETE /api/teams/:teamId/knowledge/:entryId — delete an entry.
-// The author OR a team lead may delete.
+// The author, a team LEAD or a workspace OWNER/ADMIN may delete.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ teamId: string; entryId: string }> }
@@ -80,7 +81,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const member = await verifyTeamAccess(userId, teamId);
+    const standing = await requireTeamStanding(userId, teamId);
 
     const entry = await prisma.teamKnowledgeEntry.findFirst({
       where: { id: entryId, teamId },
@@ -90,9 +91,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Entry not found" }, { status: 404 });
     }
 
-    if (entry.createdById !== userId && member.role !== "LEAD") {
+    if (entry.createdById !== userId && !standing.canManageMembers) {
       return NextResponse.json(
-        { error: "Only the author or a team lead can delete this entry" },
+        { error: "Only the author, a team lead or a workspace admin can delete this entry" },
         { status: 403 }
       );
     }

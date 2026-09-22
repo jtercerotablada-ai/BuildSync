@@ -20,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -129,6 +130,22 @@ export function ProjectTeamView({
     WorkspaceMemberLite[]
   >([]);
 
+  // Everyone already on the project → the firm they sit in (null = none),
+  // so Add member can MOVE an existing member into a firm instead of
+  // re-adding them (the POST refuses existing members).
+  const projectMembersById = useMemo(() => {
+    const map = new Map<string, { companyId: string | null; companyName: string | null }>();
+    for (const c of companies) {
+      for (const m of c.members) {
+        map.set(m.userId, { companyId: c.id, companyName: c.name });
+      }
+    }
+    for (const m of unaffiliatedMembers) {
+      map.set(m.userId, { companyId: null, companyName: null });
+    }
+    return map;
+  }, [companies, unaffiliatedMembers]);
+
   const fetchTeam = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${projectId}/companies`);
@@ -223,6 +240,7 @@ export function ProjectTeamView({
               <CompanyCard
                 key={c.id}
                 company={c}
+                companies={companies}
                 canWrite={canWrite}
                 projectOwnerId={projectOwner?.id}
                 onEdit={() => setEditCompany(c)}
@@ -231,33 +249,39 @@ export function ProjectTeamView({
                 projectId={projectId}
               />
             ))}
+          </div>
+        )}
 
-            {/* Members not attached to any firm (e.g. the project creator).
-                Previously invisible — the tab only rendered company groups. */}
-            {unaffiliatedMembers.length > 0 && (
-              <div className="rounded-lg border border-slate-200">
-                <div className="px-3 py-2 border-b border-slate-100">
-                  <h3 className="font-semibold text-slate-900 text-sm">
-                    Unaffiliated
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Members not yet assigned to a firm
-                  </p>
-                </div>
-                <div className="px-2 py-1">
-                  {unaffiliatedMembers.map((m) => (
-                    <MemberRow
-                      key={m.id}
-                      member={m}
-                      canWrite={canWrite}
-                      isProjectOwner={m.userId === projectOwner?.id}
-                      projectId={projectId}
-                      onRefresh={fetchTeam}
-                    />
-                  ))}
-                </div>
+        {/* Members not attached to any firm (e.g. the project creator).
+            Rendered outside the firm list: a project with no firms yet (the
+            usual state here) still has people, and hiding them left the tab
+            looking empty with no way to change a role or remove anyone. */}
+        {unaffiliatedMembers.length > 0 && (
+          <div className={cn(companies.length > 0 ? "mt-4" : "mt-6")}>
+            <div className="rounded-lg border border-slate-200">
+              <div className="px-3 py-2 border-b border-slate-100">
+                <h3 className="font-semibold text-slate-900 text-sm">
+                  {companies.length > 0 ? "Unaffiliated" : "People on this project"}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Members not yet assigned to a firm
+                </p>
               </div>
-            )}
+              <div className="px-2 py-1">
+                {unaffiliatedMembers.map((m) => (
+                  <MemberRow
+                    key={m.id}
+                    member={m}
+                    companyId={null}
+                    companies={companies}
+                    canWrite={canWrite}
+                    isProjectOwner={m.userId === projectOwner?.id}
+                    projectId={projectId}
+                    onRefresh={fetchTeam}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -290,9 +314,7 @@ export function ProjectTeamView({
           projectId={projectId}
           company={addMemberFor}
           workspaceMembers={workspaceMembers}
-          alreadyOnProject={companies.flatMap((c) =>
-            c.members.map((m) => m.userId)
-          )}
+          projectMembers={projectMembersById}
           onClose={() => setAddMemberFor(null)}
           onSaved={() => {
             setAddMemberFor(null);
@@ -310,6 +332,7 @@ export function ProjectTeamView({
 
 function CompanyCard({
   company,
+  companies,
   canWrite,
   projectOwnerId,
   onEdit,
@@ -318,6 +341,7 @@ function CompanyCard({
   projectId,
 }: {
   company: CompanyRow;
+  companies: CompanyRow[];
   canWrite: boolean;
   projectOwnerId?: string;
   onEdit: () => void;
@@ -439,6 +463,8 @@ function CompanyCard({
             <MemberRow
               key={m.id}
               member={m}
+              companyId={company.id}
+              companies={companies}
               canWrite={canWrite}
               isProjectOwner={m.userId === projectOwnerId}
               projectId={projectId}
@@ -453,12 +479,17 @@ function CompanyCard({
 
 function MemberRow({
   member,
+  companyId,
+  companies,
   canWrite,
   isProjectOwner,
   projectId,
   onRefresh,
 }: {
   member: ProjectMemberRow;
+  /** The firm this row sits under on the page (null = unaffiliated). */
+  companyId: string | null;
+  companies: CompanyRow[];
   canWrite: boolean;
   isProjectOwner: boolean;
   projectId: string;
@@ -493,6 +524,26 @@ function MemberRow({
       onRefresh();
     } catch {
       toast.error("Couldn't update role");
+    }
+  };
+
+  const moveToCompany = async (target: string | null) => {
+    if (target === companyId) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: member.userId, companyId: target }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Couldn't move member");
+      }
+      const name = companies.find((c) => c.id === target)?.name;
+      toast.success(name ? `Moved to ${name}` : "Removed from firm");
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't move member");
     }
   };
 
@@ -581,14 +632,36 @@ function MemberRow({
               </DropdownMenuItem>
             )
           )}
+          {companies.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-slate-400">
+                Firm
+              </DropdownMenuLabel>
+              {companies.map((c) => (
+                <DropdownMenuItem key={c.id} onClick={() => moveToCompany(c.id)}>
+                  {companyId === c.id && <Check className="w-3.5 h-3.5 mr-2" />}
+                  <span className={cn(companyId !== c.id && "ml-5")}>
+                    {c.name}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem onClick={() => moveToCompany(null)}>
+                {companyId === null && <Check className="w-3.5 h-3.5 mr-2" />}
+                <span className={cn(companyId !== null && "ml-5")}>No firm</span>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
       {canWrite && !isProjectOwner && (
         <button
           onClick={remove}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+          // Hover-only hid it on touch screens, where there is no hover.
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600"
           title="Remove from project"
+          aria-label="Remove from project"
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -862,31 +935,39 @@ function EditCompanyDialog({
 // Add Member dialog
 // ──────────────────────────────────────────────────────────────
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function AddMemberDialog({
   projectId,
   company,
   workspaceMembers,
-  alreadyOnProject,
+  projectMembers,
   onClose,
   onSaved,
 }: {
   projectId: string;
   company: CompanyRow;
   workspaceMembers: WorkspaceMemberLite[];
-  alreadyOnProject: string[];
+  projectMembers: Map<
+    string,
+    { companyId: string | null; companyName: string | null }
+  >;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<WorkspaceMemberLite | null>(null);
+  // An address typed into the search that is not in the directory yet.
+  const [inviteEmail, setInviteEmail] = useState<string | null>(null);
   const [role, setRole] = useState<ProjectRole>("EDITOR");
   const [saving, setSaving] = useState(false);
 
   const candidates = useMemo(() => {
-    const onProj = new Set(alreadyOnProject);
     const q = query.trim().toLowerCase();
     return workspaceMembers
-      .filter((m) => !onProj.has(m.id))
+      // People already in THIS firm have nothing to add; everyone else —
+      // including project members in another firm or none — can be placed.
+      .filter((m) => projectMembers.get(m.id)?.companyId !== company.id)
       .filter((m) => {
         if (!q) return true;
         const name = (m.name || "").toLowerCase();
@@ -894,29 +975,54 @@ function AddMemberDialog({
         return name.includes(q) || email.includes(q);
       })
       .slice(0, 8);
-  }, [workspaceMembers, alreadyOnProject, query]);
+  }, [workspaceMembers, projectMembers, company.id, query]);
+
+  const typedEmail = query.trim().toLowerCase();
+  const canInviteTyped =
+    EMAIL_RE.test(typedEmail) &&
+    !workspaceMembers.some((m) => (m.email || "").toLowerCase() === typedEmail);
+
+  // Picked person already on the project: the action is a MOVE into this
+  // firm (PATCH), and their project role stays as it is.
+  const existing = picked ? projectMembers.get(picked.id) : undefined;
 
   const save = async () => {
-    if (!picked) return;
+    if (!picked && !inviteEmail) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: picked.id,
-          role,
-          companyId: company.id,
-        }),
-      });
+      const res = existing
+        ? await fetch(`/api/projects/${projectId}/members`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: picked!.id,
+              companyId: company.id,
+            }),
+          })
+        : await fetch(`/api/projects/${projectId}/members`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(picked ? { userId: picked.id } : { email: inviteEmail }),
+              role,
+              companyId: company.id,
+            }),
+          });
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed");
+        throw new Error(data?.error || "Couldn't add member");
       }
-      toast.success(`Added to ${company.name}`);
+      if (data?.invited) {
+        if (data.warning) toast.warning(data.warning);
+        else toast.success(`Invitation sent to ${inviteEmail}`);
+      } else {
+        toast.success(
+          existing ? `Moved to ${company.name}` : `Added to ${company.name}`
+        );
+      }
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed");
+      toast.error(err instanceof Error ? err.message : "Couldn't add member");
     } finally {
       setSaving(false);
     }
@@ -929,7 +1035,29 @@ function AddMemberDialog({
           <DialogTitle>Add member to {company.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          {picked ? (
+          {inviteEmail ? (
+            <div className="flex items-center gap-3 p-2 rounded-md border bg-slate-50">
+              <div className="h-9 w-9 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                <UserPlus className="w-4 h-4 text-slate-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-900 truncate">
+                  {inviteEmail}
+                </p>
+                <p className="text-[11px] text-slate-500 truncate">
+                  Gets an email invitation to join the workspace and this
+                  project
+                </p>
+              </div>
+              <button
+                onClick={() => setInviteEmail(null)}
+                aria-label="Clear"
+                className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : picked ? (
             <div className="flex items-center gap-3 p-2 rounded-md border bg-slate-50">
               <Avatar className="h-9 w-9">
                 <AvatarImage src={picked.image || ""} />
@@ -942,11 +1070,16 @@ function AddMemberDialog({
                   {picked.name}
                 </p>
                 <p className="text-[11px] text-slate-500 truncate">
-                  {picked.email}
+                  {existing
+                    ? `Already on this project${
+                        existing.companyName ? ` (${existing.companyName})` : ""
+                      }. Will be moved to ${company.name}.`
+                    : picked.email}
                 </p>
               </div>
               <button
                 onClick={() => setPicked(null)}
+                aria-label="Clear"
                 className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
@@ -967,10 +1100,26 @@ function AddMemberDialog({
                 />
               </div>
               <div className="max-h-[260px] overflow-auto -mx-2">
+                {canInviteTyped && (
+                  <button
+                    onClick={() => setInviteEmail(typedEmail)}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-50 text-left"
+                  >
+                    <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                      <UserPlus className="w-3.5 h-3.5 text-slate-500" />
+                    </div>
+                    <p className="text-sm text-slate-900 truncate">
+                      Invite <span className="font-medium">{typedEmail}</span>
+                    </p>
+                  </button>
+                )}
                 {candidates.length === 0 ? (
-                  <p className="text-xs text-slate-400 px-2 py-3 text-center">
-                    No matches. Email-invite flow coming soon.
-                  </p>
+                  !canInviteTyped && (
+                    <p className="text-xs text-slate-400 px-2 py-3 text-center">
+                      No matches. Type a full email address to invite someone
+                      new.
+                    </p>
+                  )
                 ) : (
                   candidates.map((m) => (
                     <button
@@ -996,6 +1145,14 @@ function AddMemberDialog({
                               {POSITION_META[m.position]?.short || m.position}
                             </span>
                           )}
+                          {projectMembers.has(m.id) && (
+                            <span className="text-slate-400">
+                              {" · "}
+                              {projectMembers.get(m.id)?.companyName
+                                ? `In ${projectMembers.get(m.id)?.companyName}`
+                                : "On project, no firm"}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </button>
@@ -1005,33 +1162,35 @@ function AddMemberDialog({
             </>
           )}
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700">
-              Project role
-            </label>
-            <Select
-              value={role}
-              onValueChange={(v) => setRole(v as ProjectRole)}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(["ADMIN", "EDITOR", "COMMENTER", "VIEWER"] as ProjectRole[]).map(
-                  (r) => (
-                    <SelectItem key={r} value={r}>
-                      <span className="font-medium">
-                        {PROJECT_ROLE_META[r].label}
-                      </span>
-                      <span className="text-[11px] text-slate-500 ml-2">
-                        {PROJECT_ROLE_META[r].description}
-                      </span>
-                    </SelectItem>
-                  )
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          {!existing && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700">
+                Project role
+              </label>
+              <Select
+                value={role}
+                onValueChange={(v) => setRole(v as ProjectRole)}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(["ADMIN", "EDITOR", "COMMENTER", "VIEWER"] as ProjectRole[]).map(
+                    (r) => (
+                      <SelectItem key={r} value={r}>
+                        <span className="font-medium">
+                          {PROJECT_ROLE_META[r].label}
+                        </span>
+                        <span className="text-[11px] text-slate-500 ml-2">
+                          {PROJECT_ROLE_META[r].description}
+                        </span>
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={onClose}>
@@ -1040,10 +1199,18 @@ function AddMemberDialog({
           <Button
             size="sm"
             onClick={save}
-            disabled={!picked || saving}
+            disabled={(!picked && !inviteEmail) || saving}
             className="bg-black hover:bg-gray-900 text-white"
           >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Add"}
+            {saving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : inviteEmail ? (
+              "Send invite"
+            ) : existing ? (
+              "Move"
+            ) : (
+              "Add"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

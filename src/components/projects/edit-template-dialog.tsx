@@ -2,16 +2,18 @@
 
 /**
  * Edit-template dialog — renames a custom template, changes its blurb, icon,
- * colour and section list via PUT /api/workspace/templates.
+ * colour, project type and section list via PUT /api/workspace/templates.
  *
- * Only what the user typed is editable. The TASKS, subtasks, custom fields
- * and defaults inside a captured template came out of a real project and are
- * carried through this save untouched — the dialog says so instead of
- * pretending they can be edited here.
+ * The TASKS, subtasks and custom fields inside a captured template came out
+ * of a real project and are carried through this save untouched — the dialog
+ * says so instead of pretending they can be edited here. The one change that
+ * reaches them is a section RENAME, which re-files the section's tasks under
+ * the new name (removing and re-adding a section would orphan them).
  *
  * Two contract details of the PUT this mirrors exactly:
- *   - It is CREATOR-ONLY (same gate as DELETE), so the gallery offers this
- *     dialog only on a template the caller created.
+ *   - Only the template's creator or a workspace OWNER/ADMIN may save it
+ *     (same gate as DELETE), so the gallery offers this dialog only on a
+ *     template the caller can manage.
  *   - A `structure` in the body REPLACES the stored one. Editing the sections
  *     therefore has to re-send the captured tasks and fields with them, or
  *     saving a renamed column would silently throw the plan away.
@@ -28,11 +30,20 @@ import {
   ACCENT_HEX,
   ICON_CHOICES,
   ICON_MAP,
+  TemplateTypeField,
   resolveTemplateIcon,
 } from "./template-visuals";
 import { templateContentCounts } from "./confirm-template-dialog";
-import { normalizeStructure, type CustomTemplateRow } from "@/lib/custom-templates";
-import type { ProjectTemplate } from "@/lib/project-templates";
+import {
+  normalizeStructure,
+  type CustomTemplateDefaults,
+  type CustomTemplateRow,
+  type TemplateProjectType,
+} from "@/lib/custom-templates";
+import type {
+  ProjectTemplate,
+  ProjectTemplateTask,
+} from "@/lib/project-templates";
 
 interface EditTemplateDialogProps {
   /** The row being edited, or null when the dialog is closed. */
@@ -53,6 +64,12 @@ export function EditTemplateDialog({
   const [sectionDraft, setSectionDraft] = useState("");
   const [icon, setIcon] = useState<string>(ICON_CHOICES[0]);
   const [accent, setAccent] = useState<ProjectTemplate["accent"]>("slate");
+  const [type, setType] = useState<TemplateProjectType | undefined>(undefined);
+  // The captured tasks, kept in state only so a section rename can re-file
+  // them; nothing else about a task is edited here.
+  const [tasks, setTasks] = useState<ProjectTemplateTask[] | undefined>(undefined);
+  const [renamingIdx, setRenamingIdx] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const stored = useMemo(
@@ -69,6 +86,10 @@ export function EditTemplateDialog({
     setSectionDraft("");
     setIcon(row.icon && ICON_MAP[row.icon] ? row.icon : ICON_CHOICES[0]);
     setAccent(st.accent ?? "slate");
+    setType(st.defaults?.type);
+    setTasks(st.tasks);
+    setRenamingIdx(null);
+    setRenameDraft("");
     setSubmitting(false);
   }, [row]);
 
@@ -79,10 +100,10 @@ export function EditTemplateDialog({
     () =>
       templateContentCounts({
         sections,
-        tasks: stored?.tasks,
+        tasks,
         customFields: stored?.customFields,
       }),
-    [sections, stored]
+    [sections, tasks, stored]
   );
 
   /** Captured tasks whose section no longer exists — they would stop being
@@ -90,12 +111,12 @@ export function EditTemplateDialog({
   const orphaned = useMemo(() => {
     const names = new Set(sections);
     const bySection = new Map<string, number>();
-    for (const t of stored?.tasks ?? []) {
+    for (const t of tasks ?? []) {
       if (names.has(t.section)) continue;
       bySection.set(t.section, (bySection.get(t.section) ?? 0) + 1);
     }
     return [...bySection.entries()];
-  }, [sections, stored]);
+  }, [sections, tasks]);
 
   function addSection() {
     const v = sectionDraft.trim();
@@ -120,6 +141,36 @@ export function EditTemplateDialog({
     setSections((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  function startRename(idx: number) {
+    setRenamingIdx(idx);
+    setRenameDraft(sections[idx] ?? "");
+  }
+
+  /** Rename in place: the provisioner files a task by its section NAME, so
+   *  the tasks under the old name move with it instead of being orphaned. */
+  function commitRename() {
+    if (renamingIdx === null) return;
+    const idx = renamingIdx;
+    const from = sections[idx];
+    const to = renameDraft.trim();
+    setRenamingIdx(null);
+    if (from === undefined || !to || to === from) return;
+    if (
+      sections.some((s, i) => i !== idx && s.toLowerCase() === to.toLowerCase())
+    ) {
+      toast.error("That section already exists");
+      return;
+    }
+    if (to.length > 80) {
+      toast.error("Section name is too long");
+      return;
+    }
+    setSections((prev) => prev.map((s, i) => (i === idx ? to : s)));
+    setTasks((prev) =>
+      prev?.map((t) => (t.section === from ? { ...t, section: to } : t))
+    );
+  }
+
   async function handleSave() {
     if (!row || !stored) return;
     const trimmed = name.trim();
@@ -133,6 +184,16 @@ export function EditTemplateDialog({
     }
     if (submitting) return;
     setSubmitting(true);
+    // A starting stage belongs to one pipeline, so changing the type drops it
+    // rather than keep a stage the new type's strip cannot show.
+    const { stage, ...restDefaults } = stored.defaults ?? {};
+    delete restDefaults.type;
+    const defaults: CustomTemplateDefaults = {
+      ...restDefaults,
+      color: ACCENT_HEX[accent],
+      ...(type ? { type } : {}),
+      ...(stage && type === stored.defaults?.type ? { stage } : {}),
+    };
     try {
       const res = await fetch("/api/workspace/templates", {
         method: "PUT",
@@ -154,8 +215,9 @@ export function EditTemplateDialog({
           structure: {
             ...stored,
             sections,
+            tasks,
             accent,
-            defaults: { ...stored.defaults, color: ACCENT_HEX[accent] },
+            defaults,
           },
         }),
       });
@@ -192,7 +254,16 @@ export function EditTemplateDialog({
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[520px] p-0 overflow-hidden">
+      <DialogContent
+        className="max-w-[520px] p-0 overflow-hidden"
+        onEscapeKeyDown={(e) => {
+          // Escape while renaming a section cancels the rename, not the dialog.
+          if (renamingIdx !== null) {
+            e.preventDefault();
+            setRenamingIdx(null);
+          }
+        }}
+      >
         <DialogTitle className="sr-only">Edit template — {row.name}</DialogTitle>
 
         {/* Header preview */}
@@ -246,10 +317,15 @@ export function EditTemplateDialog({
             />
           </div>
 
+          <TemplateTypeField value={type} onChange={setType} />
+
           {/* Sections */}
           <div>
             <label className="block text-[12px] font-medium text-gray-700 mb-1.5">
-              Sections
+              Sections{" "}
+              <span className="text-gray-400 font-normal">
+                (click a name to rename it)
+              </span>
             </label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {sections.map((s, i) => (
@@ -257,7 +333,33 @@ export function EditTemplateDialog({
                   key={`${s}-${i}`}
                   className="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-md bg-gray-100 text-[12px] text-gray-700"
                 >
-                  {s}
+                  {renamingIdx === i ? (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={renameDraft}
+                      maxLength={80}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitRename();
+                        }
+                      }}
+                      aria-label={`Rename ${s}`}
+                      className="h-5 w-32 px-1 text-[12px] bg-white border border-gray-300 rounded outline-none"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startRename(i)}
+                      className="hover:underline"
+                      title="Rename section"
+                    >
+                      {s}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => removeSection(i)}
@@ -373,6 +475,7 @@ export function EditTemplateDialog({
               <p className="text-[12px] text-gray-700">{captured.join(" · ")}</p>
               <p className="mt-1 text-[11px] text-gray-500">
                 Tasks were captured from the project and cannot be edited here.
+                Renaming a section keeps its tasks.
               </p>
             </div>
           )}

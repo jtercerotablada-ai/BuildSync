@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import {
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -15,6 +22,7 @@ import {
   CheckCircle2,
   SlidersHorizontal,
   User,
+  Pencil,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -143,6 +151,11 @@ interface GanttViewProps {
    *  every section-scoped write would 404. Same prop, same default and same
    *  meaning as List and Board received in 3198e68. */
   sectionsAreEditable?: boolean;
+  /** False for a viewer without write access to the project (VIEWER or
+   *  COMMENTER): every mutation here would be refused with a 403 after the
+   *  bar or cell had already moved, so the editing affordances are withheld
+   *  instead. Defaults to true so the component still renders standalone. */
+  canEdit?: boolean;
   /** The project's target completion date — on a recertification this is
    *  the county deadline the engagement exists to hit. Date-only at UTC
    *  midnight like every other date here. */
@@ -508,6 +521,157 @@ export function gridColumnsNeeded(
   }
 }
 
+/** Start of the unit a zoom draws its grid in: Mondays for day and week
+ *  (the day grid pages in weeks), quarters for month and quarter. */
+function snapToGridUnit(zoom: GanttZoomLevel, d: Date): Date {
+  return zoom === "day" || zoom === "week"
+    ? startOfWeek(d, { weekStartsOn: 1 })
+    : startOfQuarter(d);
+}
+
+/** `n` columns of this zoom after (or, negative, before) `d`. */
+function addGridUnits(zoom: GanttZoomLevel, d: Date, n: number): Date {
+  switch (zoom) {
+    case "day":
+      return addDays(d, n);
+    case "week":
+      return addWeeks(d, n);
+    case "month":
+      return addMonths(d, n);
+    case "quarter":
+      return addMonths(d, n * 3);
+  }
+}
+
+/**
+ * The first column and the column count of the chart.
+ *
+ * The window covers every dated task, the anchor's own default range (today,
+ * or the date the user paged to, plus `range` columns) and — when it fits —
+ * the deadline. The anchor has to be part of the END as well as the start:
+ * sized from the earliest task to the latest one only, a job whose work is
+ * all months behind it drew a grid that stopped before today, so there was
+ * no today line and Today / next could not scroll anywhere.
+ *
+ * When everything does not fit under MAX_GRID_COLUMNS, the far PAST is cut,
+ * never the anchor's range: the present is what the chart is opened for —
+ * unless that cut would drop EVERY dated task (a job finished over a year
+ * ago). Then the work wins and the window starts at it, because an empty
+ * grid with a today line says nothing about the job.
+ *
+ * `anchor` is null until the browser knows its day; the window then starts
+ * at the earliest task so the server and the first client render agree.
+ * Null when there is neither an anchor nor a dated task.
+ */
+export function gridWindow({
+  zoom,
+  range,
+  anchor,
+  minTask,
+  maxTask,
+  deadline,
+}: {
+  zoom: GanttZoomLevel;
+  range: number;
+  anchor: Date | null;
+  minTask: Date | null;
+  maxTask: Date | null;
+  deadline: Date | null;
+}): { start: Date; count: number } | null {
+  const anchorStart = anchor ? snapToGridUnit(zoom, anchor) : null;
+  let start = anchorStart ?? (minTask ? snapToGridUnit(zoom, minTask) : null);
+  if (!start) return null;
+  if (minTask && minTask < start) start = snapToGridUnit(zoom, minTask);
+
+  let end: Date | null = maxTask;
+  if (anchorStart) {
+    const anchorEnd = addDays(addGridUnits(zoom, anchorStart, range), -1);
+    if (!end || anchorEnd > end) end = anchorEnd;
+  }
+
+  // The deadline widens the window like a dated task — but ONLY while the
+  // result still fits under the column cap. Without this test a county date
+  // years from the work moved the window to itself and the clamp below cut
+  // it off before the first bar. When it does not fit, nothing is widened
+  // and the marker stays off (`deadlinePosition` is null outside the window).
+  if (deadline) {
+    const candStart =
+      deadline < start ? snapToGridUnit(zoom, deadline) : start;
+    const candEnd = end && end > deadline ? end : deadline;
+    if (gridColumnsNeeded(zoom, candStart, candEnd) <= MAX_GRID_COLUMNS) {
+      start = candStart;
+      end = candEnd;
+    }
+  }
+
+  // Too long to draw whole: keep the anchor's range and drop the oldest
+  // columns. The 6-column margin absorbs the snap back to a Monday / quarter
+  // start, so the anchor's range still ends inside the clamp below. The cut
+  // never goes past the latest task: with all the work behind that point
+  // the start stays at the work and the clamp trims the future instead.
+  if (
+    anchorStart &&
+    end &&
+    gridColumnsNeeded(zoom, start, end) > MAX_GRID_COLUMNS
+  ) {
+    const earliest = snapToGridUnit(
+      zoom,
+      addGridUnits(zoom, anchorStart, -(MAX_GRID_COLUMNS - range - 6))
+    );
+    const cutDropsAllWork = !!maxTask && maxTask < earliest;
+    if (earliest > start && !cutDropsAllWork) start = earliest;
+  }
+
+  let count = range;
+  if (end && end > start) {
+    count = Math.max(
+      count,
+      Math.min(gridColumnsNeeded(zoom, start, end), MAX_GRID_COLUMNS)
+    );
+  }
+  return { start, count };
+}
+
+/**
+ * Where the chart scrolls on mount, zoom change and paging: the anchor's
+ * first column at the left edge.
+ *
+ * Except when the anchor lies past the window's end. That happens when all
+ * the work is too far behind today to fit in one window with it, and
+ * gridWindow keeps the work instead. Aiming at the anchor then only clamped
+ * to the right edge of the grid, which showed an empty stretch with no bars
+ * and no today line while the work sat hundreds of columns to the left. So
+ * the latest task's end is put about three quarters across the viewport,
+ * and the work is the first thing seen.
+ */
+export function ganttScrollLeft({
+  anchorStart,
+  timelineStart,
+  timelineEnd,
+  totalDays,
+  totalWidth,
+  viewportWidth,
+  latestTask,
+}: {
+  anchorStart: Date;
+  timelineStart: Date;
+  timelineEnd: Date;
+  totalDays: number;
+  totalWidth: number;
+  viewportWidth: number;
+  latestTask: Date | null;
+}): number {
+  const dayWidth = totalWidth / totalDays;
+  const maxScroll = Math.max(0, totalWidth - viewportWidth);
+  const clamp = (px: number) => Math.min(maxScroll, Math.max(0, px));
+  if (anchorStart < timelineEnd || !latestTask) {
+    return clamp(differenceInDays(anchorStart, timelineStart) * dayWidth);
+  }
+  const workEndPx =
+    (differenceInDays(latestTask, timelineStart) + 1) * dayWidth;
+  return clamp(workEndPx - viewportWidth * 0.75);
+}
+
 // ============================================
 // SECTION STAGE — whose desk this column is sitting on
 // ============================================
@@ -644,7 +808,8 @@ export function dueRangeText(
 export function GanttView({
   sections,
   allSections,
-  sectionsAreEditable = true,
+  sectionsAreEditable: sectionsAreEditableProp = true,
+  canEdit = true,
   projectEndDate,
   projectName,
   initialPrefs,
@@ -653,6 +818,9 @@ export function GanttView({
   members = [],
 }: GanttViewProps) {
   const router = useRouter();
+  // Section-scoped writes (Add task…, Add section) need both: real sections
+  // AND write access.
+  const sectionsAreEditable = sectionsAreEditableProp && canEdit;
 
   // Local midnight, null until mounted. Every today-derived mark on this
   // chart — the blue line, the header dot, the bold day column, the due
@@ -735,7 +903,10 @@ export function GanttView({
       prefsTouchedRef.current = false;
     }
     if (!ganttPrefsHydrated || prefsTouchedRef.current) return;
-    const p = ganttPrefsFor(ganttPrefsMap, projectId);
+    // The seed answers when the map has no key for this project: an
+    // in-session map written before the first fetch landed holds only the
+    // project it was written on, and "absent" there is not "never visited".
+    const p = ganttPrefsFor(ganttPrefsMap, projectId, initialPrefs);
     setZoomLevel(p.zoom);
     setShowDependencies(p.showDependencies);
     setHighlightDueSoon(p.highlightDueSoon);
@@ -750,7 +921,7 @@ export function GanttView({
       }
       return new Set(p.collapsedSectionIds);
     });
-  }, [ganttPrefsHydrated, ganttPrefsMap, projectId]);
+  }, [ganttPrefsHydrated, ganttPrefsMap, projectId, initialPrefs]);
 
   // Persist one changed setting. `patch` carries what just changed; the rest
   // is read off this render's state — which is the server-seeded value from
@@ -770,7 +941,11 @@ export function GanttView({
       // Return BEFORE calling setValue, not by returning `cur` from inside
       // it: the hook writes its cache and schedules the PATCH around the
       // updater, so a no-op toggle still hit the network from in there.
-      if (sameGanttPrefs(ganttPrefsFor(ganttPrefsMap, projectId), next)) return;
+      if (
+        sameGanttPrefs(ganttPrefsFor(ganttPrefsMap, projectId, initialPrefs), next)
+      ) {
+        return;
+      }
       setGanttPrefsMap((cur) => nextGanttPrefsMap(cur, projectId, next));
     },
     [
@@ -781,6 +956,7 @@ export function GanttView({
       ganttPrefsMap,
       setGanttPrefsMap,
       projectId,
+      initialPrefs,
     ]
   );
 
@@ -823,6 +999,11 @@ export function GanttView({
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
   const sectionInputRef = useRef<HTMLInputElement>(null);
+  // In flight: a second Enter before the first POST returns would otherwise
+  // create the section twice (the route has no duplicate-name check). The ref
+  // guards synchronously; the state disables the input for the user.
+  const sectionSubmittingRef = useRef(false);
+  const [submittingSection, setSubmittingSection] = useState(false);
 
   const [dragState, setDragState] = useState<{
     taskId: string;
@@ -902,23 +1083,35 @@ export function GanttView({
   }, [addingSection]);
 
   // ---------- Dependencies fetch ----------
+  // True while the last load failed. A failed load keeps the previous list
+  // and says so: an empty list is indistinguishable from "no blockers", and
+  // someone would re-add links that already exist.
+  const [dependenciesFailed, setDependenciesFailed] = useState(false);
+  // Re-fetch when the SERVER's copy of the project changes (router.refresh
+  // after a dependency edit in the task panel hands down a new allSections),
+  // not on the filtered `sections`, which changes identity on every search
+  // keystroke and filter toggle without any dependency having moved.
+  const dependencyRefreshKey = allSections ?? sections;
   useEffect(() => {
     let canceled = false;
     fetch(`/api/projects/${projectId}/dependencies`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: DependencyRow[]) => {
-        if (!canceled && Array.isArray(data)) setDependencies(data);
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data: unknown) => {
+        if (canceled) return;
+        if (!Array.isArray(data)) throw new Error("Bad payload");
+        setDependencies(data as DependencyRow[]);
+        setDependenciesFailed(false);
       })
       .catch(() => {
-        if (!canceled) setDependencies([]);
+        if (!canceled) setDependenciesFailed(true);
       });
     return () => {
       canceled = true;
     };
-    // Re-fetch when the task set changes too (router.refresh updates
-    // `sections` after a dependency edit in the task panel).
-     
-  }, [projectId, sections]);
+  }, [projectId, dependencyRefreshKey]);
 
   // Section → palette index for per-section bar colors: the columns on
   // screen, in their own order.
@@ -1105,8 +1298,22 @@ export function GanttView({
     [router, applyShiftOverrides]
   );
 
+  // Set once a rename is committed or cancelled. The input's onBlur is a
+  // closure from the render that still had `renaming` set, and a blur fired
+  // as the input unmounts (after Enter or Escape) would otherwise save again
+  // — or save the very edit Escape was meant to throw away.
+  const renameSettledRef = useRef(false);
+  const startRename = useCallback((taskId: string, value: string) => {
+    renameSettledRef.current = false;
+    setRenaming({ taskId, value });
+  }, []);
+  const cancelRename = useCallback(() => {
+    renameSettledRef.current = true;
+    setRenaming(null);
+  }, []);
   const saveRename = useCallback(() => {
-    if (!renaming) return;
+    if (!renaming || renameSettledRef.current) return;
+    renameSettledRef.current = true;
     const name = renaming.value.trim();
     const taskId = renaming.taskId;
     setRenaming(null);
@@ -1117,12 +1324,14 @@ export function GanttView({
   const reloadDependencies = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${projectId}/dependencies`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) setDependencies(data);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error("Bad payload");
+      setDependencies(data);
+      setDependenciesFailed(false);
     } catch {
-      /* keep the stale list */
+      // Keep the stale list, but flag it — see dependenciesFailed.
+      setDependenciesFailed(true);
     }
   }, [projectId]);
 
@@ -1152,6 +1361,11 @@ export function GanttView({
           ? data.cascadeShifts
           : [];
         applyShiftOverrides(shifts);
+        // An open task panel shows this link (Dependencies, the Blocked chip)
+        // from its own copy and refetches only on this event; the cascade
+        // above notifies only when dates moved.
+        notifyTaskMutated(taskId);
+        notifyTaskMutated(blockingTaskId);
         if (shifts.length > 0) router.refresh();
         await reloadDependencies();
         // Say what was saved in the words the picker used — the code alone
@@ -1180,7 +1394,7 @@ export function GanttView({
   );
 
   const removeBlocker = useCallback(
-    async (taskId: string, depId: string) => {
+    async (taskId: string, depId: string, blockingTaskId?: string) => {
       try {
         const res = await fetch(
           `/api/tasks/${taskId}/dependencies?id=${depId}`,
@@ -1190,6 +1404,10 @@ export function GanttView({
           const data = await res.json().catch(() => null);
           throw new Error(data?.error || "Failed to remove dependency");
         }
+        // Same reason as addBlocker: an open panel would keep showing the
+        // task as blocked by a link that no longer exists.
+        notifyTaskMutated(taskId);
+        if (blockingTaskId) notifyTaskMutated(blockingTaskId);
         await reloadDependencies();
         toast.success("Blocker removed");
       } catch (err) {
@@ -1238,6 +1456,8 @@ export function GanttView({
         // Dates may have moved — glide the bars optimistically, then let
         // the refresh confirm; the arrows re-anchor from the same dates.
         applyShiftOverrides(shifts);
+        notifyTaskMutated(dep.dependentTaskId);
+        notifyTaskMutated(dep.blockingTaskId);
         if (shifts.length > 0) router.refresh();
         await reloadDependencies();
         const cascade = cascadeToastTitle(shifts);
@@ -1272,7 +1492,7 @@ export function GanttView({
   const deleteDependency = useCallback(
     async (dep: DependencyRow) => {
       setDepMenu(null);
-      await removeBlocker(dep.dependentTaskId, dep.id);
+      await removeBlocker(dep.dependentTaskId, dep.id, dep.blockingTaskId);
     },
     [removeBlocker]
   );
@@ -1296,7 +1516,7 @@ export function GanttView({
         return;
       }
       if (e.key === "Escape") setDepMenu(null);
-      if (e.key === "Backspace" || e.key === "Delete") {
+      if (canEdit && (e.key === "Backspace" || e.key === "Delete")) {
         e.preventDefault();
         void deleteDependency(depMenu.dep);
       }
@@ -1307,7 +1527,7 @@ export function GanttView({
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [depMenu, deleteDependency]);
+  }, [depMenu, deleteDependency, canEdit]);
 
   // ---------- Zoom configuration ----------
   const zoomConfig: Record<
@@ -1353,19 +1573,21 @@ export function GanttView({
 
   const config = zoomConfig[zoomLevel];
 
+  // The latest dated task's end, for the scroll target when the window had
+  // to keep the work instead of today (see ganttScrollLeft).
+  const latestTaskEnd = useMemo(() => {
+    let latest: Date | null = null;
+    for (const s of sections) {
+      for (const t of s.tasks) {
+        const span = taskSpan(t);
+        if (span && (!latest || span.end > latest)) latest = span.end;
+      }
+    }
+    return latest;
+  }, [sections]);
+
   // ---------- Columns ----------
   const columns = useMemo(() => {
-    // Snap a day to the unit the current zoom draws in — the same rule for
-    // the anchor and for the earliest task, so the grid always starts on a
-    // column boundary.
-    const snapToUnit = (d: Date) =>
-      zoomLevel === "day" || zoomLevel === "week"
-        ? startOfWeek(d, { weekStartsOn: 1 })
-        : startOfQuarter(d);
-
-    // Null until the browser says which day it is; see `currentDate`.
-    const anchorStart = currentDate ? snapToUnit(currentDate) : null;
-
     // Extend the window to cover EVERY dated task (MS Project / Asana
     // behavior — same fix as the Timeline): the default range is a
     // minimum, not a ceiling, so a plan longer than the window (e.g. the
@@ -1384,43 +1606,20 @@ export function GanttView({
         if (!maxTask || span.end > maxTask) maxTask = span.end;
       }
     }
-    // With no today yet, anchor on the earliest dated task instead: the
-    // server and the browser derive that from the SAME sections, so the grid
-    // they paint is the same one and hydration has nothing to repair. In the
-    // usual case — a plan with work already behind it — this IS the start
-    // date either way, because the window always grows left to minTask.
-    let startDate = anchorStart ?? (minTask ? snapToUnit(minTask) : null);
-    // No anchor and no dated task: draw no grid for this frame rather than
-    // one built on the server's day. The next frame has today.
-    if (!startDate) return [];
-    if (minTask && minTask < startDate) startDate = snapToUnit(minTask);
-    // The deadline widens the window like a dated task — but ONLY while the
-    // result still fits under the column cap. Without this test a county date
-    // years from the work moved the window to itself and the clamp below cut
-    // it off before the first bar, leaving a grid with no tasks, no section
-    // brackets and no today line on it. When it does not fit, nothing is
-    // widened and the marker stays off: `deadlinePosition` already returns
-    // null outside the window, and a chart that still draws the work is worth
-    // more than one vertical line.
-    if (deadlineDate) {
-      const candStart =
-        deadlineDate < startDate ? snapToUnit(deadlineDate) : startDate;
-      const candEnd =
-        maxTask && maxTask > deadlineDate ? maxTask : deadlineDate;
-      if (gridColumnsNeeded(zoomLevel, candStart, candEnd) <= MAX_GRID_COLUMNS) {
-        startDate = candStart;
-        maxTask = candEnd;
-      }
-    }
-    let count = config.range;
-    if (maxTask && maxTask > startDate) {
-      count = Math.max(
-        count,
-        Math.min(gridColumnsNeeded(zoomLevel, startDate, maxTask), MAX_GRID_COLUMNS)
-      );
-    }
-
-    const cols = config.getColumns(startDate, count);
+    // Null anchor until the browser says which day it is (see
+    // `currentDate`): the window then starts at the earliest dated task, which
+    // the server and the browser derive from the SAME sections, so hydration
+    // has nothing to repair. No anchor and no dated task: no grid this frame.
+    const win = gridWindow({
+      zoom: zoomLevel,
+      range: config.range,
+      anchor: currentDate,
+      minTask,
+      maxTask,
+      deadline: deadlineDate,
+    });
+    if (!win) return [];
+    const cols = config.getColumns(win.start, win.count);
 
     return cols.map((date) => {
       let label = "";
@@ -1526,12 +1725,45 @@ export function GanttView({
       zoomLevel === "day" || zoomLevel === "week"
         ? startOfWeek(currentDate, { weekStartsOn: 1 })
         : startOfQuarter(currentDate);
-    const px =
-      (differenceInDays(anchorStart, bounds.timelineStart) /
-        bounds.totalDays) *
-      bounds.totalWidth;
-    el.scrollLeft = Math.max(0, px);
+    el.scrollLeft = ganttScrollLeft({
+      anchorStart,
+      timelineStart: bounds.timelineStart,
+      timelineEnd: bounds.timelineEnd,
+      totalDays: bounds.totalDays,
+      totalWidth: bounds.totalWidth,
+      viewportWidth: el.clientWidth,
+      latestTask: latestTaskEnd,
+    });
+    // latestTaskEnd is read, not a trigger: an ordinary edit must not move
+    // the user's scroll (see the key above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomLevel, currentDate, bounds, recenterNonce]);
+
+  // The effect above deliberately leaves the scroll alone on ordinary edits,
+  // but an edit can still move the window's FIRST column — drag the earliest
+  // task back past a Monday and a week of columns is added on the left. With
+  // scrollLeft unchanged every bar then slid right under the user. Keep the
+  // same date at the left edge instead. A layout effect, so the shifted frame
+  // is never painted; when the scroll key changed too (zoom, paging), the
+  // effect above runs after this one and sets its own position.
+  const prevWindowRef = useRef<{ start: number; dayWidth: number } | null>(
+    null
+  );
+  useLayoutEffect(() => {
+    const prev = prevWindowRef.current;
+    prevWindowRef.current = bounds
+      ? { start: bounds.timelineStart.getTime(), dayWidth: bounds.dayWidth }
+      : null;
+    const el = chartScrollRef.current;
+    if (!bounds || !prev || !el) return;
+    if (prev.start === bounds.timelineStart.getTime()) return;
+    const daysAtLeftEdge = el.scrollLeft / prev.dayWidth;
+    const shiftDays = differenceInDays(
+      new Date(prev.start),
+      bounds.timelineStart
+    );
+    el.scrollLeft = Math.max(0, (daysAtLeftEdge + shiftDays) * bounds.dayWidth);
+  }, [bounds]);
 
   // Header-group pixel widths — sum of member column widths so group
   // borders stay aligned with the proportional columns.
@@ -1851,8 +2083,9 @@ export function GanttView({
       handle: "left" | "right" | "move",
       task: Task
     ) => {
-      // Primary button only — pointerdown also fires for right-click.
-      if (e.button !== 0) return;
+      // Primary button only — pointerdown also fires for right-click. A
+      // read-only viewer gets no drag: the click still opens the task.
+      if (!canEdit || e.button !== 0) return;
       // preventDefault suppresses the browser's own text selection and
       // native image drag on a mouse press; a touch is already held by
       // `touch-none`, and cancelling there risks the tap that opens the task.
@@ -1872,7 +2105,7 @@ export function GanttView({
         deltaX: 0,
       });
     },
-    []
+    [canEdit]
   );
 
   useEffect(() => {
@@ -2064,12 +2297,15 @@ export function GanttView({
   };
 
   const submitNewSection = async () => {
+    if (sectionSubmittingRef.current) return;
     const name = newSectionName.trim();
     if (!name) {
       setAddingSection(false);
       setNewSectionName("");
       return;
     }
+    sectionSubmittingRef.current = true;
+    setSubmittingSection(true);
     try {
       const res = await fetch("/api/sections", {
         method: "POST",
@@ -2089,6 +2325,9 @@ export function GanttView({
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
       toast.error(reason || "Failed to add section");
+    } finally {
+      sectionSubmittingRef.current = false;
+      setSubmittingSection(false);
     }
   };
 
@@ -2171,7 +2410,9 @@ export function GanttView({
       <div className="flex items-center justify-between px-2 md:px-4 py-2 bg-white border-b overflow-x-auto flex-shrink-0">
         {/* Left */}
         <div className="flex items-center gap-1 md:gap-2">
-          {/* Split button — Asana's "Agregar tarea ▾" */}
+          {/* Split button — Asana's "Add task ▾". Withheld from a read-only
+              viewer: the create would be refused. */}
+          {canEdit && (
           <div className="flex items-center">
             <Button
               variant="outline"
@@ -2217,8 +2458,9 @@ export function GanttView({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          )}
 
-          <div className="h-6 w-px bg-slate-200 mx-1" />
+          {canEdit && <div className="h-6 w-px bg-slate-200 mx-1" />}
 
           <div className="flex items-center gap-1">
             <Button
@@ -2241,6 +2483,16 @@ export function GanttView({
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
+          {dependenciesFailed && (
+            <button
+              type="button"
+              onClick={() => void reloadDependencies()}
+              className="ml-1 whitespace-nowrap rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800 hover:bg-amber-100"
+              title="Blockers and arrows may be missing or out of date"
+            >
+              Couldn&apos;t load dependencies · Retry
+            </button>
+          )}
         </div>
 
         {/* Right */}
@@ -2404,11 +2656,48 @@ export function GanttView({
                       {section.tasks.map((task) => {
                         const blockers = blockedByDetail.get(task.id) ?? [];
                         const blockedParts = blockedCellParts(blockers);
+                        const dueColor =
+                          !task.dueDate || task.completed || !today
+                            ? undefined
+                            : daysFrom(today, task.dueDate) < 0
+                              ? DATE_OVERDUE
+                              : daysFrom(today, task.dueDate) === 0
+                                ? DATE_TODAY
+                                : undefined;
+                        // Three states, three renderings. A blocker the
+                        // filter hid keeps its NAME and goes muted; one with
+                        // no name says that something is blocking without
+                        // naming it. Only a task with no blockers at all gets
+                        // the em dash — it used to be what all three showed.
+                        const blockedLabel = (
+                          <span
+                            className="truncate block"
+                            title={blockedCellTitle(blockers)}
+                          >
+                            {blockedParts.length === 0 ? (
+                              <span className="text-slate-300">—</span>
+                            ) : (
+                              blockedParts.map((part, i) => (
+                                <span key={part.key}>
+                                  {i > 0 && ", "}
+                                  <span
+                                    className={cn(
+                                      part.visibility !== "visible" &&
+                                        "text-slate-400 italic"
+                                    )}
+                                  >
+                                    {part.label}
+                                  </span>
+                                </span>
+                              ))
+                            )}
+                          </span>
+                        );
                         return (
                           <div
                             key={task.id}
                             className={cn(
-                              "flex items-center border-b cursor-pointer hover:bg-slate-50",
+                              "group flex items-center border-b cursor-pointer hover:bg-slate-50",
                               selectedTaskId === task.id && "bg-slate-50"
                             )}
                             style={{ height: ROW_HEIGHT }}
@@ -2422,7 +2711,8 @@ export function GanttView({
                               style={{ width: NAME_COL_W }}
                             >
                               <button
-                                className="flex-shrink-0 text-slate-300 hover:text-[#c9a84c]"
+                                className="flex-shrink-0 text-slate-300 hover:text-[#c9a84c] disabled:cursor-default disabled:hover:text-slate-300"
+                                disabled={!canEdit}
                                 onClick={(e) => toggleComplete(e, task)}
                                 title={
                                   task.completed
@@ -2449,34 +2739,55 @@ export function GanttView({
                                   }
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter") saveRename();
-                                    if (e.key === "Escape") setRenaming(null);
+                                    if (e.key === "Escape") cancelRename();
                                   }}
                                   onBlur={saveRename}
                                   className="flex-1 min-w-0 text-sm bg-transparent outline-none border-b-2 border-[#335FB5] px-0.5"
                                 />
                               ) : (
-                                <span
-                                  className={cn(
-                                    "text-sm truncate flex-1",
-                                    task.completed &&
-                                      "line-through text-slate-400"
+                                <>
+                                  <span
+                                    className={cn(
+                                      "text-sm truncate flex-1",
+                                      task.completed &&
+                                        "line-through text-slate-400"
+                                    )}
+                                  >
+                                    {task.name}
+                                  </span>
+                                  {/* Its own control, not a double-click on
+                                      the name: the two clicks of a double-
+                                      click reach the row first and open the
+                                      task panel, which on a phone covers the
+                                      row before the rename can start. Always
+                                      shown where there is no hover, so a tap
+                                      cannot land on a control nobody sees. */}
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      title="Rename task"
+                                      aria-label={`Rename ${task.name}`}
+                                      className="flex-shrink-0 rounded p-0.5 text-slate-400 opacity-0 hover:bg-slate-200 hover:text-slate-600 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startRename(task.id, task.name);
+                                      }}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
                                   )}
-                                  onDoubleClick={(e) => {
-                                    e.stopPropagation();
-                                    setRenaming({
-                                      taskId: task.id,
-                                      value: task.name,
-                                    });
-                                  }}
-                                >
-                                  {task.name}
-                                </span>
+                                </>
                               )}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <button
-                                    className="flex-shrink-0"
-                                    title="Set assignee"
+                                    className="flex-shrink-0 disabled:cursor-default"
+                                    title={
+                                      canEdit
+                                        ? "Set assignee"
+                                        : task.assignee?.name ?? "Unassigned"
+                                    }
+                                    disabled={!canEdit}
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     {task.assignee ? (
@@ -2551,6 +2862,7 @@ export function GanttView({
                               style={{ width: DUE_COL_W }}
                               onClick={(e) => e.stopPropagation()}
                             >
+                              {canEdit ? (
                               <DueDatePicker
                                 startDate={
                                   task.startDate
@@ -2575,21 +2887,20 @@ export function GanttView({
                                 trigger={
                                   <div
                                     className="w-full px-2 py-1 text-xs text-slate-600 truncate cursor-pointer hover:bg-slate-100 rounded"
-                                    style={{
-                                      color:
-                                        !task.dueDate || task.completed || !today
-                                          ? undefined
-                                          : daysFrom(today, task.dueDate) < 0
-                                            ? DATE_OVERDUE
-                                            : daysFrom(today, task.dueDate) === 0
-                                              ? DATE_TODAY
-                                              : undefined,
-                                    }}
+                                    style={{ color: dueColor }}
                                   >
                                     {dueRangeText(task, today)}
                                   </div>
                                 }
                               />
+                              ) : (
+                                <div
+                                  className="w-full px-2 py-1 text-xs text-slate-600 truncate"
+                                  style={{ color: dueColor }}
+                                >
+                                  {dueRangeText(task, today)}
+                                </div>
+                              )}
                             </div>
                             {/* Blocked by cell — click manages blockers */}
                             <div
@@ -2597,6 +2908,7 @@ export function GanttView({
                               style={{ width: BLOCKED_COL_W }}
                               onClick={(e) => e.stopPropagation()}
                             >
+                              {canEdit ? (
                               <DropdownMenu
                                 onOpenChange={(open) => {
                                   if (open) {
@@ -2607,37 +2919,7 @@ export function GanttView({
                               >
                                 <DropdownMenuTrigger asChild>
                                   <button className="w-full px-2 py-1 text-xs text-slate-500 text-left truncate hover:bg-slate-100 rounded cursor-pointer">
-                                    {/* Three states, three renderings. A
-                                        blocker the filter hid keeps its NAME
-                                        and goes muted; one with no name says
-                                        that something is blocking without
-                                        naming it. Only a task with no
-                                        blockers at all gets the em dash —
-                                        it used to be what all three showed. */}
-                                    <span
-                                      className="truncate block"
-                                      title={blockedCellTitle(blockers)}
-                                    >
-                                      {blockedParts.length === 0 ? (
-                                        <span className="text-slate-300">
-                                          —
-                                        </span>
-                                      ) : (
-                                        blockedParts.map((part, i) => (
-                                          <span key={part.key}>
-                                            {i > 0 && ", "}
-                                            <span
-                                              className={cn(
-                                                part.visibility !== "visible" &&
-                                                  "text-slate-400 italic"
-                                              )}
-                                            >
-                                              {part.label}
-                                            </span>
-                                          </span>
-                                        ))
-                                      )}
-                                    </span>
+                                    {blockedLabel}
                                   </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent
@@ -2711,7 +2993,11 @@ export function GanttView({
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                           onClick={() =>
-                                            removeBlocker(task.id, b.dep.id)
+                                            removeBlocker(
+                                              task.id,
+                                              b.dep.id,
+                                              b.dep.blockingTaskId
+                                            )
                                           }
                                           className="gap-2 text-red-600 focus:text-red-600"
                                         >
@@ -2840,6 +3126,11 @@ export function GanttView({
                                   })()}
                                 </DropdownMenuContent>
                               </DropdownMenu>
+                              ) : (
+                                <div className="w-full px-2 py-1 text-xs text-slate-500 truncate">
+                                  {blockedLabel}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -2891,10 +3182,14 @@ export function GanttView({
                 <input
                   ref={sectionInputRef}
                   value={newSectionName}
+                  // readOnly, not disabled: a disabled input loses focus,
+                  // and the blur handler below would close the row.
+                  readOnly={submittingSection}
+                  aria-busy={submittingSection}
                   onChange={(e) => setNewSectionName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") submitNewSection();
-                    if (e.key === "Escape") {
+                    if (e.key === "Enter") void submitNewSection();
+                    if (e.key === "Escape" && !submittingSection) {
                       setAddingSection(false);
                       setNewSectionName("");
                     }
@@ -2906,7 +3201,10 @@ export function GanttView({
                     if (!newSectionName.trim()) setAddingSection(false);
                   }}
                   placeholder="Section name"
-                  className="flex-1 text-sm border border-[#c9a84c] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-[#c9a84c]"
+                  className={cn(
+                    "flex-1 text-sm border border-[#c9a84c] rounded px-2 py-1 outline-none focus:ring-1 focus:ring-[#c9a84c]",
+                    submittingSection && "opacity-60"
+                  )}
                 />
               </div>
             ) : sectionsAreEditable ? (
@@ -3305,7 +3603,12 @@ export function GanttView({
                               {position &&
                                 (isMilestone ? (
                                   <div
-                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing touch-none hover:scale-110 transition-transform z-10"
+                                    className={cn(
+                                      "absolute top-1/2 -translate-y-1/2 hover:scale-110 transition-transform z-10",
+                                      canEdit
+                                        ? "cursor-grab active:cursor-grabbing touch-none"
+                                        : "cursor-pointer"
+                                    )}
                                     style={{ left: markerLeft }}
                                     // Markers used to be click-only, so a
                                     // milestone that slipped could not be
@@ -3332,7 +3635,12 @@ export function GanttView({
                                   </div>
                                 ) : isApproval ? (
                                   <div
-                                    className="absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing touch-none hover:scale-110 transition-transform z-10"
+                                    className={cn(
+                                      "absolute top-1/2 -translate-y-1/2 hover:scale-110 transition-transform z-10",
+                                      canEdit
+                                        ? "cursor-grab active:cursor-grabbing touch-none"
+                                        : "cursor-pointer"
+                                    )}
                                     style={{ left: markerLeft }}
                                     onPointerDown={(e) =>
                                       handleDragStart(e, task.id, "move", task)
@@ -3361,7 +3669,10 @@ export function GanttView({
                                       // and steal mousedown/click wherever an
                                       // arrow crosses it, making drags feel
                                       // stuck.
-                                      "absolute cursor-grab active:cursor-grabbing touch-none group/bar z-10",
+                                      "absolute group/bar z-10",
+                                      canEdit
+                                        ? "cursor-grab active:cursor-grabbing touch-none"
+                                        : "cursor-pointer",
                                       // A rounded right cap reads as a
                                       // finished end; an open bar has none.
                                       isOpenEnded
@@ -3412,7 +3723,7 @@ export function GanttView({
                                     {/* Resize handles — a due-only pill keeps
                                         only the right one (stretching gives
                                         the task a duration). */}
-                                    {!isDueOnly && (
+                                    {canEdit && !isDueOnly && (
                                       <div
                                         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize touch-none opacity-0 transition-opacity group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
                                         onPointerDown={(e) =>
@@ -3425,20 +3736,22 @@ export function GanttView({
                                         }
                                       />
                                     )}
-                                    <div
-                                      className={cn(
-                                        "absolute right-0 top-0 bottom-0 cursor-ew-resize touch-none opacity-0 transition-opacity group-hover/bar:opacity-100 bg-black/20 rounded-r z-10",
-                                        isDueOnly ? "w-1" : "w-2"
-                                      )}
-                                      onPointerDown={(e) =>
-                                        handleDragStart(
-                                          e,
-                                          task.id,
-                                          "right",
-                                          task
-                                        )
-                                      }
-                                    />
+                                    {canEdit && (
+                                      <div
+                                        className={cn(
+                                          "absolute right-0 top-0 bottom-0 cursor-ew-resize touch-none opacity-0 transition-opacity group-hover/bar:opacity-100 bg-black/20 rounded-r z-10",
+                                          isDueOnly ? "w-1" : "w-2"
+                                        )}
+                                        onPointerDown={(e) =>
+                                          handleDragStart(
+                                            e,
+                                            task.id,
+                                            "right",
+                                            task
+                                          )
+                                        }
+                                      />
+                                    )}
                                   </div>
                                 ))}
                             </div>
@@ -3484,16 +3797,25 @@ export function GanttView({
                 >
                   <button
                     type="button"
-                    onClick={() =>
-                      setDepMenu((m) => m && { ...m, open: !m.open })
+                    // Read-only viewers still see the link type; the menu
+                    // that changes or removes it is withheld.
+                    onClick={
+                      canEdit
+                        ? () => setDepMenu((m) => m && { ...m, open: !m.open })
+                        : undefined
                     }
-                    className="flex h-7 items-center gap-1 rounded-[6px] border border-[#C6C9CD] bg-white px-2.5 text-xs text-[#1E1F21] shadow-sm hover:bg-[#F7F7F7]"
+                    className={cn(
+                      "flex h-7 items-center gap-1 rounded-[6px] border border-[#C6C9CD] bg-white px-2.5 text-xs text-[#1E1F21] shadow-sm",
+                      canEdit ? "hover:bg-[#F7F7F7]" : "cursor-default"
+                    )}
                   >
                     {dependencyLabel(depMenu.dep.type)}
-                    <ChevronDown className="h-3 w-3 text-[#6B6D70]" />
+                    {canEdit && (
+                      <ChevronDown className="h-3 w-3 text-[#6B6D70]" />
+                    )}
                   </button>
 
-                  {depMenu.open && (
+                  {canEdit && depMenu.open && (
                     <div className="mt-1 w-[212px] rounded-[8px] border border-[#E0E1E3] bg-white py-1 shadow-lg">
                       {DEPENDENCY_TYPES.map((t) => (
                         <button

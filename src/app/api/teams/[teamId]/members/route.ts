@@ -241,15 +241,32 @@ export async function PATCH(
     const body = await req.json();
     const data = updateMemberSchema.parse(body);
 
+    const target = await prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: data.userId, teamId } },
+      select: { role: true },
+    });
+    if (!target) {
+      return NextResponse.json(
+        { error: "Member not found in this team" },
+        { status: 404 }
+      );
+    }
+
     // Don't allow demoting the last LEAD — would leave the team
-    // un-administrable.
-    if (data.userId === userId && data.role !== "LEAD") {
+    // un-administrable. Whoever the target is: a workspace admin who is not
+    // on the team can demote someone else, not only a lead stepping down.
+    if (target.role === "LEAD" && data.role !== "LEAD") {
       const otherLeads = await prisma.teamMember.count({
-        where: { teamId, role: "LEAD", userId: { not: userId } },
+        where: { teamId, role: "LEAD", userId: { not: data.userId } },
       });
       if (otherLeads === 0) {
         return NextResponse.json(
-          { error: "Promote another member to Lead before stepping down" },
+          {
+            error:
+              data.userId === userId
+                ? "Promote another member to Lead before stepping down"
+                : "Cannot demote the last team lead. Assign another lead first.",
+          },
           { status: 400 }
         );
       }

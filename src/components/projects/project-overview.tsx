@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
@@ -50,10 +50,12 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useToday } from "@/lib/use-today";
+import { toDateOnlyISO } from "@/lib/date-only";
 import { notifyTaskMutated } from "@/lib/task-events";
 import { ProjectStageStrip } from "@/components/cockpit/PipelineStrip";
 import type { ProjectType } from "@/components/cockpit/types";
-import { resolveStage } from "@/lib/pipelines";
+import { isStageValidForType, resolveStage } from "@/lib/pipelines";
+import { uploadDirect, responseError } from "@/lib/direct-upload";
 import {
   NO_STATUS_LABEL,
   countOverdue,
@@ -145,6 +147,11 @@ interface ProjectOverviewProps {
   onManageMembers?: () => void;
   // Open the task detail panel (milestone rows use it).
   onTaskClick?: (taskId: string) => void;
+  // Server-resolved write access (resolveProjectAccess().canWrite), which every
+  // route this view calls enforces. The session-email fallback below cannot see
+  // team sharing, workspace visibility or workspace role, so it hides controls
+  // from people the API lets write.
+  canEdit?: boolean;
 }
 
 interface MilestoneRow {
@@ -263,6 +270,16 @@ interface ActivityEvent {
     email: string | null;
     image: string | null;
   } | null;
+}
+
+interface StageEventRow {
+  id: string;
+  fromStage: string | null;
+  toStage: string;
+  direction: string;
+  reason: string | null;
+  createdAt: string;
+  user: { id: string; name: string | null; email: string | null } | null;
 }
 
 interface ConnectedGoal {
@@ -385,17 +402,23 @@ export function ProjectOverview({
   project,
   onManageMembers,
   onTaskClick,
+  canEdit: canEditProp,
 }: ProjectOverviewProps) {
   const router = useRouter();
+  // The page is mounted in both shells; every internal link keeps the one
+  // the user is in instead of dropping them into the dashboard shell.
+  const pathname = usePathname();
+  const shellPrefix = pathname?.startsWith("/portal") ? "/portal" : "";
   const { data: session } = useSession();
   // Local midnight, null until mounted — the activity feed's day label is
   // printed from it. Read during render it came from the server's UTC clock,
   // so after 20:00 Miami the feed was headed with tomorrow's date.
   const today = useToday();
-  // Whether the current user may edit the project (description, live status,
-  // status-badge sync). Owner or a project ADMIN/EDITOR — matches the PATCH
-  // gate on /api/projects/[id] and the status-sync gate on status-updates.
-  const canEdit = useMemo(() => {
+  // Whether the current user may edit the project (description, status,
+  // stage, brief, resources, goals, milestones). The parent's server-resolved
+  // flag wins; the fallback (owner or project ADMIN/EDITOR) only covers a
+  // caller that did not pass it, and errs toward hiding.
+  const canEditFallback = useMemo(() => {
     const email = session?.user?.email;
     if (!email) return false;
     if (project.owner?.email && project.owner.email === email) return true;
@@ -405,6 +428,7 @@ export function ProjectOverview({
         (m.role === "ADMIN" || m.role === "EDITOR")
     );
   }, [session?.user?.email, project.owner, project.members]);
+  const canEdit = canEditProp ?? canEditFallback;
   const [description, setDescription] = useState(project.description || "");
   const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([]);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
@@ -427,19 +451,22 @@ export function ProjectOverview({
   const [seededDescription, setSeededDescription] = useState(
     project.description || ""
   );
+  // The PROP value last seen. The server value is adopted only when the prop
+  // itself changes — comparing it against the baseline instead meant a
+  // successful blur-save (baseline := new text, prop still the old text until
+  // some refresh) read as "the server changed" and put the old text back.
+  const [lastPropDescription, setLastPropDescription] = useState(
+    project.description || ""
+  );
   useEffect(() => {
     const incoming = project.description || "";
-    // Only adopt the server value if the user hasn't diverged from
-    // the previously-seeded value — i.e. they're not mid-edit.
-    if (description === seededDescription && incoming !== seededDescription) {
-      setDescription(incoming);
-      setSeededDescription(incoming);
-    } else if (incoming !== seededDescription) {
-      // User has unsaved edits AND the server changed. Keep the
-      // user's edits but update the baseline so blur-save still works.
-      setSeededDescription(incoming);
-    }
-  }, [project.description, description, seededDescription]);
+    if (incoming === lastPropDescription) return;
+    setLastPropDescription(incoming);
+    // Only overwrite the textarea when the user isn't mid-edit; either way
+    // the baseline follows the server so blur-save still compares correctly.
+    if (description === seededDescription) setDescription(incoming);
+    setSeededDescription(incoming);
+  }, [project.description, lastPropDescription, description, seededDescription]);
 
   // Local mirror of the pipeline stage so the strip can move under the
   // click instead of waiting a round trip. Seeded the same way the
@@ -463,6 +490,9 @@ export function ProjectOverview({
     project.stageBlocker ?? null
   );
   const [stageSaving, setStageSaving] = useState(false);
+  // Inline editor for the current stage's blocker (see saveBlocker).
+  const [blockerEditing, setBlockerEditing] = useState(false);
+  const [blockerDraft, setBlockerDraft] = useState("");
   useEffect(() => {
     const incoming = project.stage ?? null;
     if (incoming !== seededStage) {
@@ -579,7 +609,9 @@ export function ProjectOverview({
 
   useEffect(() => {
     let canceled = false;
-    fetch(`/api/tasks?projectId=${project.id}`)
+    // The summary shape carries every field read here; the full include
+    // (assignees, subtasks, custom fields) is wasted on every refresh.
+    fetch(`/api/tasks?projectId=${project.id}&fields=summary`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         if (canceled) return;
@@ -623,6 +655,19 @@ export function ProjectOverview({
         setMilestones(list);
       })
       .catch(() => {});
+    return () => {
+      canceled = true;
+    };
+    // project.sections is a new array after every router.refresh() — that is
+    // how a milestone created in the dialog, or a task completed elsewhere,
+    // reaches this list and the overdue count.
+  }, [project.id, project.sections]);
+
+  // Portfolio membership does not change from anything on this page, so it
+  // is fetched per project, not on every refresh: /api/portfolios returns
+  // every portfolio with every member project, which is the heavy read here.
+  useEffect(() => {
+    let canceled = false;
     fetch("/api/portfolios")
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
@@ -657,7 +702,7 @@ export function ProjectOverview({
     return () => {
       canceled = true;
     };
-  }, [project.id, project.sections]);
+  }, [project.id]);
 
   const toggleMilestone = useCallback(
     async (m: MilestoneRow) => {
@@ -670,16 +715,21 @@ export function ProjectOverview({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ completed: !m.completed }),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || "Failed to update milestone");
+        }
         notifyTaskMutated(m.id);
         router.refresh();
-      } catch {
+      } catch (err) {
         setMilestones((prev) =>
           prev.map((x) =>
             x.id === m.id ? { ...x, completed: m.completed } : x
           )
         );
-        toast.error("Failed to update milestone");
+        toast.error(
+          err instanceof Error ? err.message : "Failed to update milestone"
+        );
       }
     },
     [router]
@@ -694,14 +744,19 @@ export function ProjectOverview({
       if (resourceUploading) return false; // guard against a double submit
       setResourceUploading(true);
       try {
-        const fd = new FormData();
-        fd.append("file", file);
+        // Browser → blob storage, then JSON records the row: a function
+        // refuses a request body over ~4.5MB, which a drawing set clears.
+        const { url } = await uploadDirect(file, {
+          kind: "project-resource",
+          projectId: project.id,
+        });
         const res = await fetch(`/api/projects/${project.id}/resources`, {
           method: "POST",
-          body: fd,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "FILE", blobUrl: url, name: file.name }),
         });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(data?.error || "Upload failed");
+        if (!res.ok) throw new Error(await responseError(res, "Upload failed"));
+        const data = await res.json();
         setResources((prev) => [...prev, data]);
         toast.success("Resource added");
         return true;
@@ -964,8 +1019,11 @@ export function ProjectOverview({
     // arrives; we splice the pre-fills in once it lands.
     void (async () => {
       try {
+        // The caller's calendar day: the server runs in UTC, so without it
+        // a task due today counts as overdue after 20:00 in Miami. Reading
+        // the clock is fine here — this runs from a click, not a render.
         const res = await fetch(
-          `/api/projects/${project.id}/status-highlights`
+          `/api/projects/${project.id}/status-highlights?today=${toDateOnlyISO(new Date())}`
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as StatusHighlights;
@@ -1385,13 +1443,16 @@ export function ProjectOverview({
   // derived from it on the server — two writers for one fact is how the
   // column and the stage desync.
   const handleStageMove = useCallback(
-    async (next: string, reason?: string) => {
-      if (stageSaving) return; // guard against a double click mid-flight
+    // Resolves true only once the move is saved: the strip keeps its
+    // send-back confirmation (and the typed reason) open on false.
+    async (next: string, reason?: string): Promise<boolean> => {
+      if (stageSaving) return false; // guard against a double click mid-flight
       const previous = stage;
       const previousEnteredAt = stageEnteredAt;
       const previousBlocker = stageBlocker;
-      if (next === previous) return;
+      if (next === previous) return false;
       setStageSaving(true);
+      setBlockerEditing(false);
       setStage(next);
       setStageEnteredAt(new Date());
       // The server clears it on a move; mirror that so the old stage's
@@ -1415,6 +1476,7 @@ export function ProjectOverview({
           `Stage set to ${resolveStage(next)?.stage.label ?? "the next stage"}`
         );
         router.refresh();
+        return true;
       } catch (err) {
         setStage(previous);
         setStageEnteredAt(previousEnteredAt);
@@ -1422,12 +1484,77 @@ export function ProjectOverview({
         toast.error(
           err instanceof Error ? err.message : "Failed to update stage"
         );
+        return false;
       } finally {
         setStageSaving(false);
       }
     },
     [project.id, router, stage, stageEnteredAt, stageBlocker, stageSaving]
   );
+
+  // "What we are waiting on" in the CURRENT stage. Same endpoint as a move,
+  // re-sending the stage we are on: the server leaves the clock alone and
+  // writes no history row for a stay-put save.
+  const saveBlocker = useCallback(async () => {
+    if (!stage || stageSaving) return;
+    const next = blockerDraft.trim();
+    if (next === (stageBlocker ?? "")) {
+      setBlockerEditing(false);
+      return;
+    }
+    setStageSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/stage`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage, blocker: next }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || "Failed to save what we're waiting on");
+      }
+      setStageBlocker(next || null);
+      setBlockerEditing(false);
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save what we're waiting on"
+      );
+    } finally {
+      setStageSaving(false);
+    }
+  }, [project.id, router, stage, stageBlocker, stageSaving, blockerDraft]);
+
+  // Stage history — every move, newest first. Loaded when opened, and again
+  // after a move while open (keyed on the stage), so it never shows a stale
+  // trail next to a strip that has moved.
+  const [stageHistoryOpen, setStageHistoryOpen] = useState(false);
+  const [stageEvents, setStageEvents] = useState<StageEventRow[] | null>(null);
+  const [stageEventsError, setStageEventsError] = useState(false);
+  // When the list was fetched — the "now" the open stage's dwell counts to,
+  // so render stays pure.
+  const [stageEventsAt, setStageEventsAt] = useState(0);
+  const [stageEventsKey, setStageEventsKey] = useState(0);
+  useEffect(() => {
+    if (!stageHistoryOpen) return;
+    let canceled = false;
+    fetch(`/api/projects/${project.id}/stage`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
+      .then((data) => {
+        if (canceled) return;
+        setStageEvents(Array.isArray(data?.events) ? data.events : []);
+        setStageEventsAt(Date.now());
+        setStageEventsError(false);
+      })
+      .catch(() => {
+        if (!canceled) setStageEventsError(true);
+      });
+    return () => {
+      canceled = true;
+    };
+    // project.stage, not the optimistic local one: it changes only after the
+    // move has landed and the page refreshed, so the refetch sees the new row.
+  }, [project.id, stageHistoryOpen, project.stage, stageEventsKey]);
 
   return (
     <div className="flex flex-col lg:flex-row h-full">
@@ -1521,7 +1648,7 @@ export function ProjectOverview({
             {goals.length > 0 && (
               <button
                 type="button"
-                onClick={() => router.push("/goals")}
+                onClick={() => router.push(`${shellPrefix}/goals`)}
                 className="text-xs text-[#a8893a] hover:text-[#8a7028] font-medium"
               >
                 Open in Goals →
@@ -1629,7 +1756,7 @@ export function ProjectOverview({
             </h2>
             <button
               type="button"
-              onClick={() => router.push("/portfolios")}
+              onClick={() => router.push(`${shellPrefix}/portfolios`)}
               className="text-slate-400 hover:text-slate-600"
               title="Manage portfolios"
             >
@@ -1649,7 +1776,7 @@ export function ProjectOverview({
                 return (
                   <button
                     key={p.id}
-                    onClick={() => router.push(`/portfolios/${p.id}`)}
+                    onClick={() => router.push(`${shellPrefix}/portfolios/${p.id}`)}
                     className="w-full flex items-center gap-3 py-2 border-b border-slate-100 hover:bg-slate-50 text-left"
                   >
                     <Folder className="w-4 h-4 text-slate-400 flex-shrink-0" />
@@ -1746,7 +1873,7 @@ export function ProjectOverview({
                   onCopyLink={() => {
                     navigator.clipboard
                       ?.writeText(
-                        `${window.location.origin}/projects/${project.id}?view=overview&brief=1`
+                        `${window.location.origin}${shellPrefix}/projects/${project.id}?view=overview&brief=1`
                       )
                       .then(() => toast.success("Link copied"))
                       .catch(() => toast.error("Couldn't copy the link"));
@@ -1799,7 +1926,20 @@ export function ProjectOverview({
                     key={r.id}
                     resource={r}
                     canEdit={canEdit}
-                    onRemove={() => removeResource(r.id)}
+                    onRemove={() => {
+                      // A FILE's DELETE also removes the blob from storage —
+                      // no undo — so a misclick on the hover X must not do
+                      // it. A link is one paste away from coming back.
+                      if (
+                        r.type === "FILE" &&
+                        !confirm(
+                          `Delete "${r.name}"? The file is removed from storage and can't be recovered.`
+                        )
+                      ) {
+                        return;
+                      }
+                      void removeResource(r.id);
+                    }}
                   />
                 ))}
               </div>
@@ -1811,14 +1951,18 @@ export function ProjectOverview({
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <h2 className="text-xl font-medium text-slate-900">Milestones</h2>
-            <button
-              type="button"
-              onClick={() => setMilestoneDialogOpen(true)}
-              className="text-slate-400 hover:text-slate-600"
-              title="Add milestone"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            {/* Creating and completing milestones are task writes; a
+                read-only viewer would only reach a 403. */}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setMilestoneDialogOpen(true)}
+                className="text-slate-400 hover:text-slate-600"
+                title="Add milestone"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <div>
             {milestones.map((m) => (
@@ -1829,16 +1973,26 @@ export function ProjectOverview({
                 <button
                   type="button"
                   onClick={() => toggleMilestone(m)}
+                  disabled={!canEdit}
                   title={
-                    m.completed ? "Mark incomplete" : "Mark milestone complete"
+                    !canEdit
+                      ? m.completed
+                        ? "Complete"
+                        : "Not complete"
+                      : m.completed
+                        ? "Mark incomplete"
+                        : "Mark milestone complete"
                   }
+                  className="disabled:cursor-default"
                 >
                   <Diamond
                     className={cn(
                       "w-4 h-4",
                       m.completed
                         ? "text-[#5DA182] fill-[#5DA182]"
-                        : "text-slate-400 hover:text-[#5DA182]"
+                        : canEdit
+                          ? "text-slate-400 hover:text-[#5DA182]"
+                          : "text-slate-400"
                     )}
                   />
                 </button>
@@ -1863,14 +2017,20 @@ export function ProjectOverview({
                 )}
               </div>
             ))}
-            <button
-              type="button"
-              onClick={() => setMilestoneDialogOpen(true)}
-              className="flex items-center gap-3 py-2 w-full text-left text-sm text-slate-400 hover:text-slate-600"
-            >
-              <Diamond className="w-4 h-4" />
-              Add milestone…
-            </button>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setMilestoneDialogOpen(true)}
+                className="flex items-center gap-3 py-2 w-full text-left text-sm text-slate-400 hover:text-slate-600"
+              >
+                <Diamond className="w-4 h-4" />
+                Add milestone…
+              </button>
+            ) : (
+              milestones.length === 0 && (
+                <p className="py-2 text-sm text-slate-500">No milestones yet.</p>
+              )
+            )}
           </div>
         </div>
 
@@ -1968,6 +2128,133 @@ export function ProjectOverview({
                 projectId={project.id}
                 sections={project.sections}
               />
+              {/* The strip prints "Blocked · …"; this is where it is written. */}
+              {canEdit && isStageValidForType(project.type ?? null, stage) && (
+                blockerEditing ? (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={blockerDraft}
+                      maxLength={500}
+                      disabled={stageSaving}
+                      onChange={(e) => setBlockerDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void saveBlocker();
+                        } else if (e.key === "Escape") {
+                          setBlockerEditing(false);
+                        }
+                      }}
+                      placeholder="e.g. Owner's documents"
+                      className="flex-1 min-w-0 h-7 px-2 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-[#c9a84c]"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => void saveBlocker()}
+                      disabled={stageSaving}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setBlockerEditing(false)}
+                      disabled={stageSaving}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBlockerDraft(stageBlocker ?? "");
+                      setBlockerEditing(true);
+                    }}
+                    disabled={stageSaving}
+                    className="mt-1.5 text-[11px] text-[#a8893a] hover:text-[#8a7028] font-medium"
+                  >
+                    {stageBlocker ? "Edit what we're waiting on" : "Set what we're waiting on"}
+                  </button>
+                )
+              )}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setStageHistoryOpen((v) => !v)}
+                  className="mt-1.5 text-[11px] text-slate-500 hover:text-slate-700 font-medium"
+                >
+                  {stageHistoryOpen ? "Hide stage history" : "Stage history"}
+                </button>
+                {stageHistoryOpen && (
+                  <div className="mt-2 space-y-2">
+                    {stageEventsError ? (
+                      <p className="text-xs text-slate-500">
+                        Couldn&apos;t load the stage history.{" "}
+                        <button
+                          type="button"
+                          onClick={() => setStageEventsKey((k) => k + 1)}
+                          className="text-[#a8893a] hover:text-[#8a7028] font-medium"
+                        >
+                          Retry
+                        </button>
+                      </p>
+                    ) : stageEvents === null ? (
+                      <p className="text-xs text-slate-400">Loading…</p>
+                    ) : stageEvents.length === 0 ? (
+                      <p className="text-xs text-slate-400">
+                        No stage moves recorded yet.
+                      </p>
+                    ) : (
+                      stageEvents.map((ev, i) => {
+                        // Time on that desk: until the next (newer) move, or
+                        // until now for the stage the job is still in.
+                        const until =
+                          i === 0
+                            ? stageEventsAt
+                            : new Date(stageEvents[i - 1].createdAt).getTime();
+                        const days = Math.max(
+                          0,
+                          Math.floor(
+                            (until - new Date(ev.createdAt).getTime()) / 86_400_000
+                          )
+                        );
+                        const label = (key: string | null) =>
+                          (key && resolveStage(key)?.stage.label) || key || "Start";
+                        return (
+                          <div key={ev.id} className="text-xs">
+                            <p className="text-slate-700">
+                              {ev.fromStage && (
+                                <>
+                                  {label(ev.fromStage)}
+                                  {" → "}
+                                </>
+                              )}
+                              <span className="font-medium">{label(ev.toStage)}</span>
+                              {ev.direction === "BACKWARD" && (
+                                <span className="ml-1.5 text-[#B4304C]">sent back</span>
+                              )}
+                            </p>
+                            {ev.reason && (
+                              <p className="text-slate-500 whitespace-pre-wrap">
+                                {ev.reason}
+                              </p>
+                            )}
+                            <p className="text-[11px] text-slate-400">
+                              {ev.user?.name || ev.user?.email || "Someone"} ·{" "}
+                              {formatRelativeTime(ev.createdAt)} · {days}{" "}
+                              {days === 1 ? "day" : "days"} in stage
+                            </p>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Composer */}
@@ -2158,7 +2445,7 @@ export function ProjectOverview({
             <button
               type="button"
               onClick={() =>
-                router.push(`/projects/${project.id}?view=messages`)
+                router.push(`${shellPrefix}/projects/${project.id}?view=messages`)
               }
               className="flex items-center gap-2 text-sm font-medium text-[#335FB5] hover:underline"
             >
@@ -2335,13 +2622,6 @@ export function ProjectOverview({
               <ActivityIcon className="w-3.5 h-3.5" />
               Activity
             </div>
-            {today && (
-              <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-3">
-                <Calendar className="w-3 h-3" />
-                {formatDayLabel(today)}
-              </div>
-            )}
-
             {loadingFeed ? (
               <p className="text-sm text-slate-400">Loading…</p>
             ) : feedErrors.activity ? (
@@ -2362,29 +2642,47 @@ export function ProjectOverview({
               </p>
             ) : (
               <div className="space-y-3">
-                {activities.slice(0, 15).map((a) => (
-                  <div key={a.id} className="flex items-start gap-2.5">
-                    <ActivityIconCell type={a.type} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-slate-900 leading-tight">
-                        <span className="font-medium">
-                          {a.actor
-                            ? a.actor.name || a.actor.email || "Someone"
-                            : "Someone"}
-                        </span>{" "}
-                        <span className="text-slate-500">{a.title}</span>
-                      </p>
-                      {a.detail && (
-                        <p className="text-[12px] text-slate-500 truncate mt-0.5">
-                          {a.detail}
-                        </p>
+                {activities.slice(0, 15).map((a, i, shown) => {
+                  // One date header per day the events fall on — a single
+                  // "today" header sat above events from weeks ago. Built
+                  // from the event's own timestamp in the browser's zone
+                  // (the feed is fetched client-side, so no server render).
+                  const day = formatDayLabel(new Date(a.createdAt));
+                  const newDay =
+                    i === 0 ||
+                    formatDayLabel(new Date(shown[i - 1].createdAt)) !== day;
+                  return (
+                    <div key={a.id}>
+                      {newDay && (
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-2">
+                          <Calendar className="w-3 h-3" />
+                          {today && day === formatDayLabel(today) ? "Today" : day}
+                        </div>
                       )}
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {formatRelativeTime(a.createdAt)}
-                      </p>
+                      <div className="flex items-start gap-2.5">
+                        <ActivityIconCell type={a.type} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] text-slate-900 leading-tight">
+                            <span className="font-medium">
+                              {a.actor
+                                ? a.actor.name || a.actor.email || "Someone"
+                                : "Someone"}
+                            </span>{" "}
+                            <span className="text-slate-500">{a.title}</span>
+                          </p>
+                          {a.detail && (
+                            <p className="text-[12px] text-slate-500 truncate mt-0.5">
+                              {a.detail}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {formatRelativeTime(a.createdAt)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

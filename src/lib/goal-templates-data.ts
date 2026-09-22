@@ -147,35 +147,37 @@ export const GOAL_TEMPLATES: GoalTemplate[] = [
     ],
   },
   {
-    id: "fisp-cycle-9-compliance",
-    name: "FISP Cycle 9 compliance",
+    id: "recertification-compliance",
+    name: "Building recertification on time",
     description:
-      "Façade Inspection & Safety Program — NYC Local Law 11. Track filings due, filed, accepted.",
+      "Miami-Dade and Broward building safety recertifications. Track reports submitted before the owner's deadline and accepted by the building official.",
     category: "COMPLIANCE",
     icon: "ShieldCheck",
     objective: {
-      name: "100% on-time FISP Cycle 9 filings accepted by DOB",
+      name: "Every recertification report submitted on time and accepted",
       description:
-        "Every façade recert assignment filed before its DOB sub-cycle deadline and accepted on first review.",
+        "Each recertification assignment inspected, reported and submitted before its county deadline, and accepted without a request for corrections.",
       progressSource: "KEY_RESULTS",
     },
     keyResults: [
       {
-        name: "# filings due this cycle",
-        targetValue: 12,
-        startValue: 12,
-        unit: "count",
-        format: "NUMBER",
-      },
-      {
-        name: "# filings submitted on time",
+        name: "# recertification reports submitted before the deadline",
         targetValue: 12,
         startValue: 0,
         unit: "count",
         format: "NUMBER",
       },
       {
-        name: "# filings accepted by DOB on first review",
+        name: "# reports accepted without a correction request",
+        targetValue: 12,
+        startValue: 0,
+        unit: "count",
+        format: "NUMBER",
+      },
+      {
+        name: "# buildings with required repairs completed and closed out",
+        description:
+          "Buildings whose report called for repairs, counted once the repairs are done and the closing letter is filed.",
         targetValue: 12,
         startValue: 0,
         unit: "count",

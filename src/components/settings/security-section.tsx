@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,19 +64,24 @@ export function SecuritySection({ hasPassword }: SecuritySectionProps) {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to change password");
       }
 
-      toast.success("Password changed successfully");
+      // The change evicts every session issued before it, this one included,
+      // so staying on the page would leave a session whose every request
+      // answers 401. Sign out and send the user to sign in with the new
+      // password. The button stays disabled until the redirect lands.
+      toast.success("Password changed. Sign in again with your new password.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to change password");
-    } finally {
       setSaving(false);
+      return;
     }
+    await signOut({ callbackUrl: "/login" });
   }
 
   return (

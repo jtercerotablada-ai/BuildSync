@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
+import { getErrorStatus } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 
 const FIELD_TYPES = [
   "single_select",
@@ -25,7 +26,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await verifyTeamAccess(userId, teamId);
+    // Same read rule as the rest of the team (member or workspace OWNER/ADMIN,
+    // with a contributor seat) — the Members grid of a team the owner is not
+    // on used to lose every custom-field column to a 403 here.
+    await requireTeamStanding(userId, teamId);
 
     const fields = await prisma.teamCustomField.findMany({
       where: { teamId },
@@ -69,10 +73,10 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const member = await verifyTeamAccess(userId, teamId);
-    if (member.role !== "LEAD") {
+    const standing = await requireTeamStanding(userId, teamId);
+    if (!standing.canManageMembers) {
       return NextResponse.json(
-        { error: "Only team leads can add fields" },
+        { error: "Only team leads or workspace admins can add fields" },
         { status: 403 }
       );
     }

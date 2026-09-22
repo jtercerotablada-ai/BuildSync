@@ -4,16 +4,25 @@
  * page, AI Coach panel, comments feed, etc.
  */
 
+import { startOfLocalDay } from "@/lib/date-only";
+
 /**
  * "Today at 10:32 AM" / "Yesterday at 4:15 PM" / "11/12/2026 at 9:00 AM".
  * Locale-friendly version of the absolute timestamp shown next to a
  * comment or activity item.
  */
-export function formatRelativeTime(date: string | Date): string {
+export function formatRelativeTime(
+  date: string | Date,
+  now: Date = new Date()
+): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  // Calendar days, not elapsed 24h periods: last night at 22:00 read at
+  // 09:00 is "Yesterday", though only 11 hours have passed. Math.round
+  // absorbs the 23/25-hour days around a DST switch.
+  const MS_PER_DAY = 1000 * 60 * 60 * 24;
+  const diffDays = Math.round(
+    (startOfLocalDay(now).getTime() - startOfLocalDay(d).getTime()) / MS_PER_DAY
+  );
 
   const time = d.toLocaleTimeString("en-US", {
     hour: "2-digit",

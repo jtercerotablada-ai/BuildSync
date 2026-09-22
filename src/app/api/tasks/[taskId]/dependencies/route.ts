@@ -5,6 +5,8 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { cascadeFromDependency, type CascadeShift } from "@/lib/dependency-cascade";
 import { cascadeActivityRows } from "@/lib/cascade-activity";
+import { notifyCascadedDueDateChanges } from "@/lib/task-notifications";
+import { Prisma } from "@prisma/client";
 
 /**
  * Write the history for a cascade that has already committed.
@@ -14,6 +16,9 @@ import { cascadeActivityRows } from "@/lib/cascade-activity";
  * retyped had an activity feed with nothing in it. The cause named on each
  * row is the BLOCKING task — that is the end of the edge the dependent moved
  * to satisfy.
+ *
+ * The assignees of the moved tasks are notified as well: a due date the
+ * cascade moved is as real a reschedule as one moved by hand.
  *
  * Never throws: the link and the shifted dates are already persisted, and
  * failing here would answer 500 to a change that actually happened.
@@ -34,6 +39,7 @@ async function recordCascade(
   } catch (activityError) {
     console.error("Error writing dependency cascade activity:", activityError);
   }
+  await notifyCascadedDueDateChanges(shifts, opts.userId);
 }
 
 const createDependencySchema = z.object({
@@ -145,32 +151,67 @@ export async function POST(
     // Creating the link + auto-shifting the dependent runs in one
     // transaction so a failed cascade can't leave a half-applied schedule.
     let cascadeShifts: CascadeShift[] = [];
-    const dependency = await prisma.$transaction(async (tx) => {
-      const created = await tx.taskDependency.create({
+    let dependency;
+    try {
+      dependency = await prisma.$transaction(async (tx) => {
+        const created = await tx.taskDependency.create({
+          data: {
+            dependentTaskId: taskId,
+            blockingTaskId: data.blockingTaskId,
+            type: data.type,
+          },
+          include: {
+            blockingTask: {
+              select: { id: true, name: true, completed: true },
+            },
+          },
+        });
+
+        // Touch the task so the "Last modified" field reflects the change.
+        await tx.task.update({
+          where: { id: taskId },
+          data: { updatedAt: new Date() },
+        });
+
+        // A new link can already be violated — push the dependent forward
+        // (and anything downstream of it), same as moving a blocker's dates.
+        // Scoped to THIS edge so the blocker's other dependents stay put.
+        cascadeShifts = await cascadeFromDependency(tx, created.id);
+        return created;
+        // A cascade over a long chained schedule can outlast Prisma's 5s
+        // default on a cold database start.
+      }, { maxWait: 10000, timeout: 20000 });
+    } catch (err) {
+      // Two quick clicks both pass the existence check above; the unique
+      // index stops the second insert. Answer it like the first check does.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        return NextResponse.json(
+          { error: "Dependency already exists" },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
+
+    // The blocked task's feed records the new blocker.
+    await prisma.activity
+      .create({
         data: {
-          dependentTaskId: taskId,
-          blockingTaskId: data.blockingTaskId,
-          type: data.type,
-        },
-        include: {
-          blockingTask: {
-            select: { id: true, name: true, completed: true },
+          type: "DEPENDENCY_ADDED",
+          taskId,
+          userId,
+          data: {
+            blockingTaskId: dependency.blockingTask.id,
+            blockingTaskName: dependency.blockingTask.name,
           },
         },
+      })
+      .catch((e) => {
+        console.error("Error writing dependency activity:", e);
       });
-
-      // Touch the task so the "Last modified" field reflects the change.
-      await tx.task.update({
-        where: { id: taskId },
-        data: { updatedAt: new Date() },
-      });
-
-      // A new link can already be violated — push the dependent forward
-      // (and anything downstream of it), same as moving a blocker's dates.
-      // Scoped to THIS edge so the blocker's other dependents stay put.
-      cascadeShifts = await cascadeFromDependency(tx, created.id);
-      return created;
-    });
 
     await recordCascade(cascadeShifts, {
       userId,
@@ -270,7 +311,7 @@ export async function PATCH(
       // not silently reschedule an unrelated A→C.
       cascadeShifts = await cascadeFromDependency(tx, dependencyId);
       return row;
-    });
+    }, { maxWait: 10000, timeout: 20000 });
 
     await recordCascade(cascadeShifts, {
       userId,

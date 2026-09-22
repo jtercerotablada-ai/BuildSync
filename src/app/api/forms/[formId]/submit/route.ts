@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { uploadPublicFile, deleteFile } from "@/lib/storage";
+import { isNonContributorRole } from "@/lib/workspace-roles";
+import {
+  BlobRejectedError,
+  PUBLIC_UPLOAD_MAX_BYTES,
+  PUBLIC_UPLOAD_MAX_FILES,
+  uploadPublicFile,
+  deleteFile,
+  verifyUploadedBlob,
+} from "@/lib/storage";
 import {
   type FormField,
   type FormSubmissionPayload,
@@ -10,6 +18,8 @@ import {
   type FormAttachment,
   buildTaskFromSubmission,
   appendFormFooter,
+  coerceSubmittedAnswers,
+  firstEmailAnswer,
   formatAnswerForText,
   pruneHiddenAnswers,
   isFieldVisible,
@@ -41,12 +51,16 @@ import {
  * POST /api/forms/:formId/submit
  *
  * Accepts EITHER:
- *   - application/json  →  { answers: Record<fieldId, value> }
+ *   - application/json  →  { answers: Record<fieldId, value>,
+ *       uploads?: Record<fieldId, { blobUrl, name }[]> } — the files went
+ *       from the browser straight to blob storage (token: /api/blob/upload),
+ *       because a function refuses a request body over ~4.5MB
  *   - multipart/form-data → answers + files (for ATTACHMENT fields)
  *
  * Behavior:
  *   1. Reject if form is inactive (410).
- *   2. Reject anonymous submission if visibility === ORGANIZATION (401).
+ *   2. ORGANIZATION forms: anonymous → 401, signed in without a
+ *      contributor seat in the project's workspace → 403.
  *   3. Validate required visible fields (branching honored).
  *   4. Upload attachment files to Vercel Blob, replace File objects
  *      with their URL + metadata in the answers payload.
@@ -111,7 +125,9 @@ export async function POST(
     const form = await prisma.form.findUnique({
       where: { id: formId },
       include: {
-        project: { select: { id: true, name: true, ownerId: true } },
+        project: {
+          select: { id: true, name: true, ownerId: true, workspaceId: true },
+        },
         defaultAssignee: {
           select: { id: true, email: true, name: true },
         },
@@ -127,7 +143,30 @@ export async function POST(
       );
     }
 
+    // ── Who is submitting ─────────────────────────────────────
+    // A session alone proves nothing here: registration is open and every
+    // signup owns a workspace of its own. Only a contributor of THIS
+    // project's workspace is recorded as the submitter — becoming the task's
+    // creator is a personal tie to it — and anyone else is treated exactly
+    // like an anonymous public submitter.
+    let memberSubmitterId: string | null = null;
+    if (submitterUserId) {
+      const seat = await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId: submitterUserId,
+            workspaceId: form.project.workspaceId,
+          },
+        },
+        select: { role: true },
+      });
+      if (seat && !isNonContributorRole(seat.role)) {
+        memberSubmitterId = submitterUserId;
+      }
+    }
+
     // ── Visibility enforcement ────────────────────────────────
+    // Same rule as GET /api/forms/:id for ORGANIZATION forms.
     if (form.visibility === "ORGANIZATION" && !submitterUserId) {
       return NextResponse.json(
         {
@@ -135,6 +174,12 @@ export async function POST(
             "This form is restricted to signed-in members of the workspace.",
         },
         { status: 401 }
+      );
+    }
+    if (form.visibility === "ORGANIZATION" && !memberSubmitterId) {
+      return NextResponse.json(
+        { error: "This form is limited to members of the organization." },
+        { status: 403 }
       );
     }
 
@@ -149,8 +194,17 @@ export async function POST(
     // submission passes validation, so a request that is going to be rejected
     // never writes a blob in the first place.
     const pendingUploads = new Map<string, File[]>();
+    // Blobs the browser already uploaded, by field. Verified (store, access,
+    // this form's folder, size, type) only after the submission validates.
+    const clientUploads = new Map<string, { blobUrl: string; name: string }[]>();
     const fields = (form.fields as unknown as FormField[]) || [];
     const contentType = req.headers.get("content-type") || "";
+    // Only ATTACHMENT fields take files. An upload keyed to any other field
+    // is dropped here, before the required check, so it cannot stand in for
+    // a missing text/email/select answer.
+    const attachmentIds = new Set(
+      fields.filter((f) => f.type === "ATTACHMENT").map((f) => f.id)
+    );
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
@@ -159,7 +213,7 @@ export async function POST(
       const answersRaw = formData.get("answers");
       if (typeof answersRaw === "string") {
         try {
-          answers = JSON.parse(answersRaw) as FormSubmissionPayload;
+          answers = coerceSubmittedAnswers(fields, JSON.parse(answersRaw));
         } catch {
           return NextResponse.json(
             { error: "Invalid answers payload" },
@@ -181,7 +235,9 @@ export async function POST(
         const files = formData
           .getAll(`attachment:${fieldId}`)
           .filter((v): v is File => v instanceof File && v.size > 0);
-        if (files.length > 0) pendingUploads.set(fieldId, files);
+        if (files.length > 0 && attachmentIds.has(fieldId)) {
+          pendingUploads.set(fieldId, files);
+        }
       }
     } else {
       const body = await req.json().catch(() => null);
@@ -191,10 +247,40 @@ export async function POST(
           { status: 400 }
         );
       }
-      const raw = (body as { answers?: unknown }).answers;
-      if (raw && typeof raw === "object") {
-        answers = raw as FormSubmissionPayload;
+      // Shape-checked per field type: an ATTACHMENT answer can only come
+      // from a file this route verified below, never from the payload.
+      answers = coerceSubmittedAnswers(
+        fields,
+        (body as { answers?: unknown }).answers
+      );
+      const rawUploads = (body as { uploads?: unknown }).uploads;
+      if (rawUploads && typeof rawUploads === "object") {
+        for (const [fieldId, list] of Object.entries(
+          rawUploads as Record<string, unknown>
+        )) {
+          if (!Array.isArray(list) || !attachmentIds.has(fieldId)) continue;
+          const items = list.filter(
+            (v): v is { blobUrl: string; name: string } =>
+              !!v &&
+              typeof v === "object" &&
+              typeof (v as { blobUrl?: unknown }).blobUrl === "string" &&
+              typeof (v as { name?: unknown }).name === "string"
+          );
+          if (items.length > 0) clientUploads.set(fieldId, items);
+        }
       }
+    }
+
+    // One bound for both paths: a submission is a handful of photos and a
+    // drawing, not an archive.
+    let fileCount = 0;
+    for (const list of pendingUploads.values()) fileCount += list.length;
+    for (const list of clientUploads.values()) fileCount += list.length;
+    if (fileCount > PUBLIC_UPLOAD_MAX_FILES) {
+      return NextResponse.json(
+        { error: `Attach at most ${PUBLIC_UPLOAD_MAX_FILES} files per submission.` },
+        { status: 400 }
+      );
     }
 
     // ── Branching-aware required validation ───────────────────
@@ -206,6 +292,7 @@ export async function POST(
       const v = answers[f.id];
       const empty =
         !pendingUploads.has(f.id) &&
+        !clientUploads.has(f.id) &&
         (v == null ||
           (typeof v === "string" && v.trim() === "") ||
           (Array.isArray(v) && v.length === 0));
@@ -292,6 +379,69 @@ export async function POST(
       }
     }
 
+    // ── Accept files the browser uploaded directly ────────────
+    // The urls are the caller's word, so each one must be a PUBLIC blob of
+    // our store under this form's folder (the only place the token route
+    // writes for it), and size/type come off the stored blob. They are never
+    // added to uploadedBlobUrls: a request that fails must not be a way to
+    // delete a blob the caller did not upload in this request.
+    const seenUrls = new Set<string>();
+    for (const [fieldId, items] of clientUploads) {
+      const field = fieldsById.get(fieldId);
+      if (!field || field.type !== "ATTACHMENT") continue;
+      if (!isFieldVisible(field, answers, fieldsById)) continue;
+      const accepted: FormAttachment[] = [];
+      for (const item of items) {
+        if (seenUrls.has(item.blobUrl)) continue;
+        seenUrls.add(item.blobUrl);
+        let verified;
+        try {
+          verified = await verifyUploadedBlob(
+            item.blobUrl,
+            item.name,
+            `forms/${form.id}/`,
+            "public",
+            PUBLIC_UPLOAD_MAX_BYTES
+          );
+        } catch (err) {
+          await discardUploads();
+          if (err instanceof BlobRejectedError) {
+            return NextResponse.json({ error: err.message }, { status: err.status });
+          }
+          throw err;
+        }
+        // One Attachment row per blob: a url already mirrored onto another
+        // submission's task is not this submitter's new file.
+        const already = await prisma.attachment.findFirst({
+          where: { url: verified.url },
+          select: { id: true },
+        });
+        if (already) {
+          await discardUploads();
+          return NextResponse.json(
+            { error: "That file was already submitted" },
+            { status: 409 }
+          );
+        }
+        accepted.push({
+          name: verified.name,
+          url: verified.url,
+          size: verified.size,
+          mimeType: verified.mimeType,
+        });
+      }
+      if (accepted.length > 0) {
+        const existing = answers[fieldId];
+        answers[fieldId] = [
+          ...(Array.isArray(existing) && realUploadFieldIds.has(fieldId)
+            ? (existing as FormAttachment[])
+            : []),
+          ...accepted,
+        ];
+        realUploadFieldIds.add(fieldId);
+      }
+    }
+
     // ── Resolve target section ────────────────────────────────
     let targetSectionId = form.defaultSectionId;
     if (!targetSectionId) {
@@ -338,10 +488,10 @@ export async function POST(
     // Resolve submitter display name once so we can show it both in
     // the description footer ("by Juan Tablada") and the inbox row.
     let submitterDisplay: string | null = null;
-    if (submitterUserId) {
+    if (memberSubmitterId) {
       try {
         const u = await prisma.user.findUnique({
-          where: { id: submitterUserId },
+          where: { id: memberSubmitterId },
           select: { name: true, email: true },
         });
         submitterDisplay = u?.name || u?.email || null;
@@ -353,15 +503,7 @@ export async function POST(
     // the next-best identifier. Computed lazily here because we don't
     // need it for ORGANIZATION submissions where the user lookup wins.
     if (!submitterDisplay) {
-      for (const f of fields) {
-        if (f.type === "EMAIL") {
-          const v = answers[f.id];
-          if (typeof v === "string" && v.trim()) {
-            submitterDisplay = v.trim();
-            break;
-          }
-        }
-      }
+      submitterDisplay = firstEmailAnswer(fields, answers);
     }
 
     // Compose the final description with the "Submitted via [Form]"
@@ -382,15 +524,14 @@ export async function POST(
     // files still live in FormSubmission.data so the submissions
     // inbox keeps showing them.
     const uploaderForAttachments =
-      submitterUserId || form.project.ownerId || null;
+      memberSubmitterId || form.project.ownerId || null;
     const filesToMirror: FormAttachment[] = [];
     if (uploaderForAttachments) {
       for (const f of fields) {
         if (f.type !== "ATTACHMENT") continue;
-        // Only mirror files that were genuinely uploaded this request. A JSON
-        // submission never populates realUploadFieldIds, so forged attachment
-        // objects in the answers payload are ignored (they still live in
-        // FormSubmission.data for the inbox, just not as Task attachments).
+        // Only mirror files that were genuinely uploaded or verified this
+        // request (coerceSubmittedAnswers already dropped any ATTACHMENT
+        // value the payload itself carried).
         if (!realUploadFieldIds.has(f.id)) continue;
         const v = answers[f.id];
         const list = Array.isArray(v) ? v : v != null ? [v] : [];
@@ -405,7 +546,7 @@ export async function POST(
       const submission = await tx.formSubmission.create({
         data: {
           formId: form.id,
-          submitterUserId: submitterUserId || null,
+          submitterUserId: memberSubmitterId,
           data: JSON.parse(JSON.stringify(answers)),
         },
       });
@@ -418,7 +559,7 @@ export async function POST(
           projectId: form.projectId,
           sectionId: targetSectionId,
           assigneeId: form.defaultAssigneeId,
-          creatorId: submitterUserId || form.project.ownerId || null,
+          creatorId: memberSubmitterId || form.project.ownerId || null,
         },
       });
 
@@ -451,6 +592,18 @@ export async function POST(
     // later failure (notifications, rules) must not delete them.
     uploadedBlobUrls.length = 0;
 
+    // Everything below is follow-up work on a submission that already
+    // exists. A throw here used to reach the outer catch and answer 500
+    // "Failed to submit form" — the submitter clicked Submit again and the
+    // project got a duplicate task. Each step now fails on its own.
+    const afterCommit = async (label: string, work: () => Promise<void>) => {
+      try {
+        await work();
+      } catch (err) {
+        console.error(`[form submit] ${label} failed after commit:`, err);
+      }
+    };
+
     // ── Workflow rules for the landing section ────────────────
     // Intake forms are the single most common reason to build a rule
     // ("new request lands in Triage → assign the engineer"), and they
@@ -459,90 +612,117 @@ export async function POST(
     // on the uncommitted row). Anonymous public submitters have no user
     // row, so rule-authored comments/subtasks attribute to the project
     // owner — the same fallback the task's creatorId uses above.
-    const actorForRules = submitterUserId || form.project.ownerId || null;
+    const actorForRules = memberSubmitterId || form.project.ownerId || null;
     if (actorForRules) {
-      await executeRulesOnSectionChange(
-        { taskId: result.taskId, actorUserId: actorForRules },
-        targetSectionId,
-        form.projectId
+      await afterCommit("workflow rules", () =>
+        executeRulesOnSectionChange(
+          { taskId: result.taskId, actorUserId: actorForRules },
+          targetSectionId,
+          form.projectId
+        )
       );
     }
 
     // ── Notifications (best-effort, soft-fail) ────────────────
     // Build a Q/A preview for the admin email.
     const previewAnswers: { label: string; value: string }[] = [];
-    let submitterEmail: string | null = null;
     for (const f of fields) {
       if (f.type === "HEADING") continue;
-      const v = answers[f.id];
-      const text = formatAnswerForText(v, f);
-      if (text) {
-        previewAnswers.push({ label: f.label, value: text });
-        if (f.type === "EMAIL" && typeof v === "string" && !submitterEmail) {
-          submitterEmail = v.trim();
-        }
-      }
+      const text = formatAnswerForText(answers[f.id], f);
+      if (text) previewAnswers.push({ label: f.label, value: text });
     }
+    const submitterEmail = firstEmailAnswer(fields, answers);
 
     if (form.notifyOnSubmission) {
-      // Collect admin recipients: form's default assignee + project owner.
-      const recipients: AdminNotifyRecipient[] = [];
-      if (form.defaultAssignee?.email) {
-        recipients.push({
-          email: form.defaultAssignee.email,
-          name: form.defaultAssignee.name,
-        });
-      }
-      if (
-        form.project.ownerId &&
-        form.project.ownerId !== form.defaultAssignee?.id
-      ) {
-        const owner = await prisma.user.findUnique({
-          where: { id: form.project.ownerId },
-          select: { email: true, name: true },
-        });
-        if (owner?.email) {
-          recipients.push({ email: owner.email, name: owner.name });
+      await afterCommit("team email", async () => {
+        // Collect admin recipients: form's default assignee + project owner.
+        const recipients: AdminNotifyRecipient[] = [];
+        if (form.defaultAssignee?.email) {
+          recipients.push({
+            email: form.defaultAssignee.email,
+            name: form.defaultAssignee.name,
+          });
         }
-      }
-      // Dedupe by email
-      const seen = new Set<string>();
-      for (const r of recipients) {
-        if (seen.has(r.email)) continue;
-        seen.add(r.email);
-        await sendFormSubmissionEmail({
-          toEmail: r.email,
-          toName: r.name,
-          formName: form.name,
-          projectName: form.project.name,
-          projectId: form.projectId,
-          taskId: result.taskId,
-          taskName: taskBuild.name,
-          previewAnswers,
-        });
-      }
+        if (
+          form.project.ownerId &&
+          form.project.ownerId !== form.defaultAssignee?.id
+        ) {
+          const owner = await prisma.user.findUnique({
+            where: { id: form.project.ownerId },
+            select: { email: true, name: true },
+          });
+          if (owner?.email) {
+            recipients.push({ email: owner.email, name: owner.name });
+          }
+        }
+        // Dedupe by email
+        const seen = new Set<string>();
+        for (const r of recipients) {
+          if (seen.has(r.email)) continue;
+          seen.add(r.email);
+          await sendFormSubmissionEmail({
+            toEmail: r.email,
+            toName: r.name,
+            formName: form.name,
+            projectName: form.project.name,
+            projectId: form.projectId,
+            taskId: result.taskId,
+            taskName: taskBuild.name,
+            previewAnswers,
+          });
+        }
+      });
     }
 
     // Generate a signed tracking URL the submitter can use to follow
     // up without creating an account. Issued once at submit time;
     // included in the receipt email AND returned in the success
     // payload so the post-submit thank-you page can show it.
-    const trackingToken = signTrackingToken(result.submissionId);
-    const trackingUrl = buildTrackingUrl(
-      form.id,
-      result.submissionId,
-      trackingToken
-    );
+    let trackingUrl: string | null = null;
+    try {
+      trackingUrl = buildTrackingUrl(
+        form.id,
+        result.submissionId,
+        signTrackingToken(result.submissionId)
+      );
+    } catch (err) {
+      console.error("[form submit] tracking link failed after commit:", err);
+    }
 
-    // Receipt to submitter if they gave an email.
+    // Receipt to the address typed in the EMAIL field. That address is the
+    // submitter's word, so the receipt must not be a relay: from the firm's
+    // own sending domain, anyone could otherwise mail arbitrary text (their
+    // "answers") to any inbox. It is fixed copy — form name, the firm's
+    // confirmation message, the tracking link — and echoes the answers only
+    // when the address is the signed-in member's own account email. Capped
+    // per address and per form, since IP limits don't stop a rotating source.
     if (submitterEmail) {
-      await sendFormSubmitterReceiptEmail({
-        toEmail: submitterEmail,
-        formName: form.name,
-        confirmationMessage: form.confirmationMessage,
-        answers: previewAnswers,
-        trackingUrl,
-      });
+      const recipientKey = submitterEmail.toLowerCase();
+      const perAddress = rateLimit(
+        `form-receipt:to:${recipientKey}`,
+        3,
+        60 * 60 * 1000
+      );
+      const perForm = rateLimit(`form-receipt:form:${form.id}`, 30, 60 * 60 * 1000);
+      if (perAddress.ok && perForm.ok) {
+        await afterCommit("receipt email", async () => {
+          let ownAddress = false;
+          if (memberSubmitterId) {
+            const me = await prisma.user.findUnique({
+              where: { id: memberSubmitterId },
+              select: { email: true },
+            });
+            ownAddress = me?.email?.toLowerCase() === recipientKey;
+          }
+          await sendFormSubmitterReceiptEmail({
+            toEmail: submitterEmail,
+            formName: form.name,
+            confirmationMessage: form.confirmationMessage,
+            answers: ownAddress ? previewAnswers : [],
+            trackingUrl: trackingUrl ?? undefined,
+          });
+        });
+      }
     }
 
     // ── Inbox notifications (FORM_SUBMITTED) ──────────────────
@@ -556,22 +736,24 @@ export async function POST(
       ? `${firstAnswer.label}: ${firstAnswer.value}`
       : "";
 
-    await notifyFormSubmitted({
-      taskId: result.taskId,
-      projectId: form.projectId,
-      projectName: form.project.name,
-      formId: form.id,
-      formName: form.name,
-      submissionId: result.submissionId,
-      previewLine,
-      submitterName: submitterDisplay || "Someone",
-      submitterEmail,
-      submitterUserId: submitterUserId || null,
-      recipientUserIds: [
-        form.defaultAssigneeId,
-        form.project.ownerId,
-      ].filter((id): id is string => typeof id === "string" && id.length > 0),
-    });
+    await afterCommit("inbox notification", () =>
+      notifyFormSubmitted({
+        taskId: result.taskId,
+        projectId: form.projectId,
+        projectName: form.project.name,
+        formId: form.id,
+        formName: form.name,
+        submissionId: result.submissionId,
+        previewLine,
+        submitterName: submitterDisplay || "Someone",
+        submitterEmail,
+        submitterUserId: memberSubmitterId || null,
+        recipientUserIds: [
+          form.defaultAssigneeId,
+          form.project.ownerId,
+        ].filter((id): id is string => typeof id === "string" && id.length > 0),
+      })
+    );
 
     return NextResponse.json(
       {

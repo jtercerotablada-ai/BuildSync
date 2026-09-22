@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { startOfTodayUtc, startOfTomorrowUtc } from "@/lib/date-only";
@@ -37,31 +38,37 @@ function formatDueDate(value: Date): string {
   });
 }
 
+/**
+ * Is this request Vercel Cron? Vercel sends `Authorization: Bearer
+ * <CRON_SECRET>` when the project has CRON_SECRET set, and that is the ONLY
+ * thing accepted here. The x-vercel-cron header is not: any caller can set it.
+ *
+ * Fails CLOSED when CRON_SECRET is unset — an unauthenticated trigger for a
+ * full task scan plus notification writes is not a fallback worth having.
+ * Compared in constant time so the secret can't be recovered byte by byte.
+ */
+function isAuthorizedCron(authHeader: string | null): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || !secret.trim() || !authHeader) return false;
+  const expected = Buffer.from(`Bearer ${secret}`, "utf8");
+  const received = Buffer.from(authHeader, "utf8");
+  if (expected.length !== received.length) return false;
+  return timingSafeEqual(expected, received);
+}
+
 // GET /api/cron/due-dates
 // Creates DUE_DATE_APPROACHING notifications for tasks due tomorrow, due today,
 // and tasks whose date has already passed.
-// Authorized via Vercel Cron (x-vercel-cron header) or a Bearer CRON_SECRET.
+// Authorized ONLY by Authorization: Bearer <CRON_SECRET> (Vercel Cron).
 export async function GET(request: NextRequest) {
   // (a) Authorize
-  const isVercelCron = request.headers.get("x-vercel-cron") !== null;
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-
-  if (cronSecret) {
-    // When a secret is configured it is the sole authority — the
-    // x-vercel-cron header is client-spoofable, so don't accept it alone.
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAuthorizedCron(request.headers.get("authorization"))) {
+    if (!process.env.CRON_SECRET?.trim()) {
+      console.error(
+        "[cron/due-dates] CRON_SECRET is unset — refusing to run. Set it in the Vercel project env."
+      );
     }
-  } else {
-    // No secret configured — fall back to the Vercel Cron header, but flag
-    // that this endpoint is effectively unauthenticated.
-    if (!isVercelCron) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    console.warn(
-      "[cron/due-dates] CRON_SECRET is unset — endpoint authorized by x-vercel-cron header only (unauthenticated)."
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const now = new Date();

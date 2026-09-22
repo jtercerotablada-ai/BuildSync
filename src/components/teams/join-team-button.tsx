@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 
 export function JoinTeamButton({ teamId }: { teamId: string }) {
   const router = useRouter();
@@ -22,6 +23,8 @@ export function JoinTeamButton({ teamId }: { teamId: string }) {
         return;
       }
       toast.success("Joined team");
+      // The sidebar's team list is a client cache router.refresh() misses.
+      notifySidebarRefresh();
       router.push(`/teams/${teamId}`);
       router.refresh();
     } catch {

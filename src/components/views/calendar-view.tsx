@@ -335,12 +335,18 @@ export function CalendarView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // The server's own reason ("startDate must be on or before
+        // dueDate", a permission refusal) is what the user can act on.
+        const err = await res.json().catch(() => ({}));
+        toast.error(
+          typeof err?.error === "string" ? err.error : "Couldn't reschedule task"
+        );
+        return;
+      }
       onTaskMutated?.();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't reschedule task"
-      );
+    } catch {
+      toast.error("Couldn't reschedule task");
     }
   }
 
@@ -352,9 +358,8 @@ export function CalendarView({
       return;
     }
     const forKey = forDate.toDateString();
-    // Re-entrancy guard: Enter sets creatingInline=true and disables the
-    // input, which blurs it and fires the blur-commit — without this guard
-    // that second call creates a duplicate task. Scoped to the day being
+    // Re-entrancy guard: a held or repeated Enter must not fire a second
+    // POST for the same day while the first is still open. Scoped to the day being
     // saved: a quick-add started on ANOTHER day is a different task and
     // must not be dropped just because the previous POST is still open.
     if (creatingInline && committingDateRef.current === forKey) return;
@@ -761,7 +766,13 @@ export function CalendarView({
                   <li key={task.id}>
                     <button
                       type="button"
-                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 truncate"
+                      // Drag onto a day to schedule it; the drop path sets
+                      // the due date when the task has no dates to shift.
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task)}
+                      onDragEnd={handleDragEnd}
+                      title="Drag onto a day to schedule"
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 truncate cursor-grab active:cursor-grabbing"
                       onClick={() => onTaskClick(task.id)}
                     >
                       {task.completed && (
@@ -1098,7 +1109,17 @@ export function CalendarView({
                             setNewTaskName("");
                           }
                         }}
-                        onBlur={() => commitInlineTask(week[addingDayIndex])}
+                        // Blur never creates a task (same rule as Board and
+                        // List): clicking away to abandon the composer must
+                        // not POST something the user never confirmed. An
+                        // empty composer just closes; a typed one waits for
+                        // Enter or Escape.
+                        onBlur={() => {
+                          if (!newTaskName.trim()) {
+                            setAddingForDate(null);
+                            setNewTaskName("");
+                          }
+                        }}
                         // Only the day being saved goes inert — a composer
                         // reopened on another day mid-save must stay typable.
                         disabled={

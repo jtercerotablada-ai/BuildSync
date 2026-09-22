@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import {
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -36,6 +43,8 @@ import {
   startOfMonth,
   format,
   differenceInDays,
+  differenceInCalendarDays,
+  differenceInCalendarMonths,
   isSameDay,
   startOfDay,
   eachDayOfInterval,
@@ -46,6 +55,18 @@ import {
 import { sectionBarStyle } from "@/lib/section-bar-colors";
 import { notifyTaskMutated } from "@/lib/task-events";
 import { useToday } from "@/lib/use-today";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
+// The Gantt is the other chart in this switcher; the cascade toast, the
+// deadline wording and the column cap are ITS rules, read from one place so
+// the two views cannot say different things about the same schedule.
+import {
+  MAX_GRID_COLUMNS,
+  cascadeToastNames,
+  cascadeToastTitle,
+  deadlineMarkerLabel,
+  deadlineMarkerTitle,
+  gridColumnsNeeded,
+} from "@/components/views/gantt-view";
 // The span/overdue/drag rules live in a lib so the Gantt — the other
 // chart in this switcher — reads the SAME ones. Two copies is how a
 // start-only task ended up drawn here and invisible there.
@@ -112,6 +133,17 @@ interface TimelineViewProps {
    *  its create-task dialog carries `sections[0].id` to /api/tasks, which
    *  is a synthetic key the server has never heard of. */
   sectionsAreEditable?: boolean;
+  /** False for a member who can read the project but not write it
+   *  (VIEWER / COMMENTER). The chart then offers no drag, resize or Add
+   *  task: the server refuses them, and the bar used to jump to the drop
+   *  point, snap back and toast "Forbidden". */
+  canEdit?: boolean;
+  /** Project.endDate — the county deadline on a recertification. Drawn as
+   *  the same dashed red line the Gantt draws, so the two views in one
+   *  switcher agree on the most important date of the job. */
+  projectEndDate?: string | Date | null;
+  /** Names the project in the deadline line's hover text. */
+  projectName?: string;
 }
 
 type ZoomLevel = "day" | "week" | "month";
@@ -129,6 +161,9 @@ const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
 // Same red the list view paints an overdue date in (list-view.tsx:1510), so
 // "late" reads identically wherever an engineer meets it.
 const OVERDUE_RED = "#B4304C";
+// The project deadline — the Gantt's marker: the same red, dashed, so it is
+// never read as a second "today".
+const DEADLINE_RED = "#B4304C";
 
 // Swimlane geometry — 28px bars on a 40px lane pitch. Slimmer than the
 // first 34px cut: the 6px clearance it left between lanes buried the
@@ -157,6 +192,9 @@ export function TimelineView({
   onTaskClick,
   projectId,
   sectionsAreEditable = true,
+  canEdit = true,
+  projectEndDate,
+  projectName,
 }: TimelineViewProps) {
   const router = useRouter();
 
@@ -181,6 +219,12 @@ export function TimelineView({
   // view switcher.
   const [pinnedDate, setPinnedDate] = useState<Date | null>(null);
   const currentDate = pinnedDate ?? today;
+  // Date-only UTC-midnight value like every other date here; derived from a
+  // prop, so the server and the browser compute the same day.
+  const deadlineDate = useMemo(
+    () => (projectEndDate ? dueDateToLocalMidnight(projectEndDate) : null),
+    [projectEndDate]
+  );
   // Asana's Cronograma defaults to day zoom.
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("day");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -192,6 +236,29 @@ export function TimelineView({
   // Inline add-section (Enter = create, Escape = cancel)
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
+  // One create at a time: a quick double Enter posted the section twice.
+  // The ref answers synchronously; the state drives the read-only input.
+  const creatingSectionRef = useRef(false);
+  const [creatingSection, setCreatingSection] = useState(false);
+  // Under a group-by the add-section input is not rendered, and unmounting
+  // it fires no blur — so a pending "adding" survived the grouping and the
+  // autofocused input popped up, unasked, the moment it was cleared. Reset
+  // it when the lanes stop being editable (adjusting state during render,
+  // the React-sanctioned alternative to an effect for derived resets).
+  const [prevSectionsEditable, setPrevSectionsEditable] =
+    useState(sectionsAreEditable);
+  if (prevSectionsEditable !== sectionsAreEditable) {
+    setPrevSectionsEditable(sectionsAreEditable);
+    if (!sectionsAreEditable) {
+      setAddingSection(false);
+      setNewSectionName("");
+    }
+  }
+  // Set by the Add-task menu's "Section" item so that menu's close does not
+  // hand focus back to its trigger: Radix restores focus after the content
+  // unmounts, which is AFTER the new input has auto-focused, so the input
+  // blurred and reset itself before a key could be typed.
+  const sectionMenuPickRef = useRef(false);
 
   // Dependencies — loaded on mount; rendered as rounded elbow arrows.
   type DependencyRow = {
@@ -372,9 +439,13 @@ export function TimelineView({
     // the earliest task and right past the latest one, and the user can
     // still page further with the ‹ › arrows. Capped so a stray year-3000
     // date can't render a hundred-thousand-column DOM.
+    //
+    // Sized from effectiveSections, not the raw prop: a bar dropped past
+    // the grid's edge carries an optimistic date the prop does not have yet,
+    // and a window that ignored it culled the bar the moment it was released.
     let minTask: Date | null = null;
     let maxTask: Date | null = null;
-    for (const s of sections) {
+    for (const s of effectiveSections) {
       for (const t of s.tasks) {
         // taskSpan, not `if (!t.dueDate) continue` — a start-only task is
         // drawn on this grid, so it has to be able to WIDEN it. Skipping it
@@ -395,16 +466,67 @@ export function TimelineView({
     // one built on the server's day. The next frame has today.
     if (!startDate) return [];
     if (minTask && minTask < startDate) startDate = snapToUnit(minTask);
-    let count = config.range;
-    if (maxTask && maxTask > startDate) {
-      const needed =
-        zoomLevel === "day"
-          ? differenceInDays(maxTask, startDate) + 14
-          : zoomLevel === "week"
-            ? Math.ceil(differenceInDays(maxTask, startDate) / 7) + 4
-            : Math.ceil(differenceInDays(maxTask, startDate) / 28) + 2;
-      count = Math.max(count, Math.min(needed, 500));
+
+    // Columns of this zoom from one unit boundary to another, and the
+    // inverse. Both inputs are already snapped, so these are exact.
+    const unitsBetween = (from: Date, to: Date) =>
+      zoomLevel === "day"
+        ? differenceInCalendarDays(to, from)
+        : zoomLevel === "week"
+          ? Math.ceil(differenceInCalendarDays(to, from) / 7)
+          : differenceInCalendarMonths(to, from);
+    const addUnits = (d: Date, n: number) =>
+      zoomLevel === "day"
+        ? addDays(d, n)
+        : zoomLevel === "week"
+          ? addWeeks(d, n)
+          : addMonths(d, n);
+
+    // The deadline widens the window like a dated task — but only while the
+    // result still fits under the column cap (the Gantt's rule): a county
+    // date years from the work must not drag the window off the work. When
+    // it does not fit the line is simply not drawn.
+    let lastDate = maxTask;
+    if (deadlineDate) {
+      const candStart =
+        deadlineDate < startDate ? snapToUnit(deadlineDate) : startDate;
+      const candEnd =
+        lastDate && lastDate > deadlineDate ? lastDate : deadlineDate;
+      if (gridColumnsNeeded(zoomLevel, candStart, candEnd) <= MAX_GRID_COLUMNS) {
+        startDate = candStart;
+        lastDate = candEnd;
+      }
     }
+
+    // The window must also run to the ANCHOR's own range (today, or the day
+    // the user paged to, plus `range` columns). Sized from the earliest to
+    // the latest task only, a job whose work is all behind it drew a grid
+    // that stopped before today: no today line, Today scrolled to the right
+    // edge, and › changed nothing because the rebuilt grid was the same one.
+    const countFrom = (from: Date) => {
+      let n = config.range;
+      if (lastDate && lastDate > from) {
+        n = Math.max(n, gridColumnsNeeded(zoomLevel, from, lastDate));
+      }
+      if (anchorStart && anchorStart > from) {
+        n = Math.max(n, unitsBetween(from, anchorStart) + config.range);
+      }
+      return n;
+    };
+    let count = countFrom(startDate);
+    // Too long to draw whole (a typo'd 2019 date, a decade-old task): cut the
+    // far PAST, never the anchor's range — the present is what the chart is
+    // opened for, and the old cap cut the other end, so every real task and
+    // today fell outside the grid.
+    if (count > MAX_GRID_COLUMNS && anchorStart) {
+      const earliest = addUnits(
+        anchorStart,
+        -(MAX_GRID_COLUMNS - config.range)
+      );
+      if (earliest > startDate) startDate = earliest;
+      count = countFrom(startDate);
+    }
+    count = Math.min(count, MAX_GRID_COLUMNS);
 
     const cols = config.getColumns(startDate, count);
 
@@ -427,8 +549,10 @@ export function TimelineView({
     // `today` is listed by hand — this memo carries an exhaustive-deps
     // disable, so nothing else would have caught its omission and the day
     // number would stay circled on yesterday until some other edit ran.
+    // (`config` is omitted on purpose: it is rebuilt every render and is a
+    // pure function of zoomLevel.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, zoomLevel, sections, today]);
+  }, [currentDate, zoomLevel, effectiveSections, today, deadlineDate]);
 
   // ============================================
   // TOP HEADER GROUPS (months at day/week zoom, quarters at month zoom)
@@ -528,6 +652,23 @@ export function TimelineView({
       timelineRange.totalWidth;
     el.scrollLeft = Math.max(0, px);
   }, [zoomLevel, currentDate, timelineRange, scrollRequest]);
+
+  // The window now follows optimistic dates, so a bar dropped left of the
+  // first column grows the grid LEFTWARD — which, with scrollLeft untouched,
+  // slid every bar on screen right by the added columns. Hold the same dates
+  // under the viewport instead. Runs before paint; on a zoom change, a Today
+  // press or paging, the anchor effect above runs after this and wins.
+  const prevRangeStartRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const start = timelineRange.start.getTime();
+    const prev = prevRangeStartRef.current;
+    prevRangeStartRef.current = start;
+    if (prev === null || prev === start || columns.length === 0) return;
+    const el = canvasScrollRef.current;
+    if (!el) return;
+    const addedDays = differenceInDays(new Date(prev), timelineRange.start);
+    el.scrollLeft = Math.max(0, el.scrollLeft + addedDays * timelineRange.dayWidth);
+  }, [timelineRange, columns.length]);
 
   // Header-group pixel widths — sum of member column widths so group
   // borders stay aligned with the proportional columns.
@@ -860,7 +1001,7 @@ export function TimelineView({
   // Every link's routed path, computed once per LAYOUT instead of once per
   // render. Routing costs O(links × bars) now that the router is handed the
   // whole chart, and this component re-renders on every mousemove of a drag
-  // (handleMouseMove writes a fresh dragState object each event) and on every
+  // (handlePointerMove writes a fresh dragState object each event) and on every
   // bar hover — which would have re-run the whole chart's geometry at pointer
   // rate on a big recert project. Nothing in here reads dragState or
   // hoveredTask: getTaskScreenPos anchors to the COMMITTED span, exactly as
@@ -936,6 +1077,29 @@ export function TimelineView({
     return ((daysFromStart + (zoomLevel === "day" ? 0.5 : 0)) / totalDays) * totalWidth;
   }, [timelineRange, zoomLevel, today]);
 
+  // Same offset maths as the today line, including the out-of-range case: a
+  // deadline the window does not cover (it is widened to cover it only when
+  // that fits under the column cap) gets no line rather than one pinned to
+  // an edge it does not fall on.
+  const deadlinePosition = useMemo(() => {
+    if (!deadlineDate) return null;
+    const { start, end, totalWidth, totalDays } = timelineRange;
+    if (deadlineDate < start || deadlineDate >= end) return null;
+    const daysFromStart = differenceInDays(deadlineDate, start);
+    return ((daysFromStart + (zoomLevel === "day" ? 0.5 : 0)) / totalDays) * totalWidth;
+  }, [timelineRange, zoomLevel, deadlineDate]);
+  const deadlineLabel = deadlineDate
+    ? deadlineMarkerLabel(deadlineDate, today)
+    : null;
+  const deadlineTitle = deadlineDate
+    ? deadlineMarkerTitle(deadlineDate, today, projectName)
+    : null;
+  // Flip the chip to the left of the line near the right edge, so it is not
+  // pushed off the end of the grid.
+  const deadlineLabelOnLeft =
+    deadlinePosition !== null &&
+    deadlinePosition > timelineRange.totalWidth - 160;
+
   // ============================================
   // DRAG MOVE / RESIZE — whole-day snap, UTC-midnight-safe save
   // ============================================
@@ -948,14 +1112,27 @@ export function TimelineView({
     [timelineRange]
   );
 
+  // Pointer events, not mouse events — the Gantt's drag: a touch never
+  // produced a single mousemove, so on a tablet at a site visit the bars
+  // could be tapped open but never rescheduled. Capturing the pointer keeps
+  // the drag alive when the finger or cursor leaves the bar.
   const handleResizeStart = useCallback(
-    (e: React.MouseEvent, taskId: string, handle: "left" | "right" | "move", task: Task) => {
-      e.preventDefault();
+    (e: React.PointerEvent, taskId: string, handle: "left" | "right" | "move", task: Task) => {
+      // Primary button only — pointerdown also fires for right-click.
+      if (e.button !== 0) return;
+      // A reader gets no drag at all: the server refuses the write, and the
+      // bar used to jump to the drop point before snapping back.
+      if (!canEdit) return;
+      // preventDefault suppresses text selection and native image drag on a
+      // mouse press; a touch is already held by `touch-none`, and cancelling
+      // it risks the tap that opens the task.
+      if (e.pointerType !== "touch") e.preventDefault();
       e.stopPropagation();
       // One date is enough to drag. Requiring a dueDate here made a
       // start-only bar immovable — including by the right handle, the only
       // gesture that would have given it the due date it was missing.
       if (!task.dueDate && !task.startDate) return;
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       dragMovedRef.current = false;
       setDragState({
         taskId,
@@ -966,7 +1143,7 @@ export function TimelineView({
         deltaX: 0,
       });
     },
-    []
+    [canEdit]
   );
 
   useEffect(() => {
@@ -976,7 +1153,7 @@ export function TimelineView({
     // with totalWidth/totalDays and made the ghost bar snap on release.
     const pxPerDay = timelineRange.totalWidth / timelineRange.totalDays;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const dx = e.clientX - dragState.startX;
       let snappedDays = Math.round(pixelsToDays(dx));
       if (snappedDays !== 0) dragMovedRef.current = true;
@@ -1005,7 +1182,7 @@ export function TimelineView({
       setDragState((prev) => (prev ? { ...prev, deltaX: snappedPx } : prev));
     };
 
-    const handleMouseUp = async (e: MouseEvent) => {
+    const handlePointerUp = async (e: PointerEvent) => {
       const deltaX = e.clientX - dragState.startX;
       const deltaDays = Math.round(pixelsToDays(deltaX));
       if (deltaDays === 0) {
@@ -1056,8 +1233,14 @@ export function TimelineView({
         // cascade rescheduled, so their bars move without waiting for the
         // refresh.
         const updated = await res.json().catch(() => null);
-        const shifts: { taskId: string; newStart: string | null; newEnd: string | null }[] =
-          updated?.cascadeShifts ?? [];
+        const shifts: {
+          taskId: string;
+          taskName: string;
+          oldStart?: string | null;
+          oldEnd?: string | null;
+          newStart: string | null;
+          newEnd: string | null;
+        }[] = Array.isArray(updated?.cascadeShifts) ? updated.cascadeShifts : [];
         if (shifts.length > 0) {
           setOptimisticDates((prev) => {
             const next = { ...prev };
@@ -1078,6 +1261,16 @@ export function TimelineView({
         for (const s of shifts) {
           notifyTaskMutated(s.taskId);
         }
+        // Say it, as the Gantt does: the cascade moved other tasks, and
+        // this chart used to move their bars in silence.
+        const cascadeTitle = cascadeToastTitle(shifts);
+        if (cascadeTitle) {
+          const names = cascadeToastNames(shifts);
+          toast.success(
+            cascadeTitle,
+            names ? { description: names } : undefined
+          );
+        }
         router.refresh();
       } catch (error) {
         // Roll back only the failed bar.
@@ -1093,11 +1286,18 @@ export function TimelineView({
       }
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    // A cancelled pointer (the browser taking over the gesture, a call
+    // interrupting the touch) drops the drag instead of leaving the ghost
+    // bar pinned to its last position.
+    const handlePointerCancel = () => setDragState(null);
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+    document.addEventListener("pointercancel", handlePointerCancel);
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+      document.removeEventListener("pointercancel", handlePointerCancel);
     };
   }, [dragState, pixelsToDays, router, timelineRange]);
 
@@ -1160,18 +1360,27 @@ export function TimelineView({
       setNewSectionName("");
       return;
     }
+    if (creatingSectionRef.current) return;
+    creatingSectionRef.current = true;
+    setCreatingSection(true);
     try {
       const response = await fetch("/api/sections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, projectId }),
       });
-      if (!response.ok) throw new Error("Failed to create section");
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to add section");
+      }
       setAddingSection(false);
       setNewSectionName("");
       router.refresh();
-    } catch {
-      toast.error("Failed to add section");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add section");
+    } finally {
+      creatingSectionRef.current = false;
+      setCreatingSection(false);
     }
   };
 
@@ -1220,56 +1429,78 @@ export function TimelineView({
       <div className="flex items-center justify-between px-2 md:px-4 py-2 bg-white border-b overflow-x-auto">
         {/* Left */}
         <div className="flex items-center gap-1 md:gap-2">
-          {/* Split button — Asana's "Agregar tarea ▾" */}
-          <div className="flex items-center">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-r-none"
-              onClick={() => {
-                setCreateType("TASK");
-                setShowCreateDialog(true);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add task
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-l-none border-l-0 px-1.5"
-                >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setCreateType("TASK");
-                    setShowCreateDialog(true);
+          {/* Split button — Asana's "Add task ▾". Withheld from a reader:
+              the server would refuse the task it creates. */}
+          {canEdit && (
+            <div className="flex items-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-r-none"
+                onClick={() => {
+                  setCreateType("TASK");
+                  setShowCreateDialog(true);
+                }}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add task
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-l-none border-l-0 px-1.5"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  onCloseAutoFocus={(e) => {
+                    // "Section" opens an autofocused input; returning focus to
+                    // the trigger here would blur it and close it again.
+                    if (sectionMenuPickRef.current) {
+                      sectionMenuPickRef.current = false;
+                      e.preventDefault();
+                    }
                   }}
                 >
-                  Task
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setCreateType("MILESTONE");
-                    setShowCreateDialog(true);
-                  }}
-                >
-                  <Diamond className="w-3.5 h-3.5 mr-2 text-[#a8893a]" />
-                  Milestone
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setAddingSection(true)}>
-                  Section
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setCreateType("TASK");
+                      setShowCreateDialog(true);
+                    }}
+                  >
+                    Task
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setCreateType("MILESTONE");
+                      setShowCreateDialog(true);
+                    }}
+                  >
+                    <Diamond className="w-3.5 h-3.5 mr-2 text-[#a8893a]" />
+                    Milestone
+                  </DropdownMenuItem>
+                  {/* Only where a section can actually be added: under a
+                      group-by the input it opens is not rendered at all. */}
+                  {sectionsAreEditable && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        sectionMenuPickRef.current = true;
+                        setAddingSection(true);
+                      }}
+                    >
+                      Section
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
 
-          <div className="h-6 w-px bg-slate-200 mx-1 md:mx-2" />
+          {canEdit && <div className="h-6 w-px bg-slate-200 mx-1 md:mx-2" />}
 
           <div className="flex items-center gap-1">
             <Button
@@ -1502,6 +1733,7 @@ export function TimelineView({
                   <input
                     autoFocus
                     value={newSectionName}
+                    readOnly={creatingSection}
                     onChange={(e) => setNewSectionName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -1588,6 +1820,19 @@ export function TimelineView({
                   style={{ left: todayPosition - 4, bottom: -1 }}
                 />
               )}
+
+              {/* Deadline marker on the axis — a diamond, not a dot, so the
+                  two markers are told apart by shape and not only colour. */}
+              {deadlinePosition !== null && (
+                <div
+                  className="absolute bottom-0 w-2 h-2 -translate-x-1/2 rotate-45"
+                  style={{
+                    left: deadlinePosition,
+                    backgroundColor: DEADLINE_RED,
+                  }}
+                  title={deadlineTitle ?? undefined}
+                />
+              )}
             </div>
 
             {/* Bands — flex column that stretches to the viewport bottom;
@@ -1606,6 +1851,36 @@ export function TimelineView({
                     backgroundColor: TODAY_BLUE,
                   }}
                 />
+              )}
+
+              {/* Deadline line — Project.endDate. Dashed so it never reads
+                  as a second today; z-10 like the today line, below the
+                  sticky header (z-20). */}
+              {deadlinePosition !== null && (
+                <div
+                  className="absolute top-0 bottom-0 z-10 pointer-events-none"
+                  style={{ left: deadlinePosition }}
+                >
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 -translate-x-px"
+                    style={{
+                      backgroundImage: `repeating-linear-gradient(to bottom, ${DEADLINE_RED} 0 6px, transparent 6px 12px)`,
+                    }}
+                  />
+                  <span
+                    className={cn(
+                      // The wrapper is inert so the line never eats a bar's
+                      // pointerdown; the chip alone takes the pointer, to
+                      // show its title.
+                      "pointer-events-auto absolute top-0 whitespace-nowrap rounded px-1.5 py-[2px] text-[10px] font-semibold leading-none text-white shadow-sm",
+                      deadlineLabelOnLeft ? "right-[6px]" : "left-[6px]"
+                    )}
+                    style={{ backgroundColor: DEADLINE_RED }}
+                    title={deadlineTitle ?? undefined}
+                  >
+                    {deadlineLabel}
+                  </span>
+                </div>
               )}
 
               {/* Dependency arrows — orthogonal routes around the bars.
@@ -1774,7 +2049,12 @@ export function TimelineView({
                         return (
                           <div
                             key={task.id}
-                            className="absolute flex items-center gap-1.5 cursor-grab active:cursor-grabbing hover:opacity-80 z-10"
+                            className={cn(
+                              "absolute flex items-center gap-1.5 hover:opacity-80 z-10",
+                              canEdit
+                                ? "cursor-grab active:cursor-grabbing touch-none"
+                                : "cursor-pointer"
+                            )}
                             style={{
                               left: centerX - 10 + markerDelta,
                               top: laneTop,
@@ -1782,7 +2062,7 @@ export function TimelineView({
                             }}
                             // Markers were click-only, so a milestone that
                             // slipped could not be rescheduled on the chart.
-                            onMouseDown={(e) =>
+                            onPointerDown={(e) =>
                               handleResizeStart(e, task.id, "move", task)
                             }
                             onClick={() => {
@@ -1884,7 +2164,10 @@ export function TimelineView({
                           {/* Bar */}
                           <div
                             className={cn(
-                              "absolute cursor-grab active:cursor-grabbing group/bar z-10",
+                              "absolute group/bar z-10",
+                              canEdit
+                                ? "cursor-grab active:cursor-grabbing touch-none"
+                                : "cursor-pointer",
                               // Square, un-rounded right edge on an
                               // open-ended bar — a rounded cap reads as a
                               // finished end.
@@ -1916,7 +2199,7 @@ export function TimelineView({
                                 : undefined,
                               opacity: task.completed ? 0.6 : 1,
                             }}
-                            onMouseDown={(e) => handleResizeStart(e, task.id, "move", task)}
+                            onPointerDown={(e) => handleResizeStart(e, task.id, "move", task)}
                             onMouseEnter={() => setHoveredTask(task.id)}
                             onMouseLeave={() => setHoveredTask(null)}
                             onClick={() => {
@@ -1969,19 +2252,21 @@ export function TimelineView({
                                 An open-ended bar keeps BOTH: left moves the
                                 start, right is what finally commits a due
                                 date. Its body drag moves the start alone. */}
-                            {!isDueOnly && (
+                            {canEdit && !isDueOnly && (
                               <div
-                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
-                                onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
+                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10 touch-none"
+                                onPointerDown={(e) => handleResizeStart(e, task.id, "left", task)}
                               />
                             )}
-                            <div
-                              className={cn(
-                                "absolute right-0 top-0 bottom-0 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10",
-                                isDueOnly ? "w-1" : "w-2"
-                              )}
-                              onMouseDown={(e) => handleResizeStart(e, task.id, "right", task)}
-                            />
+                            {canEdit && (
+                              <div
+                                className={cn(
+                                  "absolute right-0 top-0 bottom-0 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10 touch-none",
+                                  isDueOnly ? "w-1" : "w-2"
+                                )}
+                                onPointerDown={(e) => handleResizeStart(e, task.id, "right", task)}
+                              />
+                            )}
                           </div>
 
                           {/* Label outside the bar when it's a due-only tick,

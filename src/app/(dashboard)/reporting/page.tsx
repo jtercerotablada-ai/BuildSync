@@ -12,6 +12,7 @@ import {
   Pencil,
   BarChart3,
   Loader2,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUiState } from "@/hooks/use-ui-state";
 import { SectionGuard } from "@/components/access/section-guard";
+import { useEffectiveAccess } from "@/hooks/use-effective-access";
+import { canAccessSection } from "@/lib/access-control";
 
 interface Dashboard {
   id: string;
@@ -81,10 +84,59 @@ const COLORS = ["#000000", "#c9a84c", "#a8893a", "#64748b"];
 const SKELETON_KEYS = ["s1", "s2", "s3"];
 
 export default function ReportingPage() {
+  const { access, loading, error } = useEffectiveAccess();
+  // My impact is personal and served to every member, but the rest of
+  // Reporting is L3+. Bouncing L1/L2 to /home left them no way to find the
+  // one dashboard they are allowed to see, so they get just that card.
+  if (!loading && !error && access && !canAccessSection(access, "reporting")) {
+    return <MyImpactOnly />;
+  }
+  // SectionGuard runs its own access fetch and redirects on a denial, so it
+  // must not mount until this one has ruled the L1/L2 case out; otherwise
+  // its answer can land first and send them to /home anyway.
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[400px] bg-white">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+      </div>
+    );
+  }
   return (
     <SectionGuard section="reporting">
       <ReportingPageInner />
     </SectionGuard>
+  );
+}
+
+function MyImpactOnly() {
+  const impact = DEFAULT_DASHBOARDS.find((d) => d.id === "my-impact")!;
+  return (
+    <div className="flex-1 bg-white">
+      <div className="px-4 md:px-6 py-6 max-w-3xl">
+        <h1 className="text-xl font-semibold text-slate-900 mb-1">Reporting</h1>
+        <p className="text-sm text-slate-500 mb-6">
+          Organization dashboards are available to managers. Your personal
+          dashboard is below.
+        </p>
+        <Link
+          href={`/reporting/${impact.id}`}
+          className="flex items-center gap-3 rounded-lg border border-slate-200 p-4 hover:bg-slate-50 transition-colors max-w-sm"
+        >
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: impact.iconColor }}
+          >
+            <BarChart3 className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-slate-900">{impact.name}</p>
+            <p className="text-xs text-slate-500 truncate">
+              {impact.description}
+            </p>
+          </div>
+        </Link>
+      </div>
+    </div>
   );
 }
 
@@ -97,6 +149,11 @@ function ReportingPageInner() {
   // only deep-merges objects, so a removal persists instead of coming back.
   const { value: hiddenDefaults, setValue: setHiddenDefaults } =
     useUiState<string[]>("hiddenDefaultDashboards", []);
+  // Starred from a dashboard's header; starred dashboards are listed first.
+  const { value: favoriteDashboards } = useUiState<string[]>(
+    "favoriteDashboards",
+    []
+  );
   const [loading, setLoading] = useState(true);
   // Distinguishes "you have no saved dashboards" from "the fetch failed" —
   // the list is seeded with the two built-in dashboards, so a 500 or an
@@ -196,7 +253,11 @@ function ReportingPageInner() {
             iconColor: form.iconColor,
           }),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          // An empty Error() here used to raise a blank red toast.
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to save dashboard");
+        }
         setDashboards((prev) =>
           prev.map((d) =>
             d.id === editing.id
@@ -245,7 +306,11 @@ function ReportingPageInner() {
       }
       setCreateOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Save failed");
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to save dashboard"
+      );
     } finally {
       setSaving(false);
     }
@@ -267,14 +332,19 @@ function ReportingPageInner() {
     }
   }
 
-  // Resolve display owner for default dashboards
-  const dashboardsForRender = dashboards
+  // Resolve display owner for default dashboards; starred ones first (a
+  // stable partition, so the order within each group is unchanged).
+  const visibleDashboards = dashboards
     .filter((d) => !(d.isDefault && hiddenDefaults.includes(d.id)))
     .map((d) =>
-    d.isDefault && session?.user?.name
-      ? { ...d, ownerName: session.user.name }
-      : d
-  );
+      d.isDefault && session?.user?.name
+        ? { ...d, ownerName: session.user.name }
+        : d
+    );
+  const dashboardsForRender = [
+    ...visibleDashboards.filter((d) => favoriteDashboards.includes(d.id)),
+    ...visibleDashboards.filter((d) => !favoriteDashboards.includes(d.id)),
+  ];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
@@ -415,8 +485,14 @@ function ReportingPageInner() {
                             <BarChart3 className="w-5 h-5" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-slate-900 truncate group-hover:text-black transition-colors">
-                              {dashboard.name}
+                            <h3 className="font-medium text-slate-900 truncate group-hover:text-black transition-colors flex items-center gap-1.5">
+                              <span className="truncate">{dashboard.name}</span>
+                              {favoriteDashboards.includes(dashboard.id) && (
+                                <Star
+                                  className="w-3.5 h-3.5 flex-shrink-0 text-[#a8893a] fill-current"
+                                  aria-label="Favorite"
+                                />
+                              )}
                             </h3>
                           </div>
                         </div>
@@ -507,8 +583,14 @@ function ReportingPageInner() {
                           <BarChart3 className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-slate-900 truncate text-sm md:text-base">
-                            {dashboard.name}
+                          <h3 className="font-medium text-slate-900 truncate text-sm md:text-base flex items-center gap-1.5">
+                            <span className="truncate">{dashboard.name}</span>
+                            {favoriteDashboards.includes(dashboard.id) && (
+                              <Star
+                                className="w-3.5 h-3.5 flex-shrink-0 text-[#a8893a] fill-current"
+                                aria-label="Favorite"
+                              />
+                            )}
                           </h3>
                           {dashboard.description && (
                             <p className="text-xs text-slate-500 truncate">

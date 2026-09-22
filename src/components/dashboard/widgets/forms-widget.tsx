@@ -6,14 +6,13 @@
  * Reads from /api/forms (workspace-scoped list). Click on a form row
  * opens the FormBuilderDialog INLINE on the Home page — the user
  * never has to leave the dashboard to edit a form. Saves persist
- * via /api/projects/[projectId]/forms/[formId], so edits made here
+ * via /api/forms (create) and /api/forms/:id (edit), so edits made here
  * are immediately visible in the project's Workflow tab (the two
  * surfaces are connected to the same Form record).
  *
  * The "+ New form" CTA opens a project picker first (forms belong
- * to a project) and then routes to the project's Workflow tab in
- * create mode — new forms need a project context to live in. Edits
- * can happen from either place after creation.
+ * to a project) and then opens the same builder inline in create
+ * mode. Edits can happen from either place after creation.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -83,12 +82,9 @@ export function FormsWidget() {
       const res = await fetch('/api/forms?limit=20');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as FormRow[];
-      // Deleting a form soft-deletes it (isActive: false) — keep
-      // deactivated forms out of the widget so a delete doesn't
-      // resurrect the row on the next refetch/poll.
-      setForms(
-        Array.isArray(data) ? data.filter((f) => f.isActive !== false) : []
-      );
+      // GET /api/forms returns active forms only (filtered before the
+      // limit), so a soft-deleted form never comes back on a poll.
+      setForms(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch forms:', err);
       setError("Couldn't load forms.");
@@ -388,9 +384,9 @@ export function FormsWidget() {
       )}
 
       {/* Inline form editor — opens when the user clicks a form row.
-          Saves persist via the dialog's own PATCH to /api/projects/
-          [id]/forms/[formId], so the project's Workflow tab shows
-          the same edits next time it's opened. */}
+          Saves persist via the dialog's own PATCH to /api/forms/:id,
+          so the project's Workflow tab shows the same edits next
+          time it's opened. */}
       {editingForm && (
         <FormBuilderDialog
           open={!!editingForm}
@@ -419,7 +415,7 @@ export function FormsWidget() {
           }}
           onDeleted={(formId) => {
             // Drop the row immediately — the refetch on close keeps
-            // it gone because loadForms filters inactive forms.
+            // it gone because /api/forms lists active forms only.
             setForms((prev) => prev.filter((f) => f.id !== formId));
           }}
         />
@@ -454,8 +450,8 @@ export function FormsWidget() {
               },
               ...prev,
             ]);
+            // No toast here: FormBuilderDialog already shows "Form created".
             setCreatingForProjectId(null);
-            toast.success('Form created');
           }}
         />
       )}

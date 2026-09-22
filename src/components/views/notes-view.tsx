@@ -32,7 +32,6 @@ import {
   Link2,
   Code,
   SquareCode,
-  Sparkles,
   CircleCheck,
   Search,
   X,
@@ -80,6 +79,28 @@ interface NoteRow {
 interface StoredNote {
   title: string;
   html: string;
+}
+
+/** Count a PATCH chain link as busy until it settles, so a teardown flush can
+ *  tell whether queueing behind the chain would wait on a request on the wire. */
+function trackChain(busy: Map<string, number>, id: string, run: Promise<unknown>) {
+  busy.set(id, (busy.get(id) ?? 0) + 1);
+  void run
+    .catch(() => {})
+    .finally(() => {
+      const left = (busy.get(id) ?? 1) - 1;
+      if (left <= 0) busy.delete(id);
+      else busy.set(id, left);
+    });
+}
+
+/** Record the version our own write produced, never moving it backwards: a
+ *  teardown PATCH sent alongside an in-flight one can answer first, and the
+ *  older answer must not become the base of the next save. ISO strings from
+ *  the API sort chronologically. */
+function advanceBase(base: Map<string, string>, id: string, updatedAt: string) {
+  const known = base.get(id);
+  if (!known || updatedAt > known) base.set(id, updatedAt);
 }
 
 /** Stable key for dirty-checking a note's editor content. */
@@ -182,8 +203,8 @@ const NOTE_TEMPLATES: NoteTemplate[] = [
     title: "Meeting notes",
     html:
       "<h2>🗓️ What's the date?</h2><p><br></p>" +
-      "<h2>👥 Attendees</h2><ul><li>Use @ to include attendees.</li></ul>" +
-      "<h2>📝 Agenda</h2><ul><li>Track the topics here.</li><li>Use @ to link relevant tasks and projects.</li></ul>" +
+      "<h2>👥 Attendees</h2><ul><li>List who attended.</li></ul>" +
+      "<h2>📝 Agenda</h2><ul><li>Track the topics here.</li><li>Note the related tasks and projects.</li></ul>" +
       "<h2>✍️ Notes</h2><ul><li>Add notes here.</li></ul>" +
       "<h2>🎯 Action items</h2><ul><li>Add the activities that need to happen.</li><li>Highlight text and select “Create task” to turn it into a task.</li></ul>" +
       "<hr>" +
@@ -327,11 +348,43 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
   // unmount flush works after editorRef detaches. Sanitizes at save time.
   const contentRef = useRef<StoredNote>({ title: "", html: "" });
   const lastSavedRef = useRef<string>(noteKey("", ""));
+  // The text of the last write sent without a base (see flushPatch), so a
+  // 409 that only reports our own newer write is not shown as a conflict.
+  const selfWriteKeyRef = useRef<string | null>(null);
+  // Order in which our PATCHes went out, and the latest one allowed to mark
+  // the editor saved. A teardown flush can be answered before an older write
+  // sent ahead of it; that older answer must not move lastSavedRef back, or
+  // the focus refresh reads the editor as dirty and never reloads the note.
+  const writeSeqRef = useRef(0);
+  const markedSeqRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // One AbortController PER NOTE: a save for note B must never abort note
-  // A's in-flight PATCH (selectNote flushes A then rebinds to B at once).
-  const abortsRef = useRef<Map<string, AbortController>>(new Map());
+  // PATCHes for one note run one after another, never in parallel: each
+  // carries the server version it was based on (baseRef), and an overlapping
+  // or aborted-but-landed earlier write would make our own next save look
+  // like a teammate's conflicting edit. Chains are per note, so a save for
+  // note B never waits on note A.
+  const patchChainRef = useRef<Map<string, Promise<unknown>>>(new Map());
+  // Unsettled links per note chain (see trackChain).
+  const patchBusyRef = useRef<Map<string, number>>(new Map());
+  // A 409 can land after the view unmounted; the conflict handler then has no
+  // editor to show either version in.
+  const mountedRef = useRef(false);
+  // The server `updatedAt` each note's editor content is based on. Sent with
+  // every PATCH so a stale tab cannot silently overwrite a teammate's newer
+  // save; the server answers 409 with the current note instead.
+  const baseRef = useRef<Map<string, string>>(new Map());
+  // Bumped per note on every 409. A PATCH queued before the conflict holds
+  // content from before the user saw the teammate's version; once the base
+  // moves to theirs it would overwrite them after all, so it is dropped.
+  const conflictSeqRef = useRef<Map<string, number>>(new Map());
+  // Saves with a request on the wire — a background refresh must not rebind
+  // the editor underneath one.
+  const pendingSavesRef = useRef(0);
+  // Set once selectNote/bindEditor exist (they are declared below save()).
+  const onConflictRef = useRef<
+    ((noteId: string, theirs: NoteRow | null, mine: StoredNote) => void) | null
+  >(null);
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
   // The note the editor is currently bound to, readable synchronously from
@@ -382,6 +435,9 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
   };
 
   const save = useCallback(async () => {
+    // The debounce that called us has fired; a stale id here would make the
+    // focus refresh think an edit is still pending, forever.
+    timerRef.current = null;
     // Capture the target note synchronously — switching notes later must
     // not redirect this write.
     const noteId = activeIdRef.current;
@@ -435,13 +491,20 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
         // (after "+ New note") must create its own row.
         if (!creatingRef.current || creatingRef.current.seq !== draftSeq) {
           const promise = (async () => {
-            const res = await fetch(`/api/projects/${projId}/notes`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: content.title, content: content.html }),
-            });
-            if (!res.ok) throw new Error(await errorFrom(res, "Couldn't save the note"));
-            return (await res.json()) as NoteRow;
+            pendingSavesRef.current += 1;
+            try {
+              const res = await fetch(`/api/projects/${projId}/notes`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title: content.title, content: content.html }),
+              });
+              if (!res.ok) throw new Error(await errorFrom(res, "Couldn't save the note"));
+              const row = (await res.json()) as NoteRow;
+              baseRef.current.set(row.id, row.updatedAt);
+              return row;
+            } finally {
+              pendingSavesRef.current -= 1;
+            }
           })();
           creatingRef.current = { seq: draftSeq, promise };
           void promise.catch(() => {}).finally(() => {
@@ -481,21 +544,64 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
             : n
         )
       );
-      abortsRef.current.get(noteId)?.abort();
-      const ac = new AbortController();
-      abortsRef.current.set(noteId, ac);
-      const res = await fetch(`/api/projects/${projId}/notes/${noteId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: content.title, content: content.html }),
-        signal: ac.signal,
+      const conflictSeq = conflictSeqRef.current.get(noteId) ?? 0;
+      const previous = patchChainRef.current.get(noteId) ?? Promise.resolve();
+      const run = previous.then(async () => {
+        if ((conflictSeqRef.current.get(noteId) ?? 0) !== conflictSeq) {
+          return { conflict: false as const, skipped: true, theirs: null, seq: 0 };
+        }
+        pendingSavesRef.current += 1;
+        const seq = ++writeSeqRef.current;
+        try {
+          const res = await fetch(`/api/projects/${projId}/notes/${noteId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: content.title,
+              content: content.html,
+              // Read when the request is sent, after the previous PATCH in
+              // the chain has recorded the version it produced.
+              baseUpdatedAt: baseRef.current.get(noteId),
+            }),
+          });
+          if (res.status === 409) {
+            const body = await res.json().catch(() => null);
+            const theirs =
+              body && typeof body === "object" && body.note && typeof body.note.id === "string"
+                ? (body.note as NoteRow)
+                : null;
+            // The "newer" version is our own tab-hide flush of later text,
+            // sent ahead of this older save: not a teammate's edit.
+            if (theirs && selfWriteKeyRef.current === noteKey(theirs.title, theirs.content)) {
+              advanceBase(baseRef.current, noteId, theirs.updatedAt);
+              return { conflict: false as const, skipped: true, theirs: null, seq: 0 };
+            }
+            conflictSeqRef.current.set(noteId, conflictSeq + 1);
+            return { conflict: true as const, skipped: false, theirs, seq };
+          }
+          if (!res.ok) throw new Error(await errorFrom(res, "Couldn't save the note"));
+          const saved = (await res.json()) as NoteRow;
+          advanceBase(baseRef.current, noteId, saved.updatedAt);
+          return { conflict: false as const, skipped: false, theirs: null, seq };
+        } finally {
+          pendingSavesRef.current -= 1;
+        }
       });
-      if (abortsRef.current.get(noteId) === ac) abortsRef.current.delete(noteId);
-      if (!res.ok) throw new Error(await errorFrom(res, "Couldn't save the note"));
-      if (stillMine()) lastSavedRef.current = key;
+      patchChainRef.current.set(noteId, run.catch(() => {}));
+      trackChain(patchBusyRef.current, noteId, run);
+      const outcome = await run;
+      if (outcome.skipped) return;
+      if (outcome.conflict) {
+        if (stillMine()) setSaveState("idle");
+        onConflictRef.current?.(noteId, outcome.theirs, content);
+        return;
+      }
+      if (stillMine() && outcome.seq > markedSeqRef.current) {
+        markedSeqRef.current = outcome.seq;
+        lastSavedRef.current = key;
+      }
       settle("saved");
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
       settle("error");
       toast.error(err instanceof Error ? err.message : "Couldn't save the note");
     }
@@ -525,6 +631,7 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
     const html = sanitizeHtml(note?.content ?? "");
     contentRef.current = { title, html };
     lastSavedRef.current = noteKey(title, html);
+    markedSeqRef.current = writeSeqRef.current;
     if (titleRef.current) titleRef.current.textContent = title;
     if (editorRef.current) editorRef.current.innerHTML = html;
     setTitleEmpty(!title.trim());
@@ -542,6 +649,7 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const rows: NoteRow[] = await res.json();
         if (cancelled) return;
+        for (const r of rows) baseRef.current.set(r.id, r.updatedAt);
         setNotes(rows);
         const first = rows[0] ?? null;
         setActiveId(first?.id ?? null);
@@ -570,7 +678,14 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
   // it reuses save()'s in-flight create so a draft can never be POSTed
   // twice, and it never marks the note saved before the write lands.
   const flushedKeyRef = useRef<string | null>(null);
-  const flushNow = useCallback((keepalive: boolean) => {
+  // The flushed key while its PATCH is still queued behind the chain, not yet
+  // sent: a real unload arriving then must send it itself, not dedupe it.
+  const flushQueuedKeyRef = useRef<string | null>(null);
+  /** `unloading` is a real page unload (pagehide not headed for the bfcache):
+   *  nothing queued will ever run after it. `hidden` is a tab that went to the
+   *  background: on phones the OS may kill it without any pagehide, so
+   *  anything still queued there may never run either. */
+  const flushNow = useCallback((keepalive: boolean, unloading = false, hidden = false) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -588,48 +703,162 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
     // pagehide and visibilitychange can both fire on the same teardown —
     // dedupe by content instead of lying about lastSavedRef (marking it
     // saved before the request lands turns a failed flush into silent loss).
-    if (key === flushedKeyRef.current) return;
+    if (
+      key === flushedKeyRef.current &&
+      !(unloading && flushQueuedKeyRef.current === key)
+    ) {
+      return;
+    }
     flushedKeyRef.current = key;
 
-    const init = {
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: content.title, content: content.html }),
-      keepalive: keepalive && content.html.length < 60000,
+    // The PATCH carries the version it is based on too: a teardown write
+    // from a stale tab must not overwrite a teammate's newer save either.
+    // It joins the note's PATCH chain (run in a microtask when the chain is
+    // idle, still inside the teardown) and records the version it produces,
+    // so the next save is not mistaken for a conflicting stale write.
+    const flushPatch = (id: string) => {
+      const send = async (baseUpdatedAt?: string) => {
+        if (flushQueuedKeyRef.current === key) flushQueuedKeyRef.current = null;
+        pendingSavesRef.current += 1;
+        const seq = ++writeSeqRef.current;
+        try {
+          const res = await fetch(`/api/projects/${projId}/notes/${id}`, {
+            method: "PATCH",
+            ...init(baseUpdatedAt),
+          });
+          if (res.status === 409) {
+            const body = await res.json().catch(() => null);
+            const theirs =
+              body && typeof body === "object" && body.note && typeof body.note.id === "string"
+                ? (body.note as NoteRow)
+                : null;
+            if (theirs && selfWriteKeyRef.current === noteKey(theirs.title, theirs.content)) {
+              advanceBase(baseRef.current, id, theirs.updatedAt);
+              return;
+            }
+            // Not saved: let a later flush of the same text try again, drop
+            // anything queued on the old base, and keep the user's text
+            // reachable through the conflict prompt instead of losing it.
+            if (flushedKeyRef.current === key) flushedKeyRef.current = null;
+            conflictSeqRef.current.set(id, (conflictSeqRef.current.get(id) ?? 0) + 1);
+            onConflictRef.current?.(id, theirs, content);
+            return;
+          }
+          if (!res.ok) {
+            if (flushedKeyRef.current === key) flushedKeyRef.current = null;
+            return;
+          }
+          const row = (await res.json()) as NoteRow;
+          advanceBase(baseRef.current, id, row.updatedAt);
+          // Still on this note with nothing typed since: it is saved now.
+          if (
+            activeIdRef.current === id &&
+            buildSerialized() === key &&
+            seq > markedSeqRef.current
+          ) {
+            markedSeqRef.current = seq;
+            lastSavedRef.current = key;
+          }
+        } finally {
+          pendingSavesRef.current -= 1;
+        }
+      };
+      // An unload, or a tab going to the background (which a phone may kill
+      // without a pagehide), with our own PATCH still on the wire: queueing
+      // behind it may never send, because the page can die before that
+      // request's .then runs. Send now instead. Its base would be the version
+      // before that in-flight write, which lands first and turns ours into a
+      // 409 against ourselves, so it goes without one: this text is the same
+      // user's newer copy of the edit already being written. Losing the last
+      // words on every app switch is the common case; a teammate saving the
+      // same note in the same second is not, so the unbased write wins that
+      // trade. selfWriteKeyRef lets the older in-flight save recognise this
+      // write if it lands second, instead of reporting it as a conflict.
+      if ((unloading || hidden) && (patchBusyRef.current.get(id) ?? 0) > 0) {
+        // Anything still queued holds older text than this; if the page
+        // does survive, it must not run after this write and undo it.
+        conflictSeqRef.current.set(id, (conflictSeqRef.current.get(id) ?? 0) + 1);
+        selfWriteKeyRef.current = key;
+        void send().catch(() => {});
+        return;
+      }
+      flushQueuedKeyRef.current = key;
+      const previous = patchChainRef.current.get(id) ?? Promise.resolve();
+      const run = previous.then(() => send(baseRef.current.get(id)));
+      patchChainRef.current.set(id, run.catch(() => {}));
+      trackChain(patchBusyRef.current, id, run);
     };
+    const init = (baseUpdatedAt?: string) => ({
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: content.title,
+        content: content.html,
+        ...(baseUpdatedAt ? { baseUpdatedAt } : {}),
+      }),
+      keepalive: keepalive && content.html.length < 60000,
+    });
     try {
       if (noteId === null) {
         const inflight = creatingRef.current;
         if (inflight && inflight.seq === draftSeq) {
           // A create for this draft is already on the wire — PATCH the row
           // it produces rather than creating a second one.
-          void inflight.promise
-            .then((created) =>
-              fetch(`/api/projects/${projId}/notes/${created.id}`, {
-                method: "PATCH",
-                ...init,
-              })
-            )
-            .catch(() => {});
+          void inflight.promise.then((created) => flushPatch(created.id)).catch(() => {});
           return;
         }
-        void fetch(`/api/projects/${projId}/notes`, {
+        // Register this create as the draft's in-flight one, exactly like
+        // save() does: tab-hide flushes while the user is still on the draft,
+        // and the next keystroke's save() must PATCH the row this creates,
+        // not POST a second copy of the note.
+        const promise = fetch(`/api/projects/${projId}/notes`, {
           method: "POST",
-          ...init,
-        }).catch(() => {});
+          ...init(),
+        }).then(async (res) => {
+          if (!res.ok) throw new Error(await errorFrom(res, "Couldn't save the note"));
+          const row = (await res.json()) as NoteRow;
+          baseRef.current.set(row.id, row.updatedAt);
+          return row;
+        });
+        creatingRef.current = { seq: draftSeq, promise };
+        void promise
+          .then((created) => {
+            setNotes((prev) =>
+              prev.some((n) => n.id === created.id) ? prev : [...prev, created]
+            );
+            // Adopt the row only while this same draft is still on screen.
+            if (activeIdRef.current !== null || draftSeqRef.current !== draftSeq) {
+              return;
+            }
+            lastSavedRef.current = noteKey(created.title, created.content);
+            setActiveId(created.id);
+            activeIdRef.current = created.id;
+            // A save() awaiting this create now sees the editor moved to the
+            // row and stands down, so whatever was typed since the flush is
+            // saved from here.
+            if (buildSerialized() !== lastSavedRef.current) {
+              if (timerRef.current) clearTimeout(timerRef.current);
+              timerRef.current = setTimeout(() => void save(), 0);
+            } else {
+              setSaveState((st) => (st === "saving" ? "idle" : st));
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (creatingRef.current?.seq === draftSeq) creatingRef.current = null;
+          });
         return;
       }
-      void fetch(`/api/projects/${projId}/notes/${noteId}`, {
-        method: "PATCH",
-        ...init,
-      }).catch(() => {});
+      flushPatch(noteId);
     } catch {
       // best-effort
     }
-  }, []);
+  }, [buildSerialized, save]);
 
   // Flush on unmount (SPA navigation away from the tab).
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       flushNow(false);
     };
@@ -640,9 +869,9 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
   // isn't silently lost. keepalive bodies are capped (~64KB), so very large
   // notes fall back to a best-effort plain fetch.
   useEffect(() => {
-    const onHide = () => flushNow(true);
+    const onHide = (e: PageTransitionEvent) => flushNow(true, !e.persisted);
     const onVis = () => {
-      if (document.visibilityState === "hidden") flushNow(true);
+      if (document.visibilityState === "hidden") flushNow(true, false, true);
     };
     window.addEventListener("pagehide", onHide);
     document.addEventListener("visibilitychange", onVis);
@@ -670,6 +899,130 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
     },
     [flushSave, bindEditor]
   );
+
+  // ── Stale-write conflict (409) ────────────────────────────────────────
+  // A teammate saved this note after our copy was loaded. Show their version
+  // — never silently overwrite it — and keep ours one click away.
+  useEffect(() => {
+    onConflictRef.current = (noteId, theirs, mine) => {
+      if (!mountedRef.current) {
+        // Left the Notes tab before the write came back: there is no editor
+        // to offer either version in, so hand the user their text instead.
+        toast.error(
+          "Your last edit to a note wasn't saved because a teammate changed it first.",
+          {
+            id: `note-conflict-${noteId}`,
+            duration: Infinity,
+            action: {
+              label: "Copy my text",
+              onClick: () => {
+                const text = [
+                  mine.title,
+                  new DOMParser().parseFromString(mine.html, "text/html").body
+                    .textContent ?? "",
+                ]
+                  .filter(Boolean)
+                  .join("\n\n");
+                void navigator.clipboard?.writeText(text).catch(() => {
+                  toast.error("Couldn't copy to the clipboard.");
+                });
+              },
+            },
+          }
+        );
+        return;
+      }
+      const onIt = activeIdRef.current === noteId;
+      // Whatever is in the editor now is newer than the rejected request.
+      const latestMine = onIt ? readContent() : mine;
+      if (!theirs) {
+        toast.error(
+          "Someone else changed this note, so your edit wasn't saved. Reload to see their version.",
+          { id: `note-conflict-${noteId}`, duration: Infinity }
+        );
+        return;
+      }
+      baseRef.current.set(noteId, theirs.updatedAt);
+      setNotes((prev) => prev.map((n) => (n.id === noteId ? theirs : n)));
+      if (onIt) bindEditor(theirs);
+      toast.warning(
+        "A teammate edited this note in the meantime. Showing their latest version.",
+        {
+          id: `note-conflict-${noteId}`,
+          // The rejected text lives only in this action; a timeout would
+          // throw it away without the user ever deciding.
+          duration: Infinity,
+          action: {
+            label: "Keep my version",
+            onClick: () => {
+              if (activeIdRef.current !== noteId) selectNote(noteId);
+              // Bind their row with our text: lastSavedRef stays at their
+              // version (so this saves) and the base is theirs (so it lands).
+              const theirsKey = noteKey(theirs.title, sanitizeHtml(theirs.content));
+              bindEditor({ ...theirs, title: latestMine.title, content: latestMine.html });
+              lastSavedRef.current = theirsKey;
+              scheduleSave();
+            },
+          },
+        }
+      );
+    };
+  });
+
+  // ── Pick up teammates' edits ──────────────────────────────────────────
+  // Notes used to load once per mount, so a tab left open all day kept the
+  // morning's copy. Re-read the list when the tab comes back, but only while
+  // nothing local is unsaved — a clean editor is rebound, a dirty one is left
+  // to the conflict check above.
+  const lastRefreshRef = useRef(0);
+  const refreshNotes = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 5000) return;
+    lastRefreshRef.current = now;
+    const projId = projectIdRef.current;
+    const busy = () =>
+      pendingSavesRef.current > 0 ||
+      creatingRef.current !== null ||
+      timerRef.current !== null ||
+      buildSerialized() !== lastSavedRef.current;
+    if (busy()) return;
+    try {
+      const res = await fetch(`/api/projects/${projId}/notes`);
+      if (!res.ok) return;
+      const rows: NoteRow[] = await res.json();
+      if (projectIdRef.current !== projId || busy()) return;
+      for (const r of rows) baseRef.current.set(r.id, r.updatedAt);
+      setNotes(rows);
+      const active = activeIdRef.current;
+      if (active === null) return;
+      const row = rows.find((r) => r.id === active) ?? null;
+      if (!row) {
+        // Deleted elsewhere: move to the first remaining note.
+        const next = rows[0] ?? null;
+        setActiveId(next?.id ?? null);
+        activeIdRef.current = next?.id ?? null;
+        bindEditor(next);
+        return;
+      }
+      if (noteKey(row.title, sanitizeHtml(row.content)) !== lastSavedRef.current) {
+        bindEditor(row);
+      }
+    } catch {
+      // Best-effort; the next focus tries again.
+    }
+  }, [buildSerialized, bindEditor]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshNotes();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshNotes]);
 
   /** "+ New note": park the editor on a fresh draft. */
   const newNote = useCallback(() => {
@@ -1375,34 +1728,6 @@ export function NotesView({ projectId, canEdit }: NotesViewProps) {
         <Sep />
         <ToolBtn Icon={Code} label="Inline code" disabled={!canEdit} onClick={toggleInlineCode} />
         <ToolBtn Icon={SquareCode} label="Code block" active={fmt.codeblock} disabled={!canEdit} onClick={() => applyBlockAction("codeblock")} />
-        <Sep />
-        {/* AI */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild disabled={!canEdit}>
-            <button
-              type="button"
-              title="AI assistant"
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-[4px] text-[#9A9C9F] hover:bg-[#F7F7F7] hover:text-[#55585D] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C6C9CD]",
-                !canEdit && "pointer-events-none opacity-40"
-              )}
-            >
-              <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            {["Summarize the note", "Improve the writing", "Fix spelling & grammar"].map((l) => (
-              <DropdownMenuItem
-                key={l}
-                className="cursor-pointer text-[13px]"
-                onSelect={() => toast.info("AI features are coming soon")}
-              >
-                <Sparkles className="mr-2 h-3.5 w-3.5 text-[#9885F1]" />
-                {l}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
         <Sep />
         {/* Create task */}
         <button

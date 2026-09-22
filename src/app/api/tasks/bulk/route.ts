@@ -8,8 +8,43 @@ import {
   executeRulesOnSectionChange,
   executeRulesOnTaskCompleted,
 } from "@/lib/workflow-engine";
-import { notifyTaskCompleted } from "@/lib/task-notifications";
+import { notifyTaskAssigned, notifyTaskCompleted, autoFollowTasks } from "@/lib/task-notifications";
 import { resolveTaskPlacements } from "@/lib/task-placement";
+import { recomputeRollupsForAncestors } from "@/lib/formula-eval";
+import { deleteFile } from "@/lib/storage";
+
+/**
+ * The selected tasks plus every descendant (subtasks cascade with them), so
+ * their attachments and goal links can be looked up before the delete.
+ * `seen` guards against a corrupt cycle.
+ */
+async function collectSubtreeIds(rootIds: string[]): Promise<string[]> {
+  const seen = new Set<string>(rootIds);
+  let frontier = [...rootIds];
+  while (frontier.length > 0) {
+    const children = await prisma.task.findMany({
+      where: { parentTaskId: { in: frontier } },
+      select: { id: true },
+    });
+    frontier = [];
+    for (const c of children) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      frontier.push(c.id);
+    }
+  }
+  return [...seen];
+}
+
+/** Same rule as single-task DELETE: form and tracking blobs belong to the submission. */
+function isSubmissionBlob(url: string): boolean {
+  try {
+    const path = new URL(url).pathname.replace(/^\/+/, "");
+    return path.startsWith("forms/") || path.startsWith("tracking/");
+  } catch {
+    return false;
+  }
+}
 
 const bulkSchema = z.object({
   taskIds: z.array(z.string()).min(1),
@@ -131,7 +166,7 @@ export async function POST(req: Request) {
             console.error("[bulk incomplete] goal recalc failed:", e);
           }
         }
-        return NextResponse.json({ success: true, count: taskIds.length });
+        return NextResponse.json({ success: true, count: toReopen.length });
       }
 
       case "delete": {
@@ -139,10 +174,34 @@ export async function POST(req: Request) {
         // one does, so the objectives it feeds have to be recalculated. Their
         // ids must be collected BEFORE the delete: the join rows go with the
         // tasks, so afterwards there is nothing left to look them up by.
+        //
+        // The rest is the same cleanup single-task DELETE does: attachment
+        // rows cascade but the (public, unguessable) blobs behind them do not,
+        // and a deleted subtask leaves its parent's roll-ups stale.
+        const subtreeIds = await collectSubtreeIds(taskIds);
         const doomed = await prisma.task.findMany({
           where: { id: { in: taskIds } },
-          select: { projectId: true },
+          select: { projectId: true, parentTaskId: true },
         });
+        const doomedIdSet = new Set(subtreeIds);
+        // A parent that is itself being deleted has nothing left to recompute.
+        const survivingParentIds = [
+          ...new Set(
+            doomed
+              .map((t) => t.parentTaskId)
+              .filter((id): id is string => id !== null && !doomedIdSet.has(id))
+          ),
+        ];
+        const attachments = await prisma.attachment.findMany({
+          where: {
+            OR: [
+              { taskId: { in: subtreeIds } },
+              { comment: { taskId: { in: subtreeIds } } },
+            ],
+          },
+          select: { url: true },
+        });
+        const blobUrls = [...new Set(attachments.map((a) => a.url))];
         const doomedProjectIds = [
           ...new Set(
             doomed
@@ -153,11 +212,11 @@ export async function POST(req: Request) {
         const [objectiveTasks, keyResultTasks, objectiveProjects] =
           await Promise.all([
             prisma.objectiveTask.findMany({
-              where: { taskId: { in: taskIds } },
+              where: { taskId: { in: subtreeIds } },
               select: { objectiveId: true },
             }),
             prisma.keyResultTask.findMany({
-              where: { taskId: { in: taskIds } },
+              where: { taskId: { in: subtreeIds } },
               select: { keyResult: { select: { objectiveId: true } } },
             }),
             doomedProjectIds.length
@@ -175,12 +234,38 @@ export async function POST(req: Request) {
         await prisma.task.deleteMany({
           where: { id: { in: taskIds } },
         });
+        for (const parentId of survivingParentIds) {
+          try {
+            await recomputeRollupsForAncestors(parentId);
+          } catch (e) {
+            console.error("[bulk delete] roll-up recompute failed:", e);
+          }
+        }
         for (const objectiveId of affectedObjectiveIds) {
           try {
             await GoalProgressService.recalculateProgress(objectiveId);
           } catch (e) {
             console.error("[bulk delete] goal recalc failed:", e);
           }
+        }
+        // Best-effort, after the rows are gone; a url still referenced by
+        // another row is left alone.
+        const blobResults = await Promise.allSettled(
+          blobUrls.map(async (url) => {
+            if (isSubmissionBlob(url)) return;
+            const stillUsed =
+              (await prisma.attachment.count({ where: { url } })) +
+              (await prisma.file.count({ where: { url } })) +
+              (await prisma.projectResource.count({ where: { url } })) +
+              (await prisma.messageAttachment.count({ where: { url } }));
+            if (stillUsed === 0) await deleteFile(url);
+          })
+        );
+        const failedBlobs = blobResults.filter((r) => r.status === "rejected").length;
+        if (failedBlobs > 0) {
+          console.error(
+            `[bulk delete] ${failedBlobs} of ${blobUrls.length} blob deletions failed`
+          );
         }
         return NextResponse.json({ success: true, count: taskIds.length });
       }
@@ -195,11 +280,71 @@ export async function POST(req: Request) {
         if (value !== "unassign") {
           await assertUserInWorkspace(value, workspaceId);
         }
-        await prisma.task.updateMany({
-          where: { id: { in: taskIds } },
-          data: { assigneeId: value === "unassign" ? null : value },
+        const newAssigneeId = value === "unassign" ? null : value;
+        // Only rows whose assignee actually changes get written, logged and
+        // announced — the same side effects a single-task PATCH has.
+        const toReassign = await prisma.task.findMany({
+          where: {
+            id: { in: taskIds },
+            ...(newAssigneeId
+              ? { OR: [{ assigneeId: null }, { assigneeId: { not: newAssigneeId } }] }
+              : { assigneeId: { not: null } }),
+          },
+          select: {
+            id: true,
+            name: true,
+            projectId: true,
+            creatorId: true,
+            dueDate: true,
+            project: { select: { name: true } },
+          },
         });
-        return NextResponse.json({ success: true, count: taskIds.length });
+        if (toReassign.length > 0) {
+          await prisma.task.updateMany({
+            where: { id: { in: toReassign.map((t) => t.id) } },
+            data: { assigneeId: newAssigneeId },
+          });
+          try {
+            await prisma.activity.createMany({
+              data: toReassign.map((t) => ({
+                type: newAssigneeId ? ("TASK_ASSIGNED" as const) : ("TASK_UNASSIGNED" as const),
+                taskId: t.id,
+                userId,
+                data: { assigneeId: newAssigneeId },
+              })),
+            });
+          } catch (e) {
+            console.error("[bulk assign] activity failed:", e);
+          }
+        }
+        if (newAssigneeId) {
+          // The assignee follows what they now own (see task PATCH); the
+          // creator is already notified of comments and completion.
+          await autoFollowTasks(
+            toReassign
+              .filter((t) => t.creatorId !== newAssigneeId)
+              .map((t) => ({ taskId: t.id, userId: newAssigneeId })),
+            "bulk assign"
+          );
+          if (newAssigneeId !== userId) {
+            for (const t of toReassign) {
+              try {
+                await notifyTaskAssigned({
+                  taskId: t.id,
+                  assigneeId: newAssigneeId,
+                  assignerUserId: userId,
+                  taskName: t.name,
+                  projectId: t.projectId,
+                  projectName: t.project?.name ?? null,
+                  dueDate: t.dueDate,
+                });
+              } catch (e) {
+                console.error("[bulk assign] notify failed:", e);
+              }
+            }
+          }
+        }
+        return NextResponse.json({ success: true, count: toReassign.length });
 
       case "set_priority":
         if (!value) {
@@ -258,12 +403,41 @@ export async function POST(req: Request) {
           where: { id: { in: homeIds } },
           select: { id: true, sectionId: true, projectId: true },
         });
+        // Subtasks share their parent's column. Moving only the parents left
+        // them in the old column, where deleting that column (which deletes
+        // its tasks) destroyed the checklist of a card that now lives here.
+        const descendantIds: string[] = [];
+        {
+          const seen = new Set<string>(homeIds);
+          let frontier = homeIds;
+          while (frontier.length > 0) {
+            const children = await prisma.task.findMany({
+              where: { parentTaskId: { in: frontier } },
+              select: { id: true },
+            });
+            frontier = [];
+            for (const c of children) {
+              if (seen.has(c.id)) continue;
+              seen.add(c.id);
+              descendantIds.push(c.id);
+              frontier.push(c.id);
+            }
+          }
+        }
         await prisma.$transaction([
           ...(homeIds.length
             ? [
                 prisma.task.updateMany({
                   where: { id: { in: homeIds } },
                   data: { sectionId: value },
+                }),
+              ]
+            : []),
+          ...(descendantIds.length
+            ? [
+                prisma.task.updateMany({
+                  where: { id: { in: descendantIds } },
+                  data: { sectionId: value, projectId: destSection.projectId },
                 }),
               ]
             : []),
@@ -276,6 +450,24 @@ export async function POST(req: Request) {
               ]
             : []),
         ]);
+        // Same TASK_MOVED row a single PATCH or a reorder writes, so a bulk
+        // move leaves a trail in each task's feed. Best-effort: the move
+        // already committed.
+        const movedHome = beforeMove.filter((t) => t.sectionId !== value);
+        if (movedHome.length > 0) {
+          try {
+            await prisma.activity.createMany({
+              data: movedHome.map((t) => ({
+                type: "TASK_MOVED" as const,
+                taskId: t.id,
+                userId,
+                data: { newSectionId: value },
+              })),
+            });
+          } catch (err) {
+            console.error("[tasks bulk move_section] activity failed:", err);
+          }
+        }
         for (const t of beforeMove) {
           if (t.projectId && t.sectionId !== value) {
             await executeRulesOnSectionChange(

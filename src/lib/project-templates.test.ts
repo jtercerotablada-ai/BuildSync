@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { PROJECT_TEMPLATES, type ProjectTemplateTask } from "./project-templates";
+import {
+  PROJECT_TEMPLATES,
+  workflowFitsSections,
+  type ProjectTemplateTask,
+} from "./project-templates";
+import { findTemplateById } from "./workflow-templates";
 
 /**
  * Guards the template SCHEDULE, not the copy. A project created from a
@@ -120,5 +125,26 @@ describe("PROJECT_TEMPLATES schedule invariants", () => {
       }
     }
     expect(early).toEqual([]);
+  });
+});
+
+describe("PROJECT_TEMPLATES workflow wiring", () => {
+  // The workflow-apply route creates every section a workflow names that the
+  // project lacks, so a workflow whose columns are not on the template's board
+  // appends a second, empty vocabulary of columns and its rules never fire on
+  // the columns the tasks were filed in.
+  it("pairs every template only with a workflow whose sections are its columns", () => {
+    const misfits = PROJECT_TEMPLATES.filter(
+      (t) => t.workflowTemplateId && !workflowFitsSections(t.workflowTemplateId, t.sections),
+    ).map((t) => {
+      const wf = findTemplateById(t.workflowTemplateId!);
+      return `${t.id} -> ${t.workflowTemplateId} (${wf ? wf.sections.join(", ") : "unknown workflow"})`;
+    });
+    expect(misfits).toEqual([]);
+  });
+
+  it("types the Broward BSIP template as BSIP, not a Miami-Dade recert", () => {
+    const bsip = PROJECT_TEMPLATES.find((t) => t.id === "broward-bsip-inspection");
+    expect(bsip?.defaults.type).toBe("BSIP");
   });
 });

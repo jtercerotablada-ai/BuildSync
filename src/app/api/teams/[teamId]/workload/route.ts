@@ -6,8 +6,32 @@ import { getErrorStatus } from "@/lib/auth-guards";
 import { requireTeamStanding } from "@/lib/team-access";
 import { taskPrivacyClause } from "@/lib/project-visibility";
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /**
- * GET /api/teams/:teamId/workload
+ * The caller's calendar day, from `?today=YYYY-MM-DD`. The server runs in
+ * UTC, so from 20:00 in Miami its own date is already tomorrow and every task
+ * due today counted as overdue. A client-sent day is only trusted within one
+ * day of the UTC day (every real time zone falls inside that window);
+ * otherwise, or when it is absent, the UTC day is used. Same rule as the AI
+ * assist route.
+ */
+function resolveToday(value: string | null): Date {
+  const utcToday = startOfTodayUtc();
+  if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    if (
+      !Number.isNaN(parsed.getTime()) &&
+      Math.abs(parsed.getTime() - utcToday.getTime()) <= MS_PER_DAY
+    ) {
+      return parsed;
+    }
+  }
+  return utcToday;
+}
+
+/**
+ * GET /api/teams/:teamId/workload[?today=YYYY-MM-DD]
  *
  * Per-member workload snapshot — the data behind the Capacity Matrix and the
  * Members table on the team workspace.
@@ -46,7 +70,7 @@ import { taskPrivacyClause } from "@/lib/project-visibility";
  * Pure derivation from existing tables — no schema changes.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
@@ -55,6 +79,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { teamId } = await params;
+    // Stored due dates are UTC midnight of the calendar day, so "overdue"
+    // means strictly before the start of the caller's today.
+    const today = resolveToday(new URL(req.url).searchParams.get("today"));
     // Team membership AND a live contributor seat in the team's workspace: a
     // TeamMember row outlives offboarding, so it was never proof on its own.
     await requireTeamStanding(userId, teamId);
@@ -160,7 +187,7 @@ export async function GET(
     const memberWorkloads = members.map((m) => {
       const own = openTasks.filter((t) => t.assigneeId === m.userId);
       const overdue = own.filter(
-        (t) => t.dueDate && new Date(t.dueDate) < startOfTodayUtc()
+        (t) => t.dueDate && new Date(t.dueDate) < today
       );
       const completedLast30 = recentlyDone.filter(
         (t) => t.assigneeId === m.userId
@@ -200,7 +227,7 @@ export async function GET(
         totalProjects: projects.length,
         totalOpenTasks: openTasks.length,
         totalOverdueTasks: openTasks.filter(
-          (t) => t.dueDate && new Date(t.dueDate) < startOfTodayUtc()
+          (t) => t.dueDate && new Date(t.dueDate) < today
         ).length,
         totalCompletedLast30Days: recentlyDone.length,
         maxOpenPerMember: maxOpen,

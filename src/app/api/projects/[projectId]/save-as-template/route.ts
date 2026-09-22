@@ -96,15 +96,10 @@ export async function POST(
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    // The same rule PATCH /api/projects/:projectId uses: someone who may not
-    // edit the project may not turn it into the template the firm runs its
-    // next twenty jobs from.
-    const canEdit =
-      access.isOwner ||
-      access.memberRole === "ADMIN" ||
-      access.memberRole === "EDITOR";
-
-    if (!canEdit) {
+    // The same rule PATCH /api/projects/:projectId uses (the resolver's
+    // canWrite): someone who may not edit the project may not turn it into the
+    // template the firm runs its next twenty jobs from.
+    if (!access.canWrite) {
       return NextResponse.json(
         { error: "You don't have permission to edit this project" },
         { status: 403 }
@@ -230,7 +225,7 @@ export async function POST(
     // expected to say so — a capture that silently drops half a plan is worse
     // than one that refuses.
     return NextResponse.json(
-      { ...template, mine: true, ...(truncated ? { truncated } : {}) },
+      { ...template, mine: true, canManage: true, ...(truncated ? { truncated } : {}) },
       { status: 201 }
     );
   } catch (error) {

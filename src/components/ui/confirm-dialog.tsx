@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,10 @@ import { Label } from "@/components/ui/label";
  *
  * Pass `requireText` (usually the record's name) to make the user type it —
  * reserve that for actions that destroy other people's work.
+ *
+ * `children` renders between the consequences and the error line, for flows
+ * that need an extra input (e.g. picking who inherits a removed member's
+ * work). Pass `confirmDisabled` while that input is incomplete.
  */
 export function ConfirmDialog({
   open,
@@ -34,6 +39,8 @@ export function ConfirmDialog({
   confirmLabel = "Delete",
   requireText,
   onConfirm,
+  confirmDisabled = false,
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,33 +50,49 @@ export function ConfirmDialog({
   confirmLabel?: string;
   requireText?: string;
   onConfirm: () => void | Promise<void>;
+  confirmDisabled?: boolean;
+  children?: ReactNode;
 }) {
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Cancel is allowed while a request is pending, so the request can outlive
+  // the dialog. These refs let it report to the right place when it settles
+  // and keep a reopened dialog from firing a second one in the meantime.
+  const inFlightRef = useRef(false);
+  const openRef = useRef(open);
 
   useEffect(() => {
+    openRef.current = open;
     if (open) {
       setTyped("");
-      setBusy(false);
+      setBusy(inFlightRef.current);
       setError(null);
     }
   }, [open]);
 
   const canConfirm =
-    !busy && (!requireText || typed.trim() === requireText.trim());
+    !busy &&
+    !confirmDisabled &&
+    (!requireText || typed.trim() === requireText.trim());
 
   const handleConfirm = async () => {
-    if (!canConfirm) return;
+    if (!canConfirm || inFlightRef.current) return;
+    inFlightRef.current = true;
     setBusy(true);
     setError(null);
     try {
       await onConfirm();
     } catch (err) {
       // A caller whose onConfirm rejects must not produce an unhandled
-      // rejection and a dialog that silently snaps back to idle.
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      // rejection and a dialog that silently snaps back to idle. If the user
+      // already closed the dialog, the inline error would never be seen.
+      const message =
+        err instanceof Error ? err.message : "Something went wrong";
+      if (openRef.current) setError(message);
+      else toast.error(message);
     } finally {
+      inFlightRef.current = false;
       setBusy(false);
     }
   };
@@ -94,6 +117,8 @@ export function ConfirmDialog({
             ))}
           </ul>
         ) : null}
+
+        {children}
 
         {requireText ? (
           <div className="space-y-2">

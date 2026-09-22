@@ -12,18 +12,18 @@ import { fileToAvatarDataUrl, AvatarError } from "@/lib/avatar-image";
 
 const COMPANY_NAME = "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.";
 
-// Password strength calculator
+// Scores exactly the four rules validatePassword enforces (same meter as
+// /reset-password), so the meter can never call a password "Strong" that the
+// API then rejects. See src/lib/password-policy.ts.
 function calculatePasswordStrength(password: string): { score: number; label: string } {
   let score = 0;
-
   if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+  if (/[A-Z]/.test(password)) score++;
   if (/\d/.test(password)) score++;
-  if (/[^a-zA-Z0-9]/.test(password)) score++;
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
 
   const labels = ["Very weak", "Weak", "Fair", "Good", "Strong"];
-  return { score: Math.min(score, 4), label: labels[Math.min(score, 4)] };
+  return { score, label: labels[score] };
 }
 
 // BuildSync custom illustration - Construction meets Project Management
@@ -204,6 +204,7 @@ function OnboardingForm() {
   const [error, setError] = useState("");
 
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
+  const passwordCheck = useMemo(() => validatePassword(password), [password]);
 
   const handleAvatarClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -294,7 +295,13 @@ function OnboardingForm() {
         return;
       }
 
-      router.push("/home");
+      // A pending invitation is what joins the workspace; the server says
+      // where to go next. Only same-site paths are ever followed.
+      const next =
+        typeof data?.next === "string" && /^\/(?![/\\])/.test(data.next)
+          ? data.next
+          : "/home";
+      router.push(next);
       router.refresh();
     } catch {
       setError("Something went wrong");
@@ -306,8 +313,8 @@ function OnboardingForm() {
   const getStrengthColor = (index: number) => {
     if (index >= passwordStrength.score) return "bg-slate-200";
     if (passwordStrength.score <= 1) return "bg-red-400";
-    if (passwordStrength.score === 2) return "bg-amber-400";
-    if (passwordStrength.score === 3) return "bg-emerald-400";
+    // Green only once every rule is met — anything less is still rejected.
+    if (passwordStrength.score < 4) return "bg-amber-400";
     return "bg-emerald-500";
   };
 
@@ -324,10 +331,10 @@ function OnboardingForm() {
 
           {/* Welcome text */}
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            Welcome aboard!
+            Finish setting up your account
           </h1>
           <p className="text-slate-600">
-            You&apos;re joining {COMPANY_NAME}
+            Choose your name and password for BuildSync.
           </p>
           {email && (
             <p className="text-sm text-slate-500 mb-8">
@@ -441,26 +448,17 @@ function OnboardingForm() {
                 </div>
                 <p className="text-sm text-slate-500">
                   {password.length === 0 ? (
-                    "Use at least 8 characters"
-                  ) : password.length < 8 ? (
-                    <span className="text-amber-600">
-                      A bit short — at least 8 characters
-                    </span>
-                  ) : (
+                    "At least 8 characters, with one uppercase letter, one number and one special character"
+                  ) : passwordCheck.valid ? (
                     <>
                       Password strength:{" "}
-                      <span
-                        className={
-                          passwordStrength.score >= 3
-                            ? "font-medium text-emerald-600"
-                            : passwordStrength.score === 2
-                              ? "font-medium text-amber-600"
-                              : "font-medium text-red-500"
-                        }
-                      >
+                      <span className="font-medium text-emerald-600">
                         {passwordStrength.label}
                       </span>
                     </>
+                  ) : (
+                    // The next rule still missing, in the server's own words.
+                    <span className="text-amber-600">{passwordCheck.message}</span>
                   )}
                 </p>
               </div>
@@ -479,9 +477,9 @@ function OnboardingForm() {
           {/* Info box */}
           <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-900">
             <p className="text-sm text-slate-600">
-              You&apos;re getting started with {COMPANY_NAME}{" "}
-              You&apos;ll be able to manage projects, tasks, and collaborate
-              with your team efficiently.
+              BuildSync is the internal workspace of {COMPANY_NAME} Once
+              you&apos;re a member of the firm&apos;s workspace you&apos;ll
+              manage projects and tasks with the rest of the team.
             </p>
           </div>
         </div>

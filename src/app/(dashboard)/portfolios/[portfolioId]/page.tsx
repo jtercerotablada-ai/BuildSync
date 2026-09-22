@@ -1,8 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -88,11 +93,16 @@ import { PortfolioPanelView } from "@/components/portfolios/portfolio-panel-view
 import { PortfolioProgressView } from "@/components/portfolios/portfolio-progress-view";
 import { PortfolioWorkloadView } from "@/components/portfolios/portfolio-workload-view";
 import { PortfolioShareDialog } from "@/components/portfolios/portfolio-share-dialog";
-import { PortfolioCustomizeDrawer } from "@/components/portfolios/portfolio-customize-drawer";
+import {
+  PortfolioCustomizeDrawer,
+  portfolioIcon,
+} from "@/components/portfolios/portfolio-customize-drawer";
 import { MessagesView } from "@/components/views/messages-view";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { ProjectStatusModal } from "@/components/portfolios/project-status-modal";
 import { NO_STATUS_LABEL, isStatusEarned } from "@/lib/project-status";
+import { dueDateToLocalMidnight, toDateOnlyISO } from "@/lib/date-only";
+import { PIPELINES, resolveStage, type PipelineId } from "@/lib/pipelines";
 import { useUiState } from "@/hooks/use-ui-state";
 import {
   COLUMN_DEFS,
@@ -143,7 +153,13 @@ interface Project {
   // same question one click later.
   statusSetAt: string | null;
   type: ProjectType | null;
+  // Pipeline stage key ("recert.bsip"), labelled through src/lib/pipelines.
+  stage?: string | null;
   gate: ProjectGate | null;
+  // Whether the viewer may edit this PROJECT (dates, status). Being able to
+  // edit the portfolio says nothing about that; when the API does not send
+  // it, the page falls back to the portfolio's edit right.
+  canWrite?: boolean;
   budget: number | null;
   currency: string | null;
   startDate: string | null;
@@ -195,6 +211,13 @@ interface Portfolio {
   // join table and refuses a partial list, so a drag has to send these back
   // even though no view renders them.
   archivedProjectIds?: string[];
+  // The caller's standing as the API decided it — includes the workspace
+  // OWNER/ADMIN arm, which the member rows above cannot show.
+  viewerAccess?: {
+    canEdit: boolean;
+    canManage: boolean;
+    canTransfer?: boolean;
+  };
   _count: {
     projects: number;
   };
@@ -300,9 +323,36 @@ function projectStatusMeta(p: { status: PortfolioStatus; statusSetAt?: string | 
   return isStatusEarned(p.statusSetAt) ? statusMeta(p.status) : NO_STATUS_META;
 }
 
+/** The status a row SHOWS — filter, sort and group all key on this, so a
+ *  project reading "No status" never survives an "On track" filter. */
+type EffectiveStatus = PortfolioStatus | "_no_status";
+const NO_STATUS_KEY = "_no_status" as const;
+
+function effectiveStatus(p: {
+  status: PortfolioStatus;
+  statusSetAt?: string | null;
+}): EffectiveStatus {
+  return isStatusEarned(p.statusSetAt) ? p.status : NO_STATUS_KEY;
+}
+
+/** Label for a stage key; null when the project has none or the key no
+ *  longer resolves (the column is TEXT, so a stale key is possible). */
+function stageLabelFor(key: string | null | undefined): string | null {
+  return resolveStage(key)?.stage.label ?? null;
+}
+
+/** Pipeline order (recert, design, permit, construction) for sorting stage
+ *  keys across project types. */
+const PIPELINE_RANK = Object.fromEntries(
+  (Object.keys(PIPELINES) as PipelineId[]).map((id, i) => [id, i])
+) as Record<PipelineId, number>;
+
+// Project and portfolio dates are date-only values stored at UTC midnight;
+// formatting the raw instant in local time shows the previous day west of
+// UTC, so rebuild it on its UTC calendar day first.
 function formatDate(date: string | null): string {
   if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-US", {
+  return dueDateToLocalMidnight(date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
@@ -324,34 +374,6 @@ function formatBudget(value: number | null, currency: string | null): string {
 
 // ── List view: columns, filter, sort, group ─────────────────
 
-// Favorites live in localStorage under the same key the Portfolios
-// landing page uses so the detail-header star and the list cards stay
-// in sync (see src/app/(dashboard)/portfolios/page.tsx).
-const FAVORITES_KEY = "buildsync.portfolios.favorites";
-
-function loadFavorites(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = window.localStorage.getItem(FAVORITES_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw) as unknown;
-    return Array.isArray(arr)
-      ? new Set(arr.filter((v): v is string => typeof v === "string"))
-      : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function saveFavorites(ids: Set<string>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids]));
-  } catch {
-    // localStorage full / blocked — ignore.
-  }
-}
-
 type SortKey =
   | "manual"
   | "name"
@@ -360,13 +382,14 @@ type SortKey =
   | "due"
   | "budget";
 type SortDir = "asc" | "desc";
-type GroupKey = "none" | "status" | "owner" | "type" | "gate";
+type GroupKey = "none" | "status" | "owner" | "type" | "stage" | "gate";
 
 interface ListViewState {
   columns: ColumnKey[];
   filter: {
-    status: PortfolioStatus[];
+    status: EffectiveStatus[];
     type: ProjectType[];
+    stage: string[];
     gate: ProjectGate[];
     ownerId: string[];
   };
@@ -376,19 +399,22 @@ interface ListViewState {
 
 const DEFAULT_LIST_VIEW: ListViewState = {
   columns: DEFAULT_COLUMNS,
-  filter: { status: [], type: [], gate: [], ownerId: [] },
+  filter: { status: [], type: [], stage: [], gate: [], ownerId: [] },
   sort: { key: "manual", dir: "asc" },
   group: "none",
 };
 
+const EMPTY_FILTER: ListViewState["filter"] = DEFAULT_LIST_VIEW.filter;
+
 // Order used when sorting/grouping by status so "worse" health floats
 // to the top (Asana-like: off track before at risk before on track).
-const STATUS_SORT_ORDER: Record<PortfolioStatus, number> = {
+const STATUS_SORT_ORDER: Record<EffectiveStatus, number> = {
   OFF_TRACK: 0,
   AT_RISK: 1,
   ON_TRACK: 2,
   ON_HOLD: 3,
   COMPLETE: 4,
+  _no_status: 5,
 };
 
 const SORT_LABELS: Record<Exclude<SortKey, "manual">, string> = {
@@ -403,6 +429,7 @@ const GROUP_LABELS: Record<Exclude<GroupKey, "none">, string> = {
   status: "status",
   owner: "owner",
   type: "type",
+  stage: "stage",
   gate: "gate",
 };
 
@@ -431,6 +458,7 @@ function normalizeListView(raw: unknown): ListViewState {
     filter: {
       status: Array.isArray(r.filter?.status) ? r.filter!.status : [],
       type: Array.isArray(r.filter?.type) ? r.filter!.type : [],
+      stage: Array.isArray(r.filter?.stage) ? r.filter!.stage : [],
       gate: Array.isArray(r.filter?.gate) ? r.filter!.gate : [],
       ownerId: Array.isArray(r.filter?.ownerId) ? r.filter!.ownerId : [],
     },
@@ -442,12 +470,49 @@ function normalizeListView(raw: unknown): ListViewState {
   };
 }
 
+// The six tabs. Also the values the create wizard sends as `?view=`.
+const PORTFOLIO_VIEWS = [
+  "list",
+  "timeline",
+  "panel",
+  "progress",
+  "workload",
+  "messages",
+] as const;
+type PortfolioView = (typeof PORTFOLIO_VIEWS)[number];
+
+function isPortfolioView(v: unknown): v is PortfolioView {
+  return (
+    typeof v === "string" && (PORTFOLIO_VIEWS as readonly string[]).includes(v)
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────
 
 export default function PortfolioDetailPage() {
+  return (
+    // useSearchParams (the create wizard's ?view=&action= hand-off) needs a
+    // Suspense boundary above it.
+    <React.Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      }
+    >
+      <PortfolioDetailPageInner />
+    </React.Suspense>
+  );
+}
+
+function PortfolioDetailPageInner() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const portfolioId = params.portfolioId as string;
+  // The /portal shell re-exports this page; keep every link inside it.
+  const basePath = pathname?.startsWith("/portal") ? "/portal" : "";
 
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [loading, setLoading] = useState(true);
@@ -482,24 +547,29 @@ export default function PortfolioDetailPage() {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        // Date-only strings, stored at UTC midnight like every other date
+        // composer — a local-midnight ISO instant lands on the previous day.
         body: JSON.stringify({
-          startDate: start ? start.toISOString() : null,
-          endDate: due ? due.toISOString() : null,
+          startDate: start ? toDateOnlyISO(start) : null,
+          endDate: due ? toDateOnlyISO(due) : null,
         }),
       });
       if (res.ok) {
         fetchPortfolio();
         toast.success("Dates updated");
       } else {
-        toast.error("Failed to update dates");
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to update dates");
       }
     } catch {
       toast.error("Failed to update dates");
     }
   };
 
-  // Current user + the caller's edit capability (owner or member
-  // OWNER/EDITOR), used to gate the Share / Customize controls.
+  // Current user + the caller's edit capability, used to gate the Share /
+  // Customize / Delete controls. The API's `viewerAccess` is authoritative
+  // (it knows about workspace OWNER/ADMIN, who hold no member row); the
+  // member-row derivation is only the fallback for an older response.
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const isPortfolioOwner =
@@ -508,19 +578,83 @@ export default function PortfolioDetailPage() {
     (m) => m.userId === currentUserId
   )?.role;
   const canEditPortfolio =
-    isPortfolioOwner ||
-    callerMemberRole === "OWNER" ||
-    callerMemberRole === "EDITOR";
-  // Member management (invite / change role / remove) is admin-only:
-  // the portfolio owner or a member whose role is OWNER — EDITORs are
-  // excluded. Mirrors the members API's `canManageMembers` gate so the
-  // Share dialog doesn't offer controls the API will 403.
+    portfolio?.viewerAccess?.canEdit ??
+    (isPortfolioOwner ||
+      callerMemberRole === "OWNER" ||
+      callerMemberRole === "EDITOR");
+  // Member management (invite / change role / remove), privacy and delete
+  // are admin-only: EDITORs are excluded, so the page doesn't offer
+  // controls the API will 403.
   const canManagePortfolioMembers =
-    isPortfolioOwner || callerMemberRole === "OWNER";
+    portfolio?.viewerAccess?.canManage ??
+    (isPortfolioOwner || callerMemberRole === "OWNER");
+  // Project dates and status belong to the PROJECT, and the project API
+  // decides who may change them — not the portfolio's edit right.
+  const canWriteProject = (p: Project) => p.canWrite ?? canEditPortfolio;
 
-  // Favorite star (shared localStorage key with the Portfolios landing).
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const isFavorite = favorites.has(portfolioId);
+  // Favorite star — the same per-user uiState key the Portfolios landing
+  // uses, so the header star and the cards agree on every device.
+  const { value: favoriteIds, setValue: setFavoriteIds } = useUiState<
+    string[]
+  >("portfolioFavorites", []);
+  const isFavorite = favoriteIds.includes(portfolioId);
+
+  // The tab a portfolio opens on: the default view picked in the create
+  // wizard, then whichever tab was used last. Per user, per portfolio.
+  const { value: rawDefaultViews, setValue: setDefaultViews } = useUiState<
+    Record<string, string>
+  >("portfolioDefaultView", {});
+  const storedView = rawDefaultViews[portfolioId];
+  const [tab, setTab] = useState<PortfolioView>("list");
+  // Once the user (or the wizard hand-off) picks a tab, a late-arriving
+  // server copy of the stored default must not yank them off it.
+  const tabChosenRef = useRef(false);
+  const [pendingAction, setPendingAction] = useState<"add" | "share" | null>(
+    null
+  );
+
+  useEffect(() => {
+    tabChosenRef.current = false;
+  }, [portfolioId]);
+
+  useEffect(() => {
+    if (tabChosenRef.current) return;
+    setTab(isPortfolioView(storedView) ? storedView : "list");
+  }, [storedView, portfolioId]);
+
+  // Hand-off from the create wizard: ?view= picks (and remembers) the
+  // default tab, ?action= opens Add project / Share once the portfolio has
+  // loaded. Those two params are stripped so a reload doesn't reopen the
+  // dialog. Mention notifications link here with ?view=messages&message=
+  // (&thread=); MessagesView reads message/thread from the URL itself, so
+  // they are kept.
+  useEffect(() => {
+    const view = searchParams.get("view");
+    const action = searchParams.get("action");
+    if (!view && !action) return;
+    if (isPortfolioView(view)) {
+      tabChosenRef.current = true;
+      setTab(view);
+      setDefaultViews((prev) => ({ ...prev, [portfolioId]: view }));
+    }
+    if (action === "add" || action === "share") setPendingAction(action);
+    const rest = new URLSearchParams(searchParams.toString());
+    rest.delete("view");
+    rest.delete("action");
+    const query = rest.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [searchParams, pathname, router, portfolioId, setDefaultViews]);
+
+  function handleTabChange(value: string) {
+    if (!isPortfolioView(value)) return;
+    tabChosenRef.current = true;
+    setTab(value);
+    if (storedView !== value) {
+      setDefaultViews((prev) => ({ ...prev, [portfolioId]: value }));
+    }
+  }
 
   // List-view preferences (columns / filter / sort / group) persisted
   // per-portfolio, per-user in uiState so they survive reloads & devices.
@@ -554,18 +688,29 @@ export default function PortfolioDetailPage() {
     fetchUpdates();
   }, [portfolioId]);
 
+  // Run the wizard's queued action once the portfolio (and with it the
+  // caller's rights) is known. A viewer asked to "add projects" just lands
+  // on the page — the dialog would only answer 403.
   useEffect(() => {
-    setFavorites(loadFavorites());
-  }, []);
+    if (!pendingAction || !portfolio) return;
+    if (pendingAction === "share") {
+      setShareOpen(true);
+    } else if (canEditPortfolio) {
+      setAddProjectOpen(true);
+      fetchAvailableProjects();
+    }
+    setPendingAction(null);
+    // fetchAvailableProjects reads the `portfolio` this effect already
+    // depends on; it is recreated every render, so it is not a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAction, portfolio, canEditPortfolio]);
 
   function toggleFavorite() {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(portfolioId)) next.delete(portfolioId);
-      else next.add(portfolioId);
-      saveFavorites(next);
-      return next;
-    });
+    setFavoriteIds((prev) =>
+      prev.includes(portfolioId)
+        ? prev.filter((id) => id !== portfolioId)
+        : [...prev, portfolioId]
+    );
   }
 
   async function fetchPortfolio() {
@@ -651,10 +796,11 @@ export default function PortfolioDetailPage() {
 
   async function handleDateChange(
     field: "startDate" | "endDate",
-    value: string
+    value: string | null
   ) {
-    const ok = await savePortfolio({ [field]: value || null });
+    const ok = await savePortfolio({ [field]: value });
     if (ok) toast.success("Date updated");
+    return ok;
   }
 
   async function fetchAvailableProjects() {
@@ -732,9 +878,10 @@ export default function PortfolioDetailPage() {
       });
       if (res.ok) {
         toast.success("Portfolio deleted");
-        router.push("/portfolios");
+        router.push(`${basePath}/portfolios`);
       } else {
-        toast.error("Failed to delete portfolio");
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to delete portfolio");
       }
     } catch (error) {
       console.error("Error deleting portfolio:", error);
@@ -905,9 +1052,31 @@ export default function PortfolioDetailPage() {
     return [...map.entries()].map(([id, name]) => ({ id, name }));
   }, [portfolio]);
 
+  // Stages actually present in this portfolio, in pipeline order — the four
+  // pipelines have ~34 stages between them, most irrelevant to any one list.
+  const stageOptions = useMemo(() => {
+    if (!portfolio) return [] as { key: string; label: string }[];
+    const keys = new Set<string>();
+    for (const pp of portfolio.projects) {
+      if (stageLabelFor(pp.project.stage)) keys.add(pp.project.stage!);
+    }
+    return [...keys]
+      .map((key) => {
+        const r = resolveStage(key)!;
+        return {
+          key,
+          label: r.stage.label,
+          rank: PIPELINE_RANK[r.pipelineId] * 100 + r.index,
+        };
+      })
+      .sort((a, b) => a.rank - b.rank)
+      .map(({ key, label }) => ({ key, label }));
+  }, [portfolio]);
+
   const activeFilterCount =
     listView.filter.status.length +
     listView.filter.type.length +
+    listView.filter.stage.length +
     listView.filter.gate.length +
     listView.filter.ownerId.length;
 
@@ -929,8 +1098,11 @@ export default function PortfolioDetailPage() {
     const f = listView.filter;
     rows = rows.filter((pp) => {
       const p = pp.project;
-      if (f.status.length && !f.status.includes(p.status)) return false;
+      if (f.status.length && !f.status.includes(effectiveStatus(p)))
+        return false;
       if (f.type.length && (!p.type || !f.type.includes(p.type))) return false;
+      if (f.stage.length && (!p.stage || !f.stage.includes(p.stage)))
+        return false;
       if (f.gate.length && (!p.gate || !f.gate.includes(p.gate))) return false;
       if (
         f.ownerId.length &&
@@ -954,7 +1126,8 @@ export default function PortfolioDetailPage() {
             break;
           case "status":
             cmp =
-              STATUS_SORT_ORDER[pa.status] - STATUS_SORT_ORDER[pb.status];
+              STATUS_SORT_ORDER[effectiveStatus(pa)] -
+              STATUS_SORT_ORDER[effectiveStatus(pb)];
             break;
           case "progress":
             cmp = pa.stats.progress - pb.stats.progress;
@@ -1000,15 +1173,18 @@ export default function PortfolioDetailPage() {
         // reads "No status" for a project nobody judged, and a group heading
         // that filed it under "On track" would put the two answers back on
         // one screen.
-        const earned = isStatusEarned(p.statusSetAt);
-        key = earned ? p.status : "_no_status";
-        label = earned ? statusMeta(p.status).label : NO_STATUS_LABEL;
+        key = effectiveStatus(p);
+        label = projectStatusMeta(p).label;
       } else if (listView.group === "owner") {
         key = p.owner?.id || "_none";
         label = p.owner?.name || "No owner";
       } else if (listView.group === "type") {
         key = p.type || "_none";
         label = p.type ? TYPE_META[p.type].label : "No type";
+      } else if (listView.group === "stage") {
+        const stageName = stageLabelFor(p.stage);
+        key = stageName && p.stage ? p.stage : "_none";
+        label = stageName || "No stage";
       } else if (listView.group === "gate") {
         key = p.gate || "_none";
         label = p.gate ? GATE_META[p.gate].label : "No gate";
@@ -1019,9 +1195,17 @@ export default function PortfolioDetailPage() {
     if (listView.group === "status") {
       order.sort(
         (a, b) =>
-          (STATUS_SORT_ORDER[a as PortfolioStatus] ?? 99) -
-          (STATUS_SORT_ORDER[b as PortfolioStatus] ?? 99)
+          (STATUS_SORT_ORDER[a as EffectiveStatus] ?? 99) -
+          (STATUS_SORT_ORDER[b as EffectiveStatus] ?? 99)
       );
+    }
+    // Stage groups follow the pipeline, not the order rows happen to come in.
+    if (listView.group === "stage") {
+      const rank = (key: string) => {
+        const r = resolveStage(key);
+        return r ? PIPELINE_RANK[r.pipelineId] * 100 + r.index : 1e6;
+      };
+      order.sort((a, b) => rank(a) - rank(b));
     }
     return order.map((key) => ({
       key,
@@ -1042,7 +1226,10 @@ export default function PortfolioDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <p className="text-gray-500">Portfolio not found</p>
-        <Button variant="link" onClick={() => router.push("/portfolios")}>
+        <Button
+          variant="link"
+          onClick={() => router.push(`${basePath}/portfolios`)}
+        >
           Go back to portfolios
         </Button>
       </div>
@@ -1050,9 +1237,9 @@ export default function PortfolioDetailPage() {
   }
 
   const meta = statusMeta(portfolio.status);
-
-  const dateInputValue = (date: string | null) =>
-    date ? new Date(date).toISOString().split("T")[0] : "";
+  // The icon picked in Customize (lookup into a static map, not a new
+  // component per render).
+  const HeaderIcon = portfolioIcon(portfolio.icon);
 
   return (
     <PortfolioCellCtx.Provider
@@ -1060,7 +1247,7 @@ export default function PortfolioDetailPage() {
         onStatusClick: (proj) => setStatusModalProject(proj),
         onProgressClick: (proj) => setProgressPanelProject(proj),
         onDueChange: (proj, start, due) => saveProjectDates(proj.id, start, due),
-        canEdit: canEditPortfolio,
+        canEditProject: canWriteProject,
       }}
     >
     <div className="flex flex-col h-full">
@@ -1071,7 +1258,7 @@ export default function PortfolioDetailPage() {
             variant="ghost"
             size="icon"
             className="flex-shrink-0"
-            onClick={() => router.push("/portfolios")}
+            onClick={() => router.push(`${basePath}/portfolios`)}
             aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -1080,7 +1267,7 @@ export default function PortfolioDetailPage() {
             className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: (portfolio.color || "#a8893a") + "20" }}
           >
-            <Folder
+            <HeaderIcon
               className="h-4 w-4"
               style={{ color: portfolio.color || "#a8893a" }}
             />
@@ -1193,17 +1380,47 @@ export default function PortfolioDetailPage() {
               <SlidersHorizontal className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Customize</span>
             </Button>
-            {canEditPortfolio && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+            {/* Below md the Share / Customize buttons are hidden, so the
+                menu carries them there; a viewer with nothing else in it
+                only gets the menu on small screens. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(!canEditPortfolio && "md:hidden")}
+                  aria-label="More actions"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              {/* Radix hands focus back to the trigger when the menu closes,
+                  which would blur (and so close) the Rename input the
+                  instant it mounts. */}
+              <DropdownMenuContent
+                align="end"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                <DropdownMenuItem
+                  className="md:hidden"
+                  onClick={() => setShareOpen(true)}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Share
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="md:hidden"
+                  onClick={() => setCustomizeOpen(true)}
+                >
+                  <SlidersHorizontal className="h-4 w-4 mr-2" />
+                  Customize
+                </DropdownMenuItem>
+                {canEditPortfolio && (
                   <DropdownMenuItem onClick={() => setEditingName(true)}>
                     Rename
                   </DropdownMenuItem>
+                )}
+                {canManagePortfolioMembers && (
                   <DropdownMenuItem
                     className="text-black"
                     onClick={handleDeletePortfolio}
@@ -1211,9 +1428,9 @@ export default function PortfolioDetailPage() {
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete portfolio
                   </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -1242,13 +1459,10 @@ export default function PortfolioDetailPage() {
                 <Calendar className="h-4 w-4 text-gray-400" />
                 <span className="text-gray-500">Start:</span>
                 {canEditPortfolio ? (
-                  <input
-                    type="date"
-                    value={dateInputValue(portfolio.startDate)}
-                    onChange={(e) =>
-                      handleDateChange("startDate", e.target.value)
-                    }
-                    className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+                  <PortfolioDateInput
+                    value={portfolio.startDate}
+                    ariaLabel="Portfolio start date"
+                    onCommit={(v) => handleDateChange("startDate", v)}
                   />
                 ) : (
                   <span className="text-gray-700">
@@ -1259,13 +1473,10 @@ export default function PortfolioDetailPage() {
               <label className="flex items-center gap-2">
                 <span className="text-gray-500">End:</span>
                 {canEditPortfolio ? (
-                  <input
-                    type="date"
-                    value={dateInputValue(portfolio.endDate)}
-                    onChange={(e) =>
-                      handleDateChange("endDate", e.target.value)
-                    }
-                    className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+                  <PortfolioDateInput
+                    value={portfolio.endDate}
+                    ariaLabel="Portfolio end date"
+                    onCommit={(v) => handleDateChange("endDate", v)}
                   />
                 ) : (
                   <span className="text-gray-700">
@@ -1282,7 +1493,11 @@ export default function PortfolioDetailPage() {
       <div className="flex-1 overflow-auto bg-gray-50/50">
         <div className="px-4 md:px-6 pt-3 pb-4 md:pb-6 w-full">
           {/* Tabs directly under header (Asana style) */}
-          <Tabs defaultValue="list" className="w-full">
+          <Tabs
+            value={tab}
+            onValueChange={handleTabChange}
+            className="w-full"
+          >
             <TabsList className="flex-wrap h-auto bg-transparent border-b rounded-none w-full justify-start p-0 gap-0">
               <TabsTrigger value="list" className={PF_TAB_CLS}>
                 <ListIcon className="h-4 w-4" />
@@ -1334,6 +1549,7 @@ export default function PortfolioDetailPage() {
                     listView={listView}
                     setListView={setListView}
                     ownerOptions={ownerOptions}
+                    stageOptions={stageOptions}
                     activeCount={activeFilterCount}
                   />
                   <ListSortPopover
@@ -1426,12 +1642,7 @@ export default function PortfolioDetailPage() {
                       onClick={() =>
                         setListView({
                           ...listView,
-                          filter: {
-                            status: [],
-                            type: [],
-                            gate: [],
-                            ownerId: [],
-                          },
+                          filter: EMPTY_FILTER,
                           sort: { key: "manual", dir: "asc" },
                           group: "none",
                         })
@@ -1479,7 +1690,9 @@ export default function PortfolioDetailPage() {
                                 columns={listView.columns}
                                 canEdit={canEditPortfolio}
                                 onClick={() =>
-                                  router.push(`/projects/${pp.project.id}`)
+                                  router.push(
+                                    `${basePath}/projects/${pp.project.id}`
+                                  )
                                 }
                                 onRemove={() =>
                                   handleRemoveProject(pp.project.id)
@@ -1490,6 +1703,9 @@ export default function PortfolioDetailPage() {
                         ))
                       : (
                         <DndContext
+                          // A fixed id keeps dnd-kit's aria-describedby the
+                          // same on the server and the client render.
+                          id="portfolio-list-dnd"
                           sensors={sensors}
                           collisionDetection={closestCenter}
                           onDragEnd={handleDragEnd}
@@ -1506,7 +1722,9 @@ export default function PortfolioDetailPage() {
                                   columns={listView.columns}
                                   canEdit={canEditPortfolio}
                                   onClick={() =>
-                                    router.push(`/projects/${pp.project.id}`)
+                                    router.push(
+                                      `${basePath}/projects/${pp.project.id}`
+                                    )
                                   }
                                   onRemove={() =>
                                     handleRemoveProject(pp.project.id)
@@ -1685,6 +1903,7 @@ export default function PortfolioDetailPage() {
         open={customizeOpen}
         onOpenChange={setCustomizeOpen}
         canEdit={canEditPortfolio}
+        canManageAccess={canManagePortfolioMembers}
         columns={listView.columns}
         columnDefs={COLUMN_DEFS}
         onToggleColumn={toggleColumn}
@@ -1701,7 +1920,7 @@ export default function PortfolioDetailPage() {
           key={statusModalProject.id}
           project={statusModalProject}
           variant="modal"
-          canEdit={canEditPortfolio}
+          canEdit={canWriteProject(statusModalProject)}
           onPosted={fetchPortfolio}
           onClose={() => setStatusModalProject(null)}
         />
@@ -1711,7 +1930,7 @@ export default function PortfolioDetailPage() {
           key={progressPanelProject.id}
           project={progressPanelProject}
           variant="panel"
-          canEdit={canEditPortfolio}
+          canEdit={canWriteProject(progressPanelProject)}
           onPosted={fetchPortfolio}
           onClose={() => setProgressPanelProject(null)}
         />
@@ -1846,8 +2065,69 @@ const PortfolioCellCtx = React.createContext<{
   onStatusClick: (p: Project) => void;
   onProgressClick: (p: Project) => void;
   onDueChange: (p: Project, start: Date | null, due: Date | null) => void;
-  canEdit: boolean;
+  canEditProject: (p: Project) => boolean;
 } | null>(null);
+
+// Portfolio start/end editor. A native date input fires `change` for every
+// keystroke of the year (0002, 0020, 0202, 2027), and saving each one sent a
+// PATCH + toast per digit and could store year 0202 when responses crossed.
+// So the draft is local and only a complete, plausible date is saved — on
+// blur or Enter.
+function PortfolioDateInput({
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  value: string | null;
+  ariaLabel: string;
+  onCommit: (value: string | null) => Promise<boolean>;
+}) {
+  // Stored at UTC midnight, so its UTC calendar day is the date.
+  const stored = value ? new Date(value).toISOString().slice(0, 10) : "";
+  const [draft, setDraft] = useState(stored);
+  useEffect(() => {
+    setDraft(stored);
+  }, [stored]);
+
+  // A rejected save (e.g. end before start) leaves the stored value as it
+  // was, so the draft must snap back to it; otherwise the input keeps
+  // showing the refused date and every later blur re-sends it.
+  const save = async (next: string | null) => {
+    const ok = await onCommit(next);
+    if (!ok) setDraft(stored);
+  };
+
+  const commit = () => {
+    if (draft === stored) return;
+    if (draft === "") {
+      void save(null);
+      return;
+    }
+    const year = Number(draft.slice(0, 4));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft) || year < 1900 || year > 2999) {
+      setDraft(stored);
+      return;
+    }
+    void save(draft);
+  };
+
+  return (
+    <input
+      type="date"
+      value={draft}
+      min="1900-01-01"
+      max="2999-12-31"
+      aria-label={ariaLabel}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") setDraft(stored);
+      }}
+      className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+    />
+  );
+}
 
 
 // Render a single data cell for the given column key.
@@ -1868,6 +2148,14 @@ function ProjectDataCell({
       ) : (
         <span className="text-gray-300 text-xs">—</span>
       );
+    case "stage": {
+      const label = stageLabelFor(p.stage);
+      return (
+        <div className="text-xs text-gray-700 truncate" title={label ?? undefined}>
+          {label ?? "—"}
+        </div>
+      );
+    }
     case "gate":
       return (
         <div className="text-xs text-gray-700 truncate">
@@ -1912,11 +2200,12 @@ function ProjectDataCell({
         </button>
       );
     case "due": {
+      const canEditDates = !!cellCtx && cellCtx.canEditProject(p);
       const dueDisplay = (
         <div
           className={cn(
             "text-xs text-gray-700 truncate flex items-center gap-1.5 rounded px-1 -mx-1 py-0.5",
-            cellCtx?.canEdit && "hover:bg-gray-50 cursor-pointer"
+            canEditDates && "hover:bg-gray-50 cursor-pointer"
           )}
         >
           {p.startDate || p.endDate ? (
@@ -1928,17 +2217,19 @@ function ProjectDataCell({
             </>
           ) : (
             <span className="text-gray-300">
-              {cellCtx?.canEdit ? "Set dates" : "—"}
+              {canEditDates ? "Set dates" : "—"}
             </span>
           )}
         </div>
       );
-      if (!cellCtx || !cellCtx.canEdit) return dueDisplay;
+      if (!cellCtx || !canEditDates) return dueDisplay;
       return (
         <div onClick={(e) => e.stopPropagation()}>
           <DueDatePicker
-            startDate={p.startDate ? new Date(p.startDate) : null}
-            dueDate={p.endDate ? new Date(p.endDate) : null}
+            // Local midnight of the stored UTC day, so the picker highlights
+            // the same day the cell shows.
+            startDate={p.startDate ? dueDateToLocalMidnight(p.startDate) : null}
+            dueDate={p.endDate ? dueDateToLocalMidnight(p.endDate) : null}
             onChange={(start, due) => cellCtx.onDueChange(p, start, due)}
             trigger={dueDisplay}
           />
@@ -2223,11 +2514,13 @@ function ListFilterPopover({
   listView,
   setListView,
   ownerOptions,
+  stageOptions,
   activeCount,
 }: {
   listView: ListViewState;
   setListView: (v: ListViewState) => void;
   ownerOptions: { id: string; name: string }[];
+  stageOptions: { key: string; label: string }[];
   activeCount: number;
 }) {
   const f = listView.filter;
@@ -2266,6 +2559,14 @@ function ListFilterPopover({
                 onToggle={() => toggle("status", o.value)}
               />
             ))}
+            {/* Projects nobody has assessed yet — the rows showing the grey
+                "No status" chip. */}
+            <CheckRow
+              checked={f.status.includes(NO_STATUS_KEY)}
+              label={NO_STATUS_LABEL}
+              dot={NO_STATUS_META.dot}
+              onToggle={() => toggle("status", NO_STATUS_KEY)}
+            />
           </div>
           <div>
             <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
@@ -2280,6 +2581,21 @@ function ListFilterPopover({
               />
             ))}
           </div>
+          {stageOptions.length > 0 && (
+            <div>
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                Stage
+              </div>
+              {stageOptions.map((o) => (
+                <CheckRow
+                  key={o.key}
+                  checked={f.stage.includes(o.key)}
+                  label={o.label}
+                  onToggle={() => toggle("stage", o.key)}
+                />
+              ))}
+            </div>
+          )}
           <div>
             <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
               Gate
@@ -2313,7 +2629,7 @@ function ListFilterPopover({
               onClick={() =>
                 setListView({
                   ...listView,
-                  filter: { status: [], type: [], gate: [], ownerId: [] },
+                  filter: EMPTY_FILTER,
                 })
               }
               className="w-full text-center text-xs text-[#a8893a] hover:underline pt-1"
@@ -2432,6 +2748,7 @@ function ListGroupPopover({
     { key: "status", label: "Status" },
     { key: "owner", label: "Owner" },
     { key: "type", label: "Type" },
+    { key: "stage", label: "Stage" },
     { key: "gate", label: "Gate" },
   ];
   const active = listView.group !== "none";

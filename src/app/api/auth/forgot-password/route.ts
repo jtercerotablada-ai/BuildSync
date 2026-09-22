@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createToken } from "@/lib/tokens";
@@ -48,10 +48,20 @@ export async function POST(req: Request) {
       return successResponse;
     }
 
-    // 30-minute lifetime for reset links (shorter than the 60-min default)
-    // to narrow the window an intercepted/guessed token stays valid — AUTH low.
-    const token = await createToken(`password-reset:${normalizedEmail}`, 30);
-    await sendPasswordResetEmail(normalizedEmail, token);
+    /* Mint and send AFTER the response. Awaiting the Resend call here made a
+       real address answer noticeably slower than an unknown one, which leaked
+       exactly what the identical message is meant to hide. `after` keeps the
+       function alive until the work finishes. */
+    after(async () => {
+      try {
+        // 30-minute lifetime for reset links (shorter than the 60-min default)
+        // to narrow the window an intercepted/guessed token stays valid — AUTH low.
+        const token = await createToken(`password-reset:${normalizedEmail}`, 30);
+        await sendPasswordResetEmail(normalizedEmail, token);
+      } catch (err) {
+        console.error("Error sending password reset email:", err);
+      }
+    });
 
     return successResponse;
   } catch (error) {

@@ -25,7 +25,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, RotateCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { TeamHeader } from "@/components/teams/team-header";
 import { CalendarView } from "@/components/views/calendar-view";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
@@ -75,15 +76,36 @@ export default function TeamCalendarPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // Why the tasks are missing, if they are. Without this a refused or failed
+  // fetch drew an empty calendar that read as "nothing scheduled".
+  const [tasksError, setTasksError] = useState<"forbidden" | "failed" | null>(
+    null
+  );
+  const [retrying, setRetrying] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     try {
       const res = await fetch(`/api/teams/${teamId}/tasks`);
-      if (res.ok) setTasks(await res.json());
+      if (res.ok) {
+        setTasks(await res.json());
+        setTasksError(null);
+      } else {
+        setTasksError(res.status === 403 ? "forbidden" : "failed");
+      }
     } catch (error) {
       console.error("Error fetching team tasks:", error);
+      setTasksError("failed");
     }
   }, [teamId]);
+
+  async function retryTasks() {
+    setRetrying(true);
+    try {
+      await fetchTasks();
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -95,9 +117,15 @@ export default function TeamCalendarPage() {
         ]);
         if (cancelled) return;
         if (teamRes.ok) setTeam(await teamRes.json());
-        if (tasksRes.ok) setTasks(await tasksRes.json());
+        if (tasksRes.ok) {
+          setTasks(await tasksRes.json());
+          setTasksError(null);
+        } else {
+          setTasksError(tasksRes.status === 403 ? "forbidden" : "failed");
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
+        if (!cancelled) setTasksError("failed");
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -131,7 +159,36 @@ export default function TeamCalendarPage() {
     <div className="h-full min-h-0 flex flex-col bg-white">
       <TeamHeader team={team} activeTab="calendar" />
 
-      {/* CalendarView is flex-col h-full; give it the remaining height. */}
+      {tasksError === "forbidden" ? (
+        <div className="flex flex-1 items-center justify-center px-6 py-16">
+          <p className="max-w-md text-center text-sm text-gray-600">
+            This team&apos;s calendar is shared with its members. Join the
+            team to see its scheduled work.
+          </p>
+        </div>
+      ) : tasksError === "failed" ? (
+        <div className="flex flex-1 items-center justify-center px-6 py-16">
+          <div className="text-center">
+            <p className="mb-4 text-sm text-gray-600">
+              Couldn&apos;t load this team&apos;s tasks.
+            </p>
+            <Button
+              variant="outline"
+              onClick={retryTasks}
+              disabled={retrying}
+              className="gap-1.5"
+            >
+              {retrying ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCw className="h-4 w-4" />
+              )}
+              Retry
+            </Button>
+          </div>
+        </div>
+      ) : (
+      /* CalendarView is flex-col h-full; give it the remaining height. */
       <div className="flex-1 min-h-0">
         <CalendarView
           sections={[
@@ -146,6 +203,7 @@ export default function TeamCalendarPage() {
           allowInlineCreate={false}
         />
       </div>
+      )}
 
       {/* Task detail slide-in — same panel as the project views. */}
       {selectedTaskId && (

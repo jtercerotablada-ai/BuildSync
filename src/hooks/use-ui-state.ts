@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 const FETCH_DEBOUNCE_MS = 600;
 
@@ -84,7 +85,41 @@ let serverConfirmed = false;
 // Keys the user wrote this session. Their PATCH may still be pending
 // when the initial GET lands, so for exactly these keys the local
 // value is newer than the server payload and must not be reverted.
-const locallyDirtyKeys = new Set<string>();
+// For an object-valued key the entry lists the sub-keys written, and
+// only those override the server copy; `true` means the whole value.
+type DirtyMark = Set<string> | true;
+const locallyDirtyKeys = new Map<string, DirtyMark>();
+
+// Sub-keys (or the whole value) still to be sent, per key. Drained by
+// sendPatch; put back when a transient failure is retried.
+const unsentChanges = new Map<string, DirtyMark>();
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function unionMark(map: Map<string, DirtyMark>, key: string, mark: DirtyMark) {
+  const cur = map.get(key);
+  if (cur === true || mark === true) {
+    map.set(key, true);
+    return;
+  }
+  map.set(key, cur ? new Set([...cur, ...mark]) : new Set(mark));
+}
+
+// Which part of a key an edit touched. An object-valued key is written
+// one sub-key at a time: sending the whole object let a stale tab put
+// back every sub-key another tab had changed since (e.g. My Tasks
+// sections), and the server merges one level deep anyway. A removed
+// sub-key is sent as null, which the server treats as a deletion.
+function changedPart(prev: unknown, next: unknown): DirtyMark {
+  if (!isPlainObject(prev) || !isPlainObject(next)) return true;
+  const changed = new Set<string>();
+  for (const k of new Set([...Object.keys(prev), ...Object.keys(next)])) {
+    if (JSON.stringify(prev[k]) !== JSON.stringify(next[k])) changed.add(k);
+  }
+  return changed;
+}
 
 async function fetchUiState(): Promise<Record<string, unknown>> {
   if (serverConfirmed && cachedUiState) return cachedUiState;
@@ -101,9 +136,19 @@ async function fetchUiState(): Promise<Record<string, unknown>> {
       // server payload doesn't visibly revert them. Dirty keys were
       // written by the CURRENT session's user, so they stay valid
       // even if the seed cache came from a previous user.
-      for (const key of locallyDirtyKeys) {
-        if (cachedUiState && key in cachedUiState) {
-          state[key] = cachedUiState[key];
+      for (const [key, mark] of locallyDirtyKeys) {
+        if (!cachedUiState || !(key in cachedUiState)) continue;
+        const local = cachedUiState[key];
+        const server = state[key];
+        if (mark !== true && isPlainObject(local) && isPlainObject(server)) {
+          const overlaid: Record<string, unknown> = { ...server };
+          for (const sub of mark) {
+            if (sub in local && local[sub] !== null) overlaid[sub] = local[sub];
+            else delete overlaid[sub];
+          }
+          state[key] = overlaid;
+        } else {
+          state[key] = local;
         }
       }
       // A mismatch means the seed cache belonged to the machine's
@@ -136,10 +181,10 @@ async function fetchUiState(): Promise<Record<string, unknown>> {
   return inflightFetch;
 }
 
-function setCachedKey(key: string, value: unknown) {
+function setCachedKey(key: string, value: unknown, mark: DirtyMark) {
   if (!cachedUiState) cachedUiState = {};
   cachedUiState[key] = value;
-  locallyDirtyKeys.add(key);
+  unionMark(locallyDirtyKeys, key, mark);
   // Only mirror to storage once the server has confirmed whose cache
   // this is — a pre-confirm write could land in another user's key.
   // Pre-confirm dirty values still reach storage when the fetch
@@ -153,20 +198,89 @@ function setCachedKey(key: string, value: unknown) {
 // a single network write.
 const pendingPatches = new Map<string, ReturnType<typeof setTimeout>>();
 
-function schedulePatch(key: string, value: unknown) {
+// A failed write used to be dropped without a word: the value lived on in
+// the local cache, so the UI looked saved, and then vanished on the next
+// device or after the next server fetch. Transient failures (network, 5xx,
+// 408/429) are retried with backoff; anything else, or the last retry, tells
+// the user once per page load.
+const MAX_PATCH_ATTEMPTS = 3;
+const RETRY_BASE_MS = 2000;
+let warnedSaveFailure = false;
+
+function warnSaveFailure(message: string) {
+  if (warnedSaveFailure) return;
+  warnedSaveFailure = true;
+  toast.error(message);
+}
+
+function sendPatch(key: string, attempt: number) {
+  const mark = unsentChanges.get(key);
+  unsentChanges.delete(key);
+  if (mark === undefined) return;
+  // Always send the key's CURRENT value: a retry must never overwrite a
+  // newer edit with the one that failed.
+  const current = cachedUiState ? cachedUiState[key] : undefined;
+  let value: unknown = current;
+  if (mark !== true && isPlainObject(current)) {
+    if (mark.size === 0) return;
+    const part: Record<string, unknown> = {};
+    for (const sub of mark) part[sub] = sub in current ? current[sub] : null;
+    value = part;
+  }
+  fetch("/api/users/preferences", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uiState: { [key]: value } }),
+  })
+    .then((res) => {
+      if (res.ok) return;
+      if (res.status === 401) {
+        warnSaveFailure(
+          "Your session has expired. Sign in again to keep saving your view settings."
+        );
+        return;
+      }
+      const transient =
+        res.status >= 500 || res.status === 408 || res.status === 429;
+      if (!transient) {
+        // e.g. 400 when the stored preferences hit their size cap — the
+        // same request will never succeed.
+        warnSaveFailure(
+          "Couldn't save your view settings. Changes are kept on this device only."
+        );
+        return;
+      }
+      retryPatch(key, attempt, mark);
+    })
+    .catch(() => retryPatch(key, attempt, mark));
+}
+
+function retryPatch(key: string, attempt: number, mark: DirtyMark) {
+  // The failed part still has to reach the server, with or without a
+  // newer queued write for the same key.
+  unionMark(unsentChanges, key, mark);
+  // A newer write for this key is already queued; it carries the value.
+  if (pendingPatches.has(key)) return;
+  if (attempt >= MAX_PATCH_ATTEMPTS) {
+    warnSaveFailure(
+      "Couldn't save your view settings. Changes are kept on this device only."
+    );
+    return;
+  }
+  const handle = setTimeout(() => {
+    pendingPatches.delete(key);
+    sendPatch(key, attempt + 1);
+  }, RETRY_BASE_MS * attempt);
+  pendingPatches.set(key, handle);
+}
+
+function schedulePatch(key: string, mark: DirtyMark) {
+  unionMark(unsentChanges, key, mark);
   const existing = pendingPatches.get(key);
   if (existing) clearTimeout(existing);
   const handle = setTimeout(() => {
     pendingPatches.delete(key);
-    fetch("/api/users/preferences", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uiState: { [key]: value } }),
-    }).catch(() => {
-      // Network drop — value is still cached locally; will be picked up
-      // on next successful PATCH (or lost on full reload, which is
-      // acceptable for ephemeral prefs).
-    });
+    sendPatch(key, 1);
   }, FETCH_DEBOUNCE_MS);
   pendingPatches.set(key, handle);
 }
@@ -187,6 +301,10 @@ export function useUiState<T>(key: string, defaultValue: T) {
   // useEffect below — after hydration is safe.
   const [value, setValueState] = useState<T>(defaultValue);
   const [isHydrated, setIsHydrated] = useState(false);
+  // True once `value` reflects the server copy rather than this device's
+  // localStorage cache, so a consumer seeded from SSR can ignore the
+  // cached value applied first.
+  const [isServerConfirmed, setIsServerConfirmed] = useState(false);
   const hydratedRef = useRef(false);
   // Mirror of `value` so setValue can resolve the functional form OUTSIDE
   // React. It used to resolve inside a setValueState updater and write the
@@ -212,6 +330,7 @@ export function useUiState<T>(key: string, defaultValue: T) {
     // a stable "blank/default" without ever flashing the default.
     hydratedRef.current = true;
     setIsHydrated(true);
+    setIsServerConfirmed(serverConfirmed);
 
     const sync = () => {
       const v = cachedUiState?.[key];
@@ -222,7 +341,10 @@ export function useUiState<T>(key: string, defaultValue: T) {
     subscribers.add(sync);
     // Kick off (or join) the server fetch. When the server response
     // lands, sync runs again with the authoritative DB value.
-    fetchUiState().then(sync);
+    fetchUiState().then(() => {
+      sync();
+      setIsServerConfirmed(serverConfirmed);
+    });
     return () => {
       subscribers.delete(sync);
     };
@@ -234,13 +356,20 @@ export function useUiState<T>(key: string, defaultValue: T) {
         typeof next === "function"
           ? (next as (p: T) => T)(valueRef.current)
           : next;
+      // Diff against the shared cache first: another instance of this key
+      // may have written it since this one last rendered.
+      const prev =
+        cachedUiState && key in cachedUiState
+          ? cachedUiState[key]
+          : valueRef.current;
+      const mark = changedPart(prev, resolved);
       valueRef.current = resolved;
       setValueState(resolved);
-      setCachedKey(key, resolved);
-      schedulePatch(key, resolved);
+      setCachedKey(key, resolved, mark);
+      schedulePatch(key, mark);
     },
     [key]
   );
 
-  return { value, setValue, isHydrated };
+  return { value, setValue, isHydrated, isServerConfirmed };
 }

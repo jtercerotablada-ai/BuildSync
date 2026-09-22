@@ -23,8 +23,10 @@ const updateMemberSchema = z
 // POST /invite and POST /members already admitted workspace managers, so a
 // workspace owner could put someone on a team and then not be able to change
 // or remove them — and a team whose only LEAD left the firm was permanently
-// unadministrable. A job title can be set by a manager (for anyone) or by the
-// member on their own row.
+// unadministrable. A job title can be set by the member on their own row, or
+// by a workspace OWNER/ADMIN for anyone — NOT by a team lead: User.jobTitle is
+// the person's workspace-wide profile, and leading a team is no authority over
+// a colleague's profile (the owner's included).
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ teamId: string; memberId: string }> }
@@ -74,10 +76,11 @@ export async function PATCH(
       }
     }
 
-    // Job title: a manager can set anyone's; a member can set only their own.
+    // Job title: a workspace OWNER/ADMIN can set anyone's; everyone else only
+    // their own. Same rule as the workspace directory.
     if (data.jobTitle !== undefined) {
       const isSelf = memberToUpdate.userId === userId;
-      if (!canManage && !isSelf) {
+      if (!standing.isWorkspaceManager && !isSelf) {
         return NextResponse.json(
           { error: "You can only edit your own job title" },
           { status: 403 }

@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/table";
 import { ChevronLeft, Download, ExternalLink, Inbox } from "lucide-react";
 
+/** The firm works in Miami; this page renders on the server in UTC. */
+const FIRM_TIME_ZONE = "America/New_York";
+const PAGE_LIMIT = 200;
+
 type SubmissionAnswer = { value?: unknown };
 type SubmissionData = Record<string, SubmissionAnswer | string | number | null>;
 
@@ -45,7 +49,11 @@ export default async function AdminFormSubmissionsPage({
 }) {
   const { formId } = await params;
   const userId = await getCurrentUserId();
-  if (!userId) redirect("/auth/signin");
+  if (!userId) {
+    redirect(
+      `/login?callbackUrl=${encodeURIComponent(`/portal/admin/forms/${formId}/submissions`)}`
+    );
+  }
 
   // The PRIMARY membership, the same one the APIs behind this page resolve.
   // A bare findFirst returned an arbitrary workspace, so the page could list
@@ -69,11 +77,14 @@ export default async function AdminFormSubmissionsPage({
     notFound();
   }
 
-  const submissions = await prisma.formSubmission.findMany({
-    where: { formId },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+  const [submissions, totalSubmissions] = await Promise.all([
+    prisma.formSubmission.findMany({
+      where: { formId },
+      orderBy: { createdAt: "desc" },
+      take: PAGE_LIMIT,
+    }),
+    prisma.formSubmission.count({ where: { formId } }),
+  ]);
 
   // FormSubmission stores taskId but doesn't have a typed Task relation,
   // so fetch the task names in a separate batched query.
@@ -132,8 +143,14 @@ export default async function AdminFormSubmissionsPage({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            Submissions ({submissions.length})
+            Submissions ({totalSubmissions})
           </CardTitle>
+          {totalSubmissions > submissions.length && (
+            <p className="text-xs text-muted-foreground">
+              Showing the latest {submissions.length}. Export CSV for all{" "}
+              {totalSubmissions}.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {submissions.length === 0 ? (
@@ -165,7 +182,14 @@ export default async function AdminFormSubmissionsPage({
                     return (
                       <TableRow key={sub.id}>
                         <TableCell className="text-muted-foreground whitespace-nowrap">
-                          {new Date(sub.createdAt).toLocaleString()}
+                          {new Date(sub.createdAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            timeZone: FIRM_TIME_ZONE,
+                          })}
                         </TableCell>
                         {dataFields.map((f) => (
                           <TableCell
@@ -178,7 +202,7 @@ export default async function AdminFormSubmissionsPage({
                         <TableCell>
                           {task ? (
                             <Link
-                              href={`/tasks/${task.id}`}
+                              href={`/projects/${form.project.id}?task=${task.id}`}
                               className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                             >
                               {task.name.length > 30

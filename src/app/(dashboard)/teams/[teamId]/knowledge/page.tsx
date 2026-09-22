@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -18,6 +19,7 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  RotateCw,
   Trash2,
   X,
 } from "lucide-react";
@@ -98,6 +100,10 @@ export default function TeamKnowledgePage() {
   // — otherwise a failed GET would show the onboarding empty state and the
   // user would think a populated glossary was empty (and re-create terms).
   const [loadError, setLoadError] = useState(false);
+  // A 403 is not a failure to retry: the glossary is for the team's members,
+  // and a non-member browsing a PUBLIC team would otherwise get a Retry that
+  // can never succeed.
+  const [forbidden, setForbidden] = useState(false);
   const [search, setSearch] = useState("");
 
   // Create / edit dialog
@@ -113,8 +119,10 @@ export default function TeamKnowledgePage() {
     if (res.ok) {
       setEntries(await res.json());
       setLoadError(false);
+      setForbidden(false);
     } else {
       setLoadError(true);
+      setForbidden(res.status === 403);
     }
   }, [teamId]);
 
@@ -129,8 +137,10 @@ export default function TeamKnowledgePage() {
       if (entriesRes.ok) {
         setEntries(await entriesRes.json());
         setLoadError(false);
+        setForbidden(false);
       } else {
         setLoadError(true);
+        setForbidden(entriesRes.status === 403);
       }
     } catch (e) {
       console.error("Error loading knowledge:", e);
@@ -249,7 +259,22 @@ export default function TeamKnowledgePage() {
     <div className="min-h-screen bg-white">
       <TeamHeader team={team} activeTab="knowledge" />
 
-      {loadError && entries.length === 0 ? (
+      {forbidden && entries.length === 0 ? (
+        <div className="flex items-center justify-center px-6 py-16">
+          <div className="w-full max-w-md rounded-2xl border p-10 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+              <BookOpen className="h-7 w-7 text-gray-500" />
+            </div>
+            <p className="mb-4 text-sm text-gray-600">
+              This team&apos;s knowledge is shared with its members. Join the
+              team to see it.
+            </p>
+            <Button asChild variant="outline">
+              <Link href={`/teams/${teamId}`}>Go to team overview</Link>
+            </Button>
+          </div>
+        </div>
+      ) : loadError && entries.length === 0 ? (
         // Fetch failed — don't masquerade as an empty glossary.
         <div className="flex items-center justify-center px-6 py-16">
           <div className="w-full max-w-md rounded-2xl border p-10 text-center">
@@ -257,7 +282,7 @@ export default function TeamKnowledgePage() {
               Couldn&apos;t load this team&apos;s knowledge.
             </p>
             <Button variant="outline" onClick={loadAll} className="gap-1.5">
-              <Loader2 className="h-4 w-4" />
+              <RotateCw className="h-4 w-4" />
               Retry
             </Button>
           </div>

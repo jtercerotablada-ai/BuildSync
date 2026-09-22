@@ -20,6 +20,13 @@ interface TeamSetupBannerProps {
       projects: number;
       members: number;
     };
+    /**
+     * Linked projects that are NOT archived — what the Curated work list
+     * shows. `_count.projects` also counts archived ones (the delete warning
+     * needs that total), so "Add work" could tick itself over an empty list.
+     * Preferred when the payload carries it.
+     */
+    activeProjectCount?: number;
   };
   onStepClick?: (stepId: string) => void;
 }
@@ -48,9 +55,11 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
     {
       id: "work",
       title: "Add work",
-      description: "Link existing projects, portfolios, or templates your team may find useful",
+      // Only projects can be linked to a team.
+      description: "Link the existing projects your team works on",
       icon: FolderPlus,
-      completed: (team._count?.projects || 0) > 0,
+      completed:
+        (team.activeProjectCount ?? team._count?.projects ?? 0) > 0,
     },
     {
       id: "members",

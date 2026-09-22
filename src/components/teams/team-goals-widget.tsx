@@ -1,14 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ChevronDown, Target } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface Goal {
@@ -38,30 +32,22 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-gray-900">Goals</h3>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1">
-              Create objective
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => router.push(`/goals/new?teamId=${teamId}`)}
-            >
-              <Target className="h-4 w-4 mr-2" />
-              New objective
-            </DropdownMenuItem>
-            {/* There is no objective picker yet, so this item had no handler
-                and closed the menu doing nothing. Locked until it exists. */}
-            <DropdownMenuItem disabled className="gap-2">
-              Connect existing objective
-              <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                Coming soon
-              </span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* There is no /goals/new page — that path is read as an objective
+            id and renders "Objective not found". The Goals list opens its
+            create dialog on ?new=1; teamId rides along for it to preselect
+            the team. A "Connect existing objective" item sat here as a
+            permanent "Coming soon" and is gone until a picker exists. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          onClick={() =>
+            router.push(`/goals?new=1&teamId=${encodeURIComponent(teamId)}`)
+          }
+        >
+          <Plus className="h-3 w-3" />
+          Create objective
+        </Button>
       </div>
 
       {/* Goals list or empty state */}

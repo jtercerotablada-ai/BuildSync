@@ -58,6 +58,27 @@ describe("ganttPrefsFor", () => {
     expect(ganttPrefsFor({ p1: null }, "p1")).toEqual(DEFAULT_GANTT_PREFS);
   });
 
+  it("uses the server seed when the in-session map has no key for the project", () => {
+    // A write made before the first fetch returned leaves a one-project map;
+    // another project's SSR prefs must not be replaced by the defaults.
+    const seed = prefs({ zoom: "week", collapsedSectionIds: ["s9"] });
+    expect(ganttPrefsFor({ p1: prefs() }, "p2", seed)).toEqual(seed);
+    expect(ganttPrefsFor(null, "p2", seed)).toEqual(seed);
+  });
+
+  it("prefers a present entry, and a tombstone, over the seed", () => {
+    const seed = prefs({ zoom: "week" });
+    expect(ganttPrefsFor({ p2: prefs({ zoom: "month" }) }, "p2", seed).zoom).toBe(
+      "month"
+    );
+    expect(ganttPrefsFor({ p2: null }, "p2", seed)).toEqual(DEFAULT_GANTT_PREFS);
+  });
+
+  it("validates the seed like a stored entry", () => {
+    const seed = { ...prefs(), zoom: "decade" } as unknown as GanttProjectPrefs;
+    expect(ganttPrefsFor({}, "p2", seed).zoom).toBe("day");
+  });
+
   it("falls back on a zoom the chart cannot draw", () => {
     // zoomConfig[zoom] is an object lookup: an unknown key is `undefined` and
     // takes the whole chart down, not just its label.

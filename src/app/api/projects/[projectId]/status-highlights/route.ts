@@ -2,7 +2,29 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { taskPrivacyClause } from "@/lib/project-visibility";
-import { resolveProjectAccess } from "@/lib/project-access";
+import { getProjectAccess } from "@/lib/project-access";
+import { startOfTodayUtc as utcTodayStart } from "@/lib/date-only";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// The caller's calendar day as "YYYY-MM-DD" (?today=). The server runs in
+// UTC, so from 20:00 in Miami its own date is already tomorrow and a task due
+// today was counted overdue. A client-sent day is only trusted within one day
+// of the UTC day (every real time zone falls inside that window); otherwise
+// fall back to the UTC day. Same rule as /api/ai/assist.
+function resolveToday(value: string | null): Date {
+  const utcToday = utcTodayStart();
+  if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    if (
+      !Number.isNaN(parsed.getTime()) &&
+      Math.abs(parsed.getTime() - utcToday.getTime()) <= MS_PER_DAY
+    ) {
+      return parsed;
+    }
+  }
+  return utcToday;
+}
 
 /**
  * GET /api/projects/:projectId/status-highlights
@@ -20,12 +42,15 @@ import { resolveProjectAccess } from "@/lib/project-access";
  *   - When the project has none, the window is the last 7 days →
  *     "what's happened this week" so a first update isn't empty.
  *
+ * Query: ?today=YYYY-MM-DD — the caller's local day, which decides
+ * "overdue" and "upcoming" (see resolveToday).
+ *
  * All counts are over the user's accessible scope (the projectId
  * itself is access-gated below). The endpoint is read-only and safe
  * to call on composer open + any refresh.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
@@ -36,26 +61,17 @@ export async function GET(
 
     const { projectId } = await params;
 
-    // Canonical read access (matches the project page): owner, member,
-    // PUBLIC, or workspace OWNER/ADMIN / L4+. The old inline check leaked
-    // WORKSPACE-visibility projects to any member and 403'd workspace admins.
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        id: true,
-        ownerId: true,
-        visibility: true,
-        workspaceId: true,
-        members: { select: { userId: true, role: true } },
-      },
-    });
-    if (!project) {
+    // Canonical read access (matches the project page). An unreadable
+    // project answers 404 like a missing one, so ids cannot be probed.
+    const access = await getProjectAccess(projectId, userId);
+    if (!access.ok) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    const access = await resolveProjectAccess(project, userId);
-    if (!access.ok) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    // Workspace OWNER/ADMIN hold the key to private tasks elsewhere
+    // (decideTaskAccess, the Files tab), so the same here.
+    const taskVisible = access.isWorkspaceManager
+      ? {}
+      : taskPrivacyClause(userId);
 
     // Compute the time window.
     const lastUpdate = await prisma.statusUpdate.findFirst({
@@ -67,11 +83,11 @@ export async function GET(
       ? lastUpdate.createdAt
       : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const now = new Date();
-    // Due dates are stored at UTC midnight of the due day. Bucket "overdue"
-    // and "upcoming" by the UTC calendar day so a task/milestone due TODAY
+    // Due dates are stored at UTC midnight of the due day, so the caller's
+    // day expressed the same way is the boundary: a task/milestone due TODAY
     // is neither counted overdue nor excluded from upcoming.
-    const startOfTodayUtc = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+    const startOfTodayUtc = resolveToday(
+      new URL(req.url).searchParams.get("today")
     );
 
     // Run the counts in parallel — each one is small + indexed.
@@ -92,19 +108,23 @@ export async function GET(
           completedAt: { gte: windowStart, lte: now },
         },
       }),
-      // Total tasks completed in window
+      // Root tasks completed in window (checklist subtasks are not tasks)
       prisma.task.count({
         where: {
           projectId,
+          parentTaskId: null,
           completed: true,
           completedAt: { gte: windowStart, lte: now },
         },
       }),
-      // Currently overdue — strictly BEFORE today (UTC day), so a task due
-      // today isn't counted overdue from the moment the day begins.
+      // Currently overdue — strictly BEFORE the caller's day, so a task due
+      // today isn't counted overdue. Root tasks the caller can see, the same
+      // set the Overview's overdue nudge counts, so the two agree.
       prisma.task.count({
         where: {
           projectId,
+          parentTaskId: null,
+          ...taskVisible,
           completed: false,
           dueDate: { lt: startOfTodayUtc },
         },
@@ -126,19 +146,20 @@ export async function GET(
       // Milestones approaching in the NEXT 14 days — surfaces what's
       // coming up so the composer can pre-fill the "Next steps" block
 // PRIVACY: reading the project is not the same as reading every task in
-// it. A private task is visible only to its creator or assignee —
+// it. A private task is visible only to its creator, its assignee, or a
+// workspace manager —
 // taskPrivacyClause() is the rule the rest of the product lists by, and
 // without it this endpoint printed other people's private milestone
 // NAMES. Same leak the project activity feed had.
       prisma.task.findMany({
         where: {
           projectId,
-          ...taskPrivacyClause(userId),
+          ...taskVisible,
           taskType: "MILESTONE",
           completed: false,
           dueDate: {
             gte: startOfTodayUtc,
-            lte: new Date(startOfTodayUtc.getTime() + 14 * 24 * 60 * 60 * 1000),
+            lte: new Date(startOfTodayUtc.getTime() + 14 * MS_PER_DAY),
           },
         },
         orderBy: { dueDate: "asc" },
@@ -154,7 +175,7 @@ export async function GET(
     const recentMilestones = await prisma.task.findMany({
       where: {
         projectId,
-        ...taskPrivacyClause(userId),
+        ...taskVisible,
         taskType: "MILESTONE",
         completed: true,
         completedAt: { gte: windowStart, lte: now },

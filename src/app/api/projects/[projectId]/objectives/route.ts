@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { resolveProjectAccess } from "@/lib/project-access";
+import { getProjectAccess } from "@/lib/project-access";
+import { resolveObjectiveAccess } from "@/lib/objective-access";
 import {
   verifyProjectAccess,
   AuthorizationError,
@@ -18,27 +20,6 @@ import { GoalProgressService } from "@/lib/goal-progress";
 // "Connected goals" panel to show progress + status of every linked
 // goal at a glance.
 
-async function assertProjectAccess(projectId: string, userId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      ownerId: true,
-      visibility: true,
-      workspaceId: true,
-      members: { select: { userId: true, role: true } },
-    },
-  });
-
-  if (!project) return { ok: false as const, status: 404 };
-
-  // Canonical read rule (matches the page): the old inline check leaked
-  // WORKSPACE-visibility projects to any member and 403'd workspace admins.
-  const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
-  return { ok: true as const, project };
-}
-
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ projectId: string }> }
@@ -50,28 +31,30 @@ export async function GET(
     }
 
     const { projectId } = await params;
-    const access = await assertProjectAccess(projectId, userId);
+    // Canonical read rule (matches the page). An unreadable project answers
+    // 404 like a missing one, so ids cannot be probed.
+    const access = await getProjectAccess(projectId, userId);
     if (!access.ok) {
-      return NextResponse.json(
-        { error: access.status === 404 ? "Not found" : "Forbidden" },
-        { status: access.status }
-      );
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     // Access to the PROJECT does not imply access to every goal pointed at it.
     // A private objective linked here would otherwise show its name, owner and
-    // progress to anyone who can open the project — the same clause the goals
-    // list uses, kept in the WHERE so it cannot be undone by a later slice.
+    // progress to anyone who can open the project — the objective-access rule
+    // (owner, member, or a manager of the goal's own workspace), kept in the
+    // WHERE so it cannot be undone by a later slice.
+    const privacyArms: Prisma.ObjectiveWhereInput[] = [
+      { isPrivate: false },
+      { ownerId: userId },
+      { members: { some: { userId } } },
+    ];
+    if (access.isWorkspaceManager && access.workspaceId) {
+      privacyArms.push({ workspaceId: access.workspaceId });
+    }
     const joins = await prisma.objectiveProject.findMany({
       where: {
         projectId,
-        objective: {
-          OR: [
-            { isPrivate: false },
-            { ownerId: userId },
-            { members: { some: { userId } } },
-          ],
-        },
+        objective: { OR: privacyArms },
       },
       include: {
         objective: {
@@ -146,34 +129,6 @@ const connectSchema = z.union([
   z.object({ name: z.string().trim().min(1).max(255) }),
 ]);
 
-/** Can this user SEE this objective? Mirrors the /api/objectives privacy
- *  gate (owner OR explicit member OR team member). Without it, a project
- *  editor could link a private goal they can't see and expose its name /
- *  progress / owner email to every project reader. */
-async function canSeeObjective(
-  userId: string,
-  objective: {
-    ownerId: string | null;
-    teamId: string | null;
-    id: string;
-  }
-): Promise<boolean> {
-  if (objective.ownerId === userId) return true;
-  const member = await prisma.objectiveMember.findUnique({
-    where: { objectiveId_userId: { objectiveId: objective.id, userId } },
-    select: { id: true },
-  });
-  if (member) return true;
-  if (objective.teamId) {
-    const tm = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId: objective.teamId } },
-      select: { id: true },
-    });
-    if (tm) return true;
-  }
-  return false;
-}
-
 // POST /api/projects/:projectId/objectives — connect a goal to this project.
 // Body is either { objectiveId } (connect existing) or { name } (create +
 // connect). Project-write-scoped so a viewer can't wire up goals.
@@ -211,17 +166,16 @@ export async function POST(
       objectiveId = created.id;
     } else {
       objectiveId = data.objectiveId;
-      // The objective must be in the project's workspace AND visible to the
-      // caller — same-workspace alone would let an editor link (and thereby
-      // expose) another team's private goal.
-      const objective = await prisma.objective.findUnique({
-        where: { id: objectiveId },
-        select: { id: true, workspaceId: true, ownerId: true, teamId: true },
-      });
-      if (!objective || objective.workspaceId !== project.workspaceId) {
-        return NextResponse.json({ error: "Goal not found" }, { status: 404 });
-      }
-      if (!(await canSeeObjective(userId, objective))) {
+      // The objective must be in the project's workspace AND readable by the
+      // caller under the canonical goal rule — same-workspace alone would let
+      // an editor link (and thereby expose) a private goal they cannot see.
+      // (The previous inline check also refused every non-private goal the
+      // caller did not own.)
+      const goalAccess = await resolveObjectiveAccess(objectiveId, userId);
+      if (
+        !goalAccess.ok ||
+        goalAccess.objective.workspaceId !== project.workspaceId
+      ) {
         return NextResponse.json({ error: "Goal not found" }, { status: 404 });
       }
     }

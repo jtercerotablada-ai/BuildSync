@@ -83,9 +83,12 @@ export async function GET(req: Request) {
     if (filter === "frequent") {
       // Frequent = shares the most projects with the caller. Falls
       // back to workspace-wide member list when the caller is in zero
-      // projects or no shared members exist.
+      // projects or no shared members exist. Both lookups stay inside this
+      // workspace, like the stats below: a co-member from another workspace
+      // the caller belongs to is not a colleague here, and would rank with
+      // meaningless zero stats.
       const callerProjects = await prisma.projectMember.findMany({
-        where: { userId },
+        where: { userId, project: { workspaceId } },
         select: { projectId: true },
       });
       const projectIds = callerProjects.map((pm) => pm.projectId);
@@ -96,6 +99,7 @@ export async function GET(req: Request) {
           where: {
             projectId: { in: projectIds },
             userId: { not: userId },
+            user: { workspaceMembers: { some: { workspaceId } } },
           },
           _count: { projectId: true },
           orderBy: { _count: { projectId: "desc" } },
@@ -105,7 +109,10 @@ export async function GET(req: Request) {
         const frequentUserIds = sharedMembers.map((m) => m.userId);
         if (frequentUserIds.length > 0) {
           const users = await prisma.user.findMany({
-            where: { id: { in: frequentUserIds } },
+            where: {
+              id: { in: frequentUserIds },
+              workspaceMembers: { some: { workspaceId } },
+            },
             select: userSelect,
           });
           // Preserve frequency ordering.
@@ -219,12 +226,15 @@ export async function GET(req: Request) {
       periodEnd = toBoundary(y, mo, d - (day - 1) + 7);
     }
 
+    // "Open" is `completed: false`, the source of truth. Rows completed
+    // before the completedAt column existed have completed=true and
+    // completedAt=null; keyed on completedAt they counted as overdue forever.
     const [overdueRows, completedRows, upcomingRows] = await Promise.all([
       prisma.task.groupBy({
         by: ["assigneeId"],
         where: {
           assigneeId: { in: memberIds },
-          completedAt: null,
+          completed: false,
           dueDate: { lt: today },
           project: { workspaceId },
         },
@@ -247,7 +257,7 @@ export async function GET(req: Request) {
         by: ["assigneeId"],
         where: {
           assigneeId: { in: memberIds },
-          completedAt: null,
+          completed: false,
           dueDate: { gte: today, lt: periodEnd },
           project: { workspaceId },
         },

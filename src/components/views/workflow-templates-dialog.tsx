@@ -133,17 +133,34 @@ export function WorkflowTemplatesDialog({
         skipped: summary.skipped ?? [],
       });
 
-      const sectionMsg =
-        summary.createdSections > 0
-          ? ` and ${summary.createdSections} new section${
-              summary.createdSections === 1 ? "" : "s"
-            }`
-          : "";
-      toast.success(
-        `Applied "${summary.templateName}" — ${summary.createdRules} rule${
-          summary.createdRules === 1 ? "" : "s"
-        }${sectionMsg}.`
-      );
+      const alreadyPresent: number = summary.alreadyPresent ?? 0;
+      if (summary.createdRules === 0 && summary.createdSections === 0) {
+        // Re-applying is a no-op on the server; say so instead of claiming
+        // "0 rules" were applied.
+        toast.info(
+          alreadyPresent > 0
+            ? `"${summary.templateName}" is already applied to this project.`
+            : `"${summary.templateName}" added nothing new.`
+        );
+      } else {
+        const sectionMsg =
+          summary.createdSections > 0
+            ? ` and ${summary.createdSections} new section${
+                summary.createdSections === 1 ? "" : "s"
+              }`
+            : "";
+        const existingMsg =
+          alreadyPresent > 0
+            ? ` ${alreadyPresent} rule${
+                alreadyPresent === 1 ? " was" : "s were"
+              } already in place.`
+            : "";
+        toast.success(
+          `Applied "${summary.templateName}" — ${summary.createdRules} rule${
+            summary.createdRules === 1 ? "" : "s"
+          }${sectionMsg}.${existingMsg}`
+        );
+      }
       onOpenChange(false);
     } catch (err) {
       toast.error(
@@ -165,7 +182,8 @@ export function WorkflowTemplatesDialog({
             Each template bundles sections and rules tailored to a real
             engineering handoff. Applying one creates any missing sections
             on this project and adds the rules — your existing setup is
-            untouched, so you can layer multiple templates.
+            untouched, so you can layer multiple templates. Rules a template
+            already added are never added twice.
           </p>
         </div>
 

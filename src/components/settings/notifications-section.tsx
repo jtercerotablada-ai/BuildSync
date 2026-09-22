@@ -80,8 +80,10 @@ export function NotificationsSection() {
 
   async function togglePref(key: keyof NotificationPreferences) {
     const prev = prefs[key];
-    const updated = { ...prefs, [key]: !prev };
-    setPrefs(updated);
+    // Functional updates that touch only `key`: rolling back from the
+    // closure's snapshot would also revert any other toggle made while this
+    // request was in flight, even one the server saved.
+    setPrefs((p) => ({ ...p, [key]: !prev }));
 
     try {
       const res = await fetch("/api/users/preferences", {
@@ -91,11 +93,11 @@ export function NotificationsSection() {
       });
 
       if (!res.ok) {
-        setPrefs({ ...prefs, [key]: prev });
+        setPrefs((p) => ({ ...p, [key]: prev }));
         toast.error("Failed to update preference");
       }
     } catch {
-      setPrefs({ ...prefs, [key]: prev });
+      setPrefs((p) => ({ ...p, [key]: prev }));
       toast.error("Failed to update preference");
     }
   }

@@ -2,7 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { assertProjectInWorkspace, assertTaskInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import {
+  assertProjectInWorkspace,
+  assertTaskInWorkspace,
+  verifyTaskAccess,
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+} from "@/lib/auth-guards";
+import {
+  buildProjectVisibilityClauses,
+  taskPrivacyClause,
+} from "@/lib/project-visibility";
 import { verifyObjectiveAccess } from "@/lib/objective-access";
 
 /**
@@ -17,6 +28,22 @@ async function assertKeyResultInObjective(keyResultId: string, objectiveId: stri
   });
   if (!kr) {
     throw new NotFoundError("Key result not found");
+  }
+}
+
+/**
+ * A task may be linked only when it is in the goal's workspace AND the caller
+ * can open it. Same-workspace alone let a colleague link a private task (or a
+ * task of a project they are not on) and then read its name and due date,
+ * along with everyone else who can open the goal. Denial is a 404 either way.
+ */
+async function assertTaskLinkable(taskId: string, workspaceId: string, userId: string) {
+  await assertTaskInWorkspace(taskId, workspaceId);
+  try {
+    await verifyTaskAccess(userId, taskId);
+  } catch (err) {
+    if (err instanceof AuthorizationError) throw new NotFoundError("Task not found");
+    throw err;
   }
 }
 
@@ -51,9 +78,14 @@ export async function GET(
     await verifyObjectiveAccess(userId, objectiveId);
     await assertKeyResultInObjective(keyResultId, objectiveId);
 
+    // Only the linked work this reader may open. A link made by someone who
+    // can see a PRIVATE project (or a private task) must not show its name,
+    // status or due date to every other reader of the goal.
+    const projectClauses = (await buildProjectVisibilityClauses(userId)) ?? [];
+
     const [projects, tasks] = await Promise.all([
       prisma.keyResultProject.findMany({
-        where: { keyResultId },
+        where: { keyResultId, project: { OR: projectClauses } },
         include: {
           project: {
             select: {
@@ -70,7 +102,12 @@ export async function GET(
         },
       }),
       prisma.keyResultTask.findMany({
-        where: { keyResultId },
+        where: {
+          keyResultId,
+          task: {
+            AND: [taskPrivacyClause(userId), { project: { OR: projectClauses } }],
+          },
+        },
         include: {
           task: {
             select: {
@@ -165,10 +202,14 @@ export async function POST(
     const data = connectionSchema.parse(body);
 
     // Scope connected project/task to the objective's workspace — audit SEC-04.
+    // ...and to what the caller can open, since the link then shows the
+    // project's or task's name to every reader of the goal.
     if (data.type === "project") {
-      await assertProjectInWorkspace(data.projectId, objective.workspaceId);
+      await assertProjectInWorkspace(data.projectId, objective.workspaceId, {
+        readableBy: userId,
+      });
     } else {
-      await assertTaskInWorkspace(data.taskId, objective.workspaceId);
+      await assertTaskLinkable(data.taskId, objective.workspaceId, userId);
     }
 
     if (data.type === "project") {

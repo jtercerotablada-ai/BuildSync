@@ -78,10 +78,11 @@ export const DEFAULT_GANTT_PREFS: Readonly<GanttProjectPrefs> = Object.freeze({
  * `uiState["gantt.viewPrefs"]`, keyed by project id.
  *
  * `null` is a tombstone for an evicted project: the server's uiState merge
- * (api/users/preferences PATCH) adds and overwrites keys but never deletes
- * them, so an entry we drop from the payload is simply resurrected from the
- * stored row on the next read. Overwriting it with null costs a few bytes and
- * actually removes it.
+ * (api/users/preferences PATCH) adds and overwrites keys, so an entry we drop
+ * from the payload is simply resurrected from the stored row on the next
+ * read. Overwriting it with null is what makes it read as never-visited.
+ * Note the null itself stays in the stored row unless the server treats a
+ * nested null as a deletion — the cap below bounds the LIVE entries only.
  */
 export type GanttPrefsMap = Record<
   string,
@@ -115,8 +116,18 @@ function isSyntheticSectionId(id: string): boolean {
  */
 export function ganttPrefsFor(
   map: GanttPrefsMap | null | undefined,
-  projectId: string
+  projectId: string,
+  /** What to read when the map has NO key for this project at all (not a
+   *  null tombstone): the server-resolved seed. The in-session map can be a
+   *  partial one — a write made before the first fetch returned carries only
+   *  the project it was made on, and the hook keeps that dirty copy over the
+   *  server payload for the rest of the session — so "absent" there means
+   *  "not known here", not "never visited". */
+  fallback?: GanttProjectPrefs | null
 ): GanttProjectPrefs {
+  if (fallback && (!map || map[projectId] === undefined)) {
+    return ganttPrefsFor({ [projectId]: fallback }, projectId);
+  }
   const entry = map?.[projectId];
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
     return { ...DEFAULT_GANTT_PREFS, collapsedSectionIds: [] };
@@ -154,8 +165,8 @@ export function ganttPrefsFor(
  * walks the order the stored object hands back, and uiState is a Postgres
  * `jsonb` column, which normalizes key order rather than preserving insertion
  * order — so "the oldest goes" would be a claim this cannot keep past a
- * reload. All the cap promises is that the map stays bounded and that the
- * project being written survives; the cost of losing a slot is one project
+ * reload. All the cap promises is that the number of LIVE entries stays
+ * bounded and that the project being written survives; the cost of losing a slot is one project
  * opening at the defaults.
  *
  * Always hand this a COMPLETE GanttProjectPrefs, never a patch: the server's

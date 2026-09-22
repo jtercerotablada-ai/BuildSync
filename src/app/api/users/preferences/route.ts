@@ -183,17 +183,22 @@ export async function PATCH(req: Request) {
         });
         const currentUiState = (existing?.uiState as Record<string, unknown> | null) || {};
         const merged: Record<string, unknown> = { ...currentUiState };
+        const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+          !!v && typeof v === "object" && !Array.isArray(v);
         for (const [key, value] of Object.entries(incomingUiState)) {
           const cur = currentUiState[key];
-          if (
-            cur &&
-            typeof cur === "object" &&
-            !Array.isArray(cur) &&
-            value &&
-            typeof value === "object" &&
-            !Array.isArray(value)
-          ) {
-            merged[key] = { ...cur, ...value };
+          if (isPlainObject(value)) {
+            // A null sub-key is a tombstone (the Gantt prefs and project
+            // tab-order maps evict ids this way): drop it rather than store
+            // it, or every eviction grows the row until it hits the cap.
+            // Top-level nulls are values in their own right and are kept.
+            const next: Record<string, unknown> = isPlainObject(cur)
+              ? { ...cur, ...value }
+              : { ...value };
+            for (const [subKey, subValue] of Object.entries(value)) {
+              if (subValue === null) delete next[subKey];
+            }
+            merged[key] = next;
           } else {
             merged[key] = value;
           }

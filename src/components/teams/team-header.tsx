@@ -29,6 +29,7 @@ import { useUiState } from "@/hooks/use-ui-state";
 import { InviteTeamModal } from "./invite-team-modal";
 import { TeamSettingsModal } from "./team-settings-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 
 /**
  * Starring a team is a per-user preference, so it belongs in server-backed
@@ -156,19 +157,40 @@ interface TeamHeaderProps {
     workspace?: { name: string } | null;
   };
   activeTab: "overview" | "members" | "work" | "messages" | "calendar" | "knowledge";
+  /**
+   * Called after this header changed the team (a member added, settings
+   * saved, archived), so a host page that draws its own copy of the roster —
+   * the Members grid — can refetch instead of disagreeing with the header.
+   */
+  onTeamChanged?: () => void;
 }
 
-export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
+/** The caller's standing, as GET /api/teams/:id/members?viewer=1 reports it. */
+interface ViewerStanding {
+  teamId: string;
+  isLead: boolean;
+  canManageMembers: boolean;
+  /** canManageMembers on a team that is not archived. */
+  canAddMembers: boolean;
+}
+
+export function TeamHeader({ team, activeTab, onTeamChanged }: TeamHeaderProps) {
   const router = useRouter();
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // Our own copy of the roster — see the effect below for why the header
-  // keeps one instead of trusting the prop alone.
+  // keeps one instead of trusting the prop alone. `source` is the prop it was
+  // fetched against: once the host hands us a new roster, that one wins, so
+  // a removal made elsewhere on the page is not hidden behind our old copy.
   const [fetchedMembers, setFetchedMembers] = useState<{
     teamId: string;
+    source: TeamMember[] | undefined;
     rows: TeamMember[];
   } | null>(null);
+  const [viewer, setViewer] = useState<ViewerStanding | null>(null);
+  // Bumped after a change made here (archive, add member) to re-read it.
+  const [viewerVersion, setViewerVersion] = useState(0);
   // Every page that renders this header holds the team in its own client
   // state, loaded once with fetch(), so router.refresh() — which only re-runs
   // server components — never repainted a rename saved in the settings
@@ -183,6 +205,9 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   const view = edited && edited.teamId === team.id ? { ...team, ...edited } : team;
 
   const reloadTeam = async () => {
+    // The host refetches its own copy; ours is refreshed below either way.
+    onTeamChanged?.();
+    setViewerVersion((v) => v + 1);
     try {
       const res = await fetch(`/api/teams/${team.id}`);
       if (!res.ok) return;
@@ -195,7 +220,11 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         privacy: fresh.privacy,
       });
       if (Array.isArray(fresh.members)) {
-        setFetchedMembers({ teamId: team.id, rows: fresh.members });
+        setFetchedMembers({
+          teamId: team.id,
+          source: team.members,
+          rows: fresh.members,
+        });
       }
     } catch {
       // Keep showing the last known values rather than blanking the header.
@@ -210,56 +239,73 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   const { data: session } = useSession();
   const currentUserId =
     (session?.user as { id?: string } | undefined)?.id || null;
-  // The primary-workspace role the jwt callback resolves. The invite route
-  // checks the role in the TEAM's workspace; for a single-workspace firm
-  // those are the same row, and when they aren't the route still decides —
-  // this only governs whether the button is offered.
+  // The primary-workspace role the jwt callback resolves. Only the fallback
+  // until the server's answer below arrives: the routes check the role in the
+  // TEAM's workspace, which for a single-workspace firm is the same row.
   const workspaceRole =
     (session?.user as { role?: string | null } | undefined)?.role ?? null;
 
-  // Membership normally rides in on the prop (every page here passes the raw
-  // /api/teams/:id payload). We keep our own copy anyway so adding someone
-  // from the dialog updates the avatar row and the picker's exclusion list
-  // without the host page refetching; and when a caller gives us no members
-  // at all we resolve them rather than guess — guessing "member" paints
-  // buttons that 403, guessing "not" hides Add member from a lead.
+  // The server's own verdict on what this caller may do in this team — the
+  // same requireTeamStanding the invite, members and PATCH routes use — so
+  // the header neither offers a button that 403s nor hides one from a
+  // workspace owner who is not on the team. The same response carries the
+  // roster, which covers a caller that gave us no members at all.
+  const hasPropMembers = !!team.members;
+  // The host refreshes its roster after a role change or removal made on its
+  // own page (the Members tab's "Remove as lead"), which never goes through
+  // reloadTeam. Keying the verdict on who holds which role in the prop makes
+  // it re-ask then, instead of keeping a demoted lead's buttons.
+  const rosterKey =
+    team.members?.map((m) => `${m.user.id}:${m.role}`).join(",") ?? "";
   useEffect(() => {
-    if (team.members) return;
     let canceled = false;
-    fetch(`/api/teams/${team.id}`)
+    fetch(`/api/teams/${team.id}/members?viewer=1`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((fresh) => {
-        if (!canceled && Array.isArray(fresh?.members)) {
+      .then((data) => {
+        if (canceled || !data?.viewer) return;
+        setViewer({
+          teamId: team.id,
+          isLead: !!data.viewer.isLead,
+          canManageMembers: !!data.viewer.canManageMembers,
+          canAddMembers: !!data.viewer.canAddMembers,
+        });
+        if (!hasPropMembers && Array.isArray(data.members)) {
           setFetchedMembers({
             teamId: team.id,
-            rows: fresh.members as TeamMember[],
+            source: undefined,
+            rows: data.members as TeamMember[],
           });
         }
       })
       .catch(() => {
-        // Leave membership unknown — the actions stay hidden, which is the
-        // safe direction: nothing offered is nothing that dead-ends.
+        // Keep the session-derived fallback below.
       });
     return () => {
       canceled = true;
     };
-  }, [team.id, team.members]);
+  }, [team.id, hasPropMembers, viewerVersion, rosterKey]);
 
   const members =
-    fetchedMembers && fetchedMembers.teamId === team.id
+    fetchedMembers &&
+    fetchedMembers.teamId === team.id &&
+    fetchedMembers.source === team.members
       ? fetchedMembers.rows
       : team.members;
   const myMembership = currentUserId
     ? members?.find((m) => m.user.id === currentUserId)
     : undefined;
-  const isLead = myMembership?.role === "LEAD";
-  // Exactly the gate POST /api/teams/:teamId/invite enforces: you must be ON
-  // the team, and then either its LEAD or a workspace ADMIN/OWNER. This button
-  // used to render for everyone, so a colleague filled in an address and got
-  // "Only team leads or workspace admins can invite members".
-  const canInvite =
-    !!myMembership &&
-    (isLead || workspaceRole === "ADMIN" || workspaceRole === "OWNER");
+  const standing = viewer && viewer.teamId === team.id ? viewer : null;
+  const isLead = standing ? standing.isLead : myMembership?.role === "LEAD";
+  // The gate POST /api/teams/:teamId/invite and /members enforce: the team's
+  // LEAD, or a workspace OWNER/ADMIN whether or not he is on the team. PATCH
+  // admits the same set to archive the team and edit its details, so it also
+  // opens Team settings.
+  const canInvite = standing
+    ? standing.canManageMembers
+    : isLead || workspaceRole === "ADMIN" || workspaceRole === "OWNER";
+  // An archived team takes no one new until it is restored, so Add member
+  // goes quiet instead of ending in the route's refusal.
+  const canAddMember = standing ? standing.canAddMembers : canInvite;
 
   // Deleting a team cascades to its messages, custom fields and knowledge
   // entries; its projects AND goals are only DETACHED (both FKs are
@@ -274,6 +320,9 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
       }
       toast.success("Team deleted");
       setShowDeleteConfirm(false);
+      // The sidebar caches its team list client-side; router.refresh() does
+      // not reach it, so it would keep listing the deleted team.
+      notifySidebarRefresh();
       router.push("/teams");
       router.refresh();
     } catch (error) {
@@ -328,11 +377,9 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                     didn't give us enough of the team to open it.
 
                     Delete is lead-only because DELETE /api/teams/:id is; the
-                    settings dialog also carries archive/restore, which PATCH
-                    opens to a workspace OWNER/ADMIN, so it follows canInvite
-                    (the same on-the-team-plus-lead-or-ws-admin set) and hides
-                    its own lead-only General tab for the rest. This menu used
-                    to show both to every member. */}
+                    settings dialog (details, archive/restore) follows
+                    canInvite, the lead-or-workspace-admin set PATCH admits.
+                    This menu used to show both to every member. */}
                 {(isLead || canInvite) && (
                   <DropdownMenuItem
                     onSelect={(e) => {
@@ -405,7 +452,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
 
             {/* Invite button — only for someone the invite route will let
                 through. See canInvite above. */}
-            {canInvite && (
+            {canAddMember && (
               <Button
                 className="bg-black hover:bg-black gap-2"
                 onClick={() => setShowInviteModal(true)}
@@ -465,7 +512,8 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
           open={showSettings}
           onClose={() => setShowSettings(false)}
           onSave={reloadTeam}
-          canEditDetails={isLead}
+          canEditDetails={canInvite}
+          canDelete={isLead}
         />
       )}
 

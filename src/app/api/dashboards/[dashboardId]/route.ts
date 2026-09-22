@@ -4,8 +4,18 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId } from "@/lib/auth-guards";
 
+// Same rule as creation: the "__portfolio:" prefix is reserved for the hidden
+// Report behind a portfolio's Panel — a dashboard renamed to it could never be
+// reached (or renamed back) again.
 const updateSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Dashboard name is required")
+    .refine((n) => !n.startsWith("__portfolio:"), {
+      message: "Dashboard names cannot start with \"__portfolio:\"",
+    })
+    .optional(),
   description: z.string().optional().nullable(),
   iconColor: z.string().optional(),
 });

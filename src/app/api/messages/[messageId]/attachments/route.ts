@@ -2,16 +2,21 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
+  BlobRejectedError,
+  SAAS_BLOB_ACCESS,
+  maxUploadBytes,
   uploadFile,
   isPrivateBlobUrl,
   isVercelBlobUrl,
   readPrivateBlob,
+  verifyUploadedBlob,
 } from "@/lib/storage";
 import { loadMessageWithAccess } from "@/lib/message-access";
 
 /**
- * Message attachments are private blobs, so the row's url is not something a
- * browser can follow — the bytes need an authenticated door, the way task
+ * A message attachment's row url is a storage address (a private blob, or an
+ * unguessable public one that must not leak), so the bytes need an
+ * authenticated door, the way task
  * attachments have /api/files/attachment/:id. MessageAttachment is not one of
  * that route's record types, and its access rule is this file's
  * (loadMessageWithAccess), so the door lives here: the id travels as `?file=`
@@ -96,13 +101,17 @@ export async function GET(
       });
     }
 
-    // ── LEGACY PUBLIC BLOBS — DO NOT DELETE ──────────────────────────────
-    // Everything uploaded before storage.ts switched to `access: "private"`
-    // is a PUBLIC blob and its public url is the only address we hold for it:
-    // Vercel Blob cannot flip an existing blob's access. Without this branch
-    // every file already posted in a message stops opening.
+    // ── PUBLIC BLOBS — DO NOT DELETE ─────────────────────────────────────
+    // Legacy uploads, and every upload while SAAS_BLOB_ACCESS is "public",
+    // are PUBLIC blobs whose url is the only address we hold: Vercel Blob
+    // cannot flip an existing blob's access. The caller has just passed the
+    // message's read rule. Without this branch no message file opens.
     if (!isVercelBlobUrl(attachment.url)) return notFound();
-    return NextResponse.redirect(attachment.url, {
+    // Carry `?download=1` across the hop: `<a download>` is ignored once a
+    // redirect goes cross-origin, and Vercel Blob honours the param.
+    const target = new URL(attachment.url);
+    if (forceDownload) target.searchParams.set("download", "1");
+    return NextResponse.redirect(target.toString(), {
       status: 307,
       headers: { "Cache-Control": "private, no-store" },
     });
@@ -118,8 +127,11 @@ export async function GET(
 /**
  * POST /api/messages/:messageId/attachments
  *
- * Upload a file and bind it to an existing message. Works for both
- * project and portfolio messages (Message is the shared model).
+ * Bind a file to an existing message. Works for both project and portfolio
+ * messages (Message is the shared model). Either JSON { blobUrl, name } for a
+ * file the browser uploaded straight to blob storage (token:
+ * /api/blob/upload — Vercel refuses a function body over ~4.5MB), or a
+ * multipart `file` for a small one.
  *
  * Access: the actor must be able to read the message's scope AND
  * must be the message author (attachments are part of the message,
@@ -150,37 +162,85 @@ export async function POST(
       );
     }
 
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
-    }
+    let record: { name: string; url: string; size: number; mimeType: string };
+    const isClientUpload = (req.headers.get("content-type") ?? "")
+      .toLowerCase()
+      .includes("application/json");
 
-    // uploadFile owns the size cap and the type allowlist — a second copy of
-    // the ceiling here is how this route ended up rejecting files the store
-    // would have taken. Its failures are the caller's fault, so surface the
-    // reason as a 400 rather than the generic 500 the outer catch returns.
-    let url: string;
-    try {
-      ({ url } = await uploadFile(file, `messages/${messageId}`));
-    } catch (uploadErr) {
-      return NextResponse.json(
-        { error: uploadErr instanceof Error ? uploadErr.message : "Upload failed" },
-        { status: 400 }
-      );
+    if (isClientUpload) {
+      const body = (await req.json().catch(() => null)) as {
+        blobUrl?: unknown;
+        name?: unknown;
+      } | null;
+      if (
+        !body ||
+        typeof body.blobUrl !== "string" ||
+        typeof body.name !== "string" ||
+        body.name.length === 0
+      ) {
+        return NextResponse.json(
+          { error: "blobUrl and name are required" },
+          { status: 400 }
+        );
+      }
+      // The url is the caller's word: our store, the expected access level,
+      // this message's folder, and size/type read off the stored blob.
+      try {
+        record = await verifyUploadedBlob(
+          body.blobUrl,
+          body.name,
+          `messages/${messageId}/`,
+          SAAS_BLOB_ACCESS,
+          maxUploadBytes()
+        );
+      } catch (err) {
+        if (err instanceof BlobRejectedError) {
+          return NextResponse.json({ error: err.message }, { status: err.status });
+        }
+        throw err;
+      }
+      // One row per blob: deleting either row would strand the other.
+      const already = await prisma.messageAttachment.findFirst({
+        where: { url: record.url },
+        select: { id: true },
+      });
+      if (already) {
+        return NextResponse.json(
+          { error: "That file is already attached" },
+          { status: 409 }
+        );
+      }
+    } else {
+      const formData = await req.formData();
+      const file = formData.get("file") as File | null;
+      if (!file) {
+        return NextResponse.json(
+          { error: "No file provided" },
+          { status: 400 }
+        );
+      }
+
+      // uploadFile owns the size cap and the type allowlist. Its failures are
+      // the caller's fault, so surface the reason as a 400 rather than the
+      // generic 500 the outer catch returns.
+      try {
+        const { url } = await uploadFile(file, `messages/${messageId}`);
+        record = {
+          name: file.name,
+          url,
+          size: file.size,
+          mimeType: file.type || "application/octet-stream",
+        };
+      } catch (uploadErr) {
+        return NextResponse.json(
+          { error: uploadErr instanceof Error ? uploadErr.message : "Upload failed" },
+          { status: 400 }
+        );
+      }
     }
 
     const attachment = await prisma.messageAttachment.create({
-      data: {
-        name: file.name,
-        url,
-        size: file.size,
-        mimeType: file.type || "application/octet-stream",
-        messageId,
-      },
+      data: { ...record, messageId },
     });
 
     return NextResponse.json(

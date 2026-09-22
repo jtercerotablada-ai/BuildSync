@@ -36,10 +36,18 @@ export function readRefs(value: unknown): EntityRef[] {
 export function ReferenceFieldEditor({
   value,
   onChange,
+  source,
 }: {
   value: unknown;
   onChange: (next: EntityRef[]) => void;
+  /**
+   * Limits what the field can link: "tasks" searches only tasks, "projects"
+   * only projects. Anything else (or unset) searches both.
+   */
+  source?: string;
 }) {
+  const wantTasks = source !== "projects";
+  const wantProjects = source !== "tasks";
   const selected = readRefs(value);
   const selectedKey = new Set(selected.map((r) => `${r.kind}:${r.id}`));
 
@@ -49,17 +57,38 @@ export function ReferenceFieldEditor({
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Both lists are searched on the server (slim rows, ?q=) as the user
+  // types. Pulling the full hydrated project list plus the first 1000 tasks
+  // and filtering here was heavy and missed every task past that cap.
+  const fetchIdRef = useRef(0);
   useEffect(() => {
     if (!open) return;
-    const run = async () => {
-      setLoading(true);
+    const q = search.trim();
+    const fetchId = ++fetchIdRef.current;
+    setLoading(true);
+    const timer = setTimeout(async () => {
       try {
+        const taskParams = new URLSearchParams({
+          fields: "summary",
+          limit: "40",
+          // Subtasks are linkable too; ignored by the route until supported.
+          includeSubtasks: "true",
+        });
+        const projectParams = new URLSearchParams({
+          fields: "summary",
+          limit: "20",
+        });
+        if (q) {
+          taskParams.set("q", q);
+          projectParams.set("q", q);
+        }
         const [taskRes, projRes] = await Promise.all([
-          fetch("/api/tasks"),
-          fetch("/api/projects"),
+          wantTasks ? fetch(`/api/tasks?${taskParams.toString()}`) : null,
+          wantProjects ? fetch(`/api/projects?${projectParams.toString()}`) : null,
         ]);
-        const tasks = taskRes.ok ? await taskRes.json() : [];
-        const projects = projRes.ok ? await projRes.json() : [];
+        const tasks = taskRes?.ok ? await taskRes.json() : [];
+        const projects = projRes?.ok ? await projRes.json() : [];
+        if (fetchId !== fetchIdRef.current) return;
         const merged: EntityRef[] = [
           ...(Array.isArray(projects) ? projects : []).map(
             (p: { id: string; name: string }) => ({
@@ -80,16 +109,18 @@ export function ReferenceFieldEditor({
       } catch {
         /* silent */
       } finally {
-        setLoading(false);
+        if (fetchId === fetchIdRef.current) setLoading(false);
       }
-    };
-    run();
-  }, [open]);
+    }, q ? 200 : 0);
+    return () => clearTimeout(timer);
+  }, [open, search, wantTasks, wantProjects]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 0);
   }, [open]);
 
+  // The server already matched the search; keep the local check so a stale
+  // response for an older query never shows rows that do not match.
   const q = search.trim().toLowerCase();
   const filtered = results
     .filter((r) => !q || r.name.toLowerCase().includes(q))
@@ -166,7 +197,13 @@ export function ReferenceFieldEditor({
               ref={inputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tasks or projects"
+              placeholder={
+                !wantProjects
+                  ? "Search tasks"
+                  : !wantTasks
+                    ? "Search projects"
+                    : "Search tasks or projects"
+              }
               className="flex-1 border-0 p-0 h-7 focus-visible:ring-0 text-sm"
             />
           </div>

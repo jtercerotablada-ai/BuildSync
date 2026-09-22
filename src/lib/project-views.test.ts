@@ -49,7 +49,7 @@ const CATALOG_ORDER = [
   "workload",
 ];
 
-const MOBILE_ONLY_MD_UP = ["workflow", "messages", "files", "notes", "workload"];
+const MOBILE_ONLY_MD_UP = ["workflow", "notes", "workload"];
 
 function keysOf(tabs: ProjectViewTab[]): string[] {
   return tabs.map((t) => t.viewKey);
@@ -81,8 +81,8 @@ describe("resolveProjectTabs — no saved order", () => {
       { viewKey: "calendar", baseView: "calendar", label: "Calendar", mobile: true, isCopy: false, isDefault: false },
       { viewKey: "gantt", baseView: "gantt", label: "Gantt", mobile: true, isCopy: false, isDefault: false },
       { viewKey: "workflow", baseView: "workflow", label: "Workflow", mobile: false, isCopy: false, isDefault: false },
-      { viewKey: "messages", baseView: "messages", label: "Messages", mobile: false, isCopy: false, isDefault: false },
-      { viewKey: "files", baseView: "files", label: "Files", mobile: false, isCopy: false, isDefault: false },
+      { viewKey: "messages", baseView: "messages", label: "Messages", mobile: true, isCopy: false, isDefault: false },
+      { viewKey: "files", baseView: "files", label: "Files", mobile: true, isCopy: false, isDefault: false },
       { viewKey: "notes", baseView: "notes", label: "Notes", mobile: false, isCopy: false, isDefault: false },
       { viewKey: "workload", baseView: "workload", label: "Workload", mobile: false, isCopy: false, isDefault: false },
     ]);

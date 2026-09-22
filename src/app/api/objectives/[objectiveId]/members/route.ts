@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { notifyObjectiveShared } from "@/lib/objective-notifications";
+import { contributorSeatSatisfied } from "@/lib/auth-guards";
 import {
   objectiveAccessDenied,
   resolveObjectiveAccess,
@@ -10,14 +11,17 @@ import {
 
 /**
  * GET    /api/objectives/:id/members — list members of an objective
- * POST   /api/objectives/:id/members — add a member (owner-only)
+ * POST   /api/objectives/:id/members — add a member (owner or
+ *                                       workspace OWNER/ADMIN)
  * DELETE /api/objectives/:id/members?userId= — remove a member
- *                                              (owner-only; member
+ *                                              (owner or workspace
+ *                                              OWNER/ADMIN; a member
  *                                              can leave themselves)
  *
- * Access: any user who can SEE the objective (owner, team member,
- * existing member) can GET the member list. Only the OWNER can
- * POST a new member or DELETE someone else.
+ * Access: any user who can open the objective (the shared goal gate) can GET
+ * the member list. Only the owner or a workspace OWNER/ADMIN can POST a new
+ * member or DELETE someone else — the admin arm is what lets a goal whose
+ * owner left the firm still be managed.
  *
  * Adding a member fires a notifyObjectiveShared() so the new member
  * sees "X shared this objective with you" in their inbox.
@@ -32,7 +36,7 @@ async function loadObjectiveWithAccess(
   objectiveId: string,
   userId: string
 ): Promise<
-  | { ok: true; objective: { id: string; name: string; ownerId: string | null; workspaceId: string; teamId: string | null }; isOwner: boolean; canSee: boolean }
+  | { ok: true; objective: { id: string; name: string; ownerId: string | null; workspaceId: string; teamId: string | null }; isOwner: boolean; canManage: boolean }
   | { ok: false; status: number; error: string }
 > {
   // The shared goal gate first, and it already answers in this function's
@@ -53,22 +57,10 @@ async function loadObjectiveWithAccess(
     return objectiveAccessDenied();
   }
 
+  // Everyone the gate lets open the goal page may see who is on it; the page
+  // and this list used to answer that question differently.
   const isOwner = gate.isOwner;
-  let isTeamMember = false;
-  if (gate.objective.teamId) {
-    const tm = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId: gate.objective.teamId } },
-      select: { id: true },
-    });
-    isTeamMember = !!tm;
-  }
-  // Kept on top of the gate, which admits any workspace contributor to an
-  // ordinary goal: the member list has always been for people actually on it.
-  const canSee = isOwner || isTeamMember || gate.isMember;
-  if (!canSee) {
-    // 404 (not 403) masks existence.
-    return objectiveAccessDenied();
-  }
+  const canManage = isOwner || gate.isWorkspaceManager;
 
   return {
     ok: true,
@@ -80,7 +72,7 @@ async function loadObjectiveWithAccess(
       teamId: gate.objective.teamId,
     },
     isOwner,
-    canSee,
+    canManage,
   };
 }
 
@@ -143,9 +135,9 @@ export async function POST(
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
-    if (!access.isOwner) {
+    if (!access.canManage) {
       return NextResponse.json(
-        { error: "Only the objective owner can add members" },
+        { error: "Only the goal owner or a workspace admin can add members" },
         { status: 403 }
       );
     }
@@ -168,9 +160,11 @@ export async function POST(
           workspaceId: access.objective.workspaceId,
         },
       },
-      select: { id: true },
+      select: { role: true },
     });
-    if (!targetMembership) {
+    // A GUEST/CLIENT seat is refused every goal by the shared gate, so a
+    // membership row would promise access that never works.
+    if (!targetMembership || !contributorSeatSatisfied(targetMembership.role)) {
       return NextResponse.json(
         { error: "User is not a member of this workspace" },
         { status: 400 }
@@ -260,20 +254,26 @@ export async function DELETE(
       );
     }
 
-    // Members can always remove themselves. Removing OTHERS requires
-    // owner.
-    if (targetUserId !== userId && !access.isOwner) {
+    // Members can always remove themselves. Removing OTHERS requires the
+    // owner or a workspace admin.
+    if (targetUserId !== userId && !access.canManage) {
       return NextResponse.json(
-        { error: "Only the objective owner can remove other members" },
+        { error: "Only the goal owner or a workspace admin can remove other members" },
         { status: 403 }
       );
     }
 
-    await prisma.objectiveMember.delete({
-      where: {
-        objectiveId_userId: { objectiveId, userId: targetUserId },
-      },
+    // deleteMany, not delete: a second click or a stale tab removing someone
+    // already gone threw P2025 and surfaced as a 500.
+    const removed = await prisma.objectiveMember.deleteMany({
+      where: { objectiveId, userId: targetUserId },
     });
+    if (removed.count === 0) {
+      return NextResponse.json(
+        { error: "That person is not a member of this goal" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

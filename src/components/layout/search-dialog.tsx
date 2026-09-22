@@ -116,17 +116,15 @@ export function SearchDialog({
     onOpenChange(false);
     switch (item.type) {
       case "task":
-        // Carry the task id in the URL the same way the inbox's links do.
-        // Nothing reads `task` yet, so today the user still lands on the
-        // board with nothing selected; the shape is here so that whenever
-        // the destination views learn to open a task, both entry points
-        // start working at once.
+        // Same links as the inbox: the project page opens the task panel
+        // from ?task=, and a project-less task opens on the full-page task
+        // route, which exists only in the internal app (hence no prefix).
         if (item.extra?.projectId) {
           router.push(
             `${basePath}/projects/${item.extra.projectId}?task=${item.id}`
           );
         } else {
-          router.push(`${basePath}/my-tasks?task=${item.id}`);
+          router.push(`/tasks/${item.id}`);
         }
         break;
       case "project":
@@ -156,6 +154,9 @@ export function SearchDialog({
       title="Search"
       description="Search across tasks, projects, teams and people"
       showCloseButton={false}
+      // Results are already matched on the server (people by name OR email);
+      // cmdk's own filter only sees each item's value and hid email matches.
+      commandProps={{ shouldFilter: false }}
     >
       <CommandInput
         placeholder="Search tasks, projects, teams, people..."
@@ -255,6 +256,10 @@ export function SearchDialog({
               <CommandItem
                 key={user.id}
                 value={`user-${user.id}-${user.name}`}
+                // The server also matches on email, but cmdk re-filters each
+                // row against its value client-side; without the email here
+                // a query like "juan@" hid the very person it found.
+                keywords={user.extra.email ? [user.extra.email] : undefined}
                 onSelect={() => handleSelect(user)}
                 className="cursor-pointer"
               >

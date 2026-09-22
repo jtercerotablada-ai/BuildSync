@@ -66,6 +66,13 @@ export default async function UserProfilePage({ params }: Props) {
     sharedProjects = targetProj.map((p) => p.project);
   }
 
+  // A profile is visible only to its owner and to people who share a
+  // workspace with them. Anyone else gets the same 404 as a missing id, so
+  // a leaked id from another workspace discloses nothing.
+  if (!isOwnProfile && (!currentUserId || sharedWorkspaces.length === 0)) {
+    notFound();
+  }
+
   const initials =
     user.name
       ?.split(" ")

@@ -17,8 +17,18 @@ const updateNoteSchema = z
     title: z.string().max(MAX_TITLE).optional(),
     content: z.string().max(MAX_CONTENT).optional(),
     position: z.number().int().min(0).optional(),
+    // The updatedAt the client's copy was based on. When present the write
+    // lands only if nobody saved in between; otherwise 409 with the current
+    // note, so a stale tab cannot overwrite a colleague's save.
+    baseUpdatedAt: z.string().datetime().nullish(),
   })
-  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
+  .refine(
+    (v) =>
+      v.title !== undefined ||
+      v.content !== undefined ||
+      v.position !== undefined,
+    { message: "Nothing to update" }
+  );
 
 const noteSelect = {
   id: true,
@@ -58,7 +68,27 @@ export async function PATCH(
     await loadNote(projectId, noteId);
 
     const body = await req.json();
-    const data = updateNoteSchema.parse(body);
+    const { baseUpdatedAt, ...data } = updateNoteSchema.parse(body);
+
+    if (baseUpdatedAt) {
+      // Compare-and-set in one statement: no window between check and write.
+      const { count } = await prisma.projectNote.updateMany({
+        where: { id: noteId, updatedAt: new Date(baseUpdatedAt) },
+        data,
+      });
+      const current = await prisma.projectNote.findUnique({
+        where: { id: noteId },
+        select: noteSelect,
+      });
+      if (!current) throw new NotFoundError("Note not found");
+      if (count === 0) {
+        return NextResponse.json(
+          { error: "This note was changed by someone else", note: current },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(current);
+    }
 
     const note = await prisma.projectNote.update({
       where: { id: noteId },

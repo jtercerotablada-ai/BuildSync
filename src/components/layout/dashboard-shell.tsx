@@ -1,13 +1,12 @@
 "use client";
 
 import { ReactNode, useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { CreateProjectGallery } from "@/components/projects/create-project-gallery";
 import { OPEN_CREATE_PROJECT_EVENT } from "@/lib/open-create-project";
-import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
 import { CreateObjectiveDialog } from "@/components/goals/create-objective-dialog";
 import {
@@ -28,6 +27,12 @@ import { SearchDialog } from "./search-dialog";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 
 const SIDEBAR_STORAGE_KEY = "buildsync.sidebarCollapsed";
+
+// Below this width the sidebar is an overlay drawer (see sidebar.tsx's
+// max-md: classes), not the desktop rail.
+function isMobileViewport() {
+  return typeof window !== "undefined" && window.innerWidth < 768;
+}
 
 // Global "open quick task composer" event — same pattern as
 // OPEN_CREATE_PROJECT_EVENT (see lib/open-create-project). The floating
@@ -61,7 +66,6 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
   // CTA — covers the case where a user wants to set every field upfront.
   const [showCreateGallery, setShowCreateGallery] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
-  const [showCreateTask, setShowCreateTask] = useState(false);
   const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
   const [showCreatePortfolio, setShowCreatePortfolio] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
@@ -121,22 +125,32 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
   const [creatingPortfolio, setCreatingPortfolio] = useState(false);
   const [newPortfolio, setNewPortfolio] = useState({ name: "", description: "" });
 
-  // Persist sidebar state to BOTH localStorage (offline) and DB (cross-device)
+  // Persist sidebar state to BOTH localStorage (offline) and DB (cross-device).
+  // The saved value is the DESKTOP rail preference: on a phone the sidebar is
+  // a transient drawer, and opening/closing it used to overwrite the desktop
+  // setting, so the next desktop visit came up as the collapsed icon rail.
   function toggleSidebar() {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
-      } catch {}
-      // Fire-and-forget API save
-      fetch("/api/users/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uiState: { sidebarCollapsed: next } }),
-      }).catch(() => { /* ignore */ });
-      return next;
-    });
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    if (isMobileViewport()) return;
+    try {
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+    } catch {}
+    // Fire-and-forget API save
+    fetch("/api/users/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uiState: { sidebarCollapsed: next } }),
+    }).catch(() => { /* ignore */ });
   }
+
+  // The mobile drawer overlays the page, so a tap on any link inside it must
+  // close it once the route changes; otherwise the new page stays hidden
+  // under the drawer and scrim. Not persisted (see toggleSidebar).
+  const pathname = usePathname();
+  useEffect(() => {
+    if (isMobileViewport()) setSidebarCollapsed(true);
+  }, [pathname]);
 
   // Cmd+K / Ctrl+K to open search
   useEffect(() => {
@@ -252,6 +266,7 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
         <Sidebar
           collapsed={sidebarCollapsed}
           onCreateProject={() => setShowCreateGallery(true)}
+          onCreatePortfolio={() => setShowCreatePortfolio(true)}
           basePath={basePath}
         />
         {/* The bottom padding has to clear the mobile nav, whose real height
@@ -278,10 +293,6 @@ function DashboardShellContent({ children, basePath = "" }: DashboardShellProps)
         open={showCreateProject}
         onOpenChange={setShowCreateProject}
         onProjectCreated={fetchProjects}
-      />
-      <CreateTaskDialog
-        open={showCreateTask}
-        onOpenChange={setShowCreateTask}
       />
       <QuickCreateTaskModal
         open={showQuickCreateTask}

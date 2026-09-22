@@ -47,6 +47,9 @@ interface GroupPanelProps {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   groups: GroupConfig[];
   onGroupsChange: (groups: GroupConfig[]) => void;
+  /** Accepted but unused: grouping only works on the fixed fields above, so
+   *  offering "Add custom field..." here promised a group-by that a new
+   *  field could never become. */
   onOpenCustomField?: () => void;
 }
 
@@ -193,13 +196,11 @@ function GroupRow({
   onUpdate,
   onRemove,
   usedFields,
-  onOpenCustomField,
 }: {
   group: GroupConfig;
   onUpdate: (updated: GroupConfig) => void;
   onRemove: () => void;
   usedFields: GroupField[];
-  onOpenCustomField?: () => void;
 }) {
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const optionsBtnRef = useRef<HTMLButtonElement>(null);
@@ -246,7 +247,6 @@ function GroupRow({
         options={fieldOptions}
         onSelect={(v) => onUpdate({ ...group, field: v as GroupField })}
         width="min-w-[150px]"
-        footerAction={onOpenCustomField ? { label: "Add custom field...", onClick: onOpenCustomField } : undefined}
       />
 
       {/* Order dropdown */}
@@ -320,7 +320,7 @@ function GroupRow({
 
 // ─── GroupPanel ───────────────────────────────────────────
 
-export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, onOpenCustomField }: GroupPanelProps) {
+export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange }: GroupPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
 
@@ -449,7 +449,6 @@ export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, o
               onUpdate={handleUpdateGroup}
               onRemove={() => handleRemoveGroup(group.id)}
               usedFields={usedFields}
-              onOpenCustomField={onOpenCustomField}
             />
           ))}
         </div>

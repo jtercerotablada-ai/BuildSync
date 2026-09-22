@@ -1,9 +1,37 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { requireWorkspaceContributor, AuthorizationError, NotFoundError, getErrorStatus, getPrimaryWorkspaceMembership} from "@/lib/auth-guards";
 
 const HOME_NOTEPAD_TITLE = "__home_private_notepad__";
+
+// Bodies are validated before they reach Prisma: an unknown visibility used
+// to surface as a Prisma enum error and a 500 instead of a 400, and nothing
+// bounded the text a single request could store.
+const visibilitySchema = z.enum(["PRIVATE", "SHARED", "WORKSPACE"]);
+const titleSchema = z.string().max(500);
+const contentSchema = z.string().max(1_000_000);
+const styleSchema = z.string().max(100).nullable();
+
+const createSchema = z.object({
+  title: titleSchema,
+  content: contentSchema.optional(),
+  icon: styleSchema.optional(),
+  color: styleSchema.optional(),
+  visibility: visibilitySchema.optional(),
+});
+
+const updateSchema = z.object({
+  id: z.string().min(1),
+  title: titleSchema.optional(),
+  content: contentSchema.optional(),
+  icon: styleSchema.optional(),
+  color: styleSchema.optional(),
+  visibility: visibilitySchema.optional(),
+  isPinned: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
+});
 
 // GET /api/workspace/notes - Get workspace notes
 export async function GET(req: Request) {
@@ -29,21 +57,28 @@ export async function GET(req: Request) {
     // { id, title, content, updatedAt } — the home notepad widget needs one
     // note, not every accessible note with author + collaborator objects.
     if (title !== null) {
+      // The home notepad is the caller's own: a colleague's note that
+      // happens to carry the same title (shared WORKSPACE-wide) must never
+      // be adopted as it, or the widget loads their text and every save 403s.
       const slimNotes = await prisma.workspaceNote.findMany({
         where: {
           workspaceId: workspaceMember.workspaceId,
           isArchived: showArchived,
           title,
-          OR: [
-            { authorId: userId },
-            { visibility: "WORKSPACE" },
-            {
-              visibility: "SHARED",
-              collaborators: {
-                some: { userId },
-              },
-            },
-          ],
+          ...(title === HOME_NOTEPAD_TITLE
+            ? { authorId: userId }
+            : {
+                OR: [
+                  { authorId: userId },
+                  { visibility: "WORKSPACE" as const },
+                  {
+                    visibility: "SHARED" as const,
+                    collaborators: {
+                      some: { userId },
+                    },
+                  },
+                ],
+              }),
         },
         select: { id: true, title: true, content: true, updatedAt: true },
         orderBy: [
@@ -128,9 +163,16 @@ export async function POST(req: Request) {
 
     await requireWorkspaceContributor(userId);
 
-    const { title, content, icon, color, visibility } = await req.json();
+    const parsed = createSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid note" }, { status: 400 });
+    }
+    const { title, content, icon, color } = parsed.data;
+    // The home notepad is private by definition, whatever the body says.
+    const visibility =
+      title === HOME_NOTEPAD_TITLE ? "PRIVATE" : parsed.data.visibility;
 
-    if (!title?.trim()) {
+    if (!title.trim()) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
@@ -219,11 +261,11 @@ export async function PUT(req: Request) {
 
     await requireWorkspaceContributor(userId);
 
-    const { id, title, content, icon, color, visibility, isPinned, isArchived } = await req.json();
-
-    if (!id) {
-      return NextResponse.json({ error: "Note ID required" }, { status: 400 });
+    const parsed = updateSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid note update" }, { status: 400 });
     }
+    const { id, title, content, icon, color, isPinned, isArchived } = parsed.data;
 
     // Check access
     const note = await prisma.workspaceNote.findUnique({
@@ -238,6 +280,11 @@ export async function PUT(req: Request) {
     }
 
     const isAuthor = note.authorId === userId;
+    // A note that is (or becomes) the home notepad stays private.
+    const visibility =
+      (title ?? note.title) === HOME_NOTEPAD_TITLE
+        ? "PRIVATE"
+        : parsed.data.visibility;
     const collaborator = note.collaborators.find((c) => c.userId === userId);
     const canEdit = isAuthor || collaborator?.permission === "EDIT" || collaborator?.permission === "ADMIN";
 

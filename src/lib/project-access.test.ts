@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canReadProject, type ProjectReadDecisionInput } from "./project-access";
+import {
+  canReadProject,
+  decideProjectCapabilities,
+  type ProjectCapabilityInput,
+  type ProjectReadDecisionInput,
+} from "./project-access";
 
 /**
  * canReadProject is the whole read decision for a project — the resolver
@@ -8,12 +13,22 @@ import { canReadProject, type ProjectReadDecisionInput } from "./project-access"
  * tests touch no database (DATABASE_URL points at PRODUCTION; see
  * vitest.config.ts).
  *
- * The case these tests exist for: `visibility === "PUBLIC"` used to grant read
- * on its own, in three separate hand-rolled copies of the rule. PUBLIC means
- * "everyone in THIS workspace", never "everyone with an account", so a signed
- * in MEMBER of a DIFFERENT workspace could open any PUBLIC project by id — a
- * cross-tenant read. If someone deletes the workspace comparison from the
- * PUBLIC branch, "denies a viewer from a different workspace" below fails.
+ * Two cases these tests exist for:
+ *
+ *   1. `visibility === "PUBLIC"` used to grant read on its own, in three
+ *      separate hand-rolled copies of the rule. PUBLIC means "everyone in THIS
+ *      workspace", never "everyone with an account", so a signed-in MEMBER of
+ *      a DIFFERENT workspace could open any PUBLIC project by id — a
+ *      cross-tenant read. If someone deletes the workspace comparison, the
+ *      "different workspace" cases below fail.
+ *
+ *   2. WORKSPACE (the default for new projects) is an Editor-level grant for
+ *      every contributor of the project's workspace (owner decision,
+ *      2026-09-21) — it used to behave exactly like PRIVATE while the Share
+ *      dialog promised the workspace access. PUBLIC is never weaker.
+ *
+ * `viewerWorkspaceIds` lists only workspaces where the viewer holds a
+ * CONTRIBUTOR seat; resolveProjectAccess leaves a GUEST/CLIENT seat out of it.
  */
 
 const WS_OWNING = "ws_owning";
@@ -100,8 +115,8 @@ describe("canReadProject — PUBLIC is scoped to the owning workspace", () => {
   });
 });
 
-describe("canReadProject — WORKSPACE is not an auto-grant", () => {
-  it("denies an ordinary workspace member (deliberate: matches the page rule)", () => {
+describe("canReadProject — WORKSPACE opens the project to the firm", () => {
+  it("allows a contributor of the project's workspace", () => {
     expect(
       canReadProject(
         outsider({
@@ -109,6 +124,20 @@ describe("canReadProject — WORKSPACE is not an auto-grant", () => {
           viewerWorkspaceIds: [WS_OWNING],
         })
       )
+    ).toBe(true);
+  });
+
+  it("denies a viewer from a DIFFERENT workspace (never cross-tenant)", () => {
+    expect(
+      canReadProject(
+        outsider({ visibility: "WORKSPACE", viewerWorkspaceIds: [WS_OTHER] })
+      )
+    ).toBe(false);
+  });
+
+  it("denies a viewer with no contributor seat anywhere", () => {
+    expect(
+      canReadProject(outsider({ visibility: "WORKSPACE", viewerWorkspaceIds: [] }))
     ).toBe(false);
   });
 });
@@ -177,6 +206,12 @@ describe("canReadProject — membership beats visibility", () => {
   );
 });
 
+describe("canReadProject — senior Position", () => {
+  it("reads a PRIVATE project in its own workspace", () => {
+    expect(canReadProject(outsider({ hasSeniorRead: true }))).toBe(true);
+  });
+});
+
 describe("canReadProject — unknown visibility values fail closed", () => {
   it.each(["", "public", "Public", "ARCHIVED", "OPEN"])(
     "denies %o even inside the owning workspace",
@@ -188,4 +223,121 @@ describe("canReadProject — unknown visibility values fail closed", () => {
       ).toBe(false);
     }
   );
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// decideProjectCapabilities — write / comment / manage
+// ───────────────────────────────────────────────────────────────────────────
+
+function caller(
+  overrides: Partial<ProjectCapabilityInput> = {}
+): ProjectCapabilityInput {
+  return { ...outsider(), memberRole: null, ...overrides };
+}
+
+describe("decideProjectCapabilities — WORKSPACE/PUBLIC is Editor-level", () => {
+  it.each(["WORKSPACE", "PUBLIC"])(
+    "a contributor with no row can write and comment on a %s project",
+    (visibility) => {
+      const caps = decideProjectCapabilities(
+        caller({ visibility, viewerWorkspaceIds: [WS_OWNING] })
+      );
+      expect(caps).toMatchObject({
+        canRead: true,
+        canWrite: true,
+        canComment: true,
+        canManage: false,
+        isWorkspaceShared: true,
+      });
+    }
+  );
+
+  it("PUBLIC is never weaker than WORKSPACE", () => {
+    const base = { viewerWorkspaceIds: [WS_OWNING] };
+    expect(decideProjectCapabilities(caller({ ...base, visibility: "PUBLIC" })))
+      .toEqual(
+        decideProjectCapabilities(caller({ ...base, visibility: "WORKSPACE" }))
+      );
+  });
+
+  it.each(["VIEWER", "COMMENTER"] as const)(
+    "an explicit %s row wins over the implicit grant",
+    (memberRole) => {
+      const caps = decideProjectCapabilities(
+        caller({
+          visibility: "WORKSPACE",
+          viewerWorkspaceIds: [WS_OWNING],
+          isMember: true,
+          memberRole,
+        })
+      );
+      expect(caps.canRead).toBe(true);
+      expect(caps.canWrite).toBe(false);
+      expect(caps.canComment).toBe(memberRole === "COMMENTER");
+      expect(caps.isWorkspaceShared).toBe(false);
+    }
+  );
+
+  it("grants nothing on a PRIVATE project to a contributor with no row", () => {
+    const caps = decideProjectCapabilities(
+      caller({ visibility: "PRIVATE", viewerWorkspaceIds: [WS_OWNING] })
+    );
+    expect(caps).toMatchObject({
+      canRead: false,
+      canWrite: false,
+      canComment: false,
+      canManage: false,
+    });
+  });
+});
+
+describe("decideProjectCapabilities — workspace managers and senior staff", () => {
+  it("a workspace manager can do everything on a PRIVATE project", () => {
+    const caps = decideProjectCapabilities(
+      caller({ isWorkspaceManager: true, viewerWorkspaceIds: [WS_OWNING] })
+    );
+    expect(caps).toMatchObject({
+      canRead: true,
+      canWrite: true,
+      canComment: true,
+      canManage: true,
+    });
+  });
+
+  it("a workspace manager restricted to VIEWER keeps everything", () => {
+    const caps = decideProjectCapabilities(
+      caller({
+        isWorkspaceManager: true,
+        isMember: true,
+        memberRole: "VIEWER",
+        viewerWorkspaceIds: [WS_OWNING],
+      })
+    );
+    expect(caps.canWrite).toBe(true);
+    expect(caps.canManage).toBe(true);
+  });
+
+  it("a senior Position reads a PRIVATE project and nothing more", () => {
+    const caps = decideProjectCapabilities(
+      caller({ hasSeniorRead: true, viewerWorkspaceIds: [WS_OWNING] })
+    );
+    expect(caps).toMatchObject({
+      canRead: true,
+      canWrite: false,
+      canComment: false,
+      canManage: false,
+    });
+  });
+
+  it("a team member is an Editor, never a manager", () => {
+    const caps = decideProjectCapabilities(
+      caller({ isTeamMember: true, viewerWorkspaceIds: [WS_OWNING] })
+    );
+    expect(caps).toMatchObject({
+      canRead: true,
+      canWrite: true,
+      canComment: true,
+      canManage: false,
+    });
+  });
 });

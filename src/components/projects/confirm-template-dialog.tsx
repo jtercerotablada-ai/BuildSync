@@ -33,9 +33,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ACCENT_BG, resolveTemplateIcon } from "./template-visuals";
-import type {
-  ProjectTemplate,
-  ProjectTemplateTask,
+import {
+  workflowFitsSections,
+  type ProjectTemplate,
+  type ProjectTemplateTask,
 } from "@/lib/project-templates";
 import type { CustomProjectTemplate } from "@/lib/custom-templates";
 import { resolveStage } from "@/lib/pipelines";
@@ -45,6 +46,8 @@ interface ConfirmTemplateDialogProps {
   template: ProjectTemplate | null;
   onClose: () => void;
   onCreated: () => void;
+  /** Team the new project is created in, when opened from a team page. */
+  teamId?: string | null;
 }
 
 /** The parts of a template that decide what a new project actually gets. */
@@ -103,21 +106,23 @@ function startingStage(template: ProjectTemplate): string | undefined {
 }
 
 /**
- * A date input hands back "2026-09-01", which `new Date()` reads as UTC
- * midnight — the previous day in Miami. Build it in local time at noon, where
- * no DST shift can move it off the day the engineer picked.
+ * A date input hands back "2026-09-01". It is sent as that date-only string,
+ * which the API stores at UTC midnight of the picked day — the convention
+ * every stored start/due date follows and is read back by. (An ISO instant
+ * such as local noon stamped a time of day on the project and every task.)
  */
-function localNoon(value: string): Date | null {
+function dateOnly(value: string): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.getUTCDate() === Number(m[3]) ? value : null;
 }
 
 export function ConfirmTemplateDialog({
   template,
   onClose,
   onCreated,
+  teamId,
 }: ConfirmTemplateDialogProps) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -155,6 +160,15 @@ export function ConfirmTemplateDialog({
 
   if (!template) return null;
   const Icon = resolveTemplateIcon(template.icon);
+  // A workflow whose columns are not on this board would make the apply route
+  // append its own, empty columns, so it is applied (and promised) only when
+  // it fits.
+  const workflowId = workflowFitsSections(
+    template.workflowTemplateId,
+    template.sections
+  )
+    ? template.workflowTemplateId
+    : undefined;
   const stageLabel = resolveStage(startingStage(template))?.stage.label;
 
   async function handleCreate() {
@@ -167,7 +181,7 @@ export function ConfirmTemplateDialog({
     if (submitting) return;
     setSubmitting(true);
     try {
-      const start = startDate ? localNoon(startDate) : null;
+      const start = startDate ? dateOnly(startDate) : null;
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -179,13 +193,12 @@ export function ConfirmTemplateDialog({
           sections: template.sections,
           customFields: template.customFields,
           tasks: template.tasks,
-          // A custom template's blurb answers "when should the team reach for
-          // this?", and when its author left it empty the gallery invents one
-          // for the card. Neither describes the JOB, so a project started from
-          // a captured template opens with its description empty rather than
-          // with "Custom template created by your team." in it.
-          description: "custom" in template ? undefined : template.description,
-          ...(start ? { startDate: start.toISOString() } : {}),
+          // No description: a template's blurb (built-in or custom) answers
+          // "when should the team reach for this?" and does not describe the
+          // JOB, so the project opens with its description empty instead of
+          // with the template's pitch pasted into its Overview.
+          ...(start ? { startDate: start } : {}),
+          ...(teamId ? { teamId } : {}),
         }),
       });
       if (!res.ok) {
@@ -220,14 +233,14 @@ export function ConfirmTemplateDialog({
 
       // Apply the workflow template if the template ships with one.
       // Failures here are non-fatal — the project still exists.
-      if (template.workflowTemplateId) {
+      if (workflowId) {
         try {
           const wfRes = await fetch(
             `/api/projects/${project.id}/workflow/templates`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ templateId: template.workflowTemplateId }),
+              body: JSON.stringify({ templateId: workflowId }),
             }
           );
           if (!wfRes.ok) {
@@ -350,9 +363,9 @@ export function ConfirmTemplateDialog({
             </p>
           )}
 
-          {template.workflowTemplateId && (
+          {workflowId && (
             <p className="mt-2 text-[11px] text-[#a8893a]">
-              {`Workflow rules from "${template.workflowTemplateId.replace(
+              {`Workflow rules from "${workflowId.replace(
                 /-/g,
                 " "
               )}" will be applied automatically.`}

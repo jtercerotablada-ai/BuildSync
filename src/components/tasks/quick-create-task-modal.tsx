@@ -26,11 +26,11 @@
  * open / onOpenChange.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   X,
   Minus,
-  Plus,
   Calendar,
   Loader2,
   ChevronDown,
@@ -92,6 +92,14 @@ function formatSingleDueLabel(date: Date | null): string {
  *   - Only start: "From May 18"
  *   - Neither: "Set due date"
  */
+/** Tomorrow at 09:00 local — the composer's default due date. */
+function tomorrowAtNine(): Date {
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  t.setHours(9, 0, 0, 0);
+  return t;
+}
+
 function formatComposerDateLabel(
   start: Date | null,
   due: Date | null
@@ -109,6 +117,7 @@ export function QuickCreateTaskModal({
   projects: projectsProp,
 }: QuickCreateTaskModalProps) {
   const { data: session } = useSession();
+  const router = useRouter();
   const [minimized, setMinimized] = useState(false);
   const [creating, setCreating] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
@@ -135,12 +144,16 @@ export function QuickCreateTaskModal({
   // short-turnaround"); user can extend left (set a start) via the
   // popover. Set both to null to clear.
   const [startDate, setStartDate] = useState<Date | null>(null);
-  const [dueDate, setDueDate] = useState<Date | null>(() => {
-    const t = new Date();
-    t.setDate(t.getDate() + 1);
-    t.setHours(9, 0, 0, 0);
-    return t;
-  });
+  const [dueDate, setDueDate] = useState<Date | null>(null);
+  // Whether the user picked (or cleared) the dates of this draft. Until they
+  // do, the Tomorrow default is recomputed each time the composer opens: the
+  // composer stays mounted for the life of the tab, so a default taken at
+  // mount went stale (and overdue) in a tab left open for days.
+  const datesTouchedRef = useRef(false);
+  useEffect(() => {
+    if (!open || datesTouchedRef.current) return;
+    setDueDate(tomorrowAtNine());
+  }, [open]);
 
   // ── Load workspace users when opening (retryable on failure) ─────
   useEffect(() => {
@@ -172,13 +185,16 @@ export function QuickCreateTaskModal({
     };
   }, [open, usersRetryNonce]);
 
-  // ── Load projects when opening, unless the caller provided them ──
+  // ── Load projects every time the composer opens ──
+  // A caller-provided list is only the first paint: it is fetched once when
+  // the shell mounts, so a project created since then was missing from the
+  // picker until a reload.
   useEffect(() => {
     if (!open) return;
-    if (projectsProp && projectsProp.length > 0) return;
+    const hasSeed = !!projectsProp && projectsProp.length > 0;
     let cancelled = false;
     (async () => {
-      setProjectsLoading(true);
+      setProjectsLoading(!hasSeed);
       setProjectsError(false);
       try {
         // The picker only renders id/name/color — the slim summary shape
@@ -188,12 +204,12 @@ export function QuickCreateTaskModal({
           if (res.ok) {
             const data: Project[] = await res.json();
             setProjects(data);
-          } else {
+          } else if (!hasSeed) {
             setProjectsError(true);
           }
         }
       } catch {
-        if (!cancelled) setProjectsError(true);
+        if (!cancelled && !hasSeed) setProjectsError(true);
       } finally {
         if (!cancelled) setProjectsLoading(false);
       }
@@ -232,11 +248,9 @@ export function QuickCreateTaskModal({
     setSelectedAssignee(null);
     setSelectedProject(null);
     setStartDate(null);
-    // Reset due date to Tomorrow for the next time the composer opens.
-    const t = new Date();
-    t.setDate(t.getDate() + 1);
-    t.setHours(9, 0, 0, 0);
-    setDueDate(t);
+    // The next open sets a fresh Tomorrow default (see datesTouchedRef).
+    datesTouchedRef.current = false;
+    setDueDate(null);
   };
 
   /** X-button close: a typed draft is one misclick (24px from Minimize)
@@ -283,8 +297,10 @@ export function QuickCreateTaskModal({
         }),
       });
       if (res.ok) {
-        // Let Home widgets (My Tasks / Assigned Tasks) refetch.
+        // Let Home widgets (My Tasks / Assigned Tasks) refetch, and re-run
+        // the current page's server data so a project page shows the task.
         window.dispatchEvent(new CustomEvent("buildsync:task-created"));
+        router.refresh();
         // Say what actually happened to the assignee instead of a vague
         // "Task created": unassigned / assigned to X / self-assigned.
         toast.success(
@@ -572,8 +588,8 @@ export function QuickCreateTaskModal({
 
       {/* ── Footer toolbar ───────────────────────────────────────── */}
       {/* Quick-create stays compact on purpose: fields, mentions,
-          attachments and rich-text editing live on the full Task
-          Detail panel, which opens right after Create. */}
+          collaborators, attachments and rich-text editing live on the
+          full Task Detail panel. */}
       <div className="flex items-center justify-between px-4 h-12 border-t border-slate-200 flex-shrink-0">
         <div className="flex items-center gap-0.5 text-slate-500">
 
@@ -586,6 +602,7 @@ export function QuickCreateTaskModal({
             startDate={startDate}
             dueDate={dueDate}
             onChange={(s, d) => {
+              datesTouchedRef.current = true;
               setStartDate(s);
               setDueDate(d);
             }}
@@ -611,16 +628,6 @@ export function QuickCreateTaskModal({
               {userInitials}
             </AvatarFallback>
           </Avatar>
-          {/* + collaborator (stub — opens full task panel later) */}
-          <button
-            onClick={() =>
-              toast.info("Add collaborators from the task detail panel")
-            }
-            className="h-7 w-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-colors"
-            title="Add collaborator"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
           <Button
             size="sm"
             className="bg-black text-white hover:bg-slate-800 h-7 text-[12px] px-3"

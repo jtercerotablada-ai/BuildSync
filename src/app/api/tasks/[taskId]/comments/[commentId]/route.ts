@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { buildCommentContent, commentToPlainText } from "@/lib/comment-format";
+import { deleteFile } from "@/lib/storage";
 
 const updateCommentSchema = z.object({
   content: z.string().min(1, "Comment cannot be empty"),
@@ -117,7 +118,42 @@ export async function DELETE(
       return NextResponse.json({ error: "Can only delete your own comments" }, { status: 403 });
     }
 
-    await prisma.comment.delete({ where: { id: commentId } });
+    // Files posted with a comment are also TASK attachments (they carry the
+    // taskId and show in the task's Attachments list). Attachment.comment
+    // cascades, so deleting the comment used to delete those rows too:
+    // fixing a typo silently removed the deliverable from the task. Detach
+    // them instead, so they stay on the task. Replies go with their parent
+    // (Comment.parent cascades), so their files are handled the same way.
+    const replies = await prisma.comment.findMany({
+      where: { parentId: commentId },
+      select: { id: true },
+    });
+    const threadIds = [commentId, ...replies.map((r) => r.id)];
+
+    const orphanUrls = await prisma.$transaction(async (tx) => {
+      await tx.attachment.updateMany({
+        where: { commentId: { in: threadIds }, taskId: { not: null } },
+        data: { commentId: null },
+      });
+      // Whatever is still bound to the thread has no task to fall back to and
+      // is removed by the cascade; its blob is cleaned up below.
+      const leftovers = await tx.attachment.findMany({
+        where: { commentId: { in: threadIds } },
+        select: { url: true },
+      });
+      await tx.comment.delete({ where: { id: commentId } });
+      return [...new Set(leftovers.map((a) => a.url))];
+    });
+
+    // Best-effort, after the rows are gone: a storage hiccup must not turn a
+    // completed delete into an error. A url another row still points at is
+    // left alone.
+    await Promise.allSettled(
+      orphanUrls.map(async (url) => {
+        const stillUsed = await prisma.attachment.count({ where: { url } });
+        if (stillUsed === 0) await deleteFile(url);
+      })
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

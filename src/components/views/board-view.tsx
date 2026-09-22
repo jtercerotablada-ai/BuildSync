@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useId } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -108,6 +108,10 @@ interface BoardViewProps {
    *  ever 404. Those affordances are hidden rather than offered-and-failed.
    *  Drag-reorder is already covered by `reorderDisabled`. */
   sectionsAreEditable?: boolean;
+  /** False for a reader (VIEWER / COMMENTER): the completion toggles on the
+   *  cards are shown as read-only state instead of firing a PATCH the server
+   *  would refuse. Same prop as ListView's. */
+  canEdit?: boolean;
 }
 
 // ============================================
@@ -152,6 +156,7 @@ export function BoardView({
   reorderDisabled = false,
   rawSectionCounts,
   sectionsAreEditable = true,
+  canEdit = true,
 }: BoardViewProps) {
   const router = useRouter();
   // Local midnight, null until mounted — the mobile cards' overdue tone and
@@ -182,6 +187,11 @@ export function BoardView({
     if (isDraggingRef.current) return;
     setLocalSections(sections);
   }, [sections]);
+
+  // dnd-kit numbers its aria-describedby ids from a module counter, which
+  // differs between the server render and hydration; a stable id keeps the
+  // attribute identical so screen readers keep the drag instructions.
+  const dndContextId = useId();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -217,7 +227,12 @@ export function BoardView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sectionId, orderedTaskIds }),
       });
-      if (!res.ok) throw new Error("Failed to reorder");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof body?.error === "string" ? body.error : "Failed to move task"
+        );
+      }
     },
     []
   );
@@ -356,8 +371,8 @@ export function BoardView({
       try {
         await persistReorder(destSectionId, orderedIds);
         router.refresh();
-      } catch {
-        toast.error("Failed to move task");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to move task");
         setLocalSections(sections); // rollback to server truth
       }
     },
@@ -520,8 +535,12 @@ export function BoardView({
             >
               <div className="flex items-start gap-3">
                 <button
+                  // A reader's tap falls through to the card and opens it.
+                  disabled={!canEdit}
+                  aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (!canEdit) return;
                     fetch(`/api/tasks/${task.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
@@ -537,6 +556,7 @@ export function BoardView({
                   }}
                   className={cn(
                     "mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                    !canEdit && "pointer-events-none",
                     task.completed
                       ? "bg-[#c9a84c] border-[#c9a84c]"
                       : "border-gray-300"
@@ -655,6 +675,7 @@ export function BoardView({
 
       {/* ===== Desktop Board View ===== */}
       <DndContext
+        id={dndContextId}
         sensors={sensors}
         collisionDetection={kanbanCollisionDetection}
         onDragStart={handleDragStart}
@@ -677,6 +698,8 @@ export function BoardView({
               onTaskClick={onTaskClick}
               projectId={projectId}
               sectionsAreEditable={sectionsAreEditable}
+              reorderDisabled={reorderDisabled}
+              canEdit={canEdit}
               isAddingTask={addingTaskInSection === section.id}
               newTaskName={taskDrafts[section.id] ?? ""}
               onStartAddTask={() => setAddingTaskInSection(section.id)}
@@ -724,6 +747,8 @@ function BoardColumn({
   onTaskClick,
   projectId,
   sectionsAreEditable,
+  reorderDisabled,
+  canEdit,
   isAddingTask,
   newTaskName,
   onStartAddTask,
@@ -738,6 +763,10 @@ function BoardColumn({
   /** See BoardViewProps.sectionsAreEditable. When false this column's id is
    *  a synthetic group key, so it owns no section-scoped actions at all. */
   sectionsAreEditable: boolean;
+  /** See BoardViewProps.reorderDisabled. */
+  reorderDisabled: boolean;
+  /** See BoardViewProps.canEdit. */
+  canEdit: boolean;
   isAddingTask: boolean;
   newTaskName: string;
   onStartAddTask: () => void;
@@ -921,12 +950,15 @@ function BoardColumn({
           id={section.id}
           items={section.tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
+          disabled={reorderDisabled}
         >
           <div className="space-y-2">
             {section.tasks.map((task) => (
               <SortableTaskCard
                 key={task.id}
                 task={task}
+                dragDisabled={reorderDisabled}
+                canEdit={canEdit}
                 onClick={() => onTaskClick(task.id)}
               />
             ))}
@@ -1023,9 +1055,16 @@ function BoardColumn({
 
 function SortableTaskCard({
   task,
+  dragDisabled,
+  canEdit,
   onClick,
 }: {
   task: Task;
+  /** While a filter/sort/group-by is active nothing a drag does can be
+   *  saved, so the card must not pretend to move and then snap back. */
+  dragDisabled: boolean;
+  /** See BoardViewProps.canEdit. */
+  canEdit: boolean;
   onClick: () => void;
 }) {
   const router = useRouter();
@@ -1036,7 +1075,7 @@ function SortableTaskCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: dragDisabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -1045,6 +1084,7 @@ function SortableTaskCard({
 
   const handleToggleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!canEdit) return;
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
@@ -1072,10 +1112,17 @@ function SortableTaskCard({
       style={style}
       {...attributes}
       {...listeners}
+      title={
+        // A reader can never move cards, so the filter hint would mislead.
+        dragDisabled && canEdit
+          ? "Clear filters, sorting and grouping to move cards"
+          : undefined
+      }
       className={cn(
         // Asana card: white, 8px radius, 1px #E0E1E3 ring + soft shadow,
         // 16px inner padding.
-        "bg-white rounded-[8px] border border-[#E0E1E3] p-4 cursor-grab active:cursor-grabbing transition-all",
+        "bg-white rounded-[8px] border border-[#E0E1E3] p-4 transition-all",
+        dragDisabled ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
         isDragging
           ? "opacity-40 shadow-none"
           : "hover:shadow-md hover:border-slate-300 shadow-sm"
@@ -1087,7 +1134,11 @@ function SortableTaskCard({
           round checkbox. Matches the same convention as List view + AEC
           tools (MS Project / Primavera). */}
       <div className="flex items-start gap-2">
-        <CardCompletionIcon task={task} onToggle={handleToggleComplete} />
+        <CardCompletionIcon
+          task={task}
+          onToggle={handleToggleComplete}
+          readOnly={!canEdit}
+        />
         <span
           className={cn(
             "text-sm leading-[22px] flex-1 min-w-0",
@@ -1188,17 +1239,28 @@ function TaskCardOverlay({ task }: { task: Task }) {
 function CardCompletionIcon({
   task,
   onToggle,
+  readOnly = false,
 }: {
   task: Task;
   onToggle: (e: React.MouseEvent) => void;
+  /** Shows the state without the toggle: disabled, no hover, and clicks fall
+   *  through to the card (which opens the task). */
+  readOnly?: boolean;
 }) {
+  const readOnlyClass = readOnly && "pointer-events-none";
   if (task.taskType === "MILESTONE") {
     return (
       <button
         onClick={onToggle}
+        disabled={readOnly}
         className={cn(
+          readOnlyClass,
           "flex items-center justify-center flex-shrink-0 mt-0.5",
-          task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
+          task.completed
+            ? "text-[#a8893a]"
+            : readOnly
+              ? "text-[#c9a84c]"
+              : "text-[#c9a84c] hover:text-[#a8893a]"
         )}
         aria-label={task.completed ? "Mark milestone incomplete" : "Mark milestone complete"}
       >
@@ -1210,9 +1272,15 @@ function CardCompletionIcon({
     return (
       <button
         onClick={onToggle}
+        disabled={readOnly}
         className={cn(
+          readOnlyClass,
           "flex items-center justify-center flex-shrink-0 mt-0.5",
-          task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
+          task.completed
+            ? "text-[#a8893a]"
+            : readOnly
+              ? "text-[#c9a84c]"
+              : "text-[#c9a84c] hover:text-[#a8893a]"
         )}
         aria-label={task.completed ? "Mark approval incomplete" : "Approve"}
       >
@@ -1223,11 +1291,15 @@ function CardCompletionIcon({
   return (
     <button
       onClick={onToggle}
+      disabled={readOnly}
       className={cn(
+        readOnlyClass,
         "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
         task.completed
           ? "bg-[#c9a84c] border-[#c9a84c]"
-          : "border-slate-300 hover:border-slate-400"
+          : readOnly
+            ? "border-slate-300"
+            : "border-slate-300 hover:border-slate-400"
       )}
       aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
     >

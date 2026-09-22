@@ -1,34 +1,34 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
+import { isVercelBlobUrl } from "@/lib/storage";
 import {
   type FormField,
   type FormSubmissionPayload,
+  csvCell,
   formatAnswerForText,
+  neutralizeStoredAnswers,
 } from "@/lib/form-types";
 
 /**
  * GET /api/forms/:formId/submissions/export
  *
  * Streams a CSV download of every submission for this form. Auth-gated
- * the same way as the JSON submissions endpoint (project membership
- * or workspace visibility check).
+ * the same way as the JSON submissions endpoint (the project read rule,
+ * plus a contributor seat).
  *
  * Columns: submission id · submitted at · submitter email (if known) ·
  * task id · then one column per form field in declared order.
  *
- * Values are quoted + escaped per RFC 4180 so spreadsheet apps open
- * them without ambiguity. ATTACHMENT cells become "filename (URL)".
+ * Values are quoted + escaped per RFC 4180 (and formula-neutralized, see
+ * csvCell) so spreadsheet apps open them without ambiguity. ATTACHMENT cells
+ * become "filename (URL)".
  * MULTI_SELECT becomes "a, b, c".
  */
 
-function csvEscape(value: string): string {
-  // Always quote. Double-up any inner quote.
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
 function buildCsvRow(values: string[]): string {
-  return values.map(csvEscape).join(",");
+  return values.map(csvCell).join(",");
 }
 
 export async function GET(
@@ -51,7 +51,8 @@ export async function GET(
             ownerId: true,
             visibility: true,
             workspaceId: true,
-            members: { select: { userId: true } },
+            teamId: true,
+            members: { select: { userId: true, role: true } },
           },
         },
       },
@@ -60,26 +61,13 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Access check. Exported submissions contain external-submitter PII, so a
-    // PUBLIC project visibility must NOT grant the CSV. Only project owner/
-    // members or a member of the project's workspace may export — audit SEC-08.
-    const member = form.project.members.find((m) => m.userId === userId);
-    const isOwner = form.project.ownerId === userId;
-    const isMember = !!member;
-    let allowed = isOwner || isMember;
-    if (!allowed) {
-      const wsMember = await prisma.workspaceMember.findUnique({
-        where: {
-          userId_workspaceId: {
-            userId,
-            workspaceId: form.project.workspaceId,
-          },
-        },
-      });
-      if (wsMember) allowed = true;
-    }
-    if (!allowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Exported submissions carry external-submitter PII: the caller must be
+    // able to read the project AND still hold a contributor seat in its
+    // workspace (a GUEST, or someone offboarded, gets nothing). Same rule as
+    // the inbox and the print view. 404, never 403, so the id can't be probed.
+    const access = await resolveProjectAccess(form.project, userId);
+    if (!access.ok || !access.hasContributorSeat) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     const submissions = await prisma.formSubmission.findMany({
@@ -114,7 +102,11 @@ export async function GET(
     const rows: string[] = [];
     rows.push(buildCsvRow(header));
     for (const s of submissions) {
-      const data = (s.data as FormSubmissionPayload) || {};
+      const data = neutralizeStoredAnswers(
+        fields,
+        (s.data as FormSubmissionPayload) || {},
+        isVercelBlobUrl
+      );
       const submitterEmail = s.submitterUser?.email ?? "";
       const cells = [
         s.id,

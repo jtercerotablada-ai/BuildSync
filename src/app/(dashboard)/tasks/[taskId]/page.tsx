@@ -13,8 +13,10 @@
  *      notification links, deep-linked sharing.
  *
  * The page is just a centered wrapper around the shared
- * TaskDetailPanel component so the editor experience is identical
- * to the slide-over you get in a project / my-tasks. Close button
+ * TaskDetailPanel component, rendered in its static "page" presentation
+ * (the default slide-over is position:fixed and sat beside an empty
+ * column here), so the editor experience is identical to the one you get
+ * in a project / my-tasks. Close button
  * sends the user back via router.back() with a /my-tasks fallback
  * for cold-start direct-link visits.
  */
@@ -29,7 +31,8 @@ export default function TaskFullPage() {
   const taskId = params?.taskId;
 
   // The detail panel handles its own loading / error / not-found
-  // states by fetching from /api/tasks/:id. If the id is missing
+  // states (a deleted or hidden task shows a message and a Close
+  // button) by fetching from /api/tasks/:id. If the id is missing
   // entirely there's nothing to render — bounce to /my-tasks.
   useEffect(() => {
     if (!taskId) router.replace("/my-tasks");
@@ -49,10 +52,11 @@ export default function TaskFullPage() {
   if (!taskId) return null;
 
   return (
-    <div className="flex-1 flex justify-center bg-[#f6f7f8] overflow-auto">
-      <div className="w-full max-w-[760px] bg-white border-x border-[#e8e8e8] min-h-full">
+    <div className="h-full flex justify-center bg-[#f6f7f8]">
+      <div className="w-full max-w-[760px] h-full bg-white border-x border-[#e8e8e8]">
         <TaskDetailPanel
           taskId={taskId}
+          presentation="page"
           onClose={handleClose}
           onUpdate={() => router.refresh()}
         />

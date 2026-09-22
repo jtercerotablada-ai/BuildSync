@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { resolveProjectAccess } from "@/lib/project-access";
+import { getProjectAccess } from "@/lib/project-access";
 import { taskPrivacyClause } from "@/lib/project-visibility";
 
 // GET /api/projects/:projectId/activity
 //
 // Aggregates a project-scoped activity feed by pulling from already-
-// existing tables (StatusUpdate, ProjectMember.joinedAt, Task.completedAt
-// and Task.createdAt + File.createdAt). Returns the 30 most recent
-// events normalized into a single shape the UI can render directly.
+// existing tables (StatusUpdate, ProjectMember.joinedAt, Task.completedAt,
+// Task.createdAt, ProjectResource and task Attachment uploads). Returns the
+// 30 most recent events normalized into a single shape the UI can render.
 //
-// This is intentionally read-only and derived — no separate "Activity"
-// table is needed today. If we later add audit-log style tracking we
-// can swap the source without touching the front-end shape.
+// Who completed a task is not stored on Task, so the actor comes from the
+// task's latest TASK_COMPLETED Activity row (written when a person
+// completes it). The assignee is NOT the completer — crediting them
+// misattributed the work — so a completion with no such row (e.g. one made
+// by a workflow rule) shows no actor.
 //
 // PRIVACY: reading the project is NOT enough to read every task in it.
 // A task marked private is visible only to its creator, its assignee, or
@@ -47,29 +49,6 @@ interface ActivityEvent {
   } | null;
 }
 
-// Canonical read access (matches the project page): owner, member, PUBLIC,
-// or workspace OWNER/ADMIN / Position L4+. The old inline check leaked
-// WORKSPACE-visibility projects to any member and 403'd workspace admins on
-// PRIVATE ones.
-async function assertProjectAccess(projectId: string, userId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      ownerId: true,
-      visibility: true,
-      workspaceId: true,
-      members: { select: { userId: true, role: true } },
-    },
-  });
-
-  if (!project) return { ok: false as const, status: 404 };
-
-  const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
-  return { ok: true as const, project };
-}
-
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ projectId: string }> }
@@ -81,18 +60,28 @@ export async function GET(
     }
 
     const { projectId } = await params;
-    const access = await assertProjectAccess(projectId, userId);
+    // Canonical read rule; an unreadable project is a 404, same as a
+    // missing one, so ids cannot be probed.
+    const access = await getProjectAccess(projectId, userId);
     if (!access.ok) {
-      return NextResponse.json(
-        { error: access.status === 404 ? "Not found" : "Forbidden" },
-        { status: access.status }
-      );
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    // Workspace OWNER/ADMIN hold the key to private tasks everywhere else
+    // (decideTaskAccess, the Files tab), so the feed matches.
+    const taskVisible = access.isWorkspaceManager
+      ? {}
+      : taskPrivacyClause(userId);
 
     // Pull the source rows in parallel. Each query is capped low so we
     // can merge + sort + slice down to 30 without scanning huge tables.
-    const [statusUpdates, members, completedTasks, recentTasks, recentFiles] =
-      await Promise.all([
+    const [
+      statusUpdates,
+      members,
+      completedTasks,
+      recentTasks,
+      recentResources,
+      recentAttachments,
+    ] = await Promise.all([
         prisma.statusUpdate.findMany({
           where: { projectId },
           orderBy: { createdAt: "desc" },
@@ -113,7 +102,7 @@ export async function GET(
             projectId,
             completed: true,
             completedAt: { not: null },
-            ...taskPrivacyClause(userId),
+            ...taskVisible,
           },
           orderBy: { completedAt: "desc" },
           take: 20,
@@ -121,14 +110,10 @@ export async function GET(
             id: true,
             name: true,
             completedAt: true,
-            assigneeId: true,
-            assignee: {
-              select: { id: true, name: true, email: true, image: true },
-            },
           },
         }),
         prisma.task.findMany({
-          where: { projectId, ...taskPrivacyClause(userId) },
+          where: { projectId, ...taskVisible },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: {
@@ -141,21 +126,69 @@ export async function GET(
             },
           },
         }),
-        prisma.file.findMany({
-          where: { projectId },
+        // Uploads land in ProjectResource (Overview key resources / Files
+        // tab) and Attachment (tasks). Links hold no file, so only FILEs.
+        prisma.projectResource.findMany({
+          where: { projectId, type: "FILE" },
           orderBy: { createdAt: "desc" },
           take: 10,
           select: {
             id: true,
             name: true,
             createdAt: true,
-            uploaderId: true,
+            uploader: {
+              select: { id: true, name: true, email: true, image: true },
+            },
+          },
+        }),
+        prisma.attachment.findMany({
+          where: {
+            task: {
+              AND: [
+                { OR: [{ projectId }, { section: { projectId } }] },
+                taskVisible,
+              ],
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
             uploader: {
               select: { id: true, name: true, email: true, image: true },
             },
           },
         }),
       ]);
+
+    // Latest completion record per task, newest first, so the first row seen
+    // for a task is the completion that produced its current completedAt.
+    const completionRows = completedTasks.length
+      ? await prisma.activity.findMany({
+          where: {
+            type: "TASK_COMPLETED",
+            taskId: { in: completedTasks.map((t) => t.id) },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            taskId: true,
+            user: {
+              select: { id: true, name: true, email: true, image: true },
+            },
+          },
+        })
+      : [];
+    const completerByTask = new Map<
+      string,
+      (typeof completionRows)[number]["user"]
+    >();
+    for (const row of completionRows) {
+      if (row.taskId && !completerByTask.has(row.taskId)) {
+        completerByTask.set(row.taskId, row.user);
+      }
+    }
 
     const authorIds = [
       ...new Set(statusUpdates.map((u) => u.authorId).filter(Boolean)),
@@ -216,7 +249,7 @@ export async function GET(
         title: "completed a task",
         detail: t.name,
         createdAt: t.completedAt.toISOString(),
-        actor: t.assignee ?? null,
+        actor: completerByTask.get(t.id) ?? null,
       });
     }
 
@@ -231,9 +264,20 @@ export async function GET(
       });
     }
 
-    for (const f of recentFiles) {
+    for (const f of recentResources) {
       events.push({
         id: `file:${f.id}`,
+        type: "file_uploaded",
+        title: "uploaded a file",
+        detail: f.name,
+        createdAt: f.createdAt.toISOString(),
+        actor: f.uploader ?? null,
+      });
+    }
+
+    for (const f of recentAttachments) {
+      events.push({
+        id: `attachment:${f.id}`,
         type: "file_uploaded",
         title: "uploaded a file",
         detail: f.name,

@@ -13,8 +13,9 @@
  * name), then a single Upload button that POSTs every file to
  * /api/tasks/:taskId/attachments and bubbles success via onUploaded.
  *
- * Accepts the same MIME whitelist + 10 MB cap as the task panel
- * uploader so size limits stay consistent.
+ * Accepts what the server's allowlist and size ceiling accept (storage.ts),
+ * and sends the bytes straight to blob storage: a function refuses a request
+ * body over ~4.5MB, so posting the file itself would fail on any real drawing.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -33,6 +34,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { UPLOAD_ACCEPT, maxUploadBytes } from "@/lib/storage";
+import { uploadDirect, responseError } from "@/lib/direct-upload";
 
 interface PickableTask {
   id: string;
@@ -49,9 +52,9 @@ interface UploadToTaskDialogProps {
   onUploaded: () => void;
 }
 
-const ACCEPT =
-  "image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip";
-const MAX_SIZE = 10 * 1024 * 1024;
+const ACCEPT = UPLOAD_ACCEPT;
+const MAX_SIZE = maxUploadBytes();
+const MAX_SIZE_LABEL = `${Math.floor(MAX_SIZE / (1024 * 1024))} MB`;
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -116,7 +119,7 @@ export function UploadToTaskDialog({
     const incoming: File[] = [];
     for (const f of Array.from(list)) {
       if (f.size > MAX_SIZE) {
-        toast.error(`${f.name}: exceeds 10 MB limit`);
+        toast.error(`${f.name}: exceeds ${MAX_SIZE_LABEL} limit`);
         continue;
       }
       incoming.push(f);
@@ -136,15 +139,17 @@ export function UploadToTaskDialog({
     let okCount = 0;
     for (const file of files) {
       try {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch(
-          `/api/tasks/${selectedTaskId}/attachments`,
-          { method: "POST", body: fd }
-        );
+        const { url } = await uploadDirect(file, {
+          kind: "task-attachment",
+          taskId: selectedTaskId,
+        });
+        const res = await fetch(`/api/tasks/${selectedTaskId}/attachments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blobUrl: url, name: file.name }),
+        });
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `HTTP ${res.status}`);
+          throw new Error(await responseError(res, `HTTP ${res.status}`));
         }
         okCount++;
       } catch (err) {
@@ -172,7 +177,7 @@ export function UploadToTaskDialog({
     const incoming: File[] = [];
     for (const f of Array.from(list)) {
       if (f.size > MAX_SIZE) {
-        toast.error(`${f.name}: exceeds 10 MB limit`);
+        toast.error(`${f.name}: exceeds ${MAX_SIZE_LABEL} limit`);
         continue;
       }
       incoming.push(f);
@@ -218,7 +223,7 @@ export function UploadToTaskDialog({
               <Paperclip className="w-5 h-5 mb-1.5 text-gray-300" />
               Click to pick files or drop them here
               <span className="text-[11px] text-gray-400 mt-0.5">
-                Images, PDFs, Office docs · up to 10 MB each
+                Documents, images, CAD and models · up to {MAX_SIZE_LABEL} each
               </span>
             </button>
           ) : (

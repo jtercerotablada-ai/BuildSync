@@ -12,7 +12,8 @@
  *
  * Returns a summary so the UI can show "Created 9 rules and 4 new
  * sections." Skips rules whose trigger needs a section that we
- * couldn't resolve (defensive; shouldn't happen post-ensure).
+ * couldn't resolve (defensive; shouldn't happen post-ensure), and rules
+ * the workflow already has (counted in `alreadyPresent`).
  *
  * Body:  { templateId: string }
  */
@@ -27,7 +28,11 @@ import {
   findTemplateById,
   type TemplateTriggerSpec,
 } from "@/lib/workflow-templates";
-import type { WorkflowTrigger } from "@/lib/workflow-types";
+import {
+  stableStringify,
+  type WorkflowTrigger,
+} from "@/lib/workflow-types";
+import { resolveSectionStage } from "@/lib/pipelines";
 
 const bodySchema = z.object({
   templateId: z.string().min(1),
@@ -47,6 +52,7 @@ async function assertCanEditWorkflow(projectId: string, userId: string) {
       visibility: true,
       workspaceId: true,
       teamId: true,
+      type: true,
       members: { select: { userId: true, role: true } },
     },
   });
@@ -56,6 +62,7 @@ async function assertCanEditWorkflow(projectId: string, userId: string) {
   if (!access.canWrite) return { ok: false as const, status: 403 };
   return { ok: true as const, project };
 }
+
 
 /**
  * GET /api/projects/:projectId/workflow/templates
@@ -144,8 +151,18 @@ export async function POST(
           sectionIds.set(name, found.id);
           continue;
         }
+        // Same stage rule every other section writer uses: a template column
+        // named like one of this project's pipeline stages is that stage, so
+        // stage grouping (and save-as-template) sees it as one instead of an
+        // orphan column.
+        const resolved = resolveSectionStage(access.project.type, name, undefined);
         const created = await tx.section.create({
-          data: { projectId, name, position: nextPosition++ },
+          data: {
+            projectId,
+            name,
+            position: nextPosition++,
+            stage: resolved.ok ? resolved.stage : null,
+          },
         });
         sectionIds.set(name, created.id);
         createdSections++;
@@ -177,7 +194,20 @@ export async function POST(
       }
 
       // ── Create one WorkflowRule per template rule ─────────────
+      // Re-applying a template (or layering one that shares a rule) must not
+      // duplicate rules: ADD_COMMENT is not idempotent, so a doubled rule
+      // posts every comment and notification twice on each move.
+      const existingRules = await tx.workflowRule.findMany({
+        where: { workflowId: workflow.id },
+        select: { trigger: true, actions: true },
+      });
+      const existingKeys = new Set(
+        existingRules.map((r) =>
+          stableStringify({ trigger: r.trigger, actions: r.actions })
+        )
+      );
       let createdRules = 0;
+      let alreadyPresent = 0;
       const skipped: string[] = [];
       for (const ruleSpec of template.rules) {
         const trigger = resolveTrigger(ruleSpec.trigger);
@@ -189,6 +219,12 @@ export async function POST(
           );
           continue;
         }
+        const key = stableStringify({ trigger, actions: ruleSpec.actions });
+        if (existingKeys.has(key)) {
+          alreadyPresent++;
+          continue;
+        }
+        existingKeys.add(key);
         await tx.workflowRule.create({
           data: {
             workflowId: workflow.id,
@@ -199,7 +235,13 @@ export async function POST(
         createdRules++;
       }
 
-      return { createdSections, createdRules, skipped, workflowId: workflow.id };
+      return {
+        createdSections,
+        createdRules,
+        alreadyPresent,
+        skipped,
+        workflowId: workflow.id,
+      };
     });
 
     return NextResponse.json(

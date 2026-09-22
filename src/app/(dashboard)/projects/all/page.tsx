@@ -13,7 +13,7 @@
  *
  * The page reads from /api/projects and offers:
  *   - Filter pills by type (Construction / Design / Recertification / Permit)
- *   - Filter pills by gate (Pre-design → Closeout)
+ *   - Filter pills by pipeline stage (pipelines.ts) and by gate
  *   - Search input (name contains)
  *   - 2 views: Grid (default) and List (with gridlines like /goals + /my-tasks)
  *   - "New project" CTA that links to /projects/new
@@ -53,6 +53,13 @@ import { GanttTimeline } from "@/components/projects/gantt-timeline";
 import { computePmiSnapshot, healthVisual } from "@/lib/pmi-metrics";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
 import { useToday } from "@/lib/use-today";
+import {
+  PIPELINES,
+  pipelineForType,
+  resolveStage,
+  stageLabel,
+  type PipelineId,
+} from "@/lib/pipelines";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -82,6 +89,8 @@ interface Project {
   color: string;
   type: ProjectType | null;
   gate: ProjectGate | null;
+  // Pipeline stage key ("recert.field_work"); TEXT, so possibly stale.
+  stage: string | null;
   status: ProjectStatus;
   isArchived: boolean;
   location: string | null;
@@ -117,6 +126,25 @@ const GATE_LABEL: Record<ProjectGate, string> = {
   CONSTRUCTION: "Construction",
   CLOSEOUT: "Closeout",
 };
+
+/** Stage filter options: the stages of the pipeline the Type filter selects,
+ *  or of every pipeline — prefixed with its name so identical labels in two
+ *  pipelines stay distinguishable. */
+function stageOptions(typeFilter: ProjectType | "ALL") {
+  const pipelines =
+    typeFilter === "ALL"
+      ? (Object.keys(PIPELINES) as PipelineId[]).map((id) => PIPELINES[id])
+      : [pipelineForType(typeFilter)].filter(
+          (p): p is NonNullable<typeof p> => p !== null
+        );
+  return pipelines.flatMap((pipeline) =>
+    pipeline.stages.map((stage) => ({
+      value: stage.key,
+      label:
+        typeFilter === "ALL" ? `${pipeline.label} · ${stage.label}` : stage.label,
+    }))
+  );
+}
 
 const STATUS_DOT: Record<ProjectStatus, string> = {
   ON_TRACK: "#c9a84c",
@@ -175,6 +203,7 @@ function ProjectsPageContent() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "ALL">("ALL");
   const [gateFilter, setGateFilter] = useState<ProjectGate | "ALL">("ALL");
+  const [stageFilter, setStageFilter] = useState<string>("ALL");
   // Archive scope stays plain useState on purpose: it's somewhere you
   // go to retrieve one old project, never how you want to browse
   // tomorrow, so it must not survive the session like `view` does.
@@ -292,9 +321,10 @@ function ProjectsPageContent() {
     return inScope.filter(
       (p) =>
         (typeFilter === "ALL" || p.type === typeFilter) &&
-        (gateFilter === "ALL" || p.gate === gateFilter)
+        (gateFilter === "ALL" || p.gate === gateFilter) &&
+        (stageFilter === "ALL" || p.stage === stageFilter)
     );
-  }, [inScope, typeFilter, gateFilter]);
+  }, [inScope, typeFilter, gateFilter, stageFilter]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -350,7 +380,28 @@ function ProjectsPageContent() {
               })),
             ]}
             value={typeFilter}
-            onChange={(v) => setTypeFilter(v as ProjectType | "ALL")}
+            onChange={(v) => {
+              const next = v as ProjectType | "ALL";
+              setTypeFilter(next);
+              // A stage from another pipeline would silently empty the list.
+              if (
+                stageFilter !== "ALL" &&
+                !stageOptions(next).some((o) => o.value === stageFilter)
+              ) {
+                setStageFilter("ALL");
+              }
+            }}
+          />
+          <FilterChip
+            label="Stage"
+            activeLabel={stageFilter === "ALL" ? null : stageLabel(stageFilter)}
+            options={[
+              { value: "ALL", label: "All stages" },
+              ...stageOptions(typeFilter),
+            ]}
+            value={stageFilter}
+            onChange={setStageFilter}
+            wide
           />
           <FilterChip
             label="Gate"
@@ -479,7 +530,7 @@ function ProjectsPageContent() {
               </h3>
               <p className="text-sm text-gray-500 max-w-sm text-center mb-4">
                 {inScope.length > 0
-                  ? "Try adjusting the type or gate filters above."
+                  ? "Try adjusting the type, stage or gate filters above."
                   : debouncedSearch
                     ? "Try a different term, or clear the search box to see everything here."
                     : scope === "archived"
@@ -535,12 +586,15 @@ function FilterChip({
   options,
   value,
   onChange,
+  wide = false,
 }: {
   label: string;
   activeLabel: string | null;
   options: { value: string; label: string }[];
   value: string;
   onChange: (v: string) => void;
+  /** Long option lists (every pipeline's stages) get a wider, scrolling menu. */
+  wide?: boolean;
 }) {
   const isActive = activeLabel !== null;
   return (
@@ -551,7 +605,10 @@ function FilterChip({
           <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48">
+      <DropdownMenuContent
+        align="start"
+        className={cn(wide ? "w-72 max-h-80 overflow-y-auto" : "w-48")}
+      >
         {options.map((opt) => (
           <DropdownMenuItem
             key={opt.value}
@@ -628,9 +685,9 @@ function ProjectsGridView({
                 {TYPE_LABEL[p.type]}
               </span>
             )}
-            {p.gate && (
+            {(stageLabel(p.stage) ?? (p.gate ? GATE_LABEL[p.gate] : null)) && (
               <span className="text-[10px] font-medium text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full">
-                {GATE_LABEL[p.gate]}
+                {stageLabel(p.stage) ?? (p.gate ? GATE_LABEL[p.gate] : null)}
               </span>
             )}
           </div>
@@ -662,7 +719,7 @@ function ProjectsGridView({
  * Column anatomy (left to right):
  *   #         Project number (TT-YYYY-NNN, monospaced)
  *   PROJECT   Color bar + name + type/client subline
- *   GATE      Phase chip
+ *   STAGE     Pipeline stage chip (falls back to the legacy gate)
  *   %COMP     Progress (actual vs planned mini bar)
  *   HEALTH    On track / Watch / At risk / Off track pill
  *   OWNER     Avatar
@@ -687,7 +744,7 @@ function ProjectsListView({
   const today = useToday();
   // Same gridTemplate shared by header, rows, AND ghost-column
   // overlay so every divider lands on the same pixel boundary.
-  const gridTemplate = "100px minmax(220px, 1fr) 110px 130px 100px 56px";
+  const gridTemplate = "100px minmax(220px, 1fr) 160px 130px 100px 56px";
   return (
     <div className="font-sans">
       {/* Compact header — six columns. Per-cell `border-l` provides
@@ -698,7 +755,7 @@ function ProjectsListView({
            style={{ gridTemplateColumns: gridTemplate }}>
         <div className="px-3 py-2 border-l border-[#e6e9ef] first:border-l-0">#</div>
         <div className="px-3 py-2 border-l border-[#e6e9ef]">Project</div>
-        <div className="px-3 py-2 border-l border-[#e6e9ef]">Gate</div>
+        <div className="px-3 py-2 border-l border-[#e6e9ef]">Stage</div>
         <div className="px-3 py-2 border-l border-[#e6e9ef]">% Comp</div>
         <div className="px-3 py-2 border-l border-[#e6e9ef]">Health</div>
         <div className="px-2 py-2 border-l border-[#e6e9ef] text-center">Owner</div>
@@ -722,6 +779,7 @@ function ProjectsListView({
           completedTaskCount: completedTasks,
         });
         const hv = healthVisual(pmi.health);
+        const stage = resolveStage(p.stage);
         // endDate is stored at UTC midnight of the target day, so comparing
         // the raw instant against `new Date()` flagged a project due TODAY as
         // overdue — from 20:00 the evening BEFORE the deadline, for anyone
@@ -770,10 +828,18 @@ function ProjectsListView({
               </div>
             </div>
 
-            {/* Gate */}
-            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center">
-              <span className="text-[10px] font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
-                {p.gate ? GATE_LABEL[p.gate] : "—"}
+            {/* Stage — the firm's own vocabulary; the coarse gate only for
+                a job whose stage key does not resolve. */}
+            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center min-w-0">
+              <span
+                className="text-[10px] font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded truncate"
+                title={
+                  stage
+                    ? `${PIPELINES[stage.pipelineId].label} · ${stage.stage.label}`
+                    : undefined
+                }
+              >
+                {stage?.stage.label ?? (p.gate ? GATE_LABEL[p.gate] : "—")}
               </span>
             </div>
 

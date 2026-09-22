@@ -95,11 +95,14 @@ export async function GET(
       };
     }
 
-    // Does this email already correspond to a registered user? The
-    // page uses this to pre-select "Log in" vs "Create account".
-    const existingUser = await prisma.user.findUnique({
-      where: { email: invitation.email },
-      select: { id: true },
+    // Does this email already correspond to a usable account? The page uses
+    // this to pick "Sign in" vs "Create account". A row with no password (a
+    // sign-up that was never finished) cannot sign in, so it counts as no
+    // account: the accept route sets the password on that row. Matched
+    // case-insensitively, like every other auth lookup.
+    const existingUser = await prisma.user.findFirst({
+      where: { email: { equals: invitation.email, mode: "insensitive" } },
+      select: { id: true, password: true },
     });
 
     return NextResponse.json({
@@ -122,12 +125,92 @@ export async function GET(
         inviter: invitation.inviter,
       },
       viewer,
-      hasAccount: !!existingUser,
+      hasAccount: !!existingUser?.password,
     });
   } catch (err) {
     console.error("[invite GET] error:", err);
     return NextResponse.json(
       { error: "Failed to resolve invitation" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/invite/:token — decline the invitation.
+ *
+ * Public like GET: holding the token (it arrived in the invitee's inbox) is the
+ * credential, the same one that would let them accept. Only a PENDING, unexpired
+ * row can be declined; the inviter gets an inbox notification so the pending
+ * row does not just sit there until someone revokes it.
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  try {
+    const { token } = await params;
+    if (!token) {
+      return NextResponse.json({ error: "Missing token" }, { status: 400 });
+    }
+
+    const invitation = await prisma.workspaceInvitation.findUnique({
+      where: { token },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        expiresAt: true,
+        inviterId: true,
+        workspaceId: true,
+      },
+    });
+    if (!invitation) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (invitation.status !== "PENDING" || invitation.expiresAt < new Date()) {
+      return NextResponse.json(
+        { error: "This invitation can no longer be declined" },
+        { status: 410 }
+      );
+    }
+
+    // Conditional on PENDING so a decline racing an accept cannot flip an
+    // invitation that was just accepted.
+    const { count } = await prisma.workspaceInvitation.updateMany({
+      where: { id: invitation.id, status: "PENDING" },
+      data: { status: "DECLINED" },
+    });
+    if (count === 0) {
+      return NextResponse.json(
+        { error: "This invitation can no longer be declined" },
+        { status: 410 }
+      );
+    }
+
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: invitation.inviterId,
+          // Same type the accept route uses for "accepted your invitation".
+          type: "PROJECT_INVITATION",
+          title: `${invitation.email} declined your invitation`,
+          data: {
+            workspaceId: invitation.workspaceId,
+            invitationId: invitation.id,
+          },
+        },
+      });
+    } catch (err) {
+      // The decline itself stands; the notification is best-effort.
+      console.error("[invite DELETE] notify failed:", err);
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[invite DELETE] error:", err);
+    return NextResponse.json(
+      { error: "Failed to decline invitation" },
       { status: 500 }
     );
   }

@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { uploadFile, deleteFile } from "@/lib/storage";
+import {
+  BlobRejectedError,
+  SAAS_BLOB_ACCESS,
+  deleteFile,
+  maxUploadBytes,
+  uploadFile,
+  verifyUploadedBlob,
+} from "@/lib/storage";
 import {
   verifyProjectAccess,
   getErrorStatus,
@@ -11,7 +18,8 @@ import {
 } from "@/lib/auth-guards";
 
 // Key resources (Overview) — a project's curated files + links. GET lists
-// them; POST adds one, either a multipart file upload or a JSON link.
+// them; POST adds one: a JSON link, a JSON description of a file the browser
+// already uploaded to blob storage, or (small files) a multipart upload.
 
 const resourceSelect = {
   id: true,
@@ -25,8 +33,9 @@ const resourceSelect = {
   uploader: { select: { id: true, name: true, email: true, image: true } },
 } as const;
 
-// An uploaded resource is a private blob: the stored url is an address only
-// the server can fetch, so publish the authenticated read route instead. A
+// An uploaded resource's stored url is a storage address (a private blob, or
+// an unguessable public one that must not leak), so publish the authenticated
+// read route instead. A
 // LINK is somebody's external URL and has to travel exactly as it was pasted.
 function withReadUrl<T extends { id: string; type: string; url: string }>(
   r: T
@@ -66,6 +75,12 @@ export async function GET(
   }
 }
 
+const fileSchema = z.object({
+  type: z.literal("FILE"),
+  blobUrl: z.string().min(1).max(2048),
+  name: z.string().trim().min(1, "File name is required").max(255),
+});
+
 const linkSchema = z.object({
   type: z.literal("LINK"),
   url: z.string().trim().min(1, "URL is required").max(2048),
@@ -73,7 +88,9 @@ const linkSchema = z.object({
 });
 
 // POST /api/projects/:projectId/resources
-// - multipart/form-data with `file` → upload a FILE resource
+// - application/json { type:"FILE", blobUrl, name } → record a FILE the
+//   browser uploaded straight to blob storage (token: /api/blob/upload)
+// - multipart/form-data with `file` → upload a FILE resource (small files)
 // - application/json { type:"LINK", url, name? } → add a LINK resource
 export async function POST(
   req: Request,
@@ -99,6 +116,58 @@ export async function POST(
     // ── Link ──────────────────────────────────────────────────────────
     if (contentType.includes("application/json")) {
       const body = await req.json().catch(() => ({}));
+
+      // ── File, already in the store ──────────────────────────────────
+      // Vercel refuses a function request body over ~4.5MB, so a real drawing
+      // set cannot come through the multipart branch below. The url is the
+      // caller's word: verifyUploadedBlob proves it is our store, at the
+      // expected access level, under this project's resources folder, and
+      // reads size and type off the stored blob.
+      if ((body as { type?: unknown })?.type === "FILE") {
+        const data = fileSchema.parse(body);
+        let verified;
+        try {
+          verified = await verifyUploadedBlob(
+            data.blobUrl,
+            data.name,
+            `projects/${projectId}/resources/`,
+            SAAS_BLOB_ACCESS,
+            maxUploadBytes()
+          );
+        } catch (err) {
+          if (err instanceof BlobRejectedError) {
+            return NextResponse.json({ error: err.message }, { status: err.status });
+          }
+          throw err;
+        }
+        // One row per blob: deleting a resource deletes its blob, so two rows
+        // sharing one would leave the other pointing at nothing.
+        const already = await prisma.projectResource.findFirst({
+          where: { url: verified.url },
+          select: { id: true },
+        });
+        if (already) {
+          return NextResponse.json(
+            { error: "That file is already attached" },
+            { status: 409 }
+          );
+        }
+        const resource = await prisma.projectResource.create({
+          data: {
+            projectId,
+            uploaderId: userId,
+            type: "FILE",
+            name: verified.name,
+            url: verified.url,
+            size: verified.size,
+            mimeType: verified.mimeType,
+            position: nextPosition,
+          },
+          select: resourceSelect,
+        });
+        return NextResponse.json(withReadUrl(resource), { status: 201 });
+      }
+
       const data = linkSchema.parse(body);
       const raw = data.url.trim();
       // Detect a declared scheme. A real URL scheme has no dots

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ReportChart } from "@/components/reporting/report-chart";
+import { useEffectiveAccess } from "@/hooks/use-effective-access";
 import {
   CHART_TYPES,
   MULTI_SERIES_CHART_TYPES,
@@ -51,7 +52,11 @@ import {
   dimensionsForEntity,
   measuresForEntity,
   defaultMeasure,
-  FILTER_OPERATORS,
+  filterFieldsForEntity,
+  enumValuesForFilter,
+  filterFieldKind,
+  filterOperatorLabel,
+  operatorsForFilterField,
   type ChartEntity,
   type ChartType,
   type ChartConfig,
@@ -190,70 +195,17 @@ const AGGREGATIONS: { value: Aggregation; label: string }[] = [
   { value: "max", label: "Max" },
 ];
 
-// Filter fields the builder offers per entity (subset of FilterField the
-// engine understands). Kept static + entity-aware so the operator/value
-// controls always target a real column.
-const TASK_FILTER_FIELDS: CatalogOption[] = [
-  { value: "assignee", label: "Assignee" },
-  { value: "creator", label: "Creator" },
-  { value: "project", label: "Project" },
-  { value: "section", label: "Section" },
-  { value: "taskType", label: "Task type" },
-  { value: "priority", label: "Priority" },
-  { value: "completionStatus", label: "Completion status" },
-  { value: "dueStatus", label: "Due-date status" },
-  { value: "name", label: "Name" },
-  { value: "dueDate", label: "Due date" },
-  { value: "completedAt", label: "Completed at" },
-  { value: "createdAt", label: "Created at" },
-];
-const PROJECT_FILTER_FIELDS: CatalogOption[] = [
-  { value: "owner", label: "Owner" },
-  { value: "status", label: "Status" },
-  { value: "portfolio", label: "Portfolio" },
-];
-const GOAL_FILTER_FIELDS: CatalogOption[] = [
-  { value: "status", label: "Status" },
-  { value: "owner", label: "Owner" },
-];
-
-function filterFieldsForEntity(entity: ChartEntity): CatalogOption[] {
-  if (entity === "projects") return PROJECT_FILTER_FIELDS;
-  if (entity === "goals") return GOAL_FILTER_FIELDS;
-  return TASK_FILTER_FIELDS;
-}
-
-// Enum-valued fields get a value dropdown; everything else a free text input.
-const ENUM_FIELD_VALUES: Record<string, { value: string; label: string }[]> = {
-  taskType: [
-    { value: "TASK", label: "Task" },
-    { value: "MILESTONE", label: "Milestone" },
-    { value: "APPROVAL", label: "Approval" },
-  ],
-  priority: [
-    { value: "NONE", label: "None" },
-    { value: "LOW", label: "Low" },
-    { value: "MEDIUM", label: "Medium" },
-    { value: "HIGH", label: "High" },
-  ],
-  completionStatus: [
-    { value: "Completed", label: "Completed" },
-    { value: "Incomplete", label: "Incomplete" },
-  ],
-  dueStatus: [
-    { value: "Upcoming", label: "Upcoming" },
-    { value: "Overdue", label: "Overdue" },
-    { value: "No date", label: "No date" },
-    { value: "Completed", label: "Completed" },
-  ],
-};
-
 const NO_VALUE_OPERATORS: FilterOperator[] = ["isSet", "isNotSet"];
 
-// ── Project option (for scope + project-filter pickers) ──────────────
+// ── Picker options (scope + id-valued filters) ───────────────────────
 interface ProjectOption {
   id: string;
   name: string;
+}
+
+interface PickOption {
+  value: string;
+  label: string;
 }
 
 // ── Builder props ────────────────────────────────────────────────────
@@ -276,7 +228,14 @@ export interface ChartBuilderProps {
     showDataLabels?: boolean;
     benchmark?: number;
   } | null;
-  onSubmit: (result: ChartBuilderResult) => void;
+  /**
+   * Persist the chart. The builder stays open (with the user's work intact)
+   * until this settles, and stays open if it resolves to `false` — so a
+   * failed save never throws away a configured chart.
+   */
+  onSubmit: (
+    result: ChartBuilderResult
+  ) => void | boolean | Promise<void | boolean>;
   /**
    * When provided, the "Include from" scope is PRESET to this scope and
    * LOCKED (the scope selector is replaced by a read-only pill). The Portfolio
@@ -318,6 +277,17 @@ export function ChartBuilder({
   const [benchmark, setBenchmark] = useState<string>("");
 
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  // Value pickers for the id-valued filters: nobody types a cuid, and the
+  // engine matches ids, so a free-text box here produced empty charts.
+  const [members, setMembers] = useState<PickOption[]>([]);
+  const [portfolios, setPortfolios] = useState<PickOption[]>([]);
+  const [sections, setSections] = useState<PickOption[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  // The engine reports on ONE workspace (the caller's primary one); the
+  // project pickers must offer exactly that workspace's projects, or a side
+  // workspace's project shows up and then answers "Project not found".
+  const { access } = useEffectiveAccess();
+  const reportWorkspaceId = access?.workspaceId ?? null;
   // Custom-field defs for the selected project scope (dimension + measures).
   const [customFields, setCustomFields] = useState<
     { id: string; name: string; type: string }[]
@@ -360,13 +330,17 @@ export function ChartBuilder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // ── Load projects once (for scope + project filters) ──
+  // ── Load projects (for scope + project filters) ──
   useEffect(() => {
-    if (!open) return;
+    if (!open || !reportWorkspaceId) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/projects?fields=summary");
+        const res = await fetch(
+          `/api/projects?fields=summary&sort=alphabetical&workspaceId=${encodeURIComponent(
+            reportWorkspaceId
+          )}`
+        );
         if (res.ok && !cancelled) {
           const data = await res.json();
           setProjects(
@@ -378,6 +352,47 @@ export function ChartBuilder({
         }
       } catch {
         /* ignore — scope still works with workspace/my */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, reportWorkspaceId]);
+
+  // ── Load people + portfolios once per open (filter value pickers) ──
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const [membersRes, portfoliosRes] = await Promise.all([
+        fetch("/api/workspace/members").catch(() => null),
+        fetch("/api/portfolios?fields=summary").catch(() => null),
+      ]);
+      if (cancelled) return;
+      try {
+        if (membersRes?.ok) {
+          const rows = (await membersRes.json()) as {
+            user: { id: string; name: string | null; email: string };
+          }[];
+          if (!cancelled) {
+            setMembers(
+              rows
+                .map((r) => ({
+                  value: r.user.id,
+                  label: r.user.name || r.user.email,
+                }))
+                .sort((a, b) => a.label.localeCompare(b.label))
+            );
+          }
+        }
+        if (portfoliosRes?.ok) {
+          const rows = (await portfoliosRes.json()) as { id: string; name: string }[];
+          if (!cancelled) {
+            setPortfolios(rows.map((r) => ({ value: r.id, label: r.name })));
+          }
+        }
+      } catch {
+        /* the pickers stay empty; the rest of the builder still works */
       }
     })();
     return () => {
@@ -424,6 +439,37 @@ export function ChartBuilder({
       cancelled = true;
     };
   }, [open, scopeProjectId, config.entity]);
+
+  // ── Load the scoped project's sections (section filter picker) ──
+  useEffect(() => {
+    if (!open || !scopeProjectId) {
+      setSections([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${scopeProjectId}`);
+        if (!res.ok) {
+          if (!cancelled) setSections([]);
+          return;
+        }
+        const data = (await res.json()) as {
+          sections?: { id: string; name: string }[];
+        };
+        if (!cancelled) {
+          setSections(
+            (data.sections ?? []).map((s) => ({ value: s.id, label: s.name }))
+          );
+        }
+      } catch {
+        if (!cancelled) setSections([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, scopeProjectId]);
 
   // ── Effective config sent to the engine (merge annotation controls) ──
   const effectiveConfig = useMemo<ChartConfig>(() => {
@@ -530,10 +576,10 @@ export function ChartBuilder({
       if (!MULTI_SERIES_CHART_TYPES.includes(chartType)) {
         next.breakdown = undefined;
       }
-      // Donut and number cards render a single measure. Keeping the extras
-      // around made the engine emit m0/m1, which the ring silently ignored
-      // (and which cost it its slice colours).
-      if (chartType === "donut" || chartType === "number") {
+      // Donut, number and lollipop charts draw a single measure. Keeping the
+      // extras around made the engine emit m0/m1, which the chart silently
+      // ignored (and which cost the ring its slice colours).
+      if (chartType === "donut" || chartType === "number" || chartType === "lollipop") {
         next.measures = c.measures.slice(0, 1);
       }
       // Chronological types want a date dimension by default (only tasks
@@ -600,6 +646,7 @@ export function ChartBuilder({
   const isNumberCard = config.chartType === "number";
   const isMultiSeries = MULTI_SERIES_CHART_TYPES.includes(config.chartType);
   const isDonut = config.chartType === "donut";
+  const isLollipop = config.chartType === "lollipop";
   const dimField = config.dimension?.field;
   const isDateDim = dimField === "date";
 
@@ -641,6 +688,36 @@ export function ChartBuilder({
       ],
     }));
   };
+  // A new field keeps the operator only when that field supports it; the
+  // value never carries over (an assignee id is not a date).
+  const changeFilterField = (index: number, field: Filter["field"]) => {
+    setConfig((c) => ({
+      ...c,
+      filters: c.filters.map((ff, i) => {
+        if (i !== index) return ff;
+        const ops = operatorsForFilterField(field);
+        return {
+          field,
+          operator: ops.includes(ff.operator) ? ff.operator : ops[0],
+          value: "",
+        };
+      }),
+    }));
+  };
+  // Switching between a date and a day count must not reuse the old value.
+  const changeFilterOperator = (index: number, operator: FilterOperator) => {
+    setConfig((c) => ({
+      ...c,
+      filters: c.filters.map((ff, i) => {
+        if (i !== index) return ff;
+        const wasDays = ff.operator === "inLastDays" || ff.operator === "inNextDays";
+        const isDays = operator === "inLastDays" || operator === "inNextDays";
+        return wasDays === isDays
+          ? { ...ff, operator }
+          : { ...ff, operator, value: "" };
+      }),
+    }));
+  };
   const setFilter = (index: number, f: Partial<Filter>) => {
     setConfig((c) => ({
       ...c,
@@ -652,20 +729,52 @@ export function ChartBuilder({
   };
 
   // ── Submit ──
-  const handleSubmit = () => {
+  // The modal used to close BEFORE the save request, so a failed save threw
+  // away the whole configured chart and left only an error toast. Wait for the
+  // parent, and stay open (work intact) when it reports failure.
+  const handleSubmit = async () => {
+    if (submitting) return;
     const finalConfig = { ...effectiveConfig };
-    onSubmit({
-      title: title.trim() || "Untitled chart",
-      chartType: finalConfig.chartType,
-      chartConfig: finalConfig,
-      showDataLabels,
-      benchmark: benchmark.trim() === "" ? undefined : Number(benchmark),
-    });
-    onOpenChange(false);
+    setSubmitting(true);
+    try {
+      const ok = await onSubmit({
+        title: title.trim() || "Untitled chart",
+        chartType: finalConfig.chartType,
+        chartConfig: finalConfig,
+        showDataLabels,
+        benchmark: benchmark.trim() === "" ? undefined : Number(benchmark),
+      });
+      if (ok !== false) onOpenChange(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Value options for an id-valued filter field.
+  const idOptionsFor = (field: string): PickOption[] => {
+    switch (field) {
+      case "assignee":
+      case "creator":
+      case "owner":
+        return members;
+      case "project":
+        return projects.map((p) => ({ value: p.id, label: p.name }));
+      case "portfolio":
+        return portfolios;
+      case "section":
+        return sections;
+      default:
+        return [];
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!submitting) onOpenChange(o);
+      }}
+    >
       <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-[1040px] max-h-[92vh] p-0 overflow-hidden flex flex-col gap-0">
         <DialogHeader className="px-4 md:px-6 py-3 border-b">
           <DialogTitle>{initial ? "Edit chart" : "Add chart"}</DialogTitle>
@@ -946,7 +1055,7 @@ export function ChartBuilder({
                   </div>
                 );
               })}
-              {!isNumberCard && !isMultiSeries && !isDonut && config.measures.length < 4 && (
+              {!isNumberCard && !isMultiSeries && !isDonut && !isLollipop && config.measures.length < 4 && (
                 <button
                   type="button"
                   onClick={addMeasure}
@@ -1006,17 +1115,20 @@ export function ChartBuilder({
               )}
               {config.filters.map((f, i) => {
                 const fields = filterFieldsForEntity(config.entity);
-                const enumValues = ENUM_FIELD_VALUES[f.field];
-                const projectValued = f.field === "project";
+                const enumValues = enumValuesForFilter(config.entity, f.field);
+                const kind = filterFieldKind(f.field);
+                const ops = operatorsForFilterField(f.field);
                 const noValue = NO_VALUE_OPERATORS.includes(f.operator);
+                const isDays = f.operator === "inLastDays" || f.operator === "inNextDays";
                 const incomplete = !noValue && String(f.value ?? "").trim() === "";
+                const idOptions = kind === "id" ? idOptionsFor(f.field) : [];
+                // A section belongs to one project, so its picker needs one.
+                const sectionNeedsProject = f.field === "section" && !scopeProjectId;
                 return (
                   <div key={i} className="flex flex-wrap gap-2 items-center">
                     <Select
                       value={f.field}
-                      onValueChange={(v) =>
-                        setFilter(i, { field: v as Filter["field"], value: "" })
-                      }
+                      onValueChange={(v) => changeFilterField(i, v as Filter["field"])}
                     >
                       <SelectTrigger className="w-[38%] min-w-[120px]">
                         <SelectValue />
@@ -1031,15 +1143,18 @@ export function ChartBuilder({
                     </Select>
                     <Select
                       value={f.operator}
-                      onValueChange={(v) => setFilter(i, { operator: v as FilterOperator })}
+                      onValueChange={(v) => changeFilterOperator(i, v as FilterOperator)}
                     >
                       <SelectTrigger className="w-[28%] min-w-[92px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {FILTER_OPERATORS.map((op) => (
-                          <SelectItem key={op.value} value={op.value}>
-                            {op.label}
+                        {/* A saved filter whose operator this field never
+                            supported still shows what it is, so it can be
+                            changed; the engine refuses to run it. */}
+                        {(ops.includes(f.operator) ? ops : [f.operator, ...ops]).map((op) => (
+                          <SelectItem key={op} value={op}>
+                            {filterOperatorLabel(f.field, op)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1061,18 +1176,27 @@ export function ChartBuilder({
                             ))}
                           </SelectContent>
                         </Select>
-                      ) : projectValued ? (
+                      ) : kind === "id" ? (
                         <Select
                           value={String(f.value ?? "")}
                           onValueChange={(v) => setFilter(i, { value: v })}
+                          disabled={sectionNeedsProject}
                         >
                           <SelectTrigger className="flex-1 min-w-[100px]">
-                            <SelectValue placeholder="Project" />
+                            <SelectValue
+                              placeholder={
+                                sectionNeedsProject
+                                  ? "Pick one project above first"
+                                  : idOptions.length === 0
+                                  ? "Nothing to pick"
+                                  : "Value"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            {projects.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
+                            {idOptions.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1080,13 +1204,11 @@ export function ChartBuilder({
                       ) : (
                         <Input
                           className="flex-1 min-w-[100px]"
+                          type={isDays ? "number" : kind === "date" ? "date" : "text"}
+                          min={isDays ? 0 : undefined}
                           value={String(f.value ?? "")}
                           onChange={(e) => setFilter(i, { value: e.target.value })}
-                          placeholder={
-                            f.operator === "inLastDays" || f.operator === "inNextDays"
-                              ? "days"
-                              : "value"
-                          }
+                          placeholder={isDays ? "days" : "value"}
                         />
                       ))}
                     <button
@@ -1099,7 +1221,9 @@ export function ChartBuilder({
                     </button>
                     {incomplete && (
                       <p className="w-full text-[11px] text-slate-400">
-                        Pick a value to apply this filter.
+                        {sectionNeedsProject
+                          ? "Section filters need the chart scoped to one project."
+                          : "Pick a value to apply this filter."}
                       </p>
                     )}
                   </div>
@@ -1134,13 +1258,19 @@ export function ChartBuilder({
         </div>
 
         <DialogFooter className="px-4 md:px-6 py-3 border-t flex-row justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
             Cancel
           </Button>
           <Button
             className="bg-slate-900 hover:bg-slate-800 text-white"
             onClick={handleSubmit}
+            disabled={submitting}
           >
+            {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {initial ? "Save changes" : "Add chart"}
           </Button>
         </DialogFooter>

@@ -21,6 +21,10 @@ interface AddColumnDropdownProps {
    *  the user can un-hide (re-add) them, mirroring Asana's field menu. */
   hiddenFields?: { id: string; label: string }[];
   onReshowField?: (fieldId: string) => void;
+  /** False for someone who cannot edit the project: creating a field would
+   *  be refused, so only the personal column choices (built-in extras and
+   *  re-showing hidden fields) are offered. */
+  canCreateFields?: boolean;
 }
 
 export function AddColumnDropdown({
@@ -30,6 +34,7 @@ export function AddColumnDropdown({
   activeBuiltinIds = [],
   hiddenFields = [],
   onReshowField,
+  canCreateFields = true,
 }: AddColumnDropdownProps) {
   const [open, setOpen] = useState(false);
   const [fieldName, setFieldName] = useState("");
@@ -39,6 +44,8 @@ export function AddColumnDropdown({
   // a thin "Show more" trigger inside the menu that expands the
   // list of extra columns without leaving the dropdown.
   const [showBuiltins, setShowBuiltins] = useState(false);
+  // With no field types to list, the built-in extras are the whole menu.
+  const builtinsVisible = showBuiltins || !canCreateFields;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -125,6 +132,7 @@ export function AddColumnDropdown({
           className="absolute right-0 top-[calc(100%+4px)] w-[280px] bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
         >
           {/* Input */}
+          {canCreateFields ? (
           <div className="p-2.5">
             <input
               ref={inputRef}
@@ -135,6 +143,9 @@ export function AddColumnDropdown({
               className="w-full h-8 px-3 text-[13px] border-2 border-black rounded-md bg-white focus:outline-none placeholder:text-gray-400"
             />
           </div>
+          ) : (
+            <div className="h-1.5" />
+          )}
 
           {/* Hidden fields — click to un-hide (re-add to the view). */}
           {hiddenFields.length > 0 && (
@@ -166,13 +177,13 @@ export function AddColumnDropdown({
           {/* Section title */}
           <div className="px-3 pb-1.5">
             <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
-              Field types
+              {canCreateFields ? "Field types" : "Columns"}
             </span>
           </div>
 
           {/* Field type list */}
           <div className="max-h-[420px] overflow-y-auto">
-            {FIELD_TYPES.map((ft) => {
+            {canCreateFields && FIELD_TYPES.map((ft) => {
               const Icon = ft.icon;
               return (
                 <button
@@ -188,6 +199,7 @@ export function AddColumnDropdown({
 
             {/* Show more — Asana mirrors this exact pattern: a thin
                 row that expands the built-in extras list inline. */}
+            {canCreateFields && (
             <button
               onClick={() => setShowBuiltins((v) => !v)}
               className="w-full flex items-center gap-2.5 px-3 h-9 text-[13px] text-[#6f7782] hover:bg-black/[0.04] transition-colors text-left cursor-pointer"
@@ -200,8 +212,9 @@ export function AddColumnDropdown({
               />
               <span>{showBuiltins ? "Show less" : "Show more"}</span>
             </button>
+            )}
 
-            {showBuiltins &&
+            {builtinsVisible &&
               BUILTIN_FIELDS.map((b) => {
                 const Icon = b.icon;
                 const alreadyActive = activeBuiltinIds.includes(b.id);
@@ -235,6 +248,8 @@ export function AddColumnDropdown({
               })}
           </div>
 
+          {canCreateFields && (
+          <>
           {/* Separator */}
           <div className="mx-3 border-t border-gray-200" />
 
@@ -248,6 +263,8 @@ export function AddColumnDropdown({
               <span>From library</span>
             </button>
           </div>
+          </>
+          )}
         </div>
       )}
     </div>

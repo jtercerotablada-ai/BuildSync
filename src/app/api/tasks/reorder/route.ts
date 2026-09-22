@@ -3,7 +3,9 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
+  getUserWorkspaceId,
   verifyBulkTaskAccess,
+  verifyProjectAccess,
   verifySectionWritable,
   AuthorizationError,
   NotFoundError,
@@ -46,17 +48,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { sectionId, orderedTaskIds } = reorderSchema.parse(body);
 
-    // Workspace-scoped task access check — same gate the rest of the
-    // task endpoints use. Throws if any task is outside the user's
-    // workspace or if the user lacks edit access.
-    const workspaceId = await verifyBulkTaskAccess(userId, orderedTaskIds);
-
-    // Require WRITE on the project that owns the destination section.
-    // Same-workspace (the previous check) is not authorization: a caller who
-    // merely CREATED the tasks — which is all verifyBulkTaskAccess needs —
-    // could drop them into a column of a project they cannot write to, or
-    // even read, where they then render for every real member and fire that
-    // project's workflow rules.
+    // Require WRITE on the project that owns the destination section, inside
+    // the caller's own workspace. Write access alone is not a workspace bound
+    // (a project OWNER can write in any workspace), hence expectWorkspaceId.
+    const workspaceId = await getUserWorkspaceId(userId);
     const destSection = await verifySectionWritable(userId, sectionId, {
       expectWorkspaceId: workspaceId,
     });
@@ -65,10 +60,57 @@ export async function POST(req: Request) {
     // into it, and they render identically — so the destination must be
     // written to a different column per task. Writing Task.sectionId for a
     // guest re-homed it and made it vanish from its own project's board.
-    const { placements, unrelated } = await resolveTaskPlacements(
+    const { placements: resolved, unrelated } = await resolveTaskPlacements(
       orderedTaskIds,
       destSection.projectId,
     );
+
+    // Authorize what is actually written, not every id in the column. A HOME
+    // task's own row changes, so it passes the full task write gate. A GUEST
+    // only has the destination project's link row repointed, which the
+    // section check above already covers; requiring write on its home project
+    // (or, for someone's personal task, being its owner) made one borrowed
+    // card turn the whole column un-draggable for everybody else.
+    const homeCandidates = resolved
+      .filter((p) => p.kind === "home")
+      .map((p) => p.taskId);
+    if (homeCandidates.length > 0) {
+      await verifyBulkTaskAccess(userId, homeCandidates);
+    }
+    // A private guest stays out of reach of anyone outside its audience —
+    // skipped like an unrelated id, so the answer does not reveal it exists.
+    const guestIds = resolved
+      .filter((p) => p.kind === "guest")
+      .map((p) => p.taskId);
+    const hiddenGuests = new Set<string>();
+    if (guestIds.length > 0) {
+      const privateGuests = await prisma.task.findMany({
+        where: {
+          id: { in: guestIds },
+          isPrivate: true,
+          NOT: {
+            OR: [
+              { creatorId: userId },
+              { assigneeId: userId },
+              { collaborators: { some: { userId } } },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      if (privateGuests.length > 0) {
+        const { access } = await verifyProjectAccess(
+          userId,
+          destSection.projectId,
+        );
+        if (!access.isWorkspaceManager) {
+          for (const t of privateGuests) hiddenGuests.add(t.id);
+        }
+      }
+    }
+    const placements = resolved.filter((p) => !hiddenGuests.has(p.taskId));
+    unrelated.push(...Array.from(hiddenGuests));
+
     // An id that is neither homed here nor linked here is SKIPPED, not
     // rejected. The client sends the whole column, so failing the batch would
     // let one bad row make a column permanently un-draggable — and a row like
@@ -98,12 +140,34 @@ export async function POST(req: Request) {
     });
     const incomingTasks = preMove.filter((t) => t.sectionId !== sectionId);
 
+    // Subtasks share their parent's column (they copy it when created), so a
+    // card crossing columns takes its whole sub-task tree along. Left behind,
+    // they sat invisibly in the old column and were destroyed with it.
+    const descendantIds: string[] = [];
+    {
+      const seen = new Set<string>(incomingTasks.map((t) => t.id));
+      let frontier = [...seen];
+      while (frontier.length > 0) {
+        const children = await prisma.task.findMany({
+          where: { parentTaskId: { in: frontier } },
+          select: { id: true },
+        });
+        frontier = [];
+        for (const c of children) {
+          if (seen.has(c.id)) continue;
+          seen.add(c.id);
+          descendantIds.push(c.id);
+          frontier.push(c.id);
+        }
+      }
+    }
+
     // Atomic renumber. Index in orderedTaskIds becomes the position for HOME
     // tasks; guests only get their per-project link repointed, because
     // Task.position belongs to their own project's ordering and TaskProject
     // has no position column (see lib/task-placement.ts).
-    await prisma.$transaction(
-      orderedTaskIds.flatMap((taskId, position) => {
+    await prisma.$transaction([
+      ...orderedTaskIds.flatMap((taskId, position) => {
         const placement = placementByTask.get(taskId);
         if (!placement) return []; // skipped: not in this project
         return [
@@ -117,8 +181,36 @@ export async function POST(req: Request) {
                 data: { sectionId },
               }),
         ];
-      })
-    );
+      }),
+      ...(descendantIds.length > 0
+        ? [
+            prisma.task.updateMany({
+              where: { id: { in: descendantIds } },
+              // projectId too, so a subtask can never point at a column of a
+              // project it is not homed in.
+              data: { sectionId, projectId: destSection.projectId },
+            }),
+          ]
+        : []),
+    ]);
+
+    // A drag across columns is the most common way work changes stage, so it
+    // must leave the same TASK_MOVED row the task panel's section picker
+    // does. The move already committed: a failed log must not answer 500.
+    if (incomingTasks.length > 0) {
+      try {
+        await prisma.activity.createMany({
+          data: incomingTasks.map((t) => ({
+            type: "TASK_MOVED" as const,
+            taskId: t.id,
+            userId,
+            data: { newSectionId: sectionId },
+          })),
+        });
+      } catch (activityError) {
+        console.error("[tasks reorder] activity log failed:", activityError);
+      }
+    }
 
     // Fire workflow rules for each task that just crossed sections.
     // Engine is fire-and-forget — failures get logged inside and

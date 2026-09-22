@@ -1,49 +1,11 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 
+/* Self-service sign-up is closed (see /api/auth/register): BuildSync is the
+   firm's staff-only tool and every account comes from a workspace invitation.
+   The route stays so old links land on an explanation instead of a 404. */
 export default function RegisterPage() {
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Something went wrong");
-        return;
-      }
-
-      /* Do NOT jump to /onboarding. That page needs the email-verify token,
-         which only exists inside the message we just sent — pushing the user
-         there directly is what made every signup dead-end. The link in the
-         email is the way in. */
-      setSent(true);
-    } catch {
-      setError("Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <Card>
       <CardHeader className="space-y-1">
@@ -52,58 +14,28 @@ export default function RegisterPage() {
           <img src="/ttc/img/logo-square.png" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20 object-contain" />
         </div>
         <CardDescription className="text-center">
-          {sent ? "Check your email" : "Enter your email to get started"}
+          Accounts are by invitation only
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {sent ? (
-          /* Deliberately says "if that address can be registered" rather than
-             confirming we created anything — the API returns the same body for
-             a new and an existing address, and this screen must not undo that. */
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              If <span className="font-medium text-foreground">{email}</span> can be
-              registered, we&apos;ve sent it a link to finish setting up the account.
-            </p>
-            <p>
-              Open that link to choose your name and password. It expires in one hour.
-            </p>
-            <p>Nothing arrived? Check the spam folder, then try again.</p>
-            <Button variant="outline" className="w-full" onClick={() => setSent(false)}>
-              Use a different email
-            </Button>
-          </div>
-        ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 text-sm text-black bg-white border border-black rounded-md">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Checking..." : "Continue"}
-          </Button>
-        </form>
-        )}
+      <CardContent className="space-y-3 text-sm text-muted-foreground">
+        <p>
+          BuildSync is the internal workspace of Tercero Tablada Civil &amp;
+          Structural Engineering. To get an account, ask a workspace admin to
+          send you an invitation.
+        </p>
+        <p>
+          Then open the link in the invitation email: it lets you choose your
+          password and joins you to the right workspace in one step.
+        </p>
       </CardContent>
-      <CardFooter>
-        <p className="text-sm text-center text-muted-foreground w-full">
-          Already have an account?{" "}
-          <Link href="/login" className="text-primary hover:underline">
-            Sign in
+      <CardFooter className="flex flex-col gap-2">
+        <Button asChild className="w-full">
+          <Link href="/login">Go to sign in</Link>
+        </Button>
+        <p className="text-xs text-center text-muted-foreground w-full">
+          Already have an account but forgot the password?{" "}
+          <Link href="/forgot-password" className="text-primary hover:underline">
+            Reset it
           </Link>
         </p>
       </CardFooter>

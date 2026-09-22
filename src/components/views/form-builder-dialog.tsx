@@ -43,7 +43,6 @@ import {
   Link2,
   Inbox,
   MoreHorizontal,
-  Star,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -74,7 +73,6 @@ import {
   BadgeCheck,
   FileText,
 } from "lucide-react";
-import { useUiState } from "@/hooks/use-ui-state";
 
 /**
  * Form Builder dialog — single unified source for creating / editing
@@ -110,7 +108,7 @@ interface Props {
   /** Existing form (edit mode). When null, the dialog is in create mode. */
   initial?: FormRow | null;
   onSaved: (form: FormRow) => void;
-  /** Called with the deleted form id so the parent can drop it from its list
+  /** Called with the closed form's id so the parent can update its list
    *  (the parent doesn't otherwise refetch when the dialog closes). */
   onDeleted?: (formId: string) => void;
 }
@@ -266,16 +264,6 @@ export function FormBuilderDialog({
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [coverModalOpen, setCoverModalOpen] = useState(false);
   const [coverInput, setCoverInput] = useState("");
-  // Favorites are per-user, per-form (mirrors Asana's ⭐ star on the form
-  // editor). Stored in server-backed uiState rather than localStorage so they
-  // follow the user to another device and don't show up for the next person
-  // to log in on a shared machine.
-  const { value: favoriteForms, setValue: setFavoriteForms } = useUiState<
-    Record<string, boolean>
-  >("favoriteForms", {});
-  // Un-favoriting is stored as an explicit `false` (see toggleFavorite), so
-  // only `=== true` counts as a favorite.
-  const isFavorite = !!initial?.id && favoriteForms[initial.id] === true;
   const [deleting, setDeleting] = useState(false);
   const [submissionsOpen, setSubmissionsOpen] = useState(false);
 
@@ -429,9 +417,16 @@ export function FormBuilderDialog({
     setActiveFieldId(null);
   }, []);
 
-  // ── Load sections + members once the dialog opens ──────────────
+  // ── Load sections + members each time the dialog opens ─────────
   // GET /api/projects/:id returns both sections[] and members[] nested
-  // — one round-trip instead of two.
+  // — one round-trip instead of two. The dialog stays mounted in the
+  // Workflow tab, so a load-once flag kept sections added or renamed
+  // since the first open out of the Default section picker until a
+  // full reload; closing resets it.
+  useEffect(() => {
+    if (!open) setPickersLoaded(false);
+  }, [open]);
+
   useEffect(() => {
     if (!open || pickersLoaded) return;
     let cancelled = false;
@@ -816,98 +811,16 @@ export function FormBuilderDialog({
     }
   }
 
-  // One-time fold of the old browser-local list so nobody's existing
-  // favorites disappear. Dropping the key makes this a no-op afterwards.
-  //
-  // The preferences GET is read directly rather than folding into the hook's
-  // value: `isHydrated` flips as soon as the localStorage cache is applied,
-  // while the server request is still in flight, so folding then would run
-  // against an empty map — hiding favorites saved on another device for the
-  // rest of the session and re-favoriting forms un-starred there. The legacy
-  // key is only dropped once we have something to fold it into, so an offline
-  // visit can still migrate on the next mount.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let legacy: unknown;
-    try {
-      const raw = localStorage.getItem("buildsync-fav-forms");
-      if (!raw) return;
-      legacy = JSON.parse(raw);
-    } catch {
-      try {
-        localStorage.removeItem("buildsync-fav-forms");
-      } catch {
-        // Storage disabled — nothing to clean up.
-      }
-      return;
-    }
-    const legacyIds = Array.isArray(legacy)
-      ? (legacy as unknown[]).filter((id): id is string => typeof id === "string")
-      : [];
-    const dropLegacy = () => {
-      try {
-        localStorage.removeItem("buildsync-fav-forms");
-      } catch {
-        // Storage disabled — the fold above is idempotent anyway.
-      }
-    };
-    if (legacyIds.length === 0) {
-      dropLegacy();
-      return;
-    }
-    let canceled = false;
-    fetch("/api/users/preferences")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (canceled || !data) return;
-        const server = (data.uiState?.favoriteForms ?? {}) as Record<
-          string,
-          boolean
-        >;
-        const merged = { ...server };
-        let changed = false;
-        for (const id of legacyIds) {
-          // `undefined` only — a stored `false` is a deliberate un-favorite.
-          if (merged[id] === undefined) {
-            merged[id] = true;
-            changed = true;
-          }
-        }
-        if (changed) setFavoriteForms(merged);
-        dropLegacy();
-      })
-      .catch(() => {
-        // Offline — keep the legacy key and try again on the next mount.
-      });
-    return () => {
-      canceled = true;
-    };
-  }, [setFavoriteForms]);
-
-  // ── Favorites: toggle flips the form id in the user's set. The removal is
-  //    written as `false` rather than by deleting the key, because PATCH
-  //    /api/users/preferences merges object-valued uiState keys one level
-  //    deep — an absent key is restored from the stored map, so a delete
-  //    would never persist. ──
-  function toggleFavorite() {
-    const formId = initial?.id;
-    if (!formId) return;
-    const nowFavorite = !isFavorite;
-    setFavoriteForms((prev) => ({ ...prev, [formId]: nowFavorite }));
-    toast.success(nowFavorite ? "Added to favorites" : "Removed from favorites");
-  }
-
-  // ── Delete: confirms, soft-deletes (closes the form so submissions are
-  //    preserved — a hard DELETE cascades them away), tells the parent to
-  //    drop it from the list, then closes the dialog. The rows survive in the
-  //    database but nothing in the app lists an inactive form, so the
-  //    submissions inbox behind it becomes unreachable — the confirmation has
-  //    to say that instead of the reassuring "past submissions are kept". ─
+  // ── Close: confirms, soft-closes (isActive:false, so submissions are
+  //    preserved — a hard DELETE cascades them away), tells the parent,
+  //    then closes the dialog. The project's Workflow tab still lists a
+  //    closed form (Closed badge) with its submissions inbox and a Reopen
+  //    action. ─
   async function handleDelete() {
     if (!initial?.id) return;
     if (
       !window.confirm(
-        `Delete the form "${initial.name}"?\n\nIt stops accepting submissions and leaves this project's form list. Its past submissions stay in the database, but no screen can open them again — export anything you still need first. This can't be undone from the app.`
+        `Close the form "${initial.name}"?\n\nIt stops accepting submissions. It stays in the project's Workflow tab marked Closed, where you can still open its submissions or reopen it.`
       )
     )
       return;
@@ -919,11 +832,11 @@ export function FormBuilderDialog({
         body: JSON.stringify({ isActive: false }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Form deleted");
+      toast.success("Form closed");
       onDeleted?.(initial.id);
       onOpenChange(false);
     } catch {
-      toast.error("Couldn't delete the form");
+      toast.error("Couldn't close the form");
     } finally {
       setDeleting(false);
     }
@@ -1008,30 +921,23 @@ export function FormBuilderDialog({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={toggleFavorite}>
-                      <Star
-                        className={cn(
-                          "h-4 w-4 mr-2",
-                          isFavorite
-                            ? "text-[#c9a84c] fill-[#c9a84c]"
-                            : "text-gray-500"
-                        )}
-                      />
-                      {isFavorite ? "Remove from favorites" : "Add to favorites"}
-                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={openSubmissions}>
                       <Inbox className="h-4 w-4 mr-2 text-gray-500" />
                       View submissions
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="text-rose-600 focus:text-rose-600"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      {deleting ? "Deleting…" : "Delete form"}
-                    </DropdownMenuItem>
+                    {initial?.isActive !== false && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleDelete}
+                          disabled={deleting}
+                          className="text-rose-600 focus:text-rose-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          {deleting ? "Closing…" : "Close form"}
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -1716,17 +1622,9 @@ function FieldRow({
                     <Label className="text-[11px] uppercase tracking-wider text-slate-500">
                       Accept types
                     </Label>
-                    <Input
-                      value={(field.accept || []).join(", ")}
-                      onChange={(e) =>
-                        onUpdate({
-                          accept: e.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                      placeholder="image/*, application/pdf"
+                    <AcceptTypesInput
+                      value={field.accept}
+                      onChange={(accept) => onUpdate({ accept })}
                     />
                   </div>
                 )}
@@ -2388,5 +2286,48 @@ function TemplatePicker({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Comma-separated MIME list for an ATTACHMENT field. Keeps the raw text the
+ * editor is typing: re-rendering from the parsed array dropped every comma
+ * the moment it was typed ("image/*," parses to ["image/*"]), so a second
+ * type could never be entered. The parsed list still reaches the field on
+ * every keystroke; the text is tidied on blur.
+ */
+function AcceptTypesInput({
+  value,
+  onChange,
+}: {
+  value: string[] | undefined;
+  onChange: (next: string[]) => void;
+}) {
+  const parse = (text: string) =>
+    text
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const joined = (value || []).join(",");
+  const [raw, setRaw] = useState(() => (value || []).join(", "));
+  // Adopt a change made elsewhere (template, duplicate) without clobbering
+  // text that already parses to the same list.
+  useEffect(() => {
+    setRaw((prev) =>
+      parse(prev).join(",") === joined
+        ? prev
+        : joined.split(",").filter(Boolean).join(", ")
+    );
+  }, [joined]);
+  return (
+    <Input
+      value={raw}
+      onChange={(e) => {
+        setRaw(e.target.value);
+        onChange(parse(e.target.value));
+      }}
+      onBlur={() => setRaw(parse(raw).join(", "))}
+      placeholder="image/*, application/pdf"
+    />
   );
 }

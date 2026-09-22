@@ -38,7 +38,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Folder, Check } from "lucide-react";
+import {
+  Folder,
+  Briefcase,
+  Building2,
+  Layers,
+  Target,
+  Check,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type {
@@ -63,14 +71,39 @@ const COLOR_OPTIONS = [
   "#64748b",
 ];
 
-// Icon options stored as lucide-ish keys. We render Folder for all but
-// tint by color; the stored value round-trips through PATCH { icon }.
-const ICON_OPTIONS = ["folder", "briefcase", "building", "layers", "target"];
+// Icon keys stored on Portfolio.icon (PATCH { icon }) and the glyph each
+// one draws. Exported so every surface that shows a portfolio can render
+// the icon picked here; an unknown or empty key falls back to Folder.
+export const PORTFOLIO_ICONS: Record<string, LucideIcon> = {
+  folder: Folder,
+  briefcase: Briefcase,
+  building: Building2,
+  layers: Layers,
+  target: Target,
+};
+
+export function portfolioIcon(key: string | null | undefined): LucideIcon {
+  return (key && PORTFOLIO_ICONS[key]) || Folder;
+}
+
+const ICON_OPTIONS = Object.keys(PORTFOLIO_ICONS);
+
+// Same meaning as the Share dialog's "My workspace" setting — it is the
+// same field, gated by the same server rule (no link-based access).
+const PRIVACY_HINT: Record<PortfolioPrivacy, string> = {
+  PRIVATE: "Only the owner and people added in Share can access this portfolio.",
+  WORKSPACE: "Everyone in the workspace except guests can view this portfolio.",
+  PUBLIC: "Everyone in the workspace, guests included, can view this portfolio.",
+};
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   canEdit: boolean;
+  /** May change privacy (who has access). The API treats that as member
+   *  management — owner, portfolio admin or workspace OWNER/ADMIN — not as
+   *  a content edit. Defaults to canEdit for callers that do not pass it. */
+  canManageAccess?: boolean;
 
   // Shared List column state (single source of truth with List Options).
   columns: ColumnKey[];
@@ -91,6 +124,7 @@ export function PortfolioCustomizeDrawer({
   open,
   onOpenChange,
   canEdit,
+  canManageAccess = canEdit,
   columns,
   columnDefs,
   onToggleColumn,
@@ -147,6 +181,7 @@ export function PortfolioCustomizeDrawer({
   }
 
   const activeColor = color || "#a8893a";
+  const ActiveIcon = portfolioIcon(icon);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -218,24 +253,28 @@ export function PortfolioCustomizeDrawer({
                   className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ backgroundColor: activeColor + "20" }}
                 >
-                  <Folder className="h-4 w-4" style={{ color: activeColor }} />
+                  <ActiveIcon className="h-4 w-4" style={{ color: activeColor }} />
                 </div>
-                {ICON_OPTIONS.map((ic) => (
-                  <button
-                    key={ic}
-                    type="button"
-                    disabled={!canEdit}
-                    onClick={() => saveIcon(ic)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md text-xs capitalize border transition-colors disabled:opacity-50",
-                      icon === ic
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                    )}
-                  >
-                    {ic}
-                  </button>
-                ))}
+                {ICON_OPTIONS.map((ic) => {
+                  const Glyph = PORTFOLIO_ICONS[ic];
+                  return (
+                    <button
+                      key={ic}
+                      type="button"
+                      disabled={!canEdit}
+                      onClick={() => saveIcon(ic)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs capitalize border transition-colors disabled:opacity-50",
+                        (icon || "folder") === ic
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                      )}
+                    >
+                      <Glyph className="h-3.5 w-3.5" />
+                      {ic}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -287,25 +326,19 @@ export function PortfolioCustomizeDrawer({
               </label>
               <Select
                 value={privacy}
-                disabled={!canEdit}
+                disabled={!canManageAccess}
                 onValueChange={(v) => savePrivacy(v as PortfolioPrivacy)}
               >
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PRIVATE">Private</SelectItem>
-                  <SelectItem value="WORKSPACE">Workspace</SelectItem>
-                  <SelectItem value="PUBLIC">Public</SelectItem>
+                  <SelectItem value="PRIVATE">Private to members</SelectItem>
+                  <SelectItem value="WORKSPACE">Workspace members</SelectItem>
+                  <SelectItem value="PUBLIC">Everyone in the workspace</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-400">
-                {privacy === "PRIVATE"
-                  ? "Only invited members can access this portfolio."
-                  : privacy === "WORKSPACE"
-                    ? "Invited members plus people with the link."
-                    : "Anyone in the workspace can view this portfolio."}
-              </p>
+              <p className="text-xs text-gray-400">{PRIVACY_HINT[privacy]}</p>
             </div>
           </section>
         </div>

@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { ProjectGate } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { deleteFile } from "@/lib/storage";
+import { GoalProgressService } from "@/lib/goal-progress";
 import { taskPrivacyClause } from "@/lib/project-visibility";
 import { getProjectAccess, resolveProjectAccess } from "@/lib/project-access";
 import {
@@ -11,6 +13,25 @@ import {
   stageDirection,
   stagesForType,
 } from "@/lib/pipelines";
+
+/**
+ * The owner of a blob uploaded through a public form (`forms/<formId>/...`)
+ * or a tracking reply (`tracking/<submissionId>/...`); null for any other
+ * path. Same folder rule as isSubmissionBlob in the task delete routes.
+ */
+function submissionBlobOwner(
+  url: string
+): { folder: "forms" | "tracking"; id: string } | null {
+  try {
+    const [folder, id] = new URL(url).pathname.replace(/^\/+/, "").split("/");
+    if ((folder === "forms" || folder === "tracking") && id) {
+      return { folder, id };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // Schedule dates arrive as ISO strings. Validate them at the edge so a
 // malformed one comes back as a 400 naming the field, instead of reaching
@@ -163,13 +184,12 @@ export async function PATCH(
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    // Edit rule unchanged: project owner, or a member with ADMIN/EDITOR.
-    const canEdit =
-      access.isOwner ||
-      access.memberRole === "ADMIN" ||
-      access.memberRole === "EDITOR";
-
-    if (!canEdit) {
+    // The canonical write rule — owner, project ADMIN/EDITOR, workspace
+    // OWNER/ADMIN, or an implicit Editor grant (team sharing, WORKSPACE/PUBLIC
+    // visibility). This route used to keep its own owner|ADMIN|EDITOR copy, so
+    // the firm owner could DELETE a colleague's project but not archive or
+    // rename it.
+    if (!access.canWrite) {
       return NextResponse.json(
         { error: "You don't have permission to edit this project" },
         { status: 403 }
@@ -218,6 +238,7 @@ export async function PATCH(
         toStage: string;
       } | null = null;
 
+      let typeChanged = false;
       if (data.type !== undefined) {
         // Read inside the transaction, alongside the write it decides: a stage
         // move landing between the two would otherwise be recorded as the
@@ -231,6 +252,7 @@ export async function PATCH(
         // RECERTIFICATION → BSIP is a reclassification, not a move: both run the
         // same pipeline, so the stage is still valid and the clock must survive.
         // Nothing is touched unless the current stage genuinely stops belonging.
+        typeChanged = !!current && data.type !== current.type;
         if (
           current &&
           data.type !== current.type &&
@@ -297,6 +319,27 @@ export async function PATCH(
         },
       });
 
+      // Board columns bound to a stage of the OLD pipeline would otherwise keep
+      // claiming it: no column ever matches the new pipeline, so the
+      // "all of X is done, move on?" offer can never fire, and each column's
+      // stage picker opens on a value outside its own list. Unbind them; the
+      // column and its tasks stay.
+      if (typeChanged) {
+        const bound = await tx.section.findMany({
+          where: { projectId, stage: { not: null } },
+          select: { id: true, stage: true },
+        });
+        const stale = bound
+          .filter((sec) => !isStageValidForType(data.type, sec.stage))
+          .map((sec) => sec.id);
+        if (stale.length > 0) {
+          await tx.section.updateMany({
+            where: { id: { in: stale } },
+            data: { stage: null },
+          });
+        }
+      }
+
       if (seedEvent) {
         await tx.projectStageEvent.create({
           data: {
@@ -359,8 +402,154 @@ export async function DELETE(
       );
     }
 
+    // The cascade removes the File / ProjectResource / Attachment /
+    // MessageAttachment ROWS but not the blobs behind them, and legacy uploads
+    // are public: a deleted job's sealed PDFs stayed downloadable forever by
+    // anyone holding a link. Collect the URLs before the rows go.
+    const [files, resources, attachments, messageAttachments] =
+      await Promise.all([
+        prisma.file.findMany({ where: { projectId }, select: { url: true } }),
+        prisma.projectResource.findMany({
+          where: { projectId },
+          select: { url: true },
+        }),
+        prisma.attachment.findMany({
+          where: {
+            OR: [
+              { task: { projectId } },
+              { comment: { task: { projectId } } },
+            ],
+          },
+          select: { url: true },
+        }),
+        prisma.messageAttachment.findMany({
+          where: { message: { projectId } },
+          select: { url: true },
+        }),
+      ]);
+    const blobUrls = [
+      ...new Set(
+        [...files, ...resources, ...attachments, ...messageAttachments].map(
+          (r) => r.url
+        )
+      ),
+    ];
+
+    // Public-form and tracking-reply blobs (forms/<formId>/..., tracking/
+    // <submissionId>/...) are also linked from a FormSubmission's JSON answers,
+    // which no count below can see. This project's own forms and their
+    // submissions cascade with it, so their blobs go too; a submission blob
+    // owned by ANOTHER project's form (its task was moved in here) stays,
+    // because that inbox and tracking page still link to it.
+    const ownForms = await prisma.form.findMany({
+      where: { projectId },
+      select: { id: true, submissions: { select: { id: true } } },
+    });
+    const ownFormIds = new Set(ownForms.map((f) => f.id));
+    const ownSubmissionIds = new Set(
+      ownForms.flatMap((f) => f.submissions.map((s) => s.id))
+    );
+    const isForeignSubmissionBlob = (url: string): boolean => {
+      const owner = submissionBlobOwner(url);
+      if (!owner) return false;
+      return owner.folder === "forms"
+        ? !ownFormIds.has(owner.id)
+        : !ownSubmissionIds.has(owner.id);
+    };
+
+    // The project's custom-field columns. Definitions are workspace-level and
+    // the cascade only removes the project's LINKS to them, so a definition
+    // made for this project would linger forever with nothing pointing at it.
+    const linkedFields = await prisma.projectCustomField.findMany({
+      where: { projectId },
+      select: { fieldId: true },
+    });
+
+    // Goals fed by this project: linked to it directly (the PROJECTS
+    // denominator) or to one of its tasks (TASKS / key-result task links).
+    // The join rows cascade with the delete, so collect the ids first.
+    const [objectiveProjects, objectiveTasks, keyResultTasks] =
+      await Promise.all([
+        prisma.objectiveProject.findMany({
+          where: { projectId },
+          select: { objectiveId: true },
+        }),
+        prisma.objectiveTask.findMany({
+          where: { task: { projectId } },
+          select: { objectiveId: true },
+        }),
+        prisma.keyResultTask.findMany({
+          where: { task: { projectId } },
+          select: { keyResult: { select: { objectiveId: true } } },
+        }),
+      ]);
+    const affectedObjectiveIds = new Set<string>([
+      ...objectiveProjects.map((o) => o.objectiveId),
+      ...objectiveTasks.map((o) => o.objectiveId),
+      ...keyResultTasks.map((k) => k.keyResult.objectiveId),
+    ]);
+
     await prisma.project.delete({
       where: { id: projectId },
+    });
+
+    // Best-effort: a goal whose progress counted this project or its tasks
+    // would otherwise keep the stale percentage until something else touches it.
+    for (const objectiveId of affectedObjectiveIds) {
+      try {
+        await GoalProgressService.recalculateProgress(objectiveId);
+      } catch (e) {
+        console.error("[project delete] goal recalc failed:", e);
+      }
+    }
+
+    // Best-effort: drop only the definitions nothing else uses any more — no
+    // other project links them and no task (e.g. My Tasks) holds a value.
+    // A definition that was linked to a project is never a personal My Tasks
+    // field: those are created unlinked and nothing ever links them.
+    if (linkedFields.length > 0) {
+      await prisma.customFieldDefinition
+        .deleteMany({
+          where: {
+            id: { in: [...new Set(linkedFields.map((f) => f.fieldId))] },
+            projectFields: { none: {} },
+            values: { none: {} },
+          },
+        })
+        .catch((err) => {
+          console.error("[project delete] custom field cleanup failed:", err);
+        });
+    }
+
+    // Notifications about this project would otherwise open a not-found page.
+    await prisma.notification
+      .deleteMany({
+        where: { data: { path: ["projectId"], equals: projectId } },
+      })
+      .catch((err) => {
+        console.error("[project delete] notification cleanup failed:", err);
+      });
+
+    // Best-effort, after the rows are gone: a blob failure must not turn a
+    // completed delete into an error. A URL still referenced elsewhere (a
+    // duplicated project copies its resource links) is left alone.
+    await Promise.allSettled(
+      blobUrls.map(async (url) => {
+        if (isForeignSubmissionBlob(url)) return;
+        const stillUsed =
+          (await prisma.file.count({ where: { url } })) +
+          (await prisma.projectResource.count({ where: { url } })) +
+          (await prisma.attachment.count({ where: { url } })) +
+          (await prisma.messageAttachment.count({ where: { url } }));
+        if (stillUsed === 0) await deleteFile(url);
+      })
+    ).then((results) => {
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        console.error(
+          `[project delete] ${failed} of ${blobUrls.length} blob deletions failed for ${projectId}`
+        );
+      }
     });
 
     return NextResponse.json({ success: true });

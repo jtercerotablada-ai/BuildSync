@@ -10,14 +10,25 @@
  * the clamp below can be tested without a database.
  */
 
-/** Days added on the LOCAL calendar, matching what the due-date line in
- *  POST /api/projects has always done: `new Date(start)` then
- *  `setDate(getDate() + n)`. Deliberately not UTC arithmetic — changing it
- *  would move the due date of every project made from a template, which is a
- *  different bug than the one this file exists for. */
+/** UTC midnight of the UTC calendar day `from` falls on.
+ *
+ *  Stored start/due dates are date-only values at UTC midnight, read back by
+ *  their UTC day. The anchor that reaches this module is either already one
+ *  of those (a "YYYY-MM-DD" start the engineer picked, or the firm's today)
+ *  or an instant carrying a time of day. Adding days to the instant stored
+ *  the creation time on every task, and anything created after 20:00 in
+ *  Miami (00:xx UTC) landed a whole day late. */
+function utcDay(from: Date): Date {
+  return new Date(
+    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate())
+  );
+}
+
+/** Whole days added in UTC, so the result stays at UTC midnight across a DST
+ *  change (local-calendar arithmetic would drift it to 23:00 or 01:00). */
 function addDays(from: Date, days: number): Date {
   const d = new Date(from);
-  d.setDate(d.getDate() + days);
+  d.setUTCDate(d.getUTCDate() + days);
   return d;
 }
 
@@ -36,16 +47,20 @@ export interface TemplateTaskDates {
  *
  * Either offset may be absent (no date), and either may be negative — "order
  * the survey two weeks before kickoff" is a real instruction.
+ *
+ * Both dates come back at UTC midnight of the anchor's UTC day plus the
+ * offset, the date-only convention every reader of a due date assumes.
  */
 export function templateTaskDates(
   projectStart: Date,
   relativeStartDate: number | null | undefined,
   relativeDueDate: number | null | undefined
 ): TemplateTaskDates {
+  const anchor = utcDay(projectStart);
   const dueDate =
-    typeof relativeDueDate === "number" ? addDays(projectStart, relativeDueDate) : null;
+    typeof relativeDueDate === "number" ? addDays(anchor, relativeDueDate) : null;
   let startDate =
-    typeof relativeStartDate === "number" ? addDays(projectStart, relativeStartDate) : null;
+    typeof relativeStartDate === "number" ? addDays(anchor, relativeStartDate) : null;
 
   // A template must not be able to create a row the product would refuse to
   // save: both POST /api/tasks and PATCH /api/tasks/:taskId reject

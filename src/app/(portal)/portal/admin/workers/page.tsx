@@ -15,9 +15,18 @@ import {
 import { InviteWorkerDialog } from "@/components/admin/invite-worker-dialog";
 import { Users } from "lucide-react";
 
+/** The firm works in Miami; this page renders on the server in UTC. */
+const FIRM_TIME_ZONE = "America/New_York";
+
+function formatFirmDate(value: Date) {
+  return new Date(value).toLocaleDateString("en-US", {
+    timeZone: FIRM_TIME_ZONE,
+  });
+}
+
 export default async function AdminWorkersPage() {
   const userId = await getCurrentUserId();
-  if (!userId) redirect("/auth/signin");
+  if (!userId) redirect("/login?callbackUrl=%2Fportal%2Fadmin%2Fworkers");
 
   // The PRIMARY membership, the same one the APIs behind this page resolve.
   // A bare findFirst returned an arbitrary workspace, so the page could list
@@ -31,7 +40,9 @@ export default async function AdminWorkersPage() {
   const workers = await prisma.workspaceMember.findMany({
     where: {
       workspaceId: currentMember.workspaceId,
-      role: { in: ["WORKER", "MEMBER"] },
+      // ADMIN too: the invite dialog offers it, so an Admin invite (and the
+      // Admin who accepts it) must not vanish from this page.
+      role: { in: ["WORKER", "MEMBER", "ADMIN"] },
     },
     include: {
       user: {
@@ -50,8 +61,11 @@ export default async function AdminWorkersPage() {
   const pendingInvitations = await prisma.workspaceInvitation.findMany({
     where: {
       workspaceId: currentMember.workspaceId,
-      role: { in: ["WORKER", "MEMBER"] },
+      role: { in: ["WORKER", "MEMBER", "ADMIN"] },
       status: "PENDING",
+      // An expired invite can no longer be accepted; listing it as pending
+      // would be misleading, and re-inviting the address refreshes it.
+      expiresAt: { gt: new Date() },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -108,7 +122,7 @@ export default async function AdminWorkersPage() {
                       {worker.user.jobTitle || "-"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(worker.joinedAt).toLocaleDateString()}
+                      {formatFirmDate(worker.joinedAt)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -146,10 +160,10 @@ export default async function AdminWorkersPage() {
                       <Badge variant="secondary">PENDING</Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(inv.createdAt).toLocaleDateString()}
+                      {formatFirmDate(inv.createdAt)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(inv.expiresAt).toLocaleDateString()}
+                      {formatFirmDate(inv.expiresAt)}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -20,6 +20,7 @@
  */
 
 import { stageLabel, type StageKey } from "./pipelines";
+import { findTemplateById as findWorkflowTemplateById } from "./workflow-templates";
 
 export type ProjectTemplateCategory =
   | "for_you"
@@ -128,7 +129,9 @@ export interface ProjectTemplate {
    *  sections in the order declared here. */
   tasks?: ProjectTemplateTask[];
   /** Optional workflow template id from workflow-templates.ts to apply
-   *  immediately after creation. */
+   *  immediately after creation. Its trigger sections must all be columns in
+   *  `sections` (see workflowFitsSections): the apply route creates any it
+   *  cannot find, which would add a second vocabulary of columns. */
   workflowTemplateId?: string;
 }
 
@@ -290,7 +293,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "structural-design",
     name: "Structural design project",
     description:
-      "Production-grade structural design playbook — kickoff through stamped & sealed deliverables. Asana-style kanban: 5 status columns (To Do → In Progress → Under Review → Approved → Done) with a 'Phase' custom field tagging every task as M1 (Framing & Loads), M2 (Analysis & Member Design), M3 (Detailing per ACI 318), M4 (Foundations), or M5 (Documentation & Issuance). 35+ parent tasks, 170+ subtasks, key milestones, calc-package-review workflow pre-wired.",
+      "Production-grade structural design playbook — kickoff through stamped & sealed deliverables. Asana-style kanban: 5 status columns (To Do → In Progress → Under Review → Approved → Done) with a 'Phase' custom field tagging every task as M1 (Framing & Loads), M2 (Analysis & Member Design), M3 (Detailing per ACI 318), M4 (Foundations), or M5 (Documentation & Issuance). 35+ parent tasks, 170+ subtasks, key milestones.",
     icon: "Building2",
     accent: "amber",
     category: "engineering",
@@ -752,13 +755,15 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
     ],
-    workflowTemplateId: "calc-package-review",
+    // No workflow: calc-package-review triggers on Drafting / Ready for Review
+    // / Stamping / Issued, none of which is a column here, so applying it
+    // only bolted a second, empty set of columns onto the board.
   },
   {
     id: "permit-submittal",
     name: "Permit submittal",
     description:
-      "Track a permit from preparation through AHJ review, corrections, and approval. Comes with the permit-cycle workflow.",
+      "Track a permit from preparation through AHJ review, corrections, and approval.",
     icon: "FileBadge",
     accent: "blue",
     category: "engineering",
@@ -768,7 +773,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     // map one-for-one onto real stages, so this is a rename into the shared
     // vocabulary, not a redesign. See PERMIT_COLUMN_STAGES.
     sections: PERMIT_SECTIONS,
-    workflowTemplateId: "permit-cycle",
+    // No workflow: permit-cycle still triggers on the old Permit Prep /
+    // Submitted to AHJ / Corrections / Approved names, so applying it would
+    // re-add exactly the duplicate columns the rename above removed.
   },
   {
     id: "recertification-40yr",
@@ -1037,7 +1044,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
     ],
-    workflowTemplateId: "inspection-cycle",
+    // No workflow: inspection-cycle (Scheduled / Performed / Report Issued)
+    // is a construction special-inspection flow whose columns are not on this
+    // stage board; applying it only appended three foreign, stage-less columns.
   },
   {
     id: "building-safety-inspection",
@@ -1473,7 +1482,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
     ],
-    workflowTemplateId: "inspection-cycle",
+    // No workflow: inspection-cycle (Scheduled / Performed / Report Issued)
+    // is a construction special-inspection flow whose columns are not on this
+    // stage board; applying it only appended three foreign, stage-less columns.
   },
   {
     id: "broward-bsip-inspection",
@@ -1483,7 +1494,10 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     icon: "ShieldCheck",
     accent: "blue",
     category: "engineering",
-    defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#335FB5" },
+    // BSIP is its own project type so Broward work is counted and filtered
+    // apart from Miami-Dade recerts; it runs the same recert pipeline, so the
+    // stage columns below resolve exactly as they did under RECERTIFICATION.
+    defaults: { type: "BSIP", gate: "PRE_DESIGN", color: "#335FB5" },
     // Broward's BSIP runs the identical eleven stages as a Miami-Dade recert,
     // so it gets the identical board: structural + electrical, with IR
     // thermography only when the AHJ asks for it. Field capture (photos + the
@@ -1719,7 +1733,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
     ],
-    workflowTemplateId: "inspection-cycle",
+    // No workflow: inspection-cycle (Scheduled / Performed / Report Issued)
+    // is a construction special-inspection flow whose columns are not on this
+    // stage board; applying it only appended three foreign, stage-less columns.
   },
   {
     id: "civil-site",
@@ -1797,7 +1813,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     accent: "rose",
     category: "construction",
     defaults: { type: "CONSTRUCTION", gate: "CONSTRUCTION", color: "#a8893a" },
-    sections: ["RFI Open", "Response Drafted", "RFI Closed"],
+    // Named exactly as rfi-lifecycle's trigger columns, so its rules fire on
+    // this board instead of on a duplicate column the workflow adds.
+    sections: ["RFI Open", "RFI Response Drafted", "RFI Closed"],
     workflowTemplateId: "rfi-lifecycle",
   },
   {
@@ -1887,6 +1905,25 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     sections: ["Agenda", "Parking Lot", "Decisions", "Action Items"],
   },
 ];
+
+/**
+ * Whether applying a workflow template would stay inside the given board.
+ * The workflow-apply route creates every section the workflow names that the
+ * project lacks, so a workflow whose sections are not all columns already
+ * appends foreign, empty columns and its rules fire only on those. The create
+ * flow applies a template's workflow only when this holds.
+ */
+export function workflowFitsSections(
+  workflowTemplateId: string | undefined,
+  sections: readonly string[]
+): boolean {
+  if (!workflowTemplateId) return false;
+  const workflow = findWorkflowTemplateById(workflowTemplateId);
+  if (!workflow) return false;
+  // Same comparison the apply route uses to find an existing column.
+  const have = new Set(sections.map((s) => s.toLowerCase()));
+  return workflow.sections.every((s) => have.has(s.toLowerCase()));
+}
 
 export function findProjectTemplate(id: string): ProjectTemplate | undefined {
   return PROJECT_TEMPLATES.find((t) => t.id === id);

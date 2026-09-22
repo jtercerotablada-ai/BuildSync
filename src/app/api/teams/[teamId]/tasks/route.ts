@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
+import { getErrorStatus } from "@/lib/auth-guards";
 import { requireTeamStanding } from "@/lib/team-access";
 import { taskPrivacyClause } from "@/lib/project-visibility";
-
-const createTaskSchema = z.object({
-  name: z.string().min(1),
-  dueDate: z.string(), // YYYY-MM-DD
-  projectId: z.string().optional(),
-});
 
 // GET /api/teams/:teamId/tasks - Get tasks from team's projects (for calendar)
 export async function GET(
@@ -44,8 +37,11 @@ export async function GET(
     // reports and /api/ai/assist so the four cannot drift.
     const tasks = await prisma.task.findMany({
       where: {
+        // Archived projects are off the team calendar, the same way the
+        // team's Work and Projects lists already leave them out.
         project: {
           teamId,
+          isArchived: false,
         },
         ...taskPrivacyClause(userId),
       },
@@ -93,122 +89,9 @@ export async function GET(
   }
 }
 
-// POST /api/teams/:teamId/tasks - Create a task for the team calendar
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ teamId: string }> }
-) {
-  try {
-    const userId = await getCurrentUserId();
-    const { teamId } = await params;
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const { name, dueDate, projectId } = createTaskSchema.parse(body);
-
-    // Same standing the GET requires — one rule, not a second hand-rolled
-    // membership lookup that only checked for a TeamMember row.
-    await requireTeamStanding(userId, teamId);
-
-    // When a projectId is supplied it MUST belong to this team. Without this
-    // check a team member could inject tasks into an arbitrary project in
-    // another team/workspace by guessing its id — audit (cross-tenant write).
-    if (projectId) {
-      const belongs = await prisma.project.findFirst({
-        where: { id: projectId, teamId },
-        select: { id: true },
-      });
-      if (!belongs) {
-        return NextResponse.json(
-          { error: "Project not found in this team" },
-          { status: 404 }
-        );
-      }
-    }
-
-    // Resolve project: use provided or pick first team project
-    let resolvedProjectId = projectId;
-    if (!resolvedProjectId) {
-      const firstProject = await prisma.project.findFirst({
-        where: { teamId },
-        select: { id: true },
-        orderBy: { createdAt: "asc" },
-      });
-      if (!firstProject) {
-        return NextResponse.json(
-          { error: "Team has no projects. Create a project first." },
-          { status: 400 }
-        );
-      }
-      resolvedProjectId = firstProject.id;
-    }
-
-    // Team membership is not the same as write access to THIS project. An
-    // explicit ProjectMember row always overrides the team grant —
-    // resolveProjectAccess only computes isTeamMember when the caller is
-    // neither owner nor member — so someone deliberately pinned to
-    // VIEWER/COMMENTER on a team project has canWrite=false everywhere else
-    // (POST /api/tasks correctly 403s them) and was creating tasks here
-    // anyway. Runs after resolution so it covers BOTH the supplied projectId
-    // and the "first project in the team" fallback. Ordinary team members are
-    // unaffected: the team grant flows through resolveProjectAccess as
-    // isTeamMember ⇒ canWrite.
-    await verifyProjectAccess(userId, resolvedProjectId, {
-      requireWrite: true,
-    });
-
-    const task = await prisma.task.create({
-      data: {
-        name,
-        dueDate: new Date(dueDate),
-        projectId: resolvedProjectId,
-        creatorId: userId,
-      },
-      select: {
-        id: true,
-        name: true,
-        dueDate: true,
-        completed: true,
-        project: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-          },
-        },
-      },
-    });
-
-    return NextResponse.json(task);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.issues[0]?.message || "Validation error" },
-        { status: 400 }
-      );
-    }
-    // Map the guards' AuthorizationError/NotFoundError to 403/404 the way GET
-    // already does — without this the new verifyProjectAccess denial would
-    // surface as a generic 500.
-    const { status, message } = getErrorStatus(error);
-    if (status !== 500) {
-      return NextResponse.json({ error: message }, { status });
-    }
-
-    console.error("Error creating task:", error);
-    return NextResponse.json(
-      { error: "Failed to create task" },
-      { status: 500 }
-    );
-  }
-}
+// No POST here on purpose. The team calendar creates tasks through POST
+// /api/tasks (allowInlineCreate is off on that page), which places the task in
+// a section with a position and an activity row. The old handler here did
+// none of that — its tasks had no section, so no project view ever rendered
+// them — and its "first project of the team" fallback could pick an archived
+// project. It had no caller, so it went rather than being kept in sync.

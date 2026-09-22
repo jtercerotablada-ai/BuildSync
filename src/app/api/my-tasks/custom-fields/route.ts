@@ -16,6 +16,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { readJson, jsonErrorResponse } from "@/lib/http";
 
 const FIELD_TYPES = [
   "TEXT",
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await req.json();
+    const body = await readJson(req);
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -122,6 +123,8 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (err) {
+    const badRequest = jsonErrorResponse(err);
+    if (badRequest) return badRequest;
     console.error("[my-tasks custom-fields POST] error:", err);
     return NextResponse.json(
       { error: "Failed to create custom field" },

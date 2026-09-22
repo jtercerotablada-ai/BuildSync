@@ -4,6 +4,12 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { resolveObjectiveAccess } from "@/lib/objective-access";
 import { startOfTodayUtc } from "@/lib/date-only";
+import { rateLimit } from "@/lib/rate-limit";
+import { GoalProgressService, objectiveReadClause } from "@/lib/goal-progress";
+import {
+  buildProjectVisibilityClauses,
+  taskPrivacyClause,
+} from "@/lib/project-visibility";
 
 /**
  * POST /api/ai/coach
@@ -25,6 +31,16 @@ export async function POST(req: NextRequest) {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Each call spends Anthropic tokens, so throttle per user like
+    // /api/ai/assist does. (Per-instance memory; see rate-limit.ts.)
+    const limited = rateLimit(`ai-coach:${userId}`, 10, 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Too many AI requests. Please wait a moment and try again." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } }
+      );
     }
 
     const { objectiveId } = await req.json();
@@ -49,6 +65,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // The model is told to cite names, and the analysis goes back to whoever
+    // asked, so everything below is limited to what THIS reader may open:
+    // sub-goals by the goal rule, linked projects by the project rule, and
+    // their tasks by the task-privacy rule. Before, a private project linked
+    // to a public goal put its overdue task names in any colleague's Coach
+    // output.
+    const projectClauses = (await buildProjectVisibilityClauses(userId)) ?? [];
+
     // Pull the objective + everything that gives the model context.
     const objective = await prisma.objective.findUnique({
       where: { id: objectiveId },
@@ -64,9 +88,13 @@ export async function POST(req: NextRequest) {
           },
         },
         children: {
+          where: objectiveReadClause(userId, access.objective.workspaceId, {
+            isWorkspaceManager: access.isWorkspaceManager,
+          }),
           select: { name: true, status: true, progress: true },
         },
         projects: {
+          where: { project: { OR: projectClauses } },
           include: {
             project: {
               select: {
@@ -76,7 +104,7 @@ export async function POST(req: NextRequest) {
                 type: true,
                 endDate: true,
                 tasks: {
-                  where: { parentTaskId: null },
+                  where: { parentTaskId: null, ...taskPrivacyClause(userId) },
                   select: {
                     name: true,
                     completed: true,
@@ -106,6 +134,11 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    // The stored column lags behind task and key-result edits that do not
+    // recalculate; the goal page shows the live number, so the Coach must too.
+    const live = await GoalProgressService.liveProgress([objective]);
+    const progress = live.get(objective.id) ?? objective.progress;
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
@@ -211,7 +244,7 @@ export async function POST(req: NextRequest) {
 OBJECTIVE: ${objective.name}
 Description: ${objective.description ?? "(none)"}
 Period: ${objective.period ?? "(none)"}
-Status: ${objective.status} · Progress: ${objective.progress}% · Confidence: ${objective.confidenceScore ?? "—"}/10
+Status: ${objective.status} · Progress: ${progress}% · Confidence: ${objective.confidenceScore ?? "—"}/10
 Owner: ${objective.owner?.name ?? "—"} · Team: ${objective.team?.name ?? "—"}
 End date: ${objective.endDate ? objective.endDate.toISOString().slice(0, 10) : "(none)"}
 

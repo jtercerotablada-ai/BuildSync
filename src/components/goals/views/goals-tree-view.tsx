@@ -32,7 +32,12 @@ export function GoalsTreeView({
 }: {
   objectives: ViewObjective[];
 }) {
-  const topLevel = objectives.filter((o) => !o.parentId);
+  // A goal is a root of THIS map when its parent is not in the result set —
+  // not only when it has no parent. The list is narrowed by owner, period,
+  // status and privacy, so a goal whose parent is filtered out (or hidden
+  // from this reader) would otherwise vanish from the map entirely.
+  const ids = new Set(objectives.map((o) => o.id));
+  const topLevel = objectives.filter((o) => !o.parentId || !ids.has(o.parentId));
 
   if (topLevel.length === 0) {
     return (

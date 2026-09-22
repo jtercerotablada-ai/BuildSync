@@ -7,6 +7,8 @@ import {
   AuthorizationError,
   NotFoundError,
 } from "@/lib/auth-guards";
+import { taskPrivacyClause } from "@/lib/project-visibility";
+import { fileReadUrl } from "@/lib/storage";
 
 // GET /api/projects/:projectId/attachments - Get all attachments for a project
 export async function GET(
@@ -22,15 +24,19 @@ export async function GET(
     }
 
     // Verify project exists and user has access
-    await verifyProjectAccess(userId, projectId);
+    const { access } = await verifyProjectAccess(userId, projectId);
 
-    // Get all attachments for tasks in this project (including tasks without sections)
+    // Get all attachments for tasks in this project (including tasks without
+    // sections). A private task's files are listed only to the people who may
+    // open the task — the same audience /api/files/attachment/:id serves, so
+    // no tile names a task (or file) the caller would get a 404 for.
+    // Workspace OWNER/ADMIN keep the key to private tasks there, so here too.
     const attachments = await prisma.attachment.findMany({
       where: {
         task: {
-          OR: [
-            { projectId },
-            { section: { projectId } },
+          AND: [
+            { OR: [{ projectId }, { section: { projectId } }] },
+            access.isWorkspaceManager ? {} : taskPrivacyClause(userId),
           ],
         },
       },
@@ -53,10 +59,14 @@ export async function GET(
     });
     const uploaderMap = new Map(uploaders.map(u => [u.id, u]));
 
+    // Never the stored blob url: it is a storage address (private, or a
+    // public one that must not leak). Every url below is the authenticated
+    // door that re-runs the owning record's rule; only a LINK resource, which
+    // holds no bytes, travels as the address somebody pasted.
     const taskResult = attachments.map(a => ({
       id: a.id,
       name: a.name,
-      url: a.url,
+      url: fileReadUrl("attachment", a.id),
       size: a.size,
       mimeType: a.mimeType,
       createdAt: a.createdAt.toISOString(),
@@ -88,7 +98,7 @@ export async function GET(
     const messageResult = messageAttachments.map((a) => ({
       id: a.id,
       name: a.name,
-      url: a.url,
+      url: `/api/messages/${a.messageId ?? a.message?.id ?? ""}/attachments?file=${a.id}`,
       size: a.size,
       mimeType: a.mimeType,
       createdAt: a.createdAt.toISOString(),
@@ -122,7 +132,7 @@ export async function GET(
     const resourceResult = resources.map((r) => ({
       id: r.id,
       name: r.name,
-      url: r.url,
+      url: r.type === "FILE" ? fileReadUrl("resource", r.id) : r.url,
       size: r.size ?? 0,
       mimeType:
         r.mimeType ??

@@ -1,5 +1,21 @@
 import prisma from "@/lib/prisma";
 import { shouldNotify } from "@/lib/notification-prefs";
+import { getProjectAccess } from "@/lib/project-access";
+
+/**
+ * May `userId` be a form's default assignee? Every submission emails that
+ * person the answers (external submitters' PII) and assigns them the task,
+ * so they must be able to read the form's project and still work in its
+ * workspace — the same bar as reading the submissions inbox. Without the
+ * check a crafted PATCH could route every future submission to any account.
+ */
+export async function canBeFormAssignee(
+  projectId: string,
+  userId: string
+): Promise<boolean> {
+  const access = await getProjectAccess(projectId, userId);
+  return access.ok && access.hasContributorSeat;
+}
 
 /**
  * Fan out a FORM_SUBMITTED event after a public/internal form

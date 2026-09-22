@@ -19,6 +19,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { resolveProjectAccess } from "@/lib/project-access";
+import { taskPrivacyClause } from "@/lib/project-visibility";
 
 async function assertProjectAccess(projectId: string, userId: string) {
   const project = await prisma.project.findUnique({
@@ -36,8 +37,10 @@ async function assertProjectAccess(projectId: string, userId: string) {
   // Canonical read rule (matches the page): the old inline check leaked
   // WORKSPACE-visibility projects to any member and 403'd workspace admins.
   const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
-  return { ok: true as const };
+  // 404, not 403: an unreadable project must look like a missing one so
+  // ids cannot be probed (same as getProjectAccess).
+  if (!access.ok) return { ok: false as const, status: 404 };
+  return { ok: true as const, isWorkspaceManager: access.isWorkspaceManager };
 }
 
 export async function GET(
@@ -61,8 +64,15 @@ export async function GET(
     // One round-trip: pull every value whose task belongs to this
     // project. The (taskId, fieldId) unique index means at most one
     // row per pair so we can group in JS without de-duping.
+    // A private task's values are keyed by its id and may carry fees or
+    // names, so they follow the same privacy rule as the task list
+    // (workspace OWNER/ADMIN keep the key, as in decideTaskAccess).
     const rows = await prisma.customFieldValue.findMany({
-      where: { task: { projectId } },
+      where: {
+        task: access.isWorkspaceManager
+          ? { projectId }
+          : { projectId, ...taskPrivacyClause(userId) },
+      },
       select: { taskId: true, fieldId: true, value: true },
     });
 

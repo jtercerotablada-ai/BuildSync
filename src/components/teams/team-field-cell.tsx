@@ -15,7 +15,10 @@ import {
 } from "@/components/ui/popover";
 import { Check, X } from "lucide-react";
 import { PeopleFieldEditor } from "@/components/tasks/people-field-editor";
-import { ReferenceFieldEditor } from "@/components/tasks/reference-field-editor";
+import {
+  ReferenceFieldEditor,
+  readRefs,
+} from "@/components/tasks/reference-field-editor";
 
 export interface TeamFieldOption {
   id: string;
@@ -89,9 +92,13 @@ export function TeamFieldCell({ field, value, canEdit, onSave }: Props) {
       return (
         <div className="min-w-0">
           {canEdit ? (
-            <ReferenceFieldEditor value={value} onChange={onSave} />
+            <ReferenceFieldEditor
+              value={value}
+              onChange={onSave}
+              source={field.config?.source}
+            />
           ) : (
-            <span className="text-sm text-gray-400">—</span>
+            <ReadonlyReferences value={value} />
           )}
         </div>
       );
@@ -375,6 +382,19 @@ function SelectCell({
 }
 
 // ── Read-only people (for non-members) ─────────────────────────────
+// A read-only viewer used to get a bare "—" here even when the cell held
+// links, so what a teammate had filled in was invisible to everyone else.
+function ReadonlyReferences({ value }: { value: unknown }) {
+  const refs = readRefs(value);
+  if (refs.length === 0)
+    return <span className="text-sm text-gray-400">—</span>;
+  return (
+    <span className="text-sm text-gray-700 truncate">
+      {refs.map((r) => r.name).join(", ")}
+    </span>
+  );
+}
+
 function ReadonlyPeople({ value }: { value: unknown }) {
   const people = Array.isArray(value) ? value : [];
   if (people.length === 0)

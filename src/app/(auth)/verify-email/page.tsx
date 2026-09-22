@@ -1,50 +1,26 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Loader2, XCircle } from "lucide-react";
 
+/* Old verification links land here. The token is the same email-verify token
+   /onboarding redeems (setting the password and verifying the address in one
+   step), so forward it there untouched. This page used to redeem it on its own,
+   which burned the token and left the account with no password. */
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const token = searchParams.get("token");
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setMessage("No verification token provided");
-      return;
+    if (token) {
+      router.replace(`/onboarding?token=${encodeURIComponent(token)}`);
     }
-
-    async function verify() {
-      try {
-        const res = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-
-        const data = await res.json();
-
-        if (res.ok) {
-          setStatus("success");
-          setMessage(data.message || "Email verified successfully!");
-        } else {
-          setStatus("error");
-          setMessage(data.error || "Verification failed");
-        }
-      } catch {
-        setStatus("error");
-        setMessage("Something went wrong");
-      }
-    }
-
-    verify();
-  }, [token]);
+  }, [token, router]);
 
   return (
     <Card>
@@ -58,45 +34,30 @@ function VerifyEmailContent() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-4 py-8">
-        {status === "loading" && (
+        {token ? (
           <>
             <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
-            <p className="text-sm text-muted-foreground">Verifying your email...</p>
+            <p className="text-sm text-muted-foreground">Opening account setup...</p>
           </>
-        )}
-        {status === "success" && (
-          <>
-            <CheckCircle className="h-12 w-12 text-green-600" />
-            <div className="text-center">
-              <p className="font-semibold text-lg">{message}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                You can now sign in to your account.
-              </p>
-            </div>
-          </>
-        )}
-        {status === "error" && (
+        ) : (
           <>
             <XCircle className="h-12 w-12 text-red-500" />
             <div className="text-center">
               <p className="font-semibold text-lg">Verification failed</p>
-              <p className="text-sm text-muted-foreground mt-1">{message}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                This link is missing its verification code. Open the link from your email.
+              </p>
             </div>
           </>
         )}
       </CardContent>
-      <CardFooter className="flex flex-col gap-2">
-        {status === "success" && (
-          <Button asChild className="w-full">
-            <Link href="/login">Sign in</Link>
-          </Button>
-        )}
-        {status === "error" && (
+      {!token && (
+        <CardFooter className="flex flex-col gap-2">
           <Button variant="outline" asChild className="w-full">
-            <Link href="/login">Back to login</Link>
+            <Link href="/login">Back to sign in</Link>
           </Button>
-        )}
-      </CardFooter>
+        </CardFooter>
+      )}
     </Card>
   );
 }

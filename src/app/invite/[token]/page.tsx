@@ -91,6 +91,7 @@ export default function InvitePage() {
   );
 
   const [accepting, setAccepting] = useState(false);
+  const [declining, setDeclining] = useState(false);
   const [signUpName, setSignUpName] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -146,14 +147,18 @@ export default function InvitePage() {
               ? "Already accepted"
               : resolveError.code === "expired"
                 ? "Invitation expired"
-                : "Can't use this invitation"}
+                : resolveError.code === "declined"
+                  ? "Invitation declined"
+                  : "Can't use this invitation"}
           </h1>
           <p className="text-sm text-slate-500 max-w-sm mx-auto mb-6">
             {resolveError.code === "accepted"
               ? "This invitation was already accepted. Sign in to your workspace to continue."
               : resolveError.code === "expired"
                 ? "Ask the person who sent it to send a fresh invitation."
-                : resolveError.error}
+                : resolveError.code === "declined"
+                  ? "This invitation was declined. If that was a mistake, ask the person who sent it to invite you again."
+                  : resolveError.error}
           </p>
           {resolveError.code === "accepted" ? (
             <Button onClick={() => router.push("/login")}>Sign in</Button>
@@ -248,6 +253,30 @@ export default function InvitePage() {
       toast.error("Unexpected error accepting invitation");
     } finally {
       setAccepting(false);
+    }
+  };
+
+  const decline = async () => {
+    if (
+      !window.confirm(
+        `Decline the invitation to join ${invitation.workspace.name}? ${inviterName} will be notified.`
+      )
+    ) {
+      return;
+    }
+    setDeclining(true);
+    try {
+      const res = await fetch(`/api/invite/${token}`, { method: "DELETE" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error || "Couldn't decline the invitation");
+        return;
+      }
+      setResolveError({ error: "Invitation declined", code: "declined" });
+    } catch {
+      toast.error("Couldn't decline the invitation");
+    } finally {
+      setDeclining(false);
     }
   };
 
@@ -476,6 +505,22 @@ export default function InvitePage() {
 
         {/* Action */}
         <div>{pathBody}</div>
+
+        {/* Holding the link is enough to decline, same as to accept. Hidden
+            for a mismatched session so the wrong person doesn't decline on
+            the invitee's behalf from their own signed-in browser. */}
+        {!(viewer.signedIn && !viewer.emailMatches) && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={decline}
+              disabled={declining || accepting}
+              className="text-xs text-slate-500 hover:text-slate-700 hover:underline disabled:opacity-50"
+            >
+              {declining ? "Declining…" : "Decline invitation"}
+            </button>
+          </div>
+        )}
 
         <p className="text-[11px] text-slate-400 text-center">
           Expires in {expiresInDays} {expiresInDays === 1 ? "day" : "days"}

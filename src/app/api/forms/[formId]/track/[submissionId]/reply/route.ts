@@ -1,13 +1,30 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyTrackingToken } from "@/lib/tracking-token";
-import { uploadPublicFile } from "@/lib/storage";
+import {
+  BlobRejectedError,
+  PUBLIC_UPLOAD_MAX_BYTES,
+  PUBLIC_UPLOAD_MAX_FILES,
+  deleteFile,
+  uploadPublicFile,
+  verifyUploadedBlob,
+} from "@/lib/storage";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { buildCommentContent, commentToPlainText } from "@/lib/comment-format";
+import { shouldNotify } from "@/lib/notification-prefs";
+import {
+  type FormField,
+  type FormSubmissionPayload,
+  firstEmailAnswer,
+} from "@/lib/form-types";
 
 /**
  * POST /api/forms/:formId/track/:submissionId/reply
  *
- * Body: multipart/form-data with
+ * Body: application/json { token, content, files?: { blobUrl, name }[] }
+ * for files the browser uploaded straight to blob storage (token route:
+ * /api/blob/upload; a function refuses a request body over ~4.5MB), or
+ * multipart/form-data with
  *   - token: signed tracking token (same that gates the GET)
  *   - content: text body (required, max 4000 chars)
  *   - file[]: optional attachment(s)
@@ -33,29 +50,77 @@ export async function POST(
     params,
   }: { params: Promise<{ formId: string; submissionId: string }> }
 ) {
+  // Blobs THIS request wrote (multipart path). Nothing points at them until
+  // the comment commits, so any failure before that deletes them.
+  const writtenUrls: string[] = [];
+  const discardWritten = async () => {
+    for (const u of writtenUrls.splice(0)) {
+      await deleteFile(u).catch(() => {
+        /* best effort — the request is already failing */
+      });
+    }
+  };
   try {
     const { formId, submissionId } = await params;
 
-    // Token can come from query string OR multipart body. Prefer body
-    // (slightly less likely to leak via referrer / logs) but accept
-    // query for flexibility.
-    const url = new URL(req.url);
-    let token = url.searchParams.get("token") || "";
-
-    // Parse the multipart body so we can read content + files + body
-    // token (if present).
-    let formData: FormData;
-    try {
-      formData = await req.formData();
-    } catch {
+    // A tracking link is valid for a year and travels by email, so whoever
+    // holds one could loop this to fill the store and the engineers' inbox.
+    const limited = rateLimit(
+      `tracking-reply:${submissionId}:${clientIp(req.headers)}`,
+      20,
+      15 * 60 * 1000
+    );
+    if (!limited.ok) {
       return NextResponse.json(
-        { error: "Reply body must be multipart/form-data." },
-        { status: 400 }
+        { error: "Too many replies. Please try again in a few minutes." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } }
       );
     }
 
-    const bodyToken = formData.get("token");
-    if (typeof bodyToken === "string" && bodyToken) token = bodyToken;
+    // Token can come from query string OR body. Prefer body (slightly less
+    // likely to leak via referrer / logs) but accept query for flexibility.
+    const url = new URL(req.url);
+    let token = url.searchParams.get("token") || "";
+
+    const isJson = (req.headers.get("content-type") ?? "")
+      .toLowerCase()
+      .includes("application/json");
+    let contentRaw: unknown = null;
+    let fileEntries: unknown[] = [];
+    let clientFiles: { blobUrl: string; name: string }[] = [];
+    if (isJson) {
+      const body = (await req.json().catch(() => null)) as {
+        token?: unknown;
+        content?: unknown;
+        files?: unknown;
+      } | null;
+      if (!body) {
+        return NextResponse.json({ error: "Invalid reply body." }, { status: 400 });
+      }
+      if (typeof body.token === "string" && body.token) token = body.token;
+      contentRaw = body.content;
+      clientFiles = (Array.isArray(body.files) ? body.files : []).filter(
+        (v): v is { blobUrl: string; name: string } =>
+          !!v &&
+          typeof v === "object" &&
+          typeof (v as { blobUrl?: unknown }).blobUrl === "string" &&
+          typeof (v as { name?: unknown }).name === "string"
+      );
+    } else {
+      let formData: FormData;
+      try {
+        formData = await req.formData();
+      } catch {
+        return NextResponse.json(
+          { error: "Reply body must be JSON or multipart/form-data." },
+          { status: 400 }
+        );
+      }
+      const bodyToken = formData.get("token");
+      if (typeof bodyToken === "string" && bodyToken) token = bodyToken;
+      contentRaw = formData.get("content");
+      fileEntries = formData.getAll("file");
+    }
 
     if (!token) {
       return NextResponse.json(
@@ -71,7 +136,6 @@ export async function POST(
       );
     }
 
-    const contentRaw = formData.get("content");
     const content =
       typeof contentRaw === "string" ? contentRaw.trim() : "";
     if (!content) {
@@ -97,6 +161,7 @@ export async function POST(
           select: {
             id: true,
             name: true,
+            fields: true,
             projectId: true,
             project: {
               select: {
@@ -120,10 +185,29 @@ export async function POST(
       );
     }
 
-    if (!submission.taskId) {
+    // FormSubmission.taskId has no foreign key, so deleting the task leaves
+    // the id behind: check the task itself, BEFORE any file is stored, or the
+    // reply dies on the comment's FK with a 500 and orphans the uploads.
+    const liveTask = submission.taskId
+      ? await prisma.task.findUnique({
+          where: { id: submission.taskId },
+          select: { id: true },
+        })
+      : null;
+    if (!submission.taskId || !liveTask) {
       return NextResponse.json(
         { error: "This submission's task has been removed." },
         { status: 410 }
+      );
+    }
+
+    const realFiles = fileEntries.filter(
+      (f): f is File => f instanceof File && f.size > 0
+    );
+    if (realFiles.length + clientFiles.length > PUBLIC_UPLOAD_MAX_FILES) {
+      return NextResponse.json(
+        { error: `Attach at most ${PUBLIC_UPLOAD_MAX_FILES} files per reply.` },
+        { status: 400 }
       );
     }
 
@@ -140,16 +224,14 @@ export async function POST(
         null;
       guestEmail = submission.submitterUser.email || null;
     } else {
-      // Scan original answers for an email — same trick the receipt
-      // email uses.
-      const data = (submission.data as Record<string, unknown>) || {};
-      for (const v of Object.values(data)) {
-        if (typeof v === "string" && /@/.test(v) && !guestEmail) {
-          guestEmail = v.trim();
-          guestName = guestEmail;
-          break;
-        }
-      }
+      // The form's EMAIL field — the same address the receipt went to. Not
+      // "any answer containing @": a note like "super @ gate 3" would be
+      // taken for the sender, and jsonb key order isn't field order anyway.
+      guestEmail = firstEmailAnswer(
+        (submission.form.fields as unknown as FormField[]) || [],
+        (submission.data as FormSubmissionPayload) || {}
+      );
+      guestName = guestEmail;
     }
     if (!guestName) guestName = "External submitter";
 
@@ -162,19 +244,55 @@ export async function POST(
       size: number;
       mimeType: string;
     }[] = [];
-    const fileEntries = formData.getAll("file");
-    for (const f of fileEntries) {
-      if (!(f instanceof File) || f.size === 0) continue;
-      // Soft cap — block files > 25MB so a runaway upload can't
-      // hammer Vercel Blob. Frontend should pre-validate too.
-      if (f.size > 25 * 1024 * 1024) {
+    // Files the browser already uploaded: the url is the caller's word, so
+    // each must be a PUBLIC blob of our store under this submission's folder
+    // (the only place the token route writes for it), not already attached,
+    // with size and type read off the stored blob.
+    for (const item of clientFiles) {
+      if (uploadedFiles.some((u) => u.url === item.blobUrl)) continue;
+      let verified;
+      try {
+        verified = await verifyUploadedBlob(
+          item.blobUrl,
+          item.name,
+          `tracking/${submissionId}/`,
+          "public",
+          PUBLIC_UPLOAD_MAX_BYTES
+        );
+      } catch (err) {
+        if (err instanceof BlobRejectedError) {
+          return NextResponse.json({ error: err.message }, { status: err.status });
+        }
+        throw err;
+      }
+      const already = await prisma.attachment.findFirst({
+        where: { url: verified.url },
+        select: { id: true },
+      });
+      if (already) {
         return NextResponse.json(
-          { error: `File "${f.name}" exceeds 25MB.` },
+          { error: "That file was already posted." },
+          { status: 409 }
+        );
+      }
+      uploadedFiles.push(verified);
+    }
+
+    for (const f of realFiles) {
+      // Soft cap so a runaway upload can't hammer Vercel Blob. The page
+      // checks the same number before anything moves.
+      if (f.size > PUBLIC_UPLOAD_MAX_BYTES) {
+        await discardWritten();
+        return NextResponse.json(
+          {
+            error: `File "${f.name}" exceeds ${Math.floor(PUBLIC_UPLOAD_MAX_BYTES / (1024 * 1024))}MB.`,
+          },
           { status: 400 }
         );
       }
       try {
         const { url } = await uploadPublicFile(f, `tracking/${submissionId}`);
+        writtenUrls.push(url);
         uploadedFiles.push({
           name: f.name,
           url,
@@ -182,6 +300,7 @@ export async function POST(
           mimeType: f.type || "application/octet-stream",
         });
       } catch (err) {
+        await discardWritten();
         return NextResponse.json(
           {
             error:
@@ -240,6 +359,8 @@ export async function POST(
 
       return c;
     });
+    // Committed: the comment and its attachments own those blobs now.
+    writtenUrls.length = 0;
 
     // ── Notify the engineering team that a reply landed ────────
     // Fan out to the assignee + project owner so the reply doesn't
@@ -256,6 +377,8 @@ export async function POST(
         recipientIds.add(submission.form.project.ownerId);
       }
       for (const userId of recipientIds) {
+        // Same preference gate as every other COMMENT_ADDED producer.
+        if (!(await shouldNotify(userId, "COMMENT_ADDED"))) continue;
         await prisma.notification.create({
           data: {
             userId,
@@ -289,6 +412,7 @@ export async function POST(
     );
   } catch (err) {
     console.error("[tracking reply POST] error:", err);
+    await discardWritten();
     return NextResponse.json(
       { error: "Failed to post reply." },
       { status: 500 }

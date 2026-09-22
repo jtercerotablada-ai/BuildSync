@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-
-const createWorkspaceSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-});
 
 // GET /api/workspaces - Get user's workspaces
 export async function GET() {
@@ -59,49 +53,8 @@ export async function GET() {
   }
 }
 
-// POST /api/workspaces - Create workspace
-export async function POST(req: Request) {
-  try {
-    const userId = await getCurrentUserId();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const { name, description } = createWorkspaceSchema.parse(body);
-
-    const workspace = await prisma.workspace.create({
-      data: {
-        name,
-        description,
-        ownerId: userId,
-        members: {
-          create: {
-            userId,
-            role: "OWNER",
-          },
-        },
-      },
-      include: {
-        members: true,
-      },
-    });
-
-    return NextResponse.json(workspace, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const zodError = error as z.ZodError;
-      return NextResponse.json(
-        { error: zodError.issues[0]?.message || "Validation error" },
-        { status: 400 }
-      );
-    }
-
-    console.error("Error creating workspace:", error);
-    return NextResponse.json(
-      { error: "Failed to create workspace" },
-      { status: 500 }
-    );
-  }
-}
+/* POST (create a workspace) was removed. Nothing in the app called it, and it
+   let any signed-in user mint a second workspace they OWN — exactly the
+   side-workspace situation that has broken "which workspace is theirs"
+   resolution before. BuildSync runs on the firm's one workspace; new members
+   join it through invitations. */

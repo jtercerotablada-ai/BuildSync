@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus, requireWorkspaceContributor } from "@/lib/auth-guards";
+import {
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+  getPrimaryWorkspaceMembership,
+  requireWorkspaceContributor,
+} from "@/lib/auth-guards";
+import { readJson, jsonErrorResponse } from "@/lib/http";
 
 /**
  * Normalize an incoming template `structure` into a safe, well-formed
@@ -46,6 +54,49 @@ function sanitizeStructure(raw: unknown): {
   };
 }
 
+/**
+ * Who may edit or delete a template: its creator, or a workspace OWNER/ADMIN,
+ * who curates the firm's library and must be able to retire a template whose
+ * author left or captured it wrong.
+ */
+function canManageTemplate(
+  role: string,
+  creatorId: string,
+  userId: string
+): boolean {
+  return creatorId === userId || role === "OWNER" || role === "ADMIN";
+}
+
+/** The first validation message, ready for a 400. */
+function firstIssue(error: z.ZodError): string {
+  return error.issues[0]?.message || "Invalid request";
+}
+
+const nameSchema = z
+  .string({ error: "Name is required" })
+  .trim()
+  .min(1, "Name is required")
+  .max(120, "Name is too long");
+
+const createSchema = z.object({
+  name: nameSchema,
+  description: z.string().nullish(),
+  icon: z.string().max(64).nullish(),
+  color: z.string().max(32).nullish(),
+  isPublic: z.boolean().optional(),
+  structure: z.unknown(),
+});
+
+const updateSchema = z.object({
+  id: z.string({ error: "Template ID required" }).min(1, "Template ID required"),
+  name: nameSchema.optional(),
+  description: z.string().nullish(),
+  icon: z.string().max(64).nullish(),
+  color: z.string().max(32).nullish(),
+  isPublic: z.boolean().optional(),
+  structure: z.unknown().optional(),
+});
+
 // GET /api/workspace/templates - Get project templates
 export async function GET() {
   try {
@@ -55,24 +106,31 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Resolve the workspace with the SAME audited heuristic PUT/DELETE use
-    // (getUserWorkspaceId prefers the shared firm workspace over a personal
-    // singleton — audit SEC-06). Reads and writes must agree, or a template
-    // created here is scoped to one workspace and deleted against another.
-    const workspaceId = await getUserWorkspaceId(userId);
+    // Resolve the workspace with the SAME audited heuristic POST/PUT/DELETE
+    // use (prefers the shared firm workspace over a personal singleton —
+    // audit SEC-06). Reads and writes must agree, or a template created here
+    // is scoped to one workspace and deleted against another. The role comes
+    // with it so the galleries can offer edit/delete to a manager too.
+    const membership = await getPrimaryWorkspaceMembership(userId);
+    if (!membership) throw new AuthorizationError("No workspace found");
 
     // Scope strictly to the caller's workspace — do NOT OR-in a global
     // `isPublic: true` branch, which would leak templates across tenants.
     const rows = await prisma.projectTemplate.findMany({
-      where: { workspaceId },
+      where: { workspaceId: membership.workspaceId },
       orderBy: { createdAt: "desc" },
       include: {
         creator: { select: { id: true, name: true, image: true } },
       },
     });
 
-    // Surface `mine` so the gallery can offer delete only to the creator.
-    const shaped = rows.map((r) => ({ ...r, mine: r.creatorId === userId }));
+    // `canManage` mirrors the PUT/DELETE gate, so the galleries never show an
+    // edit or delete control that would 403.
+    const shaped = rows.map((r) => ({
+      ...r,
+      mine: r.creatorId === userId,
+      canManage: canManageTemplate(membership.role, r.creatorId, userId),
+    }));
 
     return NextResponse.json(shaped);
   } catch (error) {
@@ -102,14 +160,11 @@ export async function POST(req: Request) {
     // separate findFirst, so create scopes to the same workspace as the rest.
     const { workspaceId } = await requireWorkspaceContributor(userId);
 
-    const { name, description, icon, color, isPublic, structure } = await req.json();
-
-    if (!name?.trim()) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    const parsed = createSchema.safeParse(await readJson(req));
+    if (!parsed.success) {
+      return NextResponse.json({ error: firstIssue(parsed.error) }, { status: 400 });
     }
-    if (name.trim().length > 120) {
-      return NextResponse.json({ error: "Name is too long" }, { status: 400 });
-    }
+    const { name, description, icon, color, isPublic, structure } = parsed.data;
 
     const cleanStructure = sanitizeStructure(structure);
     if (cleanStructure.sections.length === 0) {
@@ -121,12 +176,12 @@ export async function POST(req: Request) {
 
     const template = await prisma.projectTemplate.create({
       data: {
-        name: name.trim(),
+        name,
         description:
           typeof description === "string" ? description.trim().slice(0, 500) : null,
-        icon: typeof icon === "string" ? icon : null,
-        color: typeof color === "string" ? color : null,
-        isPublic: isPublic || false,
+        icon: icon ?? null,
+        color: color ?? null,
+        isPublic: isPublic ?? false,
         structure: cleanStructure as unknown as Prisma.InputJsonValue,
         workspaceId,
         creatorId: userId,
@@ -136,8 +191,13 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ ...template, mine: true }, { status: 201 });
+    return NextResponse.json(
+      { ...template, mine: true, canManage: true },
+      { status: 201 }
+    );
   } catch (error) {
+    const badJson = jsonErrorResponse(error);
+    if (badJson) return badJson;
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
@@ -159,30 +219,30 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await requireWorkspaceContributor(userId);
+    const { workspaceId, role } = await requireWorkspaceContributor(userId);
 
-    const { id, name, description, icon, color, isPublic, structure } = await req.json();
-
-    if (!id) {
-      return NextResponse.json({ error: "Template ID required" }, { status: 400 });
+    const parsed = updateSchema.safeParse(await readJson(req));
+    if (!parsed.success) {
+      return NextResponse.json({ error: firstIssue(parsed.error) }, { status: 400 });
     }
+    const { id, name, description, icon, color, isPublic, structure } = parsed.data;
 
-    // Verify template belongs to user's workspace AND that the caller is its
-    // creator — mirror DELETE's creator gate so one contributor can't edit
-    // (or publish, or overwrite the structure of) a teammate's template.
-    const workspaceId = await getUserWorkspaceId(userId);
+    // The template must live in the caller's workspace (404 otherwise: another
+    // tenant's template is not something the caller can see), and the caller
+    // must be its creator or a workspace OWNER/ADMIN — the same gate as
+    // DELETE, so one contributor can't edit (or publish, or overwrite the
+    // structure of) a teammate's template.
     const existing = await prisma.projectTemplate.findUnique({
       where: { id },
       select: { workspaceId: true, creatorId: true },
     });
-    if (!existing) {
+    if (!existing || existing.workspaceId !== workspaceId) {
       throw new NotFoundError("Template not found");
     }
-    if (existing.workspaceId !== workspaceId) {
-      throw new AuthorizationError("You don't have access to this template");
-    }
-    if (existing.creatorId !== userId) {
-      throw new AuthorizationError("Only the creator can edit this template");
+    if (!canManageTemplate(role, existing.creatorId, userId)) {
+      throw new AuthorizationError(
+        "Only the creator or a workspace admin can edit this template"
+      );
     }
 
     // Sanitize an incoming structure the same way POST does, so PUT can't
@@ -202,7 +262,7 @@ export async function PUT(req: Request) {
     const template = await prisma.projectTemplate.update({
       where: { id },
       data: {
-        ...(name !== undefined && { name: String(name).trim().slice(0, 120) }),
+        ...(name !== undefined && { name }),
         ...(description !== undefined && {
           description:
             typeof description === "string"
@@ -218,6 +278,8 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(template);
   } catch (error) {
+    const badJson = jsonErrorResponse(error);
+    if (badJson) return badJson;
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
@@ -239,7 +301,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await requireWorkspaceContributor(userId);
+    const { workspaceId, role } = await requireWorkspaceContributor(userId);
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -248,21 +310,20 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });
     }
 
-    // Verify template belongs to user's workspace
-    const workspaceId = await getUserWorkspaceId(userId);
+    // Same gate as PUT: in the caller's workspace (404 otherwise), and the
+    // caller is its creator or a workspace OWNER/ADMIN.
     const template = await prisma.projectTemplate.findUnique({
       where: { id },
       select: { workspaceId: true, creatorId: true },
     });
 
-    if (!template) {
+    if (!template || template.workspaceId !== workspaceId) {
       throw new NotFoundError("Template not found");
     }
-    if (template.workspaceId !== workspaceId) {
-      throw new AuthorizationError("You don't have access to this template");
-    }
-    if (template.creatorId !== userId) {
-      throw new AuthorizationError("Only the creator can delete this template");
+    if (!canManageTemplate(role, template.creatorId, userId)) {
+      throw new AuthorizationError(
+        "Only the creator or a workspace admin can delete this template"
+      );
     }
 
     await prisma.projectTemplate.delete({

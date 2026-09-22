@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Mail,
   Lock,
@@ -25,6 +27,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 
 interface TeamSettingsModalProps {
   team: {
@@ -44,13 +47,20 @@ interface TeamSettingsModalProps {
   defaultTab?: "general" | "members" | "advanced" | "danger";
   /**
    * Whether this caller may change the team's name, description and privacy —
-   * PATCH /api/teams/:id keeps those lead-only, while ARCHIVING (the Danger
-   * zone) also admits a workspace OWNER/ADMIN. Passing false hides the General
-   * tab entirely rather than showing fields whose Update button 403s, which is
-   * how a workspace owner reaches the archive control on a team he is not the
-   * lead of. Defaults to true so every existing caller is unchanged.
+   * PATCH /api/teams/:id admits the team LEAD or a workspace OWNER/ADMIN.
+   * Passing false hides the General tab entirely rather than showing fields
+   * whose Update button 403s. Defaults to true so every existing caller is
+   * unchanged.
    */
   canEditDetails?: boolean;
+  /**
+   * Whether this caller may DELETE the team. DELETE /api/teams/:id is
+   * lead-only (archiving is the action a workspace admin gets), so the button
+   * is hidden for anyone else instead of failing after the name is typed.
+   * Defaults to `canEditDetails`, which the callers that predate this prop
+   * pass as "is the lead".
+   */
+  canDelete?: boolean;
 }
 
 type SettingsTab = "general" | "members" | "danger";
@@ -78,12 +88,22 @@ export function TeamSettingsModal({
   onSave,
   defaultTab = "general",
   canEditDetails = true,
+  canDelete = canEditDetails,
 }: TeamSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+  const router = useRouter();
+  // Never open on a tab this caller can't be shown.
+  const initialTab = (): SettingsTab => {
     const wanted = defaultTab === "advanced" ? "danger" : defaultTab;
-    // Never open on a tab this caller can't be shown.
     return wanted === "general" && !canEditDetails ? "members" : wanted;
-  });
+  };
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  // Re-resolved on every open, not only at mount: the header mounts this
+  // dialog before the session has loaded, when canEditDetails is still
+  // false, and a frozen initial tab then opened a lead on Members.
+  useEffect(() => {
+    if (open) setActiveTab(initialTab());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, canEditDetails, defaultTab]);
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description || "");
   const [privacy, setPrivacy] = useState(team.privacy);
@@ -91,6 +111,7 @@ export function TeamSettingsModal({
   const [isArchiving, setIsArchiving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
   const [members, setMembers] = useState<{ id: string; role: string; user: { id: string; name: string | null; email: string | null; image: string | null } }[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [danger, setDanger] = useState<TeamDangerFacts | null>(null);
@@ -187,7 +208,10 @@ export function TeamSettingsModal({
         onSave?.();
         onClose();
       } else {
-        toast.error("Failed to update team");
+        // The route says why (not the lead any more, a name that fails
+        // validation), which a generic message hid.
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || "Failed to update team");
       }
     } catch (error) {
       toast.error("Failed to update team");
@@ -207,6 +231,8 @@ export function TeamSettingsModal({
       toast.error("Please enter an email");
       return;
     }
+    if (isInviting) return;
+    setIsInviting(true);
     try {
       const res = await fetch(`/api/teams/${team.id}/invite`, {
         method: "POST",
@@ -228,10 +254,14 @@ export function TeamSettingsModal({
       // Refresh member list
       const membersRes = await fetch(`/api/teams/${team.id}/members`);
       if (membersRes.ok) setMembers(await membersRes.json());
+      // The host's avatars and counts are drawn from its own copy.
+      onSave?.();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to invite user"
       );
+    } finally {
+      setIsInviting(false);
     }
   };
 
@@ -321,7 +351,13 @@ export function TeamSettingsModal({
     toast.success("Team deleted");
     setDeleteOpen(false);
     onClose();
-    window.location.href = "/";
+    // "/" is the marketing homepage on the public host, and a hard reload
+    // also dropped the toast. The team list is where the user came from.
+    // The sidebar caches its team list client-side; router.refresh() does
+    // not reach it, so tell it the deleted team is gone.
+    notifySidebarRefresh();
+    router.push("/teams");
+    router.refresh();
   };
 
   return (
@@ -388,7 +424,7 @@ export function TeamSettingsModal({
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Type / for menu"
+                  placeholder="What does this team do?"
                   rows={4}
                   className="focus:ring-blue-500 focus:border-[#c9a84c] resize-none"
                 />
@@ -468,8 +504,14 @@ export function TeamSettingsModal({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && inviteEmail.trim()) sendInvite();
                     }}
+                    disabled={isInviting}
                   />
-                  <Button size="sm" onClick={sendInvite}>
+                  <Button
+                    size="sm"
+                    onClick={sendInvite}
+                    disabled={isInviting || !inviteEmail.trim()}
+                  >
+                    {isInviting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Send invite
                   </Button>
                 </div>
@@ -484,7 +526,15 @@ export function TeamSettingsModal({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Current members</span>
-                  <span className="text-xs text-gray-500">Manage team members</span>
+                  {/* The rows below are read-only; roles and removal live on
+                      the Members page, so this links there. */}
+                  <Link
+                    href={`/teams/${team.id}/members`}
+                    onClick={onClose}
+                    className="text-xs text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
+                  >
+                    Manage team members
+                  </Link>
                 </div>
 
                 <div className="border rounded-lg divide-y">
@@ -583,6 +633,7 @@ export function TeamSettingsModal({
               </div>
 
               {/* Delete — the only irreversible action on this screen */}
+              {canDelete && (
               <div className="p-4 border border-gray-300 rounded-lg bg-gray-100">
                 <div className="flex items-center gap-2 mb-1">
                   <Trash2 className="h-4 w-4 text-black" />
@@ -607,6 +658,7 @@ export function TeamSettingsModal({
                   Delete team
                 </Button>
               </div>
+              )}
             </div>
           )}
         </div>

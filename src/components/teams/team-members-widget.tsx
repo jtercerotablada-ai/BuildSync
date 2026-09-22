@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,6 +19,17 @@ interface Member {
 interface TeamMembersWidgetProps {
   teamId: string;
   members: Member[];
+  /**
+   * Whether the caller may add people (team LEAD or workspace OWNER/ADMIN,
+   * and the team not archived). When the host does not say, the widget asks
+   * GET /api/teams/:id/members?viewer=1 itself; until it knows, the "+" stays
+   * hidden rather than opening a dialog whose every Add answers 403.
+   */
+  canManage?: boolean;
+  /** Team privacy, so the invite-link caption describes what the link does. */
+  privacy?: string;
+  /** Called after someone is added, so the host can refetch the team. */
+  onChanged?: () => void;
 }
 
 // Someone who joined by email invite and never set a display name would
@@ -38,9 +49,42 @@ function getInitials(name: string | null, email?: string | null): string {
   return source.slice(0, 2).toUpperCase();
 }
 
-export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
+export function TeamMembersWidget({
+  teamId,
+  members,
+  canManage,
+  privacy,
+  onChanged,
+}: TeamMembersWidgetProps) {
   const router = useRouter();
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [resolved, setResolved] = useState<{
+    teamId: string;
+    canAdd: boolean;
+  } | null>(null);
+
+  const hostDecides = canManage !== undefined;
+  useEffect(() => {
+    if (hostDecides) return;
+    let canceled = false;
+    fetch(`/api/teams/${teamId}/members?viewer=1`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!canceled && data?.viewer) {
+          setResolved({ teamId, canAdd: !!data.viewer.canAddMembers });
+        }
+      })
+      .catch(() => {
+        // Unknown standing — keep the "+" hidden.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [teamId, hostDecides]);
+
+  const canAdd = hostDecides
+    ? !!canManage
+    : resolved?.teamId === teamId && resolved.canAdd;
 
   return (
     <>
@@ -71,13 +115,18 @@ export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
             </Avatar>
           ))}
 
-          {/* Add member button */}
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="h-10 w-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
+          {/* Add member button — only for someone the members route will
+              let through (see canManage). */}
+          {canAdd && (
+            <button
+              onClick={() => setShowInviteModal(true)}
+              aria-label="Add member"
+              title="Add member"
+              className="h-10 w-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          )}
 
           {/* Show more indicator */}
           {members.length > 8 && (
@@ -90,6 +139,10 @@ export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
         teamId={teamId}
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
+        privacy={privacy}
+        // People already on the team are not offered an "Add".
+        existingMemberIds={members.map((m) => m.user.id)}
+        onInviteSent={onChanged}
       />
     </>
   );

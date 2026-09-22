@@ -75,6 +75,12 @@ export async function GET(
       sharedProjects = targetUserProjects.map((p) => p.project);
     }
 
+    // Visible only to its owner and to people who share a workspace with
+    // them; anyone else gets the same 404 as a missing id.
+    if (!isOwnProfile && sharedWorkspaces.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     return NextResponse.json({
       id: user.id,
       name: user.name,

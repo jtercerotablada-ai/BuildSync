@@ -17,14 +17,13 @@
  * template that then shows up here and in the /templates page — the same
  * connection Asana has between creating a template and starting a project.
  * A card under "Created by your team" can also be edited (EditTemplateDialog)
- * or deleted, both offered only to the template's creator because the API
- * gates both on that.
+ * or deleted, both offered only to the template's creator or a workspace
+ * OWNER/ADMIN (`canManage`), because the API gates both on that.
  *
  * The "Blank project" CTA escapes to the legacy full-form CreateProjectDialog.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -32,12 +31,13 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { X, Plus, Download, Pencil, Trash2, FilePlus2 } from "lucide-react";
+import { X, Plus, Pencil, Trash2, FilePlus2, AlertTriangle } from "lucide-react";
 import {
   PROJECT_TEMPLATES,
   CATEGORY_LABELS,
   FOR_YOU_TEMPLATE_IDS,
   findProjectTemplate,
+  workflowFitsSections,
   type ProjectTemplate,
   type ProjectTemplateCategory,
 } from "@/lib/project-templates";
@@ -64,6 +64,9 @@ interface CreateProjectGalleryProps {
   onOpenBlankForm: () => void;
   /** Optional callback fired after a template-driven create succeeds. */
   onProjectCreated?: () => void;
+  /** Team the new project belongs to (opened from /teams/<id>/work). The
+   *  blank form is the parent's, so it forwards this there itself. */
+  teamId?: string | null;
 }
 
 type TabKey = "for_you" | ProjectTemplateCategory | "custom";
@@ -82,8 +85,8 @@ export function CreateProjectGallery({
   onOpenChange,
   onOpenBlankForm,
   onProjectCreated,
+  teamId,
 }: CreateProjectGalleryProps) {
-  const router = useRouter();
   const [tab, setTab] = useState<TabKey>("for_you");
   const [pickedId, setPickedId] = useState<string | null>(null);
   // The RAW rows are what state holds: the edit dialog re-sends a template's
@@ -93,6 +96,9 @@ export function CreateProjectGallery({
   const [newTemplateOpen, setNewTemplateOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<CustomTemplateRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // A failed load must not read as an empty library ("No custom templates
+  // yet"), or people re-create templates that already exist.
+  const [loadError, setLoadError] = useState(false);
 
   const custom = useMemo<CustomProjectTemplate[]>(
     () => rows.map(customRowToProjectTemplate),
@@ -100,12 +106,15 @@ export function CreateProjectGallery({
   );
 
   const loadCustom = useCallback(async () => {
+    // Non-fatal for the gallery — built-ins still render — but the custom tab
+    // says the load failed instead of claiming there is nothing.
     try {
       const res = await fetch("/api/workspace/templates");
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setRows((await res.json()) as CustomTemplateRow[]);
+      setLoadError(false);
     } catch {
-      /* non-fatal — built-ins still render */
+      setLoadError(true);
     }
   }, []);
 
@@ -177,17 +186,8 @@ export function CreateProjectGallery({
               <FilePlus2 className="w-3.5 h-3.5" />
               New template
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenChange(false);
-                router.push("/projects/new");
-              }}
-              className="inline-flex items-center gap-1.5 h-8 px-3 text-[13px] font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 rounded-md"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Import
-            </button>
+            {/* No Import button: there is no importer, and the old one only
+                opened the blank project form under a misleading label. */}
             <button
               type="button"
               onClick={onOpenBlankForm}
@@ -228,7 +228,26 @@ export function CreateProjectGallery({
 
         {/* ── Cards grid ──────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          {visibleTemplates.length === 0 ? (
+          {tab === "custom" && loadError && visibleTemplates.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-50 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <p className="text-[14px] font-medium text-gray-900">
+                {"Couldn't load your team's templates"}
+              </p>
+              <p className="text-[13px] text-gray-500 mt-1">
+                Check your connection and try again.
+              </p>
+              <button
+                type="button"
+                onClick={loadCustom}
+                className="mt-4 inline-flex items-center gap-1.5 h-8 px-3 text-[13px] font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-md"
+              >
+                Retry
+              </button>
+            </div>
+          ) : visibleTemplates.length === 0 ? (
             tab === "custom" ? (
               <div className="text-center py-12">
                 <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
@@ -269,11 +288,13 @@ export function CreateProjectGallery({
                     key={tpl.id}
                     className="group relative text-left rounded-xl border border-gray-200 bg-white hover:border-[#c9a84c] hover:shadow-md transition-all overflow-hidden flex flex-col"
                   >
-                    {/* Edit and delete are CREATOR-ONLY on the API (both PUT
-                        and DELETE), so a teammate's template shows neither
-                        rather than an affordance that 403s. */}
-                    {isCustom && c.mine && (
-                      <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Edit and delete are open to the creator and workspace
+                        OWNER/ADMIN on the API (both PUT and DELETE), so any
+                        other template shows neither rather than an affordance
+                        that 403s. Always visible where there is no hover
+                        (touch) or when focused by keyboard. */}
+                    {isCustom && c.canManage && (
+                      <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -369,7 +390,7 @@ export function CreateProjectGallery({
                               </span>
                             </>
                           )}
-                          {tpl.workflowTemplateId && (
+                          {workflowFitsSections(tpl.workflowTemplateId, tpl.sections) && (
                             <>
                               <span className="text-gray-300">·</span>
                               <span className="text-[#a8893a] font-medium">
@@ -381,9 +402,9 @@ export function CreateProjectGallery({
                         {isCustom && (
                           <p className="mt-2 text-[11px] text-gray-400">
                             Created by {c.creator?.name || "your team"}
-                            {c.mine
+                            {c.canManage
                               ? ""
-                              : " · only the creator can edit or delete it"}
+                              : " · only its creator or an admin can edit or delete it"}
                           </p>
                         )}
                       </div>
@@ -399,6 +420,7 @@ export function CreateProjectGallery({
       {/* Confirm modal after picking a template (built-in OR custom) */}
       <ConfirmTemplateDialog
         template={picked}
+        teamId={teamId}
         onClose={() => setPickedId(null)}
         onCreated={() => {
           onProjectCreated?.();
@@ -407,7 +429,7 @@ export function CreateProjectGallery({
         }}
       />
 
-      {/* Edit a custom template (creator only — see the card actions) */}
+      {/* Edit a custom template (creator or admin — see the card actions) */}
       <EditTemplateDialog
         row={editingRow}
         onClose={() => setEditingRow(null)}

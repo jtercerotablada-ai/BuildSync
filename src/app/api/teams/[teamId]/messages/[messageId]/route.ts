@@ -3,17 +3,19 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  verifyTeamAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 import { syncTeamMentionsForEditedMessage } from "@/lib/mentions";
+import { deleteFile } from "@/lib/storage";
 
 /**
  * PATCH /api/teams/:teamId/messages/:messageId — edit content (author only).
  *   Optionally syncs mentions when mentionUserIds[] is present.
- * DELETE /api/teams/:teamId/messages/:messageId — delete (author OR team LEAD).
+ * DELETE /api/teams/:teamId/messages/:messageId — delete (author, team LEAD
+ *   or workspace OWNER/ADMIN).
  */
 
 const patchSchema = z.object({
@@ -31,7 +33,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { teamId, messageId } = await params;
-    await verifyTeamAccess(userId, teamId);
+    await requireTeamStanding(userId, teamId);
 
     const message = await prisma.teamMessage.findUnique({
       where: { id: messageId },
@@ -143,7 +145,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { teamId, messageId } = await params;
-    await verifyTeamAccess(userId, teamId);
+    const standing = await requireTeamStanding(userId, teamId);
 
     const message = await prisma.teamMessage.findUnique({
       where: { id: messageId },
@@ -152,21 +154,36 @@ export async function DELETE(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Author or team LEAD can delete.
-    const teamMember = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId } },
-    });
+    // Author, team LEAD or workspace OWNER/ADMIN can delete.
     const canDelete =
-      message.authorId === userId || teamMember?.role === "LEAD";
+      message.authorId === userId || standing.canManageMembers;
 
     if (!canDelete) {
       return NextResponse.json(
-        { error: "Only the author or a team lead can delete" },
+        { error: "Only the author or a team lead can delete this message" },
         { status: 403 }
       );
     }
 
+    // The delete cascades to the replies and every attachment row, which
+    // would leave the files in the store, still reachable by url. Collect
+    // them first; the blobs go only once the rows are gone.
+    const attachments = await prisma.messageAttachment.findMany({
+      where: {
+        teamMessage: {
+          teamId,
+          OR: [{ id: messageId }, { parentMessageId: messageId }],
+        },
+      },
+      select: { url: true },
+    });
+
     await prisma.teamMessage.delete({ where: { id: messageId } });
+
+    // Best effort: a stray blob is harmless, a 500 after the message is
+    // already gone is not. deleteFile ignores urls outside our store.
+    await Promise.allSettled(attachments.map((a) => deleteFile(a.url)));
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (

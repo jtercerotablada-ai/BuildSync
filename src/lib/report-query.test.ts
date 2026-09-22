@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   dateBucketKey,
   dateBucketLabel,
+  dateFilterToWhere,
+  firmMidnightUtc,
+  instantBucketKey,
+  instantToFirmDay,
   lastNBuckets,
   resolveTaskDimension,
   type ResolveMaps,
@@ -497,5 +501,131 @@ describe("the 'No date' bucket stays off the time axis", () => {
     expect(unassigned.key).toBe("__none");
     expect(unassigned.label).toBe("Unassigned");
     expect(undated.key).not.toBe(unassigned.key);
+  });
+});
+
+// ─── Real timestamps are read on the firm's calendar ─────────────
+
+describe("completedAt/createdAt buckets follow the firm's day, not UTC's", () => {
+  it("keeps a 9 PM Miami completion on the 30th in September", () => {
+    // 01:00 UTC on Oct 1 is 9 PM EDT on Sep 30.
+    const finished = new Date("2026-10-01T01:00:00.000Z");
+    expect(instantBucketKey(finished, "month")).toBe("2026-09");
+    expect(instantBucketKey(finished, "day")).toBe("2026-09-30");
+    // The date-only reading (right for due dates) would say October.
+    expect(dateBucketKey(finished, "month")).toBe("2026-10");
+  });
+
+  it("files a completed task in the firm's month in the date dimension", () => {
+    const dim = resolveTaskDimension(
+      task({
+        completed: true,
+        completedAt: new Date("2026-10-01T02:30:00.000Z"),
+      }),
+      "date",
+      "month",
+      emptyMaps()
+    );
+    expect(dim.key).toBe("2026-09");
+  });
+
+  it("returns the firm day as a UTC-midnight date-only value", () => {
+    expect(instantToFirmDay(new Date("2026-03-01T03:00:00.000Z")).toISOString()).toBe(
+      "2026-02-28T00:00:00.000Z"
+    );
+  });
+
+  it("finds local midnight in winter, in summer and on both DST changeover days", () => {
+    expect(firmMidnightUtc(2026, 0, 15).toISOString()).toBe("2026-01-15T05:00:00.000Z");
+    expect(firmMidnightUtc(2026, 6, 15).toISOString()).toBe("2026-07-15T04:00:00.000Z");
+    // Clocks spring forward at 2 AM on Mar 8 2026: that midnight is still EST.
+    expect(firmMidnightUtc(2026, 2, 8).toISOString()).toBe("2026-03-08T05:00:00.000Z");
+    // And fall back at 2 AM on Nov 1 2026: that midnight is still EDT.
+    expect(firmMidnightUtc(2026, 10, 1).toISOString()).toBe("2026-11-01T04:00:00.000Z");
+  });
+
+  it("rolls month and year overflow like Date.UTC does", () => {
+    expect(firmMidnightUtc(2026, 12, 1).toISOString()).toBe("2027-01-01T05:00:00.000Z");
+    expect(firmMidnightUtc(2026, -1, 1).toISOString()).toBe("2025-12-01T05:00:00.000Z");
+  });
+});
+
+// ─── Date filters compare whole days ─────────────────────────────
+
+describe("dateFilterToWhere — a date filter means a calendar day", () => {
+  it("reads 'due date is Sep 30' as that one UTC day, not 'on or after'", () => {
+    expect(
+      dateFilterToWhere("dueDate", { field: "dueDate", operator: "is", value: "2026-09-30" })
+    ).toEqual({
+      dueDate: { gte: due("2026-09-30"), lt: due("2026-10-01") },
+    });
+  });
+
+  it("runs 'on or before' to the END of the day for a real timestamp", () => {
+    expect(
+      dateFilterToWhere("completedAt", {
+        field: "completedAt",
+        operator: "lte",
+        value: "2026-09-30",
+      })
+    ).toEqual({
+      completedAt: { lt: new Date("2026-10-01T04:00:00.000Z") },
+    });
+  });
+
+  it("starts 'after' on the next day", () => {
+    expect(
+      dateFilterToWhere("dueDate", { field: "dueDate", operator: "gt", value: "2026-09-30" })
+    ).toEqual({ dueDate: { gte: due("2026-10-01") } });
+  });
+
+  it("counts today in 'in the next N days' and 'in the last N days'", () => {
+    const now = new Date("2026-09-21T15:00:00.000Z");
+    expect(
+      dateFilterToWhere(
+        "dueDate",
+        { field: "dueDate", operator: "inNextDays", value: "7" },
+        now
+      )
+    ).toEqual({ dueDate: { gte: due("2026-09-21"), lt: due("2026-09-29") } });
+    expect(
+      dateFilterToWhere(
+        "dueDate",
+        { field: "dueDate", operator: "inLastDays", value: 0 },
+        now
+      )
+    ).toEqual({ dueDate: { gte: due("2026-09-21"), lt: due("2026-09-22") } });
+  });
+
+  it("still reads a date typed before the builder had a date picker", () => {
+    for (const value of ["9/30/2026", "Sep 30 2026"]) {
+      expect(
+        dateFilterToWhere("dueDate", { field: "dueDate", operator: "gte", value })
+      ).toEqual({ dueDate: { gte: due("2026-09-30") } });
+    }
+  });
+
+  it("leaves an unfinished or nonsense value unapplied instead of guessing", () => {
+    expect(
+      dateFilterToWhere("dueDate", { field: "dueDate", operator: "is", value: "" })
+    ).toBeNull();
+    expect(
+      dateFilterToWhere("dueDate", { field: "dueDate", operator: "is", value: "soon" })
+    ).toBeNull();
+    expect(
+      dateFilterToWhere("dueDate", { field: "dueDate", operator: "inLastDays", value: "-3" })
+    ).toBeNull();
+    expect(
+      dateFilterToWhere("dueDate", { field: "dueDate", operator: "contains", value: "2026-09-30" })
+    ).toBeNull();
+  });
+
+  it("never asks Prisma whether the required createdAt is null", () => {
+    expect(
+      dateFilterToWhere("createdAt", { field: "createdAt", operator: "isSet" })
+    ).toBeNull();
+    expect(
+      dateFilterToWhere("createdAt", { field: "createdAt", operator: "isNotSet" })
+    ).toEqual({ id: { in: [] } });
   });
 });

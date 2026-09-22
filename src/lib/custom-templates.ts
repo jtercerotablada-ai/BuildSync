@@ -72,6 +72,8 @@ export interface CustomTemplateRow {
   createdAt: string;
   creator?: { id: string; name: string | null; image: string | null } | null;
   mine?: boolean;
+  /** The caller may edit / delete it: its creator, or a workspace OWNER/ADMIN. */
+  canManage?: boolean;
 }
 
 /** A built-in ProjectTemplate augmented with custom-template metadata. */
@@ -79,6 +81,7 @@ export type CustomProjectTemplate = ProjectTemplate & {
   custom: true;
   creator?: CustomTemplateRow["creator"];
   mine?: boolean;
+  canManage?: boolean;
   /** Present when the template names a starting stage; `defaults.gate` beside
    *  it is derived from this and never stored. */
   defaults: CustomTemplateDefaults & { gate?: ProjectGate };
@@ -318,6 +321,8 @@ export function customRowToProjectTemplate(
     custom: true,
     creator: row.creator,
     mine: row.mine,
+    // Older responses carried only `mine`; the creator could always manage.
+    canManage: row.canManage ?? row.mine,
   };
 }
 
@@ -453,15 +458,18 @@ function leftOut(parts: { n: number; noun: string }[]): string {
  *    used. A "Responsible" CUSTOM FIELD is captured, because that is a ROLE
  *    (Engineer, Inspector, Owner) and roles do carry over.
  *  - Completion. A template is a plan, not a record of what happened, so a
- *    finished task comes back as work still to do. Archiving a task in this
- *    product IS completing it (there is no archived column — see
- *    /api/tasks/:taskId/archive), so an archived task carries over the same
- *    way: as a step still to do.
+ *    finished task comes back as work still to do. Tasks cannot be archived
+ *    in this product (there is no archived column, and the old
+ *    /api/tasks/:taskId/archive route was removed as dead code): completion
+ *    is the only "done" state, and it carries over as a step still to do.
  *  - Private tasks. A template is shared with the whole team; it must not
  *    carry the name of a task its author marked private.
- *  - The PEOPLE values of a custom field. The FIELD carries over — "Reviewed
- *    by" is part of the plan — but its value is a list of user ids, which is
- *    an assignee by another name.
+ *  - Custom-field VALUES other than a DROPDOWN / MULTI_SELECT choice. Every
+ *    FIELD carries over — "Reviewed by" and "Inspection date" are part of the
+ *    plan — but only a choice is a role or category that reads the same on
+ *    the next job. A PEOPLE value is an assignee by another name, a DATE is
+ *    the last job's calendar, a CHECKBOX is its completion ("Reports sealed")
+ *    and a TEXT / NUMBER / CURRENCY value is its permit number, folio or fee.
  *  - The project's current stage. A template is a plan, not a record: a
  *    recertification captured after it was signed off would otherwise open
  *    every one of the next twenty jobs already closed out. A new project
@@ -493,8 +501,8 @@ export function buildTemplateStructure(input: CaptureInput): CaptureResult {
   }
 
   const fieldNameById = new Map<string, string>();
-  // A PEOPLE value is a list of user ids — see the exclusions above.
-  const peopleFieldNames = new Set<string>();
+  // Only a choice value carries over — see the exclusions above.
+  const choiceFieldNames = new Set<string>();
   const customFields: ProjectTemplateCustomField[] = [];
   let droppedFieldTypes = 0;
   let droppedFieldsOverCap = 0;
@@ -512,7 +520,9 @@ export function buildTemplateStructure(input: CaptureInput): CaptureResult {
       continue;
     }
     fieldNameById.set(field.id, name);
-    if (field.type === "PEOPLE") peopleFieldNames.add(name);
+    if (field.type === "DROPDOWN" || field.type === "MULTI_SELECT") {
+      choiceFieldNames.add(name);
+    }
     const options = normalizeOptions(field.options);
     customFields.push({
       name,
@@ -659,7 +669,7 @@ export function buildTemplateStructure(input: CaptureInput): CaptureResult {
       for (const value of row.customFieldValues ?? []) {
         const fieldName = fieldNameById.get(value.fieldId);
         if (!fieldName || value.value === null || value.value === undefined) continue;
-        if (peopleFieldNames.has(fieldName)) continue;
+        if (!choiceFieldNames.has(fieldName)) continue;
         values[fieldName] = value.value;
       }
       if (Object.keys(values).length > 0) task.customFieldValues = values;

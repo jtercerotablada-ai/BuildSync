@@ -17,6 +17,7 @@
  *   PEOPLE           → "N people"
  */
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Check, Link2, FunctionSquare, Timer as TimerIcon, Clock } from "lucide-react";
 import { readTimeTracking, formatDays } from "@/lib/duration";
@@ -229,24 +230,7 @@ export function CustomFieldCell({
       // render remaining time. When passed, prefix with "−".
       const v = value as { targetIso?: string } | null;
       if (!v?.targetIso) return null;
-      const target = new Date(v.targetIso).getTime();
-      const now = Date.now();
-      const diff = Math.abs(target - now);
-      const past = now > target;
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      return (
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 text-[12px] font-medium tabular-nums",
-            past ? "text-rose-600" : "text-slate-700"
-          )}
-        >
-          <TimerIcon className="w-3 h-3" />
-          {past ? "−" : ""}
-          {h}h {m}m
-        </span>
-      );
+      return <TimerCountdown targetIso={v.targetIso} />;
     }
     case "TIME_TRACKING": {
       // Value in working days: { estimatedDays, actualDays } (legacy
@@ -269,4 +253,51 @@ export function CustomFieldCell({
     default:
       return null;
   }
+}
+
+/** Live countdown for a TIMER value.
+ *
+ *  The editor stores the picked day as a date-only value (UTC midnight), so
+ *  the deadline is local midnight of that calendar day — counting to the raw
+ *  instant expired the timer at 20:00 the evening before in Miami. The clock
+ *  is read in an effect (never during render, which also runs on the UTC
+ *  server) and re-read every minute so the cell does not freeze. */
+function TimerCountdown({ targetIso }: { targetIso: string }) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, 60_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, []);
+
+  const targetDate = new Date(targetIso);
+  if (Number.isNaN(targetDate.getTime())) return null;
+  const target = dueDateToLocalMidnight(targetDate).getTime();
+  if (now === null) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[12px] font-medium tabular-nums text-slate-700">
+        <TimerIcon className="w-3 h-3" />
+      </span>
+    );
+  }
+  const diff = Math.abs(target - now);
+  const past = now > target;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[12px] font-medium tabular-nums",
+        past ? "text-rose-600" : "text-slate-700"
+      )}
+    >
+      <TimerIcon className="w-3 h-3" />
+      {past ? "−" : ""}
+      {h}h {m}m
+    </span>
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Book,
   Plus,
@@ -55,23 +55,46 @@ export default function KnowledgePage() {
 
   const [viewing, setViewing] = useState<KnowledgeRow | null>(null);
 
+  // The query the list actually reflects. Typing updates `search` at once
+  // (the input stays responsive) and this one after a short pause, so a fast
+  // typist sends one request instead of one per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Only the newest request may write state: responses can arrive out of
+  // order, and an older "be" answer must not overwrite the "beam" one.
+  const requestSeq = useRef(0);
+
   const load = useCallback(async () => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     try {
       const qs = new URLSearchParams();
-      if (search.trim()) qs.set("search", search.trim());
+      if (debouncedSearch) qs.set("search", debouncedSearch);
       if (activeCategory) qs.set("category", activeCategory);
       const res = await fetch(`/api/workspace/knowledge?${qs.toString()}`);
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
+      if (seq !== requestSeq.current) return;
+      const nextCategories: string[] = data.categories || [];
       setEntries(data.entries || []);
-      setCategories(data.categories || []);
+      setCategories(nextCategories);
+      // The last entry of the selected category was deleted: its chip is
+      // gone, so drop the filter instead of showing an empty list.
+      if (activeCategory && !nextCategories.includes(activeCategory)) {
+        setActiveCategory(null);
+      }
     } catch {
-      toast.error("Failed to load knowledge base");
+      if (seq === requestSeq.current) {
+        toast.error("Failed to load knowledge base");
+      }
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
-  }, [search, activeCategory]);
+  }, [debouncedSearch, activeCategory]);
 
   useEffect(() => {
     load();
@@ -151,6 +174,8 @@ export default function KnowledgePage() {
       if (res.ok) {
         toast.success("Deleted");
         setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+        // Refetch so the category chips drop a category that just emptied.
+        load();
         return true;
       }
     } catch {
@@ -161,13 +186,33 @@ export default function KnowledgePage() {
     return false;
   }
 
-  async function handleView(entry: KnowledgeRow) {
-    setViewing(entry);
+  function handleView(entry: KnowledgeRow) {
+    // Count the view locally too, so the card and the dialog show it without
+    // a reload. The server count is the source of truth when it answers.
+    const bumped = { ...entry, viewCount: entry.viewCount + 1 };
+    setViewing(bumped);
+    setEntries((prev) => prev.map((e) => (e.id === entry.id ? bumped : e)));
     fetch("/api/workspace/knowledge", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: entry.id, incrementView: true }),
-    }).catch(() => {});
+    })
+      .then(async (res) => {
+        const data = res.ok ? await res.json().catch(() => null) : null;
+        // Not counted (no contributor seat, entry gone): undo the local bump.
+        const viewCount =
+          typeof data?.viewCount === "number" ? data.viewCount : entry.viewCount;
+        const apply = (e: KnowledgeRow) =>
+          e.id === entry.id ? { ...e, viewCount } : e;
+        setEntries((prev) => prev.map(apply));
+        setViewing((prev) => (prev ? apply(prev) : prev));
+      })
+      .catch(() => {
+        const revert = (e: KnowledgeRow) =>
+          e.id === entry.id ? { ...e, viewCount: entry.viewCount } : e;
+        setEntries((prev) => prev.map(revert));
+        setViewing((prev) => (prev ? revert(prev) : prev));
+      });
   }
 
   const filtered = useMemo(() => entries, [entries]);
@@ -232,7 +277,7 @@ export default function KnowledgePage() {
 
       {/* Body */}
       <div className="flex-1 overflow-auto px-4 md:px-8 py-6">
-        {loading ? (
+        {loading && filtered.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
           </div>

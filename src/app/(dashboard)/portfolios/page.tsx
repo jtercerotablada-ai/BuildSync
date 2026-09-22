@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import { SectionGuard } from "@/components/access/section-guard";
 import { cn } from "@/lib/utils";
 import { useUiState } from "@/hooks/use-ui-state";
+import { portfolioIcon } from "@/components/portfolios/portfolio-customize-drawer";
 
 type PortfolioStatus =
   | "ON_TRACK"
@@ -72,6 +73,7 @@ interface Portfolio {
   name: string;
   description: string | null;
   color: string | null;
+  icon?: string | null;
   status: PortfolioStatus;
   updatedAt: string;
   owner: {
@@ -116,26 +118,22 @@ const STATUS_META: Record<
   },
 };
 
-const FAVORITES_KEY = "buildsync.portfolios.favorites";
+// Where favorites lived before they moved to the per-user uiState key
+// "portfolioFavorites". Read once to carry old stars over, then removed.
+const LEGACY_FAVORITES_KEY = "buildsync.portfolios.favorites";
 
-function loadFavorites(): Set<string> {
-  if (typeof window === "undefined") return new Set();
+function takeLegacyFavorites(): string[] {
+  if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(FAVORITES_KEY);
-    if (!raw) return new Set();
+    const raw = window.localStorage.getItem(LEGACY_FAVORITES_KEY);
+    if (!raw) return [];
+    window.localStorage.removeItem(LEGACY_FAVORITES_KEY);
     const arr = JSON.parse(raw) as unknown;
-    return Array.isArray(arr) ? new Set(arr.filter((v): v is string => typeof v === "string")) : new Set();
+    return Array.isArray(arr)
+      ? arr.filter((v): v is string => typeof v === "string")
+      : [];
   } catch {
-    return new Set();
-  }
-}
-
-function saveFavorites(ids: Set<string>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids]));
-  } catch {
-    // localStorage may be full or blocked — ignore.
+    return [];
   }
 }
 
@@ -184,7 +182,10 @@ type DefaultView =
 
 function PortfoliosPageInner() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  // The /portal shell re-exports this page; keep every link inside it.
+  const basePath = pathname?.startsWith("/portal") ? "/portal" : "";
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -202,7 +203,12 @@ function PortfoliosPageInner() {
     privacy: "WORKSPACE",
     defaultView: "list",
   });
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  // Per-user and server-backed, so stars follow the user across devices
+  // (the detail page's header star reads the same key).
+  const { value: favoriteIds, setValue: setFavoriteIds } = useUiState<
+    string[]
+  >("portfolioFavorites", []);
+  const favorites = useMemo(() => new Set(favoriteIds), [favoriteIds]);
   const [tab, setTab] = useState<Tab>("recent");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -214,16 +220,26 @@ function PortfoliosPageInner() {
 
   useEffect(() => {
     fetchPortfolios();
-    setFavorites(loadFavorites());
   }, []);
+
+  // One-time carry-over of stars saved by the old localStorage-only
+  // version. Runs after the portfolio list has loaded — by then the uiState
+  // GET that started on mount has normally landed, so the merge extends the
+  // server copy instead of replacing it.
+  useEffect(() => {
+    if (loading) return;
+    const legacy = takeLegacyFavorites();
+    if (legacy.length === 0) return;
+    setFavoriteIds((prev) => [...new Set([...prev, ...legacy])]);
+  }, [loading, setFavoriteIds]);
 
   // Deep link from the home widget: /portfolios?create=1 opens the dialog.
   useEffect(() => {
     if (searchParams.get("create") === "1") {
       setCreateOpen(true);
-      router.replace("/portfolios", { scroll: false });
+      router.replace(pathname, { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, pathname]);
 
   async function fetchPortfolios() {
     try {
@@ -288,7 +304,9 @@ function PortfoliosPageInner() {
 
   function goToCreated(action: "add" | "share" | "open") {
     if (!createdId) return;
-    const url = `/portfolios/${createdId}${
+    // `view` becomes the portfolio's default tab; `action` opens Add
+    // project / Share on arrival (both read by the detail page).
+    const url = `${basePath}/portfolios/${createdId}${
       action === "add"
         ? `?view=${newPortfolio.defaultView}&action=add`
         : action === "share"
@@ -300,13 +318,9 @@ function PortfoliosPageInner() {
   }
 
   function toggleFavorite(id: string) {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      saveFavorites(next);
-      return next;
-    });
+    setFavoriteIds((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
   }
 
   const filtered = useMemo(() => {
@@ -322,11 +336,14 @@ function PortfoliosPageInner() {
       list = [...favList, ...recent];
     }
 
-    if (statusFilter !== "all") {
+    // Search and the status chips live in the "Browse all" toolbar, so they
+    // only apply there — on "Recent & favorites" they would filter the list
+    // with no visible control to undo them.
+    if (tab === "all" && statusFilter !== "all") {
       list = list.filter((p) => p.status === statusFilter);
     }
 
-    if (q) {
+    if (tab === "all" && q) {
       list = list.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
@@ -455,6 +472,13 @@ function PortfoliosPageInner() {
               <span className="w-2 h-2 rounded-full bg-gray-400 mr-1.5 inline-block" />
               On hold
             </FilterChip>
+            <FilterChip
+              active={statusFilter === "COMPLETE"}
+              onClick={() => setStatusFilter("COMPLETE")}
+            >
+              <span className="w-2 h-2 rounded-full bg-[#c9a84c] mr-1.5 inline-block" />
+              Complete
+            </FilterChip>
           </div>
           {/* Layout toggle: cards vs. table */}
           <div className="md:ml-auto inline-flex rounded-md border border-gray-200 bg-white p-0.5">
@@ -514,7 +538,7 @@ function PortfoliosPageInner() {
           portfolios={filtered}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
-          onOpen={(id) => router.push(`/portfolios/${id}`)}
+          onOpen={(id) => router.push(`${basePath}/portfolios/${id}`)}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
@@ -542,7 +566,9 @@ function PortfoliosPageInner() {
                 e.stopPropagation();
                 toggleFavorite(portfolio.id);
               }}
-              onClick={() => router.push(`/portfolios/${portfolio.id}`)}
+              onClick={() =>
+                router.push(`${basePath}/portfolios/${portfolio.id}`)
+              }
             />
           ))}
 
@@ -690,22 +716,24 @@ function CreateStepConfig({
     description: string;
     icon: React.ReactNode;
   }[] = [
+    // Same rule the portfolio API applies; workspace admins can always
+    // open every portfolio, whichever option is picked.
     {
       value: "PRIVATE",
-      label: "Private to me",
-      description: "Only you and members you add.",
+      label: "Private to members",
+      description: "Only you and the people you add.",
       icon: <Lock className="h-4 w-4" />,
     },
     {
       value: "WORKSPACE",
       label: "Workspace members",
-      description: "Anyone in your workspace.",
+      description: "Everyone in the workspace except guests can view.",
       icon: <Users className="h-4 w-4" />,
     },
     {
       value: "PUBLIC",
-      label: "Public",
-      description: "Anyone with the link.",
+      label: "Everyone in the workspace",
+      description: "Everyone in the workspace, guests included, can view.",
       icon: <Globe className="h-4 w-4" />,
     },
   ];
@@ -1038,14 +1066,21 @@ function PreviewMock({
   );
 }
 
+// The preview shows the SHAPE of each view with neutral skeleton bars. It
+// used to invent projects, people, percentages and messages, which read
+// as real firm data next to the real thing.
+
+function SkeletonBar({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return <div className={cn("rounded bg-gray-100", className)} style={style} />;
+}
+
 function MockList() {
-  const rows = [
-    { color: "#3b82f6", name: "Brickell Mixed-Use", progress: 65, status: "On track" },
-    { color: "#ec4899", name: "Polanco Residential Tower", progress: 42, status: "At risk" },
-    { color: "#10b981", name: "NYC FISP Cycle 9 — 521 W57", progress: 88, status: "On track" },
-    { color: "#a855f7", name: "Wynwood Warehouse", progress: 23, status: "On track" },
-    { color: "#f59e0b", name: "Coral Gables Permit — 4040", progress: 71, status: "At risk" },
-  ];
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-12 gap-3 px-2 pb-1 text-[10px] uppercase tracking-wider text-gray-400 font-medium">
@@ -1053,40 +1088,20 @@ function MockList() {
         <div className="col-span-3">Status</div>
         <div className="col-span-3">Progress</div>
       </div>
-      {rows.map((r) => (
+      {[70, 55, 80, 45, 62].map((w, i) => (
         <div
-          key={r.name}
-          className="grid grid-cols-12 gap-3 px-2 py-1.5 items-center text-xs"
+          key={i}
+          className="grid grid-cols-12 gap-3 px-2 py-1.5 items-center"
         >
           <div className="col-span-6 flex items-center gap-2 min-w-0">
-            <div
-              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-              style={{ backgroundColor: r.color }}
-            />
-            <span className="text-black truncate">{r.name}</span>
+            <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0 bg-[#c9a84c]/40" />
+            <SkeletonBar className="h-2.5" style={{ width: `${w}%` }} />
           </div>
           <div className="col-span-3">
-            <span
-              className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded-full",
-                r.status === "At risk"
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-[#c9a84c]/15 text-[#a8893a]"
-              )}
-            >
-              {r.status}
-            </span>
+            <SkeletonBar className="h-3 w-14 rounded-full" />
           </div>
-          <div className="col-span-3 flex items-center gap-1.5">
-            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#a8893a]"
-                style={{ width: `${r.progress}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-gray-500 tabular-nums w-6">
-              {r.progress}%
-            </span>
+          <div className="col-span-3">
+            <SkeletonBar className="h-1.5 w-full rounded-full" />
           </div>
         </div>
       ))}
@@ -1096,11 +1111,11 @@ function MockList() {
 
 function MockTimeline() {
   const bars = [
-    { color: "#c9a84c", left: 5, width: 35, name: "Brickell Mixed-Use" },
-    { color: "#a8893a", left: 25, width: 45, name: "Polanco Tower" },
-    { color: "#000000", left: 50, width: 30, name: "NYC FISP" },
-    { color: "#c9a84c", left: 10, width: 55, name: "Wynwood" },
-    { color: "#a8893a", left: 35, width: 40, name: "Coral Gables" },
+    { left: 5, width: 35 },
+    { left: 25, width: 45 },
+    { left: 50, width: 30 },
+    { left: 10, width: 55 },
+    { left: 35, width: 40 },
   ];
   return (
     <div>
@@ -1113,16 +1128,12 @@ function MockTimeline() {
       </div>
       <div className="space-y-2">
         {bars.map((b, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <span className="w-28 truncate text-black">{b.name}</span>
+          <div key={i} className="flex items-center gap-2">
+            <SkeletonBar className="w-28 h-2.5" />
             <div className="flex-1 relative h-4 bg-gray-50 rounded">
               <div
-                className="absolute top-0.5 bottom-0.5 rounded"
-                style={{
-                  left: `${b.left}%`,
-                  width: `${b.width}%`,
-                  backgroundColor: b.color,
-                }}
+                className="absolute top-0.5 bottom-0.5 rounded bg-[#c9a84c]/40"
+                style={{ left: `${b.left}%`, width: `${b.width}%` }}
               />
             </div>
           </div>
@@ -1136,39 +1147,23 @@ function MockPanel() {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Projects", value: "12" },
-          { label: "Budget", value: "$48M" },
-          { label: "Progress", value: "62%" },
-          { label: "At risk", value: "2" },
-        ].map((k) => (
-          <div key={k.label} className="border rounded p-2">
-            <div className="text-[9px] uppercase text-gray-400">{k.label}</div>
-            <div className="text-sm font-semibold tabular-nums">{k.value}</div>
+        {["Projects", "Budget", "Progress", "At risk"].map((label) => (
+          <div key={label} className="border rounded p-2">
+            <div className="text-[9px] uppercase text-gray-400">{label}</div>
+            <SkeletonBar className="h-3.5 w-8 mt-1" />
           </div>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="border rounded p-3 flex items-center justify-center">
-          <svg viewBox="0 0 60 60" className="w-20 h-20">
+          <svg viewBox="0 0 60 60" className="w-20 h-20" aria-hidden="true">
             <circle
               cx="30"
               cy="30"
               r="22"
               fill="none"
-              stroke="#e5e7eb"
+              stroke="#f3f4f6"
               strokeWidth="8"
-            />
-            <circle
-              cx="30"
-              cy="30"
-              r="22"
-              fill="none"
-              stroke="#c9a84c"
-              strokeWidth="8"
-              strokeDasharray={`${0.62 * 2 * Math.PI * 22} ${2 * Math.PI * 22}`}
-              strokeDashoffset={2 * Math.PI * 22 * 0.25}
-              transform="rotate(-90 30 30)"
             />
           </svg>
         </div>
@@ -1176,7 +1171,7 @@ function MockPanel() {
           {[60, 80, 40, 90, 55].map((h, i) => (
             <div
               key={i}
-              className="w-3 rounded-sm bg-[#a8893a]"
+              className="w-3 rounded-sm bg-gray-100"
               style={{ height: `${h}%` }}
             />
           ))}
@@ -1190,46 +1185,20 @@ function MockProgress() {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "In progress", value: 8 },
-          { label: "At risk", value: 2 },
-          { label: "Off track", value: 1 },
-          { label: "Total", value: 12 },
-        ].map((k) => (
-          <div key={k.label} className="border rounded p-2 text-center">
-            <div className="text-lg font-semibold tabular-nums text-black">
-              {k.value}
-            </div>
-            <div className="text-[9px] text-gray-500">{k.label}</div>
+        {["In progress", "At risk", "Off track", "Total"].map((label) => (
+          <div key={label} className="border rounded p-2 text-center">
+            <SkeletonBar className="h-4 w-6 mx-auto" />
+            <div className="text-[9px] text-gray-500 mt-1">{label}</div>
           </div>
         ))}
       </div>
       <div className="space-y-2">
-        {[
-          { name: "Juan T.", status: "On track", text: "Wrapped permitting." },
-          { name: "Maria L.", status: "At risk", text: "Concrete delivery delayed." },
-        ].map((u, i) => (
-          <div key={i} className="flex items-start gap-2 text-xs">
-            <div className="w-6 h-6 rounded-full bg-[#a8893a]/30 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium text-black text-[11px]">
-                  {u.name}
-                </span>
-                <span
-                  className={cn(
-                    "text-[9px] px-1 py-0.5 rounded",
-                    u.status === "At risk"
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-[#c9a84c]/15 text-[#a8893a]"
-                  )}
-                >
-                  {u.status}
-                </span>
-              </div>
-              <p className="text-gray-600 text-[10px] mt-0.5 truncate">
-                {u.text}
-              </p>
+        {[0, 1].map((i) => (
+          <div key={i} className="flex items-start gap-2">
+            <div className="w-6 h-6 rounded-full bg-gray-100 flex-shrink-0" />
+            <div className="flex-1 min-w-0 space-y-1">
+              <SkeletonBar className="h-2.5 w-24" />
+              <SkeletonBar className="h-2 w-3/4" />
             </div>
           </div>
         ))}
@@ -1249,23 +1218,18 @@ function MockWorkload() {
           </span>
         ))}
       </div>
-      {[
-        { name: "Juan", loads: [0.4, 0.7, 0.9, 0.5, 0.3, 0, 0] },
-        { name: "Maria", loads: [0.2, 0.5, 0.4, 0.8, 0.6, 0.1, 0] },
-        { name: "Carlos", loads: [0.6, 0.3, 0.5, 0.2, 0.9, 0, 0] },
-      ].map((row) => (
-        <div key={row.name} className="flex items-center gap-0 mb-1">
-          <div className="w-20 text-xs text-black truncate">{row.name}</div>
-          {row.loads.map((l, i) => (
+      {[0, 1, 2].map((row) => (
+        <div key={row} className="flex items-center gap-0 mb-1">
+          <div className="w-20 pr-2">
+            <SkeletonBar className="h-2.5 w-14" />
+          </div>
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
             <div
               key={i}
-              className="flex-1 h-5 mx-0.5 rounded-sm"
-              style={{
-                backgroundColor:
-                  l > 0
-                    ? `rgba(201,168,76,${0.15 + l * 0.65})`
-                    : "#f9fafb",
-              }}
+              className={cn(
+                "flex-1 h-5 mx-0.5 rounded-sm",
+                i < 5 ? "bg-[#c9a84c]/20" : "bg-gray-50"
+              )}
             />
           ))}
         </div>
@@ -1277,31 +1241,13 @@ function MockWorkload() {
 function MockMessages() {
   return (
     <div className="space-y-3">
-      {[
-        {
-          name: "Juan Tercero",
-          time: "2h ago",
-          text: "Brickell tower foundation pour completed yesterday — moving to columns.",
-        },
-        {
-          name: "Maria López",
-          time: "5h ago",
-          text: "Polanco re-cert documents uploaded to the portal for review.",
-        },
-        {
-          name: "Carlos Ruiz",
-          time: "1d ago",
-          text: "Coral Gables permit application sent. Awaiting city response.",
-        },
-      ].map((m, i) => (
+      {[0, 1, 2].map((i) => (
         <div key={i} className="flex items-start gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-[#a8893a]/30 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-black">{m.name}</span>
-              <span className="text-[10px] text-gray-400">{m.time}</span>
-            </div>
-            <p className="text-[11px] text-gray-700 mt-0.5">{m.text}</p>
+          <div className="w-7 h-7 rounded-full bg-gray-100 flex-shrink-0" />
+          <div className="flex-1 min-w-0 space-y-1">
+            <SkeletonBar className="h-2.5 w-28" />
+            <SkeletonBar className="h-2 w-full" />
+            <SkeletonBar className="h-2 w-2/3" />
           </div>
         </div>
       ))}
@@ -1441,6 +1387,7 @@ function PortfolioTable({
           const isFav = favorites.has(p.id);
           const ownerInitial =
             p.owner?.name?.charAt(0).toUpperCase() || "?";
+          const RowIcon = portfolioIcon(p.icon);
           return (
             <div
               key={p.id}
@@ -1470,9 +1417,10 @@ function PortfolioTable({
                     )}
                   />
                 </button>
-                <span
-                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                  style={{ backgroundColor: p.color || "#a8893a" }}
+                <RowIcon
+                  className="h-4 w-4 flex-shrink-0"
+                  style={{ color: p.color || "#a8893a" }}
+                  aria-hidden="true"
                 />
                 <span className="font-medium text-black truncate">
                   {p.name}
@@ -1556,6 +1504,12 @@ function PortfolioCard({
   const accentColor = portfolio.color || "#a8893a";
   const ownerInitial = portfolio.owner?.name?.charAt(0).toUpperCase() || "?";
   const gid = `pf-folder-${portfolio.id}`;
+  // The folder graphic already reads as the default icon; any other icon
+  // picked in Customize is drawn on the folder's front.
+  const CardIcon =
+    portfolio.icon && portfolio.icon !== "folder"
+      ? portfolioIcon(portfolio.icon)
+      : null;
 
   return (
     <Card
@@ -1627,6 +1581,12 @@ function PortfolioCard({
             fillOpacity="0.22"
           />
         </svg>
+        {CardIcon && (
+          <CardIcon
+            className="absolute left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 h-7 w-7 text-white/90 pointer-events-none"
+            aria-hidden="true"
+          />
+        )}
         <Avatar className="absolute -bottom-2 right-1.5 h-9 w-9 ring-[3px] ring-white shadow-md">
           <AvatarImage src={portfolio.owner?.image || ""} />
           <AvatarFallback

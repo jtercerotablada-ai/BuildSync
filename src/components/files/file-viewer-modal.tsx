@@ -3,9 +3,11 @@
 /**
  * FileViewerModal — full-screen in-app viewer for any attachment in
  * the system. Renders the file inline when the browser can handle it
- * natively (images, PDFs, plain text, audio, video) and falls back
- * to Microsoft's Office Web Viewer for .docx/.xlsx/.pptx (the Vercel
- * Blob URL is public, which is what the Office viewer requires).
+ * natively (images, PDFs, plain text, audio, video). Microsoft's Office Web
+ * Viewer is used for .docx/.xlsx/.pptx only when the url is an absolute public
+ * address: app files are served through the session-gated /api/files door,
+ * which Microsoft's servers can neither resolve (relative) nor authenticate
+ * to, so those get the download CTA instead of a viewer error page.
  *
  * Unknown / blocked types show a download CTA instead of a broken
  * preview pane.
@@ -666,10 +668,10 @@ function FilePreviewSurface({
   }
 
   if (isText) {
-    return <TextPreview url={file.url} />;
+    return <TextPreview url={file.url} name={file.name} />;
   }
 
-  if (isOffice) {
+  if (isOffice && file.url.startsWith("https://")) {
     return (
       <>
         {loadState === "loading" && spinner}
@@ -686,6 +688,13 @@ function FilePreviewSurface({
     );
   }
 
+  if (isOffice) {
+    return downloadFallback(
+      "Preview not available for Office files here.",
+      "Download it to open in Word, Excel or PowerPoint."
+    );
+  }
+
   // Unknown / unsupported — show download CTA
   return downloadFallback(
     "Preview not available for this file type.",
@@ -698,7 +707,7 @@ function FilePreviewSurface({
  * monospace pane. Stops at 200 KB so a huge CSV doesn't lock the
  * browser; bigger files get a download CTA instead.
  */
-function TextPreview({ url }: { url: string }) {
+function TextPreview({ url, name }: { url: string; name: string }) {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tooLarge, setTooLarge] = useState(false);
@@ -739,7 +748,7 @@ function TextPreview({ url }: { url: string }) {
           type="button"
           onClick={async () => {
             try {
-              await downloadFile(url, "download");
+              await downloadFile(url, name);
             } catch (err) {
               toast.error(
                 err instanceof Error ? err.message : "Couldn't download file"

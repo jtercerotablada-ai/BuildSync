@@ -21,6 +21,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { resolveProjectAccess } from "@/lib/project-access";
+import { recomputeFormulasForProject } from "@/lib/formula-eval";
 
 const FIELD_TYPES = [
   "TEXT",
@@ -77,7 +78,9 @@ async function assertProjectAccess(projectId: string, userId: string) {
   // Canonical read rule (matches the page): the old inline check leaked
   // WORKSPACE-visibility projects to any member and 403'd workspace admins.
   const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
+  // 404, not 403: an unreadable project must look like a missing one so
+  // ids cannot be probed (same as getProjectAccess).
+  if (!access.ok) return { ok: false as const, status: 404 };
   return { ok: true as const, project, canWrite: access.canWrite };
 }
 
@@ -210,6 +213,17 @@ export async function POST(
 
       return { def, link };
     });
+
+    // A new formula / roll-up has no stored values yet, so every existing
+    // task would show "—" until someone re-edited a source value. The field
+    // already exists: a compute failure is logged, not answered as 500.
+    if (isComputed) {
+      try {
+        await recomputeFormulasForProject(projectId);
+      } catch (e) {
+        console.error("[custom-fields POST] formula recompute failed:", e);
+      }
+    }
 
     return NextResponse.json(
       {

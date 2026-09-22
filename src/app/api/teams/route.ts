@@ -14,7 +14,9 @@ import {
 import { notifyMembershipGranted } from "@/lib/membership-notifications";
 
 const createTeamSchema = z.object({
-  name: z.string().min(1, "Team name is required"),
+  // Trimmed before the length check: a whitespace-only name rendered as a
+  // blank row in the sidebar and every team picker.
+  name: z.string().trim().min(1, "Team name is required").max(100),
   description: z.string().optional(),
   privacy: z.enum(["PUBLIC", "REQUEST_TO_JOIN", "PRIVATE"]).default("PUBLIC"),
   memberIds: z.array(z.string()).optional(),
@@ -188,20 +190,33 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
 
+    // A workspace OWNER/ADMIN sees PRIVATE teams too — the same reach
+    // requireTeamStanding gives him on every team route. Without it a private
+    // team whose only lead left the firm had no way in from the UI.
+    const seat = await prisma.workspaceMember.findUnique({
+      where: { userId_workspaceId: { userId, workspaceId } },
+      select: { role: true },
+    });
+    const isWorkspaceManager = seat?.role === "OWNER" || seat?.role === "ADMIN";
+
     // Get all teams the user can see
     const teams = await prisma.team.findMany({
       where: {
         workspaceId,
         ...teamArchiveWhere(searchParams.get("archived")),
-        OR: [
-          { privacy: "PUBLIC" },
-          { privacy: "REQUEST_TO_JOIN" },
-          {
-            members: {
-              some: { userId },
-            },
-          },
-        ],
+        ...(isWorkspaceManager
+          ? {}
+          : {
+              OR: [
+                { privacy: "PUBLIC" as const },
+                { privacy: "REQUEST_TO_JOIN" as const },
+                {
+                  members: {
+                    some: { userId },
+                  },
+                },
+              ],
+            }),
       },
       include: {
         members: {

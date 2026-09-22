@@ -247,7 +247,11 @@ export function ProjectMembersDialog({
     const handle = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
+        // projectId scopes candidates to the project's own workspace, not the
+        // caller's primary one.
+        const res = await fetch(
+          `/api/users/search?q=${encodeURIComponent(q)}&projectId=${encodeURIComponent(projectId)}`
+        );
         if (res.ok) {
           const users: WorkspaceUser[] = await res.json();
           // Exclude users already in the project (and the owner)
@@ -263,7 +267,7 @@ export function ProjectMembersDialog({
       }
     }, 200);
     return () => clearTimeout(handle);
-  }, [query, open, members, owner?.id]);
+  }, [query, open, members, owner?.id, projectId]);
 
   async function addMember(user: WorkspaceUser) {
     setAdding(user.id);
@@ -362,6 +366,9 @@ export function ProjectMembersDialog({
         prev.map((m) => (m.id === member.id ? { ...m, role } : m))
       );
       toast.success("Role updated");
+      // The page's edit/manage flags are resolved server-side from roles, so
+      // a demotion (possibly of yourself) must re-run it like add/remove do.
+      onMembersChange?.();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to update role"

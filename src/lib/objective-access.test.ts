@@ -67,6 +67,51 @@ describe("a goal that is not private is shared work", () => {
   );
 });
 
+describe("a member named VIEWER ('Read-only') can open a private goal but not change it", () => {
+  it("private: read yes, write no, comment yes", () => {
+    const access = decideObjectiveAccess(
+      colleague({ isMember: true, memberRole: "VIEWER" })
+    );
+    expect(access.canRead).toBe(true);
+    expect(access.canWrite).toBe(false);
+    expect(access.canComment).toBe(true);
+  });
+
+  it("not private: a VIEWER row never leaves them below a colleague who is not on the goal", () => {
+    const viewer = decideObjectiveAccess(
+      colleague({ isPrivate: false, isMember: true, memberRole: "VIEWER" })
+    );
+    const bystander = decideObjectiveAccess(colleague({ isPrivate: false }));
+    expect(viewer.canWrite).toBe(bystander.canWrite);
+    expect(viewer.canWrite).toBe(true);
+    expect(viewer.canComment).toBe(true);
+  });
+
+  it("an EDITOR member still writes", () => {
+    const access = decideObjectiveAccess(
+      colleague({ isMember: true, memberRole: "EDITOR" })
+    );
+    expect(access.canWrite).toBe(true);
+  });
+
+  it("the goal's owner is never narrowed by a VIEWER row", () => {
+    const access = decideObjectiveAccess(
+      colleague({ isOwner: true, isMember: true, memberRole: "VIEWER" })
+    );
+    expect(access.canWrite).toBe(true);
+  });
+
+  it.each(["OWNER", "ADMIN"])(
+    "a workspace %s is never narrowed by a VIEWER row",
+    (workspaceRole) => {
+      const access = decideObjectiveAccess(
+        colleague({ workspaceRole, isMember: true, memberRole: "VIEWER" })
+      );
+      expect(access.canWrite).toBe(true);
+    }
+  );
+});
+
 // ───────────────────────────────────────────────────────────────────────────
 // A private goal is private
 // ───────────────────────────────────────────────────────────────────────────

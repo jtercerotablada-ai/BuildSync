@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import {
+  verifyWorkspaceAccess,
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+} from "@/lib/auth-guards";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 const reorderSchema = z.object({
   projectIds: z.array(z.string().min(1)).min(1),
@@ -22,7 +28,6 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = await getUserWorkspaceId(userId);
     const portfolio = await prisma.portfolio.findUnique({
       where: { id: portfolioId },
       select: {
@@ -34,16 +39,21 @@ export async function PATCH(
         },
       },
     });
-    if (!portfolio || portfolio.workspaceId !== workspaceId) {
+    if (!portfolio) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    const wsMember = await verifyWorkspaceAccess(userId, portfolio.workspaceId);
 
-    const isPortfolioOwner = portfolio.ownerId === userId;
+    // Owner, member OWNER/EDITOR or workspace OWNER/ADMIN, from a contributor
+    // seat — same edit rule as decidePortfolioAccess in ../../route.ts.
     const memberRole = portfolio.members[0]?.role;
     const canEdit =
-      isPortfolioOwner ||
-      memberRole === "OWNER" ||
-      memberRole === "EDITOR";
+      !isNonContributorRole(wsMember.role) &&
+      (portfolio.ownerId === userId ||
+        wsMember.role === "OWNER" ||
+        wsMember.role === "ADMIN" ||
+        memberRole === "OWNER" ||
+        memberRole === "EDITOR");
     if (!canEdit) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -51,17 +61,16 @@ export async function PATCH(
     const body = await req.json();
     const data = reorderSchema.parse(body);
 
-    // Validate that all provided project IDs belong to this portfolio.
+    // Every supplied id must belong to this portfolio, once.
     const existing = await prisma.portfolioProject.findMany({
       where: { portfolioId },
       select: { projectId: true },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
     });
     const existingIds = new Set(existing.map((e) => e.projectId));
-    // A partial list would renumber the supplied rows 1..n and leave the
-    // omitted ones on their old positions — i.e. duplicates.
-    if (new Set(data.projectIds).size !== existingIds.size) {
+    if (new Set(data.projectIds).size !== data.projectIds.length) {
       return NextResponse.json(
-        { error: "The full list of portfolio projects is required" },
+        { error: "Each project may appear only once" },
         { status: 400 }
       );
     }
@@ -74,10 +83,19 @@ export async function PATCH(
       }
     }
 
-    // Apply the new positions. We don't try to be clever about diffs:
-    // a portfolio rarely has hundreds of projects, so just rewrite all.
+    // The page cannot name rows it was never sent (projects the caller may
+    // not read), so rows missing from the list keep their relative order
+    // after the supplied ones. Renumbering the WHOLE table this way keeps
+    // positions unique — renumbering only the supplied rows 1..n would
+    // collide with the omitted ones' old positions.
+    const supplied = new Set(data.projectIds);
+    const finalOrder = [
+      ...data.projectIds,
+      ...existing.map((e) => e.projectId).filter((id) => !supplied.has(id)),
+    ];
+
     await prisma.$transaction(
-      data.projectIds.map((projectId, index) =>
+      finalOrder.map((projectId, index) =>
         prisma.portfolioProject.update({
           where: {
             portfolioId_projectId: { portfolioId, projectId },
@@ -93,6 +111,17 @@ export async function PATCH(
       return NextResponse.json(
         { error: error.issues[0]?.message || "Validation error" },
         { status: 400 }
+      );
+    }
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
+    // A row removed between the read and the write above.
+    if ((error as { code?: string })?.code === "P2025") {
+      return NextResponse.json(
+        { error: "The portfolio changed — refresh and try again" },
+        { status: 409 }
       );
     }
     console.error("Error reordering portfolio projects:", error);

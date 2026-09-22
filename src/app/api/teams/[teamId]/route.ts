@@ -4,12 +4,25 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { contributorSeatSatisfied, getErrorStatus } from "@/lib/auth-guards";
 import { requireTeamStanding } from "@/lib/team-access";
+import { deleteFile, isVercelBlobUrl } from "@/lib/storage";
+
+/** A cover the avatar route wrote for THIS team (see avatar/route.ts). */
+function isOwnTeamCover(teamId: string, url: string): boolean {
+  if (!isVercelBlobUrl(url)) return false;
+  const path = new URL(url).pathname.replace(/^\/+/, "");
+  return path.startsWith(`teams/${teamId}/`) && !path.includes("..");
+}
 
 const updateTeamSchema = z.object({
-  name: z.string().min(1).optional(),
+  // Trimmed before the length check: a whitespace-only name rendered as a
+  // blank row in the sidebar and every team picker.
+  name: z.string().trim().min(1, "Team name is required").max(100).optional(),
   description: z.string().optional().nullable(),
   color: z.string().optional(),
-  avatar: z.string().optional().nullable(),
+  // No `avatar` here on purpose. POST/DELETE /api/teams/:id/avatar are the
+  // only writers of the cover: a free-form string would let a lead point the
+  // cover at any url, which every colleague browsing teams then loads as an
+  // <img>. zod strips the key, so an old client sending it is simply ignored.
   privacy: z.enum(["PUBLIC", "REQUEST_TO_JOIN", "PRIVATE"]).optional(),
   // Archive is the reversible alternative to DELETE below, which destroys the
   // team's messages and revokes the project access the team granted. The
@@ -51,6 +64,9 @@ function visibleObjectivesInclude(userId: string) {
       progress: true,
       status: true,
     },
+    // Most recently touched first; without an order the five shown were
+    // whatever the database returned first.
+    orderBy: { updatedAt: "desc" as const },
     take: 5,
   };
 }
@@ -122,6 +138,7 @@ export async function GET(
           workspaceId: team.workspaceId,
         },
       },
+      select: { role: true },
     });
 
     if (!workspaceMember) {
@@ -134,12 +151,25 @@ export async function GET(
     // which is the one fact team privacy exists to withhold. This route is the
     // one every team page calls, so leaving it on 403 kept the enumeration
     // oracle the rest of the surface was rewritten to remove.
+    //
+    // A workspace OWNER/ADMIN is admitted like requireTeamStanding admits him
+    // on every sub-route: otherwise a PRIVATE team whose only lead left the
+    // firm could still be administered through the API, but every team page
+    // (they all load this route first) answered "Team not found".
     const isMember = team.members.some((m) => m.userId === userId);
-    if (!isMember && team.privacy === "PRIVATE") {
+    const isWorkspaceManager =
+      workspaceMember.role === "OWNER" || workspaceMember.role === "ADMIN";
+    if (!isMember && !isWorkspaceManager && team.privacy === "PRIVATE") {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    return NextResponse.json(team);
+    // _count.projects includes archived projects, so a team whose only
+    // project was archived still read as "has projects" to the setup banner.
+    const activeProjectCount = await prisma.project.count({
+      where: { teamId, isArchived: false },
+    });
+
+    return NextResponse.json({ ...team, activeProjectCount });
   } catch (error) {
     console.error("Error fetching team:", error);
     return NextResponse.json(
@@ -219,24 +249,23 @@ export async function PATCH(
     const { isArchived, ...contentFields } = data;
 
     // Any team member may edit the team description (Asana parity). All other
-    // settings — name, color, avatar, privacy — stay lead-only.
+    // settings — name, color, privacy — need the team LEAD or a workspace
+    // OWNER/ADMIN, the same set requireTeamMemberManagement trusts, so a team
+    // whose only lead left the firm can still be renamed or re-privacied.
     const editedFields = Object.keys(contentFields);
     const descriptionOnly =
       editedFields.length > 0 &&
       editedFields.every((f) => f === "description");
-    if (editedFields.length > 0) {
-      if (!teamMember) {
-        return NextResponse.json(
-          { error: "You must be a team member to edit this team" },
-          { status: 403 }
-        );
-      }
-      if (!descriptionOnly && !isLead) {
-        return NextResponse.json(
-          { error: "Only team leads can edit team settings" },
-          { status: 403 }
-        );
-      }
+    if (
+      editedFields.length > 0 &&
+      !descriptionOnly &&
+      !isLead &&
+      !isWorkspaceManager
+    ) {
+      return NextResponse.json(
+        { error: "Only team leads or workspace admins can edit team settings" },
+        { status: 403 }
+      );
     }
 
     // Archiving is gated to the team LEAD or a workspace OWNER/ADMIN — the same
@@ -327,9 +356,30 @@ export async function DELETE(
       );
     }
 
+    // The delete cascades to every message and its attachment rows, which
+    // would leave the files themselves in the store, still reachable by url.
+    // Collect them first; the blobs go only after the rows are gone.
+    const [attachments, team] = await Promise.all([
+      prisma.messageAttachment.findMany({
+        where: { teamMessage: { teamId } },
+        select: { url: true },
+      }),
+      prisma.team.findUnique({ where: { id: teamId }, select: { avatar: true } }),
+    ]);
+
     await prisma.team.delete({
       where: { id: teamId },
     });
+
+    // Best effort: a stray blob is harmless, a failed request after the team
+    // is already gone is not. deleteFile ignores urls outside our store, and
+    // the cover is only removed when it is one the avatar route wrote for this
+    // team (Team.avatar used to accept any string).
+    const urls = attachments.map((a) => a.url);
+    if (team?.avatar && isOwnTeamCover(teamId, team.avatar)) {
+      urls.push(team.avatar);
+    }
+    await Promise.allSettled(urls.map((url) => deleteFile(url)));
 
     return NextResponse.json({ success: true });
   } catch (error) {

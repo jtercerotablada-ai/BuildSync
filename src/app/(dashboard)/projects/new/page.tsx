@@ -1,18 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toDateOnlyISO } from "@/lib/date-only";
 import { useToday } from "@/lib/use-today";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Calendar,
   Loader2,
-  List,
-  LayoutGrid,
-  Clock,
-  CalendarDays,
   CheckCircle2,
   FolderKanban,
   Sparkles,
@@ -21,10 +17,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { getTemplateById, allTemplates, type TemplateDefinition } from "@/lib/templates-data";
 import { notifySidebarRefresh } from "@/lib/open-create-project";
+import { DEFAULT_VISIBLE_VIEWS, baseLabelFor } from "@/lib/project-views";
+
+// What a new project's tab strip really opens with (the rest start hidden
+// under "+"), read from the same list POST /api/projects seeds from.
+const STARTING_TABS = DEFAULT_VISIBLE_VIEWS.map((key) => baseLabelFor(key));
+const STARTING_TABS_COPY = `Starts with ${STARTING_TABS.length} tabs: ${STARTING_TABS.join(
+  ", "
+)}. Add more views from "+".`;
+
+// Fixed bar widths for the List preview. Random widths computed during render
+// changed on every keystroke in the form and differed between server and
+// client.
+const LIST_PREVIEW_WIDTHS = [78, 62, 86, 55];
 
 // Color options for project — strict monochrome + gold palette.
 const colorOptions = [
@@ -35,17 +42,6 @@ const colorOptions = [
   { value: "#c9a84c", label: "Gold" },
   { value: "#a8893a", label: "Bronze" },
 ];
-
-// Get view icon
-function getViewIcon(type: string) {
-  switch (type) {
-    case "list": return List;
-    case "board": return LayoutGrid;
-    case "calendar": return CalendarDays;
-    case "timeline": return Clock;
-    default: return List;
-  }
-}
 
 // Template preview component
 function TemplatePreviewLarge({ type }: { type: string }) {
@@ -63,7 +59,7 @@ function TemplatePreviewLarge({ type }: { type: string }) {
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
-                <div className="h-2 bg-gray-200 rounded flex-1" style={{ width: `${50 + Math.random() * 40}%` }} />
+                <div className="h-2 bg-gray-200 rounded flex-1" style={{ width: `${LIST_PREVIEW_WIDTHS[i - 1]}%` }} />
                 <div className={cn(
                   "h-4 w-14 rounded text-xs",
                   i === 1 && "bg-white border border-black",
@@ -162,17 +158,16 @@ function TemplatePreviewLarge({ type }: { type: string }) {
 
 export default function NewProjectPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const templateId = searchParams.get("template");
   const teamId = searchParams.get("teamId");
 
-  const [template, setTemplate] = useState<TemplateDefinition | null>(null);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [projectColor, setProjectColor] = useState("#c9a84c");
   // Default to the LOCAL calendar date. toISOString() would give the UTC
   // date, which is already "tomorrow" for US-evening users — and this value
-  // seeds every template task's relative due date server-side.
+  // becomes the project's start date server-side.
   //
   // Filled from `useToday()` in an effect rather than a useState initializer:
   // an initializer runs during RENDER, and this page is server-rendered, so
@@ -188,19 +183,6 @@ export default function NewProjectPage() {
   const [pickedStartDate, setPickedStartDate] = useState<string | null>(null);
   const startDate = pickedStartDate ?? (today ? toDateOnlyISO(today) : "");
 
-  // Load template if templateId is provided
-  useEffect(() => {
-    if (templateId) {
-      const foundTemplate = getTemplateById(templateId);
-      if (foundTemplate) {
-        setTemplate(foundTemplate);
-        setProjectName(foundTemplate.name);
-        setProjectDescription(foundTemplate.description);
-        setProjectColor(foundTemplate.color);
-      }
-    }
-  }, [templateId]);
-
   // Create project mutation
   const createProjectMutation = useMutation({
     mutationFn: async () => {
@@ -211,28 +193,36 @@ export default function NewProjectPage() {
           name: projectName,
           description: projectDescription,
           color: projectColor,
-          templateId: template?.id,
           teamId: teamId || undefined,
           startDate,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create project");
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          typeof data?.error === "string" && data.error
+            ? data.error
+            : "Failed to create project"
+        );
       }
 
       return response.json();
     },
     onSuccess: (project) => {
       notifySidebarRefresh();
+      // A mounted team "All work" list (same cache key as its page) refreshes too.
+      if (teamId) {
+        queryClient.invalidateQueries({ queryKey: ["team-projects", teamId] });
+      }
       router.push(`/projects/${project.id}`);
     },
   });
 
   const handleCreateProject = () => {
     // `startDate` is empty only on the very first frame, before the seeding
-    // effect runs. Posting "" would hand the API an Invalid Date to build
-    // every template task's schedule from.
+    // effect runs. Posting "" would hand the API an Invalid Date for the
+    // project's start date.
     if (!projectName.trim() || !startDate) return;
     createProjectMutation.mutate();
   };
@@ -251,11 +241,6 @@ export default function NewProjectPage() {
             </button>
             <div>
               <h1 className="text-xl font-semibold">Create new project</h1>
-              {template && (
-                <p className="text-sm text-gray-500">
-                  Using template: {template.name}
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -328,7 +313,7 @@ export default function NewProjectPage() {
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Task due dates will be calculated from this date
+                  When work on the project begins
                 </p>
               </div>
 
@@ -356,130 +341,63 @@ export default function NewProjectPage() {
 
               {createProjectMutation.isError && (
                 <p className="text-sm text-black text-center">
-                  Failed to create project. Please try again.
+                  {createProjectMutation.error?.message ||
+                    "Failed to create project. Please try again."}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Right: Template Preview */}
+          {/* Right: what a blank project starts with */}
           <div className="space-y-6">
-            {template ? (
-              <div className="bg-white rounded-lg border p-6">
-                <div className="flex items-start gap-3 mb-4">
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: template.color }}
-                  >
-                    {(() => {
-                      const ViewIcon = getViewIcon(template.preview);
-                      return <ViewIcon className="h-6 w-6 text-white" />;
-                    })()}
-                  </div>
-                  <div>
-                    <h2 className="font-semibold text-lg">{template.name}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-xs capitalize">
-                        {template.preview} view
-                      </Badge>
-                      {template.isNew && (
-                        <Badge className="bg-white border border-black text-[#a8893a] text-xs">
-                          New
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
+            <div className="bg-white rounded-lg border p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-lg bg-[#c9a84c] flex items-center justify-center">
+                  <FolderKanban className="h-6 w-6 text-white" />
                 </div>
-
-                <p className="text-gray-600 text-sm mb-4">{template.description}</p>
-
-                {/* Preview */}
-                <TemplatePreviewLarge type={template.preview} />
-
-                {/* What's included */}
-                <div className="mt-6 space-y-3">
-                  <h3 className="font-medium text-sm text-gray-900">What's included</h3>
-
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
-                    <span>{template.sections.length} sections: {template.sections.map(s => s.name).join(", ")}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
-                    <span>{template.tasks.length} pre-built tasks with due dates</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
-                    <span>4 views: List, Board, Timeline, Calendar</span>
-                  </div>
-
-                  {template.tasks.some(t => t.subtasks && t.subtasks.length > 0) && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
-                      <span>Subtasks for complex tasks</span>
-                    </div>
-                  )}
-
-                  {template.company && (
-                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-xs text-gray-500">Trusted by</p>
-                      <p className="font-medium text-gray-700">{template.company}</p>
-                    </div>
-                  )}
+                <div>
+                  <h2 className="font-semibold text-lg">Blank project</h2>
+                  <p className="text-sm text-gray-500">Start from scratch</p>
                 </div>
               </div>
-            ) : (
-              <div className="bg-white rounded-lg border p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-lg bg-[#c9a84c] flex items-center justify-center">
-                    <FolderKanban className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="font-semibold text-lg">Blank project</h2>
-                    <p className="text-sm text-gray-500">Start from scratch</p>
-                  </div>
+
+              <p className="text-gray-600 text-sm mb-4">
+                Create a blank project and add your own sections, tasks, and workflows.
+              </p>
+
+              {/* Preview */}
+              <TemplatePreviewLarge type="board" />
+
+              {/* What's included */}
+              <div className="mt-6 space-y-3">
+                <h3 className="font-medium text-sm text-gray-900">What's included</h3>
+
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
+                  <span>3 default sections: To do, In progress, Done</span>
                 </div>
 
-                <p className="text-gray-600 text-sm mb-4">
-                  Create a blank project and add your own sections, tasks, and workflows.
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
+                  <span>{STARTING_TABS_COPY}</span>
+                </div>
+              </div>
+
+              {/* Browse templates */}
+              <div className="mt-6 pt-4 border-t">
+                <p className="text-sm text-gray-500 mb-3">
+                  Want to start with a template?
                 </p>
-
-                {/* Preview */}
-                <TemplatePreviewLarge type="board" />
-
-                {/* What's included */}
-                <div className="mt-6 space-y-3">
-                  <h3 className="font-medium text-sm text-gray-900">What's included</h3>
-
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
-                    <span>3 default sections: To do, In progress, Done</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
-                    <span>4 views: List, Board, Timeline, Calendar</span>
-                  </div>
-                </div>
-
-                {/* Browse templates */}
-                <div className="mt-6 pt-4 border-t">
-                  <p className="text-sm text-gray-500 mb-3">
-                    Want to start with a template?
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push("/templates")}
-                    className="w-full gap-2"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    Browse templates
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/templates")}
+                  className="w-full gap-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Browse templates
+                </Button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

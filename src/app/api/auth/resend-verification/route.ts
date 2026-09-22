@@ -3,6 +3,9 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { createToken } from "@/lib/tokens";
 import { sendVerificationEmail } from "@/lib/email";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+const GENERIC_MESSAGE = "If that email exists, a verification link has been sent";
 
 export async function POST(req: Request) {
   // Hoisted so the catch below can tell an authenticated caller (who is
@@ -10,6 +13,19 @@ export async function POST(req: Request) {
   // enumeration-safe message).
   let userId: string | undefined;
   try {
+    /* Per-IP throttle, like forgot-password. The per-address 2-minute check
+       below was the only brake, so an anonymous caller could loop over many
+       addresses and have the firm's sending domain mail each of them every
+       two minutes — a mail-bomb that burns the domain's reputation. */
+    const ip = clientIp(req.headers);
+    const limited = rateLimit(`resend-verify:${ip}`, 5, 15 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { message: GENERIC_MESSAGE },
+        { headers: { "Retry-After": String(limited.retryAfter) } }
+      );
+    }
+
     let email: string | null = null;
 
     // Try to get email from session first
@@ -33,7 +49,7 @@ export async function POST(req: Request) {
 
     if (!email) {
       // Always return success to prevent enumeration
-      return NextResponse.json({ message: "If that email exists, a verification link has been sent" });
+      return NextResponse.json({ message: GENERIC_MESSAGE });
     }
 
     // Check user exists and is not verified
@@ -43,7 +59,17 @@ export async function POST(req: Request) {
     });
 
     if (!user || user.emailVerified) {
-      return NextResponse.json({ message: "If that email exists, a verification link has been sent" });
+      return NextResponse.json({ message: GENERIC_MESSAGE });
+    }
+
+    // Daily cap per address, whoever asks: nobody needs more than a handful
+    // of verification emails in a day.
+    if (!rateLimit(`resend-verify-addr:${email}`, 5, 24 * 60 * 60 * 1000).ok) {
+      return NextResponse.json({
+        message: userId
+          ? "Too many verification emails today. Please try again tomorrow."
+          : GENERIC_MESSAGE,
+      });
     }
 
     // Basic rate limit: check if there's a recent token (expires > 58 min from now means created < 2 min ago)
@@ -58,7 +84,7 @@ export async function POST(req: Request) {
     // the same generic message so the response can't be used to probe whether
     // an address is registered/unverified. Authenticated users (who already
     // know their own state) get the specific message.
-    const genericMsg = "If that email exists, a verification link has been sent";
+    const genericMsg = GENERIC_MESSAGE;
 
     if (recentToken) {
       return NextResponse.json({
@@ -100,8 +126,6 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-    return NextResponse.json(
-      { message: "If that email exists, a verification link has been sent" }
-    );
+    return NextResponse.json({ message: GENERIC_MESSAGE });
   }
 }

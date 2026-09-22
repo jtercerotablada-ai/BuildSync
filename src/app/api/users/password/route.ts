@@ -55,7 +55,10 @@ export async function POST(req: Request) {
       data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
 
-    return NextResponse.json({ success: true });
+    // The caller's own session was issued before passwordChangedAt, so it is
+    // now evicted too. Say so, so the client can sign out and send the user
+    // to /login instead of leaving them in a session that is already dead.
+    return NextResponse.json({ success: true, reauthRequired: true });
   } catch (error) {
     console.error("Error changing password:", error);
     return NextResponse.json(

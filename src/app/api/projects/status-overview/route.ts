@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId } from "@/lib/auth-guards";
-import { getLevel } from "@/lib/people-types";
+import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
+import { isStatusEarned } from "@/lib/project-status";
 
 /**
  * GET /api/projects/status-overview
@@ -19,11 +20,9 @@ import { getLevel } from "@/lib/people-types";
  * PM most needs to be reminded about. The per-project model never
  * loses sight of a project just because its owner went silent.
  *
- * Access scope: same as the projects list — workspace leadership
- * (OWNER/ADMIN role or L4+ position) sees all workspace projects;
- * everyone else only sees projects they own, are a member of, or
- * that are PUBLIC. Completed and archived projects are filtered OUT
- * because the widget is for "current work" only.
+ * Access scope: exactly the projects list's (buildProjectVisibilityClauses),
+ * narrowed to one workspace. Completed and archived projects are filtered
+ * OUT because the widget is for "current work" only.
  *
  * Params: ?limit= (1–30, default 8) · ?workspaceId= (optional; must
  * be a workspace the caller belongs to, else the default heuristic).
@@ -48,28 +47,22 @@ export async function GET(req: Request) {
     const requestedWorkspaceId = searchParams.get("workspaceId");
     const workspaceId =
       requestedWorkspaceId &&
-      (await prisma.workspaceMember.findFirst({
-        where: { userId, workspaceId: requestedWorkspaceId },
+      (await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: { userId, workspaceId: requestedWorkspaceId },
+        },
         select: { userId: true },
       }))
         ? requestedWorkspaceId
         : await getUserWorkspaceId(userId);
 
-    // Mirror /api/projects GET's visibility rules: workspace
-    // leadership (OWNER/ADMIN role) and L4+ positions see every
-    // workspace project; L1–L3 only see projects they own, are a
-    // member of, or that are PUBLIC. visibility=WORKSPACE does NOT
-    // auto-grant — that leaked projects to invited users who were
-    // only meant to see one specific project.
-    const membership = await prisma.workspaceMember.findFirst({
-      where: { userId, workspaceId },
-      select: { role: true, user: { select: { position: true } } },
-    });
-    const seesAllInWorkspace =
-      membership != null &&
-      (membership.role === "OWNER" ||
-        membership.role === "ADMIN" ||
-        getLevel(membership.user.position) >= 4);
+    // The same rule as the projects list — a private copy of it here had
+    // already lost the team and WORKSPACE-visibility arms, so a project shared
+    // with you never reached this widget.
+    const visibilityClauses = await buildProjectVisibilityClauses(userId);
+    if (!visibilityClauses) {
+      return NextResponse.json([]);
+    }
 
     const projects = await prisma.project.findMany({
       where: {
@@ -81,25 +74,24 @@ export async function GET(req: Request) {
         // Archived projects are done being tracked — hide them just
         // like GET /api/projects does by default.
         isArchived: false,
-        OR: seesAllInWorkspace
-          ? undefined
-          : [
-              { ownerId: userId },
-              { members: { some: { userId } } },
-              { visibility: "PUBLIC" },
-            ],
+        OR: visibilityClauses,
       },
       select: {
         id: true,
         name: true,
         color: true,
         status: true,
+        statusSetAt: true,
         gate: true,
         workspaceId: true,
-        updatedAt: true,
       },
-      orderBy: { updatedAt: "desc" },
-      take: 50, // pull a wider pool so the staleness sort has data to work with
+      // NOT capped by recency before the staleness ranking below: the
+      // projects nobody has touched have the OLDEST updatedAt, so a "50 most
+      // recent" pool dropped exactly the forgotten jobs this widget exists to
+      // surface. The bound is only a safety net, far above a firm's active
+      // job count, and keeps the stalest when it ever bites.
+      orderBy: { updatedAt: "asc" },
+      take: 1000,
     });
 
     if (projects.length === 0) {
@@ -165,6 +157,10 @@ export async function GET(req: Request) {
         // status — they can diverge if status was changed via the
         // header dropdown without posting an update.
         status: p.status,
+        // When a human last CHOSE that status; null means nobody did and the
+        // default ON_TRACK must read "No status", not a green "On track".
+        statusSetAt: p.statusSetAt ? p.statusSetAt.toISOString() : null,
+        statusEarned: isStatusEarned(p.statusSetAt),
         gate: p.gate,
         lastUpdate: u
           ? {
@@ -193,6 +189,8 @@ export async function GET(req: Request) {
     //   4. At-risk
     //   5. On-hold
     //   6. On-track (healthy, least urgent to surface)
+    //   7. No status (nobody ever rated it) — the same place the projects
+    //      list's "Status" sort puts it
     // Within each bucket, by oldest update first (most overdue).
     const STATUS_RANK: Record<string, number> = {
       OFF_TRACK: 0,
@@ -201,6 +199,8 @@ export async function GET(req: Request) {
       ON_TRACK: 3,
       COMPLETE: 4, // shouldn't appear (filtered above) but defensive
     };
+    // An unrated project's ON_TRACK is a default, not a judgement.
+    const UNRATED_RANK = 3.5;
     rows.sort((a, b) => {
       const aNever = a.daysSinceUpdate == null ? 1 : 0;
       const bNever = b.daysSinceUpdate == null ? 1 : 0;
@@ -210,8 +210,9 @@ export async function GET(req: Request) {
       const bStale = (b.daysSinceUpdate ?? 0) >= 14 ? 1 : 0;
       if (aStale !== bStale) return bStale - aStale; // stale next
 
-      const sr =
-        (STATUS_RANK[a.status] ?? 5) - (STATUS_RANK[b.status] ?? 5);
+      const rank = (r: (typeof rows)[number]) =>
+        r.statusEarned ? (STATUS_RANK[r.status] ?? 5) : UNRATED_RANK;
+      const sr = rank(a) - rank(b);
       if (sr !== 0) return sr;
 
       // Tie-break: oldest update floats up.

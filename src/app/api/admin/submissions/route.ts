@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { canReadContactInbox } from "@/lib/contact-inbox";
+import { parseContactAttachments } from "@/lib/contact-attachments";
+import { deleteFile } from "@/lib/storage";
+import { Prisma } from "@prisma/client";
+
+function isRecordNotFound(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2025"
+  );
+}
 
 /**
  * ContactSubmission is a GLOBAL table, so this endpoint must gate on the
@@ -78,7 +88,9 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id, status } = await req.json();
+    const body = await req.json().catch(() => null);
+    const id = typeof body?.id === "string" ? body.id : "";
+    const status = typeof body?.status === "string" ? body.status : "";
 
     if (!id || !status) {
       return NextResponse.json(
@@ -102,9 +114,57 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(submission);
   } catch (error) {
+    // A row deleted in another tab is a 404, not a server failure.
+    if (isRecordNotFound(error)) {
+      return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+    }
     console.error("Error updating submission:", error);
     return NextResponse.json(
       { error: "Failed to update submission" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/admin/submissions?id=<id> - Remove a submission (spam, tests).
+// Its attachments are deleted from blob storage too, so a spam upload does not
+// outlive the row that was its only reference.
+export async function DELETE(req: Request) {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!(await canReadContactInbox(userId))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    }
+
+    const submission = await prisma.contactSubmission.delete({
+      where: { id },
+      select: { files: true },
+    });
+
+    // parseContactAttachments keeps only urls of our own contact folder, and
+    // deleteFile ignores anything outside our store. Best effort: the row is
+    // already gone, and an orphaned blob is not worth failing the request.
+    await Promise.allSettled(
+      parseContactAttachments(submission.files).map((f) => deleteFile(f.url))
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (isRecordNotFound(error)) {
+      return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+    }
+    console.error("Error deleting submission:", error);
+    return NextResponse.json(
+      { error: "Failed to delete submission" },
       { status: 500 }
     );
   }

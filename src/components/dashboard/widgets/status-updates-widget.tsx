@@ -31,6 +31,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NO_STATUS_LABEL, isStatusEarned } from '@/lib/project-status';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -52,6 +53,12 @@ interface ProjectStatusRow {
   color: string;
   workspaceId: string;
   status: ProjectStatus;
+  // null = nobody ever chose the status, so the ON_TRACK is only the
+  // column default and must not read as a judgement.
+  statusSetAt?: string | null;
+  // The server's own verdict on statusSetAt (status-overview route); the
+  // widget falls back to deriving it when an older payload omits it.
+  statusEarned?: boolean;
   gate: string | null;
   lastUpdate: {
     id: string;
@@ -78,6 +85,10 @@ const STATUS_DOT: Record<ProjectStatus, { color: string; label: string }> = {
   ON_HOLD: { color: '#64748b', label: 'On hold' },
   COMPLETE: { color: '#c9a84c', label: 'Complete' },
 };
+
+// Neutral dot for a project nobody has rated — the same "No status" the
+// Projects widget shows, so the two tiles on Home never disagree.
+const UNRATED_DOT = { color: '#d1d5db', label: NO_STATUS_LABEL };
 
 function formatRelative(days: number): string {
   if (days === 0) return 'today';
@@ -265,7 +276,9 @@ export function StatusUpdatesWidget() {
             variant="outline"
             size="sm"
             className="gap-2"
-            onClick={() => router.push('/projects')}
+            // '/projects' is a marketing route: on the app host the proxy
+            // redirects it to the public site, out of the app.
+            onClick={() => router.push('/projects/all')}
           >
             Go to projects
             <ArrowRight className="h-3.5 w-3.5" />
@@ -294,7 +307,9 @@ export function StatusUpdatesWidget() {
           <div className="flex-1 overflow-y-auto -mx-1">
             <ul className="space-y-1.5 px-1">
               {rows.map((row) => {
-                const dot = STATUS_DOT[row.status];
+                const dot = (row.statusEarned ?? isStatusEarned(row.statusSetAt))
+                  ? STATUS_DOT[row.status] ?? UNRATED_DOT
+                  : UNRATED_DOT;
                 const isStale =
                   row.daysSinceUpdate != null && row.daysSinceUpdate >= 14;
                 const neverUpdated = row.daysSinceUpdate == null;

@@ -42,16 +42,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  RemoveMemberDialog,
+  removedMessage,
+} from "@/components/settings/workspace-section";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   POSITION_META,
   POSITION_ORDER,
   WORKSPACE_ROLE_META,
+  canChangeWorkspaceRole,
+  canRemoveWorkspaceMember,
   type Position,
   type WorkspaceRole,
 } from "@/lib/people-types";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 /**
  * People Directory — workspace-wide org chart.
@@ -59,7 +65,8 @@ import {
  * One row per WorkspaceMember. Search by name/email/position, filter
  * by workspace role + position group, edit individual profiles
  * inline (subject to permission). Owner/admin can change anyone's
- * position + workspace role; everyone else can only edit their own.
+ * position; only the owner changes workspace roles; everyone else can
+ * only edit their own title and department.
  *
  * Data shape comes from /api/team/directory which also returns the
  * caller's WorkspaceRole so we can drive the permission gates here.
@@ -108,6 +115,9 @@ export default function PeopleDirectoryPage() {
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [callerRole, setCallerRole] = useState<WorkspaceRole | null>(null);
   const [loading, setLoading] = useState(true);
+  // Kept apart from an empty list: a failed load must not read as "no one
+  // here yet, invite people".
+  const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState("");
   const [positionFilter, setPositionFilter] = useState<PositionFilter>("ALL");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
@@ -122,7 +132,9 @@ export default function PeopleDirectoryPage() {
       const data = await res.json();
       setMembers(data.members || []);
       setCallerRole(data.callerRole || null);
+      setLoadError(false);
     } catch {
+      setLoadError(true);
       toast.error("Couldn't load directory");
     } finally {
       setLoading(false);
@@ -192,28 +204,22 @@ export default function PeopleDirectoryPage() {
 
   const canEditAnyone = callerRole === "OWNER" || callerRole === "ADMIN";
 
-  // Mirrors the gate in DELETE /api/workspace/members: owners and admins
-  // remove people, but only an owner can remove another owner (and the API
-  // still refuses the last one).
+  // The same rule DELETE /api/workspace/members enforces: owners remove
+  // anyone (the API still refuses the last owner), admins remove regular
+  // members but not another admin.
   const canRemove = (row: DirectoryRow) =>
-    canEditAnyone &&
-    !row.isMe &&
-    (row.workspaceRole !== "OWNER" || callerRole === "OWNER");
+    !row.isMe && canRemoveWorkspaceMember(callerRole, row.workspaceRole, false);
 
-  // Throws on failure so the confirmation dialog stays open showing the
-  // API's own reason — the last owner, or projects with nobody to inherit.
-  const removeFromWorkspace = async (row: DirectoryRow) => {
-    const res = await fetch(`/api/workspace/members?userId=${row.id}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => null);
-      throw new Error(data?.error || "Couldn't remove this person");
-    }
-    setRemoveTarget(null);
-    toast.success(`${row.name || row.email} removed from the workspace`);
-    fetchDirectory();
-  };
+  // People who can take over a removed member's open tasks.
+  const taskHeirs = useMemo(
+    () =>
+      members
+        .filter((m) => !isNonContributorRole(m.workspaceRole))
+        .map((m) => ({ userId: m.id, name: m.name || m.email || "Unnamed" })),
+    [members]
+  );
+
+  const meId = members.find((m) => m.isMe)?.id ?? null;
 
   return (
     <div className="flex-1 flex flex-col bg-white min-h-screen">
@@ -310,6 +316,27 @@ export default function PeopleDirectoryPage() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
           </div>
+        ) : loadError && members.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+            <h3 className="text-base font-semibold text-slate-900 mb-1">
+              Couldn’t load the directory
+            </h3>
+            <p className="text-sm text-slate-500 max-w-md">
+              Check your connection and try again.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => {
+                setLoading(true);
+                fetchDirectory();
+              }}
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Retry
+            </Button>
+          </div>
         ) : (
           <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-6">
             {/* Pending invitations */}
@@ -342,7 +369,11 @@ export default function PeopleDirectoryPage() {
                     key={m.id}
                     row={m}
                     canEdit={canEditAnyone || m.isMe}
-                    canChangeRole={callerRole === "OWNER" && !m.isMe}
+                    canChangeRole={canChangeWorkspaceRole(
+                      callerRole,
+                      m.workspaceRole,
+                      m.isMe
+                    )}
                     canRemove={canRemove(m)}
                     onEdit={() => setEditTarget(m)}
                     onRemove={() => setRemoveTarget(m)}
@@ -368,6 +399,8 @@ export default function PeopleDirectoryPage() {
 
       {inviteOpen && (
         <InviteDialog
+          callerRole={callerRole}
+          meId={meId}
           onClose={() => setInviteOpen(false)}
           onSent={() => {
             setInviteOpen(false);
@@ -377,27 +410,24 @@ export default function PeopleDirectoryPage() {
       )}
 
       {/* Remove-from-workspace confirmation */}
-      <ConfirmDialog
-        open={!!removeTarget}
-        onOpenChange={(open) => !open && setRemoveTarget(null)}
-        title="Remove from workspace"
-        description={
+      <RemoveMemberDialog
+        target={
           removeTarget
-            ? `${
-                removeTarget.name || removeTarget.email || "This person"
-              } loses access to this workspace immediately.`
-            : undefined
+            ? {
+                userId: removeTarget.id,
+                name: removeTarget.name || removeTarget.email || "This person",
+              }
+            : null
         }
-        consequences={[
-          "Removed from every project and team in this workspace",
-          "Projects they own are transferred to another owner or admin",
-          "Their tasks, comments and files stay — nothing they made is deleted",
-          "They can be invited back, but project access must be granted again",
-        ]}
-        confirmLabel="Remove"
-        onConfirm={() => {
-          if (!removeTarget) return;
-          return removeFromWorkspace(removeTarget);
+        heirs={taskHeirs}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        onRemoved={(result, heirName) => {
+          const row = removeTarget;
+          setRemoveTarget(null);
+          toast.success(
+            removedMessage(row?.name || row?.email, result, heirName)
+          );
+          fetchDirectory();
         }}
       />
     </div>
@@ -602,17 +632,25 @@ function EditPersonDialog({
   );
   const [saving, setSaving] = useState(false);
 
-  const canChangeRole = callerRole === "OWNER" && !row.isMe;
+  const canChangeRole = canChangeWorkspaceRole(
+    callerRole,
+    row.workspaceRole,
+    row.isMe
+  );
+  // Position feeds project access (level 4+ reads every project), so the
+  // server takes a change only from an owner or admin; everyone else sees it
+  // read-only instead of a picker that answers 403.
+  const canChangePosition = callerRole === "OWNER" || callerRole === "ADMIN";
 
   const save = async () => {
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
         userId: row.id,
-        position: position || null,
         customTitle: position === "OTHER" ? customTitle || null : null,
         department: department || null,
       };
+      if (canChangePosition) body.position = position || null;
       if (canChangeRole && workspaceRole !== row.workspaceRole) {
         body.workspaceRole = workspaceRole;
       }
@@ -654,24 +692,35 @@ function EditPersonDialog({
             <label className="text-xs font-medium text-slate-700">
               Position
             </label>
-            <Select
-              value={position || "_NONE"}
-              onValueChange={(v) =>
-                setPosition(v === "_NONE" ? "" : (v as Position))
-              }
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Pick a position…" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[300px]">
-                <SelectItem value="_NONE">— None —</SelectItem>
-                {POSITION_ORDER.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {POSITION_META[p].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {canChangePosition ? (
+              <Select
+                value={position || "_NONE"}
+                onValueChange={(v) =>
+                  setPosition(v === "_NONE" ? "" : (v as Position))
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Pick a position…" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  <SelectItem value="_NONE">— None —</SelectItem>
+                  {POSITION_ORDER.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {POSITION_META[p].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <>
+                <p className="h-9 px-3 flex items-center text-sm border rounded-md bg-slate-50 text-slate-600">
+                  {position ? POSITION_META[position]?.label ?? position : "—"}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Only an owner or admin can change a position.
+                </p>
+              </>
+            )}
           </div>
 
           {position === "OTHER" && (
@@ -715,10 +764,18 @@ function EditPersonDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* GUEST can't be granted (the API refuses it and every
+                      internal route 403s a guest); it is listed only so an
+                      existing guest's current role still renders. */}
                   {(
-                    ["ADMIN", "MEMBER", "WORKER", "GUEST"] as WorkspaceRole[]
+                    [
+                      "ADMIN",
+                      "MEMBER",
+                      "WORKER",
+                      ...(row.workspaceRole === "GUEST" ? ["GUEST"] : []),
+                    ] as WorkspaceRole[]
                   ).map((r) => (
-                    <SelectItem key={r} value={r}>
+                    <SelectItem key={r} value={r} disabled={r === "GUEST"}>
                       <span className="font-medium">
                         {WORKSPACE_ROLE_META[r].label}
                       </span>
@@ -729,10 +786,6 @@ function EditPersonDialog({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-slate-400">
-                To transfer Owner, use the workspace settings page (coming
-                soon).
-              </p>
             </div>
           )}
         </div>
@@ -942,9 +995,13 @@ interface CompanyLite {
 }
 
 function InviteDialog({
+  callerRole,
+  meId,
   onClose,
   onSent,
 }: {
+  callerRole: WorkspaceRole | null;
+  meId: string | null;
   onClose: () => void;
   onSent: () => void;
 }) {
@@ -965,18 +1022,39 @@ function InviteDialog({
   >("EDITOR");
 
   // Pull project list once. Failure here just hides the section.
+  // POST /api/workspace/invitations lets a workspace OWNER or ADMIN auto-add
+  // to any project in the workspace, and anyone else only to projects they
+  // own or administer. Managers need no filter, so they take the slim list;
+  // for everyone else, offer exactly what the send will accept.
+  const isWorkspaceOwner = callerRole === "OWNER" || callerRole === "ADMIN";
   useEffect(() => {
-    fetch("/api/projects")
+    const url = isWorkspaceOwner
+      ? "/api/projects?fields=summary&sort=alphabetical"
+      : "/api/projects?sort=alphabetical";
+    fetch(url)
       .then((r) => (r.ok ? r.json() : []))
-      .then((data: { id: string; name: string }[] | unknown) => {
-        if (Array.isArray(data)) {
-          setProjects(
-            data.map((p) => ({ id: p.id, name: p.name })).slice(0, 100)
-          );
-        }
+      .then((data: unknown) => {
+        if (!Array.isArray(data)) return;
+        const rows = data as {
+          id: string;
+          name: string;
+          ownerId?: string | null;
+          members?: { userId: string; role: string }[];
+        }[];
+        const allowed = isWorkspaceOwner
+          ? rows
+          : rows.filter(
+              (p) =>
+                !!meId &&
+                (p.ownerId === meId ||
+                  (p.members ?? []).some(
+                    (m) => m.userId === meId && m.role === "ADMIN"
+                  ))
+            );
+        setProjects(allowed.map((p) => ({ id: p.id, name: p.name })));
       })
       .catch(() => {});
-  }, []);
+  }, [isWorkspaceOwner, meId]);
 
   // Fetch companies when project changes.
   useEffect(() => {
@@ -1077,9 +1155,7 @@ function InviteDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(
-                    ["ADMIN", "MEMBER", "WORKER", "GUEST"] as WorkspaceRole[]
-                  ).map((r) => (
+                  {(["ADMIN", "MEMBER", "WORKER"] as WorkspaceRole[]).map((r) => (
                     <SelectItem key={r} value={r}>
                       {WORKSPACE_ROLE_META[r].label}
                     </SelectItem>

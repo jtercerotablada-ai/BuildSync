@@ -21,7 +21,8 @@
  *
  * Since we don't yet capture AC (actual money spent) directly, we
  * accept it as input. Callers that don't track it pass `null` and we
- * fall back to AC = EV (an optimistic equality that yields CPI = 1).
+ * fall back to AC = EV (an optimistic equality that yields CPI = 1);
+ * the health label ignores that assumed CPI.
  */
 
 export interface ProjectMinimal {
@@ -51,7 +52,7 @@ export interface PmiSnapshot {
   cv: number;
   sv: number;
   cpi: number; // 0 when AC is 0
-  spi: number; // 0 when PV is 0
+  spi: number; // evRatio / pvRatio; 0 when nothing is planned yet
   eac: number;
   etc: number;
   vac: number;
@@ -127,7 +128,9 @@ export function computePmiSnapshot(p: ProjectMinimal, now: Date = new Date()): P
   const cv = ev - ac;
   const sv = ev - pv;
   const cpi = ac > 0 ? ev / ac : 0;
-  const spi = pv > 0 ? ev / pv : 0;
+  // EV/PV reduces to evRatio/pvRatio whenever there is a budget; using the
+  // ratios keeps the schedule index meaningful for unbudgeted projects too.
+  const spi = pvRatio > 0 ? evRatio / pvRatio : 0;
   const eac = cpi > 0 ? bac / cpi : bac;
   const etc = eac - ac;
   const vac = bac - eac;
@@ -162,15 +165,36 @@ export function computePmiSnapshot(p: ProjectMinimal, now: Date = new Date()): P
   //   WATCH    : 0.85 ≤ SPI < 0.95 OR 0.85 ≤ CPI < 0.95
   //   AT_RISK  : 0.70 ≤ SPI < 0.85 OR 0.70 ≤ CPI < 0.85
   //   OFF_TRACK: SPI < 0.70 OR CPI < 0.70
+  //
+  // An index we cannot measure is treated as healthy (1), but "measured
+  // zero" is not "unknown": a project most of the way through its schedule
+  // with nothing done has SPI 0 and must read as off track.
+  //   - SPI is unknown until 10% of the schedule has elapsed (too early to
+  //     judge a day-one project with no tasks done) or when there is no
+  //     progress measure at all (no tasks, no cost-weighted progress).
+  //   - CPI is only known when the caller tracks actual cost and there is a
+  //     budget; otherwise AC = EV is an assumption, not a measurement.
   let health: PmiSnapshot["health"];
-  const spiSafe = spi || 1; // a brand-new project with no PV reads as healthy
-  const cpiSafe = cpi || 1;
+  const hasProgressMeasure =
+    p.taskCount > 0 ||
+    (p.costWeightedProgress !== null && p.costWeightedProgress !== undefined);
+  // A project on hold is paused by decision, so falling behind the calendar
+  // says nothing about how the work is going.
+  const spiKnown =
+    hasProgressMeasure && pvRatio >= 0.1 && p.status !== "ON_HOLD";
+  const cpiKnown =
+    p.actualCost !== null && p.actualCost !== undefined && bac > 0 && ac > 0;
+  const spiSafe = spiKnown ? spi : 1;
+  const cpiSafe = cpiKnown ? cpi : 1;
   if (spiSafe < 0.7 || cpiSafe < 0.7) health = "OFF_TRACK";
   else if (spiSafe < 0.85 || cpiSafe < 0.85) health = "AT_RISK";
   else if (spiSafe < 0.95 || cpiSafe < 0.95) health = "WATCH";
   else health = "ON_TRACK";
   if (p.status === "OFF_TRACK") health = "OFF_TRACK";
   if (p.status === "AT_RISK" && health === "ON_TRACK") health = "WATCH";
+  // Delivered work is not failing: a finished project past its end date with
+  // a few unticked housekeeping tasks would otherwise read as off track.
+  if (p.status === "COMPLETE") health = "ON_TRACK";
 
   return {
     bac,

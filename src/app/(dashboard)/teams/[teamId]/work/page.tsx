@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { openCreateProjectGallery } from "@/lib/open-create-project";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -17,6 +16,7 @@ import {
   ExternalLink,
   Link2,
   Trash2,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TeamHeader } from "@/components/teams/team-header";
 
 interface Project {
@@ -40,6 +41,15 @@ interface Project {
     image?: string;
   }>;
   isJoined?: boolean;
+  /** Whether the viewer manages the project, when the list sends it. */
+  canManage?: boolean;
+}
+
+/** A failed fetch that remembers its HTTP status, so a 403 reads differently. */
+class HttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
 }
 
 export default function TeamAllWorkPage() {
@@ -50,7 +60,15 @@ export default function TeamAllWorkPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [removeTarget, setRemoveTarget] = useState<Project | null>(null);
   const queryClient = useQueryClient();
+
+  // The create page takes the team as a query param and sends it with the
+  // POST, so the new project lands on this team's list. The shared gallery
+  // dialog does not carry a team through its create paths yet.
+  function createProjectInTeam() {
+    router.push(`/projects/new?teamId=${encodeURIComponent(teamId)}`);
+  }
 
   function copyProjectLink(projectId: string) {
     const url = `${window.location.origin}/projects/${projectId}`;
@@ -60,21 +78,20 @@ export default function TeamAllWorkPage() {
     );
   }
 
+  // Throws on failure so the confirmation dialog stays open and shows the
+  // route's reason (DELETE requires managing the project itself).
   async function removeFromTeam(projectId: string) {
-    try {
-      const res = await fetch(
-        `/api/teams/${teamId}/work?projectId=${projectId}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed");
-      }
-      toast.success("Removed from team");
-      queryClient.invalidateQueries({ queryKey: ["team-projects", teamId] });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't remove project");
+    const res = await fetch(
+      `/api/teams/${teamId}/work?projectId=${encodeURIComponent(projectId)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Couldn't remove project");
     }
+    setRemoveTarget(null);
+    toast.success("Removed from team");
+    queryClient.invalidateQueries({ queryKey: ["team-projects", teamId] });
   }
 
   // Fetch team data
@@ -87,15 +104,53 @@ export default function TeamAllWorkPage() {
     },
   });
 
-  // Fetch projects
-  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
+  // The caller's standing on the team. Unlinking a project revokes the whole
+  // team's access to it, and the route allows it only to someone who manages
+  // that project. The list does not always say who manages what, so a lead or
+  // workspace OWNER/ADMIN sees the action on every row and anyone else on the
+  // projects they belong to; the dialog shows the route's reason if refused.
+  const { data: viewer } = useQuery({
+    queryKey: ["team-viewer", teamId],
+    queryFn: async () => {
+      const res = await fetch(`/api/teams/${teamId}/members?viewer=1`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.viewer ?? null) as { canManageMembers?: boolean } | null;
+    },
+  });
+  const canUnlinkProjects = !!viewer?.canManageMembers;
+  const canUnlink = (project: Project) =>
+    project.canManage ?? (canUnlinkProjects || !!project.isJoined);
+
+  // Fetch projects. A failure is an error state, not an empty list: turning
+  // a 403 into [] told a non-member the team had no projects at all.
+  const {
+    data: projects = [],
+    isLoading: isLoadingProjects,
+    error: projectsError,
+    refetch: refetchProjects,
+    isFetching: isFetchingProjects,
+  } = useQuery({
     queryKey: ["team-projects", teamId],
     queryFn: async () => {
       const res = await fetch(`/api/teams/${teamId}/projects`);
-      if (!res.ok) return [];
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new HttpError(
+          err.error || "Couldn't load this team's projects",
+          res.status
+        );
+      }
       return res.json();
     },
+    retry: false,
+    // "New project" leaves for the create page and comes back here; the
+    // global staleTime would otherwise show the list without the project
+    // that was just created for this team.
+    refetchOnMount: "always",
   });
+  const projectsForbidden =
+    projectsError instanceof HttpError && projectsError.status === 403;
 
   // Filter and sort projects
   const filteredProjects = projects
@@ -159,7 +214,7 @@ export default function TeamAllWorkPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openCreateProjectGallery({ teamId })}
+                  onClick={createProjectInTeam}
                 >
                   New project
                 </Button>
@@ -196,6 +251,25 @@ export default function TeamAllWorkPage() {
                 <div className="p-8 flex justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                 </div>
+              ) : projectsError ? (
+                <div className="p-8 text-center">
+                  <p className="text-gray-500 mb-3">
+                    {projectsForbidden
+                      ? "Join this team to see its projects."
+                      : "Couldn't load this team's projects."}
+                  </p>
+                  {!projectsForbidden && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => refetchProjects()}
+                      disabled={isFetchingProjects}
+                    >
+                      <RotateCw className="h-4 w-4 mr-1" />
+                      Retry
+                    </Button>
+                  )}
+                </div>
               ) : filteredProjects.length === 0 ? (
                 <div className="p-8 text-center">
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
@@ -210,9 +284,7 @@ export default function TeamAllWorkPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        openCreateProjectGallery({ teamId })
-                      }
+                      onClick={createProjectInTeam}
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Create project
@@ -300,13 +372,15 @@ export default function TeamAllWorkPage() {
                             <Link2 className="h-4 w-4 mr-2" />
                             Copy project link
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-black"
-                            onClick={() => removeFromTeam(project.id)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Remove from team
-                          </DropdownMenuItem>
+                          {canUnlink(project) && (
+                            <DropdownMenuItem
+                              className="text-black"
+                              onClick={() => setRemoveTarget(project)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remove from team
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -350,6 +424,27 @@ export default function TeamAllWorkPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        title="Remove project from team"
+        description={
+          removeTarget
+            ? `"${removeTarget.name}" will no longer belong to ${team.name}. The project itself is not deleted.`
+            : undefined
+        }
+        consequences={[
+          "Team members whose access came only through this team lose access to the project",
+        ]}
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          if (!removeTarget) return;
+          await removeFromTeam(removeTarget.id);
+        }}
+      />
     </div>
   );
 }

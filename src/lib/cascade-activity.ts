@@ -74,11 +74,18 @@ function instant(value: Date | string | null | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
-function sameInstant(
+/** Same UTC calendar day — the only precision a task date has. Not the same
+ *  instant: some writers store a date as local noon (16:00Z) and the cascade
+ *  writes UTC midnight, so a task a diamond moved away and back to its own
+ *  day would otherwise count as "moved" with an unchanged date. */
+function sameDay(
   a: Date | string | null | undefined,
   b: Date | string | null | undefined
 ): boolean {
-  return instant(a) === instant(b);
+  const ta = instant(a);
+  const tb = instant(b);
+  if (ta === null || tb === null) return ta === tb;
+  return Math.floor(ta / 86_400_000) === Math.floor(tb / 86_400_000);
 }
 
 /** The date fields of a shift, as they arrive server-side (Date) or over
@@ -112,8 +119,8 @@ export function cascadeShiftMoved(shift: CascadeShiftDates): boolean {
     shift.newEnd !== undefined;
   if (!known) return true;
   return (
-    !sameInstant(shift.oldStart, shift.newStart) ||
-    !sameInstant(shift.oldEnd, shift.newEnd)
+    !sameDay(shift.oldStart, shift.newStart) ||
+    !sameDay(shift.oldEnd, shift.newEnd)
   );
 }
 

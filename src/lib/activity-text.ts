@@ -2,8 +2,8 @@
  * The sentence one Activity row reads as, in one place.
  *
  * WHY THIS EXISTS. There were two activity renderers and only one of them was
- * mounted. `task-comments-section.tsx` carries a careful switch over every
- * ActivityType — and nothing imports it. The feed the user actually sees is
+ * mounted. An unmounted `task-comments-section.tsx` (since deleted) carried a
+ * careful switch over every ActivityType. The feed the user actually sees is
  * inside task-detail-panel.tsx's "All activity" tab, and it printed the raw
  * enum: `activity.type.replace(/_/g, " ").toLowerCase()`, so a row written by
  * the dependency cascade read "due date changed" with no date, no mention of
@@ -80,6 +80,16 @@ export function dueDateActivityText(data: ActivityData): string {
  * type added to the schema later reads as something rather than disappearing.
  */
 export function activityText(type: string, data?: ActivityData): string {
+  const sentence = baseActivityText(type, data);
+  // The workflow engine tags every row it writes. Without this suffix a
+  // rule-posted comment, assignment or move reads as if the actor did it by
+  // hand.
+  return data?.viaWorkflowRule === true
+    ? `${sentence} via workflow rule`
+    : sentence;
+}
+
+function baseActivityText(type: string, data?: ActivityData): string {
   switch (type) {
     case "TASK_CREATED":
       return "created this task";
@@ -92,7 +102,11 @@ export function activityText(type: string, data?: ActivityData): string {
     case "TASK_UNASSIGNED":
       return "unassigned this task";
     case "TASK_MOVED":
-      return "moved this task";
+      // The "Add to project" rule action keeps the task where it was and
+      // multi-homes it into another project; "moved" would be untrue.
+      return str(data, "addedToProjectId")
+        ? "added this task to another project"
+        : "moved this task";
     case "TASK_RENAMED": {
       const name = str(data, "newName");
       return name ? `renamed this task to ${name}` : "renamed this task";

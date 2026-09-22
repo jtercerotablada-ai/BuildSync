@@ -19,9 +19,10 @@ import crypto from "crypto";
  *
  * TTL: 1 year. AEC project lifecycles are long (a CA-phase RFI
  * may have a 3-month round-trip; a recert may take 6 months).
- * Tokens older than the TTL silently fail verify — the user can
- * re-request the link via the original receipt email, or the
- * project owner can re-send it from the submissions inbox.
+ * Tokens older than the TTL silently fail verify — staff can issue
+ * a fresh link from the submissions inbox ("Copy tracking link",
+ * GET /api/forms/:id/submissions?tracking=<submissionId>) and hand
+ * it back to the submitter.
  */
 
 const ALG = "sha256";

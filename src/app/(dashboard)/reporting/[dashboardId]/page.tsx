@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useId } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -24,6 +24,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -108,7 +109,10 @@ interface DashboardWidget {
 // Legacy uiState string entry: "catalogId-ts::title"
 function widgetFromLegacyString(entry: string): DashboardWidget {
   const [catalogPart, title] = entry.split("::");
-  const catalogId = catalogPart.split("-")[0];
+  // Catalog ids are hyphenated themselves ("incomplete-by-project"), so only
+  // the trailing "-<timestamp>" is stripped; splitting on the first hyphen
+  // left "incomplete", which matched no chart and rendered empty.
+  const catalogId = catalogPart.replace(/-\d+$/, "");
   return {
     id: `w-${entry}`,
     kind: "catalog",
@@ -386,6 +390,9 @@ export default function DashboardPage() {
   const isFavorite = favoriteDashboards.includes(dashboardId);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  // 403 = organization-wide reporting is above this person's level; that is
+  // not a sign-in or connection problem and must not be worded as one.
+  const [forbidden, setForbidden] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [reportData, setReportData] = useState<ReportBundle | null>(null);
   const [customDashboard, setCustomDashboard] = useState<{ name: string; iconColor: string } | null>(null);
@@ -402,6 +409,12 @@ export default function DashboardPage() {
   const [textSaving, setTextSaving] = useState(false);
   const [textDraft, setTextDraft] = useState({ id: "", title: "", text: "" });
   const [expandWidget, setExpandWidget] = useState<DashboardWidget | null>(null);
+  // Template charts have no builder config, so their pencil renames them.
+  const [renameDraft, setRenameDraft] = useState<{ id: string; title: string } | null>(null);
+  const [renameSaving, setRenameSaving] = useState(false);
+  // Stable across server and client render — dnd-kit's own counter differs
+  // between the two and React never repairs the aria-describedby mismatch.
+  const dndId = useId();
 
   const config =
     dashboardConfigs[dashboardId] ||
@@ -410,6 +423,13 @@ export default function DashboardPage() {
       : { name: "Dashboard", iconColor: "#000000" });
 
   const kpiPrefix = dashboardId === "my-impact" ? "My " : "";
+
+  // Bumped by "Retry" to re-run the dashboard + widget loads.
+  const [reloadKey, setReloadKey] = useState(0);
+  // The dashboard or its widgets failed to load (not a 404). Without this a
+  // 500 or a network blip rendered "No charts yet" for a dashboard that has
+  // charts — and people re-added them, creating duplicates.
+  const [widgetsError, setWidgetsError] = useState(false);
 
   // ── Fetch custom dashboard metadata ──
   useEffect(() => {
@@ -429,15 +449,17 @@ export default function DashboardPage() {
           // dashboard titled "Dashboard" and only failed once you added a
           // widget to it.
           setNotFound(true);
+        } else {
+          setWidgetsError(true);
         }
       } catch {
-        /* ignore */
+        if (!cancelled) setWidgetsError(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [dashboardId, isDefaultDashboard]);
+  }, [dashboardId, isDefaultDashboard, reloadKey]);
 
   // ── Fetch precomputed report bundle (KPIs + catalog data) ──
   useEffect(() => {
@@ -445,13 +467,15 @@ export default function DashboardPage() {
     (async () => {
       setLoading(true);
       setFetchError(false);
+      setForbidden(false);
       try {
         const reportType = dashboardId === "my-impact" ? "my-impact" : "organization";
         const res = await fetch(`/api/reports?type=${reportType}`);
         if (res.ok && !cancelled) {
           setReportData(await res.json());
         } else if (!cancelled) {
-          setFetchError(true);
+          if (res.status === 403) setForbidden(true);
+          else setFetchError(true);
         }
       } catch {
         if (!cancelled) setFetchError(true);
@@ -477,25 +501,33 @@ export default function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
     setWidgetsLoaded(false);
+    setWidgetsError(false);
     (async () => {
       if (!isDefaultDashboard) {
         // Custom dashboard: ReportWidget rows.
+        let failed = false;
         try {
           const res = await fetch(`/api/dashboards/${dashboardId}/widgets`);
-          if (res.ok && !cancelled) {
+          if (cancelled) return;
+          if (res.ok) {
             const rows = await res.json();
+            if (cancelled) return;
             const mapped = rowsToWidgets(rows);
             skipNextPersistRef.current = true;
             setWidgets(mapped);
             setWidgetsLoaded(true);
             return;
           }
+          // 404 is the not-found screen's job (metadata fetch); anything else
+          // is a failure, never an empty dashboard.
+          failed = res.status !== 404;
         } catch {
-          /* fall through to empty */
+          failed = true;
         }
         if (!cancelled) {
           skipNextPersistRef.current = true;
           setWidgets([]);
+          setWidgetsError(failed);
           setWidgetsLoaded(true);
         }
         return;
@@ -533,7 +565,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [dashboardId, isDefaultDashboard]);
+  }, [dashboardId, isDefaultDashboard, reloadKey]);
 
   // Persist default-dashboard widget objects to uiState + localStorage.
   useEffect(() => {
@@ -593,24 +625,29 @@ export default function DashboardPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  function handleDragEnd(event: DragEndEvent) {
+  async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setWidgets((prev) => {
-      const oldIndex = prev.findIndex((w) => w.id === active.id);
-      const newIndex = prev.findIndex((w) => w.id === over.id);
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      const next = arrayMove(prev, oldIndex, newIndex);
-      if (!isDefaultDashboard) {
-        // Persist new positions on the server.
-        fetch(`/api/dashboards/${dashboardId}/widgets`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order: next.map((w, i) => ({ id: w.id, position: i })) }),
-        }).catch(() => {});
-      }
-      return next;
-    });
+    const prev = widgets;
+    const oldIndex = prev.findIndex((w) => w.id === active.id);
+    const newIndex = prev.findIndex((w) => w.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(prev, oldIndex, newIndex);
+    setWidgets(next);
+    if (isDefaultDashboard) return; // persisted by the uiState effect
+    // Persist new positions on the server. A rejected write used to be
+    // swallowed, so the new order looked saved and was gone on reload.
+    try {
+      const res = await fetch(`/api/dashboards/${dashboardId}/widgets`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: next.map((w, i) => ({ id: w.id, position: i })) }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setWidgets(prev);
+      toast.error("Couldn't save the new order");
+    }
   }
 
   // ── Add: catalog (Template chart) ──
@@ -647,7 +684,12 @@ export default function DashboardPage() {
   };
 
   const openEditBuilder = (w: DashboardWidget) => {
-    if (!w.chartConfig) return;
+    if (!w.chartConfig) {
+      // Template charts carry no builder config — what they offer to edit
+      // is their title.
+      setRenameDraft({ id: w.id, title: w.title });
+      return;
+    }
     setEditingWidgetId(w.id);
     setBuilderInitial({
       title: w.title,
@@ -667,10 +709,12 @@ export default function DashboardPage() {
       benchmark: result.benchmark,
     };
 
+    // Returns false on failure so the builder stays open with the user's
+    // configuration instead of discarding it.
+
     // EDIT
     if (editingWidgetId) {
       const targetId = editingWidgetId;
-      setEditingWidgetId(null);
       if (!isDefaultDashboard) {
         try {
           const res = await fetch(`/api/dashboards/${dashboardId}/widgets`, {
@@ -681,9 +725,10 @@ export default function DashboardPage() {
           if (!res.ok) throw new Error();
         } catch {
           toast.error("Failed to save chart");
-          return;
+          return false;
         }
       }
+      setEditingWidgetId(null);
       setWidgets((prev) =>
         prev.map((w) =>
           w.id === targetId
@@ -698,7 +743,7 @@ export default function DashboardPage() {
         )
       );
       toast.success("Chart updated");
-      return;
+      return true;
     }
 
     // ADD
@@ -713,10 +758,11 @@ export default function DashboardPage() {
         const row = await res.json();
         setWidgets((prev) => [...prev, ...rowsToWidgets([row])]);
         toast.success(`"${result.title}" added`);
+        return true;
       } catch {
         toast.error("Failed to add chart");
+        return false;
       }
-      return;
     }
     setWidgets((prev) => [
       ...prev,
@@ -731,6 +777,7 @@ export default function DashboardPage() {
       },
     ]);
     toast.success(`"${result.title}" added`);
+    return true;
   };
 
   // ── Add / edit: text widget ──
@@ -797,13 +844,46 @@ export default function DashboardPage() {
     setTextOpen(false);
   };
 
+  // ── Rename (template charts) ──
+  const handleRenameSave = async () => {
+    if (!renameDraft || renameSaving) return;
+    const title = renameDraft.title.trim();
+    if (!title) return;
+    const targetId = renameDraft.id;
+    if (!isDefaultDashboard) {
+      setRenameSaving(true);
+      try {
+        const res = await fetch(`/api/dashboards/${dashboardId}/widgets`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ widgetId: targetId, title }),
+        });
+        if (!res.ok) throw new Error();
+      } catch {
+        toast.error("Failed to rename chart");
+        setRenameSaving(false);
+        return;
+      }
+      setRenameSaving(false);
+    }
+    setWidgets((prev) => prev.map((w) => (w.id === targetId ? { ...w, title } : w)));
+    setRenameDraft(null);
+  };
+
   // ── Remove / duplicate / resize ──
   const handleRemove = async (id: string) => {
     if (!isDefaultDashboard) {
+      // The response used to be ignored, so a 404/500 still said "Widget
+      // removed" and the widget came back on the next visit.
       try {
-        await fetch(`/api/dashboards/${dashboardId}/widgets?widgetId=${id}`, { method: "DELETE" });
+        const res = await fetch(
+          `/api/dashboards/${dashboardId}/widgets?widgetId=${encodeURIComponent(id)}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) throw new Error();
       } catch {
-        /* ignore — remove locally anyway */
+        toast.error("Failed to remove widget");
+        return;
       }
     }
     setWidgets((prev) => prev.filter((w) => w.id !== id));
@@ -854,13 +934,23 @@ export default function DashboardPage() {
   };
 
   const handleSetWidth = async (id: string, width: 1 | 2) => {
+    const previous = widgets.find((w) => w.id === id)?.width;
     setWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, width } : w)));
-    if (!isDefaultDashboard) {
-      fetch(`/api/dashboards/${dashboardId}/widgets`, {
+    if (isDefaultDashboard || previous == null) return;
+    try {
+      const res = await fetch(`/api/dashboards/${dashboardId}/widgets`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ widgetId: id, width }),
-      }).catch(() => {});
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Put back only this widget's width — a concurrent edit to another
+      // widget must survive the rollback.
+      setWidgets((prev) =>
+        prev.map((w) => (w.id === id ? { ...w, width: previous } : w))
+      );
+      toast.error("Couldn't save the widget size");
     }
   };
 
@@ -1015,21 +1105,27 @@ export default function DashboardPage() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <button
-          className="text-xs md:text-sm text-black hover:text-black"
-          onClick={() => window.open("mailto:feedback@ttcivilstructural.com?subject=Reporting%20Feedback", "_blank")}
-        >
-          Send feedback
-        </button>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 md:p-6">
+        {forbidden && (
+          <div className="mb-4 md:mb-6 px-3 md:px-4 py-2 md:py-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-xs md:text-sm flex items-start gap-2">
+            <span>
+              Organization-wide reporting isn&apos;t available at your access level, so the
+              totals below are not filled in.{" "}
+              <Link href="/reporting/my-impact" className="underline underline-offset-2 hover:text-slate-900">
+                Open My impact
+              </Link>{" "}
+              to see your own work.
+            </span>
+          </div>
+        )}
         {fetchError && (
           <div className="mb-4 md:mb-6 px-3 md:px-4 py-2 md:py-3 rounded-lg bg-[#a8893a]/10 border border-[#a8893a]/30 text-[#a8893a] text-xs md:text-sm flex items-start gap-2">
             <span className="font-medium flex-shrink-0">⚠</span>
             <span>
-              Could not load report data. Sign in or check your connection. The widget layout below shows your saved configuration with placeholder values.
+              Could not load report data. Check your connection and reload. The widget layout below shows your saved configuration with placeholder values.
             </span>
           </div>
         )}
@@ -1057,7 +1153,29 @@ export default function DashboardPage() {
         </div>
 
         {/* Charts grid (sortable) */}
-        {widgets.length === 0 ? (
+        {widgetsError ? (
+          <div className="border rounded-xl py-10 px-4 text-center bg-slate-50">
+            <p className="text-sm font-medium text-slate-700 mb-1">
+              Couldn&apos;t load this dashboard&apos;s charts
+            </p>
+            <p className="text-xs text-slate-500 mb-4">
+              Nothing was changed. Try again in a moment.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!widgetsLoaded}
+              onClick={() => setReloadKey((k) => k + 1)}
+            >
+              {!widgetsLoaded && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Retry
+            </Button>
+          </div>
+        ) : !widgetsLoaded ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+          </div>
+        ) : widgets.length === 0 ? (
           <div className="border-2 border-dashed rounded-xl py-12 px-4 text-center">
             <BarChart3 className="w-10 h-10 mx-auto text-slate-300 mb-3" />
             <p className="text-sm font-medium text-slate-700 mb-1">No charts yet</p>
@@ -1068,7 +1186,7 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 {widgets.map((w) => (
@@ -1204,6 +1322,57 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Rename (template charts) */}
+      <Dialog
+        open={!!renameDraft}
+        onOpenChange={(o) => {
+          if (!o && !renameSaving) setRenameDraft(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename chart</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-3 py-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleRenameSave();
+            }}
+          >
+            <Input
+              value={renameDraft?.title ?? ""}
+              onChange={(e) =>
+                setRenameDraft((d) => (d ? { ...d, title: e.target.value } : d))
+              }
+              placeholder="Chart title"
+              autoFocus
+            />
+            <p className="text-[11px] text-slate-400">
+              Template charts keep their data; only the title changes.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameDraft(null)}
+                disabled={renameSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-slate-900 hover:bg-slate-800 text-white"
+                disabled={renameSaving || !renameDraft?.title.trim()}
+              >
+                {renameSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Expand (fullscreen) dialog */}
       <Dialog open={!!expandWidget} onOpenChange={(o) => !o && setExpandWidget(null)}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-[1000px] max-h-[90vh] p-0 overflow-hidden flex flex-col">
@@ -1331,7 +1500,8 @@ function SortableWidget({
           <button
             className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-slate-400 hover:text-slate-600 p-0.5"
             onClick={onEdit}
-            aria-label="Edit"
+            aria-label={widget.kind === "catalog" ? "Rename" : "Edit"}
+            title={widget.kind === "catalog" ? "Rename" : "Edit"}
           >
             <Pencil className="w-4 h-4" />
           </button>

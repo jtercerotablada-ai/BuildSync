@@ -162,8 +162,9 @@ export function LinkedWorkPanel({
             No linked projects or tasks yet.
           </p>
           <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-            Link projects to wire automatic progress tracking based on task
-            completion, or link individual tasks to surface critical work.
+            Link projects and set Progress settings to &ldquo;From linked
+            projects&rdquo; to track this goal by their task completion, or
+            link individual tasks to surface critical work.
           </p>
           <Button
             variant="outline"

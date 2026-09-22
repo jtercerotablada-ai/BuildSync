@@ -11,8 +11,17 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAIPanel } from '@/contexts/ai-panel-context';
+import { toDateOnlyISO } from '@/lib/date-only';
 
-const STORAGE_KEY = 'buildsync-ai-past-topics';
+// The offline cache is namespaced by the server-confirmed user id, like
+// use-widget-preferences: on a shared office PC an unscoped key showed one
+// person's questions to the next, and the next save wrote them into that
+// second account's uiState. The legacy unscoped key is never read (it
+// cannot be attributed to anyone) and is removed on load.
+// LAST_USER_KEY is the shared "last confirmed user" marker (use-ui-state).
+const LEGACY_STORAGE_KEY = 'buildsync-ai-past-topics';
+const LAST_USER_KEY = 'buildsync-last-user-id';
+const storageKeyFor = (userId: string) => `${LEGACY_STORAGE_KEY}:${userId}`;
 
 interface Suggestion {
   id: string;
@@ -71,9 +80,11 @@ function formatRelativeDate(timestamp: number): string {
   return date.toLocaleDateString();
 }
 
-function writeLocalTopics(topics: PastTopic[]) {
+function writeLocalTopics(userId: string | null, topics: PastTopic[]) {
+  // No confirmed user, no cache: an unattributed copy is the leak.
+  if (!userId) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
+    localStorage.setItem(storageKeyFor(userId), JSON.stringify(topics));
   } catch {
     // ignore
   }
@@ -110,6 +121,8 @@ export function AIAssistantWidget() {
   // Saves made before the GET settles are held here and merged in after.
   const prefsLoadedRef = React.useRef(false);
   const pendingPreloadSaveRef = React.useRef<PastTopic[] | null>(null);
+  // Server-confirmed user id — scopes the localStorage cache key.
+  const userIdRef = React.useRef<string | null>(null);
 
   // Fetch people and projects for @ mentions
   useEffect(() => {
@@ -202,15 +215,27 @@ export function AIAssistantWidget() {
         ...held,
         ...loaded.filter((t) => !held.some((h) => h.id === t.id)),
       ].slice(0, 20);
-      writeLocalTopics(merged);
+      writeLocalTopics(userIdRef.current, merged);
       setPastTopics(merged);
       patchDbTopics(merged);
     };
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
     (async () => {
+      // Whether the server answered at all: only a failed GET may fall back
+      // to the last-user marker, which could name someone else otherwise.
+      let serverAnswered = false;
       try {
         const res = await fetch('/api/users/preferences');
         if (res.ok && !cancelled) {
+          serverAnswered = true;
           const prefs = await res.json();
+          if (typeof prefs.userId === 'string') {
+            userIdRef.current = prefs.userId;
+          }
           const ui = prefs.uiState as { aiPastTopics?: PastTopic[] } | null;
           if (ui?.aiPastTopics && Array.isArray(ui.aiPastTopics)) {
             finish(ui.aiPastTopics);
@@ -222,8 +247,13 @@ export function AIAssistantWidget() {
       }
       if (cancelled) return;
       try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        finish(saved ? JSON.parse(saved) : []);
+        // Offline: the last server-confirmed user's cache (a user switch
+        // needs a login, which needs the network, which refreshes it).
+        if (!serverAnswered) userIdRef.current = localStorage.getItem(LAST_USER_KEY);
+        const uid = userIdRef.current;
+        const saved = uid ? localStorage.getItem(storageKeyFor(uid)) : null;
+        const parsed: unknown = saved ? JSON.parse(saved) : [];
+        finish(Array.isArray(parsed) ? (parsed as PastTopic[]) : []);
       } catch {
         finish([]);
       }
@@ -233,7 +263,7 @@ export function AIAssistantWidget() {
 
   // Save past topics to API + localStorage
   const savePastTopics = (topics: PastTopic[]) => {
-    writeLocalTopics(topics);
+    writeLocalTopics(userIdRef.current, topics);
     setPastTopics(topics);
     if (!prefsLoadedRef.current) {
       // Initial GET hasn't settled — PATCHing now would replace the
@@ -261,6 +291,10 @@ export function AIAssistantWidget() {
           prompt: 'Answer the following question helpfully and concisely:',
           text: currentQuestion,
           mode: 'qa',
+          // The caller's calendar day, so overdue/upcoming are bucketed by
+          // it instead of the server's UTC day (a day ahead after 20:00 in
+          // Miami). Read here, in the handler, never during render.
+          today: toDateOnlyISO(new Date()),
         }),
       });
 

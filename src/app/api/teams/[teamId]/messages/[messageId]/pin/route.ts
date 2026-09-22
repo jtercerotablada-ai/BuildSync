@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  verifyTeamAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 
 /**
  * POST /api/teams/:teamId/messages/:messageId/pin
@@ -26,7 +26,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { teamId, messageId } = await params;
-    await verifyTeamAccess(userId, teamId);
+    await requireTeamStanding(userId, teamId);
 
     const msg = await prisma.teamMessage.findUnique({
       where: { id: messageId },

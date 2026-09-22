@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { contributorSeatSatisfied } from "@/lib/auth-guards";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import { JoinTeamButton } from "@/components/teams/join-team-button";
@@ -87,7 +88,12 @@ export default async function TeamJoinPage({
     },
     select: { role: true },
   });
-  if (!inWorkspace) return <UnavailableCard />;
+  // A seat that can't contribute (a GUEST) is refused by /join and /requests
+  // with the same "Team not found" — so it gets the same answer here rather
+  // than a Join button that can only fail.
+  if (!inWorkspace || !contributorSeatSatisfied(inWorkspace.role)) {
+    return <UnavailableCard />;
+  }
 
   // If the user is already in the team, skip the join screen entirely.
   const existing = await prisma.teamMember.findUnique({

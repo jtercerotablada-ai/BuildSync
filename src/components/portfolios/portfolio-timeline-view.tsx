@@ -33,6 +33,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUiState } from "@/hooks/use-ui-state";
 import { useToday } from "@/lib/use-today";
+import { dueDateToLocalMidnight, toDateOnlyISO } from "@/lib/date-only";
+import { NO_STATUS_LABEL, isStatusEarned } from "@/lib/project-status";
 
 type ProjectStatus =
   | "ON_TRACK"
@@ -40,6 +42,10 @@ type ProjectStatus =
   | "OFF_TRACK"
   | "ON_HOLD"
   | "COMPLETE";
+
+/** A project's status as the timeline shows it: "NONE" until a human has
+ *  actually set one (Project.status defaults to ON_TRACK), matching List. */
+type StatusKey = ProjectStatus | "NONE";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -60,6 +66,8 @@ interface TimelineProject {
   name: string;
   color: string;
   status: ProjectStatus;
+  /** When a human last chose the status; null = nobody ever did. */
+  statusSetAt?: string | null;
   // These reach us at runtime from `portfolio.projects` (the page passes
   // the full PortfolioProject list). Optional here so callers with a
   // narrower shape still typecheck; filter/sort treat missing values as
@@ -76,6 +84,9 @@ interface TimelineProject {
     image: string | null;
   } | null;
   stats: { progress: number };
+  /** Whether the viewer may edit THIS project (the API sends it per row).
+   *  Absent = fall back to the portfolio-wide `canEdit`. */
+  canWrite?: boolean;
 }
 
 interface Props {
@@ -86,8 +97,15 @@ interface Props {
   canEdit: boolean;
 }
 
+/** Rescheduling PATCHes the project, so each bar answers to the viewer's
+ *  right on that project — the same rule the List view's Due date cell uses
+ *  (`p.canWrite ?? canEditPortfolio` on the detail page). */
+function canEditProject(p: TimelineProject, canEdit: boolean) {
+  return p.canWrite ?? canEdit;
+}
+
 const STATUS_META: Record<
-  ProjectStatus,
+  StatusKey,
   { label: string; bar: string; dot: string; chip: string }
 > = {
   ON_TRACK: {
@@ -120,7 +138,17 @@ const STATUS_META: Record<
     dot: "bg-[#a8893a]",
     chip: "bg-[#a8893a]/15 text-[#a8893a]",
   },
+  NONE: {
+    label: NO_STATUS_LABEL,
+    bar: "#cbd5e1",
+    dot: "bg-slate-300",
+    chip: "bg-slate-100 text-slate-500",
+  },
 };
+
+function statusKeyOf(p: TimelineProject): StatusKey {
+  return isStatusEarned(p.statusSetAt) ? p.status : "NONE";
+}
 
 const TYPE_META: Record<ProjectType, { label: string }> = {
   CONSTRUCTION: { label: "Construction" },
@@ -131,12 +159,13 @@ const TYPE_META: Record<ProjectType, { label: string }> = {
 };
 
 // Health order so "worse" statuses float to the top (Asana parity).
-const STATUS_SORT_ORDER: Record<ProjectStatus, number> = {
+const STATUS_SORT_ORDER: Record<StatusKey, number> = {
   OFF_TRACK: 0,
   AT_RISK: 1,
   ON_TRACK: 2,
   ON_HOLD: 3,
   COMPLETE: 4,
+  NONE: 5,
 };
 
 const ROW_HEIGHT = 52;
@@ -199,18 +228,9 @@ function fractionalMonths(start: Date, point: Date) {
 
 // ── Date-only helpers (avoid TZ drift) ──────────────────────
 // Project dates are stored/served as UTC-midnight ISO strings. We read
-// them by their UTC calendar day so a bar lands on the right column
-// regardless of the viewer's timezone, and we PATCH back the same way.
-function isoToLocalDay(value: string): Date {
-  const d = new Date(value);
-  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-}
-function toDateOnlyString(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+// them by their UTC calendar day (dueDateToLocalMidnight) so a bar lands
+// on the right column regardless of the viewer's timezone, and we PATCH
+// back the same way (toDateOnlyISO).
 function addDays(d: Date, n: number): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 }
@@ -225,7 +245,7 @@ type TimelineGroupKey = "none" | "status" | "owner" | "type";
 interface TimelineViewState {
   columns: LeftColumnKey[];
   filter: {
-    status: ProjectStatus[];
+    status: StatusKey[];
     type: ProjectType[];
     ownerId: string[];
   };
@@ -299,6 +319,10 @@ interface DragState {
   // Live preview dates during the drag (date-only local days).
   previewStart: Date;
   previewEnd: Date;
+  /** Drawing a first range on an undated row. Like every other drag it
+   *  commits only once the pointer has moved at least a day: a plain click
+   *  on the track must not write made-up dates with no undo. */
+  creating?: boolean;
 }
 
 export function PortfolioTimelineView({ projects, canEdit }: Props) {
@@ -332,8 +356,9 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
 
   // Live drag state (null when not dragging).
   const [drag, setDrag] = useState<DragState | null>(null);
+  // Mirrors `drag` for the pointer handlers, which must see a drag the
+  // moment it starts (before a re-render). Every writer sets both.
   const dragRef = useRef<DragState | null>(null);
-  dragRef.current = drag;
 
   const monthPx = MONTH_PX_BY_ZOOM[scale][zoomIdx];
   const rangeMonths = scale === "months" ? 12 : 24;
@@ -408,8 +433,8 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
       const startStr = ov ? ov.startDate : p.startDate;
       const endStr = ov ? ov.endDate : p.endDate;
       return {
-        start: startStr ? isoToLocalDay(startStr) : null,
-        end: endStr ? isoToLocalDay(endStr) : null,
+        start: startStr ? dueDateToLocalMidnight(startStr) : null,
+        end: endStr ? dueDateToLocalMidnight(endStr) : null,
       };
     },
     [drag, dateOverrides]
@@ -421,7 +446,7 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
     const f = view.filter;
     let rows = projects.filter((pp) => {
       const p = pp.project;
-      if (f.status.length && !f.status.includes(p.status)) return false;
+      if (f.status.length && !f.status.includes(statusKeyOf(p))) return false;
       if (f.type.length && (!p.type || !f.type.includes(p.type))) return false;
       if (f.ownerId.length && (!p.owner || !f.ownerId.includes(p.owner.id)))
         return false;
@@ -440,7 +465,9 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
             cmp = pa.name.localeCompare(pb.name);
             break;
           case "status":
-            cmp = STATUS_SORT_ORDER[pa.status] - STATUS_SORT_ORDER[pb.status];
+            cmp =
+              STATUS_SORT_ORDER[statusKeyOf(pa)] -
+              STATUS_SORT_ORDER[statusKeyOf(pb)];
             break;
           case "progress":
             cmp = pa.stats.progress - pb.stats.progress;
@@ -482,8 +509,9 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
       let key = "_none";
       let label = "None";
       if (view.group === "status") {
-        key = p.status;
-        label = STATUS_META[p.status].label;
+        const sk = statusKeyOf(p);
+        key = sk;
+        label = STATUS_META[sk].label;
       } else if (view.group === "owner") {
         key = p.owner?.id || "_none";
         label = p.owner?.name || "No owner";
@@ -496,8 +524,8 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
     if (view.group === "status") {
       order.sort(
         (a, b) =>
-          (STATUS_SORT_ORDER[a as ProjectStatus] ?? 99) -
-          (STATUS_SORT_ORDER[b as ProjectStatus] ?? 99)
+          (STATUS_SORT_ORDER[a as StatusKey] ?? 99) -
+          (STATUS_SORT_ORDER[b as StatusKey] ?? 99)
       );
     }
     return order.map((key) => ({
@@ -511,14 +539,28 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
   const barFor = useCallback(
     (pp: { id: string; project: TimelineProject }) => {
       const { start, end } = effectiveDates(pp);
-      if (!start || !end || end.getTime() < start.getTime()) return null;
-      const startOffset = fractionalMonths(rangeStart, start);
+      if (!start && !end) return null;
+      if (start && end && end.getTime() < start.getTime()) return null;
+      // Most projects get a start date on creation but no end date. Draw
+      // those as a one-day marker on the date they do have, so the row is
+      // not mislabelled "No dates set" and the missing end can be dragged out.
+      const partial: "no-end" | "no-start" | null = !end
+        ? "no-end"
+        : !start
+          ? "no-start"
+          : null;
+      const from = (start ?? end)!;
+      const to = (end ?? start)!;
+      const startOffset = fractionalMonths(rangeStart, from);
       // Add one day so a bar whose start == end still has visible width
       // and inclusive end semantics (Asana shows the end day filled).
-      const endOffset = fractionalMonths(rangeStart, addDays(end, 1));
+      const endOffset = fractionalMonths(rangeStart, addDays(to, 1));
       const left = startOffset * monthPx;
-      const width = Math.max((endOffset - startOffset) * monthPx, 6);
-      return { left, width };
+      const width = Math.max(
+        (endOffset - startOffset) * monthPx,
+        partial ? 10 : 6
+      );
+      return { left, width, partial };
     },
     [effectiveDates, rangeStart, monthPx]
   );
@@ -571,8 +613,8 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
       prevStart: string | null,
       prevEnd: string | null
     ) => {
-      const startStr = toDateOnlyString(newStart);
-      const endStr = toDateOnlyString(newEnd);
+      const startStr = toDateOnlyISO(newStart);
+      const endStr = toDateOnlyISO(newEnd);
       // Optimistic override.
       setDateOverrides((prev) => ({
         ...prev,
@@ -620,21 +662,30 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
       // Only left button; ignore if no dates to move, or if the caller may
       // not reschedule (the bar renders without grab affordances then, but
       // a stray pointer event must not start a drag that only ends in 403).
-      if (e.button !== 0 || !canEdit) return;
+      if (e.button !== 0 || !canEditProject(pp.project, canEdit)) return;
       const { start, end } = effectiveDates(pp);
-      if (!start || !end) return;
+      if (!start && !end) return;
+      // A one-date bar can only grow toward the date it is missing; moving
+      // it would invent that date wherever the drag happened to stop.
+      const effectiveMode: DragMode = !end
+        ? "resize-end"
+        : !start
+          ? "resize-start"
+          : mode;
+      const from = (start ?? end)!;
+      const to = (end ?? start)!;
       e.preventDefault();
       e.stopPropagation();
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       const state: DragState = {
         ppId: pp.id,
         projectId: pp.project.id,
-        mode,
+        mode: effectiveMode,
         startClientX: e.clientX,
-        origStart: start,
-        origEnd: end,
-        previewStart: start,
-        previewEnd: end,
+        origStart: from,
+        origEnd: to,
+        previewStart: from,
+        previewEnd: to,
       };
       // Sync the ref immediately so a pointermove that fires before the
       // next render already sees the active drag.
@@ -666,7 +717,9 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
         if (previewEnd.getTime() < d.origStart.getTime())
           previewEnd = d.origStart;
       }
-      setDrag({ ...d, previewStart, previewEnd });
+      const next = { ...d, previewStart, previewEnd };
+      dragRef.current = next;
+      setDrag(next);
     },
     [pxPerDay]
   );
@@ -678,6 +731,7 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
       e.preventDefault();
       e.stopPropagation();
       (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+      dragRef.current = null;
       const moved =
         d.previewStart.getTime() !== d.origStart.getTime() ||
         d.previewEnd.getTime() !== d.origEnd.getTime();
@@ -694,6 +748,52 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
       );
     },
     [projects, commitReschedule, dateOverrides]
+  );
+
+  // Undated row: press on the track and drag right to create a range.
+  // The day under the pointer is read by the same month geometry the bars
+  // use (months differ in length, so an average px-per-day would drift).
+  const onEmptyTrackPointerDown = useCallback(
+    (e: React.PointerEvent, pp: { id: string; project: TimelineProject }) => {
+      // Mouse/pen only: on a phone a touch here must still pan the chart.
+      if (
+        e.button !== 0 ||
+        !canEditProject(pp.project, canEdit) ||
+        e.pointerType === "touch"
+      )
+        return;
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const x = Math.max(0, e.clientX - rect.left);
+      const monthIdx = Math.floor(x / monthPx);
+      const monthStart = addMonths(rangeStart, monthIdx);
+      const daysInMonth = Math.round(
+        (addMonths(rangeStart, monthIdx + 1).getTime() - monthStart.getTime()) /
+          MS_PER_DAY
+      );
+      const day = addDays(
+        monthStart,
+        Math.min(
+          daysInMonth - 1,
+          Math.floor((x / monthPx - monthIdx) * daysInMonth)
+        )
+      );
+      e.preventDefault();
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      const state: DragState = {
+        ppId: pp.id,
+        projectId: pp.project.id,
+        mode: "resize-end",
+        startClientX: e.clientX,
+        origStart: day,
+        origEnd: day,
+        previewStart: day,
+        previewEnd: day,
+        creating: true,
+      };
+      dragRef.current = state;
+      setDrag(state);
+    },
+    [canEdit, monthPx, rangeStart]
   );
 
   const rowsCount = visibleRows.length;
@@ -733,9 +833,11 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
-        <span className="hidden lg:inline text-[12px] text-gray-500 ml-2">
-          Drag a bar to reschedule.
-        </span>
+        {projects.some((pp) => canEditProject(pp.project, canEdit)) && (
+          <span className="hidden lg:inline text-[12px] text-gray-500 ml-2">
+            Drag a bar to reschedule.
+          </span>
+        )}
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {/* Filter / Sort / Group / Options */}
@@ -981,10 +1083,16 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
                 )}
                 {g.rows.map((pp) => {
                   const p = pp.project;
-                  const meta = STATUS_META[p.status];
+                  const meta = STATUS_META[statusKeyOf(p)];
                   const bar = barFor(pp);
                   const isDragging = drag?.ppId === pp.id;
                   const { start, end } = effectiveDates(pp);
+                  // Undated as persisted (ignores the live drag preview), so
+                  // the track keeps its create-by-drag handlers mid-drag.
+                  const undated =
+                    !(dateOverrides[p.id]?.startDate ?? p.startDate) &&
+                    !(dateOverrides[p.id]?.endDate ?? p.endDate);
+                  const barCanEdit = canEditProject(p, canEdit);
                   return (
                     <div
                       key={pp.id}
@@ -1052,8 +1160,16 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
 
                       {/* Timeline cell */}
                       <div
-                        className="relative flex-shrink-0"
+                        className={cn(
+                          "relative flex-shrink-0",
+                          undated && barCanEdit && "cursor-crosshair"
+                        )}
                         style={{ width: totalPx, height: ROW_HEIGHT }}
+                        onPointerDown={
+                          undated ? (e) => onEmptyTrackPointerDown(e, pp) : undefined
+                        }
+                        onPointerMove={undated ? onBarPointerMove : undefined}
+                        onPointerUp={undated ? onBarPointerUp : undefined}
                       >
                         {/* Vertical month gridlines */}
                         {months.map((_, i) => (
@@ -1064,12 +1180,13 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
                           />
                         ))}
                         {bar ? (
+                          <>
                           <div
                             className={cn(
                               "absolute rounded-full flex items-center gap-1.5 px-1.5 text-[11px] font-medium overflow-hidden select-none touch-none",
                               isDragging
                                 ? "shadow-lg ring-2 ring-white cursor-grabbing z-[5]"
-                                : canEdit
+                                : barCanEdit
                                   ? "hover:shadow-md transition-shadow cursor-grab"
                                   : "cursor-default"
                             )}
@@ -1079,15 +1196,24 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
                               top: ROW_HEIGHT / 2 - BAR_HEIGHT / 2,
                               height: BAR_HEIGHT,
                               backgroundColor: meta.bar,
+                              opacity: bar.partial ? 0.75 : undefined,
                             }}
                             title={
                               start && end
-                                ? `${p.name} · ${toDateOnlyString(
+                                ? `${p.name} · ${toDateOnlyISO(
                                     start
-                                  )} → ${toDateOnlyString(end)} · ${
+                                  )} → ${toDateOnlyISO(end)} · ${
                                     p.stats.progress
                                   }% · ${meta.label}`
-                                : p.name
+                                : start
+                                  ? `${p.name} · starts ${toDateOnlyISO(start)} · no end date${
+                                      barCanEdit ? " (drag right to set one)" : ""
+                                    }`
+                                  : end
+                                    ? `${p.name} · due ${toDateOnlyISO(end)} · no start date${
+                                        barCanEdit ? " (drag left to set one)" : ""
+                                      }`
+                                    : p.name
                             }
                             onPointerDown={(e) =>
                               onBarPointerDown(e, pp, "move")
@@ -1096,7 +1222,7 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
                             onPointerUp={onBarPointerUp}
                           >
                             {/* Left resize handle */}
-                            {canEdit && (
+                            {barCanEdit && !bar.partial && (
                               <span
                                 className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                 onPointerDown={(e) =>
@@ -1130,7 +1256,7 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
                               </span>
                             ) : null}
                             {/* Right resize handle */}
-                            {canEdit && (
+                            {barCanEdit && !bar.partial && (
                               <span
                                 className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                 onPointerDown={(e) =>
@@ -1141,12 +1267,25 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
                               />
                             )}
                           </div>
+                          {bar.partial && !isDragging && (
+                            <div
+                              className="absolute top-1/2 -translate-y-1/2 text-[11px] text-gray-400 italic whitespace-nowrap pointer-events-none"
+                              style={{ left: bar.left + bar.width + 6 }}
+                            >
+                              {bar.partial === "no-end" ? "No end date" : "No start date"}
+                            </div>
+                          )}
+                          </>
                         ) : (
                           <div
-                            className="absolute top-1/2 -translate-y-1/2 text-[12px] text-gray-400 italic"
+                            className="absolute top-1/2 -translate-y-1/2 text-[12px] text-gray-400 italic pointer-events-none"
                             style={{ left: 12 }}
                           >
-                            No dates set
+                            {start && end
+                              ? "End date is before start date"
+                              : barCanEdit
+                                ? "No dates set · drag here to schedule"
+                                : "No dates set"}
                           </div>
                         )}
                       </div>
@@ -1191,7 +1330,7 @@ export function PortfolioTimelineView({ projects, canEdit }: Props) {
           <span className="font-medium text-gray-600 uppercase tracking-wider">
             Status
           </span>
-          {(Object.keys(STATUS_META) as ProjectStatus[]).map((s) => (
+          {(Object.keys(STATUS_META) as StatusKey[]).map((s) => (
             <span key={s} className="inline-flex items-center gap-1.5">
               <span
                 className="w-2 h-2 rounded-full"
@@ -1225,16 +1364,18 @@ const ToolbarChipTrigger = React.forwardRef<
       ref={ref}
       type="button"
       className={cn(
-        "hidden md:inline-flex items-center gap-1.5 px-2 py-1.5 text-[12px] font-medium rounded-md transition-colors",
+        "inline-flex items-center gap-1.5 px-2 py-1.5 text-[12px] font-medium rounded-md transition-colors",
         active
           ? "bg-gray-900 text-white hover:bg-gray-800"
           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
         className
       )}
+      aria-label={label}
+      title={label}
       {...props}
     >
       {icon}
-      <span>{label}</span>
+      <span className="hidden md:inline">{label}</span>
       {count ? (
         <span
           className={cn(
@@ -1327,7 +1468,7 @@ function TimelineFilterPopover({
             <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
               Status
             </div>
-            {(Object.keys(STATUS_META) as ProjectStatus[]).map((s) => (
+            {(Object.keys(STATUS_META) as StatusKey[]).map((s) => (
               <CheckRow
                 key={s}
                 checked={f.status.includes(s)}

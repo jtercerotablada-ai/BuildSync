@@ -8,25 +8,36 @@ import {
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { decideObjectiveAccess } from "@/lib/objective-access";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 /**
  * Goals API for a PORTFOLIO's Progress view — the "Goals this portfolio works
  * toward" block (Asana parity). Backed by the PortfolioObjective join table
  * (Portfolio <-> Objective). Portfolios are SHARED (PortfolioMember
- * OWNER/EDITOR/VIEWER, plus PUBLIC), so:
- *   • GET is open to any portfolio VIEWER (owner | member | PUBLIC).
- *   • POST (link) / DELETE (unlink) require EDIT capability (owner or member
- *     role OWNER/EDITOR).
- * The view/edit gate mirrors resolvePortfolioGate in the widgets route.
+ * OWNER/EDITOR/VIEWER, plus WORKSPACE/PUBLIC privacy), so:
+ *   • GET is open to anyone who may view the portfolio.
+ *   • POST (link) / DELETE (unlink) require EDIT capability.
+ * The view/edit gate is decidePortfolioAccess in ../route.ts, restated here.
  *
  * A linked objective can only ever share the portfolio's workspaceId — POST
  * re-verifies this so a crafted request can never link a cross-workspace goal.
+ * Goals also keep their OWN privacy (objective-access.ts): the picker offers
+ * only goals the caller can read, POST refuses to link any other, and GET
+ * lists only the linked goals the VIEWER can read — a private goal linked by
+ * one person must not reach everyone who can open the portfolio.
  */
 
 interface PortfolioGate {
   workspaceId: string;
   ownerId: string | null;
   canEdit: boolean;
+  /** The caller's WorkspaceRole in the portfolio's workspace. */
+  workspaceRole: string;
+}
+
+function isManagerRole(role: string): boolean {
+  return role === "OWNER" || role === "ADMIN";
 }
 
 /**
@@ -51,21 +62,34 @@ async function resolvePortfolioGate(
   if (!portfolio) return null;
 
   // Must be a member of the portfolio's workspace at all.
-  await verifyWorkspaceAccess(userId, portfolio.workspaceId);
+  const wsMember = await verifyWorkspaceAccess(userId, portfolio.workspaceId);
+  const isContributor = !isNonContributorRole(wsMember.role);
+  const isWorkspaceManager = isManagerRole(wsMember.role);
 
   const isOwner = portfolio.ownerId === userId;
   const membership = portfolio.members.find((m) => m.userId === userId);
   const isMember = membership != null;
-  const isPublic = portfolio.privacy === "PUBLIC";
-  if (!isOwner && !isMember && !isPublic) return null;
+  const canView =
+    isOwner ||
+    isMember ||
+    isWorkspaceManager ||
+    portfolio.privacy === "PUBLIC" ||
+    (portfolio.privacy === "WORKSPACE" && isContributor);
+  if (!canView) return null;
 
   const memberRole = membership?.role;
-  const canEdit = isOwner || memberRole === "OWNER" || memberRole === "EDITOR";
+  const canEdit =
+    isContributor &&
+    (isOwner ||
+      isWorkspaceManager ||
+      memberRole === "OWNER" ||
+      memberRole === "EDITOR");
 
   return {
     workspaceId: portfolio.workspaceId,
     ownerId: portfolio.ownerId,
     canEdit,
+    workspaceRole: wsMember.role,
   };
 }
 
@@ -113,11 +137,12 @@ export async function GET(
     });
     const linkedIds = links.map((l) => l.objectiveId);
 
-    // ── ?available=1 → workspace objectives the caller can see, minus the
-    // already-linked ones. Same privacy gate as GET /api/objectives (owner |
-    // explicit member | team member) AND same workspace as the portfolio, so
-    // link-eligibility is enforced server-side. Only offered to editors —
-    // viewers can't link, so they don't need the picker list. ──
+    // ── ?available=1 → workspace objectives the caller can READ, minus the
+    // already-linked ones: the objective-access rule as a query (any
+    // non-private goal; a private one only for its owner, its members and
+    // workspace managers) in the portfolio's workspace, so the picker offers
+    // exactly what POST accepts. Only offered to editors — viewers can't
+    // link, so they don't need the picker list. ──
     if (wantAvailable) {
       if (!gate.canEdit) {
         return NextResponse.json(
@@ -129,11 +154,15 @@ export async function GET(
         where: {
           workspaceId: gate.workspaceId,
           id: { notIn: linkedIds },
-          OR: [
-            { ownerId: userId },
-            { members: { some: { userId } } },
-            { team: { members: { some: { userId } } } },
-          ],
+          ...(isManagerRole(gate.workspaceRole)
+            ? {}
+            : {
+                OR: [
+                  { isPrivate: false },
+                  { ownerId: userId },
+                  { members: { some: { userId } } },
+                ],
+              }),
         },
         select: objectiveSelect,
         orderBy: { createdAt: "desc" },
@@ -144,14 +173,36 @@ export async function GET(
     // ── Default → the linked goals in link order (createdAt asc). ──
     const linked = await prisma.portfolioObjective.findMany({
       where: { portfolioId },
-      include: { objective: { select: objectiveSelect } },
+      include: {
+        objective: {
+          select: {
+            ...objectiveSelect,
+            isPrivate: true,
+            members: { where: { userId }, select: { userId: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "asc" },
     });
 
-    const goals = linked.map((row) => ({
-      linkId: row.id,
-      ...row.objective,
-    }));
+    // Only the linked goals THIS viewer may read.
+    const goals = linked
+      .filter(
+        (row) =>
+          decideObjectiveAccess({
+            isPrivate: row.objective.isPrivate,
+            workspaceRole: gate.workspaceRole,
+            isOwner: row.objective.ownerId === userId,
+            isMember: row.objective.members.length > 0,
+          }).canRead
+      )
+      .map((row) => {
+        const { isPrivate: _isPrivate, members: _members, ...objective } =
+          row.objective;
+        void _isPrivate;
+        void _members;
+        return { linkId: row.id, ...objective };
+      });
 
     return NextResponse.json({ goals, canEdit: gate.canEdit });
   } catch (error) {
@@ -196,13 +247,29 @@ export async function POST(
     const body = await req.json();
     const { objectiveId } = linkSchema.parse(body);
 
-    // The objective must exist AND share the portfolio's workspace. A
-    // cross-workspace / missing objective is masked as 404.
+    // The objective must exist, share the portfolio's workspace AND be
+    // readable by the caller — linking would otherwise publish a private
+    // goal's name, status and progress on the portfolio. Anything else is
+    // masked as 404.
     const objective = await prisma.objective.findUnique({
       where: { id: objectiveId },
-      select: { workspaceId: true },
+      select: {
+        workspaceId: true,
+        ownerId: true,
+        isPrivate: true,
+        members: { where: { userId }, select: { userId: true } },
+      },
     });
-    if (!objective || objective.workspaceId !== gate.workspaceId) {
+    if (
+      !objective ||
+      objective.workspaceId !== gate.workspaceId ||
+      !decideObjectiveAccess({
+        isPrivate: objective.isPrivate,
+        workspaceRole: gate.workspaceRole,
+        isOwner: objective.ownerId === userId,
+        isMember: objective.members.length > 0,
+      }).canRead
+    ) {
       return NextResponse.json({ error: "Goal not found" }, { status: 404 });
     }
 

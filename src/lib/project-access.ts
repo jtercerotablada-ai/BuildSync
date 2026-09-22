@@ -1,39 +1,57 @@
 /**
  * project-access.ts — single source of truth for "can this user touch
- * this project?" used by every /api/projects/[projectId]/* sub-route.
+ * this project?" used by every /api/projects/[projectId]/* sub-route, the two
+ * project pages (dashboard + portal), the task/section guards and @-mentions.
  *
  * WHY THIS EXISTS
- * The project page (src/app/(dashboard)/projects/[projectId]/page.tsx) and
- * GET /api/projects/[projectId] enforce one rule: a user can READ a project
- * only if they own it, are a member, it's PUBLIC *and they are in the
- * project's workspace*, or they are an
- * OWNER/ADMIN of the project's workspace (or Position level >= 4). Both of
- * those callers now delegate the decision to `canReadProject` below instead of
- * keeping private copies of it. Crucially,
- * `visibility === "WORKSPACE"` is NOT an auto-grant for ordinary workspace
- * members — that default was deliberately removed from the page.
+ * The project page, GET/PATCH/DELETE /api/projects/[projectId] and the tab
+ * sub-routes each used to roll their own OR clause, and they disagreed: one
+ * copy granted WORKSPACE visibility and another did not; PATCH had no
+ * workspace-manager arm while DELETE did. Every caller now delegates to
+ * `resolveProjectAccess` (or, for already-resolved facts, the pure
+ * `canReadProject` / `decideProjectCapabilities` below). The LIST-query
+ * sibling is `buildProjectVisibilityClauses` (@/lib/project-visibility) and
+ * must say the same thing.
  *
- * The tab sub-routes (messages, status-updates, activity, attachments,
- * members, custom-fields, objectives, dependencies, forms, …) historically
- * each rolled their own OR clause that INCLUDED `visibility: "WORKSPACE"`,
- * leaking tab data the page hides and letting non-members write. This module
- * centralizes the canonical rule so every route agrees with the page.
+ * THE RULE (owner decision, 2026-09-21). Visibility answers "who at the firm
+ * gets in without being invited":
+ *
+ *   PRIVATE    only the owner and the members you add (+ workspace managers)
+ *   WORKSPACE  every CONTRIBUTOR of the project's own workspace, Editor-level
+ *              (read + write + comment). The default for new projects:
+ *              everyone at the firm can view and edit.
+ *   PUBLIC     exactly like WORKSPACE. It has always meant "everyone in THIS
+ *              workspace", never "everyone with an account" — the tenant
+ *              check below is what keeps it from being a cross-tenant read.
  *
  * Roles (ProjectRole): ADMIN > EDITOR > COMMENTER > VIEWER.
- *   - read:    owner | member | PUBLIC *within the project's own workspace* |
- *              ws OWNER/ADMIN | level >= 4 | team member
- *   - write:   owner | member role ADMIN or EDITOR | team member
- *   - comment: owner | member role ADMIN, EDITOR or COMMENTER | team member
- *   - manage:  owner | member role ADMIN | ws OWNER/ADMIN   (add/remove members, delete)
+ *   - read:    owner | member | team member | ws OWNER/ADMIN |
+ *              Position level >= 4 | WORKSPACE/PUBLIC for a contributor of
+ *              the project's own workspace
+ *   - write:   owner | member ADMIN/EDITOR | ws OWNER/ADMIN |
+ *              (no member row) team member or WORKSPACE/PUBLIC grant
+ *   - comment: write | member COMMENTER
+ *   - manage:  owner | member ADMIN | ws OWNER/ADMIN
+ *              (members, settings, archive, rename, delete)
  *
- * TEAM SHARING (Asana model): a project attached to a team (Project.teamId)
- * is shared with that whole team — every member of the team gets Editor-level
- * access (read + write + comment) WITHOUT an explicit ProjectMember row, and
- * that access is dynamic (new team members gain it, removed members lose it).
- * An explicit ProjectMember row always takes precedence over team access, so a
- * deliberately-restricted VIEWER is never silently upgraded by the team. Team
- * access never confers `canManage` (add/remove members, delete, settings) —
- * that stays owner / project-ADMIN / workspace-manager.
+ * IMPLICIT GRANTS (team sharing, WORKSPACE/PUBLIC visibility) are Editor-level
+ * and never confer `canManage`. They apply only to a caller WITHOUT an explicit
+ * ProjectMember row: a member deliberately restricted to VIEWER or COMMENTER
+ * stays restricted — the explicit row always wins. They also require a
+ * CONTRIBUTOR seat (a WorkspaceMember row in the project's workspace whose role
+ * is not in NON_CONTRIBUTOR_ROLES), so GUEST/CLIENT get nothing implicit, and
+ * an offboarded user (no row) with a stale TeamMember row gets nothing either.
+ *
+ * WORKSPACE MANAGERS (OWNER/ADMIN of the PROJECT's workspace) read, write,
+ * comment and manage every project there, PRIVATE included, whether or not
+ * they also hold a member row — adding the owner to a project as a VIEWER to
+ * get notifications must not strip his leadership powers there.
+ *
+ * POSITION LEVEL >= 4 keeps the read-everything grant it always had and
+ * nothing more: it is a job title, not a role. That grant is only safe because
+ * a Position can be changed exclusively by a workspace OWNER/ADMIN (see
+ * /api/team/directory and the /api/users routes) — a self-assignable Position
+ * was a one-click self-promotion.
  */
 
 import prisma from "@/lib/prisma";
@@ -41,6 +59,12 @@ import { getLevel } from "@/lib/people-types";
 import { isNonContributorRole } from "@/lib/workspace-roles";
 
 export type ProjectRole = "ADMIN" | "EDITOR" | "COMMENTER" | "VIEWER";
+
+/** Visibilities that open a project to every contributor of its workspace. */
+export const WORKSPACE_OPEN_VISIBILITIES: readonly string[] = [
+  "WORKSPACE",
+  "PUBLIC",
+];
 
 export interface ProjectAccessResult {
   ok: boolean;
@@ -55,16 +79,25 @@ export interface ProjectAccessResult {
   isMember: boolean;
   /** The caller's ProjectRole if they are a member, else null. */
   memberRole: ProjectRole | null;
-  /** OWNER/ADMIN of the project's workspace, or Position level >= 4. */
+  /** OWNER/ADMIN of the project's workspace. */
   isWorkspaceManager: boolean;
+  /** Contributor with Position level >= 4 in the project's workspace: reads
+   *  every project there, but gains no write/manage from it. */
+  hasSeniorRead: boolean;
+  /** The caller holds a CONTRIBUTOR seat in the project's workspace. Personal
+   *  ties to a task (creator/assignee/follower) only count while this holds. */
+  hasContributorSeat: boolean;
   /** Access derives from membership in the project's team (Project.teamId),
    *  not an explicit ProjectMember row. Editor-level, never manage. */
   isTeamMember: boolean;
-  /** Can create/edit content (tasks, status): owner | ADMIN | EDITOR. */
+  /** Access derives from WORKSPACE/PUBLIC visibility plus a contributor seat,
+   *  not an explicit ProjectMember row. Editor-level, never manage. */
+  isWorkspaceShared: boolean;
+  /** Can create/edit content (tasks, sections, brief, status). */
   canWrite: boolean;
-  /** Can post messages/comments: owner | ADMIN | EDITOR | COMMENTER. Superset of canWrite. */
+  /** Can post messages/comments. Superset of canWrite. */
   canComment: boolean;
-  /** Can manage the project (members, settings, delete): owner | project ADMIN | ws OWNER/ADMIN. */
+  /** Can manage the project (members, settings, archive, delete). */
   canManage: boolean;
 }
 
@@ -75,49 +108,100 @@ export interface ProjectReadDecisionInput {
   /** The workspace the project lives in. */
   projectWorkspaceId: string;
   /**
-   * Workspaces the VIEWER belongs to. In practice resolveProjectAccess only
-   * ever looks up the one membership that matters — (viewer, project's
-   * workspace) — so this is `[projectWorkspaceId]` or `[]`. It is modelled as
-   * a list because that is the honest question: "is the project's workspace
-   * one of the viewer's?"
+   * Workspaces where the VIEWER holds a CONTRIBUTOR seat. In practice
+   * resolveProjectAccess only ever looks up the one membership that matters —
+   * (viewer, project's workspace) — so this is `[projectWorkspaceId]` or `[]`.
+   * A GUEST/CLIENT membership must NOT be listed: it earns no implicit grant.
    */
   viewerWorkspaceIds: readonly string[];
   isOwner: boolean;
   isMember: boolean;
-  /** OWNER/ADMIN of the PROJECT's workspace, or Position level >= 4 there. */
+  /** OWNER/ADMIN of the PROJECT's workspace. */
   isWorkspaceManager: boolean;
   /** Member of the project's team (team validated to be in the same workspace). */
   isTeamMember: boolean;
+  /** Contributor with Position level >= 4 in the PROJECT's workspace. */
+  hasSeniorRead?: boolean;
 }
 
 /**
  * THE read decision, as a pure function — no Prisma, no session, no I/O.
  *
- * Every read gate in the app (this module's resolver, the dashboard project
- * page, GET /api/projects/:id) must route through here. They each used to
- * carry their own copy of the rule, and that is precisely how the PUBLIC hole
- * below survived in three places at once.
- *
- * SECURITY — do not "simplify" the PUBLIC branch back to a bare
- * `visibility === "PUBLIC"`. PUBLIC means "everyone in THIS workspace", never
+ * SECURITY — do not "simplify" the WORKSPACE/PUBLIC branch to a bare
+ * visibility test. It means "every contributor in THIS workspace", never
  * "everyone with an account". Without the workspace comparison, any
- * authenticated user of ANY workspace could open any PUBLIC project — a
- * cross-tenant read. `project-access.test.ts` fails loudly if that regresses.
+ * authenticated user of ANY workspace could open the project — a cross-tenant
+ * read. `project-access.test.ts` fails loudly if that regresses.
  *
- * `isWorkspaceManager` is only ever computed from a membership in the
- * PROJECT's workspace, so it cannot cross the tenant boundary either.
+ * `isWorkspaceManager` and `hasSeniorRead` are only ever computed from a
+ * membership in the PROJECT's workspace, so they cannot cross the tenant
+ * boundary either.
  */
 export function canReadProject(input: ProjectReadDecisionInput): boolean {
   if (input.isOwner || input.isMember) return true;
   if (input.isTeamMember) return true;
   if (input.isWorkspaceManager) return true;
+  if (input.hasSeniorRead) return true;
   if (
-    input.visibility === "PUBLIC" &&
+    WORKSPACE_OPEN_VISIBILITIES.includes(input.visibility) &&
     input.viewerWorkspaceIds.includes(input.projectWorkspaceId)
   ) {
     return true;
   }
   return false;
+}
+
+/** Everything the full capability decision depends on. */
+export interface ProjectCapabilityInput extends ProjectReadDecisionInput {
+  memberRole: ProjectRole | null;
+}
+
+export interface ProjectCapabilities {
+  canRead: boolean;
+  canWrite: boolean;
+  canComment: boolean;
+  canManage: boolean;
+  /** The WORKSPACE/PUBLIC implicit Editor grant applied. */
+  isWorkspaceShared: boolean;
+}
+
+/**
+ * read / write / comment / manage from already-resolved facts. Pure, so the
+ * whole rule is testable without a database, and so the server components
+ * that already loaded these facts can't drift from the API.
+ */
+export function decideProjectCapabilities(
+  input: ProjectCapabilityInput
+): ProjectCapabilities {
+  const canRead = canReadProject(input);
+  const hasExplicitRole = input.isOwner || input.isMember;
+  // Implicit Editor grants apply only to a caller with no explicit row, so a
+  // deliberately restricted VIEWER/COMMENTER is never silently upgraded.
+  const isWorkspaceShared =
+    !hasExplicitRole &&
+    WORKSPACE_OPEN_VISIBILITIES.includes(input.visibility) &&
+    input.viewerWorkspaceIds.includes(input.projectWorkspaceId);
+  const implicitEditor =
+    !hasExplicitRole && (input.isTeamMember || isWorkspaceShared);
+
+  const canWrite =
+    input.isOwner ||
+    input.isWorkspaceManager ||
+    input.memberRole === "ADMIN" ||
+    input.memberRole === "EDITOR" ||
+    implicitEditor;
+  const canComment = canWrite || input.memberRole === "COMMENTER";
+  const canManage =
+    input.isOwner || input.memberRole === "ADMIN" || input.isWorkspaceManager;
+
+  // Nothing is granted on a project the caller cannot read.
+  return {
+    canRead,
+    canWrite: canRead && canWrite,
+    canComment: canRead && canComment,
+    canManage: canRead && canManage,
+    isWorkspaceShared,
+  };
 }
 
 interface MinimalProject {
@@ -133,9 +217,12 @@ interface MinimalProject {
 
 /**
  * Core predicate — given an already-loaded project (with members) and the
- * caller, resolve the full access result. Does ONE extra DB read (the
- * workspaceMember lookup) only when the caller is not owner/member/PUBLIC,
- * mirroring GET /api/projects/[projectId] exactly.
+ * caller, resolve the full access result.
+ *
+ * Always does ONE workspaceMember lookup (the caller's seat in the PROJECT's
+ * workspace): workspace-manager standing must hold even for a project member,
+ * and the task guards need to know whether the caller still works here. Adds a
+ * teamMember lookup only for a non-member contributor on a team-shared project.
  */
 export async function resolveProjectAccess(
   project: MinimalProject,
@@ -146,72 +233,42 @@ export async function resolveProjectAccess(
   const isMember = !!member;
   const memberRole = (member?.role as ProjectRole | undefined) ?? null;
 
-  let isWorkspaceManager = false;
-  // Workspaces the viewer is known to belong to. We only ever look up the one
-  // that matters (the project's), so this is [] or [project.workspaceId].
-  const viewerWorkspaceIds: string[] = [];
+  const membership = await prisma.workspaceMember.findUnique({
+    where: {
+      userId_workspaceId: { userId, workspaceId: project.workspaceId },
+    },
+    select: { role: true, user: { select: { position: true } } },
+  });
 
-  // The membership lookup used to be skipped whenever the project was PUBLIC,
-  // because PUBLIC alone granted read. It no longer does — PUBLIC is scoped to
-  // the project's own workspace now — so the lookup must run for every
-  // non-owner/non-member viewer, PUBLIC included.
-  // Resolve the viewer's workspace role ONCE. Both IMPLICIT grants — the
-  // workspace-wide PUBLIC grant here and the team grant below — are gated on it.
-  //
-  // A NON-CONTRIBUTOR (GUEST / CLIENT — see NON_CONTRIBUTOR_ROLES) gets neither.
-  // Those roles are default-denied across the whole /api/ surface by
-  // src/proxy.ts, but callers of this rule include a server component that
-  // serializes budget, member emails, tasks and view prefs straight into the
-  // response — so an implicit read grant here handed a read-only role the
-  // internal cockpit's contents. They have no client-facing surface at all any
-  // more, so there is nothing this could legitimately be granting.
-  //
-  // `level >= 4` sits behind the same check on purpose: Position is independent
-  // of WorkspaceRole, so a GUEST carrying an executive Position would otherwise
-  // become a workspace manager and read PRIVATE projects too.
-  //
-  // EXPLICIT grants are untouched: a non-contributor who OWNS the project or
-  // holds a real ProjectMember row still passes, via isOwner/isMember above.
-  // True only when the viewer holds a CONTRIBUTOR membership in the project's
-  // workspace. Deliberately not the negation of viewerIsNonContributor: a user
-  // with NO membership row at all is not a non-contributor either, and the team
-  // branch below must refuse them too (see its comment).
-  let viewerIsContributor = false;
-  if (!isOwner && !isMember) {
-    const membership = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-      include: { user: { select: { position: true } } },
-    });
-    viewerIsContributor = !!membership && !isNonContributorRole(membership.role);
-    if (viewerIsContributor && membership) {
-      viewerWorkspaceIds.push(project.workspaceId);
-      const level = getLevel(membership.user.position);
-      isWorkspaceManager =
-        membership.role === "OWNER" ||
-        membership.role === "ADMIN" ||
-        level >= 4;
-    }
-  }
+  // A NON-CONTRIBUTOR (GUEST / CLIENT — see NON_CONTRIBUTOR_ROLES) and a user
+  // with NO membership row (offboarded) are both refused every implicit grant.
+  // Deliberately not the negation of isNonContributorRole: that one answers
+  // false for "no role", which here means "removed from the firm".
+  const hasContributorSeat =
+    !!membership && !isNonContributorRole(membership.role);
 
-  // Team sharing (Asana model): a member of the project's team gets access
-  // even without an explicit ProjectMember row. Explicit membership and
-  // ownership take precedence for the role, so we only consult the team for
-  // users who are neither — a deliberately-restricted VIEWER stays a VIEWER.
-  //
-  // Requires a CONTRIBUTOR membership in the project's workspace, for two
-  // reasons. A non-contributor must not get in: isTeamMember feeds canWrite, so
-  // an ungated team grant would let a read-only role AUTHOR content, flatly
-  // contradicting NON_CONTRIBUTOR_ROLES. And a viewer with NO membership row
-  // must not get in either: removing someone from a workspace deletes only
-  // their WorkspaceMember row (DELETE /api/workspace/members), leaving their
-  // TeamMember rows behind — so an offboarded user with a stale team row would
-  // otherwise keep read AND write on every project shared with that team.
-  // Joining a team requires workspace membership, so a TeamMember without one
-  // is always stale.
+  // Workspaces the viewer holds a contributor seat in, as far as this project
+  // is concerned: [] or [project.workspaceId].
+  const viewerWorkspaceIds: string[] = hasContributorSeat
+    ? [project.workspaceId]
+    : [];
+
+  const isWorkspaceManager =
+    hasContributorSeat &&
+    (membership!.role === "OWNER" || membership!.role === "ADMIN");
+  // Position sits behind the contributor check on purpose: it is independent
+  // of WorkspaceRole, so a GUEST carrying an executive Position would
+  // otherwise read PRIVATE projects.
+  const hasSeniorRead =
+    hasContributorSeat && getLevel(membership!.user.position) >= 4;
+
+  // Team sharing (Asana model): a member of the project's team gets Editor
+  // access without an explicit ProjectMember row. Only consulted for callers
+  // who are neither owner nor member — a deliberately-restricted VIEWER stays a
+  // VIEWER — and only for contributors: joining a team requires workspace
+  // membership, so a TeamMember row without a seat is always stale.
   let isTeamMember = false;
-  if (!isOwner && !isMember && viewerIsContributor) {
+  if (!isOwner && !isMember && hasContributorSeat) {
     // The caller may not have selected teamId; fetch just that scalar when so
     // (undefined = not selected, null = selected-but-no-team).
     let teamId = project.teamId;
@@ -225,8 +282,7 @@ export async function resolveProjectAccess(
     if (teamId) {
       // Require the team to live in the PROJECT's workspace — never grant
       // access across the workspace boundary even if a stale/mis-set teamId
-      // points at a team elsewhere (defense in depth; the write sinks also
-      // validate this).
+      // points at a team elsewhere.
       const tm = await prisma.teamMember.findFirst({
         where: {
           userId,
@@ -241,29 +297,22 @@ export async function resolveProjectAccess(
     }
   }
 
-  const canRead = canReadProject({
+  const caps = decideProjectCapabilities({
     visibility: project.visibility,
     projectWorkspaceId: project.workspaceId,
     viewerWorkspaceIds,
     isOwner,
     isMember,
+    memberRole,
     isWorkspaceManager,
     isTeamMember,
+    hasSeniorRead,
   });
 
-  const canWrite =
-    isOwner || memberRole === "ADMIN" || memberRole === "EDITOR" || isTeamMember;
-  // Commenters can post messages/comments but NOT edit project content —
-  // a superset of canWrite that also admits the COMMENTER role.
-  const canComment = canWrite || memberRole === "COMMENTER";
-  // Team access is Editor-level only: managing membership/settings/deletion
-  // stays with the owner, project ADMINs, and workspace managers.
-  const canManage = isOwner || memberRole === "ADMIN" || isWorkspaceManager;
-
   return {
-    ok: canRead,
-    status: canRead ? 200 : 404,
-    error: canRead ? undefined : "Project not found",
+    ok: caps.canRead,
+    status: caps.canRead ? 200 : 404,
+    error: caps.canRead ? undefined : "Project not found",
     projectId: project.id,
     workspaceId: project.workspaceId,
     ownerId: project.ownerId,
@@ -272,10 +321,13 @@ export async function resolveProjectAccess(
     isMember,
     memberRole,
     isWorkspaceManager,
+    hasSeniorRead,
+    hasContributorSeat,
     isTeamMember,
-    canWrite,
-    canComment,
-    canManage,
+    isWorkspaceShared: caps.isWorkspaceShared,
+    canWrite: caps.canWrite,
+    canComment: caps.canComment,
+    canManage: caps.canManage,
   };
 }
 
@@ -314,7 +366,10 @@ export async function getProjectAccess(
       isMember: false,
       memberRole: null,
       isWorkspaceManager: false,
+      hasSeniorRead: false,
+      hasContributorSeat: false,
       isTeamMember: false,
+      isWorkspaceShared: false,
       canWrite: false,
       canComment: false,
       canManage: false,

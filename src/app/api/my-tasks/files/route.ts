@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { fileReadUrl } from "@/lib/storage";
+import { contributorSeatSatisfied } from "@/lib/auth-guards";
 
 /**
  * GET /api/my-tasks/files
@@ -24,11 +25,36 @@ export async function GET(_req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Being the assignee or creator of a task only counts while the caller
+    // still holds a contributor seat in the task's workspace — the same rule
+    // the task gate applies. Someone offboarded from the firm (or demoted to
+    // a guest seat) must not keep listing the firm's attachments here.
+    const memberships = await prisma.workspaceMember.findMany({
+      where: { userId },
+      select: { workspaceId: true, role: true },
+    });
+    const seatWorkspaceIds = memberships
+      .filter((m) => contributorSeatSatisfied(m.role))
+      .map((m) => m.workspaceId);
+    if (seatWorkspaceIds.length === 0) {
+      return NextResponse.json({ files: [] });
+    }
+
     const attachments = await prisma.attachment.findMany({
       where: {
         taskId: { not: null },
         task: {
-          OR: [{ assigneeId: userId }, { creatorId: userId }],
+          AND: [
+            { OR: [{ assigneeId: userId }, { creatorId: userId }] },
+            {
+              OR: [
+                { project: { workspaceId: { in: seatWorkspaceIds } } },
+                // Personal to-dos have no project, hence no workspace; they
+                // are the caller's own.
+                { projectId: null },
+              ],
+            },
+          ],
         },
       },
       include: {
@@ -50,8 +76,9 @@ export async function GET(_req: Request) {
       take: 200, // sensible cap; pagination later if needed
     });
 
-    // Never ship the stored blob url: it is private and unfetchable from the
-    // browser, and a legacy one is a login-less permanent link.
+    // Never ship the stored blob url: a private one is unfetchable from the
+    // browser, and a public one (legacy, or any upload while SAAS_BLOB_ACCESS
+    // is public) is a login-less permanent link.
     return NextResponse.json({
       files: attachments.map((a) => ({ ...a, url: fileReadUrl("attachment", a.id) })),
     });

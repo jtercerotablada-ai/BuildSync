@@ -41,9 +41,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmojiPickerPopover } from "@/components/ui/emoji-picker-popover";
-import type {
-  ActiveFilter,
-  FilterField,
+import {
+  FilterBuilderRow,
+  type ActiveFilter,
+  type FilterField,
 } from "@/components/tasks/filter-panel";
 import type { SortState, SortField } from "@/components/tasks/sort-panel";
 import { BUILTIN_FIELDS } from "@/lib/field-types";
@@ -529,8 +530,16 @@ function FiltersView({
       operator: FILTER_OPERATOR_DEFAULTS[field],
       value: "",
     };
+    // Stay on this view: the new filter lands in the Active list with its
+    // value picker, and an empty-value filter filters nothing until set.
     onActiveFiltersChange([...activeFilters, newFilter]);
-    onBack();
+    setSearch("");
+  }
+
+  function handleUpdateFilter(updated: ActiveFilter) {
+    onActiveFiltersChange(
+      activeFilters.map((f) => (f.id === updated.id ? updated : f))
+    );
   }
 
   function handleRemoveFilter(filterId: string) {
@@ -556,41 +565,21 @@ function FiltersView({
               Active
             </p>
             <div className="space-y-1">
-              {activeFilters.map((f) => {
-                const meta = FILTER_FIELDS.find((opt) => opt.field === f.field);
-                const Icon = meta?.icon || Filter;
-                const complete = isCompleteFilter(f);
-                return (
-                  <div
-                    key={f.id}
-                    className={cn(
-                      "flex items-center gap-2.5 px-2 py-1.5 rounded-md",
-                      complete ? "bg-[#c9a84c]/10" : "bg-gray-50"
-                    )}
-                  >
-                    <Icon
-                      className={cn(
-                        "w-3.5 h-3.5",
-                        complete ? "text-[#a8893a]" : "text-gray-400"
-                      )}
-                    />
-                    <span className="flex-1 text-[13px] text-gray-800 truncate">
-                      {meta?.label || f.field}
-                    </span>
-                    {!complete && (
-                      <span className="text-[11px] text-gray-400 flex-shrink-0">
-                        Not set
-                      </span>
-                    )}
-                    <button
-                      onClick={() => handleRemoveFilter(f.id)}
-                      className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 hover:bg-white"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
+              {activeFilters.map((f) => (
+                <div
+                  key={f.id}
+                  className={cn(
+                    "px-2 rounded-md",
+                    isCompleteFilter(f) ? "bg-[#c9a84c]/10" : "bg-gray-50"
+                  )}
+                >
+                  <FilterBuilderRow
+                    filter={f}
+                    onUpdate={handleUpdateFilter}
+                    onRemove={() => handleRemoveFilter(f.id)}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -745,7 +734,12 @@ function GroupsView({
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
 
-  const usedFields = new Set(groups.map((g) => g.field));
+  // The toolbar Group panel represents "no grouping" as a single
+  // `field: "none"` row (it always shows one editable row). Here that row is
+  // the same as no groups at all — otherwise it printed as a raw "none" entry
+  // and hid "+ Add group".
+  const activeGroups = groups.filter((g) => g.field !== "none");
+  const usedFields = new Set(activeGroups.map((g) => g.field));
   const available = GROUP_FIELDS.filter(
     (f) =>
       !usedFields.has(f.field) &&
@@ -754,7 +748,7 @@ function GroupsView({
 
   function handleAdd(field: GroupField) {
     onGroupsChange([
-      ...groups,
+      ...activeGroups,
       {
         id: `group-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         field,
@@ -767,7 +761,7 @@ function GroupsView({
   }
 
   function handleRemove(groupId: string) {
-    onGroupsChange(groups.filter((g) => g.id !== groupId));
+    onGroupsChange(activeGroups.filter((g) => g.id !== groupId));
   }
 
   function handleClearAll() {
@@ -827,7 +821,7 @@ function GroupsView({
         <p className="text-[12px] text-gray-500">
           Manage groups in this view.
         </p>
-        {groups.length > 0 && (
+        {activeGroups.length > 0 && (
           <button
             onClick={handleClearAll}
             className="text-[12px] text-gray-500 hover:text-gray-900"
@@ -838,12 +832,12 @@ function GroupsView({
       </div>
 
       <div className="px-5 pb-3 space-y-1.5 overflow-y-auto flex-1">
-        {groups.length === 0 && (
+        {activeGroups.length === 0 && (
           <p className="text-[13px] text-gray-400 py-3">
             No groups applied. Add one below to bucket your tasks.
           </p>
         )}
-        {groups.map((g) => {
+        {activeGroups.map((g) => {
           const meta = GROUP_FIELDS.find((opt) => opt.field === g.field);
           const Icon = meta?.icon || LayoutGrid;
           return (
@@ -874,7 +868,7 @@ function GroupsView({
             ("Add subgroup") and were stored and persisted, but the task list reads
             groups[0] only and has no nested-bucket renderer, so the second level
             never changed a single row. */}
-        {groups.length === 0 && (
+        {activeGroups.length === 0 && (
           <button
             onClick={() => setAdding(true)}
             className="w-full flex items-center gap-2 px-3 py-2.5 mt-1 text-[13px] text-[#a8893a] hover:bg-[#c9a84c]/10 rounded-md transition-colors"

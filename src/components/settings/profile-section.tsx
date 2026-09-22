@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useSession } from "next-auth/react";
 import { fileToAvatarDataUrl, AvatarError } from "@/lib/avatar-image";
 
 interface ProfileData {
@@ -42,6 +43,10 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
     setImage(profile?.image || "");
   }, [profile?.id]);
 
+  // The header reads name and photo from the session; auth.ts re-reads them
+  // on each session request, but the client cache only refetches on focus.
+  const { update: refreshSession } = useSession();
+
   const initials =
     name
       ?.split(" ")
@@ -74,6 +79,7 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
       const updated = await res.json();
       onUpdate({ ...profile!, ...updated });
       toast.success("Profile updated");
+      void refreshSession();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -179,6 +185,17 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
         <div>
           <p className="text-sm font-medium text-black">Profile photo</p>
           <p className="text-xs text-gray-500">Click to upload a new photo</p>
+          {/* Clearing the photo goes back to initials; like a new upload it
+              takes effect on Save (the API stores "" as no image). */}
+          {image && (
+            <button
+              type="button"
+              onClick={() => setImage("")}
+              className="mt-1 text-xs text-gray-500 underline hover:text-black"
+            >
+              Remove photo
+            </button>
+          )}
         </div>
       </div>
 

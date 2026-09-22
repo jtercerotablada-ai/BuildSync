@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getProjectAccess } from "@/lib/project-access";
 import type { CompanyRole } from "@prisma/client";
 
 /**
  * PATCH  /api/projects/:projectId/companies/:companyId — edit company
  * DELETE /api/projects/:projectId/companies/:companyId — remove company
  *
- * Same access rules as the list endpoint: only project Owner/Admin
- * may write. Removing a company unbinds its members (companyId set
+ * Same access rules as the list endpoint: only callers who can manage
+ * the project (owner, member ADMIN, workspace OWNER/ADMIN) may write. Removing a company unbinds its members (companyId set
  * to null on ProjectMember rows — they keep their seats in the
  * project unless removed separately).
  */
@@ -39,22 +40,12 @@ const patchSchema = z.object({
   isOwn: z.boolean().optional(),
 });
 
+// Canonical rule: unreadable = 404 (same as missing, so ids cannot be
+// probed); readable but not manageable = 403.
 async function assertWriteAccess(projectId: string, userId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      ownerId: true,
-      members: { select: { userId: true, role: true } },
-    },
-  });
-  if (!project) return { ok: false as const, status: 404 };
-  const isOwner = project.ownerId === userId;
-  const member = project.members.find((m) => m.userId === userId);
-  const isAdmin = member?.role === "ADMIN";
-  if (!isOwner && !isAdmin) {
-    return { ok: false as const, status: 403 };
-  }
+  const access = await getProjectAccess(projectId, userId);
+  if (!access.ok) return { ok: false as const, status: 404 };
+  if (!access.canManage) return { ok: false as const, status: 403 };
   return { ok: true as const };
 }
 
@@ -96,28 +87,31 @@ export async function PATCH(
       );
     }
 
-    // Enforce single isOwn invariant.
-    if (parsed.data.isOwn === true && !company.isOwn) {
-      await prisma.projectCompany.updateMany({
-        where: { projectId, isOwn: true },
-        data: { isOwn: false },
+    // Enforce single isOwn invariant. The demotion shares a transaction
+    // with the update so a failed rename (duplicate name) does not strip
+    // the current host firm.
+    const updated = await prisma.$transaction(async (tx) => {
+      if (parsed.data.isOwn === true && !company.isOwn) {
+        await tx.projectCompany.updateMany({
+          where: { projectId, isOwn: true },
+          data: { isOwn: false },
+        });
+      }
+      return tx.projectCompany.update({
+        where: { id: companyId },
+        data: {
+          ...(parsed.data.name !== undefined && {
+            name: parsed.data.name.trim(),
+          }),
+          ...(parsed.data.role !== undefined && {
+            role: parsed.data.role as CompanyRole,
+          }),
+          ...(parsed.data.domain !== undefined && {
+            domain: parsed.data.domain,
+          }),
+          ...(parsed.data.isOwn !== undefined && { isOwn: parsed.data.isOwn }),
+        },
       });
-    }
-
-    const updated = await prisma.projectCompany.update({
-      where: { id: companyId },
-      data: {
-        ...(parsed.data.name !== undefined && {
-          name: parsed.data.name.trim(),
-        }),
-        ...(parsed.data.role !== undefined && {
-          role: parsed.data.role as CompanyRole,
-        }),
-        ...(parsed.data.domain !== undefined && {
-          domain: parsed.data.domain,
-        }),
-        ...(parsed.data.isOwn !== undefined && { isOwn: parsed.data.isOwn }),
-      },
     });
 
     return NextResponse.json({
@@ -130,6 +124,18 @@ export async function PATCH(
       linkedWorkspaceId: updated.linkedWorkspaceId,
     });
   } catch (err) {
+    // Unique constraint on [projectId, name].
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: string }).code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "A company with that name already exists on this project" },
+        { status: 409 }
+      );
+    }
     console.error("[company PATCH] error:", err);
     return NextResponse.json(
       { error: "Failed to update" },

@@ -71,26 +71,53 @@ export function RelatedWorkPicker({
   const [loading, setLoading] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
 
+  const [tasksLoading, setTasksLoading] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     setSearch("");
     setLoading(true);
-    Promise.all([
-      fetch("/api/projects").then((r) => r.json()),
-      fetch("/api/tasks").then((r) => r.json()),
-    ])
-      .then(([projData, taskData]) => {
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((projData) => {
         setProjects(
           Array.isArray(projData) ? projData : projData?.projects || []
         );
-        setTasks(Array.isArray(taskData) ? taskData : taskData?.tasks || []);
       })
-      .catch(() => {
-        setProjects([]);
-        setTasks([]);
-      })
+      .catch(() => setProjects([]))
       .finally(() => setLoading(false));
   }, [open]);
+
+  // Tasks are matched on the server (?q=) with the slim payload: pulling the
+  // whole workspace list and filtering it here silently missed anything past
+  // the row cap, and shipped every task's full include to fill a picker.
+  const taskQuery = search.trim();
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setTasksLoading(true);
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({ fields: "summary", limit: "50" });
+      if (taskQuery) params.set("q", taskQuery);
+      fetch(`/api/tasks?${params.toString()}`, { signal: controller.signal })
+        .then((r) => r.json())
+        .then((taskData) => {
+          setTasks(
+            Array.isArray(taskData) ? taskData : taskData?.tasks || []
+          );
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setTasks([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setTasksLoading(false);
+        });
+    }, taskQuery ? 250 : 0);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, taskQuery]);
 
   const filteredProjects = projects
     .filter((p) => !excludeProjectIds.includes(p.id))
@@ -182,7 +209,7 @@ export function RelatedWorkPicker({
         </div>
 
         <div className="max-h-[320px] overflow-y-auto -mx-6 px-6">
-          {loading ? (
+          {(tab === "project" ? loading : tasksLoading) ? (
             <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Loading…

@@ -51,6 +51,9 @@ interface DependenciesPickerProps {
   mode?: "blockedBy" | "blocks";
 }
 
+/** Rows asked of the server per search; the list shows at most 50. */
+const PICKER_LIMIT = 60;
+
 export function DependenciesPicker({
   taskId,
   existingBlockingTaskIds,
@@ -65,22 +68,44 @@ export function DependenciesPicker({
   const [submitting, setSubmitting] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch once when opened — workspace task list is small enough that
-  // client-side filtering on the search input feels instant.
+  // Search on the server as the user types. Loading the whole list once and
+  // filtering it here only ever saw the first 1000 tasks (the list route's
+  // cap), so anything past it answered "No matching tasks".
+  const fetchIdRef = useRef(0);
   useEffect(() => {
     if (!open) return;
+    const q = search.trim();
+    const fetchId = ++fetchIdRef.current;
     setLoading(true);
-    fetch("/api/tasks")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: PickableTask[]) => {
-        setTasks(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        toast.error("Couldn't load tasks");
-      })
-      .finally(() => setLoading(false));
-    // Focus the search input on open
-    requestAnimationFrame(() => inputRef.current?.focus());
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({
+        fields: "summary",
+        limit: String(PICKER_LIMIT),
+        // Subtasks can block work too; the route may ignore this until it
+        // supports it, which just leaves top-level tasks.
+        includeSubtasks: "true",
+      });
+      if (q) params.set("q", q);
+      fetch(`/api/tasks?${params.toString()}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
+        .then((data: PickableTask[]) => {
+          if (fetchId !== fetchIdRef.current) return;
+          setTasks(Array.isArray(data) ? data : []);
+        })
+        .catch(() => {
+          if (fetchId !== fetchIdRef.current) return;
+          toast.error("Couldn't load tasks");
+        })
+        .finally(() => {
+          if (fetchId === fetchIdRef.current) setLoading(false);
+        });
+    }, q ? 200 : 0);
+    return () => clearTimeout(timer);
+  }, [open, search]);
+
+  // Focus the search input on open
+  useEffect(() => {
+    if (open) requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
 
   const excluded = useMemo(
@@ -88,13 +113,10 @@ export function DependenciesPicker({
     [existingBlockingTaskIds, taskId]
   );
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return tasks
-      .filter((t) => !excluded.has(t.id))
-      .filter((t) => !q || t.name.toLowerCase().includes(q))
-      .slice(0, 50);
-  }, [tasks, search, excluded]);
+  const filtered = useMemo(
+    () => tasks.filter((t) => !excluded.has(t.id)).slice(0, 50),
+    [tasks, excluded]
+  );
 
   async function handlePick(picked: PickableTask) {
     if (submitting) return;
@@ -158,9 +180,7 @@ export function DependenciesPicker({
           )}
           {!loading && filtered.length === 0 && (
             <p className="px-3 py-6 text-center text-[12px] text-gray-400">
-              {tasks.length === 0
-                ? "No tasks in this workspace yet"
-                : "No matching tasks"}
+              {search.trim() ? "No matching tasks" : "No tasks to link yet"}
             </p>
           )}
           {!loading &&

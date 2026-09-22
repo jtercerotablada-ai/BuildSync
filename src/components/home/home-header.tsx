@@ -5,8 +5,7 @@
  *
  * Mirrors Asana's minimalist pattern: greeting, period selector,
  * "X tasks completed", "X collaborators". No emphasis pills for
- * SPI / Velocity / Overdue — those signals live in the AI Brief
- * tile and the dedicated PMI widgets below.
+ * SPI / Velocity / Overdue.
  */
 
 import { useEffect, useState } from "react";
@@ -20,20 +19,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export type HomePeriod =
-  | "today"
-  | "week"
-  | "next14"
-  | "lookahead3w"
-  | "quarter";
+// The period only scopes the "tasks completed" chip, so every option is a
+// window that has already started. "Next 14 days" and "Look-ahead (3 weeks)"
+// used to be offered too: nothing on the page is forward-looking, so picking
+// them changed nothing and still counted the past 7 days.
+export type HomePeriod = "today" | "week" | "month" | "quarter";
 
 const PERIOD_LABEL: Record<HomePeriod, string> = {
   today: "Today",
   week: "This week",
-  next14: "Next 14 days",
-  lookahead3w: "Look-ahead (3 weeks)",
+  month: "This month",
   quarter: "This quarter",
 };
+
+/** A saved preference may hold a period that no longer exists (the retired
+ *  look-ahead options); fall back to the default instead of a blank label. */
+export function normalizeHomePeriod(value: unknown): HomePeriod {
+  return typeof value === "string" && value in PERIOD_LABEL
+    ? (value as HomePeriod)
+    : "week";
+}
 
 function greeting(now: Date, name?: string | null): string {
   const h = now.getHours();
@@ -67,8 +72,13 @@ export function HomeHeader({
   // it doesn't keep saying "Good morning" at 3pm (or show yesterday's
   // date after midnight). visibilitychange is enough — nobody stares
   // at a background tab waiting for the greeting to flip.
-  const [now, setNow] = useState(() => new Date());
+  //
+  // Read on mount, never during render: the server renders in UTC, so
+  // from 20:00 in Miami it would print tomorrow's date and the wrong
+  // greeting, and React does not repair that hydration mismatch.
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     function refresh() {
       if (document.visibilityState === "visible") setNow(new Date());
     }
@@ -76,20 +86,23 @@ export function HomeHeader({
     return () => document.removeEventListener("visibilitychange", refresh);
   }, []);
 
-  const dateStr = now.toLocaleDateString(APP_LOCALE, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const dateStr = now
+    ? now.toLocaleDateString(APP_LOCALE, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
 
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4">
       <p className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">
-        {dateStr}
+        {/* A non-breaking space holds the line height until the date lands. */}
+        {dateStr ?? "\u00a0"}
       </p>
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 md:gap-4 mt-1">
         <h1 className="text-2xl md:text-3xl font-bold text-black">
-          {greeting(now, userName)}
+          {now ? greeting(now, userName) : "\u00a0"}
         </h1>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -97,7 +110,7 @@ export function HomeHeader({
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs">
                 <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                {PERIOD_LABEL[period]}
+                {PERIOD_LABEL[normalizeHomePeriod(period)]}
                 <ChevronDown className="h-3 w-3 ml-1 opacity-70" />
               </Button>
             </DropdownMenuTrigger>

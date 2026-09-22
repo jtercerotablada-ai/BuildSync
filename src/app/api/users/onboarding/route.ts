@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       const tokenResult = await validateToken(bodyToken, "email-verify:");
       if (!tokenResult) {
         return NextResponse.json(
-          { error: "This link is invalid or has expired. Request a new one from the sign-up page." },
+          { error: "This link is invalid or has expired. Use \"Forgot password?\" on the sign-in page to get a new one." },
           { status: 401 }
         );
       }
@@ -145,40 +145,24 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await hash(password, 12);
 
-    /* One transaction. The password write and the workspace creation used to be
-       independent awaits, so a failure between them left an account that could
-       sign in but had no workspace to sign in to. */
-    const updatedUser = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({
-        where: { id: existingUser.id },
-        data: {
-          name: name.trim(),
-          password: hashedPassword,
-          ...(image ? { image } : {}),
-          /* Redeeming the emailed token IS the proof of address ownership, so
-             verify here. Without this the user set a password and was then
-             refused at login by the `!user.emailVerified` gate in auth.ts —
-             the second half of the same dead end. */
-          ...(verifiedByToken ? { emailVerified: new Date() } : {}),
-        },
-        select: { id: true, name: true, email: true, image: true },
-      });
-
-      const existingWorkspace = await tx.workspaceMember.findFirst({
-        where: { userId: user.id },
-      });
-
-      if (!existingWorkspace) {
-        await tx.workspace.create({
-          data: {
-            name: `${name.trim()}'s Workspace`,
-            ownerId: user.id,
-            members: { create: { userId: user.id, role: "OWNER" } },
-          },
-        });
-      }
-
-      return user;
+    /* No workspace is created here any more. This used to give anyone who
+       reached this point "<name>'s Workspace" with themselves as OWNER — with
+       open sign-up, that handed any stranger an authenticated OWNER session on
+       the production app. Self-service sign-up is closed; staff join the firm
+       workspace by accepting an invitation, which creates the membership. */
+    const updatedUser = await prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        name: name.trim(),
+        password: hashedPassword,
+        ...(image ? { image } : {}),
+        /* Redeeming the emailed token IS the proof of address ownership, so
+           verify here. Without this the user set a password and was then
+           refused at login by the `!user.emailVerified` gate in auth.ts —
+           the second half of the same dead end. */
+        ...(verifiedByToken ? { emailVerified: new Date() } : {}),
+      },
+      select: { id: true, name: true, email: true, image: true },
     });
 
     // Single-use. An unconsumed token stayed replayable for its whole hour.
@@ -186,7 +170,24 @@ export async function POST(request: NextRequest) {
       await consumeToken(bodyToken);
     }
 
-    return NextResponse.json({ success: true, user: updatedUser });
+    /* Without a membership the app has nothing to show, so point the page at
+       a pending invitation for this address when there is one: accepting it
+       while signed in is what joins the workspace. */
+    const pendingInvitation = await prisma.workspaceInvitation.findFirst({
+      where: {
+        email: normalizedEmail,
+        status: "PENDING",
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { token: true },
+    });
+
+    return NextResponse.json({
+      success: true,
+      user: updatedUser,
+      next: pendingInvitation ? `/invite/${pendingInvitation.token}` : "/home",
+    });
   } catch (error) {
     console.error("Error in onboarding:", error);
     return NextResponse.json(

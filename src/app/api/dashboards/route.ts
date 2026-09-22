@@ -4,8 +4,19 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId } from "@/lib/auth-guards";
 
+// "__portfolio:<id>" names the hidden Report behind a portfolio's Panel. A
+// user dashboard given that name vanished from Reporting for good (every
+// endpoint masks it as 404) or was adopted as that portfolio's Panel.
+const dashboardName = z
+  .string()
+  .trim()
+  .min(1, "Dashboard name is required")
+  .refine((n) => !n.startsWith("__portfolio:"), {
+    message: "Dashboard names cannot start with \"__portfolio:\"",
+  });
+
 const createSchema = z.object({
-  name: z.string().min(1),
+  name: dashboardName,
   description: z.string().optional(),
   iconColor: z.string().optional(),
 });

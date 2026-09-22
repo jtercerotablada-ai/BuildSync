@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
-import { head } from "@vercel/blob";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  assertFileAllowed,
+  BlobRejectedError,
+  SAAS_BLOB_ACCESS,
   fileReadUrl,
-  isPrivateBlobUrl,
-  isVercelBlobUrl,
   maxUploadBytes,
   uploadFile,
+  verifyUploadedBlob,
 } from "@/lib/storage";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
-// Uploads are private blobs: the url on the row is an address only the server
-// can fetch. Every response from here publishes the authenticated read route
-// instead, so the panels rendering these rows never hold a storage address.
+// The url on the row is a storage address: private blobs only the server can
+// fetch, public ones an unguessable link that must not leak. Every response
+// from here publishes the authenticated read route instead, so the panels
+// rendering these rows never hold a storage address.
 function withReadUrl<T extends { id: string; url: string }>(a: T): T {
   return { ...a, url: fileReadUrl("attachment", a.id) };
 }
@@ -73,11 +73,10 @@ export async function POST(
     await verifyTaskAccess(userId, taskId);
 
     // Two ways a file arrives. Multipart still streams THROUGH this handler,
-    // which is the simpler path and is what small files keep using. A large
-    // one cannot: Vercel caps a function's request body far below the ceiling
-    // maxUploadBytes() advertises, so the browser uploads straight to blob
-    // storage (token minted by /api/blob/upload) and then posts JSON here
-    // describing the blob it finished.
+    // which is the simpler path for small files. A large one cannot: Vercel
+    // refuses a function request body over ~4.5MB, so the browser uploads
+    // straight to blob storage (token minted by /api/blob/upload) and then
+    // posts JSON here describing the blob it finished.
     const isClientUpload = (req.headers.get("content-type") ?? "")
       .toLowerCase()
       .includes("application/json");
@@ -113,71 +112,36 @@ export async function POST(
       }
 
       /* ── GUARD 1 — SYNCHRONOUS, AUTHORITATIVE ────────────────────────────
-         A client upload token cannot pin `access`: onBeforeGenerateToken has
-         no such field, so the BROWSER chooses, and a signed-in user can ask
-         the store for a PUBLIC blob — a permanent, login-less link to a
-         sealed drawing. Nothing upstream can stop that, so it stops here: no
-         row is ever created for a url that is not a private blob of OURS.
-         Once a row cannot exist, nothing in the product can reach the file.
-
-         Access is only the first question. The url arrives from the caller,
-         so this also has to establish that the blob exists, that it is in our
-         store, that it belongs to THIS task and that nothing else already
-         points at it — see the checks below for why each one matters.
-
-         Its other half is GUARD 2 in /api/blob/upload's onUploadCompleted,
-         which DELETES such a blob. Neither replaces the other: without guard
-         2 the public URL stays alive, unreferenced and unnoticed; without
-         guard 1 there is a window — guard 2 runs on a callback, afterwards —
-         in which a row already points at a public file. */
-      if (!isVercelBlobUrl(body.blobUrl)) {
-        return NextResponse.json(
-          { error: "That file is not in this app's storage" },
-          { status: 400 }
-        );
-      }
-      if (!isPrivateBlobUrl(body.blobUrl)) {
-        return NextResponse.json(
-          { error: "Attachments must be uploaded as private files" },
-          { status: 400 }
-        );
-      }
-
-      // The url is the caller's word, and the two checks above are satisfied
-      // by ANY tenant's private blob and by every OTHER record's blob in our
-      // own store. head() is the only answer to "is this ours, does it exist,
-      // and what is actually in it" — it resolves through the store token, so
-      // a foreign store's url is simply not found. Fail closed: a blob we
-      // cannot describe never gets a row.
-      let blob;
+         The url is the caller's word. verifyUploadedBlob proves it is a blob
+         of OUR store, at the access level SAAS_BLOB_ACCESS expects (a token
+         cannot pin access, so the browser chose it), under `tasks/<taskId>/`
+         (the token refuses any other prefix, and uploadFile writes the same
+         folder) and within the size and type rules — read off the stored
+         blob, never believed from the body. Binding the folder matters beyond
+         read scope: DELETE on an attachment deletes the blob behind it, so a
+         row aliasing another record's file would turn a routine delete into
+         the destruction of that file. Its other half is GUARD 2 in
+         /api/blob/upload's onUploadCompleted. */
+      let verified;
       try {
-        blob = await head(body.blobUrl);
-      } catch {
-        return NextResponse.json(
-          { error: "That file is not in this app's storage" },
-          { status: 400 }
+        verified = await verifyUploadedBlob(
+          body.blobUrl,
+          body.name,
+          `tasks/${taskId}/`,
+          SAAS_BLOB_ACCESS,
+          maxUploadBytes()
         );
+      } catch (err) {
+        if (err instanceof BlobRejectedError) {
+          return NextResponse.json({ error: err.message }, { status: err.status });
+        }
+        throw err;
       }
 
-      // Bind the bytes to THIS task. Every upload for a task lands under
-      // `tasks/<taskId>/` — the token refuses to mint for any other prefix,
-      // and uploadFile writes the same folder — so a url from anywhere else
-      // is one the caller read off another record. That matters beyond
-      // read scope: DELETE on an attachment deletes the blob behind it
-      // unconditionally, so a row aliasing someone else's file turns a
-      // routine delete into the destruction of that file.
-      const blobPath = blob.pathname.replace(/^\/+/, "");
-      if (!blobPath.startsWith(`tasks/${taskId}/`)) {
-        return NextResponse.json(
-          { error: "That file was not uploaded to this task" },
-          { status: 400 }
-        );
-      }
-
-      // One row per blob, for the same reason: two rows sharing a url means
-      // deleting either one leaves the other pointing at nothing.
+      // One row per blob: two rows sharing a url means deleting either one
+      // leaves the other pointing at nothing.
       const alreadyAttached = await prisma.attachment.findFirst({
-        where: { url: body.blobUrl },
+        where: { url: verified.url },
         select: { id: true },
       });
       if (alreadyAttached) {
@@ -187,38 +151,10 @@ export async function POST(
         );
       }
 
-      // The browser control is a convenience, not a rule. A caller posting
-      // JSON skipped it entirely, so the size cap and the type allowlist are
-      // re-applied here rather than assumed from the token — and against the
-      // STORE's numbers, not the caller's: a 250MB model declared as 1 byte
-      // would poison every storage total built on this column.
-      const maxBytes = maxUploadBytes();
-      if (blob.size > maxBytes) {
-        return NextResponse.json(
-          {
-            error: `File size exceeds ${Math.floor(maxBytes / (1024 * 1024))}MB limit`,
-          },
-          { status: 400 }
-        );
-      }
-
-      const storedType = blob.contentType || "application/octet-stream";
-      try {
-        assertFileAllowed(body.name, storedType);
-      } catch (typeErr) {
-        return NextResponse.json(
-          {
-            error:
-              typeErr instanceof Error ? typeErr.message : "File type is not allowed",
-          },
-          { status: 400 }
-        );
-      }
-
-      blobUrl = body.blobUrl;
-      fileName = body.name;
-      fileSize = blob.size;
-      mimeType = storedType;
+      blobUrl = verified.url;
+      fileName = verified.name;
+      fileSize = verified.size;
+      mimeType = verified.mimeType;
       commentId =
         typeof body.commentId === "string" && body.commentId.length > 0
           ? body.commentId

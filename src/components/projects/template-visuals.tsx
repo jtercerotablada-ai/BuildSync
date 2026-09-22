@@ -34,6 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ProjectTemplate } from "@/lib/project-templates";
+import type { TemplateProjectType } from "@/lib/custom-templates";
 
 /** Every icon a template (built-in or custom) can render by name. */
 export const ICON_MAP: Record<string, LucideIcon> = {
@@ -112,3 +113,56 @@ export const ICON_CHOICES: string[] = [
   "Briefcase",
   "Users",
 ];
+
+/** Project types a template can seed, in the order the blank-project form
+ *  offers them. Without one a project made from the template has no pipeline,
+ *  so no stage strip and no stage-bound columns. */
+export const TEMPLATE_TYPE_CHOICES: { value: TemplateProjectType; label: string }[] = [
+  { value: "DESIGN", label: "Design" },
+  { value: "PERMIT", label: "Permit" },
+  { value: "RECERTIFICATION", label: "Recertification" },
+  { value: "BSIP", label: "BSIP (Broward)" },
+  { value: "CONSTRUCTION", label: "Construction" },
+];
+
+/** The project-type picker shared by the New and Edit template dialogs. */
+export function TemplateTypeField({
+  value,
+  onChange,
+}: {
+  value: TemplateProjectType | undefined;
+  onChange: (value: TemplateProjectType | undefined) => void;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor="template-project-type"
+        className="block text-[12px] font-medium text-gray-700 mb-1.5"
+      >
+        Project type{" "}
+        <span className="text-gray-400 font-normal">(optional)</span>
+      </label>
+      <select
+        id="template-project-type"
+        value={value ?? ""}
+        onChange={(e) =>
+          onChange(
+            TEMPLATE_TYPE_CHOICES.find((c) => c.value === e.target.value)?.value
+          )
+        }
+        className="w-full h-9 px-2 text-[13px] border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-black/10 bg-white"
+      >
+        <option value="">No type (free-form board)</option>
+        {TEMPLATE_TYPE_CHOICES.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-[11px] text-gray-400">
+        Sets the stage pipeline of projects made from this template. A section
+        named like one of its stages becomes that stage.
+      </p>
+    </div>
+  );
+}

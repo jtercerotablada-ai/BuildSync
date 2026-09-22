@@ -1,10 +1,14 @@
 /**
  * DELETE /api/projects/:projectId/custom-fields/:linkId
  *
- * Unlinks a custom field from a project. The CustomFieldDefinition
- * itself is kept (other projects may still use it) — only the
- * ProjectCustomField row is removed. CustomFieldValue rows are
- * cascade-deleted by Prisma via the relation.
+ * Removes a custom field from a project, with its values on this
+ * project's tasks — the UI promises "removes the column and its values for
+ * every task". CustomFieldValue relates to Task and CustomFieldDefinition
+ * only, NOT to ProjectCustomField, so deleting the link alone left every
+ * value behind: deleted Time-tracking fields kept feeding workload, and a
+ * definition with no links is treated as a personal field anyone in the
+ * workspace may write. When no other project links the definition it is
+ * deleted too (its remaining values cascade with it).
  *
  * The route accepts the linkId (ProjectCustomField.id) — NOT the
  * underlying definition id — because the definition can be shared
@@ -58,11 +62,28 @@ export async function DELETE(
     // Canonical resolver so team-shared members (Editor-level) can unlink
     // fields consistently with what they can add.
     const access = await resolveProjectAccess(link.project, userId);
+    if (!access.ok) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     if (!access.canWrite) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    await prisma.projectCustomField.delete({ where: { id: linkId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.customFieldValue.deleteMany({
+        where: {
+          fieldId: link.fieldId,
+          task: { OR: [{ projectId }, { section: { projectId } }] },
+        },
+      });
+      await tx.projectCustomField.delete({ where: { id: linkId } });
+      const remainingLinks = await tx.projectCustomField.count({
+        where: { fieldId: link.fieldId },
+      });
+      if (remainingLinks === 0) {
+        await tx.customFieldDefinition.delete({ where: { id: link.fieldId } });
+      }
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

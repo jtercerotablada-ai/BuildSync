@@ -11,7 +11,11 @@ import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  // `theme` is the STORED preference, which can be "system" even while the
+  // app is forced light; following it would give dark-theme toast text on
+  // our light popover background. Use the theme actually applied.
+  const { forcedTheme, resolvedTheme } = useTheme()
+  const theme = forcedTheme ?? resolvedTheme ?? "light"
 
   return (
     <Sonner

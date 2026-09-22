@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Check, ChevronDown } from 'lucide-react';
-import type { CockpitProject, ProjectType } from './types';
-import { TYPE_COLOR, TYPE_LABEL, STATUS_COLOR } from './types';
+import type { ProjectType } from './types';
 import {
   holderDeskLabel,
   holderLabel,
@@ -21,121 +19,6 @@ import {
   type AdvanceSection,
 } from '@/lib/stage-advance';
 import { cn } from '@/lib/utils';
-
-interface PipelineStripProps {
-  projects: CockpitProject[];
-}
-
-const TYPE_FILTERS: (ProjectType | 'ALL')[] = ['ALL', 'CONSTRUCTION', 'DESIGN', 'RECERTIFICATION', 'BSIP', 'PERMIT'];
-
-/**
- * Horizontal scrollable strip of project cards. Each card encodes:
- *  - Type via top-left color stripe
- *  - Stage via the segmented bar at the bottom, one segment per stage of
- *    THIS project's own pipeline
- *  - Status via the colored dot in the header
- *  - Money via the budget readout
- */
-export function PipelineStrip({ projects }: PipelineStripProps) {
-  const [filter, setFilter] = useState<(ProjectType | 'ALL')>('ALL');
-
-  const filtered = filter === 'ALL' ? projects : projects.filter((p) => p.type === filter);
-
-  return (
-    <section className="cockpit-pipeline">
-      <header className="cockpit-pipeline__header">
-        <h2>Pipeline</h2>
-        <div className="cockpit-pipeline__filters">
-          {TYPE_FILTERS.map((t) => (
-            <button
-              key={t}
-              className={`cockpit-pipeline__filter${filter === t ? ' is-active' : ''}`}
-              onClick={() => setFilter(t)}
-              style={t !== 'ALL' && filter === t ? { borderColor: TYPE_COLOR[t], color: TYPE_COLOR[t] } : undefined}
-            >
-              {t === 'ALL' ? 'All' : TYPE_LABEL[t]}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {filtered.length === 0 ? (
-        <div className="cockpit-pipeline__empty">No projects in this category yet.</div>
-      ) : (
-        <div className="cockpit-pipeline__scroller">
-          {filtered.map((p) => (
-            <ProjectTile key={p.id} project={p} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ProjectTile({ project }: { project: CockpitProject }) {
-  const accent = project.type ? TYPE_COLOR[project.type] : '#666';
-  // The tile is a link into the project: the bar reports where the job is and
-  // is never a control. Moving a stage happens on the project itself, where
-  // the viewer's edit rights are known.
-  const stages = pipelineForType(project.type)?.stages ?? [];
-  const stageIdx = isStageValidForType(project.type, project.stage)
-    ? (resolveStage(project.stage)?.index ?? -1)
-    : -1;
-
-  return (
-    <Link href={`/projects/${project.id}`} className="cockpit-pipeline-tile">
-      <div className="cockpit-pipeline-tile__stripe" style={{ background: accent }} />
-      <div className="cockpit-pipeline-tile__body">
-        <header className="cockpit-pipeline-tile__header">
-          <span
-            className="cockpit-pipeline-tile__status"
-            style={{ background: STATUS_COLOR[project.status] }}
-            title={project.status.replace('_', ' ')}
-          />
-          {project.type && (
-            <span className="cockpit-pipeline-tile__type" style={{ color: accent }}>
-              {TYPE_LABEL[project.type]}
-            </span>
-          )}
-        </header>
-        <h3 className="cockpit-pipeline-tile__name">{project.name}</h3>
-        {project.clientName && <p className="cockpit-pipeline-tile__client">{project.clientName}</p>}
-        {project.location && <p className="cockpit-pipeline-tile__loc">{project.location}</p>}
-
-        {/* A typeless project gets no bar at all — five generic segments here
-            used to imply a lifecycle it has never been given. */}
-        {stages.length > 0 && (
-          <div className="cockpit-pipeline-tile__gates">
-            {stages.map((s, i) => (
-              <span
-                key={s.key}
-                className="cockpit-pipeline-tile__gate"
-                data-active={i <= stageIdx ? 'true' : 'false'}
-                style={i <= stageIdx ? { background: accent } : undefined}
-                title={`${s.label} — ${holderLabel(s.holder)}`}
-              />
-            ))}
-          </div>
-        )}
-
-        <footer className="cockpit-pipeline-tile__footer">
-          {project.budget && project.currency && (
-            <span className="cockpit-pipeline-tile__budget">
-              {new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: project.currency,
-                notation: 'compact',
-                compactDisplay: 'short',
-                maximumFractionDigits: 1,
-              }).format(project.budget)}
-            </span>
-          )}
-          <span className="cockpit-pipeline-tile__tasks">{project._count.tasks} tasks</span>
-        </footer>
-      </div>
-    </Link>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Per-project stage strip
@@ -201,8 +84,16 @@ export interface ProjectStageStripProps {
    * Omit for a read-only strip. Supplying it is the whole permission
    * decision: the caller has already asked whether this viewer may edit the
    * project, and a context that renders inside a link never passes one.
+   *
+   * May resolve to `false` to say the move did NOT happen (refused, failed,
+   * or another move was still in flight): the send-back confirmation then
+   * stays open with the typed reason, so a failed move costs no retyping.
+   * Any other result counts as done.
    */
-  onMove?: (stageKey: string, reason?: string) => void;
+  onMove?: (
+    stageKey: string,
+    reason?: string
+  ) => void | boolean | Promise<void | boolean>;
   saving?: boolean;
   /**
    * Identifies the job for the once-per-tab dismissal below. Required for the
@@ -253,6 +144,7 @@ export function ProjectStageStrip({
   // be able to file one.
   const [pendingBack, setPendingBack] = useState<Stage | null>(null);
   const [reason, setReason] = useState('');
+  const [confirming, setConfirming] = useState(false);
   // Mirrors the module-level set into state so waving an offer off re-renders,
   // and is SEEDED from it so a remount honours a dismissal made earlier in
   // this tab. Empty on the server and empty on the client's first paint, so
@@ -307,12 +199,23 @@ export function ProjectStageStrip({
     setListOpen(false);
   };
 
-  const confirmBack = () => {
-    if (!onMove || !pendingBack) return;
-    onMove(pendingBack.key, reason.trim() || undefined);
-    setPendingBack(null);
-    setReason('');
-    setListOpen(false);
+  // Clears the confirmation only once the move has gone through: clearing it
+  // up front threw the typed reason away whenever the PATCH failed.
+  const confirmBack = async () => {
+    if (!onMove || !pendingBack || saving || confirming) return;
+    const target = pendingBack;
+    setConfirming(true);
+    try {
+      const moved = await onMove(target.key, reason.trim() || undefined);
+      if (moved === false) return;
+      setPendingBack((p) => (p === target ? null : p));
+      setReason('');
+      setListOpen(false);
+    } catch {
+      // The caller reports its own failures; keep the reason for a retry.
+    } finally {
+      setConfirming(false);
+    }
   };
 
   if (!pipeline) {
@@ -490,7 +393,7 @@ export function ProjectStageStrip({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || confirming}
                   onClick={confirmBack}
                   className="px-2.5 py-1 rounded text-xs font-medium bg-[#c9a84c] text-white disabled:opacity-60"
                 >

@@ -3,6 +3,7 @@ import type { Position, WorkspaceRole } from "@prisma/client";
 import { resolveProjectAccess } from "@/lib/project-access";
 import {
   NON_CONTRIBUTOR_ROLES,
+  isNonContributorRole,
   pickPrimaryMembership,
   primaryWorkspacePin,
 } from "@/lib/workspace-roles";
@@ -131,23 +132,123 @@ export async function getPrimaryWorkspaceRole(
 }
 
 /**
+ * May `callerId` change `targetUserId`'s Position?
+ *
+ * Position is an ACCESS input — level 4+ reads every project in a workspace
+ * (see @/lib/project-access) — so it may only be set by a workspace OWNER or
+ * ADMIN, never self-service.
+ *
+ * And because Position lives on the USER, not the membership, one change
+ * applies in every workspace the target belongs to. So the caller must be
+ * OWNER/ADMIN in EVERY shared (multi-member) workspace the target is in, not
+ * merely in one. Otherwise anyone could promote themselves, or an accomplice,
+ * from a side workspace they own — every account owns the singleton workspace
+ * signup creates, and one invite makes it multi-member — and carry the new
+ * level into the firm. A singleton workspace is ignored: nobody else is there
+ * to read.
+ *
+ * Nor does a workspace where the target sits as GUEST/CLIENT count: every
+ * Position-derived grant sits behind a contributor seat, so a raise there opens
+ * nothing, and letting such a seat veto the change only locked the firm's own
+ * owner out of setting a colleague's Position.
+ */
+export async function canChangeUserPosition(
+  callerId: string,
+  targetUserId: string
+): Promise<boolean> {
+  const targetMemberships = await prisma.workspaceMember.findMany({
+    where: { userId: targetUserId },
+    select: {
+      workspaceId: true,
+      role: true,
+      workspace: { select: { _count: { select: { members: true } } } },
+    },
+  });
+  const shared = positionSensitiveWorkspaceIds(
+    targetMemberships.map((m) => ({
+      workspaceId: m.workspaceId,
+      role: m.role,
+      memberCount: m.workspace._count.members,
+    }))
+  );
+  if (shared.length === 0) return false;
+
+  const callerSeats = await prisma.workspaceMember.findMany({
+    where: { userId: callerId, workspaceId: { in: shared } },
+    select: { workspaceId: true, role: true },
+  });
+  return decidePositionChange(shared, callerSeats);
+}
+
+/** The target's workspaces whose OWNER/ADMIN must approve a Position change:
+ *  shared (multi-member) ones where they hold a contributor seat, since that is
+ *  where a Position opens anything. When the target has no contributor seat at
+ *  all, every shared workspace they sit in approves instead: otherwise the list
+ *  is empty, nobody may ever set the Position, and the firm owner cannot set a
+ *  guest's Position before promoting them. Pure, for tests. */
+export function positionSensitiveWorkspaceIds(
+  memberships: readonly { workspaceId: string; role: string; memberCount: number }[]
+): string[] {
+  const shared = memberships.filter((m) => m.memberCount > 1);
+  const contributorSeats = shared.filter((m) => !isNonContributorRole(m.role));
+  return (contributorSeats.length > 0 ? contributorSeats : shared).map(
+    (m) => m.workspaceId
+  );
+}
+
+/** The pure half of canChangeUserPosition, for tests. */
+export function decidePositionChange(
+  targetSharedWorkspaceIds: readonly string[],
+  callerSeats: readonly { workspaceId: string; role: string }[]
+): boolean {
+  if (targetSharedWorkspaceIds.length === 0) return false;
+  return targetSharedWorkspaceIds.every((ws) =>
+    callerSeats.some(
+      (seat) =>
+        seat.workspaceId === ws &&
+        (seat.role === "OWNER" || seat.role === "ADMIN")
+    )
+  );
+}
+
+/**
  * Assert a client-supplied projectId belongs to `workspaceId`. Use in any
  * route that already verified the caller's parent resource (team, portfolio,
  * objective) and then accepts a projectId from the request body/query.
  * Throws NotFoundError (→ 404) if the project is missing or cross-workspace.
+ *
+ * Pass `opts.readableBy` (the caller's userId) whenever linking the project
+ * exposes anything about it back to the caller — a portfolio or goal shows the
+ * linked project's budget, status and progress. Being in the same workspace is
+ * not read access: a PRIVATE project stays members-only, so without this a
+ * colleague holding its id could attach it and read it through the parent.
  */
 export async function assertProjectInWorkspace(
   projectId: string,
-  workspaceId: string
+  workspaceId: string,
+  opts: { readableBy?: string } = {}
 ) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { id: true, workspaceId: true },
+    select: {
+      id: true,
+      workspaceId: true,
+      ownerId: true,
+      visibility: true,
+      teamId: true,
+      members: { select: { userId: true, role: true } },
+    },
   });
   if (!project || project.workspaceId !== workspaceId) {
     throw new NotFoundError("Project not found");
   }
-  return project;
+  if (opts.readableBy) {
+    const access = await resolveProjectAccess(project, opts.readableBy);
+    if (!access.ok) {
+      throw new NotFoundError("Project not found");
+    }
+  }
+  return { id: project.id, workspaceId: project.workspaceId };
 }
 
 /**
@@ -263,15 +364,10 @@ export async function assertUserInWorkspace(
  *
  * Everything `verifyTaskAccess` decides once it has loaded the task, the
  * caller's personal ties to it, and the project access result. Lifted out of
- * the middle of that function verbatim so it can be exercised without a
- * database — `auth-guards.test.ts` pins every branch below, and DATABASE_URL
- * points at PRODUCTION (see vitest.config.ts), so an untestable chokepoint is
- * an unverified one.
- *
- * Nothing here does I/O. The one lookup the rule still needs — "does this
- * caller still hold a contributor seat in the task's workspace?" — is
- * signalled back to the caller as `requiresContributorSeat` rather than
- * performed here, so the query stays exactly as lazy as it was.
+ * that function so it can be exercised without a database —
+ * `auth-guards.test.ts` pins every branch below, and DATABASE_URL points at
+ * PRODUCTION (see vitest.config.ts), so an untestable chokepoint is an
+ * unverified one. Nothing here does I/O.
  */
 export interface TaskAccessDecisionInput {
   /** False for a personal / My Tasks task with no project attached. */
@@ -293,8 +389,14 @@ export interface TaskAccessDecisionInput {
   projectCanWrite: boolean;
   /** resolveProjectAccess(...).canComment. */
   projectCanComment: boolean;
-  /** resolveProjectAccess(...).isWorkspaceManager. */
+  /** resolveProjectAccess(...).isWorkspaceManager (workspace OWNER/ADMIN). */
   projectIsWorkspaceManager: boolean;
+  /**
+   * resolveProjectAccess(...).hasContributorSeat — the caller still holds a
+   * contributor seat in the task's project workspace. Ignored when
+   * `hasProject` is false.
+   */
+  projectHasContributorSeat: boolean;
 }
 
 export type TaskAccessDenial =
@@ -306,59 +408,55 @@ export type TaskAccessDenial =
 export interface TaskAccessDecision {
   /** null when the verb is allowed. */
   denial: TaskAccessDenial | null;
-  /**
-   * True when the caller was admitted to COMMENT via a personal tie or a
-   * project grant that does not itself prove workspace standing, so the
-   * caller must still confirm a contributor seat in the task's workspace
-   * before the comment is allowed. See `contributorSeatSatisfied`.
-   */
-  requiresContributorSeat: boolean;
 }
 
 export function decideTaskAccess(
   input: TaskAccessDecisionInput
 ): TaskAccessDecision {
-  const allowed = (requiresContributorSeat = false): TaskAccessDecision => ({
-    denial: null,
-    requiresContributorSeat,
-  });
+  const allowed = (): TaskAccessDecision => ({ denial: null });
   const forbid = (message: string): TaskAccessDecision => ({
     denial: { kind: "forbidden", message },
-    requiresContributorSeat: false,
+  });
+  const notFound = (): TaskAccessDecision => ({
+    denial: { kind: "notFound", message: "Task not found" },
   });
 
-  // Creator, assignee, or a follower always keeps READ access to the task.
-  const hasPersonalTie = input.isOwnTask || input.isCollaborator;
+  // Personal ties (creator, assignee, follower) live on rows that OUTLIVE
+  // offboarding: removing someone from a workspace deletes their
+  // WorkspaceMember row and leaves creatorId/assigneeId/TaskCollaborator
+  // behind. So on a project task a tie only counts while the caller still
+  // holds a contributor seat in that task's workspace — otherwise an ex
+  // employee would keep read, write and delete on every task they ever
+  // created or were assigned. A personal (projectless) task has no workspace
+  // to ask about, so its ties always count.
+  const tiesCount = !input.hasProject || input.projectHasContributorSeat;
+  const isOwnTask = input.isOwnTask && tiesCount;
+  const isCollaborator = input.isCollaborator && tiesCount;
+  const hasPersonalTie = isOwnTask || isCollaborator;
 
-  // `isPrivate` was persisted by task PATCH and read by nothing, so the toggle
-  // promised a confidentiality the API never delivered: the task still opened
-  // by URL for every project member. The three ties above are the audience the
-  // panel names, and a project ADMIN/EDITOR gets no escape from it.
+  // `isPrivate` narrows the audience to the three ties above; a project
+  // ADMIN/EDITOR gets no escape from it.
   //
   // Workspace OWNER/ADMIN do, and must: nothing in the product can clear the
   // flag from OUTSIDE the task, so a task privatised by someone who then
   // leaves the firm — with no assignee and no follower — would be unreachable
   // by anybody, forever. Leadership keeps the key here for exactly the reason
   // `decideObjectiveAccess` gives it to them on a private goal
-  // (@/lib/objective-access, `isWorkspaceManager` in `passesPrivacy`); the two
-  // private-content rules in this codebase must not disagree.
+  // (@/lib/objective-access); the two private-content rules in this codebase
+  // must not disagree. Position level does NOT open private tasks.
   //
   // 404, never 403, matching how this function hides a task in a project the
   // caller cannot read: a 403 tells someone walking ids that the task is real
   // and merely hidden, which is the one fact privacy exists to withhold.
   //
   // This is the DETAIL half of the rule. Its list-query counterpart is
-  // `taskPrivacyClause` (@/lib/project-visibility), which drops the same rows
-  // from search/report/list results but deliberately omits the collaborator
-  // leg — that leg costs a join per row. So a follower does not see a private
-  // task in a list and can still open the one they were told about, and the
-  // two halves must not be swapped for each other.
+  // `taskPrivacyClause` (@/lib/project-visibility), which deliberately omits
+  // the collaborator leg — that leg costs a join per row. So a follower does
+  // not see a private task in a list and can still open the one they were
+  // told about, and the two halves must not be swapped for each other.
   const isWorkspaceManager = input.hasProject && input.projectIsWorkspaceManager;
   if (input.isPrivate && !hasPersonalTie && !isWorkspaceManager) {
-    return {
-      denial: { kind: "notFound", message: "Task not found" },
-      requiresContributorSeat: false,
-    };
+    return notFound();
   }
 
   if (!input.hasProject) {
@@ -366,75 +464,45 @@ export function decideTaskAccess(
     if (!hasPersonalTie) {
       return forbid("You don't have access to this task");
     }
-    // ...and then apply the SAME capability flags the project branch does.
-    // This used to return unconditionally, so on a personal task a follower —
-    // who has no capability by any measure — could archive it, delete its
-    // attachments, even delete the task. verifyBulkTaskAccess already got
-    // this right ("only the creator or assignee may touch it"); the two
-    // disagreed, so /api/tasks/bulk refused what DELETE /api/tasks/:id let
-    // through.
-    if (input.requireWrite && !input.isOwnTask) {
+    // ...and then apply the SAME capability flags the project branch does, so
+    // a follower cannot archive or delete a personal task; this agrees with
+    // verifyBulkTaskAccess ("only the creator or assignee may touch it").
+    if (input.requireWrite && !isOwnTask) {
       return forbid("You don't have permission to modify this task");
     }
     // A follower on a personal task IS the intended audience for a reply.
-    if (input.requireComment && !input.isOwnTask && !input.isCollaborator) {
-      return forbid("You don't have permission to comment on this task");
-    }
     return allowed();
   }
 
   // Hide existence with a 404 for users who can't read the project,
   // matching the project page (unless they own/are assigned/follow the task).
   if (!input.projectCanRead && !hasPersonalTie) {
-    return { denial: { kind: "notFound", message: "Task not found" }, requiresContributorSeat: false };
+    return notFound();
   }
 
-  // Write requires real edit capability: project owner/ADMIN/EDITOR, or the
-  // caller being the task's creator/assignee. A pure follower can read but
-  // not mutate.
-  if (input.requireWrite && !input.projectCanWrite && !input.isOwnTask) {
+  // Write requires real edit capability (canWrite already includes workspace
+  // OWNER/ADMIN and the implicit Editor grants), or the caller being the
+  // task's creator/assignee. A pure follower can read but not mutate.
+  if (input.requireWrite && !input.projectCanWrite && !isOwnTask) {
     return forbid("You don't have permission to modify this task");
   }
 
-  // Commenting is a lower bar than writing — the COMMENTER project role
-  // exists for exactly this — but it is still a bar: a VIEWER could post on
-  // any task they could open.
-  //
-  // Three escapes, each deliberate:
-  //   • isWorkspaceManager — workspace OWNER/ADMIN and Position level 4+ are
-  //     NOT in canWrite/canComment, yet POST /api/projects/:id/messages
-  //     explicitly admits them ("or workspace leadership"). Without this the
-  //     firm's owner could post in a project's channel and be refused on a
-  //     task in the same project, in the same minute.
-  //   • isOwnTask — the creator/assignee already escapes requireWrite.
-  //   • isCollaborator — a follower is an EXPLICIT grant: adding someone else
-  //     as one requires write, and this route notifies collaborators of every
-  //     new comment. Refusing their reply is a notification that leads to a
-  //     403. Self-adding as a follower now requires comment capability too
-  //     (see the collaborators route), so a VIEWER cannot bootstrap through
-  //     this door.
+  // Commenting is a lower bar than writing — the COMMENTER project role exists
+  // for exactly this — but it is still a bar: a VIEWER could post on any task
+  // they could open. A follower is an EXPLICIT grant (adding someone else as
+  // one requires write, and this route notifies collaborators of every new
+  // comment), so refusing their reply would be a notification that leads to a
+  // 403.
   if (
     input.requireComment &&
     !input.projectCanComment &&
-    !input.projectIsWorkspaceManager &&
-    !input.isOwnTask &&
-    !input.isCollaborator
+    !isOwnTask &&
+    !isCollaborator
   ) {
     return forbid("You don't have permission to comment on this task");
   }
 
-  // The personal-tie escapes above (follower, creator, assignee) live on rows
-  // that OUTLIVE offboarding: removing someone from a workspace deletes their
-  // WorkspaceMember row and nothing else, so a TaskCollaborator row from last
-  // year would otherwise still buy comment capability — and, on a task with a
-  // tracking page, the ability to publish text to the client. Anyone leaning
-  // on a personal tie must still hold a contributor seat in the task's
-  // workspace.
-  return allowed(
-    input.requireComment &&
-      !input.projectCanComment &&
-      !input.projectIsWorkspaceManager
-  );
+  return allowed();
 }
 
 /**
@@ -469,11 +537,12 @@ function throwTaskDenial(denial: TaskAccessDenial): never {
  * weaker than the read gate the project page enforces: any workspace member
  * could GET/PATCH/DELETE tasks of PRIVATE or WORKSPACE-visibility projects
  * they cannot even open (audit: critical task leak + timeline-drag write).
- * We now apply the SAME rule as the page via resolveProjectAccess:
- *   owner | project member | PUBLIC | ws OWNER/ADMIN | Position level >= 4.
+ * We now apply the SAME rule as the page via resolveProjectAccess (see the
+ * rule table at the top of @/lib/project-access).
  *
- * The task's own creator or assignee always retains access (My Tasks,
- * assigned-to-me flows) even when they are not a formal ProjectMember.
+ * The task's own creator or assignee retains access (My Tasks,
+ * assigned-to-me flows) even when they are not a formal ProjectMember — but
+ * only while they still hold a contributor seat in the task's workspace.
  *
  * A task flagged `isPrivate` narrows that audience to the assignee, the
  * creator, the task's collaborators and workspace OWNER/ADMIN — no project
@@ -536,6 +605,7 @@ export async function verifyTaskAccess(
       projectCanWrite: false,
       projectCanComment: false,
       projectIsWorkspaceManager: false,
+      projectHasContributorSeat: false,
     });
     if (personal.denial) throwTaskDenial(personal.denial);
     // `access: null` — a task with no project has no project access to speak
@@ -557,22 +627,9 @@ export async function verifyTaskAccess(
     projectCanWrite: access.canWrite,
     projectCanComment: access.canComment,
     projectIsWorkspaceManager: access.isWorkspaceManager,
+    projectHasContributorSeat: access.hasContributorSeat,
   });
   if (decision.denial) throwTaskDenial(decision.denial);
-
-  if (decision.requiresContributorSeat) {
-    const seat = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: task.project.workspaceId },
-      },
-      select: { role: true },
-    });
-    if (!contributorSeatSatisfied(seat?.role)) {
-      throw new AuthorizationError(
-        "You don't have permission to comment on this task"
-      );
-    }
-  }
 
   // Hand the resolved access back: GET /api/tasks/:id needs exactly this to
   // tell the client what to render, and resolving it again there cost a
@@ -620,16 +677,52 @@ export async function verifyProjectAccess(
 }
 
 /**
- * Verify user is a member of a team. Returns the membership record.
+ * Verify the caller may work inside a team (messages, knowledge, fields,
+ * projects). Returns the caller's effective team role.
+ *
+ * Same standing rule as requireTeamStanding (@/lib/team-access): the caller
+ * must hold a CONTRIBUTOR seat in the TEAM's own workspace — a TeamMember row
+ * alone is not evidence that the person still works here, since a seat removed
+ * outside DELETE /api/workspace/members leaves it behind — and then either be
+ * on the team or be a workspace OWNER/ADMIN there. Managers act with LEAD
+ * standing, as they already do for members/invites, so a team whose only lead
+ * left the firm stays administrable.
+ *
+ * No seat → 404 (an outsider must not learn the team is real); seat but not on
+ * the team → 403, the message these routes have always returned.
  */
-export async function verifyTeamAccess(userId: string, teamId: string) {
-  const member = await prisma.teamMember.findUnique({
-    where: { userId_teamId: { userId, teamId } },
+export async function verifyTeamAccess(
+  userId: string,
+  teamId: string
+): Promise<{ userId: string; teamId: string; role: "LEAD" | "MEMBER" }> {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { workspaceId: true },
   });
+  if (!team) {
+    throw new NotFoundError("Team not found");
+  }
+  const [member, seat] = await Promise.all([
+    prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId, teamId } },
+      select: { role: true },
+    }),
+    prisma.workspaceMember.findUnique({
+      where: { userId_workspaceId: { userId, workspaceId: team.workspaceId } },
+      select: { role: true },
+    }),
+  ]);
+  if (!contributorSeatSatisfied(seat?.role)) {
+    throw new NotFoundError("Team not found");
+  }
+  const isWorkspaceManager = seat?.role === "OWNER" || seat?.role === "ADMIN";
+  if (isWorkspaceManager) {
+    return { userId, teamId, role: "LEAD" };
+  }
   if (!member) {
     throw new AuthorizationError("You don't have access to this team");
   }
-  return member;
+  return { userId, teamId, role: member.role };
 }
 
 /**
@@ -670,53 +763,47 @@ export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
     throw new NotFoundError("One or more tasks not found");
   }
 
-  // Cache the access decision per project so a bulk of N tasks in the same
+  // Cache the project access per project so a bulk of N tasks in the same
   // project costs one access resolution, not N.
-  const projectDecision = new Map<
+  const projectAccess = new Map<
     string,
-    { canWrite: boolean; isWorkspaceManager: boolean }
+    Awaited<ReturnType<typeof resolveProjectAccess>>
   >();
 
   for (const task of tasks) {
     const isOwnTask =
       task.creatorId === userId || task.assigneeId === userId;
 
-    if (!task.project) {
-      // Projectless (personal / My Tasks) task: only the creator or
-      // assignee may touch it — never any workspace member.
-      if (!isOwnTask) {
-        throw new AuthorizationError(
-          "You don't have access to one or more tasks"
-        );
+    let access: Awaited<ReturnType<typeof resolveProjectAccess>> | null = null;
+    if (task.project) {
+      access = projectAccess.get(task.project.id) ?? null;
+      if (!access) {
+        access = await resolveProjectAccess(task.project, userId);
+        projectAccess.set(task.project.id, access);
       }
-      continue;
     }
 
-    let decision = projectDecision.get(task.project.id);
-    if (decision === undefined) {
-      const access = await resolveProjectAccess(task.project, userId);
-      decision = {
-        canWrite: access.canWrite,
-        isWorkspaceManager: access.isWorkspaceManager,
-      };
-      projectDecision.set(task.project.id, decision);
-    }
-
-    // The private-task rule, and it has to be repeated here: this is a second,
-    // independent copy of the task gate, so without it /api/tasks/bulk and
-    // /api/tasks/reorder were the way around decideTaskAccess — a project
-    // EDITOR who gets 404 on GET/DELETE /api/tasks/:id could still delete or
-    // reassign that same row through a bulk POST. Same audience, same 404.
-    if (
-      task.isPrivate &&
-      !isOwnTask &&
-      task.collaborators.length === 0 &&
-      !decision.isWorkspaceManager
-    ) {
+    // The SAME decision the single-task routes make — this is a second entry
+    // point to the task gate, so any rule it re-implemented (the private-task
+    // audience, the contributor seat behind personal ties) drifted from it and
+    // became the way around it.
+    const { denial } = decideTaskAccess({
+      hasProject: !!task.project,
+      isPrivate: task.isPrivate,
+      isOwnTask,
+      isCollaborator: task.collaborators.length > 0,
+      requireWrite: true,
+      requireComment: false,
+      projectCanRead: access?.ok ?? false,
+      projectCanWrite: access?.canWrite ?? false,
+      projectCanComment: access?.canComment ?? false,
+      projectIsWorkspaceManager: access?.isWorkspaceManager ?? false,
+      projectHasContributorSeat: access?.hasContributorSeat ?? false,
+    });
+    if (denial?.kind === "notFound") {
       throw new NotFoundError("One or more tasks not found");
     }
-
-    if (!decision.canWrite && !isOwnTask) {
+    if (denial) {
       throw new AuthorizationError(
         "You don't have permission to modify one or more tasks"
       );

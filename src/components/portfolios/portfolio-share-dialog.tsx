@@ -17,10 +17,9 @@
  *     → POST /api/portfolios/:id/members
  *   • "Grant access to all projects where I'm project admin" → passes
  *     grantProjectAccess to the POST (server gates per-project).
- *   • "Notify when work is added" → per-user preference persisted via
- *     useUiState('portfolioNotifyOnWork') (no backing server column).
  *   • Workspace-access row ("My workspace") → PATCH /api/portfolios/:id
- *     { privacy } (Private / Workspace / Public).
+ *     { privacy } (Private / Workspace / Public). Changing it is member
+ *     management, so it follows canManageMembers like the API does.
  *   • "Who has access" list → per-row role dropdown + Remove access,
  *     PATCH { userId, role } / DELETE ?userId=. The owner row is locked.
  *   • "Copy portfolio link" → navigator.clipboard.writeText.
@@ -59,9 +58,7 @@ import {
   Lock,
   Check,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useUiState } from "@/hooks/use-ui-state";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -100,7 +97,8 @@ interface Props {
   privacy: PortfolioPrivacy;
   /** The Portfolio.ownerId — its row is locked in the access list. */
   ownerId: string | null;
-  /** Whether the current viewer may edit content (privacy / copy link). */
+  /** Whether the current viewer may edit portfolio content. Nothing in this
+   *  dialog is content: privacy and members both follow canManageMembers. */
   canEdit: boolean;
   /**
    * Whether the current viewer may MANAGE MEMBERS (invite / change role /
@@ -141,23 +139,28 @@ const ROW_ROLES: { role: PortfolioRole; label: string; desc: string }[] = [
   { role: "VIEWER", label: "Viewer", desc: ROLE_VIEWER_DESC },
 ];
 
+// Copy mirrors the server gate in /api/portfolios: there is no link-based
+// access, so a copied link only opens for people this setting already admits.
+//   PRIVATE   → owner + explicit members
+//   WORKSPACE → + every contributor of the workspace (not guests)
+//   PUBLIC    → + everyone in the workspace, guests included
 const PRIVACY_META: Record<
   PortfolioPrivacy,
   { label: string; hint: string; icon: React.ReactNode }
 > = {
   PRIVATE: {
     label: "Private to members",
-    hint: "Only invited people can access",
+    hint: "Only people added below can access",
     icon: <Lock className="h-4 w-4" />,
   },
   WORKSPACE: {
-    label: "Members with the link",
-    hint: "People you invite plus the workspace",
+    label: "Workspace members",
+    hint: "Everyone in the workspace except guests can view",
     icon: <Building2 className="h-4 w-4" />,
   },
   PUBLIC: {
     label: "Everyone in the workspace",
-    hint: "Anyone in the workspace can view",
+    hint: "Everyone in the workspace, guests included, can view",
     icon: <Globe className="h-4 w-4" />,
   },
 };
@@ -181,7 +184,6 @@ export function PortfolioShareDialog({
   portfolioName,
   privacy,
   ownerId,
-  canEdit,
   canManageMembers,
   isOwner,
   onPrivacyChange,
@@ -197,12 +199,6 @@ export function PortfolioShareDialog({
   const [grantProjectAccess, setGrantProjectAccess] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-
-  // "Notify when work is added" — per-user pref keyed by portfolio.
-  const { value: notifyPrefs, setValue: setNotifyPrefs } = useUiState<
-    Record<string, boolean>
-  >("portfolioNotifyOnWork", {});
-  const notifyOnWork = notifyPrefs[portfolioId] ?? false;
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -242,9 +238,15 @@ export function PortfolioShareDialog({
     }
   }, [open, fetchMembers, fetchWorkspaceUsers]);
 
+  // Owner + explicit members only (exclude synthesized WORKSPACE rows
+  // from the "who has access" list — those aren't members).
+  const accessRows = members.filter((m) => m.role !== "WORKSPACE");
+
   // Ids already in the access list (members + owner) — hidden from the
-  // invite typeahead so you can't double-invite.
-  const existingAccessIds = new Set(members.map((m) => m.user.id));
+  // invite typeahead so you can't double-invite. Built from accessRows: on a
+  // shared portfolio the directory also lists every workspace user as a
+  // WORKSPACE row, and counting those would leave nobody to suggest.
+  const existingAccessIds = new Set(accessRows.map((m) => m.user.id));
 
   const suggestions = workspaceUsers.filter((u) => {
     if (existingAccessIds.has(u.id)) return false;
@@ -290,17 +292,41 @@ export function PortfolioShareDialog({
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        // Persist the notify preference alongside the invite.
-        setNotifyPrefs((prev) => ({ ...prev, [portfolioId]: notifyOnWork }));
         // Two shapes come back: an existing member is added immediately
         // (MemberRow), while a non-member email gets a pending emailed
-        // invitation ({ invited: true, email, message }).
+        // invitation ({ invited: true, emailSent, email, message }). When the
+        // email could not be sent the invitation still exists, so offer its
+        // accept link instead of claiming it was delivered.
         const result = (await res.json().catch(() => ({}))) as {
           invited?: boolean;
+          emailSent?: boolean;
+          acceptUrl?: string;
           email?: string;
           message?: string;
         };
-        if (result.invited) {
+        if (result.invited && result.emailSent === false) {
+          const acceptUrl = result.acceptUrl;
+          toast.warning(
+            result.message ||
+              `Invitation saved, but the email to ${result.email || "that address"} could not be sent.`,
+            {
+              duration: 15000,
+              ...(acceptUrl
+                ? {
+                    action: {
+                      label: "Copy invite link",
+                      onClick: () => {
+                        navigator.clipboard
+                          .writeText(acceptUrl)
+                          .then(() => toast.success("Invite link copied"))
+                          .catch(() => toast.error("Couldn't copy the link"));
+                      },
+                    },
+                  }
+                : {}),
+            }
+          );
+        } else if (result.invited) {
           toast.success(
             result.message ||
               `Invitation sent to ${result.email || "that email"}`
@@ -376,7 +402,7 @@ export function PortfolioShareDialog({
       if (res.ok) {
         onPrivacyChange(next);
         toast.success("Workspace access updated");
-        // PUBLIC vs. others changes the synthesized workspace rows.
+        // The audience changes the synthesized workspace rows.
         await fetchMembers();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -398,10 +424,6 @@ export function PortfolioShareDialog({
       toast.error("Couldn't copy the link");
     }
   }
-
-  // Owner + explicit members only (exclude synthesized WORKSPACE rows
-  // from the "who has access" list — those aren't members).
-  const accessRows = members.filter((m) => m.role !== "WORKSPACE");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -517,21 +539,6 @@ export function PortfolioShareDialog({
                   project admin
                 </span>
               </label>
-              <label className="flex items-start gap-2 cursor-pointer select-none">
-                <Checkbox
-                  checked={notifyOnWork}
-                  onCheckedChange={(v) =>
-                    setNotifyPrefs((prev) => ({
-                      ...prev,
-                      [portfolioId]: v === true,
-                    }))
-                  }
-                  className="mt-0.5"
-                />
-                <span className="text-sm text-gray-700">
-                  Notify me when work is added to the portfolio
-                </span>
-              </label>
             </div>
           )}
 
@@ -551,7 +558,7 @@ export function PortfolioShareDialog({
                   </div>
                 </div>
               </div>
-              {canEdit ? (
+              {canManageMembers ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="inline-flex items-center gap-1 text-sm text-gray-700 hover:bg-gray-100 rounded-md px-2 py-1 flex-shrink-0">

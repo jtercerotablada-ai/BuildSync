@@ -40,6 +40,7 @@ import {
   Zap,
   Inbox,
   Eye,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -236,13 +237,27 @@ export function WorkflowView({
     new Map()
   );
 
+  // Scoped to this project's workspace once the workflow (which carries it)
+  // has loaded; the summary project shape is all a name lookup needs, and
+  // archived projects stay in so an old target still reads by name.
+  const workspaceId = workflow?.workspaceId ?? null;
   useEffect(() => {
+    if (loading) return;
     let cancelled = false;
     (async () => {
       try {
+        const userParams = new URLSearchParams({ q: "" });
+        const projectParams = new URLSearchParams({
+          fields: "summary",
+          includeArchived: "true",
+        });
+        if (workspaceId) {
+          userParams.set("workspaceId", workspaceId);
+          projectParams.set("workspaceId", workspaceId);
+        }
         const [uRes, pRes] = await Promise.all([
-          fetch("/api/users/search?q="),
-          fetch("/api/projects"),
+          fetch(`/api/users/search?${userParams.toString()}`),
+          fetch(`/api/projects?${projectParams.toString()}`),
         ]);
         if (uRes.ok) {
           const list = (await uRes.json()) as {
@@ -269,7 +284,7 @@ export function WorkflowView({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loading, workspaceId]);
 
   // Forms (Phase 3 source). Loaded once on mount alongside the
   // workflow so the Sources panel can render counts + public links
@@ -308,7 +323,9 @@ export function WorkflowView({
       try {
         const [wfRes, formsRes] = await Promise.all([
           fetch(`/api/projects/${projectId}/workflow`),
-          fetch(`/api/projects/${projectId}/forms`),
+          // Closed forms too: they keep their submissions inbox and can be
+          // reopened from here.
+          fetch(`/api/projects/${projectId}/forms?includeClosed=1`),
         ]);
         if (!wfRes.ok) throw new Error("Failed to load workflow");
         const wfData: WorkflowRow = await wfRes.json();
@@ -418,13 +435,13 @@ export function WorkflowView({
   };
 
   // Actually POST a configured action. The trigger written on the
-  // rule is derived from the target kind.
+  // rule is derived from the target kind. Resolves true when saved.
   const commitAction = async (
     target:
       | { kind: "section"; sectionId: string }
       | { kind: "completion" },
     action: WorkflowAction
-  ) => {
+  ): Promise<boolean> => {
     const trigger =
       target.kind === "section"
         ? { type: "TASK_MOVED_TO_SECTION" as const, sectionId: target.sectionId }
@@ -448,10 +465,111 @@ export function WorkflowView({
         prev ? { ...prev, rules: [...prev.rules, created] } : prev
       );
       toast.success(`${ACTION_LABELS[action.type]} configured`);
+      return true;
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to add rule"
       );
+      return false;
+    }
+  };
+
+  // "Task completed -> moved here" is one destination per project: several
+  // of them would bounce a completed task through every target. Setting it
+  // on a stage therefore moves it there: the new rule is saved first, then
+  // the MOVE_TO_SECTION actions pointing anywhere else are stripped (a rule
+  // left with no actions is deleted).
+  const [settingMoveTrigger, setSettingMoveTrigger] = useState(false);
+  const setCompletionMoveTarget = async (sectionId: string) => {
+    if (settingMoveTrigger) return;
+    setSettingMoveTrigger(true);
+    try {
+      const stale = (workflow?.rules ?? []).filter(
+        (r) =>
+          r.trigger?.type === "TASK_COMPLETED" &&
+          (r.actions as WorkflowAction[]).some(
+            (a) => a.type === "MOVE_TO_SECTION" && a.sectionId !== sectionId
+          )
+      );
+      const saved = await commitAction(
+        { kind: "completion" },
+        { type: "MOVE_TO_SECTION", sectionId }
+      );
+      if (!saved) return;
+      for (const rule of stale) {
+        const remaining = (rule.actions as WorkflowAction[]).filter(
+          (a) => a.type !== "MOVE_TO_SECTION"
+        );
+        try {
+          const res =
+            remaining.length === 0
+              ? await fetch(
+                  `/api/projects/${projectId}/workflow/rules/${rule.id}`,
+                  { method: "DELETE" }
+                )
+              : await fetch(
+                  `/api/projects/${projectId}/workflow/rules/${rule.id}`,
+                  {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ actions: remaining }),
+                  }
+                );
+          if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            throw new Error(body?.error || "Failed to remove the old trigger");
+          }
+          setWorkflow((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  rules:
+                    remaining.length === 0
+                      ? prev.rules.filter((r) => r.id !== rule.id)
+                      : prev.rules.map((r) =>
+                          r.id === rule.id ? { ...r, actions: remaining } : r
+                        ),
+                }
+              : prev
+          );
+        } catch (err) {
+          toast.error(
+            err instanceof Error
+              ? `${err.message}. The previous "moved here" trigger is still set.`
+              : "Failed to remove the old trigger"
+          );
+        }
+      }
+    } finally {
+      setSettingMoveTrigger(false);
+    }
+  };
+
+  // Pause / resume every rule at once (the engine skips inactive workflows).
+  const [togglingActive, setTogglingActive] = useState(false);
+  const toggleWorkflowActive = async () => {
+    if (!workflow || togglingActive) return;
+    const next = !workflow.isActive;
+    setTogglingActive(true);
+    setWorkflow((prev) => (prev ? { ...prev, isActive: next } : prev));
+    try {
+      const res = await fetch(`/api/projects/${projectId}/workflow`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: next }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed to update the workflow");
+      }
+      toast.success(next ? "Rules resumed" : "Rules paused");
+    } catch (err) {
+      setWorkflow((prev) => (prev ? { ...prev, isActive: !next } : prev));
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update the workflow"
+      );
+    } finally {
+      setTogglingActive(false);
     }
   };
 
@@ -467,37 +585,46 @@ export function WorkflowView({
     setEditingForm(null);
   };
 
-  // Same endpoint and same consequences as the builder's Delete button, so it
-  // has to make the same promise: "past submissions are kept" read as "still
-  // reachable", and they aren't — every list filters inactive forms out, which
-  // takes the submissions inbox with them.
-  const handleFormDelete = async (formId: string) => {
+  // Same endpoint and same consequences as the builder's "Close form": a soft
+  // close (isActive:false) that keeps the submissions. The form stays in this
+  // list with a Closed badge, so its inbox is still reachable and it can be
+  // reopened.
+  const setFormActive = async (formId: string, isActive: boolean) => {
     const name = forms.find((f) => f.id === formId)?.name;
     if (
+      !isActive &&
       !confirm(
-        `Delete the form ${name ? `"${name}"` : "this form"}?\n\nIt stops accepting submissions and leaves this project's form list. Its past submissions stay in the database, but no screen can open them again — export anything you still need first. This can't be undone from the app.`
+        `Close the form ${name ? `"${name}"` : "this form"}?\n\nIt stops accepting submissions. It stays in this list marked Closed, where you can still open its submissions or reopen it.`
       )
     ) {
       return;
     }
     const snapshot = forms;
-    setForms((prev) => prev.filter((f) => f.id !== formId));
+    setForms((prev) =>
+      prev.map((f) => (f.id === formId ? { ...f, isActive } : f))
+    );
     try {
-      // Soft-delete (close) the form so its submission rows survive, as the
-      // confirm says — a hard DELETE cascades-deletes every submission.
       const res = await fetch(`/api/forms/${formId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: false }),
+        body: JSON.stringify({ isActive }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Failed to delete form");
+        throw new Error(
+          body?.error || (isActive ? "Failed to reopen form" : "Failed to close form")
+        );
       }
-      toast.success("Form deleted");
+      toast.success(isActive ? "Form reopened" : "Form closed");
     } catch (err) {
       setForms(snapshot);
-      toast.error(err instanceof Error ? err.message : "Failed to delete form");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : isActive
+          ? "Failed to reopen form"
+          : "Failed to close form"
+      );
     }
   };
 
@@ -517,11 +644,16 @@ export function WorkflowView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmed }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed to rename section");
+      }
       toast.success("Section renamed");
       router.refresh();
-    } catch {
-      toast.error("Failed to rename section");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to rename section"
+      );
     }
   };
 
@@ -616,9 +748,15 @@ export function WorkflowView({
     reorderSection(String(active.id), to);
   };
 
-  // "+ Add section" pill and the "+" circles on the connectors —
-  // appends a real section (same API the List view uses).
-  const addSection = async () => {
+  // The section just created from this view: its card opens straight into
+  // rename so it does not stay "New section".
+  const [autoRenameId, setAutoRenameId] = useState<string | null>(null);
+
+  // "+ Add section" pill and the "+" circles on the connectors. The server
+  // always appends, so a connector's section is then moved to the connector's
+  // index (the same position PATCH drag-reorder uses). `insertAt` omitted =
+  // stay at the end.
+  const addSection = async (insertAt?: number) => {
     if (addingSection) return;
     setAddingSection(true);
     try {
@@ -627,11 +765,26 @@ export function WorkflowView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "New section", projectId }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed to add section");
+      }
+      const created = (await res.json()) as { id: string };
+      if (insertAt !== undefined && insertAt < orderedSections.length) {
+        const moveRes = await fetch(`/api/sections/${created.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: insertAt }),
+        });
+        if (!moveRes.ok) {
+          toast.error("Section added at the end. Drag it into place.");
+        }
+      }
       toast.success("Section added");
+      setAutoRenameId(created.id);
       router.refresh();
-    } catch {
-      toast.error("Failed to add section");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add section");
     } finally {
       setAddingSection(false);
     }
@@ -736,6 +889,23 @@ export function WorkflowView({
   // sections.length + 1 = the completion card.
   const completionIdx = sections.length + 1;
 
+  // Read-only members see the pipeline but none of the controls that would
+  // only end in a 403. Absent flag (older response) = editable, as before.
+  const canEdit = workflow?.canEdit !== false;
+  const rulesPaused = workflow ? !workflow.isActive : false;
+
+  // Where "Task completed -> moved here" currently points, if anywhere.
+  const completionMoveTargetId =
+    completionRules
+      .flatMap((r) => r.actions as WorkflowAction[])
+      .find(
+        (a): a is Extract<WorkflowAction, { type: "MOVE_TO_SECTION" }> =>
+          a.type === "MOVE_TO_SECTION"
+      )?.sectionId ?? null;
+  const completionMoveTargetName = completionMoveTargetId
+    ? (sections.find((s) => s.id === completionMoveTargetId)?.name ?? null)
+    : null;
+
   // "Move tasks to this section" trigger rules (completion-triggered
   // MOVE_TO_SECTION actions) shown in the slot above each stage.
   const moveTriggersFor = (sectionId: string) =>
@@ -770,10 +940,55 @@ export function WorkflowView({
             <p className="text-sm text-slate-600">
               Automate your team&apos;s processes and let the work flow.
             </p>
+            {!canEdit && (
+              <p className="mt-3 text-xs text-slate-500">
+                You have view-only access to this project, so its workflow
+                can&apos;t be changed from here.
+              </p>
+            )}
+            {workflow && (workflow.rules.length > 0 || rulesPaused) && (
+              <div className="mt-4 rounded-lg border border-[#E0E1E3] bg-white p-3 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-slate-900">
+                    {rulesPaused ? "Rules paused" : "Rules active"}
+                  </span>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={!rulesPaused}
+                      aria-label={rulesPaused ? "Resume rules" : "Pause rules"}
+                      disabled={togglingActive}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleWorkflowActive();
+                      }}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+                        rulesPaused ? "bg-slate-300" : "bg-[#4273D1]"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                          rulesPaused ? "translate-x-0.5" : "translate-x-[18px]"
+                        )}
+                      />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {rulesPaused
+                    ? "No rule runs until they are resumed."
+                    : "Rules run when tasks move or are completed."}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Intake card */}
           <IntakeCard
+            canEdit={canEdit}
             forms={forms}
             hasRules={(workflow?.rules.length ?? 0) > 0}
             active={activeIdx === 0}
@@ -791,15 +1006,22 @@ export function WorkflowView({
               setEditingForm(f);
               setFormDialogOpen(true);
             }}
-            onDeleteForm={(f) => handleFormDelete(f.id)}
+            onCloseForm={(f) => setFormActive(f.id, false)}
+            onReopenForm={(f) => setFormActive(f.id, true)}
           />
 
-          <Connector onAdd={addSection} />
+          <Connector
+            onAdd={canEdit ? () => addSection(0) : undefined}
+            disabled={addingSection}
+          />
 
           {/* Section cards with connectors — dnd-kit sortable so the
               drag feels like Asana (overlay card follows the cursor,
               siblings shift live). */}
           <DndContext
+            // A fixed id: dnd-kit's auto counter differs between the server
+            // and client render, which breaks hydration of aria-describedby.
+            id="workflow-stages"
             sensors={dndSensors}
             collisionDetection={closestCenter}
             onDragStart={handleStageDragStart}
@@ -811,9 +1033,16 @@ export function WorkflowView({
               strategy={horizontalListSortingStrategy}
             >
               {orderedSections.map((section, index) => (
-                <SortableStage key={section.id} id={section.id}>
+                <SortableStage
+                  key={section.id}
+                  id={section.id}
+                  disabled={!canEdit}
+                >
                   <SectionCard
                     section={section}
+                    canEdit={canEdit}
+                    autoRename={autoRenameId === section.id}
+                    onAutoRenameDone={() => setAutoRenameId(null)}
                     rules={rulesBySection[section.id] || []}
                     position={
                       index === 0
@@ -829,12 +1058,14 @@ export function WorkflowView({
                     onAddAction={(type) => startAddAction(section.id, type)}
                     onRemoveAction={removeAction}
                     moveTriggers={moveTriggersFor(section.id)}
-                    onAddMoveTrigger={() =>
-                      commitAction(
-                        { kind: "completion" },
-                        { type: "MOVE_TO_SECTION", sectionId: section.id }
-                      )
+                    moveTargetElsewhere={
+                      completionMoveTargetId &&
+                      completionMoveTargetId !== section.id
+                        ? (completionMoveTargetName ?? "another section")
+                        : null
                     }
+                    settingMoveTrigger={settingMoveTrigger}
+                    onAddMoveTrigger={() => setCompletionMoveTarget(section.id)}
                     onRename={(name) => renameSection(section.id, name)}
                     onDelete={() => {
                       setSectionToDelete({
@@ -853,7 +1084,10 @@ export function WorkflowView({
                     people={people}
                     projectsById={projectsById}
                   />
-                  <Connector onAdd={addSection} />
+                  <Connector
+                    onAdd={canEdit ? () => addSection(index + 1) : undefined}
+                    disabled={addingSection}
+                  />
                 </SortableStage>
               ))}
             </SortableContext>
@@ -875,6 +1109,7 @@ export function WorkflowView({
               project flips to completed. Real automation, presented in
               the same card language as the section stages. */}
           <CompletionCard
+            canEdit={canEdit}
             rules={completionRules}
             active={activeIdx === completionIdx}
             onSelect={() => setActiveIdx(completionIdx)}
@@ -887,6 +1122,7 @@ export function WorkflowView({
           />
 
           {/* "+ Add section" pill at the end of the pipeline */}
+          {canEdit && (
           <div className="flex-shrink-0 pt-8 pl-6 pr-10">
             <button
               type="button"
@@ -901,6 +1137,7 @@ export function WorkflowView({
               Add section
             </button>
           </div>
+          )}
         </div>
       </div>
 
@@ -915,6 +1152,7 @@ export function WorkflowView({
         }}
         actionType={pendingAction?.actionType ?? null}
         projectId={projectId}
+        workspaceId={workflow?.workspaceId ?? null}
         onConfirm={(action) => {
           if (pendingAction) {
             commitAction(pendingAction.target, action);
@@ -936,7 +1174,9 @@ export function WorkflowView({
         initial={editingForm}
         onSaved={handleFormSaved}
         onDeleted={(formId) =>
-          setForms((prev) => prev.filter((f) => f.id !== formId))
+          setForms((prev) =>
+            prev.map((f) => (f.id === formId ? { ...f, isActive: false } : f))
+          )
         }
       />
 
@@ -1104,9 +1344,12 @@ function WizardFooter({
 // original dims and the DragOverlay clone follows the cursor.
 function SortableStage({
   id,
+  disabled = false,
   children,
 }: {
   id: string;
+  /** Read-only viewers can't reorder: the PATCH would 403 and snap back. */
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   const {
@@ -1116,7 +1359,7 @@ function SortableStage({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
   return (
     <div
       ref={setNodeRef}
@@ -1131,22 +1374,34 @@ function SortableStage({
 }
 
 // Connector between pipeline cards: 1px #C4C6C8 line with a 28px "+"
-// circle that inserts a section (Asana's builder affordance).
-function Connector({ onAdd }: { onAdd: () => void }) {
+// circle that inserts a section at that point (Asana's builder affordance).
+// Without `onAdd` (read-only) it is just the line.
+function Connector({
+  onAdd,
+  disabled = false,
+}: {
+  onAdd?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <div className="flex items-center flex-shrink-0 pt-[38px]">
       <div className="w-4 h-px bg-[#C4C6C8]" />
-      <button
-        type="button"
-        title="Add section"
-        onClick={(e) => {
-          e.stopPropagation();
-          onAdd();
-        }}
-        className="w-7 h-7 rounded-full border border-[#626364] bg-transparent hover:bg-white flex items-center justify-center text-[#626364] flex-shrink-0"
-      >
-        <Plus className="w-4 h-4" />
-      </button>
+      {onAdd ? (
+        <button
+          type="button"
+          title="Add section here"
+          disabled={disabled}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAdd();
+          }}
+          className="w-7 h-7 rounded-full border border-[#626364] bg-transparent hover:bg-white flex items-center justify-center text-[#626364] flex-shrink-0 disabled:opacity-50"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      ) : (
+        <div className="w-7 h-px bg-[#C4C6C8]" />
+      )}
       <div className="w-4 h-px bg-[#C4C6C8]" />
     </div>
   );
@@ -1156,10 +1411,11 @@ function Connector({ onAdd }: { onAdd: () => void }) {
 // INTAKE CARD — "How will tasks be added to this project?"
 // Manual + forms (real intake) + templates + apps. Forms keep their
 // full management surface via the row menu (preview / copy link /
-// submissions inbox / edit / delete).
+// submissions inbox / edit / close / reopen).
 // ============================================
 
 interface IntakeCardProps {
+  canEdit: boolean;
   forms: FormRow[];
   hasRules: boolean;
   active: boolean;
@@ -1171,24 +1427,30 @@ interface IntakeCardProps {
   onCopyLink: (f: FormRow) => void;
   onInbox: (f: FormRow) => void;
   onEditForm: (f: FormRow) => void;
-  onDeleteForm: (f: FormRow) => void;
+  onCloseForm: (f: FormRow) => void;
+  onReopenForm: (f: FormRow) => void;
 }
 
 function FormRowItem({
   form,
+  canEdit,
   onPreview,
   onCopyLink,
   onInbox,
   onEdit,
-  onDelete,
+  onClose,
+  onReopen,
 }: {
   form: FormRow;
+  canEdit: boolean;
   onPreview: () => void;
   onCopyLink: () => void;
   onInbox: () => void;
   onEdit: () => void;
-  onDelete: () => void;
+  onClose: () => void;
+  onReopen: () => void;
 }) {
+  const closed = form.isActive === false;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1199,6 +1461,11 @@ function FormRowItem({
         >
           <FileText className="w-4 h-4 text-[#626364] flex-shrink-0" />
           <span className="flex-1 truncate">{form.name}</span>
+          {closed && (
+            <span className="text-[11px] font-medium text-slate-600 bg-white border border-[#E0E1E3] rounded px-1.5 py-0.5 flex-shrink-0">
+              Closed
+            </span>
+          )}
           <span className="text-xs text-slate-500 flex-shrink-0">
             {form.submissionCount ?? 0}{" "}
             {form.submissionCount === 1 ? "response" : "responses"}
@@ -1210,22 +1477,35 @@ function FormRowItem({
           <Eye className="w-4 h-4" />
           Preview
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onCopyLink} className="gap-2">
-          <LinkIcon className="w-4 h-4" />
-          Copy link
-        </DropdownMenuItem>
+        {!closed && (
+          <DropdownMenuItem onClick={onCopyLink} className="gap-2">
+            <LinkIcon className="w-4 h-4" />
+            Copy link
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={onInbox} className="gap-2">
           <Inbox className="w-4 h-4" />
           Submissions
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onEdit} className="gap-2">
-          <Pencil className="w-4 h-4" />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onDelete} className="gap-2 text-black">
-          <Trash2 className="w-4 h-4" />
-          Delete
-        </DropdownMenuItem>
+        {canEdit && (
+          <>
+            <DropdownMenuItem onClick={onEdit} className="gap-2">
+              <Pencil className="w-4 h-4" />
+              Edit
+            </DropdownMenuItem>
+            {closed ? (
+              <DropdownMenuItem onClick={onReopen} className="gap-2">
+                <RotateCcw className="w-4 h-4" />
+                Reopen
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={onClose} className="gap-2 text-black">
+                <X className="w-4 h-4" />
+                Close form
+              </DropdownMenuItem>
+            )}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1265,6 +1545,7 @@ function IntakeOption({
 }
 
 function IntakeCard({
+  canEdit,
   forms,
   hasRules,
   active,
@@ -1276,11 +1557,25 @@ function IntakeCard({
   onCopyLink,
   onInbox,
   onEditForm,
-  onDeleteForm,
+  onCloseForm,
+  onReopenForm,
 }: IntakeCardProps) {
   // First-run (nothing configured anywhere) or explicitly selected →
   // show the expanded "Más opciones" gallery like Asana.
   const expanded = active || (forms.length === 0 && !hasRules);
+  const formRow = (f: FormRow) => (
+    <FormRowItem
+      key={f.id}
+      form={f}
+      canEdit={canEdit}
+      onPreview={() => onPreviewForm(f)}
+      onCopyLink={() => onCopyLink(f)}
+      onInbox={() => onInbox(f)}
+      onEdit={() => onEditForm(f)}
+      onClose={() => onCloseForm(f)}
+      onReopen={() => onReopenForm(f)}
+    />
+  );
 
   return (
     <div
@@ -1304,42 +1599,28 @@ function IntakeCard({
           </div>
 
           {forms.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {forms.map((f) => (
-                <FormRowItem
-                  key={f.id}
-                  form={f}
-                  onPreview={() => onPreviewForm(f)}
-                  onCopyLink={() => onCopyLink(f)}
-                  onInbox={() => onInbox(f)}
-                  onEdit={() => onEditForm(f)}
-                  onDelete={() => onDeleteForm(f)}
-                />
-              ))}
-            </div>
+            <div className="space-y-2 mb-4">{forms.map(formRow)}</div>
           )}
 
-          <p className="text-xs text-[#626364] mb-2">More options</p>
-          <div className="space-y-2">
-            <IntakeOption
-              icon={<FileText className="w-6 h-6 text-[#4573D2]" />}
-              name="Form submissions"
-              desc="Create a form that turns submissions into tasks"
-              onClick={onNewForm}
-            />
-            <IntakeOption
-              icon={<Zap className="w-6 h-6 text-[#4573D2]" />}
-              name="Task templates"
-              desc="Standardize tasks with ready-made rule bundles"
-              onClick={onTemplates}
-            />
-            <IntakeOption
-              icon={<LinkIcon className="w-6 h-6 text-[#4573D2]" />}
-              name="From other apps"
-              desc="Choose the apps your team uses to create tasks"
-              onClick={() => toast.info("App integrations coming soon")}
-            />
-          </div>
+          {canEdit && (
+            <>
+              <p className="text-xs text-[#626364] mb-2">More options</p>
+              <div className="space-y-2">
+                <IntakeOption
+                  icon={<FileText className="w-6 h-6 text-[#4573D2]" />}
+                  name="Form submissions"
+                  desc="Create a form that turns submissions into tasks"
+                  onClick={onNewForm}
+                />
+                <IntakeOption
+                  icon={<Zap className="w-6 h-6 text-[#4573D2]" />}
+                  name="Task templates"
+                  desc="Standardize tasks with ready-made rule bundles"
+                  onClick={onTemplates}
+                />
+              </div>
+            </>
+          )}
         </>
       ) : (
         <div className="space-y-2">
@@ -1347,17 +1628,8 @@ function IntakeCard({
             icon={<Pencil className="w-4 h-4" />}
             label="Manually"
           />
-          {forms.map((f) => (
-            <FormRowItem
-              key={f.id}
-              form={f}
-              onPreview={() => onPreviewForm(f)}
-              onCopyLink={() => onCopyLink(f)}
-              onInbox={() => onInbox(f)}
-              onEdit={() => onEditForm(f)}
-              onDelete={() => onDeleteForm(f)}
-            />
-          ))}
+          {forms.map(formRow)}
+          {canEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -1378,15 +1650,9 @@ function IntakeCard({
                 <Zap className="w-4 h-4" />
                 Task template
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => toast.info("App integrations coming soon")}
-                className="gap-2"
-              >
-                <LinkIcon className="w-4 h-4" />
-                App
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       )}
 
@@ -1420,6 +1686,11 @@ const ACTIVE_SUGGESTIONS: WorkflowActionType[] = [
 
 interface SectionCardProps {
   section: Section;
+  /** False for read-only members: every mutation control is withheld. */
+  canEdit: boolean;
+  /** Just created from this view: open straight into rename. */
+  autoRename: boolean;
+  onAutoRenameDone: () => void;
   rules: WorkflowRuleRow[];
   position: "first" | "middle" | "last";
   active: boolean;
@@ -1430,6 +1701,10 @@ interface SectionCardProps {
   onRemoveAction: (ruleId: string, actionIdx: number) => void;
   /** Completion-triggered MOVE_TO_SECTION rules targeting this stage. */
   moveTriggers: { ruleId: string; actionIdx: number }[];
+  /** Name of the OTHER stage completed tasks currently move to, if any —
+   *  setting the trigger here replaces it. */
+  moveTargetElsewhere: string | null;
+  settingMoveTrigger: boolean;
   onAddMoveTrigger: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
@@ -1441,6 +1716,9 @@ interface SectionCardProps {
 
 function SectionCard({
   section,
+  canEdit,
+  autoRename,
+  onAutoRenameDone,
   rules,
   position,
   active,
@@ -1450,13 +1728,21 @@ function SectionCard({
   onAddAction,
   onRemoveAction,
   moveTriggers,
+  moveTargetElsewhere,
+  settingMoveTrigger,
   onAddMoveTrigger,
   onRename,
   onDelete,
   people,
   projectsById,
 }: SectionCardProps) {
-  const [renamingName, setRenamingName] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState<string | null>(null);
+  // A section just created from this view opens in rename mode until the
+  // box is left, derived here rather than copied into state by an effect.
+  const renamingName =
+    draftName ?? (autoRename && canEdit ? section.name : null);
+  // Escape must close the box without the blur handler committing it.
+  const cancelRenameRef = useRef(false);
   const incompleteCount = section.tasks.filter((t) => !t.completed).length;
 
   const ruleChips = rules.flatMap((r) =>
@@ -1490,7 +1776,7 @@ function SectionCard({
     <div className="relative">
       {/* "Add a trigger to move tasks to this section" slot — floats
           above the ACTIVE card exactly like Asana's builder. */}
-      {active && (
+      {active && (moveTriggers.length > 0 || canEdit) && (
         <div
           className="absolute bottom-full left-0 w-[360px] pb-1"
           onClick={(e) => e.stopPropagation()}
@@ -1499,11 +1785,14 @@ function SectionCard({
             <FilledRow
               icon={<ArrowRight className="w-4 h-4" />}
               label="Task completed → moved here"
-              onRemove={() =>
-                onRemoveAction(
-                  moveTriggers[0].ruleId,
-                  moveTriggers[0].actionIdx
-                )
+              onRemove={
+                canEdit
+                  ? () =>
+                      onRemoveAction(
+                        moveTriggers[0].ruleId,
+                        moveTriggers[0].actionIdx
+                      )
+                  : undefined
               }
             />
           ) : (
@@ -1511,16 +1800,27 @@ function SectionCard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
+                  disabled={settingMoveTrigger}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full rounded-lg border border-dashed border-[#C4C6C8] bg-white/60 px-3 py-2.5 text-xs text-[#626364] hover:border-[#626364] hover:text-slate-800 text-left"
+                  className="w-full rounded-lg border border-dashed border-[#C4C6C8] bg-white/60 px-3 py-2.5 text-xs text-[#626364] hover:border-[#626364] hover:text-slate-800 text-left disabled:opacity-50"
                 >
                   Add a trigger to move tasks to this section
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuItem onClick={onAddMoveTrigger} className="gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  When a task is completed
+                <DropdownMenuItem
+                  onClick={onAddMoveTrigger}
+                  className="gap-2 items-start"
+                >
+                  <CheckCircle className="w-4 h-4 mt-0.5" />
+                  <span>
+                    When a task is completed
+                    {moveTargetElsewhere && (
+                      <span className="block text-xs text-slate-500">
+                        Replaces the move to “{moveTargetElsewhere}”
+                      </span>
+                    )}
+                  </span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1547,19 +1847,27 @@ function SectionCard({
               autoFocus
               value={renamingName}
               onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setRenamingName(e.target.value)}
+              onChange={(e) => setDraftName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  onRename(renamingName);
-                  setRenamingName(null);
+                // Both keys leave through blur so the commit runs once.
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") {
+                  cancelRenameRef.current = true;
+                  e.currentTarget.blur();
                 }
-                if (e.key === "Escape") setRenamingName(null);
               }}
               onBlur={() => {
-                if (renamingName.trim() && renamingName !== section.name) {
+                const cancelled = cancelRenameRef.current;
+                cancelRenameRef.current = false;
+                if (
+                  !cancelled &&
+                  renamingName.trim() &&
+                  renamingName.trim() !== section.name
+                ) {
                   onRename(renamingName);
                 }
-                setRenamingName(null);
+                setDraftName(null);
+                if (autoRename) onAutoRenameDone();
               }}
               className="w-full text-base font-medium text-slate-900 bg-transparent outline-none border-b-2 border-[#335FB5]"
             />
@@ -1572,6 +1880,12 @@ function SectionCard({
             </h3>
           )}
         </div>
+        {/* Dropped while the rename input is open: Radix restores focus to
+            the trigger when the menu closes, which lands AFTER the input's
+            autoFocus and blurs it, and this input commits/closes on blur, so
+            the box closed the instant it opened. With the trigger unmounted
+            the restore is a no-op (same fix as board-view). */}
+        {canEdit && renamingName === null && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -1583,9 +1897,13 @@ function SectionCard({
               <MoreHorizontal className="w-4 h-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent
+            align="end"
+            className="w-48"
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
             <DropdownMenuItem
-              onClick={() => setRenamingName(section.name)}
+              onClick={() => setDraftName(section.name)}
               className="gap-2"
             >
               <Pencil className="w-4 h-4" />
@@ -1606,6 +1924,7 @@ function SectionCard({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
 
       {/* Incomplete-tasks chip */}
@@ -1627,18 +1946,27 @@ function SectionCard({
             key={`${chip.ruleId}-${chip.actionIdx}`}
             icon={ACTION_ICONS[chip.type]}
             label={chip.label}
-            onRemove={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
+            onRemove={
+              canEdit
+                ? () => onRemoveAction(chip.ruleId, chip.actionIdx)
+                : undefined
+            }
           />
         ))}
-        {suggestions.map((t) => (
-          <DashedRow
-            key={t}
-            icon={ACTION_ICONS[t]}
-            label={ACTION_LABELS[t]}
-            onClick={() => onAddAction(t)}
-          />
-        ))}
+        {!canEdit && ruleChips.length === 0 && (
+          <p className="text-xs text-slate-400">No actions configured.</p>
+        )}
+        {canEdit &&
+          suggestions.map((t) => (
+            <DashedRow
+              key={t}
+              icon={ACTION_ICONS[t]}
+              label={ACTION_LABELS[t]}
+              onClick={() => onAddAction(t)}
+            />
+          ))}
 
+        {canEdit && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -1663,6 +1991,7 @@ function SectionCard({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
 
       {active && <WizardFooter onPrev={onPrev} onNext={onNext} />}
@@ -1678,6 +2007,7 @@ function SectionCard({
 // ============================================
 
 interface CompletionCardProps {
+  canEdit: boolean;
   rules: WorkflowRuleRow[];
   active: boolean;
   onSelect: () => void;
@@ -1690,6 +2020,7 @@ interface CompletionCardProps {
 }
 
 function CompletionCard({
+  canEdit,
   rules,
   active,
   onSelect,
@@ -1748,18 +2079,27 @@ function CompletionCard({
             key={`${chip.ruleId}-${chip.actionIdx}`}
             icon={ACTION_ICONS[chip.type]}
             label={chip.label}
-            onRemove={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
+            onRemove={
+              canEdit
+                ? () => onRemoveAction(chip.ruleId, chip.actionIdx)
+                : undefined
+            }
           />
         ))}
-        {suggestions.map((t) => (
-          <DashedRow
-            key={t}
-            icon={ACTION_ICONS[t]}
-            label={ACTION_LABELS[t]}
-            onClick={() => onAddAction(t)}
-          />
-        ))}
+        {!canEdit && ruleChips.length === 0 && (
+          <p className="text-xs text-slate-400">No actions configured.</p>
+        )}
+        {canEdit &&
+          suggestions.map((t) => (
+            <DashedRow
+              key={t}
+              icon={ACTION_ICONS[t]}
+              label={ACTION_LABELS[t]}
+              onClick={() => onAddAction(t)}
+            />
+          ))}
 
+        {canEdit && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -1784,6 +2124,7 @@ function CompletionCard({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
 
       {active && <WizardFooter onPrev={onPrev} onNext={onDone} nextLabel="Done" />}

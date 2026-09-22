@@ -111,6 +111,9 @@ export function MyTasksWidget() {
     const requestId = ++fetchIdRef.current;
     setError(null);
     try {
+      // With no completion filter the server returns every open task and
+      // applies `limit` to completed history only (most recent first), so
+      // old completions can no longer push open work out of Overdue.
       const res = await fetch('/api/tasks?myTasks=true&fields=summary&limit=500');
       if (fetchIdRef.current !== requestId) return;
       if (res.ok) {
@@ -204,14 +207,23 @@ export function MyTasksWidget() {
     []
   );
 
-  const setTaskCompleted = useCallback((taskId: string, completed: boolean) => {
+  // completedAt moves with the flag: the Completed tab sorts by it, and a
+  // null there sank the task just finished below every dated completion,
+  // out of the first five. The server stamps its own value on the PATCH;
+  // a rollback passes the original stamp back so the order is restored.
+  const setTaskCompleted = useCallback((
+    taskId: string,
+    completed: boolean,
+    completedAt: string | null = completed ? new Date().toISOString() : null
+  ) => {
     setAllTasks(prev =>
-      prev.map(t => (t.id === taskId ? { ...t, completed } : t))
+      prev.map(t => (t.id === taskId ? { ...t, completed, completedAt } : t))
     );
   }, []);
 
   const handleToggleTask = async (taskId: string, completed: boolean) => {
     const next = !completed;
+    const prevCompletedAt = allTasks.find(t => t.id === taskId)?.completedAt ?? null;
     setTaskCompleted(taskId, next);
     try {
       await toggleCompleted(taskId, next);
@@ -222,7 +234,7 @@ export function MyTasksWidget() {
         action: {
           label: 'Undo',
           onClick: async () => {
-            setTaskCompleted(taskId, completed);
+            setTaskCompleted(taskId, completed, prevCompletedAt);
             try {
               await toggleCompleted(taskId, completed);
             } catch {
@@ -233,7 +245,7 @@ export function MyTasksWidget() {
         },
       });
     } catch {
-      setTaskCompleted(taskId, completed);
+      setTaskCompleted(taskId, completed, prevCompletedAt);
       toast.error('Failed to update task');
     }
   };

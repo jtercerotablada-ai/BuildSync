@@ -23,7 +23,7 @@
  * detail page already computes (portfolioId comes from useParams()).
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useId } from "react";
 import { useParams } from "next/navigation";
 import {
   Plus,
@@ -41,7 +41,6 @@ import {
   Square,
   GripVertical,
   MoreHorizontal,
-  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -174,6 +173,9 @@ interface ReportWidgetRow {
   position: number;
   config: unknown;
 }
+
+/** Mirrors the widgets route's `text: z.string().max(4000)`. */
+const TEXT_WIDGET_MAX = 4000;
 
 /** Map ReportWidget rows → PanelWidget[]. Only custom + text are expected;
  *  a stray catalog row (shouldn't occur here) is skipped defensively. */
@@ -449,6 +451,7 @@ export function PortfolioPanelView({
   >(null);
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
   const [textOpen, setTextOpen] = useState(false);
+  const [textSaving, setTextSaving] = useState(false);
   const [textDraft, setTextDraft] = useState({ id: "", title: "", text: "" });
   const [expandWidget, setExpandWidget] = useState<PanelWidget | null>(null);
   const [removeWidget, setRemoveWidget] = useState<PanelWidget | null>(null);
@@ -486,22 +489,31 @@ export function PortfolioPanelView({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  function handleDragEnd(event: DragEndEvent) {
+  // A stable id keeps dnd-kit's aria-describedby identical on the server
+  // and the client; its internal counter differs and breaks hydration.
+  const dndId = useId();
+
+  async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setWidgets((prev) => {
-      const oldIndex = prev.findIndex((w) => w.id === active.id);
-      const newIndex = prev.findIndex((w) => w.id === over.id);
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      const next = arrayMove(prev, oldIndex, newIndex);
-      // Persist the new positions (best-effort; local order already applied).
-      fetch(`/api/portfolios/${portfolioId}/widgets`, {
+    const snapshot = widgets;
+    const oldIndex = snapshot.findIndex((w) => w.id === active.id);
+    const newIndex = snapshot.findIndex((w) => w.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(snapshot, oldIndex, newIndex);
+    // Optimistic; restore the previous order if the save fails.
+    setWidgets(next);
+    try {
+      const res = await fetch(`/api/portfolios/${portfolioId}/widgets`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ order: next.map((w, i) => ({ id: w.id, position: i })) }),
-      }).catch(() => {});
-      return next;
-    });
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setWidgets(snapshot);
+      toast.error("Failed to save the new order");
+    }
   }
 
   // ── Add: template chart (seed the locked builder) ──
@@ -534,7 +546,9 @@ export function PortfolioPanelView({
     setBuilderOpen(true);
   };
 
-  const handleBuilderSubmit = async (result: ChartBuilderResult) => {
+  // Resolves false on a failed save so the ChartBuilder stays open with the
+  // configured chart intact; true once the widget is persisted.
+  const handleBuilderSubmit = async (result: ChartBuilderResult): Promise<boolean> => {
     // Force the persisted config onto the locked portfolio scope (the builder
     // already locks it; belt-and-suspenders so the server 400 never fires).
     const chartConfig: ChartConfig = { ...result.chartConfig, scope: lockedScope };
@@ -549,7 +563,6 @@ export function PortfolioPanelView({
     // EDIT
     if (editingWidgetId) {
       const targetId = editingWidgetId;
-      setEditingWidgetId(null);
       try {
         const res = await fetch(`/api/portfolios/${portfolioId}/widgets`, {
           method: "PATCH",
@@ -558,9 +571,12 @@ export function PortfolioPanelView({
         });
         if (!res.ok) throw new Error();
       } catch {
+        // Keep editingWidgetId so a retry from the still-open builder PATCHes
+        // this widget again instead of adding a duplicate.
         toast.error("Failed to save chart");
-        return;
+        return false;
       }
+      setEditingWidgetId(null);
       setWidgets((prev) =>
         prev.map((w) =>
           w.id === targetId
@@ -575,7 +591,7 @@ export function PortfolioPanelView({
         )
       );
       toast.success("Chart updated");
-      return;
+      return true;
     }
 
     // ADD
@@ -589,8 +605,10 @@ export function PortfolioPanelView({
       const row = await res.json();
       setWidgets((prev) => [...prev, ...rowsToWidgets([row])]);
       toast.success(`"${result.title}" added`);
+      return true;
     } catch {
       toast.error("Failed to add chart");
+      return false;
     }
   };
 
@@ -606,39 +624,51 @@ export function PortfolioPanelView({
   const handleTextSave = async () => {
     const text = textDraft.text.trim();
     const title = textDraft.title.trim() || "Text";
-    setTextOpen(false);
-    const configObj = { kind: "text" as const, text };
-
-    // EDIT
-    if (textDraft.id) {
-      const targetId = textDraft.id;
-      try {
-        const res = await fetch(`/api/portfolios/${portfolioId}/widgets`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ widgetId: targetId, title, config: configObj }),
-        });
-        if (!res.ok) throw new Error();
-      } catch {
-        toast.error("Failed to save text");
-        return;
-      }
-      setWidgets((prev) => prev.map((w) => (w.id === targetId ? { ...w, title, text } : w)));
+    if (text.length > TEXT_WIDGET_MAX) {
+      toast.error(`Text is limited to ${TEXT_WIDGET_MAX.toLocaleString()} characters`);
       return;
     }
+    const configObj = { kind: "text" as const, text };
 
-    // ADD
+    // The dialog stays open until the save succeeds, so a rejected save
+    // never throws away what the user typed.
+    setTextSaving(true);
     try {
-      const res = await fetch(`/api/portfolios/${portfolioId}/widgets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, width: 2, config: configObj }),
-      });
-      if (!res.ok) throw new Error();
-      const row = await res.json();
-      setWidgets((prev) => [...prev, ...rowsToWidgets([row])]);
-    } catch {
-      toast.error("Failed to add text");
+      // EDIT
+      if (textDraft.id) {
+        const targetId = textDraft.id;
+        try {
+          const res = await fetch(`/api/portfolios/${portfolioId}/widgets`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ widgetId: targetId, title, config: configObj }),
+          });
+          if (!res.ok) throw new Error();
+        } catch {
+          toast.error("Failed to save text");
+          return;
+        }
+        setWidgets((prev) => prev.map((w) => (w.id === targetId ? { ...w, title, text } : w)));
+        setTextOpen(false);
+        return;
+      }
+
+      // ADD
+      try {
+        const res = await fetch(`/api/portfolios/${portfolioId}/widgets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, width: 2, config: configObj }),
+        });
+        if (!res.ok) throw new Error();
+        const row = await res.json();
+        setWidgets((prev) => [...prev, ...rowsToWidgets([row])]);
+        setTextOpen(false);
+      } catch {
+        toast.error("Failed to add text");
+      }
+    } finally {
+      setTextSaving(false);
     }
   };
 
@@ -689,12 +719,21 @@ export function PortfolioPanelView({
   };
 
   const handleSetWidth = async (id: string, width: 1 | 2) => {
+    const previous = widgets.find((w) => w.id === id)?.width;
+    if (previous === undefined || previous === width) return;
+    // Optimistic; put the old width back if the save fails.
     setWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, width } : w)));
-    fetch(`/api/portfolios/${portfolioId}/widgets`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ widgetId: id, width }),
-    }).catch(() => {});
+    try {
+      const res = await fetch(`/api/portfolios/${portfolioId}/widgets`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ widgetId: id, width }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, width: previous } : w)));
+      toast.error("Failed to resize widget");
+    }
   };
 
   // ── Empty portfolio: keep the KPI strip, invite adding projects ──
@@ -703,13 +742,8 @@ export function PortfolioPanelView({
   return (
     <div className="space-y-4">
       {/* Toolbar — Add widget menu (Template / Custom / Text) */}
-      <div
-        className={cn(
-          "flex items-center",
-          canEdit ? "justify-between" : "justify-end"
-        )}
-      >
-        {canEdit && (
+      {canEdit && (
+        <div className="flex items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -741,15 +775,8 @@ export function PortfolioPanelView({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
-        <a
-          href="mailto:feedback@ttcivilstructural.com?subject=Panel%20Feedback"
-          className="text-xs text-[#a8893a] hover:underline inline-flex items-center gap-1"
-        >
-          <MessageSquare className="h-3 w-3" />
-          Send feedback
-        </a>
-      </div>
+        </div>
+      )}
 
       {/* KPI number row (from portfolio aggregates) */}
       <SummaryStrip
@@ -791,7 +818,7 @@ export function PortfolioPanelView({
           )}
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {widgets.map((w) => (
@@ -871,13 +898,27 @@ export function PortfolioPanelView({
               onChange={(e) => setTextDraft((d) => ({ ...d, text: e.target.value }))}
               placeholder="Write a note, heading, or context for this panel…"
               rows={5}
+              maxLength={TEXT_WIDGET_MAX}
               className="resize-none"
             />
+            <p
+              className={cn(
+                "text-right text-[11px]",
+                textDraft.text.length >= TEXT_WIDGET_MAX ? "text-red-600" : "text-slate-400"
+              )}
+            >
+              {textDraft.text.length.toLocaleString()} / {TEXT_WIDGET_MAX.toLocaleString()}
+            </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setTextOpen(false)}>
                 Cancel
               </Button>
-              <Button className="bg-slate-900 hover:bg-slate-800 text-white" onClick={handleTextSave}>
+              <Button
+                className="bg-slate-900 hover:bg-slate-800 text-white"
+                onClick={handleTextSave}
+                disabled={textSaving}
+              >
+                {textSaving && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
                 {textDraft.id ? "Save" : "Add text"}
               </Button>
             </div>

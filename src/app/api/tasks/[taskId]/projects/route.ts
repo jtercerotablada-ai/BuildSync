@@ -16,6 +16,7 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import {
   verifyTaskAccess,
   verifyProjectAccess,
+  getUserWorkspaceId,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
@@ -38,12 +39,23 @@ export async function POST(
     }
 
     // Writing the task's homing needs write on the task…
-    await verifyTaskAccess(userId, taskId, { requireWrite: true });
+    const guarded = await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const { projectId } = bodySchema.parse(await req.json());
 
     // …and write on the target project we're adding it to.
-    await verifyProjectAccess(userId, projectId, { requireWrite: true });
+    const { project: target } = await verifyProjectAccess(userId, projectId, {
+      requireWrite: true,
+    });
+    // Write access is no workspace bound — a project OWNER has it in any
+    // workspace, including their personal one — so the extra project must sit
+    // in the task's own workspace (the caller's primary one for a projectless
+    // task), or firm work could be surfaced in a board outside the firm.
+    const homeWorkspaceId =
+      guarded.project?.workspaceId ?? (await getUserWorkspaceId(userId));
+    if (target.workspaceId !== homeWorkspaceId) {
+      throw new NotFoundError("Project not found");
+    }
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },

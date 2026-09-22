@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isApiForbiddenForRole, isClientApi, isPublicRoute } from "./proxy";
+import {
+  appHostLanding,
+  isApiForbiddenForRole,
+  isClientApi,
+  isPublicRoute,
+  isRoleAgnosticUploadRequest,
+  isSessionCookieName,
+  isSessionOptionalApi,
+  loginRedirectUrl,
+} from "./proxy";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 
 /**
@@ -328,5 +337,116 @@ describe("isPublicRoute — Spanish marketing mirror", () => {
   it("does not open app routes that merely start with the letters es", () => {
     expect(isPublicRoute("/escalate")).toBe(false);
     expect(isPublicRoute("/estimates")).toBe(false);
+  });
+});
+
+describe("isSessionOptionalApi — Vercel Cron", () => {
+  it("lets the due-date cron reach its own handler without a session", () => {
+    // Vercel Cron sends no cookie; the handler's CRON_SECRET check is the gate.
+    expect(isSessionOptionalApi("/api/cron/due-dates")).toBe(true);
+  });
+
+  it("is exact-match: nothing else under /api/cron/ rides along", () => {
+    expect(isSessionOptionalApi("/api/cron")).toBe(false);
+    expect(isSessionOptionalApi("/api/cron/")).toBe(false);
+    expect(isSessionOptionalApi("/api/cron/other")).toBe(false);
+    expect(isSessionOptionalApi("/api/cron/due-dates/x")).toBe(false);
+  });
+
+  it("is not a public route (the role gate still applies to a session)", () => {
+    expect(isPublicRoute("/api/cron/due-dates")).toBe(false);
+  });
+});
+
+describe("appHostLanding", () => {
+  it("sends the app host's root to the app, not the marketing site", () => {
+    expect(appHostLanding("/")).toBe("/home");
+  });
+
+  it("sends the bare /projects index to the project list", () => {
+    expect(appHostLanding("/projects")).toBe("/projects/all");
+  });
+
+  it("leaves every other path alone", () => {
+    for (const path of ["/home", "/projects/all", "/projects/abc", "/about"]) {
+      expect(appHostLanding(path)).toBeNull();
+    }
+  });
+});
+
+describe("loginRedirectUrl", () => {
+  it("keeps the query string so emailed task links survive sign-in", () => {
+    const url = loginRedirectUrl(
+      "https://app.example.com/projects/p1?task=t1",
+      "/projects/p1",
+      "?task=t1",
+    );
+    expect(url.pathname).toBe("/login");
+    expect(url.searchParams.get("callbackUrl")).toBe("/projects/p1?task=t1");
+  });
+
+  it("works with no query string", () => {
+    const url = loginRedirectUrl("https://app.example.com/home", "/home", "");
+    expect(url.searchParams.get("callbackUrl")).toBe("/home");
+  });
+});
+
+describe("isSessionCookieName", () => {
+  it.each([
+    "next-auth.session-token",
+    "__Secure-next-auth.session-token",
+    "next-auth.session-token.0",
+    "__Secure-next-auth.session-token.1",
+  ])("matches %s", (name) => {
+    expect(isSessionCookieName(name)).toBe(true);
+  });
+
+  it.each([
+    "next-auth.csrf-token",
+    "__Host-next-auth.csrf-token",
+    "next-auth.callback-url",
+    "next-auth.session-tokenx",
+  ])("leaves %s alone", (name) => {
+    expect(isSessionCookieName(name)).toBe(false);
+  });
+});
+
+describe("isRoleAgnosticUploadRequest", () => {
+  const tokenBody = (target: unknown) => ({
+    type: "blob.generate-client-token",
+    payload: { pathname: "x/y", clientPayload: JSON.stringify(target) },
+  });
+
+  it.each(["form-attachment", "tracking-reply"])(
+    "admits a %s token request",
+    (kind) => {
+      expect(isRoleAgnosticUploadRequest(tokenBody({ kind }))).toBe(true);
+    },
+  );
+
+  it.each([
+    "task-attachment",
+    "project-resource",
+    "message-attachment",
+    "team-message-attachment",
+  ])("keeps %s under the role gate", (kind) => {
+    expect(isRoleAgnosticUploadRequest(tokenBody({ kind }))).toBe(false);
+  });
+
+  it("rejects the completion callback, malformed payloads and non-objects", () => {
+    expect(
+      isRoleAgnosticUploadRequest({
+        type: "blob.upload-completed",
+        payload: { clientPayload: JSON.stringify({ kind: "form-attachment" }) },
+      }),
+    ).toBe(false);
+    expect(
+      isRoleAgnosticUploadRequest({
+        type: "blob.generate-client-token",
+        payload: { clientPayload: "{not json" },
+      }),
+    ).toBe(false);
+    expect(isRoleAgnosticUploadRequest(null)).toBe(false);
+    expect(isRoleAgnosticUploadRequest("form-attachment")).toBe(false);
   });
 });

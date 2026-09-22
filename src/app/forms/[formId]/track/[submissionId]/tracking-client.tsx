@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderCommentContent } from "@/components/tasks/comment-content";
 import { toast } from "sonner";
 import {
+  PUBLIC_UPLOAD_MAX_BYTES,
+  PUBLIC_UPLOAD_MAX_FILES,
+} from "@/lib/storage";
+import { uploadDirect, responseError } from "@/lib/direct-upload";
+import {
   Loader2,
   AlertCircle,
   Paperclip,
@@ -32,7 +37,9 @@ import {
 interface Attachment {
   id?: string;
   name: string;
-  url: string;
+  /** null when the file can't be opened without a session (the page then
+   *  lists it by name only instead of linking to an error). */
+  url: string | null;
   size: number;
   mimeType: string;
 }
@@ -71,7 +78,6 @@ interface TrackData {
     completedAt: string | null;
     assignee: { name: string | null; image: string | null } | null;
     comments: CommentRow[];
-    attachments: Attachment[];
   } | null;
 }
 
@@ -89,6 +95,34 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** One file row: a download link when the file is reachable, else its name. */
+function FileLink({ att, small }: { att: Attachment; small?: boolean }) {
+  const body = (
+    <>
+      <Paperclip className={small ? "w-3 h-3" : "w-3.5 h-3.5"} />
+      {att.name}
+      <span className={small ? "text-[10px] text-slate-400" : "text-[11px] text-slate-400"}>
+        ({att.url ? formatBytes(att.size) : "not available here"})
+      </span>
+    </>
+  );
+  const size = small ? "text-xs" : "text-sm";
+  return att.url ? (
+    <a
+      href={att.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1.5 ${size} text-[#a8893a] hover:underline`}
+    >
+      {body}
+    </a>
+  ) : (
+    <span className={`inline-flex items-center gap-1.5 ${size} text-slate-500`}>
+      {body}
+    </span>
+  );
 }
 
 function statusVisual(label: string): {
@@ -190,7 +224,16 @@ export function TrackingPageClient({
 
   const handleAddFiles = (files: FileList | null) => {
     if (!files) return;
-    setReplyFiles((prev) => [...prev, ...Array.from(files)]);
+    // Same per-file ceiling the upload token and the reply route enforce.
+    const picked = Array.from(files);
+    const tooBig = picked.filter((f) => f.size > PUBLIC_UPLOAD_MAX_BYTES);
+    if (tooBig.length > 0) {
+      toast.error(
+        `${tooBig[0].name} exceeds the ${Math.floor(PUBLIC_UPLOAD_MAX_BYTES / (1024 * 1024))}MB limit`
+      );
+    }
+    const ok = picked.filter((f) => f.size <= PUBLIC_UPLOAD_MAX_BYTES);
+    setReplyFiles((prev) => [...prev, ...ok]);
   };
   const removeFile = (i: number) => {
     setReplyFiles((prev) => prev.filter((_, idx) => idx !== i));
@@ -201,21 +244,40 @@ export function TrackingPageClient({
     if (!content) return;
     setPosting(true);
     try {
-      const fd = new FormData();
-      fd.append("token", token);
-      fd.append("content", content);
-      for (const f of replyFiles) fd.append("file", f);
+      if (replyFiles.length > PUBLIC_UPLOAD_MAX_FILES) {
+        throw new Error(
+          `Attach at most ${PUBLIC_UPLOAD_MAX_FILES} files per reply.`
+        );
+      }
+      // Files go from the browser straight to blob storage — a function
+      // refuses a request body over ~4.5MB — and the reply carries only
+      // their urls.
+      const files: { blobUrl: string; name: string }[] = [];
+      for (const f of replyFiles) {
+        try {
+          const { url } = await uploadDirect(f, {
+            kind: "tracking-reply",
+            formId,
+            submissionId,
+            token,
+          });
+          files.push({ blobUrl: url, name: f.name });
+        } catch (err) {
+          throw new Error(
+            `${f.name}: ${err instanceof Error ? err.message : "upload failed"}`
+          );
+        }
+      }
       const res = await fetch(
         `/api/forms/${formId}/track/${submissionId}/reply`,
-        { method: "POST", body: fd }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, content, files }),
+        }
       );
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(
-          (body && typeof body === "object" && "error" in body
-            ? String(body.error)
-            : null) || `HTTP ${res.status}`
-        );
+        throw new Error(await responseError(res, `HTTP ${res.status}`));
       }
       setReplyText("");
       setReplyFiles([]);
@@ -350,18 +412,7 @@ export function TrackingPageClient({
                   <ul className="space-y-1">
                     {a.attachments.map((att, i) => (
                       <li key={i}>
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-sm text-[#a8893a] hover:underline"
-                        >
-                          <Paperclip className="w-3.5 h-3.5" />
-                          {att.name}
-                          <span className="text-[11px] text-slate-400">
-                            ({formatBytes(att.size)})
-                          </span>
-                        </a>
+                        <FileLink att={att} />
                       </li>
                     ))}
                   </ul>
@@ -431,18 +482,7 @@ export function TrackingPageClient({
                           <ul className="mt-2 space-y-1">
                             {c.attachments.map((att, i) => (
                               <li key={i}>
-                                <a
-                                  href={att.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 text-xs text-[#a8893a] hover:underline"
-                                >
-                                  <Paperclip className="w-3 h-3" />
-                                  {att.name}
-                                  <span className="text-[10px] text-slate-400">
-                                    ({formatBytes(att.size)})
-                                  </span>
-                                </a>
+                                <FileLink att={att} small />
                               </li>
                             ))}
                           </ul>

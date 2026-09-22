@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { persistMentionsForNewMessage } from "@/lib/mentions";
 import { resolveProjectAccess } from "@/lib/project-access";
+import { canPostInProject } from "@/lib/message-access";
 
 /**
  * GET /api/projects/:projectId/messages
@@ -38,22 +39,74 @@ async function assertProjectAccess(projectId: string, userId: string) {
       ownerId: true,
       visibility: true,
       workspaceId: true,
+      teamId: true,
       members: { select: { userId: true, role: true } },
     },
   });
 
   if (!project) return { ok: false as const, status: 404 };
 
-  // Canonical read rule (matches the page). The old inline check granted read
-  // to ANY workspace member on WORKSPACE-visibility projects — the same leak
-  // the project list deliberately removed.
+  // Canonical read rule (matches the page). A project the caller cannot read
+  // answers 404 like a missing one, so a restricted user cannot probe which
+  // project ids exist.
   const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
+  if (!access.ok) return { ok: false as const, status: 404 };
   return { ok: true as const, project, access };
 }
 
+type LoadedProject = Extract<
+  Awaited<ReturnType<typeof assertProjectAccess>>,
+  { ok: true }
+>;
+
+/**
+ * May the caller delete ANY message in this channel (not just their own)?
+ * Mirrors the moderation rule loadMessageWithAccess applies on DELETE:
+ * project owner or an explicit project ADMIN. The feed uses it only to hide
+ * controls the server would refuse; the server stays the gate.
+ */
+function canModerateChannel(loaded: LoadedProject, userId: string): boolean {
+  const member = loaded.project.members.find((m) => m.userId === userId);
+  return loaded.access.isOwner || member?.role === "ADMIN";
+}
+
+const MAX_AUDIENCE = 200;
+
+/**
+ * Everyone who can READ the project — the people an @mention can reach. The
+ * mention write path (resolveAllowedMentionUserIds) keeps only readers, so
+ * offering project members alone hid every colleague who reads a
+ * WORKSPACE project without a member row.
+ */
+async function loadMentionAudience(loaded: LoadedProject) {
+  const { project } = loaded;
+  const seats = await prisma.workspaceMember.findMany({
+    where: { workspaceId: project.workspaceId },
+    select: { userId: true },
+    orderBy: { joinedAt: "asc" },
+    take: MAX_AUDIENCE,
+  });
+  const candidateIds = Array.from(
+    new Set([
+      ...(project.ownerId ? [project.ownerId] : []),
+      ...project.members.map((m) => m.userId),
+      ...seats.map((s) => s.userId),
+    ])
+  ).slice(0, MAX_AUDIENCE);
+  const readable = await Promise.all(
+    candidateIds.map(async (uid) => (await resolveProjectAccess(project, uid)).ok)
+  );
+  const readerIds = candidateIds.filter((_, i) => readable[i]);
+  const users = await prisma.user.findMany({
+    where: { id: { in: readerIds } },
+    select: { id: true, name: true, email: true, image: true, jobTitle: true },
+    orderBy: { name: "asc" },
+  });
+  return users.map((user) => ({ user }));
+}
+
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
@@ -70,6 +123,17 @@ export async function GET(
         { status: access.status }
       );
     }
+
+    // `?audience=1` answers what the caller may do in this channel and who
+    // they can @mention, instead of the feed. Fetched once per mount, so the
+    // per-reader access checks stay off the 10-second poll.
+    if (new URL(req.url).searchParams.get("audience") === "1") {
+      return NextResponse.json({
+        canPost: canPostInProject(access.access),
+        people: await loadMentionAudience(access),
+      });
+    }
+    const canModerate = canModerateChannel(access, userId);
 
     // Root messages only — replies live under their parent and are
     // fetched on demand via /api/messages/:id/replies when the user
@@ -165,11 +229,15 @@ export async function GET(
         reactions: Object.values(reactionsByEmoji).sort(
           (a, b) => b.count - a.count
         ),
+        // The stored url is a storage address; hand out the authenticated
+        // read door instead, which re-checks this channel's access rule.
         attachments: m.attachments.map((a) => ({
           ...a,
+          url: `/api/messages/${m.id}/attachments?file=${a.id}`,
           createdAt: a.createdAt.toISOString(),
         })),
         mine: m.author?.id === userId,
+        canDelete: m.author?.id === userId || canModerate,
         replyCount: m._count.replies,
         lastReplyAt: m.replies[0]?.createdAt.toISOString() ?? null,
         mentions: m.mentions.map((mn) => ({
@@ -290,6 +358,7 @@ export async function POST(
         reactions: [],
         attachments: [],
         mine: true,
+        canDelete: true,
         replyCount: 0,
         lastReplyAt: null,
         mentions: resolvedMentions,

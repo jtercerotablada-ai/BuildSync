@@ -3,7 +3,8 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
-import { verifyTaskAccess, verifyProjectAccess, verifySectionWritable, getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { recomputeRollupsForAncestors } from "@/lib/formula-eval";
+import { verifyTaskAccess, verifyProjectAccess, verifySectionWritable, getUserWorkspaceId, assertUserInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import {
   executeRulesOnSectionChange,
   executeRulesOnTaskCompleted,
@@ -13,6 +14,8 @@ import {
   notifyTaskCompleted,
   notifyTaskCollaborators,
   notifyTaskDueDateChanged,
+  notifyCascadedDueDateChanges,
+  autoFollowTasks,
 } from "@/lib/task-notifications";
 import {
   cascadeDependentDates,
@@ -24,6 +27,53 @@ import {
 } from "@/lib/cascade-activity";
 import { startOfTodayUtc } from "@/lib/date-only";
 import { readJson, jsonErrorResponse } from "@/lib/http";
+import { deleteFile } from "@/lib/storage";
+import type { Prisma } from "@prisma/client";
+
+/**
+ * Every descendant of `rootId` (subtasks, their subtasks, ...), not including
+ * the root. Walked level by level: a subtask can have subtasks of its own, and
+ * the depth is small in practice. `seen` guards against a corrupt cycle.
+ */
+async function collectDescendantIds(
+  db: Prisma.TransactionClient | typeof prisma,
+  rootId: string
+): Promise<string[]> {
+  const seen = new Set<string>([rootId]);
+  const out: string[] = [];
+  let frontier = [rootId];
+  while (frontier.length > 0) {
+    const children = await db.task.findMany({
+      where: { parentTaskId: { in: frontier } },
+      select: { id: true },
+    });
+    frontier = [];
+    for (const c of children) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push(c.id);
+      frontier.push(c.id);
+    }
+  }
+  return out;
+}
+
+/**
+ * A blob uploaded through a public form or a tracking reply. The same url is
+ * mirrored into the task's Attachment rows, but the FormSubmission keeps its
+ * own copy in its JSON answers (and has no FK to the task, so it outlives it):
+ * the Submissions inbox and the client's tracking page still link to it. A
+ * JSON column cannot be counted like the tables below, so these blobs belong
+ * to the submission and a task delete never removes them.
+ */
+function isSubmissionBlob(url: string): boolean {
+  try {
+    const path = new URL(url).pathname.replace(/^\/+/, "");
+    return path.startsWith("forms/") || path.startsWith("tracking/");
+  } catch {
+    return false;
+  }
+}
 
 // Uploads are private blobs: the url on an Attachment row is an address only
 // the server can fetch. This is the endpoint the task detail panel actually
@@ -335,6 +385,7 @@ export async function PATCH(
         assigneeId: true,
         startDate: true,
         dueDate: true,
+        project: { select: { workspaceId: true } },
       },
     });
 
@@ -432,11 +483,35 @@ export async function PATCH(
     }
 
     if (data.projectId !== undefined && data.projectId !== existingTask.projectId) {
+      // Taking a task OUT of its current project (moving or clearing it) hides
+      // it from everyone on that project, so it costs write on that project.
+      // The assignee/creator tie verifyTaskAccess accepts is not enough: a
+      // VIEWER assignee could otherwise make a project task vanish.
+      if (existingTask.projectId) {
+        await verifyProjectAccess(userId, existingTask.projectId, {
+          requireWrite: true,
+        });
+      }
       // Moving a task INTO a project requires write access on the target
       // project — otherwise a user could push tasks into projects they
       // can't edit (or merely can't see).
       if (data.projectId) {
-        await verifyProjectAccess(userId, data.projectId, { requireWrite: true });
+        const { project: target } = await verifyProjectAccess(
+          userId,
+          data.projectId,
+          { requireWrite: true }
+        );
+        // Write access alone is no workspace bound: a project OWNER has
+        // canWrite in any workspace, including the personal one every account
+        // gets at onboarding, so a task's creator could move a firm task out
+        // of the firm entirely. Keep the move inside the task's own workspace
+        // (the caller's primary one for a projectless task) — the same bound
+        // the sectionId branch below applies.
+        const homeWorkspaceId =
+          existingTask.project?.workspaceId ?? (await getUserWorkspaceId(userId));
+        if (target.workspaceId !== homeWorkspaceId) {
+          throw new NotFoundError("Project not found");
+        }
         // Re-homing INTO a project the task was merely a guest of must consume
         // the guest link, or the task is both home and guest of the same
         // project: the project page renders it once from sections.include.tasks
@@ -464,9 +539,10 @@ export async function PATCH(
           orderBy: { position: "asc" },
           select: { id: true },
         });
-        if (firstSection) {
-          updateData.sectionId = firstSection.id;
-        }
+        // A project with no sections still has to drop the OLD project's
+        // section, or the task keeps rendering on the old board (columns load
+        // via sections.include.tasks) while it belongs to the new project.
+        updateData.sectionId = firstSection?.id ?? null;
       }
 
       // If removing from project, also clear sectionId
@@ -552,6 +628,37 @@ export async function PATCH(
     }
 
     if (data.assigneeId !== undefined && data.assigneeId !== existingTask.assigneeId) {
+      // The assignee gains read and write on the task (isOwnTask) and is
+      // emailed its name, so it must be someone in the workspace the task will
+      // live in after this PATCH — never an arbitrary user id.
+      if (data.assigneeId) {
+        const finalProjectId =
+          updateData.projectId !== undefined
+            ? (updateData.projectId as string | null)
+            : existingTask.projectId;
+        const assigneeWorkspaceId = finalProjectId
+          ? (
+              await prisma.project.findUnique({
+                where: { id: finalProjectId },
+                select: { workspaceId: true },
+              })
+            )?.workspaceId
+          : await getUserWorkspaceId(userId);
+        if (!assigneeWorkspaceId) {
+          throw new NotFoundError("Project not found");
+        }
+        try {
+          await assertUserInWorkspace(data.assigneeId, assigneeWorkspaceId);
+        } catch (err) {
+          if (err instanceof AuthorizationError) {
+            return NextResponse.json(
+              { error: "Assignee is not a member of this workspace" },
+              { status: 400 }
+            );
+          }
+          throw err;
+        }
+      }
       updateData.assigneeId = data.assigneeId;
       activities.push({
         type: data.assigneeId ? "TASK_ASSIGNED" : "TASK_UNASSIGNED",
@@ -587,7 +694,9 @@ export async function PATCH(
     }
 
     if (data.priority !== undefined) {
-      updateData.priority = data.priority;
+      // Priority is a non-nullable column: a client clearing it with null
+      // means "no priority", not a 500 from Prisma.
+      updateData.priority = data.priority ?? "NONE";
     }
 
     // Convert-to (task ⇄ milestone ⇄ approval) — the schema accepted
@@ -658,6 +767,20 @@ export async function PATCH(
           },
         },
       });
+      // Subtasks live in their parent's project and column. Re-homing only the
+      // parent left them behind: access to them was then decided by the OLD
+      // project, its counts kept them, and deleting the old project or the
+      // old column (which deletes its tasks) destroyed the checklist of a
+      // task that now lives elsewhere.
+      if (updateData.projectId !== undefined || updateData.sectionId !== undefined) {
+        const descendantIds = await collectDescendantIds(tx, taskId);
+        if (descendantIds.length > 0) {
+          await tx.task.updateMany({
+            where: { id: { in: descendantIds } },
+            data: { projectId: updated.projectId, sectionId: updated.sectionId },
+          });
+        }
+      }
       if (datesChanged) {
         // Pass the pre-edit dates so dependents shift by the same delta the
         // schedule moved (gap-preserving, both directions — MS-Project style)
@@ -668,7 +791,9 @@ export async function PATCH(
         });
       }
       return updated;
-    });
+      // A long chained recert schedule can cascade through many rows, and a
+      // cold database start eats into Prisma's 5s default.
+    }, { maxWait: 10000, timeout: 20000 });
 
     // Create activity logs — one round trip, not one per entry.
     const activityRows: CascadeActivityRow[] = activities.map((activity) => ({
@@ -704,10 +829,20 @@ export async function PATCH(
       }
     }
 
-    // Recalculate goal progress if task completion status changed
-    if (data.completed !== undefined && data.completed !== existingTask.completed) {
+    // Recalculate goal progress when the task's completion changed, or when
+    // it moved between projects: a goal fed by a project counts its tasks, so
+    // the move shrinks one project's denominator and grows the other's.
+    const completionChanged =
+      data.completed !== undefined && data.completed !== existingTask.completed;
+    const projectChanged =
+      updateData.projectId !== undefined &&
+      updateData.projectId !== existingTask.projectId;
+    if (completionChanged || projectChanged) {
       try {
         await GoalProgressService.recalculateForTask(taskId);
+        if (projectChanged && existingTask.projectId) {
+          await GoalProgressService.recalculateForProject(existingTask.projectId);
+        }
       } catch (progressError) {
         // Log but don't fail the request if progress calculation fails
         console.error("Error recalculating goal progress:", progressError);
@@ -768,6 +903,19 @@ export async function PATCH(
       }
     }
 
+    // The assignee follows the task they own (Asana behaviour), so they keep
+    // hearing about it, including its completion. The comment and completion
+    // fan-outs dedupe recipients, so this never doubles a notification. The
+    // creator is skipped: they are notified of both already. autoFollowTasks
+    // skips tasks where the row would outlive the assignment as an access key.
+    if (
+      task.assigneeId &&
+      task.assigneeId !== existingTask.assigneeId &&
+      task.assigneeId !== task.creator?.id
+    ) {
+      await autoFollowTasks([{ taskId, userId: task.assigneeId }], "tasks PATCH");
+    }
+
     // Inbox notification to the task creator when someone OTHER
     // than them flips the task to completed. Re-opening (true →
     // false) and self-completing stay silent. Mirror of the
@@ -825,6 +973,10 @@ export async function PATCH(
       }
     }
 
+    // Dependents whose due date the cascade moved are rescheduled just as
+    // surely as the edited task, and their assignees need to hear it too.
+    await notifyCascadedDueDateChanges(cascadeShifts, userId);
+
     return NextResponse.json({ ...task, cascadeShifts });
   } catch (error) {
     const badJson = jsonErrorResponse(error);
@@ -863,10 +1015,98 @@ export async function DELETE(
     }
 
     // Verify user can WRITE (delete) this task, not merely share its workspace.
-    await verifyTaskAccess(userId, taskId, { requireWrite: true });
+    const guarded = await verifyTaskAccess(userId, taskId, { requireWrite: true });
+
+    // Everything below has to be collected BEFORE the delete: subtasks,
+    // comments, attachments and the goal join rows all cascade with the task,
+    // so afterwards there is nothing left to look them up by.
+    const subtreeIds = [taskId, ...(await collectDescendantIds(prisma, taskId))];
+    const deletedParent = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { parentTaskId: true },
+    });
+
+    // Attachment ROWS cascade, the blobs behind them do not — and legacy
+    // uploads are public, so a deleted task's drawings stayed downloadable by
+    // anyone holding a link. Same cleanup project DELETE does.
+    const attachments = await prisma.attachment.findMany({
+      where: {
+        OR: [
+          { taskId: { in: subtreeIds } },
+          { comment: { taskId: { in: subtreeIds } } },
+        ],
+      },
+      select: { url: true },
+    });
+    const blobUrls = [...new Set(attachments.map((a) => a.url))];
+
+    // Deleting a task moves a goal's denominator exactly like completing one
+    // does (bulk delete already recalculates for the same reason).
+    const [objectiveTasks, keyResultTasks, objectiveProjects] = await Promise.all([
+      prisma.objectiveTask.findMany({
+        where: { taskId: { in: subtreeIds } },
+        select: { objectiveId: true },
+      }),
+      prisma.keyResultTask.findMany({
+        where: { taskId: { in: subtreeIds } },
+        select: { keyResult: { select: { objectiveId: true } } },
+      }),
+      guarded.projectId
+        ? prisma.objectiveProject.findMany({
+            where: { projectId: guarded.projectId },
+            select: { objectiveId: true },
+          })
+        : Promise.resolve([] as { objectiveId: string }[]),
+    ]);
+    const affectedObjectiveIds = new Set<string>([
+      ...objectiveTasks.map((o) => o.objectiveId),
+      ...keyResultTasks.map((k) => k.keyResult.objectiveId),
+      ...objectiveProjects.map((o) => o.objectiveId),
+    ]);
 
     await prisma.task.delete({
       where: { id: taskId },
+    });
+
+    // A deleted subtask leaves its ancestors' roll-ups aggregating a set that
+    // no longer exists.
+    if (deletedParent?.parentTaskId) {
+      try {
+        await recomputeRollupsForAncestors(deletedParent.parentTaskId);
+      } catch (e) {
+        console.error("[task delete] roll-up recompute failed:", e);
+      }
+    }
+
+    for (const objectiveId of affectedObjectiveIds) {
+      try {
+        await GoalProgressService.recalculateProgress(objectiveId);
+      } catch (e) {
+        console.error("[task delete] goal recalc failed:", e);
+      }
+    }
+
+    // Best-effort, after the rows are gone: a blob failure must not turn a
+    // completed delete into an error. A url still referenced elsewhere (a
+    // duplicated resource, another attachment row, a form submission) is
+    // left alone.
+    await Promise.allSettled(
+      blobUrls.map(async (url) => {
+        if (isSubmissionBlob(url)) return;
+        const stillUsed =
+          (await prisma.attachment.count({ where: { url } })) +
+          (await prisma.file.count({ where: { url } })) +
+          (await prisma.projectResource.count({ where: { url } })) +
+          (await prisma.messageAttachment.count({ where: { url } }));
+        if (stillUsed === 0) await deleteFile(url);
+      })
+    ).then((results) => {
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        console.error(
+          `[task delete] ${failed} of ${blobUrls.length} blob deletions failed for ${taskId}`
+        );
+      }
     });
 
     return NextResponse.json({ success: true });

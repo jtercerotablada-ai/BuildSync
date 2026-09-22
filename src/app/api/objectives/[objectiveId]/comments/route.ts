@@ -8,6 +8,7 @@ import {
   getErrorStatus,
 } from "@/lib/auth-guards";
 import { verifyObjectiveAccess } from "@/lib/objective-access";
+import { notifyObjectiveActivity } from "@/lib/objective-notifications";
 
 const createCommentSchema = z.object({
   text: z.string().min(1).max(2000),
@@ -26,9 +27,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Commenting appends a row to the goal's activity feed, so it takes write
-    // access to the goal.
-    await verifyObjectiveAccess(userId, objectiveId, { requireWrite: true });
+    // Commenting is part of reading the goal, not changing it: every reader
+    // may comment, a Read-only member of a private goal included.
+    await verifyObjectiveAccess(userId, objectiveId, { requireComment: true });
 
     const body = await req.json();
     const data = createCommentSchema.parse(body);
@@ -48,6 +49,15 @@ export async function POST(
           select: { id: true, name: true, image: true },
         },
       },
+    });
+
+    // The owner and members hear about it; before this a question asked on a
+    // goal reached nobody. Best-effort, never fails the comment.
+    await notifyObjectiveActivity({
+      objectiveId,
+      actorUserId: userId,
+      kind: "comment",
+      summary: data.text,
     });
 
     return NextResponse.json(comment, { status: 201 });

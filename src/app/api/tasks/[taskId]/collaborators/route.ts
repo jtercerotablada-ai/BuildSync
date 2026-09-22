@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { Prisma } from "@prisma/client";
 import { verifyTaskAccess, assertUserInWorkspace, getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { notifyTaskCollaboratorAdded } from "@/lib/task-notifications";
 
 // POST /api/tasks/:taskId/collaborators - Add collaborator
 export async function POST(
@@ -56,14 +58,39 @@ export async function POST(
       );
     }
 
-    await prisma.taskCollaborator.create({
-      data: { taskId, userId: collaboratorId },
-    });
+    try {
+      await prisma.taskCollaborator.create({
+        data: { taskId, userId: collaboratorId },
+      });
+    } catch (err) {
+      // A double click passes the check above twice; the unique index stops
+      // the second insert. Same answer as the check, not a 500.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        return NextResponse.json(
+          { error: "Already a collaborator" },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
 
     // Touch the task so the "Last modified" field reflects the change.
-    await prisma.task.update({
+    const touched = await prisma.task.update({
       where: { id: taskId },
       data: { updatedAt: new Date() },
+      select: { name: true, projectId: true, project: { select: { name: true } } },
+    });
+
+    await notifyTaskCollaboratorAdded({
+      taskId,
+      collaboratorId,
+      actorUserId: userId,
+      taskName: touched.name,
+      projectId: touched.projectId,
+      projectName: touched.project?.name ?? null,
     });
 
     const user = await prisma.user.findUnique({

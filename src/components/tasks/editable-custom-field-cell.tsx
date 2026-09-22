@@ -73,6 +73,7 @@ export function EditableCustomFieldCell({
   value,
   onChange,
   onCommitted,
+  readOnly = false,
 }: {
   taskId: string;
   fieldId: string;
@@ -82,8 +83,11 @@ export function EditableCustomFieldCell({
   onChange?: (next: unknown) => void;
   /** Fires AFTER a successful save so the parent can refetch values that
    *  the server may have recomputed (e.g. FORMULA / ROLLUP columns and the
-   *  per-column SUMA footer). */
+   *  per-column Sum footer). */
   onCommitted?: () => void;
+  /** Viewer of a project they cannot edit: show the value, offer no editor
+   *  (every save would only come back 403). */
+  readOnly?: boolean;
 }) {
   const [optimistic, setOptimistic] = useState<unknown>(value);
   const [open, setOpen] = useState(false);
@@ -110,12 +114,30 @@ export function EditableCustomFieldCell({
           body: JSON.stringify({ value: next }),
         }
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // The route explains rejections ("Value is too long (4000
+        // characters max)", "Option not in this field's list") — show that
+        // instead of a generic failure so the user knows what to change.
+        const body = (await res.json().catch(() => null)) as {
+          error?: unknown;
+        } | null;
+        throw new Error(
+          typeof body?.error === "string" && body.error
+            ? body.error
+            : "Couldn't update field"
+        );
+      }
       onCommitted?.();
-    } catch {
+    } catch (err) {
       setOptimistic(value); // roll back
       onChange?.(value);
-      toast.error("Couldn't update field");
+      // A TypeError is the browser's own network failure, not a reason
+      // worth showing verbatim.
+      toast.error(
+        err instanceof Error && !(err instanceof TypeError) && err.message
+          ? err.message
+          : "Couldn't update field"
+      );
     } finally {
       setSaving(false);
     }
@@ -123,7 +145,7 @@ export function EditableCustomFieldCell({
 
   // Read-only path (PEOPLE / REFERENCE / FORMULA / TIMER / TIME_TRACKING
   // / ROLLUP) — render the underlying CustomFieldCell, no click handler.
-  if (READ_ONLY_TYPES.includes(type)) {
+  if (readOnly || READ_ONLY_TYPES.includes(type)) {
     return (
       <CustomFieldCell type={type} options={options} value={optimistic} />
     );

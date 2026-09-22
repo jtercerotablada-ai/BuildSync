@@ -51,8 +51,22 @@ export async function GET(req: Request) {
       prisma.task.findMany({
         where: {
           name: { contains: query, mode: "insensitive" },
-          project: visibleProject,
-          ...taskPrivacyClause(userId),
+          AND: [
+            taskPrivacyClause(userId),
+            {
+              // A bare `project:` relation filter drops project-less rows,
+              // so personal My Tasks to-dos were unsearchable. They are
+              // visible to their creator or assignee — the same rule
+              // /api/mentions uses.
+              OR: [
+                { project: visibleProject },
+                {
+                  projectId: null,
+                  OR: [{ creatorId: userId }, { assigneeId: userId }],
+                },
+              ],
+            },
+          ],
         },
         select: {
           id: true,

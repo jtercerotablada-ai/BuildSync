@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   ArrowRightToLine,
   Bold,
@@ -19,7 +20,6 @@ import {
   Code,
   List,
   ListOrdered,
-  Sparkles,
   ChevronDown,
   MoreHorizontal,
   AlignLeft as ExecSummaryIcon,
@@ -106,9 +106,20 @@ export function ProjectBriefEditor({
   onClose,
 }: ProjectBriefEditorProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
+  // The copied link keeps the shell (dashboard or /portal) it was copied from.
+  const pathname = usePathname();
+  const shellPrefix = pathname?.startsWith("/portal") ? "/portal" : "";
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [empty, setEmpty] = useState(true);
   const [loading, setLoading] = useState(true);
+  // A failed GET is NOT an empty brief: seeding the editor with "" and letting
+  // it autosave would upsert a fragment over the stored document.
+  const [loadError, setLoadError] = useState(false);
+  const [loadKey, setLoadKey] = useState(0);
+  // Only true once a GET has actually landed. Every write path checks it (a
+  // ref, so the unmount flush and debounced timers read the live value).
+  const loadedRef = useRef(false);
+  const editable = canEdit && !loading && !loadError;
   const [slash, setSlash] = useState<{ x: number; y: number; query: string; index: number } | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
 
@@ -149,6 +160,7 @@ export function ProjectBriefEditor({
   }, [projectId]);
 
   const save = useCallback(async () => {
+    if (!loadedRef.current) return;
     const html = sanitizeRichText(contentRef.current);
     if (html === lastSavedRef.current) {
       setSaveState((s) => (s === "saving" ? "idle" : s));
@@ -183,10 +195,14 @@ export function ProjectBriefEditor({
   // ── Load ──────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
+    loadedRef.current = false;
     (async () => {
       try {
         const res = await fetch(`/api/projects/${projectId}/brief`);
-        const data = res.ok ? await res.json() : null;
+        // 200 with null means "no brief yet"; anything else is a failure
+        // and must not be mistaken for an empty document.
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
         if (cancelled) return;
         const html = sanitizeRichText(data?.content ?? "");
         contentRef.current = html;
@@ -194,8 +210,12 @@ export function ProjectBriefEditor({
         everSavedRef.current = !isRichTextBlank(html);
         if (editorRef.current) editorRef.current.innerHTML = html;
         setEmpty(computeEmpty(editorRef.current));
+        loadedRef.current = true;
       } catch {
-        if (!cancelled) toast.error("Couldn't load the brief");
+        if (!cancelled) {
+          setLoadError(true);
+          toast.error("Couldn't load the brief");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -206,7 +226,7 @@ export function ProjectBriefEditor({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, loadKey]);
 
   // Flush on unmount.
   useEffect(() => {
@@ -214,6 +234,7 @@ export function ProjectBriefEditor({
       if (timerRef.current) clearTimeout(timerRef.current);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       if (deletedRef.current) return; // brief was deleted — don't resurrect it
+      if (!loadedRef.current) return; // never loaded — nothing of ours to save
       const html = sanitizeRichText(contentRef.current);
       if (html !== lastSavedRef.current && html.length <= BRIEF_MAX) {
         persist(html).catch(() => {});
@@ -406,6 +427,7 @@ export function ProjectBriefEditor({
   }, []);
 
   const onInput = useCallback(() => {
+    if (!loadedRef.current) return;
     contentRef.current = editorRef.current?.innerHTML ?? "";
     setEmpty(computeEmpty(editorRef.current));
     updateSlashQuery();
@@ -433,7 +455,7 @@ export function ProjectBriefEditor({
         if (e.key === "Escape") { e.preventDefault(); closeSlash(); return; }
         if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) { closeSlash(); return; }
       }
-      if (e.key === "/" && !slash && canEdit) {
+      if (e.key === "/" && !slash && editable) {
         setTimeout(() => {
           const sel = window.getSelection();
           if (!sel || sel.rangeCount === 0) return;
@@ -442,7 +464,7 @@ export function ProjectBriefEditor({
         }, 0);
       }
     },
-    [slash, filteredBlocks, pickSlash, closeSlash, canEdit]
+    [slash, filteredBlocks, pickSlash, closeSlash, editable]
   );
 
   const onPaste = useCallback(
@@ -490,13 +512,17 @@ export function ProjectBriefEditor({
           >
             {!canEdit
               ? "Read-only"
-              : saveState === "saving"
-                ? "Saving…"
-                : saveState === "saved"
-                  ? "Saved · Just now"
-                  : saveState === "error"
-                    ? "Couldn't save"
-                    : "All changes are saved automatically"}
+              : loading
+                ? "Loading…"
+                : loadError
+                  ? "Couldn't load the brief"
+                  : saveState === "saving"
+                    ? "Saving…"
+                    : saveState === "saved"
+                      ? "Saved · Just now"
+                      : saveState === "error"
+                        ? "Couldn't save"
+                        : "All changes are saved automatically"}
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -514,7 +540,7 @@ export function ProjectBriefEditor({
                 onSelect={() => {
                   navigator.clipboard
                     ?.writeText(
-                      `${window.location.origin}/projects/${projectId}?view=overview&brief=1`
+                      `${window.location.origin}${shellPrefix}/projects/${projectId}?view=overview&brief=1`
                     )
                     .then(() => toast.success("Link copied"))
                     .catch(() => toast.error("Couldn't copy the link"));
@@ -522,7 +548,7 @@ export function ProjectBriefEditor({
               >
                 Copy brief link
               </DropdownMenuItem>
-              {canEdit && (
+              {editable && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -573,19 +599,36 @@ export function ProjectBriefEditor({
               {title}
             </h1>
             <div className="relative">
-              {empty && canEdit && (
+              {loadError && (
+                <div className="mb-4 rounded-lg border border-[#F3C5CD] bg-[#FBE9EC] px-4 py-3 text-sm text-[#B4304C]">
+                  Couldn&apos;t load the brief, so editing is paused to keep the
+                  saved version safe.{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoadError(false);
+                      setLoading(true);
+                      setLoadKey((k) => k + 1);
+                    }}
+                    className="font-medium underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {empty && editable && (
                 <div className="pointer-events-none absolute inset-x-0 top-0 select-none text-[15px] leading-7 text-slate-400">
                   Explain the what and why of this project to your team.
                   <ul className="mt-1 list-disc pl-6">
-                    <li>Drag suggested content here from the right, or just let the words flow.</li>
-                    <li>Type / to insert elements like Figma files or YouTube videos.</li>
-                    <li>Highlight text to turn it into a task.</li>
+                    <li>Add a suggested section from the right, or just let the words flow.</li>
+                    <li>Type / to insert headings, lists, quotes and more.</li>
+                    <li>Select text, then Insert → Create task from selection.</li>
                   </ul>
                 </div>
               )}
               <div
                 ref={editorRef}
-                contentEditable={canEdit}
+                contentEditable={editable}
                 suppressContentEditableWarning
                 role="textbox"
                 aria-multiline="true"
@@ -593,7 +636,7 @@ export function ProjectBriefEditor({
                 spellCheck
                 className={cn(
                   "bs-brief-editor min-h-[50vh] whitespace-pre-wrap break-words text-[15px] leading-7 text-[#3F4144] outline-none",
-                  !canEdit && "cursor-default"
+                  !editable && "cursor-default"
                 )}
                 onInput={onInput}
                 onKeyDown={onKeyDown}
@@ -627,7 +670,7 @@ export function ProjectBriefEditor({
               <button
                 key={s.key}
                 type="button"
-                disabled={!canEdit}
+                disabled={!editable}
                 onClick={() => insertSection(s.label)}
                 className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-left text-sm text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
               >
@@ -636,18 +679,11 @@ export function ProjectBriefEditor({
               </button>
             ))}
           </div>
-
-          <h3 className="mb-2 mt-8 text-base font-medium text-slate-800">
-            Connected work
-          </h3>
-          <p className="text-sm text-slate-400">
-            Connected milestones and goals will appear here automatically.
-          </p>
         </aside>
       </div>
 
       {/* ───────── Floating toolbar ───────── */}
-      {canEdit && !loading && (
+      {editable && (
         <div className="pointer-events-none absolute bottom-6 left-0 right-0 flex justify-center lg:right-[320px]">
           <div
             className="pointer-events-auto flex items-center gap-0.5 rounded-full bg-[#1E1F21] px-2 py-1.5 text-white shadow-xl"
@@ -673,10 +709,6 @@ export function ProjectBriefEditor({
             <TSep />
             <TBtn label="Bulleted list" onClick={() => applyBlock("ul")}><List className="h-4 w-4" /></TBtn>
             <TBtn label="Numbered list" onClick={() => applyBlock("ol")}><ListOrdered className="h-4 w-4" /></TBtn>
-            <TSep />
-            <TBtn label="AI assistant" onClick={() => toast.info("AI features are coming soon")}>
-              <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-            </TBtn>
             <TSep />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

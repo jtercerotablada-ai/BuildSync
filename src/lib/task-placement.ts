@@ -37,9 +37,10 @@ export type TaskPlacement =
 export interface ResolvedPlacements {
   placements: TaskPlacement[];
   /** Ids that are neither homed in nor multi-homed into the destination
-   *  project. The shipped UI cannot produce these — a column only ever renders
-   *  tasks of one of the two kinds — so callers should reject rather than
-   *  guess, which is exactly what the old code did wrong. */
+   *  project. Callers must never write a placement for these — guessing one
+   *  is exactly what the old code did wrong. Whether to reject the request or
+   *  skip the id is the caller's call (reorder skips, so one stale row cannot
+   *  make a whole column un-draggable). */
   unrelated: string[];
 }
 

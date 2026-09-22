@@ -399,3 +399,146 @@ export async function notifyTaskCompleted(opts: {
     console.error("[notifyTaskCompleted] inbox create failed:", err);
   }
 }
+
+/**
+ * Tell the assignees (and followers) of every task a dependency cascade moved
+ * that their due date changed. A cascade reschedules a dependent just as
+ * surely as editing it by hand — "Submit recert report" slipping five days
+ * because the survey slipped is the change its owner most needs to hear —
+ * but only the task the user actually touched used to announce it.
+ *
+ * Call AFTER the cascade's transaction commits. Shifts that moved only a start
+ * date are skipped, matching notifyTaskDueDateChanged. Never throws.
+ */
+export async function notifyCascadedDueDateChanges(
+  shifts: {
+    taskId: string;
+    taskName: string;
+    oldEnd: Date | null;
+    newEnd: Date | null;
+  }[],
+  actorUserId: string
+) {
+  const moved = shifts.filter(
+    (s) => (s.oldEnd?.getTime() ?? null) !== (s.newEnd?.getTime() ?? null)
+  );
+  if (moved.length === 0) return;
+  try {
+    const dependents = await prisma.task.findMany({
+      where: { id: { in: moved.map((s) => s.taskId) } },
+      select: {
+        id: true,
+        assigneeId: true,
+        projectId: true,
+        project: { select: { name: true } },
+      },
+    });
+    const byId = new Map(dependents.map((d) => [d.id, d]));
+    for (const shift of moved) {
+      const dependent = byId.get(shift.taskId);
+      if (!dependent) continue;
+      await notifyTaskDueDateChanged({
+        taskId: shift.taskId,
+        actorUserId,
+        assigneeId: dependent.assigneeId,
+        taskName: shift.taskName,
+        projectId: dependent.projectId,
+        projectName: dependent.project?.name ?? null,
+        previousDueDate: shift.oldEnd,
+        dueDate: shift.newEnd,
+      });
+    }
+  } catch (err) {
+    console.error("[notifyCascadedDueDateChanges] failed:", err);
+  }
+}
+
+/**
+ * Tell someone they were added as a collaborator (follower) on a task. From
+ * then on they are pinged about its comments and completion, so the first
+ * they heard of the task used to be somebody else's comment.
+ *
+ * There is no dedicated notification type (the enum is a schema change), so
+ * this rides on MENTIONED — being added to a task is the same "someone pulled
+ * you in" signal, gated by the same preference — and the title carries the
+ * distinction. Adding yourself is silent. Best-effort, never throws.
+ */
+export async function notifyTaskCollaboratorAdded(opts: {
+  taskId: string;
+  collaboratorId: string;
+  actorUserId: string;
+  taskName: string;
+  projectId: string | null;
+  projectName: string | null;
+}) {
+  const { taskId, collaboratorId, actorUserId, taskName, projectId, projectName } =
+    opts;
+  if (collaboratorId === actorUserId) return;
+  try {
+    if (!(await shouldNotify(collaboratorId, "MENTIONED"))) return;
+    const actor = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { name: true, email: true, image: true },
+    });
+    const actorName = actor?.name ?? actor?.email ?? "A teammate";
+    await prisma.notification.create({
+      data: {
+        userId: collaboratorId,
+        type: "MENTIONED",
+        title: `${actorName} added you as a collaborator on a task`,
+        message: taskName,
+        data: {
+          taskId,
+          projectId: projectId ?? null,
+          taskName,
+          projectName: projectName ?? null,
+          authorName: actorName,
+          authorImage: actor?.image ?? null,
+        },
+      },
+    });
+  } catch (err) {
+    console.error("[notifyTaskCollaboratorAdded] failed:", err);
+  }
+}
+
+/**
+ * Make people follow a task automatically (the assignee on assignment, a
+ * commenter on their first reply), Asana-style.
+ *
+ * A follower row is also an ACCESS tie (decideTaskAccess): it opens a private
+ * task and a task in a project the person cannot otherwise read. Nothing ever
+ * removes an automatic row, so a previous assignee, or a commenter later
+ * dropped from a private project, would keep reading and commenting forever.
+ * So the automatic follow only happens where the tie grants nothing the
+ * person's seat does not already give them: a non-private task in a
+ * WORKSPACE or PUBLIC project. Everywhere else the assignee and creator are
+ * still notified directly; only an explicit "Add follower" creates a tie.
+ *
+ * Best-effort: a failure is logged and never fails the caller's write.
+ */
+export async function autoFollowTasks(
+  follows: Array<{ taskId: string; userId: string }>,
+  logTag: string
+) {
+  if (follows.length === 0) return;
+  try {
+    const openTaskIds = new Set(
+      (
+        await prisma.task.findMany({
+          where: {
+            id: { in: [...new Set(follows.map((f) => f.taskId))] },
+            isPrivate: false,
+            project: { visibility: { in: ["WORKSPACE", "PUBLIC"] } },
+          },
+          select: { id: true },
+        })
+      ).map((t) => t.id)
+    );
+    const data = follows.filter((f) => openTaskIds.has(f.taskId));
+    if (data.length === 0) return;
+    await prisma.taskCollaborator.createMany({ data, skipDuplicates: true });
+  } catch (err) {
+    console.error(`[${logTag}] auto-follow failed:`, err);
+  }
+}

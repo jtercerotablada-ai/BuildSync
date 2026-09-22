@@ -38,6 +38,53 @@ const moveStageSchema = z.object({
   blocker: optionalText(500),
 });
 
+/**
+ * GET /api/projects/:projectId/stage — the job's stage history, newest first:
+ * every move with its direction, reason, who made it and when. Readable by
+ * anyone who can read the project.
+ */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  try {
+    const userId = await getCurrentUserId();
+    const { projectId } = await params;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const access = await getProjectAccess(projectId, userId);
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    const events = await prisma.projectStageEvent.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        fromStage: true,
+        toStage: true,
+        direction: true,
+        reason: true,
+        createdAt: true,
+        user: { select: { id: true, name: true, email: true, image: true } },
+      },
+    });
+
+    return NextResponse.json({ events });
+  } catch (error) {
+    console.error("Error fetching project stage history:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch stage history" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ projectId: string }> }
@@ -59,15 +106,12 @@ export async function PATCH(
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    // Deliberately the SAME rule as the project PATCH — owner, or a member with
-    // ADMIN/EDITOR — spelled the same way. A stage move is an ordinary content
-    // edit, and a second, subtly different rule for it is how the two drift.
-    const canEdit =
-      access.isOwner ||
-      access.memberRole === "ADMIN" ||
-      access.memberRole === "EDITOR";
-
-    if (!canEdit) {
+    // Deliberately the SAME rule as the project PATCH: canWrite from the
+    // canonical resolver. A stage move is an ordinary content edit; the
+    // private owner/ADMIN/EDITOR copy that stood here had already drifted
+    // from it, and locked out workspace managers, team members and every
+    // colleague on a WORKSPACE-visible job.
+    if (!access.canWrite) {
       return NextResponse.json(
         { error: "You don't have permission to edit this project" },
         { status: 403 }

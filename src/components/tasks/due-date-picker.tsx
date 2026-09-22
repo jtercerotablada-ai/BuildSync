@@ -61,18 +61,36 @@ function formatDateInput(date: Date): string {
   return `${month}/${day}/${year}`;
 }
 
-function parseDateInput(value: string): Date | null {
-  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+/**
+ * Parse "MM/DD/YY" or "MM/DD/YYYY". While the user is still typing we
+ * only accept a 4-digit year: a 2-digit prefix ("01/15/20" on the way to
+ * "01/15/2027") would otherwise parse as 2020 and, being before the start,
+ * swap the two fields mid-keystroke. The short form is accepted on blur.
+ */
+function parseDateInput(value: string, allowShortYear = false): Date | null {
+  const match = value
+    .trim()
+    .match(
+      allowShortYear
+        ? /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/
+        : /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+    );
   if (!match) return null;
 
   const [, month, day, year] = match;
-  let fullYear = parseInt(year);
+  let fullYear = parseInt(year, 10);
   if (fullYear < 100) {
     fullYear += 2000;
   }
+  const m = parseInt(month, 10) - 1;
+  const d = parseInt(day, 10);
 
-  const date = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+  const date = new Date(fullYear, m, d);
   if (isNaN(date.getTime())) return null;
+  // Reject overflow ("02/31" would silently roll into March).
+  if (date.getFullYear() !== fullYear || date.getMonth() !== m || date.getDate() !== d) {
+    return null;
+  }
 
   return date;
 }
@@ -186,9 +204,7 @@ export function DueDatePicker({
    * dismisses; skipped when nothing actually changed so the parent
    * doesn't trigger a no-op PATCH.
    */
-  function flush() {
-    const ls = localStartRef.current;
-    const ld = localDueRef.current;
+  function flush(ls: Date | null, ld: Date | null) {
     const sd = startDateRef.current;
     const dd = dueDateRef.current;
     const startChanged =
@@ -208,7 +224,16 @@ export function DueDatePicker({
    * out of sync with the draft.
    */
   function dismiss() {
-    flush();
+    // A value still being typed (e.g. "01/15/27" closed with Esc, which
+    // never blurs the input) has not reached the draft yet — take it here.
+    let ls = localStartRef.current;
+    let ld = localDueRef.current;
+    const typedStart = startInput.trim() ? parseDateInput(startInput, true) : null;
+    const typedDue = dueInput.trim() ? parseDateInput(dueInput, true) : null;
+    if (typedStart) ls = typedStart;
+    if (typedDue) ld = typedDue;
+    if (ls && ld && dayOnly(ls) > dayOnly(ld)) [ls, ld] = [ld, ls];
+    flush(ls, ld);
     setOpen(false);
   }
 
@@ -240,8 +265,33 @@ export function DueDatePicker({
     }
   };
 
-  const handleSelectDate = (day: number, month: number, year: number) => {
-    const picked = new Date(year, month, day);
+  /** Commit a typed value on blur: accepts the short "MM/DD/YY" form, and
+   *  snaps an unparseable leftover back to the current draft so the box
+   *  never shows a date that is not the one that will be saved. */
+  const handleStartBlur = () => {
+    if (startInput.trim() === '') return;
+    const parsed = parseDateInput(startInput, true);
+    if (parsed) {
+      commitDraft(parsed, localDueRef.current);
+      setViewDate(parsed);
+    } else {
+      setStartInput(localStart ? formatDateInput(localStart) : '');
+    }
+  };
+
+  const handleDueBlur = () => {
+    if (dueInput.trim() === '') return;
+    const parsed = parseDateInput(dueInput, true);
+    if (parsed) {
+      commitDraft(localStartRef.current, parsed);
+      setViewDate(parsed);
+    } else {
+      setDueInput(localDue ? formatDateInput(localDue) : '');
+    }
+  };
+
+  const handleSelectDate = (date: Date) => {
+    const picked = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     // Pure draft update — flip focus so the next click naturally
     // hits the other endpoint. Nothing here touches the parent, so
     // the trigger element stays stable and the popover stays open
@@ -398,6 +448,7 @@ export function DueDatePicker({
           <Input
             value={startInput}
             onChange={handleStartChange}
+            onBlur={handleStartBlur}
             onFocus={() => setFocus('start')}
             placeholder="Start"
             className={cn(
@@ -409,6 +460,7 @@ export function DueDatePicker({
           <Input
             value={dueInput}
             onChange={handleDueChange}
+            onBlur={handleDueBlur}
             onFocus={() => setFocus('due')}
             placeholder="Due"
             className={cn(
@@ -493,9 +545,10 @@ export function DueDatePicker({
                   )}
                 >
                   <button
-                    onClick={() =>
-                      handleSelectDate(item.day, item.month, item.year)
-                    }
+                    // item.date is built with the wrapped month and year;
+                    // item.month/year are not (Jan's leading cells had
+                    // month -1 with the year already decremented).
+                    onClick={() => handleSelectDate(item.date)}
                     type="button"
                     className={cn(
                       "h-8 w-8 flex items-center justify-center text-sm transition-colors rounded-full",

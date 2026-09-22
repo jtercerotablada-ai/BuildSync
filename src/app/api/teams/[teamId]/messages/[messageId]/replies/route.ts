@@ -3,11 +3,11 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
-  verifyTeamAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 import { persistTeamMentionsForNewMessage } from "@/lib/mentions";
 
 /**
@@ -42,7 +42,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { teamId, messageId } = await params;
-    await verifyTeamAccess(userId, teamId);
+    await requireTeamStanding(userId, teamId);
 
     const ctx = await loadParentOrRoot(messageId, teamId);
     if (!ctx) {
@@ -122,8 +122,10 @@ export async function GET(
         reactions: Object.values(reactionsByEmoji).sort(
           (a, b) => b.count - a.count
         ),
+        // The read door, never the stored storage address.
         attachments: m.attachments.map((a) => ({
           ...a,
+          url: `/api/teams/${teamId}/messages/${m.id}/attachments?file=${a.id}`,
           createdAt: a.createdAt.toISOString(),
         })),
         mine: m.author?.id === userId,
@@ -162,22 +164,13 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { teamId, messageId } = await params;
-    await verifyTeamAccess(userId, teamId);
+    // Same gate as the parent POST: team member or workspace OWNER/ADMIN,
+    // with a live contributor seat.
+    await requireTeamStanding(userId, teamId);
 
     const ctx = await loadParentOrRoot(messageId, teamId);
     if (!ctx) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    // Posting requires team membership (same gate as parent POST).
-    const teamMember = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId } },
-    });
-    if (!teamMember) {
-      return NextResponse.json(
-        { error: "You must be a team member to reply" },
-        { status: 403 }
-      );
     }
 
     const body = await req.json();

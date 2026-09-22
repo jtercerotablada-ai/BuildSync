@@ -128,35 +128,79 @@ export async function POST(
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const invitation = await prisma.workspaceInvitation.upsert({
-        where: {
-          email_workspaceId: {
-            email: normalizedEmail,
-            workspaceId,
-          },
-        },
-        create: {
-          email: normalizedEmail,
-          role: "MEMBER",
-          token,
-          expiresAt,
-          workspaceId,
-          inviterId: userId,
-          // Bind the invite to THIS team so acceptance adds them as a
-          // TeamMember (not just a workspace member).
-          teamId,
-        },
-        update: {
-          role: "MEMBER",
-          status: "PENDING",
-          token,
-          expiresAt,
-          inviterId: userId,
-          acceptedAt: null,
-          acceptedUserId: null,
-          teamId,
-        },
+      // The (email, workspace) row is shared with every other invite flow, so
+      // a live PENDING one is somebody else's decision: its role (possibly
+      // ADMIN) and its project/portfolio binds stay exactly as they are. Only
+      // the team bind and the expiry change, and the token is kept so a link
+      // already in the invitee's inbox keeps working. A dead row (accepted,
+      // declined, expired) is reset in full below, so an old project or
+      // portfolio bind can never come back with it.
+      const existingInvite = await prisma.workspaceInvitation.findUnique({
+        where: { email_workspaceId: { email: normalizedEmail, workspaceId } },
+        select: { id: true, status: true, expiresAt: true, teamId: true },
       });
+      const livePending =
+        existingInvite?.status === "PENDING" &&
+        existingInvite.expiresAt > new Date();
+      if (
+        livePending &&
+        existingInvite.teamId &&
+        existingInvite.teamId !== teamId
+      ) {
+        // One invitation carries one team. Overwriting it would silently drop
+        // the team the first inviter chose.
+        return NextResponse.json(
+          {
+            error: `${normalizedEmail} already has a pending invitation to another team. Add them to this team once they have joined the workspace.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      const invitation = livePending
+        ? await prisma.workspaceInvitation.update({
+            where: { id: existingInvite.id },
+            data: { expiresAt, teamId },
+          })
+        : await prisma.workspaceInvitation.upsert({
+            where: {
+              email_workspaceId: {
+                email: normalizedEmail,
+                workspaceId,
+              },
+            },
+            create: {
+              email: normalizedEmail,
+              role: "MEMBER",
+              token,
+              expiresAt,
+              workspaceId,
+              inviterId: userId,
+              // Bind the invite to THIS team so acceptance adds them as a
+              // TeamMember (not just a workspace member).
+              teamId,
+            },
+            update: {
+              role: "MEMBER",
+              status: "PENDING",
+              token,
+              expiresAt,
+              inviterId: userId,
+              acceptedAt: null,
+              acceptedUserId: null,
+              teamId,
+              // Everything an earlier, finished invitation bound on accept.
+              position: null,
+              customTitle: null,
+              department: null,
+              personalMessage: null,
+              projectId: null,
+              companyId: null,
+              projectRole: null,
+              portfolioId: null,
+              portfolioRole: null,
+            },
+          });
 
       // Best-effort email — keep the row even if delivery fails so the
       // admin can resend from the People/Settings invitation list.
@@ -175,8 +219,10 @@ export async function POST(
           token: invitation.token,
           inviterName,
           workspaceName: workspace?.name ?? "the workspace",
-          roleLabel: WORKSPACE_ROLE_META.MEMBER?.label || "Member",
-          personalMessage: null,
+          // The invitation's own role and note — a kept PENDING invite may
+          // be for an admin seat, and must not be re-sent as "Member".
+          roleLabel: WORKSPACE_ROLE_META[invitation.role]?.label || "Member",
+          personalMessage: invitation.personalMessage,
           projectName: null,
         });
       } catch (mailErr) {

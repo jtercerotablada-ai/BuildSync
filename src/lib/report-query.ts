@@ -22,8 +22,17 @@
 
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
+import {
+  daysFromToday,
+  dueDateToLocalMidnight,
+  startOfTodayUtc,
+} from "@/lib/date-only";
 import { readTimeTracking } from "@/lib/duration";
+import { stageLabel } from "@/lib/pipelines";
+import {
+  buildProjectVisibilityClauses,
+  taskPrivacyClause,
+} from "@/lib/project-visibility";
 import type {
   ChartConfig,
   ChartDataRow,
@@ -36,7 +45,10 @@ import type {
   Measure,
   MeasureField,
 } from "@/lib/report-config";
-import { CHRONOLOGICAL_CHART_TYPES } from "@/lib/report-config";
+import {
+  CHRONOLOGICAL_CHART_TYPES,
+  PROJECT_TYPE_OPTIONS,
+} from "@/lib/report-config";
 
 // ─── Palette (mirrors /api/reports) ───────────────────────────────
 
@@ -102,6 +114,13 @@ export interface EngineContext {
   userId: string;
   workspaceId: string;
   /**
+   * Which rows the CALLER may see — from buildReportAccessScopes. Required on
+   * purpose: the engine used to scope on workspaceId alone, so a custom chart
+   * listed PRIVATE projects by name, counted private tasks and private goals
+   * for people who cannot open them, and disagreed with the prebuilt charts.
+   */
+  access: ReportAccessScopes;
+  /**
    * The project ids belonging to a portfolio, resolved ONCE (by the route,
    * post view-gate) when config.scope.kind === 'portfolio'. The sub-queries
    * read this instead of re-resolving the link table. An empty array means
@@ -119,6 +138,120 @@ export interface EngineContext {
    * honest empty result), never the whole workspace.
    */
   portfolioObjectiveIds?: string[];
+}
+
+// ─── Row visibility (shared with GET /api/reports) ───────────────
+
+export interface ReportAccessScopes {
+  /** Projects of the report's workspace the caller may see (archive NOT applied). */
+  project: Prisma.ProjectWhereInput;
+  /** Private tasks stay with their assignee/creator. */
+  task: Prisma.TaskWhereInput;
+  /** Goals of the report's workspace the caller may see. */
+  objective: Prisma.ObjectiveWhereInput;
+}
+
+/**
+ * The three row gates every report applies, built in ONE place so the custom
+ * chart engine and the prebuilt "My organization" charts can never disagree
+ * about what a person may count. Projects and tasks come from the canonical
+ * list rules in project-visibility.ts. Goals follow decideObjectiveAccess: a
+ * private goal is visible to its owner, its members and whoever runs the
+ * workspace — so a workspace OWNER/ADMIN is deliberately not narrowed.
+ */
+export async function buildReportAccessScopes(
+  userId: string,
+  workspace: { workspaceId: string; workspaceRole: string }
+): Promise<ReportAccessScopes> {
+  const visibilityClauses = await buildProjectVisibilityClauses(userId);
+  const seesEveryObjective =
+    workspace.workspaceRole === "OWNER" || workspace.workspaceRole === "ADMIN";
+  return {
+    // Each clause carries its OWN workspaceId, so AND-ing the set with the
+    // report's workspace narrows to exactly this workspace's clause rather
+    // than widening to every workspace the caller belongs to. An empty OR
+    // matches nothing — the safe answer for a caller with no membership.
+    project: {
+      AND: [
+        { workspaceId: workspace.workspaceId },
+        { OR: visibilityClauses ?? [] },
+      ],
+    },
+    task: taskPrivacyClause(userId),
+    objective: {
+      workspaceId: workspace.workspaceId,
+      ...(seesEveryObjective
+        ? {}
+        : {
+            OR: [
+              { isPrivate: false },
+              { ownerId: userId },
+              { members: { some: { userId } } },
+            ],
+          }),
+    },
+  };
+}
+
+// ─── Firm calendar (for real timestamps) ──────────────────────────
+//
+// Due and start dates are date-only values stored at UTC midnight and are read
+// by their UTC day (date-only.ts). completedAt and createdAt are REAL instants:
+// read by the UTC day, a task finished at 9 PM in Miami on the 30th (01:00 UTC
+// on the 1st) counted toward the next day, week and month. The firm works in
+// South Florida, so instants are bucketed on its calendar instead.
+
+export const FIRM_TIME_ZONE = "America/New_York";
+
+const firmDateParts = new Intl.DateTimeFormat("en-US", {
+  timeZone: FIRM_TIME_ZONE,
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+  second: "numeric",
+  hourCycle: "h23",
+});
+
+function firmWallClock(instant: Date) {
+  const parts: Record<string, number> = {};
+  for (const p of firmDateParts.formatToParts(instant)) {
+    if (p.type !== "literal") parts[p.type] = Number(p.value);
+  }
+  return {
+    y: parts.year,
+    m: parts.month - 1,
+    d: parts.day,
+    h: parts.hour,
+    min: parts.minute,
+    s: parts.second,
+  };
+}
+
+/** The firm's calendar day an instant falls on, as a UTC-midnight date-only
+ *  value — the same shape stored due dates have, so every date helper that
+ *  reads a due date reads this one the same way. */
+export function instantToFirmDay(instant: Date): Date {
+  const w = firmWallClock(instant);
+  return new Date(Date.UTC(w.y, w.m, w.d));
+}
+
+/** The instant the firm's calendar day (y, m 0-based, d) begins. */
+export function firmMidnightUtc(y: number, m: number, d: number): Date {
+  const wallAsUtc = Date.UTC(y, m, d);
+  // Offset of the zone at a first guess (05:00Z is local midnight in EST),
+  // then corrected once — exact on DST changeover days, which switch at 2 AM.
+  const guess = new Date(wallAsUtc + 5 * 3600000);
+  const w = firmWallClock(guess);
+  const offset =
+    Date.UTC(w.y, w.m, w.d, w.h, w.min, w.s) - guess.getTime();
+  return new Date(wallAsUtc - offset);
+}
+
+/** Bucket a real timestamp (completedAt/createdAt) on the firm's calendar. */
+export function instantBucketKey(value: Date, grain: DateGrain): string {
+  return dateBucketKey(instantToFirmDay(value), grain);
 }
 
 // ─── Group-cap disclosure ─────────────────────────────────────────
@@ -160,7 +293,9 @@ export async function portfolioProjectIds(
   portfolioId: string
 ): Promise<string[]> {
   const links = await prisma.portfolioProject.findMany({
-    where: { portfolioId },
+    // Archived jobs are off the portfolio page and its KPI strip; a Panel
+    // chart counting them contradicted the numbers right above it.
+    where: { portfolioId, project: { isArchived: false } },
     select: { projectId: true },
   });
   return links.map((l) => l.projectId);
@@ -222,6 +357,21 @@ const TASK_TYPE_VALUES = new Set(["TASK", "MILESTONE", "APPROVAL"]);
 const PRIORITY_VALUES = new Set(["NONE", "LOW", "MEDIUM", "HIGH"]);
 
 /**
+ * The projects a chart may draw from: the caller's visible projects, minus
+ * archived ones. Archive is reversible and filters out of every other list,
+ * so 2024's closed recerts must not inflate "Projects by status" either. A
+ * chart deliberately scoped to ONE project keeps it even once archived —
+ * someone picked that job by name.
+ */
+function projectScopeFor(
+  config: ChartConfig,
+  ctx: EngineContext
+): Prisma.ProjectWhereInput {
+  if (config.scope.kind === "project") return ctx.access.project;
+  return { AND: [ctx.access.project, { isArchived: false }] };
+}
+
+/**
  * Translate the SQL-expressible filters into a Prisma `Task` where clause.
  * Filters that depend on computed/date-only semantics (dueStatus) or on
  * custom-field Json values are applied in JS AFTER the fetch (see
@@ -232,23 +382,26 @@ function buildTaskWhere(
   config: ChartConfig,
   ctx: EngineContext
 ): Prisma.TaskWhereInput {
-  const and: Prisma.TaskWhereInput[] = [];
+  // Visibility, for EVERY scope — a portfolio or a project id says which
+  // rows are wanted, never which rows the caller may count. The project
+  // clause also pins the workspace.
+  const and: Prisma.TaskWhereInput[] = [
+    { project: projectScopeFor(config, ctx) },
+    ctx.access.task,
+  ];
 
   // Scope.
-  if (config.scope.kind === "workspace") {
-    and.push({ project: { workspaceId: ctx.workspaceId } });
-  } else if (config.scope.kind === "project") {
-    // The route validates the project belongs to the workspace before
-    // calling the engine.
+  if (config.scope.kind === "project") {
+    // The route has already checked the caller can read this project.
     and.push({ projectId: config.scope.projectId });
   } else if (config.scope.kind === "portfolio") {
     // Tasks of the portfolio's projects. The route resolves + gates the ids
     // (post portfolio view-check) onto ctx.portfolioProjectIds. An empty list
     // matches nothing — a sound, honest empty result (never the workspace).
     and.push({ projectId: { in: ctx.portfolioProjectIds ?? [] } });
-  } else {
-    // 'my' — tasks assigned to the caller, still workspace-scoped.
-    and.push({ project: { workspaceId: ctx.workspaceId }, assigneeId: ctx.userId });
+  } else if (config.scope.kind === "my") {
+    // 'my' — tasks assigned to the caller.
+    and.push({ assigneeId: ctx.userId });
   }
 
   for (const f of config.filters) {
@@ -324,11 +477,17 @@ function taskFilterToWhere(f: Filter): Prisma.TaskWhereInput | null {
         asArray.includes("true");
       return { completed: f.operator === "isNot" ? !wantCompleted : wantCompleted };
     }
-    case "name":
-      if (f.operator === "contains" && v != null)
-        return { name: { contains: String(v), mode: "insensitive" } };
-      if (f.operator === "is" && v != null) return { name: String(v) };
-      return null;
+    case "name": {
+      const text = asArray[0];
+      if (text == null) return null;
+      if (f.operator === "contains")
+        return { name: { contains: text, mode: "insensitive" } };
+      const exact: Prisma.TaskWhereInput = {
+        name: { equals: text, mode: "insensitive" },
+      };
+      if (f.operator === "isNot") return { NOT: exact };
+      return exact;
+    }
     case "dueDate":
       return dateFilterToWhere("dueDate", f);
     case "completedAt":
@@ -351,40 +510,105 @@ function startOfLocalDay(from = new Date()): Date {
   return new Date(from.getFullYear(), from.getMonth(), from.getDate());
 }
 
-/** Build a Prisma date where for gt/lt/gte/lte/inLastDays/inNextDays/isSet. */
-function dateFilterToWhere(
+/**
+ * The [start, end) instants of one calendar day (y, m 0-based, d) for a date
+ * field. A due date is a date-only value stored at UTC midnight, so its day is
+ * the UTC day; completedAt/createdAt are real instants, read on the firm's
+ * calendar like every other bucket in this module.
+ */
+function dayBounds(
   field: "dueDate" | "completedAt" | "createdAt",
-  f: Filter
+  y: number,
+  m: number,
+  d: number
+): { start: Date; end: Date } {
+  if (field === "dueDate") {
+    return {
+      start: new Date(Date.UTC(y, m, d)),
+      end: new Date(Date.UTC(y, m, d + 1)),
+    };
+  }
+  return { start: firmMidnightUtc(y, m, d), end: firmMidnightUtc(y, m, d + 1) };
+}
+
+/**
+ * Build a Prisma date where. Every comparison works on WHOLE days: the value
+ * is a calendar date ("2026-09-30"), so "is on" is the day's [start, end),
+ * "on or before" runs to the END of that day and "after" starts the next one.
+ * Comparing raw instants dropped the rest of the day for completedAt/createdAt,
+ * and "is" used to fall through to "on or after".
+ */
+export function dateFilterToWhere(
+  field: "dueDate" | "completedAt" | "createdAt",
+  f: Filter,
+  now: Date = new Date()
 ): Prisma.TaskWhereInput | null {
-  if (f.operator === "isSet") return { [field]: { not: null } } as Prisma.TaskWhereInput;
-  if (f.operator === "isNotSet") return { [field]: null } as Prisma.TaskWhereInput;
+  const clause = (cond: Prisma.DateTimeNullableFilter) =>
+    ({ [field]: cond }) as Prisma.TaskWhereInput;
 
-  const today = startOfLocalDay();
-  const MS_DAY = 86400000;
-
-  if (f.operator === "inLastDays") {
-    const n = Number(f.value) || 0;
-    const from = new Date(today.getTime() - n * MS_DAY);
-    return { [field]: { gte: from, lte: new Date() } } as Prisma.TaskWhereInput;
-  }
-  if (f.operator === "inNextDays") {
-    const n = Number(f.value) || 0;
-    const to = new Date(today.getTime() + (n + 1) * MS_DAY);
-    return { [field]: { gte: today, lt: to } } as Prisma.TaskWhereInput;
+  if (f.operator === "isSet" || f.operator === "isNotSet") {
+    // createdAt is never empty — and a null test on a required column is a
+    // Prisma error, not an answer.
+    if (field === "createdAt") {
+      return f.operator === "isSet" ? null : { id: { in: [] } };
+    }
+    return clause(f.operator === "isSet" ? { not: null } : { equals: null });
   }
 
-  if (f.value == null) return null;
-  const d = new Date(String(f.value));
-  if (isNaN(d.getTime())) return null;
-  const op =
-    f.operator === "gt"
-      ? "gt"
-      : f.operator === "lt"
-      ? "lt"
-      : f.operator === "lte"
-      ? "lte"
-      : "gte";
-  return { [field]: { [op]: d } } as Prisma.TaskWhereInput;
+  if (f.operator === "inLastDays" || f.operator === "inNextDays") {
+    const n = Number(filterValues(f.value)[0]);
+    // Unfinished (or nonsense) — not applied, like every other blank filter.
+    if (!Number.isFinite(n) || n < 0) return null;
+    const today =
+      field === "dueDate" ? startOfTodayUtc(now) : instantToFirmDay(now);
+    const y = today.getUTCFullYear();
+    const m = today.getUTCMonth();
+    const d = today.getUTCDate();
+    return f.operator === "inLastDays"
+      ? // The last N days AND today.
+        clause({
+          gte: dayBounds(field, y, m, d - n).start,
+          lt: dayBounds(field, y, m, d).end,
+        })
+      : // Today and the next N days.
+        clause({
+          gte: dayBounds(field, y, m, d).start,
+          lt: dayBounds(field, y, m, d + n).end,
+        });
+  }
+
+  const raw = filterValues(f.value)[0];
+  if (raw == null) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  let ymd: [number, number, number] | null = match
+    ? [Number(match[1]), Number(match[2]) - 1, Number(match[3])]
+    : null;
+  if (!ymd) {
+    // Charts saved before the builder had a date picker hold whatever was
+    // typed ("9/30/2026", "Sep 30 2026"). Dropping those would silently count
+    // every task while the footer still claims the filter, so read them the
+    // way they were read when saved. Non-ISO strings parse as a local
+    // calendar day, so the local getters give back exactly what was typed.
+    const loose = new Date(raw);
+    if (Number.isNaN(loose.getTime())) return null;
+    ymd = [loose.getFullYear(), loose.getMonth(), loose.getDate()];
+  }
+  const { start, end } = dayBounds(field, ymd[0], ymd[1], ymd[2]);
+  switch (f.operator) {
+    case "is":
+      return clause({ gte: start, lt: end });
+    case "lt":
+      return clause({ lt: start });
+    case "lte":
+      return clause({ lt: end });
+    case "gt":
+      return clause({ gte: end });
+    case "gte":
+      return clause({ gte: start });
+    default:
+      // The route refuses any other operator for a date; never guess one.
+      return null;
+  }
 }
 
 // ─── Post-filters (dueStatus + custom-field values) ──────────────
@@ -589,10 +813,14 @@ export function resolveTaskDimension(
     }
     case "date": {
       const g = grain ?? "month";
-      // Bucket completed-status charts by completedAt, else by dueDate.
-      const basis = row.completed && row.completedAt ? row.completedAt : row.dueDate;
-      if (!basis) return { key: "__nodate", label: "No date" };
-      const key = dateBucketKey(basis, g);
+      // Bucket completed-status charts by completedAt, else by dueDate. The
+      // first is an instant (firm calendar), the second a date-only value.
+      if (row.completed && row.completedAt) {
+        const key = instantBucketKey(row.completedAt, g);
+        return { key, label: dateBucketLabel(key, g) };
+      }
+      if (!row.dueDate) return { key: "__nodate", label: "No date" };
+      const key = dateBucketKey(row.dueDate, g);
       return { key, label: dateBucketLabel(key, g) };
     }
     default:
@@ -738,7 +966,7 @@ async function loadTaskResolveMaps(
       sectionIds.size
         ? prisma.section.findMany({
             where: { id: { in: Array.from(sectionIds) } },
-            select: { id: true, name: true },
+            select: { id: true, name: true, project: { select: { name: true } } },
           })
         : Promise.resolve([]),
       needsCf && taskIds.length
@@ -779,7 +1007,17 @@ async function loadTaskResolveMaps(
     projects: new Map(
       projects.map((p) => [p.id, { name: p.name, color: p.color }])
     ),
-    sections: new Map(sections.map((s) => [s.id, s.name])),
+    // Sections are per project and stage templates reuse their names, so
+    // across projects a bare name drew ten identical "To do" bars. Name the
+    // project unless the chart is already scoped to a single one.
+    sections: new Map(
+      sections.map((s) => [
+        s.id,
+        config.scope.kind === "project"
+          ? s.name
+          : `${s.project.name} › ${s.name}`,
+      ])
+    ),
     portfolios: new Map(),
     taskPortfolios: new Map(),
     projectPortfolios,
@@ -1143,7 +1381,7 @@ function buildBurn(
   const completedInBucket = new Map<string, number>();
   for (const row of rows) {
     if (row.completed && row.completedAt) {
-      const key = dateBucketKey(row.completedAt, grain);
+      const key = instantBucketKey(row.completedAt, grain);
       if (bucketSet.has(key)) {
         completedInBucket.set(key, (completedInBucket.get(key) ?? 0) + 1);
       }
@@ -1154,7 +1392,7 @@ function buildBurn(
   let baseline = 0;
   for (const row of rows) {
     if (row.completed && row.completedAt) {
-      const key = dateBucketKey(row.completedAt, grain);
+      const key = instantBucketKey(row.completedAt, grain);
       if (key < firstKey) baseline++;
     }
   }
@@ -1233,7 +1471,15 @@ interface RecordRow {
   ownerId: string | null;
   /** portfolioIds this row belongs to (projects only; empty for goals). */
   portfolioIds: string[];
+  /** Projects only: ProjectType, pipeline stage key, client name. */
+  type?: string | null;
+  stage?: string | null;
+  clientName?: string | null;
 }
+
+const PROJECT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  PROJECT_TYPE_OPTIONS.map((o) => [o.value, o.label])
+);
 
 /** Maps needed to label a record's dimension buckets. */
 interface RecordMaps {
@@ -1273,11 +1519,23 @@ const GOAL_STATUS_VALUES = new Set([
 function recordFilterToWhere(
   f: Filter,
   validStatuses: Set<string>
-): { status?: unknown; ownerId?: unknown } | null {
+): { status?: unknown; ownerId?: unknown; type?: unknown } | null {
   const v = f.value;
   // Blank values are dropped: a filter the user hasn't given a value to yet is
   // incomplete, not a clause that matches nothing.
   const asArray = filterValues(v);
+
+  if (f.field === "type") {
+    // Projects only (the route refuses it on goals).
+    if (f.operator === "isSet") return { type: { not: null } };
+    if (f.operator === "isNotSet") return { type: null };
+    if (asArray.length === 0) return null;
+    const vals = asArray.filter((x) => PROJECT_TYPE_LABELS[x] != null);
+    if (f.operator === "isNot") {
+      return vals.length ? { type: { notIn: vals } } : null;
+    }
+    return { type: { in: vals } };
+  }
 
   if (f.field === "status") {
     if (asArray.length === 0) return null;
@@ -1345,6 +1603,25 @@ function resolveRecordDimension(
       // portfolios). This branch is only hit defensively.
       return { key: "__none", label: "No portfolio" };
     }
+    case "type": {
+      if (!row.type) return { key: "__none", label: "No type" };
+      return {
+        key: row.type,
+        label: PROJECT_TYPE_LABELS[row.type] ?? titleCase(row.type),
+      };
+    }
+    case "stage": {
+      if (!row.stage) return { key: "__none", label: "No stage" };
+      // A key the pipelines no longer define still shows, under its raw key,
+      // rather than folding silently into another bucket.
+      return { key: row.stage, label: stageLabel(row.stage) ?? row.stage };
+    }
+    case "client": {
+      const name = row.clientName?.trim();
+      if (!name) return { key: "__none", label: "No client" };
+      // Grouped case-insensitively: the same client typed twice is one client.
+      return { key: name.toLowerCase(), label: name };
+    }
     case "status":
     default:
       return {
@@ -1359,32 +1636,39 @@ async function runProjectQuery(
   config: ChartConfig,
   ctx: EngineContext
 ): Promise<ChartQueryResult> {
-  const where: Prisma.ProjectWhereInput = { workspaceId: ctx.workspaceId };
-  if (config.scope.kind === "my") where.ownerId = ctx.userId;
+  // Visibility (and the workspace) first, whatever the scope.
+  const and: Prisma.ProjectWhereInput[] = [projectScopeFor(config, ctx)];
+  if (config.scope.kind === "my") and.push({ ownerId: ctx.userId });
   else if (config.scope.kind === "project") {
     // Scope was silently ignored here: a chart built with "Projects" in ONE
     // project counted EVERY project in the workspace, so the card on a
-    // project dashboard reported the firm's totals. The route already
-    // verified the id is in this workspace.
-    where.id = config.scope.projectId;
+    // project dashboard reported the firm's totals. The route has already
+    // checked the caller can read this project.
+    and.push({ id: config.scope.projectId });
   } else if (config.scope.kind === "portfolio") {
     // Restrict to the portfolio's projects (resolved + view-gated by the
-    // route). workspaceId stays in the where as a defense-in-depth guard.
-    // Empty id list → matches nothing (sound empty).
-    where.id = { in: ctx.portfolioProjectIds ?? [] };
+    // route). Empty id list → matches nothing (sound empty).
+    and.push({ id: { in: ctx.portfolioProjectIds ?? [] } });
   }
 
-  // Fold SQL-expressible filters (status, owner) into the where.
-  const and: Prisma.ProjectWhereInput[] = [];
+  // Fold SQL-expressible filters (status, owner, type) into the where.
   for (const f of config.filters) {
     const clause = recordFilterToWhere(f, PROJECT_STATUS_VALUES);
     if (clause) and.push(clause as Prisma.ProjectWhereInput);
   }
-  if (and.length) where.AND = and;
 
   const projects = await prisma.project.findMany({
-    where,
-    select: { id: true, name: true, color: true, status: true, ownerId: true },
+    where: { AND: and },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      status: true,
+      ownerId: true,
+      type: true,
+      stage: true,
+      clientName: true,
+    },
   });
 
   // Load portfolio links when needed for the dimension, breakdown, or a
@@ -1421,6 +1705,9 @@ async function runProjectQuery(
     status: String(p.status),
     ownerId: p.ownerId,
     portfolioIds: projectPortfolios.get(p.id) ?? [],
+    type: p.type,
+    stage: p.stage,
+    clientName: p.clientName,
   }));
 
   const ownerIds = new Set(rows.map((r) => r.ownerId).filter(Boolean) as string[]);
@@ -1444,7 +1731,9 @@ async function runGoalQuery(
   config: ChartConfig,
   ctx: EngineContext
 ): Promise<ChartQueryResult> {
-  const where: Prisma.ObjectiveWhereInput = { workspaceId: ctx.workspaceId };
+  // Goal privacy (and the workspace) — a private goal only counts for the
+  // people who could open it.
+  const where: Prisma.ObjectiveWhereInput = { ...ctx.access.objective };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
 
   // Project scope: the goals LINKED to that project (ObjectiveProject join).

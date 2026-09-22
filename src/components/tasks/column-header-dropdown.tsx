@@ -57,6 +57,10 @@ export interface ColumnHeaderCallbacks {
    *  user actually created — built-in columns can be hidden but not
    *  deleted. */
   onDeleteField?: () => void;
+  /** Label for the red onDeleteField item. Defaults to "Delete field"; a
+   *  host whose action only removes the column from its view (My Tasks)
+   *  passes e.g. "Remove column" so the menu says what actually happens. */
+  deleteFieldLabel?: string;
 }
 
 // ─── Predefined configs ──────────────────────────────────
@@ -328,14 +332,8 @@ const ColumnDropdown = forwardRef<
               onClick={() => { callbacks.onGroupBy?.(opt.value); onClose(); }}
             />
           ))}
-          {/* Separator + custom field */}
-          <div className="my-1.5 mx-3 border-t border-gray-200" />
-          <DropdownItem
-            icon={<Plus className="w-4 h-4" />}
-            label="Add custom field..."
-            accent
-            onClick={() => { callbacks.onOpenCustomField?.(); onClose(); }}
-          />
+          {/* No "Add custom field..." here: grouping only covers the fixed
+              fields above, so a new custom field never became an option. */}
         </DropdownSubmenu>
       )}
 
@@ -387,7 +385,7 @@ const ColumnDropdown = forwardRef<
           <div className="my-1.5 mx-3 border-t border-gray-200" />
           <DropdownItem
             icon={<Trash2 className="w-4 h-4" />}
-            label="Delete field"
+            label={callbacks.deleteFieldLabel || "Delete field"}
             danger
             onClick={() => { callbacks.onDeleteField?.(); onClose(); }}
           />

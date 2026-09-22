@@ -50,6 +50,7 @@ import {
   NotebookPen,
   Gauge,
   Link2,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -112,6 +113,7 @@ import { CreateProjectDialog } from "@/components/projects/create-project-dialog
 import { SaveAsTemplateDialog } from "@/components/projects/save-as-template-dialog";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
+import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
 import { NO_STATUS_LABEL, isStatusEarned } from "@/lib/project-status";
 
 interface Task {
@@ -206,10 +208,6 @@ interface Project {
       image: string | null;
     };
   }[];
-  portfolio?: {
-    id: string;
-    name: string;
-  } | null;
   // Engineering metadata (any of these may be null on legacy rows)
   projectNumber?: string | null;
   type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | "BSIP" | null;
@@ -339,9 +337,13 @@ const PROJECT_TYPE_COLOR: Record<string, string> = {
 interface ProjectContentProps {
   project: Project;
   currentView: string;
-  /** Real per-section task counts from the server (sub-tasks included,
-   *  multi-homed guests excluded) — what deleting a section destroys. */
+  /** Real per-section top-level task counts from the server (multi-homed
+   *  guests excluded) — what deleting a section destroys, sub-task trees
+   *  aside. */
   sectionTaskCounts?: Record<string, number>;
+  /** Every task homed in this project, sub-tasks included — what deleting
+   *  the project destroys. */
+  projectTaskCount?: number;
   /** May edit the project (rename, archive/unarchive, settings) — mirrors
    *  PATCH /api/projects/[projectId]. AUTHORITATIVE when supplied: only the
    *  server sees the viewer's WORKSPACE role. Optional so callers that don't
@@ -422,6 +424,9 @@ const ADD_VIEW_GROUPS: {
       { view: "files", label: "Files", desc: "See all attachments", Icon: FolderOpen },
       { view: "messages", label: "Messages", desc: "Communicate with others", Icon: MessageSquare },
       { view: "workflow", label: "Workflow", desc: "Automate work with rules", Icon: GitBranch },
+      // Not a tab (see RENDERABLE_VIEWS in project-views.ts): this menu is
+      // the only way in to the firms on the job.
+      { view: "team", label: "Project team", desc: "Firms on the job: owner, GC, architect, AHJ", Icon: Building2 },
     ],
   },
 ];
@@ -456,12 +461,14 @@ const VIEW_ICONS: Record<string, LucideIcon> = {
   files: FolderOpen,
   notes: NotebookPen,
   workload: Gauge,
+  team: Building2,
 };
 
 export function ProjectContent({
   project,
   currentView,
   sectionTaskCounts,
+  projectTaskCount,
   canEdit,
   canManage,
   initialTabOrder,
@@ -480,6 +487,23 @@ export function ProjectContent({
   const archivedProjectsHref = `${browseProjectsHref}?scope=archived`;
   const { data: session } = useSession();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // Notifications, emails and Cmd+K link to /projects/<id>?task=<taskId>;
+  // the param opens that task's panel. It only ever OPENS: a view switch
+  // drops the param from the URL and must not close a panel the user has open.
+  const searchParams = useSearchParams();
+  const taskParam = searchParams.get("task");
+  useEffect(() => {
+    if (taskParam) setSelectedTaskId(taskParam);
+  }, [taskParam]);
+  // Mirror the open task into the URL so a reload or a copied address
+  // reopens it. replaceState keeps the Back button out of it, and Next keeps
+  // useSearchParams in sync with it.
+  const syncTaskParam = (taskId: string | null) => {
+    const url = new URL(window.location.href);
+    if (taskId) url.searchParams.set("task", taskId);
+    else url.searchParams.delete("task");
+    window.history.replaceState(null, "", url.toString());
+  };
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [createTaskType, setCreateTaskType] = useState<"TASK" | "MILESTONE">(
     "TASK"
@@ -556,6 +580,9 @@ export function ProjectContent({
   // `access.canManage` (owner | project ADMIN | workspace manager) while PATCH
   // enforces owner | project ADMIN/EDITOR, so an EDITOR may archive a project
   // he may not delete. The members memo is the closest legacy approximation.
+  // The same server flag gates the Members and Share dialogs: the members API
+  // checks `access.canManage` too, so a workspace OWNER/ADMIN manages members
+  // on any project, which the email memo cannot see.
   const canDeleteProject = canManage ?? canManageMembers;
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -564,6 +591,50 @@ export function ProjectContent({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saveAsTemplateOpen, setSaveAsTemplateOpen] = useState(false);
+  const [customFieldModalOpen, setCustomFieldModalOpen] = useState(false);
+  // The List fetches its custom-field columns itself, on mount. A field
+  // created from the header's Customize menu has to remount it to show up.
+  const [customFieldsVersion, setCustomFieldsVersion] = useState(0);
+
+  // Stable across re-renders: the edit dialog re-seeds its form whenever this
+  // object changes, and ProjectContent re-renders on every session refetch
+  // (window focus) — a fresh literal would wipe what the user was typing.
+  const editInitialProject = useMemo(
+    () => ({
+      id: project.id,
+      projectNumber: project.projectNumber ?? null,
+      name: project.name,
+      type: project.type ?? null,
+      stage: project.stage ?? null,
+      color: project.color,
+      clientName: project.clientName ?? null,
+      location: project.location ?? null,
+      latitude: project.latitude ?? null,
+      longitude: project.longitude ?? null,
+      startDate: project.startDate ?? null,
+      endDate: project.endDate ?? null,
+      budget: project.budget ?? null,
+      currency: project.currency ?? null,
+      description: project.description ?? null,
+    }),
+    [
+      project.id,
+      project.projectNumber,
+      project.name,
+      project.type,
+      project.stage,
+      project.color,
+      project.clientName,
+      project.location,
+      project.latitude,
+      project.longitude,
+      project.startDate,
+      project.endDate,
+      project.budget,
+      project.currency,
+      project.description,
+    ]
+  );
 
   // Filter/Sort/Group state
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
@@ -752,7 +823,7 @@ export function ProjectContent({
   }, [project.sections, searchQuery, activeFilters, sortBy, sortDirection, showCompleted, groupBy, today, session?.user?.email]);
 
   const handleViewChange = (view: string) => {
-    router.push(`/projects/${project.id}?view=${view}`);
+    router.push(`${shellPrefix}/projects/${project.id}?view=${view}`);
   };
 
   // ── View tabs + per-tab context menu (Asana parity) ─────────────────
@@ -1078,7 +1149,7 @@ export function ProjectContent({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error);
       // Land on the new tab so it renders and is second-click-ready.
-      router.push(`/projects/${project.id}?view=${data.viewKey}`);
+      router.push(`${shellPrefix}/projects/${project.id}?view=${data.viewKey}`);
     } catch (e) {
       toast.error(
         e instanceof Error && e.message ? e.message : "Could not copy view"
@@ -1089,7 +1160,7 @@ export function ProjectContent({
   };
 
   const copyViewLink = async (tab: ProjectViewTab) => {
-    const url = `${window.location.origin}/projects/${project.id}?view=${tab.viewKey}`;
+    const url = `${window.location.origin}${shellPrefix}/projects/${project.id}?view=${tab.viewKey}`;
     // Prefer the async Clipboard API; fall back to a hidden-textarea execCommand
     // when it's unavailable or blocked (e.g. document not focused).
     try {
@@ -1134,7 +1205,7 @@ export function ProjectContent({
       if (currentView === tab.viewKey) {
         const fallback =
           tabs.find((t) => t.viewKey !== tab.viewKey)?.viewKey ?? "list";
-        router.push(`/projects/${project.id}?view=${fallback}`);
+        router.push(`${shellPrefix}/projects/${project.id}?view=${fallback}`);
       } else {
         router.refresh();
       }
@@ -1165,7 +1236,7 @@ export function ProjectContent({
     }
     // Un-hiding edits the PROJECT, which a read-only colleague may not do —
     // but he may still OPEN the view, and below md this menu is his only way
-    // to reach the five "hidden md:flex" ones. Navigate without the PATCH that
+    // to reach the three "hidden md:flex" ones. Navigate without the PATCH that
     // would only 403 (this is what the pre-drag version did, minus the 403).
     if (!canEditProject) {
       handleViewChange(viewKey);
@@ -1211,6 +1282,7 @@ export function ProjectContent({
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
+    syncTaskParam(taskId);
   };
 
   const handleAddTask = (sectionId?: string) => {
@@ -1263,13 +1335,12 @@ export function ProjectContent({
   };
 
   // What a delete destroys and what a template capture reads — the same
-  // population. sectionTaskCounts is the honest task number (sub-tasks
-  // included, multi-homed guests excluded); the rendered section.tasks lists
-  // are neither, so a caller that didn't pass it gets the line without a count
-  // rather than a wrong one.
-  const totalTaskCount = sectionTaskCounts
-    ? Object.values(sectionTaskCounts).reduce((n, c) => n + c, 0)
-    : null;
+  // population. projectTaskCount is the honest task number (sub-tasks
+  // included, multi-homed guests excluded). sectionTaskCounts is top-level
+  // only and the rendered section.tasks lists add guests, so neither can
+  // stand in for it: a caller that didn't pass it gets the line without a
+  // count rather than a wrong one.
+  const totalTaskCount = projectTaskCount ?? null;
   const deleteConsequences = [
     totalTaskCount === null
       ? "Every task in this project, with its sub-tasks, comments and attachments"
@@ -1303,18 +1374,6 @@ export function ProjectContent({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Portfolio Breadcrumb */}
-      {project.portfolio && (
-        <div className="px-4 md:px-6 py-1.5 text-xs text-slate-500 border-b bg-slate-50">
-          <Link
-            href={`/portfolios/${project.portfolio.id}`}
-            className="hover:text-slate-700 hover:underline"
-          >
-            {project.portfolio.name}
-          </Link>
-        </div>
-      )}
-
       {/* Archived banner — an archived project is dropped from the sidebar and
           from the default projects list, so the banner has to name the one
           place it still shows up or the user keeps a saved URL as their only
@@ -1364,12 +1423,23 @@ export function ProjectContent({
             {/* Project Name with Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 text-base font-semibold text-slate-900 hover:text-slate-700 max-w-[180px] md:max-w-none">
+                {/* Every item in this menu is write- or manage-gated, so a
+                    reader gets a plain title instead of an empty menu. */}
+                <button
+                  disabled={!canEditProject && !canDeleteProject}
+                  className="flex items-center gap-1 text-base font-semibold text-slate-900 hover:text-slate-700 disabled:hover:text-slate-900 disabled:cursor-default max-w-[180px] md:max-w-none"
+                >
                   <span className="truncate">{project.name}</span>
-                  <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                  {(canEditProject || canDeleteProject) && (
+                    <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                  )}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
+                {/* Rename and Duplicate are gated like Archive: PATCH and the
+                    duplicate route both require write access, so a reader
+                    would only ever reach a 403. */}
+                {canEditProject && (
                 <DropdownMenuItem onClick={async () => {
                   const newName = prompt('Project name:', project.name);
                   if (newName && newName !== project.name) {
@@ -1395,6 +1465,8 @@ export function ProjectContent({
                   <Edit2 className="h-4 w-4 mr-2" />
                   Rename
                 </DropdownMenuItem>
+                )}
+                {canEditProject && (
                 <DropdownMenuItem onClick={async () => {
                   try {
                     // Dedicated endpoint deep-copies sections + tasks (the old
@@ -1407,7 +1479,7 @@ export function ProjectContent({
                       const data = await res.json();
                       toast.success('Project duplicated');
                       notifySidebarRefresh();
-                      router.push(`/projects/${data.id}`);
+                      router.push(`${shellPrefix}/projects/${data.id}`);
                     } else {
                       const err = await res.json().catch(() => ({}));
                       toast.error(err.error || 'Failed to duplicate project');
@@ -1419,6 +1491,7 @@ export function ProjectContent({
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate
                 </DropdownMenuItem>
+                )}
                 {/* Same family as Duplicate — this project becomes the seed
                     for another — so it sits next to it. onSelect is prevented
                     for the same reason Delete prevents it: the menu closing
@@ -1434,10 +1507,10 @@ export function ProjectContent({
                     Save as template
                   </DropdownMenuItem>
                 )}
-                {/* The separator earns its place only if something follows
-                    it; a reader who gets neither destructive item would
-                    otherwise see the menu end on a rule. */}
-                {(canEditProject || canDeleteProject) && <DropdownMenuSeparator />}
+                {/* The separator earns its place only between two groups: the
+                    items above and Archive below are both write-gated, so it
+                    follows the same flag. */}
+                {canEditProject && <DropdownMenuSeparator />}
                 {canEditProject && (
                   <DropdownMenuItem onClick={() => setArchived(!project.isArchived)}>
                     <Archive className="h-4 w-4 mr-2" />
@@ -1528,9 +1601,23 @@ export function ProjectContent({
                   <Share2 className="h-4 w-4 mr-2" />
                   Share
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info('Fields customization coming soon')}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Customize
+                {/* Phones have no room for the Edit details and Customize
+                    buttons, so their actions live here. */}
+                {canEditProject && (
+                  <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit details
+                  </DropdownMenuItem>
+                )}
+                {canEditProject && (
+                  <DropdownMenuItem onClick={() => setCustomFieldModalOpen(true)}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Custom fields
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => addOrOpenView("workflow")}>
+                  <GitBranch className="h-4 w-4 mr-2" />
+                  Rules
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setMembersDialogOpen(true)}>
@@ -1540,18 +1627,24 @@ export function ProjectContent({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Edit Details */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden md:inline-flex"
-              onClick={() => setEditDialogOpen(true)}
-            >
-              <Edit2 className="h-3.5 w-3.5 mr-1.5" />
-              Edit details
-            </Button>
+            {/* Edit Details — PATCH needs write access, so readers don't get
+                a form that can only fail on Save. */}
+            {canEditProject && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:inline-flex"
+                onClick={() => setEditDialogOpen(true)}
+              >
+                <Edit2 className="h-3.5 w-3.5 mr-1.5" />
+                Edit details
+              </Button>
+            )}
 
-            {/* Customize Button */}
+            {/* Customize — shortcuts to where each thing is actually edited:
+                custom fields (the List's field modal), rules (the Workflow
+                tab) and the project color (Edit details). Rules stays open to
+                readers because the Workflow tab is readable. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="hidden md:inline-flex">
@@ -1559,15 +1652,19 @@ export function ProjectContent({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => toast.info('Fields customization coming soon')}>
-                  Fields
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info('Rules customization coming soon')}>
+                {canEditProject && (
+                  <DropdownMenuItem onClick={() => setCustomFieldModalOpen(true)}>
+                    Fields
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => addOrOpenView("workflow")}>
                   Rules
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info('Color & icon customization coming soon')}>
-                  Color & Icon
-                </DropdownMenuItem>
+                {canEditProject && (
+                  <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                    Color
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -1634,6 +1731,10 @@ export function ProjectContent({
               edge once there are more tabs than fit; y:0 stops it from
               scrolling the page while the drag is purely horizontal. */}
           <DndContext
+            // A fixed id: dnd-kit's default is a module counter, which differs
+            // between the server and client renders and breaks hydration of
+            // the aria-describedby it stamps on every tab.
+            id="project-view-tabs"
             sensors={tabSensors}
             collisionDetection={tabCollisionDetection}
             autoScroll={{ threshold: { x: 0.2, y: 0 } }}
@@ -1840,9 +1941,10 @@ export function ProjectContent({
             {/* "+" add-view catalog — Asana-style Popular / Others menu. It is
                 NOT a tab: it stays pinned after the sortable ones and cannot
                 be dragged. It stays visible without write access: below md
-                five views render "hidden md:flex", so this menu is the ONLY
-                route a read-only colleague has to Workflow, Messages, Files,
-                Notes and Workload on a phone. addOrOpenView drops the un-hide
+                three views render "hidden md:flex", so this menu is the ONLY
+                route a read-only colleague has to Workflow, Notes and
+                Workload on a phone (and anyone's only route to Project team,
+                which has no tab). addOrOpenView drops the un-hide
                 PATCH for him and just navigates. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1901,7 +2003,7 @@ export function ProjectContent({
               {/* Left — Asana's "Agregar tarea ▾" split button (List view;
                   Timeline/Gantt carry their own toolbar copy). */}
               <div className="flex items-center">
-                {(baseView === "list" || baseView === "board") && (
+                {canEditProject && (baseView === "list" || baseView === "board") && (
                   <div className="flex items-center">
                     <Button
                       variant="outline"
@@ -2161,19 +2263,24 @@ export function ProjectContent({
               project={project}
               onManageMembers={() => setMembersDialogOpen(true)}
               onTaskClick={handleTaskClick}
+              canEdit={canEditProject}
             />
           )}
           {baseView === "list" && (
             <ListView
+              key={customFieldsVersion}
               sections={filteredSections}
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               projectId={project.id}
-              reorderDisabled={hasActiveFilters}
+              // A reader cannot move anything either: reorder is a write.
+              reorderDisabled={hasActiveFilters || !canEditProject}
               rawSectionCounts={sectionTaskCounts}
               // Under a group-by these headings are synthetic `group:*`
-              // buckets, not Section rows — see the useMemo above.
-              sectionsAreEditable={groupBy === "none"}
+              // buckets, not Section rows — see the useMemo above. A reader
+              // gets none of the section actions: every one needs write.
+              sectionsAreEditable={groupBy === "none" && canEditProject}
+              canEdit={canEditProject}
             />
           )}
           {baseView === "board" && (
@@ -2182,11 +2289,14 @@ export function ProjectContent({
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               projectId={project.id}
-              reorderDisabled={hasActiveFilters}
+              // A reader cannot move cards: every drag persists a write.
+              reorderDisabled={hasActiveFilters || !canEditProject}
               rawSectionCounts={sectionTaskCounts}
               // Under a group-by these columns are synthetic `group:*`
-              // buckets, not Section rows — see the useMemo above.
-              sectionsAreEditable={groupBy === "none"}
+              // buckets, not Section rows — see the useMemo above. A reader
+              // gets none of the column actions: every one needs write.
+              sectionsAreEditable={groupBy === "none" && canEditProject}
+              canEdit={canEditProject}
             />
           )}
           {baseView === "timeline" && (
@@ -2198,8 +2308,11 @@ export function ProjectContent({
               // buckets, not Section rows — see the useMemo above. Same
               // prop List and Board got in 3198e68; the schedule views
               // were missed, and their "Add section" row POSTs to
-              // /api/sections just the same.
-              sectionsAreEditable={groupBy === "none"}
+              // /api/sections just the same, which a reader cannot do.
+              sectionsAreEditable={groupBy === "none" && canEditProject}
+              canEdit={canEditProject}
+              projectEndDate={project.endDate}
+              projectName={project.name}
             />
           )}
           {baseView === "gantt" && (
@@ -2216,8 +2329,10 @@ export function ProjectContent({
               onTaskClick={handleTaskClick}
               projectId={project.id}
               // Under a group-by these lanes are synthetic `group:*`
-              // buckets, not Section rows — see the useMemo above.
-              sectionsAreEditable={groupBy === "none"}
+              // buckets, not Section rows — see the useMemo above. Section
+              // actions also need write access.
+              sectionsAreEditable={groupBy === "none" && canEditProject}
+              canEdit={canEditProject}
               // The county deadline on a recertification: the date the
               // whole engagement exists to hit. It was already on the
               // wire and the chart's only vertical line was today.
@@ -2250,10 +2365,15 @@ export function ProjectContent({
           )}
           {baseView === "calendar" && (
             <CalendarView
-              sections={filteredSections}
+              // The project's own sections, not filteredSections: Calendar
+              // has no toolbar, so a filter, search or grouping set on List
+              // would silently hide deadlines here with nothing to show or
+              // clear it.
+              sections={project.sections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
               onTaskMutated={() => router.refresh()}
+              allowInlineCreate={canEditProject}
             />
           )}
           {baseView === "dashboard" && (
@@ -2315,7 +2435,10 @@ export function ProjectContent({
         {selectedTaskId && (
           <TaskDetailPanel
             taskId={selectedTaskId}
-            onClose={() => setSelectedTaskId(null)}
+            onClose={() => {
+              setSelectedTaskId(null);
+              syncTaskParam(null);
+            }}
             // Re-run the server component after any panel edit so the
             // List/Board columns (incl. custom fields like Est/Act time)
             // pick up the change live instead of only after a manual reload.
@@ -2351,7 +2474,7 @@ export function ProjectContent({
               }
             : null
         }
-        canManage={canManageMembers}
+        canManage={canDeleteProject}
         sharedTeamId={project.teamId ?? null}
         sharedTeamName={project.teamName ?? null}
         onMembersChange={() => router.refresh()}
@@ -2373,32 +2496,34 @@ export function ProjectContent({
         visibility={project.visibility ?? "WORKSPACE"}
         ownerId={project.owner?.id ?? null}
         canEdit={canDeleteProject}
-        canManageMembers={canManageMembers}
+        canManageMembers={canDeleteProject}
         onVisibilityChange={() => router.refresh()}
+        onMembersChange={() => router.refresh()}
       />
 
       {/* Edit Project Dialog — reuses CreateProjectDialog in edit mode */}
       <CreateProjectDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
-        initialProject={{
-          id: project.id,
-          projectNumber: project.projectNumber ?? null,
-          name: project.name,
-          type: project.type ?? null,
-          color: project.color,
-          clientName: project.clientName ?? null,
-          location: project.location ?? null,
-          latitude: project.latitude ?? null,
-          longitude: project.longitude ?? null,
-          startDate: project.startDate ?? null,
-          endDate: project.endDate ?? null,
-          budget: project.budget ?? null,
-          currency: project.currency ?? null,
-          description: project.description ?? null,
-        }}
+        initialProject={editInitialProject}
         onProjectUpdated={() => router.refresh()}
       />
+
+      {/* Customize > Fields — the same modal the List's "+" column opens.
+          Creating a field needs write access, like every other edit. */}
+      {canEditProject && (
+        <CustomFieldModal
+          open={customFieldModalOpen}
+          onOpenChange={setCustomFieldModalOpen}
+          projectId={project.id}
+          onFieldCreated={() => {
+            setCustomFieldsVersion((v) => v + 1);
+            // Fields render as List columns; land there so the new one is
+            // visible rather than created somewhere off screen.
+            if (baseView !== "list") handleViewChange("list");
+          }}
+        />
+      )}
 
       {/* Save as template — a sibling of the other dialogs for the same
           reason the delete confirm is: inside DropdownMenuContent it would

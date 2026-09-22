@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { put } from "@vercel/blob";
-import { assertFileAllowed, deleteFile } from "@/lib/storage";
+import { assertFileAllowed, deleteFile, isVercelBlobUrl } from "@/lib/storage";
+import { getErrorStatus } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 
 /**
  * Team covers stay PUBLIC on purpose — the one upload in the app that does.
  *
- * Every other upload goes through uploadFile, which writes a private blob only
- * /api/files/... will hand back. A cover is different in both directions: it
+ * Every other upload is written at SAAS_BLOB_ACCESS (storage.ts) and is only
+ * ever handed back through /api/files/... or a message's own read door. A cover is different in both directions: it
  * carries nothing confidential (a decorative header image the team chose), and
  * it renders as a bare <img src> in team lists, the sidebar and pickers —
  * surfaces where the viewer is a workspace member who may not belong to the
@@ -20,6 +22,51 @@ import { assertFileAllowed, deleteFile } from "@/lib/storage";
  * The gates uploadFile would have applied are kept below: the extension
  * blocklist via assertFileAllowed, plus this route's own image + size checks.
  */
+const COVER_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Delete a replaced/removed cover — but only a cover THIS route wrote for THIS
+ * team. `Team.avatar` is a plain string, so the stored value is not proof of
+ * anything: pointed at another team's cover or a project file in the same
+ * store, a blind del() here would destroy that file for good.
+ */
+async function deleteOwnCover(teamId: string, url: string) {
+  if (!isVercelBlobUrl(url)) return;
+  const path = new URL(url).pathname.replace(/^\/+/, "");
+  if (!path.startsWith(`teams/${teamId}/`) || path.includes("..")) return;
+  try {
+    await deleteFile(url);
+  } catch {
+    // orphaned blob is harmless; ignore
+  }
+}
+
+/**
+ * The settings gate of PATCH /api/teams/:teamId: team LEAD or workspace
+ * OWNER/ADMIN, both with a contributor seat in the team's workspace. A bare
+ * TeamMember lookup here left a team whose only lead had left with a cover
+ * nobody could change, and let a stale row outlive its seat.
+ */
+async function coverEditDenied(
+  userId: string,
+  teamId: string
+): Promise<NextResponse | null> {
+  try {
+    const standing = await requireTeamStanding(userId, teamId);
+    if (!standing.isLead && !standing.isWorkspaceManager) {
+      return NextResponse.json(
+        { error: "Only team leads or workspace admins can change the team cover" },
+        { status: 403 }
+      );
+    }
+    return null;
+  } catch (error) {
+    const { status, message } = getErrorStatus(error);
+    if (status === 500) throw error;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
 async function putPublicCover(teamId: string, file: File) {
   assertFileAllowed(file.name, file.type);
   // The uploader's filename is never part of the path: a cover is addressed by
@@ -45,19 +92,10 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only team leads can change the team cover (same gate as team settings).
-    const teamMember = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId } },
-    });
-    if (!teamMember) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
-    if (teamMember.role !== "LEAD") {
-      return NextResponse.json(
-        { error: "Only team leads can change the team cover" },
-        { status: 403 }
-      );
-    }
+    // Only team leads (or a workspace OWNER/ADMIN) can change the team cover
+    // (same gate as team settings).
+    const denied = await coverEditDenied(userId, teamId);
+    if (denied) return denied;
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -72,10 +110,12 @@ export async function POST(
       );
     }
     // Deliberately NOT maxUploadBytes(): that ceiling is sized for permit sets
-    // and Revit models. A header image is a header image.
-    if (file.size > 10 * 1024 * 1024) {
+    // and Revit models. A header image is a header image — and this one
+    // arrives as a function request body, which the platform refuses above
+    // ~4.5MB with a non-JSON 413, so the stated limit has to sit below that.
+    if (file.size > COVER_MAX_BYTES) {
       return NextResponse.json(
-        { error: "Image exceeds the 10MB limit" },
+        { error: "Image exceeds the 4MB limit" },
         { status: 400 }
       );
     }
@@ -104,11 +144,7 @@ export async function POST(
 
     // Best-effort cleanup of the replaced blob (don't fail the request on it).
     if (existing?.avatar && existing.avatar !== url) {
-      try {
-        await deleteFile(existing.avatar);
-      } catch {
-        // orphaned blob is harmless; ignore
-      }
+      await deleteOwnCover(teamId, existing.avatar);
     }
 
     return NextResponse.json(team);
@@ -134,18 +170,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const teamMember = await prisma.teamMember.findUnique({
-      where: { userId_teamId: { userId, teamId } },
-    });
-    if (!teamMember) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
-    if (teamMember.role !== "LEAD") {
-      return NextResponse.json(
-        { error: "Only team leads can change the team cover" },
-        { status: 403 }
-      );
-    }
+    const denied = await coverEditDenied(userId, teamId);
+    if (denied) return denied;
 
     const existing = await prisma.team.findUnique({
       where: { id: teamId },
@@ -159,11 +185,7 @@ export async function DELETE(
     });
 
     if (existing?.avatar) {
-      try {
-        await deleteFile(existing.avatar);
-      } catch {
-        // orphaned blob is harmless; ignore
-      }
+      await deleteOwnCover(teamId, existing.avatar);
     }
 
     return NextResponse.json(team);

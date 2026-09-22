@@ -155,6 +155,89 @@ export function evalExpr(
   return { result: acc };
 }
 
+type ComputedFieldDef = { id: string; type: string; options: unknown };
+type ComputedValue = { result: number } | { error: string };
+type ComputedOutcome =
+  | { kind: "skip" }
+  | { kind: "clear" }
+  | { kind: "set"; value: ComputedValue };
+
+/**
+ * Evaluate one FORMULA / ROLLUP field for one task. Pure, so the per-task
+ * and the project-wide recompute share one definition of every operator.
+ * `subtaskValues` is the roll-up source field's raw value on each subtask.
+ */
+function computeField(
+  f: ComputedFieldDef,
+  valueByField: Map<string, unknown>,
+  subtaskValues: unknown[]
+): ComputedOutcome {
+  const spec = f.options;
+  let result: ComputedValue | null = null;
+  let clear = false;
+
+  if (f.type === "ROLLUP" && isRollupSpec(spec)) {
+    // Aggregate the source field across this task's subtasks.
+    const nums = subtaskValues
+      .map((v) => toNumber(v))
+      .filter((n): n is number => n != null);
+    switch (spec.fn) {
+      case "sum":
+        result = { result: nums.reduce((a, b) => a + b, 0) };
+        break;
+      case "count":
+        result = { result: nums.length };
+        break;
+      case "avg":
+        if (nums.length)
+          result = { result: nums.reduce((a, b) => a + b, 0) / nums.length };
+        else clear = true;
+        break;
+      case "min":
+        if (nums.length) result = { result: Math.min(...nums) };
+        else clear = true;
+        break;
+      case "max":
+        if (nums.length) result = { result: Math.max(...nums) };
+        else clear = true;
+        break;
+    }
+  } else if (f.type === "FORMULA" && isExprSpec(spec)) {
+    // Multi-term expression (fields + numbers + operators, precedence).
+    const r = evalExpr(spec.expr, valueByField);
+    if (r == null) clear = true;
+    else result = r;
+  } else if (f.type === "FORMULA" && isFormulaSpec(spec)) {
+    // Legacy binary spec { leftFieldId, op, rightFieldId }.
+    const left = toNumber(valueByField.get(spec.leftFieldId));
+    const right = toNumber(valueByField.get(spec.rightFieldId));
+    if (left == null || right == null) {
+      clear = true;
+    } else {
+      switch (spec.op) {
+        case "+":
+          result = { result: left + right };
+          break;
+        case "-":
+          result = { result: left - right };
+          break;
+        case "*":
+          result = { result: left * right };
+          break;
+        case "/":
+          result = right === 0 ? { error: "Div/0" } : { result: left / right };
+          break;
+      }
+    }
+  } else {
+    // No valid spec (unconfigured field) — nothing to compute.
+    return { kind: "skip" };
+  }
+
+  if (clear || !result) return { kind: "clear" };
+  return { kind: "set", value: result };
+}
+
 /**
  * Recompute every FORMULA / ROLLUP field on a project after a source
  * value changed. Idempotent — safe to run on every PATCH.
@@ -208,76 +291,18 @@ export async function recomputeFormulasForTask(
 
     for (const f of formulas) {
       const spec = f.options as unknown;
-      let result: { result: number } | { error: string } | null = null;
-      let clear = false;
-
-      if (f.type === "ROLLUP" && isRollupSpec(spec)) {
-        // Aggregate the source field across this task's subtasks.
-        let nums: number[] = [];
-        if (subtaskIds.length > 0) {
-          const subVals = await prisma.customFieldValue.findMany({
-            where: { taskId: { in: subtaskIds }, fieldId: spec.sourceFieldId },
-            select: { value: true },
-          });
-          nums = subVals
-            .map((v) => toNumber(v.value))
-            .filter((n): n is number => n != null);
-        }
-        switch (spec.fn) {
-          case "sum":
-            result = { result: nums.reduce((a, b) => a + b, 0) };
-            break;
-          case "count":
-            result = { result: nums.length };
-            break;
-          case "avg":
-            if (nums.length)
-              result = { result: nums.reduce((a, b) => a + b, 0) / nums.length };
-            else clear = true;
-            break;
-          case "min":
-            if (nums.length) result = { result: Math.min(...nums) };
-            else clear = true;
-            break;
-          case "max":
-            if (nums.length) result = { result: Math.max(...nums) };
-            else clear = true;
-            break;
-        }
-      } else if (f.type === "FORMULA" && isExprSpec(spec)) {
-        // Multi-term expression (fields + numbers + operators, precedence).
-        const r = evalExpr(spec.expr, valueByField);
-        if (r == null) clear = true;
-        else result = r;
-      } else if (f.type === "FORMULA" && isFormulaSpec(spec)) {
-        // Legacy binary spec { leftFieldId, op, rightFieldId }.
-        const left = toNumber(valueByField.get(spec.leftFieldId));
-        const right = toNumber(valueByField.get(spec.rightFieldId));
-        if (left == null || right == null) {
-          clear = true;
-        } else {
-          switch (spec.op) {
-            case "+":
-              result = { result: left + right };
-              break;
-            case "-":
-              result = { result: left - right };
-              break;
-            case "*":
-              result = { result: left * right };
-              break;
-            case "/":
-              result =
-                right === 0 ? { error: "Div/0" } : { result: left / right };
-              break;
-          }
-        }
-      } else {
-        // No valid spec (unconfigured field) — nothing to compute.
-        continue;
+      let subtaskValues: unknown[] = [];
+      if (f.type === "ROLLUP" && isRollupSpec(spec) && subtaskIds.length > 0) {
+        const subVals = await prisma.customFieldValue.findMany({
+          where: { taskId: { in: subtaskIds }, fieldId: spec.sourceFieldId },
+          select: { value: true },
+        });
+        subtaskValues = subVals.map((v) => v.value);
       }
+      const outcome = computeField(f, valueByField, subtaskValues);
+      if (outcome.kind === "skip") continue;
 
-      if (clear || !result) {
+      if (outcome.kind === "clear") {
         await prisma.customFieldValue
           .delete({ where: { taskId_fieldId: { taskId, fieldId: f.id } } })
           .catch(() => {
@@ -287,9 +312,214 @@ export async function recomputeFormulasForTask(
       }
       await prisma.customFieldValue.upsert({
         where: { taskId_fieldId: { taskId, fieldId: f.id } },
-        create: { taskId, fieldId: f.id, value: result },
-        update: { value: result },
+        create: { taskId, fieldId: f.id, value: outcome.value },
+        update: { value: outcome.value },
       });
     }
   }
+}
+
+/**
+ * Recompute every FORMULA / ROLLUP field for every task of a project.
+ *
+ * `recomputeFormulasForTask` only runs after a value edit on one task, so a
+ * formula created on a project that already has data would read "—" on
+ * every existing task until someone re-typed a source value. Call this
+ * after a FORMULA / ROLLUP definition is created or its spec changes.
+ *
+ * It runs inside the request that created the field, so it must not cost
+ * round trips per task (a large project would time the request out after
+ * the field already exists, and a retry would duplicate it). Everything is
+ * read in a few queries, computed in memory with the same two-pass rule as
+ * the per-task recompute, and only the values that changed are written, in
+ * bulk. Subtasks are processed before their parents so a roll-up
+ * aggregates the subtasks' freshly computed values (a roll-up of a
+ * formula field).
+ */
+export async function recomputeFormulasForProject(
+  projectId: string
+): Promise<void> {
+  const formulas = await prisma.customFieldDefinition.findMany({
+    where: {
+      type: { in: ["FORMULA", "ROLLUP"] },
+      projectFields: { some: { projectId } },
+    },
+    select: { id: true, type: true, options: true },
+  });
+  if (formulas.length === 0) return;
+
+  const tasks = await prisma.task.findMany({
+    where: { projectId },
+    select: { id: true, parentTaskId: true },
+  });
+  if (tasks.length === 0) return;
+  const taskIds = tasks.map((t) => t.id);
+
+  // Roll-ups read every subtask, including ones filed outside this project,
+  // exactly as the per-task recompute does (it looks subtasks up by parent).
+  const childrenOf = new Map<string, string[]>();
+  let outsideIds: string[] = [];
+  if (formulas.some((f) => f.type === "ROLLUP")) {
+    const subs = await prisma.task.findMany({
+      where: { parentTaskId: { in: taskIds } },
+      select: { id: true, parentTaskId: true },
+    });
+    const inProject = new Set(taskIds);
+    for (const s of subs) {
+      if (!s.parentTaskId) continue;
+      const list = childrenOf.get(s.parentTaskId) ?? [];
+      list.push(s.id);
+      childrenOf.set(s.parentTaskId, list);
+    }
+    outsideIds = subs.map((s) => s.id).filter((id) => !inProject.has(id));
+  }
+
+  const stored = await prisma.customFieldValue.findMany({
+    where: { taskId: { in: [...taskIds, ...outsideIds] } },
+    select: { taskId: true, fieldId: true, value: true },
+  });
+  // `live` is mutated as results are computed; `original` is what the
+  // database holds, so only real changes are written back.
+  const live = new Map<string, Map<string, unknown>>();
+  const original = new Map<string, Map<string, unknown>>();
+  for (const v of stored) {
+    if (!live.has(v.taskId)) live.set(v.taskId, new Map());
+    if (!original.has(v.taskId)) original.set(v.taskId, new Map());
+    live.get(v.taskId)!.set(v.fieldId, v.value);
+    original.get(v.taskId)!.set(v.fieldId, v.value);
+  }
+
+  // Fields the computation owns per task: a skipped (unconfigured) field is
+  // never touched, a cleared one is deleted.
+  const touched = new Map<string, Set<string>>();
+  for (const level of orderChildrenFirst(tasks)) {
+    for (const taskId of level) {
+      if (!live.has(taskId)) live.set(taskId, new Map());
+      const values = live.get(taskId)!;
+      const own = new Set<string>();
+      touched.set(taskId, own);
+      const children = childrenOf.get(taskId) ?? [];
+      for (let pass = 0; pass < 2; pass++) {
+        // Each pass reads the values as they stood when it began, matching
+        // the per-task recompute's reload between passes.
+        const snapshot = new Map(values);
+        for (const f of formulas) {
+          const spec = f.options as unknown;
+          const subtaskValues =
+            f.type === "ROLLUP" && isRollupSpec(spec)
+              ? children
+                  .map((c) => live.get(c)?.get(spec.sourceFieldId))
+                  .filter((v) => v !== undefined)
+              : [];
+          const outcome = computeField(f, snapshot, subtaskValues);
+          if (outcome.kind === "skip") continue;
+          own.add(f.id);
+          if (outcome.kind === "clear") values.delete(f.id);
+          else values.set(f.id, outcome.value);
+        }
+      }
+    }
+  }
+
+  type Write = { taskId: string; fieldId: string; value: ComputedValue };
+  const creates: Write[] = [];
+  const updates: Write[] = [];
+  const deletesByField = new Map<string, string[]>();
+  for (const taskId of taskIds) {
+    const values = live.get(taskId)!;
+    const before = original.get(taskId);
+    for (const fieldId of touched.get(taskId) ?? []) {
+      const had = before?.has(fieldId) ?? false;
+      const next = values.get(fieldId) as ComputedValue | undefined;
+      if (next === undefined) {
+        if (had) {
+          const list = deletesByField.get(fieldId) ?? [];
+          list.push(taskId);
+          deletesByField.set(fieldId, list);
+        }
+      } else if (!had) {
+        creates.push({ taskId, fieldId, value: next });
+      } else if (JSON.stringify(before!.get(fieldId)) !== JSON.stringify(next)) {
+        updates.push({ taskId, fieldId, value: next });
+      }
+    }
+  }
+
+  if (creates.length > 0) {
+    // A concurrent single-task recompute may have written the row first;
+    // its value came from the same rule, so keeping it is correct.
+    await prisma.customFieldValue.createMany({
+      data: creates,
+      skipDuplicates: true,
+    });
+  }
+  for (const [fieldId, ids] of deletesByField) {
+    await prisma.customFieldValue.deleteMany({
+      where: { fieldId, taskId: { in: ids } },
+    });
+  }
+  const CHUNK = 100;
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    await prisma.$transaction(
+      updates.slice(i, i + CHUNK).map((u) =>
+        prisma.customFieldValue.update({
+          where: { taskId_fieldId: { taskId: u.taskId, fieldId: u.fieldId } },
+          data: { value: u.value },
+        })
+      )
+    );
+  }
+}
+
+/**
+ * Recompute a task's parent chain — call after a subtask is created,
+ * deleted or moved so the parents' roll-ups reflect the new set of
+ * subtasks. Each ancestor is recomputed against its own home project.
+ */
+export async function recomputeRollupsForAncestors(
+  parentTaskId: string | null | undefined
+): Promise<void> {
+  const seen = new Set<string>();
+  let current = parentTaskId ?? null;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const parent = await prisma.task.findUnique({
+      where: { id: current },
+      select: { id: true, projectId: true, parentTaskId: true },
+    });
+    if (!parent) return;
+    if (parent.projectId) {
+      await recomputeFormulasForTask(parent.id, parent.projectId);
+    }
+    current = parent.parentTaskId;
+  }
+}
+
+/** Group task ids by depth, deepest level first. Exported for tests. */
+export function orderChildrenFirst(
+  tasks: { id: string; parentTaskId: string | null }[]
+): string[][] {
+  const parentOf = new Map(tasks.map((t) => [t.id, t.parentTaskId]));
+  const depthCache = new Map<string, number>();
+  const depth = (id: string): number => {
+    const cached = depthCache.get(id);
+    if (cached !== undefined) return cached;
+    // Walk up inside this project only; a cycle (corrupt data) stops the walk.
+    let d = 0;
+    let p = parentOf.get(id) ?? null;
+    const seen = new Set<string>([id]);
+    while (p && parentOf.has(p) && !seen.has(p)) {
+      seen.add(p);
+      d++;
+      p = parentOf.get(p) ?? null;
+    }
+    depthCache.set(id, d);
+    return d;
+  };
+  const levels: string[][] = [];
+  for (const t of tasks) {
+    const d = depth(t.id);
+    (levels[d] ??= []).push(t.id);
+  }
+  return levels.filter(Boolean).reverse();
 }

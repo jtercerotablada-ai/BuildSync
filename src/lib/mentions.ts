@@ -1,5 +1,7 @@
 import prisma from "@/lib/prisma";
 import { shouldNotify } from "@/lib/notification-prefs";
+import { resolveProjectAccess } from "@/lib/project-access";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 /**
  * Filter a set of MENTIONED recipients down to those who haven't
@@ -27,16 +29,21 @@ async function gateMentionRecipients(recipients: string[]): Promise<string[]> {
  *    notification is generated.
  */
 
+const MAX_MENTION_CANDIDATES = 50;
+
 /**
- * Validate a list of candidate user ids against the project's
- * allowed audience (owner + members + workspace members when the
- * project is WORKSPACE-visible). Returns the subset that is
- * actually allowed to be mentioned.
+ * Validate a list of candidate user ids against the project's audience:
+ * everyone who can READ the project under the canonical rule
+ * (resolveProjectAccess — owner, members, team members, workspace managers,
+ * senior staff, and every contributor when the project is WORKSPACE/PUBLIC).
+ * Returns the subset that is actually allowed to be mentioned.
  *
  * Mentions outside this set are dropped on the server — clients
  * shouldn't be able to ping users who can't see the project
- * anyway, because the resulting notification would link to a
- * message they can't read.
+ * anyway, because the resulting notification would carry a preview of a
+ * message they can't read and link to a page that 404s. The rule used to be
+ * a private copy (owner + members + any workspace member on WORKSPACE), which
+ * both dropped legitimate readers and admitted non-readers.
  */
 export async function resolveAllowedMentionUserIds(
   projectId: string,
@@ -44,38 +51,31 @@ export async function resolveAllowedMentionUserIds(
 ): Promise<string[]> {
   if (candidateUserIds.length === 0) return [];
 
-  const unique = Array.from(new Set(candidateUserIds.filter(Boolean)));
+  // Bounded: each candidate costs an access resolution, and no real message
+  // mentions more people than this.
+  const unique = Array.from(new Set(candidateUserIds.filter(Boolean))).slice(
+    0,
+    MAX_MENTION_CANDIDATES
+  );
   if (unique.length === 0) return [];
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
+      id: true,
       ownerId: true,
       visibility: true,
       workspaceId: true,
-      members: { select: { userId: true } },
+      teamId: true,
+      members: { select: { userId: true, role: true } },
     },
   });
   if (!project) return [];
 
-  const allowed = new Set<string>();
-  if (project.ownerId) allowed.add(project.ownerId);
-  for (const m of project.members) allowed.add(m.userId);
-
-  // For WORKSPACE-visible projects, expand the allowlist to anyone
-  // in the workspace.
-  if (project.visibility === "WORKSPACE") {
-    const wsMembers = await prisma.workspaceMember.findMany({
-      where: {
-        workspaceId: project.workspaceId,
-        userId: { in: unique },
-      },
-      select: { userId: true },
-    });
-    for (const wm of wsMembers) allowed.add(wm.userId);
-  }
-
-  return unique.filter((uid) => allowed.has(uid));
+  const readable = await Promise.all(
+    unique.map(async (uid) => (await resolveProjectAccess(project, uid)).ok)
+  );
+  return unique.filter((_, i) => readable[i]);
 }
 
 interface SyncOptions {
@@ -223,9 +223,12 @@ export async function syncMentionsForEditedMessage(opts: SyncOptions) {
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Validate candidate user ids against the portfolio's audience.
- * Allowed = explicit members + the portfolio owner + (for PUBLIC
- * portfolios) anyone in the workspace.
+ * Validate candidate user ids against the portfolio's audience: exactly the
+ * people who can read it (same rule as decidePortfolioAccess in
+ * /api/portfolios/[portfolioId]). Everyone must belong to the portfolio's
+ * own workspace; within it, the owner, explicit members and workspace
+ * OWNER/ADMIN always qualify, PUBLIC opens it to every member, and
+ * WORKSPACE to every contributor (not GUEST/CLIENT).
  */
 export async function resolveAllowedPortfolioMentionUserIds(
   portfolioId: string,
@@ -246,20 +249,31 @@ export async function resolveAllowedPortfolioMentionUserIds(
   });
   if (!portfolio) return [];
 
-  const allowed = new Set<string>();
-  if (portfolio.ownerId) allowed.add(portfolio.ownerId);
-  for (const m of portfolio.members) allowed.add(m.userId);
+  const explicit = new Set<string>();
+  if (portfolio.ownerId) explicit.add(portfolio.ownerId);
+  for (const m of portfolio.members) explicit.add(m.userId);
 
-  // PUBLIC portfolios open the @-mention pool to the whole workspace.
-  if (portfolio.privacy === "PUBLIC") {
-    const wsMembers = await prisma.workspaceMember.findMany({
-      where: {
-        workspaceId: portfolio.workspaceId,
-        userId: { in: unique },
-      },
-      select: { userId: true },
-    });
-    for (const wm of wsMembers) allowed.add(wm.userId);
+  // A surviving owner/member row does not outlive the workspace seat: an
+  // offboarded user cannot read the portfolio, so they cannot be mentioned.
+  const wsMembers = await prisma.workspaceMember.findMany({
+    where: {
+      workspaceId: portfolio.workspaceId,
+      userId: { in: unique },
+    },
+    select: { userId: true, role: true },
+  });
+
+  const allowed = new Set<string>();
+  for (const wm of wsMembers) {
+    const isManager = wm.role === "OWNER" || wm.role === "ADMIN";
+    if (
+      explicit.has(wm.userId) ||
+      isManager ||
+      portfolio.privacy === "PUBLIC" ||
+      (portfolio.privacy === "WORKSPACE" && !isNonContributorRole(wm.role))
+    ) {
+      allowed.add(wm.userId);
+    }
   }
 
   return unique.filter((uid) => allowed.has(uid));

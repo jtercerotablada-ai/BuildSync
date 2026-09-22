@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addDays } from "date-fns";
 
 import {
   blockedCellParts,
@@ -10,7 +11,9 @@ import {
   deadlineMarkerTitle,
   dependencyMeaning,
   dueRangeText,
+  ganttScrollLeft,
   gridColumnsNeeded,
+  gridWindow,
   MAX_GRID_COLUMNS,
   resolveBlockedBy,
   sectionStageChip,
@@ -436,6 +439,174 @@ describe("gridColumnsNeeded", () => {
     expect(gridColumnsNeeded("day", sep1, day(400))).toBeLessThanOrEqual(
       MAX_GRID_COLUMNS
     );
+  });
+});
+
+describe("gridWindow", () => {
+  const d = (y: number, m: number, day: number) => new Date(y, m - 1, day);
+  const lastDay = (w: { start: Date; count: number }) =>
+    new Date(
+      w.start.getFullYear(),
+      w.start.getMonth(),
+      w.start.getDate() + w.count - 1
+    );
+
+  it("keeps today inside a day grid whose work is all in the past", () => {
+    // A recert worked Mar 2 - Apr 30, opened on Sep 21: the grid used to
+    // end in late June, so there was no today line and Today could not
+    // scroll anywhere.
+    const w = gridWindow({
+      zoom: "day",
+      range: 120,
+      anchor: d(2026, 9, 21),
+      minTask: d(2026, 3, 2),
+      maxTask: d(2026, 4, 30),
+      deadline: null,
+    })!;
+    expect(w.start).toEqual(d(2026, 3, 2));
+    expect(lastDay(w) >= d(2026, 9, 21)).toBe(true);
+    expect(w.count).toBeLessThanOrEqual(MAX_GRID_COLUMNS);
+  });
+
+  it("covers the anchor's default range after a page forward", () => {
+    const w = gridWindow({
+      zoom: "day",
+      range: 120,
+      anchor: d(2027, 1, 4),
+      minTask: d(2026, 9, 1),
+      maxTask: d(2026, 10, 1),
+      deadline: null,
+    })!;
+    expect(lastDay(w) >= d(2027, 5, 1)).toBe(true);
+  });
+
+  it("cuts the far past, not the present, when everything cannot fit", () => {
+    // One stray task two years back used to pull the start there and the
+    // column clamp then cut the window off before today.
+    const w = gridWindow({
+      zoom: "day",
+      range: 120,
+      anchor: d(2026, 9, 21),
+      minTask: d(2024, 6, 3),
+      maxTask: d(2026, 12, 15),
+      deadline: null,
+    })!;
+    expect(w.count).toBeLessThanOrEqual(MAX_GRID_COLUMNS);
+    expect(w.start <= d(2026, 9, 21)).toBe(true);
+    expect(w.start > d(2024, 6, 3)).toBe(true);
+    // The anchor's whole default range is still drawn.
+    expect(lastDay(w) >= d(2027, 1, 18)).toBe(true);
+  });
+
+  it("keeps the work when cutting the past would drop all of it", () => {
+    // A recert worked Mar - Apr 2025, opened a year and a half later: the
+    // past cut used to start the grid after the last bar, so the default
+    // Days zoom opened on an empty chart.
+    const w = gridWindow({
+      zoom: "day",
+      range: 120,
+      anchor: d(2026, 9, 21),
+      minTask: d(2025, 3, 3),
+      maxTask: d(2025, 4, 30),
+      deadline: null,
+    })!;
+    expect(w.start).toEqual(d(2025, 3, 3));
+    expect(w.count).toBe(MAX_GRID_COLUMNS);
+    expect(lastDay(w) >= d(2025, 4, 30)).toBe(true);
+  });
+
+  it("scrolls to the work, not the far right edge, when today is outside the window", () => {
+    const w = gridWindow({
+      zoom: "day",
+      range: 120,
+      anchor: d(2026, 9, 21),
+      minTask: d(2025, 3, 3),
+      maxTask: d(2025, 4, 30),
+      deadline: null,
+    })!;
+    const colWidth = 40;
+    const totalWidth = w.count * colWidth;
+    const px = ganttScrollLeft({
+      anchorStart: d(2026, 9, 21),
+      timelineStart: w.start,
+      timelineEnd: addDays(w.start, w.count),
+      totalDays: w.count,
+      totalWidth,
+      viewportWidth: 1000,
+      latestTask: d(2025, 4, 30),
+    });
+    // The last bar (Apr 30, day 58 of the window) is inside the viewport.
+    const lastBarPx = 58 * colWidth;
+    expect(px).toBeLessThanOrEqual(lastBarPx);
+    expect(px + 1000).toBeGreaterThan(lastBarPx);
+    expect(px).toBeLessThan(totalWidth - 1000);
+  });
+
+  it("keeps the anchor at the left edge when it is inside the window", () => {
+    const start = d(2026, 9, 7);
+    const px = ganttScrollLeft({
+      anchorStart: d(2026, 9, 21),
+      timelineStart: start,
+      timelineEnd: addDays(start, 200),
+      totalDays: 200,
+      totalWidth: 200 * 40,
+      viewportWidth: 1000,
+      latestTask: d(2026, 12, 1),
+    });
+    expect(px).toBe(14 * 40);
+  });
+
+  it("starts at the earliest task when no today is known yet", () => {
+    const w = gridWindow({
+      zoom: "day",
+      range: 120,
+      anchor: null,
+      minTask: d(2026, 9, 9),
+      maxTask: d(2026, 10, 1),
+      deadline: null,
+    })!;
+    // Snapped back to Monday.
+    expect(w.start).toEqual(d(2026, 9, 7));
+    expect(w.count).toBe(120);
+  });
+
+  it("draws nothing with neither an anchor nor a dated task", () => {
+    expect(
+      gridWindow({
+        zoom: "day",
+        range: 120,
+        anchor: null,
+        minTask: null,
+        maxTask: null,
+        deadline: null,
+      })
+    ).toBeNull();
+  });
+
+  it("still leaves a deadline that cannot fit out of the window", () => {
+    const w = gridWindow({
+      zoom: "day",
+      range: 120,
+      anchor: d(2026, 9, 21),
+      minTask: d(2026, 9, 1),
+      maxTask: d(2026, 12, 1),
+      deadline: d(2024, 1, 5),
+    })!;
+    expect(w.start).toEqual(d(2026, 8, 31));
+  });
+
+  it("widens to a deadline that fits", () => {
+    const w = gridWindow({
+      zoom: "week",
+      range: 36,
+      anchor: d(2026, 9, 21),
+      minTask: d(2026, 9, 1),
+      maxTask: d(2026, 12, 1),
+      deadline: d(2027, 9, 1),
+    })!;
+    const end = new Date(w.start);
+    end.setDate(end.getDate() + w.count * 7);
+    expect(end > d(2027, 9, 1)).toBe(true);
   });
 });
 

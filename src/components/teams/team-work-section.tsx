@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LinkWorkModal } from "./link-work-modal";
 
 interface WorkItem {
@@ -29,6 +30,12 @@ interface WorkItem {
   type: "project" | "portfolio" | "template";
   color?: string;
   icon?: string;
+  /**
+   * Whether the caller may unlink this project (project MANAGE, which the
+   * DELETE requires). Absent from an older payload — then the item is shown
+   * and the route decides.
+   */
+  canManage?: boolean;
 }
 
 interface TeamWorkSectionProps {
@@ -64,6 +71,9 @@ export const TeamWorkSection = forwardRef<
   // Add work button that 403s on click.
   const [loadError, setLoadError] = useState<"denied" | "failed" | null>(null);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  // Unlinking takes the project away from every teammate whose access came
+  // only through this team, so it goes through a confirmation first.
+  const [pendingRemoval, setPendingRemoval] = useState<WorkItem | null>(null);
 
   async function fetchWork() {
     try {
@@ -106,22 +116,21 @@ export const TeamWorkSection = forwardRef<
     );
   }
 
+  // Thrown, not toasted, on failure: ConfirmDialog shows the message and
+  // stays open.
   async function removeFromTeam(item: WorkItem) {
-    try {
-      const res = await fetch(
-        `/api/teams/${teamId}/work?projectId=${item.id}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed");
-      }
-      toast.success("Removed from team");
-      fetchWork();
-      onWorkChanged?.();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't remove work");
+    const res = await fetch(
+      `/api/teams/${teamId}/work?projectId=${encodeURIComponent(item.id)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Couldn't remove work");
     }
+    toast.success("Removed from team");
+    setPendingRemoval(null);
+    fetchWork();
+    onWorkChanged?.();
   }
 
   return (
@@ -223,13 +232,15 @@ export const TeamWorkSection = forwardRef<
                       <Link2 className="h-4 w-4 mr-2" />
                       Copy link
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-black"
-                      onClick={() => removeFromTeam(item)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Remove from team
-                    </DropdownMenuItem>
+                    {item.canManage !== false && (
+                      <DropdownMenuItem
+                        className="text-black"
+                        onClick={() => setPendingRemoval(item)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove from team
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -244,8 +255,8 @@ export const TeamWorkSection = forwardRef<
               empty section read as a fetch that never finished — the section
               already has a real spinner one branch up for that. */}
           <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
-            Organize links to important work, such as portfolios, projects,
-            templates, etc., so your team members can find them easily.
+            Link the projects this team works on so its members can find
+            them easily.
           </p>
 
           <Button
@@ -264,6 +275,28 @@ export const TeamWorkSection = forwardRef<
         open={showLinkModal}
         onClose={() => setShowLinkModal(false)}
         onSuccess={handleLinked}
+      />
+
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingRemoval(null);
+        }}
+        title="Remove from team"
+        description={
+          pendingRemoval
+            ? `"${pendingRemoval.name}" is detached from this team.`
+            : undefined
+        }
+        consequences={[
+          "The project itself, its tasks and files are kept",
+          "Team members whose access came only through this team lose access to it",
+          "You can add it back with Add work",
+        ]}
+        confirmLabel="Remove from team"
+        onConfirm={() =>
+          pendingRemoval ? removeFromTeam(pendingRemoval) : undefined
+        }
       />
     </div>
   );

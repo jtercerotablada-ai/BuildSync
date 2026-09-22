@@ -202,7 +202,9 @@ function fieldLabel(field: FilterField): string {
 
 // ─── FilterBuilderRow ────────────────────────────────────
 
-function FilterBuilderRow({
+// Exported so the Options drawer edits a filter's operator/value with the
+// exact same control as this panel (it used to add filters it could not set).
+export function FilterBuilderRow({
   filter,
   onUpdate,
   onRemove,

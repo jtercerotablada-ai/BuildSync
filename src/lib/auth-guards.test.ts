@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   contributorSeatSatisfied,
+  decidePositionChange,
+  positionSensitiveWorkspaceIds,
   decideTaskAccess,
   getErrorStatus,
   AuthorizationError,
@@ -9,6 +11,34 @@ import {
 } from "./auth-guards";
 import { resolveProjectAccess } from "./project-access";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
+
+/**
+ * resolveProjectAccess looks up the caller's seat in the project's workspace
+ * on every call. DATABASE_URL is blanked for tests (it points at PRODUCTION),
+ * so the Prisma client is replaced by this in-memory seat table.
+ */
+const db = vi.hoisted(() => ({
+  seats: new Map<string, { role: string; position: string | null }>(),
+}));
+vi.mock("@/lib/prisma", () => ({
+  default: {
+    workspaceMember: {
+      findUnique: async ({
+        where,
+      }: {
+        where: { userId_workspaceId: { userId: string; workspaceId: string } };
+      }) => {
+        const { userId, workspaceId } = where.userId_workspaceId;
+        const seat = db.seats.get(`${userId}@${workspaceId}`);
+        return seat
+          ? { role: seat.role, user: { position: seat.position } }
+          : null;
+      },
+    },
+    project: { findUnique: async () => null },
+    teamMember: { findFirst: async () => null },
+  },
+}));
 
 /**
  * WHO MAY TOUCH A TASK — the /api/tasks/[taskId]/* chokepoint.
@@ -32,15 +62,25 @@ import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 
 const OWNER = "user_owner";
 const MEMBER = "user_member";
+/** The staff member who created the project. */
+const CREATOR = "user_creator";
 const WS = "ws_firm";
+
+function seat(userId: string, role: string, position: string | null = null) {
+  db.seats.set(`${userId}@${WS}`, { role, position });
+}
+
+beforeEach(() => {
+  db.seats.clear();
+});
 
 type Role = "ADMIN" | "EDITOR" | "COMMENTER" | "VIEWER";
 
-/** A project whose owner is OWNER and where MEMBER holds `role`. */
+/** A project created by a colleague, where MEMBER holds `role`. */
 function projectWithMember(role: Role, visibility = "PRIVATE") {
   return {
     id: "proj_1",
-    ownerId: OWNER,
+    ownerId: CREATOR,
     workspaceId: WS,
     visibility,
     teamId: null,
@@ -66,6 +106,8 @@ function stranger(
     projectCanWrite: false,
     projectCanComment: false,
     projectIsWorkspaceManager: false,
+    // A colleague who still works here — the offboarding tests flip it.
+    projectHasContributorSeat: true,
     ...overrides,
   };
 }
@@ -79,13 +121,6 @@ function allowed(input: TaskAccessDecisionInput): boolean {
 // What a per-project role buys you
 // ───────────────────────────────────────────────────────────────────────────
 
-/**
- * resolveProjectAccess makes NO database call when the caller owns the
- * project or appears in `members` — both short-circuit before the
- * workspaceMember lookup. Every fixture below is therefore an owner or a
- * member on purpose; adding a non-member case here would reach for the
- * production database.
- */
 describe("a colleague's project role decides what they can do", () => {
   it("a VIEWER can open the project but cannot edit, archive or attach", async () => {
     const access = await resolveProjectAccess(
@@ -131,7 +166,7 @@ describe("a colleague's project role decides what they can do", () => {
   });
 
   it("the project's owner can do everything without a member row", async () => {
-    const access = await resolveProjectAccess(projectWithMember("VIEWER"), OWNER);
+    const access = await resolveProjectAccess(projectWithMember("VIEWER"), CREATOR);
     expect(access.isOwner).toBe(true);
     expect(access.isMember).toBe(false);
     expect(access.canWrite).toBe(true);
@@ -148,15 +183,118 @@ describe("a colleague's project role decides what they can do", () => {
     }
   });
 
-  it("marking the project PUBLIC does not promote a VIEWER to a writer", async () => {
-    // Visibility answers "who may look", never "who may type".
-    const access = await resolveProjectAccess(
-      projectWithMember("VIEWER", "PUBLIC"),
-      MEMBER
-    );
-    expect(access.ok).toBe(true);
+  it.each(["WORKSPACE", "PUBLIC"])(
+    "an explicit VIEWER row is not upgraded by %s visibility",
+    async (visibility) => {
+      // The implicit firm-wide Editor grant is for people with NO row; a
+      // colleague deliberately restricted to VIEWER stays restricted.
+      seat(MEMBER, "MEMBER");
+      const access = await resolveProjectAccess(
+        projectWithMember("VIEWER", visibility),
+        MEMBER
+      );
+      expect(access.ok).toBe(true);
+      expect(access.canWrite).toBe(false);
+      expect(access.canComment).toBe(false);
+      expect(access.isWorkspaceShared).toBe(false);
+    }
+  );
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Visibility: what the firm gets without being invited
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a colleague with no member row", () => {
+  const COLLEAGUE = "user_colleague";
+  const noRow = (visibility: string) => ({
+    ...projectWithMember("EDITOR", visibility),
+    members: [],
+  });
+
+  it.each(["WORKSPACE", "PUBLIC"])(
+    "can open, edit and comment on a %s project, but not manage it",
+    async (visibility) => {
+      seat(COLLEAGUE, "MEMBER");
+      const access = await resolveProjectAccess(noRow(visibility), COLLEAGUE);
+      expect(access.ok).toBe(true);
+      expect(access.canWrite).toBe(true);
+      expect(access.canComment).toBe(true);
+      expect(access.canManage).toBe(false);
+      expect(access.isWorkspaceShared).toBe(true);
+    }
+  );
+
+  it("gets a 404 on a PRIVATE project", async () => {
+    seat(COLLEAGUE, "WORKER");
+    const access = await resolveProjectAccess(noRow("PRIVATE"), COLLEAGUE);
+    expect(access.ok).toBe(false);
+    expect(access.status).toBe(404);
     expect(access.canWrite).toBe(false);
-    expect(access.canComment).toBe(false);
+  });
+
+  it.each([...NON_CONTRIBUTOR_ROLES])(
+    "gets nothing implicit as a %s",
+    async (role) => {
+      seat(COLLEAGUE, role);
+      const access = await resolveProjectAccess(noRow("WORKSPACE"), COLLEAGUE);
+      expect(access.ok).toBe(false);
+      expect(access.canWrite).toBe(false);
+    }
+  );
+
+  it("gets nothing once removed from the workspace (no seat)", async () => {
+    const access = await resolveProjectAccess(noRow("WORKSPACE"), COLLEAGUE);
+    expect(access.ok).toBe(false);
+    expect(access.hasContributorSeat).toBe(false);
+  });
+
+  it("with a level 4+ Position reads a PRIVATE project but cannot edit it", async () => {
+    seat(COLLEAGUE, "MEMBER", "PROJECT_MANAGER");
+    const access = await resolveProjectAccess(noRow("PRIVATE"), COLLEAGUE);
+    expect(access.ok).toBe(true);
+    expect(access.hasSeniorRead).toBe(true);
+    expect(access.isWorkspaceManager).toBe(false);
+    expect(access.canWrite).toBe(false);
+    expect(access.canManage).toBe(false);
+  });
+});
+
+describe("the workspace OWNER/ADMIN runs every project in the workspace", () => {
+  it.each(["OWNER", "ADMIN"])(
+    "a workspace %s can edit and manage a PRIVATE project he never joined",
+    async (role) => {
+      seat(OWNER, role);
+      const access = await resolveProjectAccess(
+        { ...projectWithMember("EDITOR"), members: [] },
+        OWNER
+      );
+      expect(access.ok).toBe(true);
+      expect(access.isWorkspaceManager).toBe(true);
+      expect(access.canWrite).toBe(true);
+      expect(access.canComment).toBe(true);
+      expect(access.canManage).toBe(true);
+    }
+  );
+
+  it("keeps his powers when he is also added as a VIEWER", async () => {
+    // Adding the owner to a project to get notifications must not strip his
+    // leadership there.
+    seat(MEMBER, "OWNER");
+    const access = await resolveProjectAccess(projectWithMember("VIEWER"), MEMBER);
+    expect(access.isWorkspaceManager).toBe(true);
+    expect(access.canWrite).toBe(true);
+    expect(access.canManage).toBe(true);
+  });
+
+  it("gets no manager standing from a role in a DIFFERENT workspace", async () => {
+    db.seats.set(`${OWNER}@ws_other`, { role: "OWNER", position: null });
+    const access = await resolveProjectAccess(
+      { ...projectWithMember("EDITOR"), members: [] },
+      OWNER
+    );
+    expect(access.ok).toBe(false);
+    expect(access.isWorkspaceManager).toBe(false);
   });
 });
 
@@ -203,14 +341,6 @@ describe("on a task in a project, a COMMENTER may reply but not edit", () => {
     expect(allowed({ ...commenter, requireWrite: true })).toBe(false);
   });
 
-  it("needs no extra membership check — the project role already proves it", () => {
-    // canComment came from a real ProjectMember row, which cannot exist
-    // without a workspace seat. No second query, and nothing to fail later.
-    expect(
-      decideTaskAccess({ ...commenter, requireComment: true })
-        .requiresContributorSeat
-    ).toBe(false);
-  });
 });
 
 describe("on a task in a project, an EDITOR may edit", () => {
@@ -229,17 +359,15 @@ describe("on a task in a project, an EDITOR may edit", () => {
 });
 
 /**
- * THE OWNER'S OWN DAILY CASE, and it was broken.
- *
- * The firm's workspace OWNER is not a ProjectMember of most projects — so
- * canWrite and canComment are both false for him. He could post in a
- * project's message channel (that route admits "workspace leadership"
- * explicitly) and be refused on a task inside the same project, in the same
- * minute. `projectIsWorkspaceManager` is the escape that fixes it.
+ * THE OWNER'S OWN DAILY CASE. The firm's workspace OWNER is not a
+ * ProjectMember of most projects; resolveProjectAccess gives him read, write,
+ * comment and manage there anyway, and the task gate must honour it.
  */
 describe("the workspace OWNER can work in a project he never joined", () => {
   const wsOwner = stranger({
     projectCanRead: true,
+    projectCanWrite: true,
+    projectCanComment: true,
     projectIsWorkspaceManager: true,
   });
 
@@ -251,19 +379,8 @@ describe("the workspace OWNER can work in a project he never joined", () => {
     expect(allowed({ ...wsOwner, requireComment: true })).toBe(true);
   });
 
-  it("is not sent for a second membership check to comment", () => {
-    // Being a workspace manager IS the workspace seat; re-querying for it
-    // would be a wasted round trip on every comment the owner writes.
-    expect(
-      decideTaskAccess({ ...wsOwner, requireComment: true })
-        .requiresContributorSeat
-    ).toBe(false);
-  });
-
-  it("still cannot silently EDIT a task in a project he is not on", () => {
-    // Deliberate asymmetry: leadership gets a voice, not an editor's hands.
-    // Write comes from the project role, ownership, or a personal tie.
-    expect(allowed({ ...wsOwner, requireWrite: true })).toBe(false);
+  it("can edit, complete and reassign it", () => {
+    expect(allowed({ ...wsOwner, requireWrite: true })).toBe(true);
   });
 });
 
@@ -381,12 +498,12 @@ describe("on a personal task with no project", () => {
     });
   });
 
-  it("never asks for a workspace seat — there is no workspace to ask about", () => {
+  it("does not depend on a workspace seat — there is no workspace to ask about", () => {
     for (const input of [
-      personal({ isOwnTask: true, requireComment: true }),
+      personal({ isOwnTask: true, requireWrite: true }),
       personal({ isCollaborator: true, requireComment: true }),
     ]) {
-      expect(decideTaskAccess(input).requiresContributorSeat).toBe(false);
+      expect(allowed({ ...input, projectHasContributorSeat: false })).toBe(true);
     }
   });
 
@@ -415,33 +532,52 @@ describe("on a personal task with no project", () => {
  * tie must be re-checked against a live contributor seat before it is honoured.
  */
 describe("a personal tie stops counting once the person leaves the firm", () => {
-  it("a follower's comment must still be paid for with a workspace seat", () => {
-    const decision = decideTaskAccess(
-      stranger({ isCollaborator: true, requireComment: true })
-    );
-    expect(decision.denial).toBeNull();
-    expect(decision.requiresContributorSeat).toBe(true);
+  const offboarded = (overrides: Partial<TaskAccessDecisionInput> = {}) =>
+    stranger({ projectHasContributorSeat: false, ...overrides });
+
+  it("a removed creator/assignee can no longer open the task", () => {
+    expect(decideTaskAccess(offboarded({ isOwnTask: true })).denial).toEqual({
+      kind: "notFound",
+      message: "Task not found",
+    });
   });
 
-  it("so must the creator's, when the project grants them nothing", () => {
+  it("nor edit or delete it", () => {
     expect(
-      decideTaskAccess(stranger({ isOwnTask: true, requireComment: true }))
-        .requiresContributorSeat
+      decideTaskAccess(offboarded({ isOwnTask: true, requireWrite: true }))
+        .denial!.kind
+    ).toBe("notFound");
+  });
+
+  it("a removed follower can neither read nor reply", () => {
+    expect(allowed(offboarded({ isCollaborator: true }))).toBe(false);
+    expect(
+      allowed(offboarded({ isCollaborator: true, requireComment: true }))
+    ).toBe(false);
+  });
+
+  it("a removed assignee loses a private task too", () => {
+    expect(allowed(offboarded({ isOwnTask: true, isPrivate: true }))).toBe(
+      false
+    );
+  });
+
+  it("a colleague who still holds a seat keeps every tie", () => {
+    expect(allowed(stranger({ isOwnTask: true, requireWrite: true }))).toBe(true);
+    expect(
+      allowed(stranger({ isCollaborator: true, requireComment: true }))
     ).toBe(true);
   });
 
   it("an offboarded collaborator is refused: no membership row, no seat", () => {
-    // What the caller looks up is a WorkspaceMember row; the removed user has
-    // none, so `undefined` arrives here and must NOT read as "fine".
+    // What resolveProjectAccess looks up is a WorkspaceMember row; the removed
+    // user has none, so `undefined` arrives here and must NOT read as "fine".
     expect(contributorSeatSatisfied(undefined)).toBe(false);
     expect(contributorSeatSatisfied(null)).toBe(false);
     expect(contributorSeatSatisfied("")).toBe(false);
   });
 
   it("a read-only role is refused too, by the shared non-contributor list", () => {
-    // Named from NON_CONTRIBUTOR_ROLES rather than as literals: the same set
-    // the Edge gate and requireWorkspaceContributor consume. Add a role there
-    // and this demands the task gate already refuses it.
     expect(NON_CONTRIBUTOR_ROLES.size).toBeGreaterThan(0);
     for (const role of NON_CONTRIBUTOR_ROLES) {
       expect(contributorSeatSatisfied(role)).toBe(false);
@@ -456,34 +592,12 @@ describe("a personal tie stops counting once the person leaves the firm", () => 
     }
   });
 
-  it("the seat check runs ONLY when a personal tie or leadership is carrying the comment", () => {
-    // A real COMMENTER/EDITOR/ADMIN role already implies the seat, and a
-    // workspace manager IS the seat. Asking again would add a query to every
-    // comment the firm writes.
-    expect(
-      decideTaskAccess(
-        stranger({ projectCanRead: true, projectCanComment: true, requireComment: true })
-      ).requiresContributorSeat
-    ).toBe(false);
-    expect(
-      decideTaskAccess(
-        stranger({
-          projectCanRead: true,
-          projectIsWorkspaceManager: true,
-          requireComment: true,
-        })
-      ).requiresContributorSeat
-    ).toBe(false);
-  });
-
-  it("never runs on a read or a write — only on commenting", () => {
-    for (const input of [
-      stranger({ isCollaborator: true }),
-      stranger({ isOwnTask: true, requireWrite: true }),
-      stranger({ projectCanRead: true, projectCanWrite: true, requireWrite: true }),
-    ]) {
-      expect(decideTaskAccess(input).requiresContributorSeat).toBe(false);
-    }
+  it("resolveProjectAccess reports the missing seat the task gate reads", async () => {
+    const access = await resolveProjectAccess(
+      { ...projectWithMember("EDITOR"), members: [] },
+      "user_gone"
+    );
+    expect(access.hasContributorSeat).toBe(false);
   });
 });
 
@@ -539,6 +653,11 @@ describe("a private task is visible only to the people its toggle names", () => 
     expect(allowed({ ...editor, requireWrite: true })).toBe(false);
   });
 
+  it("a level 4+ Position does NOT open a private task", () => {
+    // hasSeniorRead reads the project; it is not projectIsWorkspaceManager.
+    expect(allowed(secret({ projectCanRead: true }))).toBe(false);
+  });
+
   it("the workspace OWNER keeps the key — nothing else can un-flag the task", () => {
     // The flag is only clearable from INSIDE the task's own panel. Without
     // this leg, a task privatised by someone who then leaves — no assignee, no
@@ -547,6 +666,7 @@ describe("a private task is visible only to the people its toggle names", () => 
     const wsOwner = secret({
       projectCanRead: true,
       projectCanWrite: true,
+      projectCanComment: true,
       projectIsWorkspaceManager: true,
     });
     expect(allowed(wsOwner)).toBe(true);
@@ -582,27 +702,21 @@ describe("a private task is visible only to the people its toggle names", () => 
     ).toBe(true);
   });
 
-  it("still charges a follower's comment to a live workspace seat", () => {
-    // The offboarding re-check must survive the new branch: a private task is
-    // exactly where a stale TaskCollaborator row is most valuable.
-    const decision = decideTaskAccess(
-      secret({ isCollaborator: true, requireComment: true })
-    );
-    expect(decision.denial).toBeNull();
-    expect(decision.requiresContributorSeat).toBe(true);
-  });
-
-  it("never asks for a workspace seat while denying — the denial is final", () => {
-    for (const input of [
-      secret(),
-      secret({ projectCanRead: true, requireComment: true }),
-      secret({ projectCanRead: true, projectCanComment: true, requireComment: true }),
-      secret({ hasProject: false, requireWrite: true }),
-    ]) {
-      const decision = decideTaskAccess(input);
-      expect(decision.denial).not.toBeNull();
-      expect(decision.requiresContributorSeat).toBe(false);
-    }
+  it("still charges a follower's access to a live workspace seat", () => {
+    // A private task is exactly where a stale TaskCollaborator row is most
+    // valuable.
+    expect(
+      allowed(secret({ isCollaborator: true, requireComment: true }))
+    ).toBe(true);
+    expect(
+      allowed(
+        secret({
+          isCollaborator: true,
+          requireComment: true,
+          projectHasContributorSeat: false,
+        })
+      )
+    ).toBe(false);
   });
 
   it("changes nothing for a task that is not private", () => {
@@ -627,25 +741,6 @@ describe("a private task is visible only to the people its toggle names", () => 
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("the decision fails closed", () => {
-  it("never asks for a seat while also denying — a denial is final", () => {
-    // A denial plus requiresContributorSeat:true would tempt a caller into
-    // reading the flag first and letting the request through.
-    const inputs: TaskAccessDecisionInput[] = [
-      stranger(),
-      stranger({ requireWrite: true }),
-      stranger({ requireComment: true }),
-      stranger({ projectCanRead: true, requireComment: true }),
-      stranger({ hasProject: false }),
-      stranger({ hasProject: false, isCollaborator: true, requireWrite: true }),
-    ];
-    for (const input of inputs) {
-      const decision = decideTaskAccess(input);
-      if (decision.denial) {
-        expect(decision.requiresContributorSeat).toBe(false);
-      }
-    }
-  });
-
   it("grants nothing to a caller with no tie, no role and no read", () => {
     for (const opts of [
       {},
@@ -661,5 +756,77 @@ describe("the decision fails closed", () => {
   it("a denial always carries a message the API can return", () => {
     const { denial } = decideTaskAccess(stranger({ requireWrite: true }));
     expect(denial!.message.length).toBeGreaterThan(0);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Who may change a Position (it feeds access)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("only a workspace OWNER/ADMIN may change a Position", () => {
+  it("an OWNER/ADMIN of every shared workspace may", () => {
+    expect(
+      decidePositionChange([WS], [{ workspaceId: WS, role: "OWNER" }])
+    ).toBe(true);
+    expect(
+      decidePositionChange([WS], [{ workspaceId: WS, role: "ADMIN" }])
+    ).toBe(true);
+  });
+
+  it.each(["MEMBER", "WORKER", "GUEST", "CLIENT"])(
+    "a %s may not — not even their own",
+    (role) => {
+      expect(decidePositionChange([WS], [{ workspaceId: WS, role }])).toBe(
+        false
+      );
+    }
+  );
+
+  it("owning a side workspace does not buy a Position in the firm", () => {
+    // The target is in the firm AND in a side workspace the caller owns: the
+    // Position would carry into the firm, so the side workspace is not enough.
+    expect(
+      decidePositionChange(
+        [WS, "ws_side"],
+        [
+          { workspaceId: "ws_side", role: "OWNER" },
+          { workspaceId: WS, role: "MEMBER" },
+        ]
+      )
+    ).toBe(false);
+  });
+
+  it("refuses when there is no shared workspace at all", () => {
+    expect(decidePositionChange([], [])).toBe(false);
+  });
+
+  it("ignores singleton workspaces and seats where the target is read-only", () => {
+    // A GUEST/CLIENT seat gets nothing from a Position, so it must not veto
+    // the firm owner's change; a contributor seat in a side workspace still does.
+    expect(
+      positionSensitiveWorkspaceIds([
+        { workspaceId: WS, role: "MEMBER", memberCount: 3 },
+        { workspaceId: "ws_solo", role: "OWNER", memberCount: 1 },
+        { workspaceId: "ws_guest", role: "GUEST", memberCount: 2 },
+        { workspaceId: "ws_client", role: "CLIENT", memberCount: 5 },
+        { workspaceId: "ws_side", role: "WORKER", memberCount: 2 },
+      ])
+    ).toEqual([WS, "ws_side"]);
+  });
+
+  it("a target with no contributor seat is approved by their shared workspaces", () => {
+    // A firm GUEST whose only seat is read-only: the firm owner must still be
+    // able to set the Position (for example before promoting them).
+    const shared = positionSensitiveWorkspaceIds([
+      { workspaceId: WS, role: "GUEST", memberCount: 3 },
+      { workspaceId: "ws_solo", role: "OWNER", memberCount: 1 },
+    ]);
+    expect(shared).toEqual([WS]);
+    expect(
+      decidePositionChange(shared, [{ workspaceId: WS, role: "OWNER" }])
+    ).toBe(true);
+    expect(
+      decidePositionChange(shared, [{ workspaceId: WS, role: "MEMBER" }])
+    ).toBe(false);
   });
 });

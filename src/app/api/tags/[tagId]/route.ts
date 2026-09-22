@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 const patchSchema = z.object({
   name: z.string().min(1).max(60).optional(),
@@ -19,6 +19,13 @@ const patchSchema = z.object({
     .optional(),
 });
 
+/**
+ * Authorize against the TAG's own workspace. POST /api/tags creates a tag in
+ * the workspace of the task it was created from, which for a multi-workspace
+ * user need not be their primary one; comparing with the primary workspace
+ * made such tags impossible to rename or delete. A tag in a workspace the
+ * caller does not belong to is reported as missing, not forbidden.
+ */
 async function assertOwnedByCallerWorkspace(
   tagId: string,
   userId: string
@@ -28,8 +35,14 @@ async function assertOwnedByCallerWorkspace(
     select: { workspaceId: true },
   });
   if (!tag) return { ok: false, status: 404 };
-  const callerWs = await getUserWorkspaceId(userId);
-  if (tag.workspaceId !== callerWs) return { ok: false, status: 403 };
+  const member = await prisma.workspaceMember.findUnique({
+    where: { userId_workspaceId: { userId, workspaceId: tag.workspaceId } },
+    select: { role: true },
+  });
+  if (!member) return { ok: false, status: 404 };
+  // The tag library is shared by the whole workspace; view-only roles must
+  // not rename or delete what everyone else sees on their tasks.
+  if (isNonContributorRole(member.role)) return { ok: false, status: 403 };
   return { ok: true };
 }
 
@@ -50,7 +63,7 @@ export async function PATCH(
         { status: access.status }
       );
     }
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = patchSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -109,6 +122,10 @@ export async function DELETE(
     await prisma.tag.delete({ where: { id: tagId } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    // Deleted concurrently between the check and the delete.
+    if ((err as { code?: string }).code === "P2025") {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     console.error("[tag DELETE] error:", err);
     return NextResponse.json(
       { error: "Failed to delete tag" },

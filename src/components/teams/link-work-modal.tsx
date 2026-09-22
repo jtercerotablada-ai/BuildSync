@@ -39,6 +39,10 @@ export function LinkWorkModal({
   const [isLinking, setIsLinking] = useState(false);
   const [searchResults, setSearchResults] = useState<WorkItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  // Set when the server refuses because the project already belongs to
+  // another team: holds its explanation (which names that team) until the
+  // user confirms the move or backs out.
+  const [moveConflict, setMoveConflict] = useState<string | null>(null);
 
   // Only the newest request may write results: one fetch per pause in
   // typing, and the previous one is aborted so a slow early response
@@ -60,7 +64,7 @@ export function LinkWorkModal({
       searchAbortRef.current = controller;
       try {
         const res = await fetch(
-          `/api/work/search?q=${encodeURIComponent(searchQuery)}`,
+          `/api/work/search?q=${encodeURIComponent(searchQuery)}&teamId=${encodeURIComponent(teamId)}`,
           { signal: controller.signal }
         );
         if (res.ok) {
@@ -86,15 +90,16 @@ export function LinkWorkModal({
       clearTimeout(timer);
       searchAbortRef.current?.abort();
     };
-  }, [searchQuery]);
+  }, [searchQuery, teamId]);
 
   const handleSelectWork = (work: WorkItem) => {
     setSelectedWork(work);
+    setMoveConflict(null);
     setSearchQuery("");
     setSearchResults([]);
   };
 
-  const handleLink = async () => {
+  const handleLink = async (move = false) => {
     if (!selectedWork) {
       toast.error("Please select a project to link");
       return;
@@ -108,6 +113,7 @@ export function LinkWorkModal({
         body: JSON.stringify({
           workId: selectedWork.id,
           workType: selectedWork.type,
+          ...(move ? { move: true } : {}),
         }),
       });
 
@@ -117,6 +123,13 @@ export function LinkWorkModal({
         handleClose();
       } else {
         const err = await res.json().catch(() => ({}));
+        if (res.status === 409 && err.code === "PROJECT_IN_OTHER_TEAM" && !move) {
+          setMoveConflict(
+            err.error ||
+              "This project is already in another team. Adding it here moves it out of that team."
+          );
+          return;
+        }
         toast.error(err.error || "Failed to add project");
       }
     } catch {
@@ -130,6 +143,7 @@ export function LinkWorkModal({
     setSearchQuery("");
     setSelectedWork(null);
     setSearchResults([]);
+    setMoveConflict(null);
     onClose();
   };
 
@@ -211,16 +225,30 @@ export function LinkWorkModal({
                   </p>
                 </div>
                 <button
-                  onClick={() => setSelectedWork(null)}
+                  onClick={() => {
+                    setSelectedWork(null);
+                    setMoveConflict(null);
+                  }}
                   className="p-1 hover:bg-gray-200 rounded"
                 >
                   <X className="h-4 w-4 text-gray-500" />
                 </button>
               </div>
-              <p className="text-xs text-gray-400">
-                This adds the project to the team&apos;s work. It won&apos;t
-                rename the project or change its contents.
-              </p>
+              {moveConflict ? (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800"
+                >
+                  <p>{moveConflict}</p>
+                  <p className="mt-1">Move it to this team anyway?</p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">
+                  A project belongs to one team at a time. Adding it here makes
+                  this team&apos;s members editors of it; if it is already in
+                  another team, you&apos;ll be asked before it is moved.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -230,10 +258,21 @@ export function LinkWorkModal({
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleLink} disabled={!selectedWork || isLinking}>
-            {isLinking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Add work
-          </Button>
+          {moveConflict ? (
+            <Button
+              variant="destructive"
+              onClick={() => handleLink(true)}
+              disabled={!selectedWork || isLinking}
+            >
+              {isLinking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Move to this team
+            </Button>
+          ) : (
+            <Button onClick={() => handleLink()} disabled={!selectedWork || isLinking}>
+              {isLinking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Add work
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

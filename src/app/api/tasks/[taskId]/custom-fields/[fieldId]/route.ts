@@ -25,7 +25,10 @@ import {
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
-import { recomputeFormulasForTask } from "@/lib/formula-eval";
+import {
+  recomputeFormulasForTask,
+  recomputeRollupsForAncestors,
+} from "@/lib/formula-eval";
 
 const bodySchema = z.object({
   // `unknown` because the shape depends on the field type — we
@@ -56,12 +59,13 @@ export async function PATCH(
         projectId: true,
         parentTaskId: true,
         project: { select: { workspaceId: true } },
+        taskProjects: { select: { projectId: true } },
       },
     });
 
     const field = await prisma.customFieldDefinition.findUnique({
       where: { id: fieldId },
-      select: { id: true, type: true, options: true, workspaceId: true },
+      select: { id: true, name: true, type: true, options: true, workspaceId: true },
     });
     if (!field) {
       return NextResponse.json({ error: "Field not found" }, { status: 404 });
@@ -74,6 +78,9 @@ export async function PATCH(
       where: { fieldId },
     });
     const isPersonal = linkCount === 0;
+    // The project whose formulas read this value: the task's home project,
+    // or the multi-homed project the field is linked through.
+    let formulaProjectId: string | null = task?.projectId ?? null;
 
     if (isPersonal) {
       // Personal (unlinked) field: there's no per-user owner column, so the
@@ -101,25 +108,34 @@ export async function PATCH(
         );
       }
     } else {
-      // Project field: it must be linked to THIS task's project — we can't
-      // let a user write values for arbitrary shared fields they don't own.
-      if (!task?.projectId) {
+      // Project field: it must be linked to one of THIS task's projects —
+      // its home project or a project it is multi-homed into (the panel
+      // renders those fields too). We can't let a user write values for
+      // arbitrary shared fields they don't own.
+      const taskProjectIds = [
+        ...(task?.projectId ? [task.projectId] : []),
+        ...(task?.taskProjects.map((tp) => tp.projectId) ?? []),
+      ];
+      if (taskProjectIds.length === 0) {
         return NextResponse.json(
           { error: "Task has no project, can't have custom fields" },
           { status: 400 }
         );
       }
-      const link = await prisma.projectCustomField.findUnique({
-        where: {
-          projectId_fieldId: { projectId: task.projectId, fieldId },
-        },
+      const links = await prisma.projectCustomField.findMany({
+        where: { fieldId, projectId: { in: taskProjectIds } },
+        select: { projectId: true },
       });
-      if (!link) {
+      if (links.length === 0) {
         return NextResponse.json(
           { error: "Field is not on this task's project" },
           { status: 404 }
         );
       }
+      // Prefer the home project when the field is linked there too.
+      formulaProjectId =
+        links.find((l) => l.projectId === task?.projectId)?.projectId ??
+        links[0].projectId;
     }
 
     const body = await req.json();
@@ -132,6 +148,57 @@ export async function PATCH(
     }
     const raw = parsed.data.value;
 
+    // Formulas on this task, and roll-ups on its parent, read this value, so
+    // every write — a clear included — has to refresh them. Skipped when the
+    // edited field is itself computed (its result is what was just written).
+    const recomputeDependents = async () => {
+      if (
+        !formulaProjectId ||
+        field.type === "FORMULA" ||
+        field.type === "ROLLUP"
+      ) {
+        return;
+      }
+      try {
+        await recomputeFormulasForTask(taskId, formulaProjectId);
+      } catch (e) {
+        // Non-fatal — the source write succeeded; formulas can be
+        // recomputed on the next edit if this one threw.
+        console.error("[formula recompute] error:", e);
+      }
+      // If this task is a subtask, its parent's ROLL-UP fields aggregate
+      // this value — recompute the parent too so the roll-up updates.
+      // Each ancestor is recomputed against its own home project.
+      if (task?.parentTaskId) {
+        try {
+          await recomputeRollupsForAncestors(task.parentTaskId);
+        } catch (e) {
+          console.error("[rollup parent recompute] error:", e);
+        }
+      }
+    };
+
+    // "Who changed Inspection result, and when?" is answered by the task's
+    // activity feed. Computed fields are written by the system, and a
+    // personal field's name is its owner's business, so neither is logged.
+    const logChange = async () => {
+      if (isPersonal || field.type === "FORMULA" || field.type === "ROLLUP") {
+        return;
+      }
+      await prisma.activity
+        .create({
+          data: {
+            type: "CUSTOM_FIELD_CHANGED",
+            taskId,
+            userId,
+            data: { fieldId, fieldName: field.name },
+          },
+        })
+        .catch((e) => {
+          console.error("[task custom-field PATCH] activity failed:", e);
+        });
+    };
+
     // Treat null / "" / undefined / [] as "clear".
     const isCleared =
       raw === null ||
@@ -140,18 +207,18 @@ export async function PATCH(
       (Array.isArray(raw) && raw.length === 0);
 
     if (isCleared) {
-      await prisma.customFieldValue
-        .delete({
-          where: { taskId_fieldId: { taskId, fieldId } },
-        })
-        .catch(() => {
-          /* already absent — fine */
-        });
+      const removed = await prisma.customFieldValue.deleteMany({
+        where: { taskId, fieldId },
+      });
       // Touch the task so the "Last modified" field reflects the change.
       await prisma.task.update({
         where: { id: taskId },
         data: { updatedAt: new Date() },
       });
+      if (removed.count > 0) {
+        await logChange();
+        await recomputeDependents();
+      }
       return NextResponse.json({ taskId, fieldId, value: null });
     }
 
@@ -395,6 +462,10 @@ export async function PATCH(
       }
     }
 
+    const previous = await prisma.customFieldValue.findUnique({
+      where: { taskId_fieldId: { taskId, fieldId } },
+      select: { value: true },
+    });
     const row = await prisma.customFieldValue.upsert({
       where: { taskId_fieldId: { taskId, fieldId } },
       create: {
@@ -411,33 +482,16 @@ export async function PATCH(
       data: { updatedAt: new Date() },
     });
 
+    // A re-save of the same value is not a change worth a feed row.
+    if (JSON.stringify(previous?.value ?? null) !== JSON.stringify(row.value)) {
+      await logChange();
+    }
+
     // After saving, recompute every FORMULA / ROLLUP on this task —
     // edits to source values propagate to dependent formulas in the
-    // same round trip, matching Asana's "type a number and watch
-    // Doble esfuerzo update" behavior. Skip when the edited field
-    // itself is a formula (its result is what we just wrote).
-    if (
-      task?.projectId &&
-      field.type !== "FORMULA" &&
-      field.type !== "ROLLUP"
-    ) {
-      try {
-        await recomputeFormulasForTask(taskId, task.projectId);
-      } catch (e) {
-        // Non-fatal — the source write succeeded; formulas can be
-        // recomputed on the next edit if this one threw.
-        console.error("[formula recompute] error:", e);
-      }
-      // If this task is a subtask, its parent's ROLL-UP fields aggregate
-      // this value — recompute the parent too so the roll-up updates.
-      if (task.parentTaskId) {
-        try {
-          await recomputeFormulasForTask(task.parentTaskId, task.projectId);
-        } catch (e) {
-          console.error("[rollup parent recompute] error:", e);
-        }
-      }
-    }
+    // same round trip, matching Asana's "type a number and watch the
+    // total update" behavior.
+    await recomputeDependents();
 
     return NextResponse.json({
       taskId: row.taskId,

@@ -9,6 +9,10 @@ import {
 } from "@/lib/auth-guards";
 import { requireTeamStanding } from "@/lib/team-access";
 import { taskPrivacyClause } from "@/lib/project-visibility";
+import {
+  decideProjectCapabilities,
+  type ProjectRole,
+} from "@/lib/project-access";
 
 // POST /api/teams/:teamId/work - Link work to team
 export async function POST(
@@ -29,6 +33,8 @@ export async function POST(
 
     const body = await req.json();
     const { workId, workType } = body;
+    // Explicit consent to take the project away from the team it is in now.
+    const move = body?.move === true;
 
     // Link the project to the team
     if (workType === "project") {
@@ -54,6 +60,53 @@ export async function POST(
       if (!workAccess.canManage) {
         throw new AuthorizationError(
           "You don't have permission to change this project's team"
+        );
+      }
+
+      // Project.teamId is a single FK: linking here MOVES the project, and
+      // every member of its current team loses the Editor access that team
+      // gave them. That must be a choice, never a side effect of "Add work",
+      // so a project already in another team needs `move: true`.
+      const current = await prisma.project.findUnique({
+        where: { id: workId },
+        select: {
+          teamId: true,
+          team: {
+            select: {
+              name: true,
+              privacy: true,
+              members: { where: { userId }, select: { id: true } },
+            },
+          },
+        },
+      });
+      if (current?.teamId === teamId) {
+        const unchanged = await prisma.project.findUnique({
+          where: { id: workId },
+        });
+        return NextResponse.json(unchanged);
+      }
+      if (current?.teamId && !move) {
+        // A PRIVATE team's name is only spelled out to someone who can see it.
+        const other = current.team;
+        const teamName =
+          other &&
+          (other.privacy !== "PRIVATE" ||
+            other.members.length > 0 ||
+            standing.isWorkspaceManager)
+            ? other.name
+            : null;
+        return NextResponse.json(
+          {
+            error: `This project is already in ${
+              teamName ? `"${teamName}"` : "another team"
+            }. Adding it here moves it out of that team, and its members lose the access the team gave them.`,
+            code: "PROJECT_IN_OTHER_TEAM",
+            currentTeam: teamName
+              ? { id: current.teamId, name: teamName }
+              : null,
+          },
+          { status: 409 }
         );
       }
 
@@ -94,7 +147,7 @@ export async function GET(
     }
 
     // Team membership AND a live contributor seat — see the POST above.
-    await requireTeamStanding(userId, teamId);
+    const standing = await requireTeamStanding(userId, teamId);
 
     // Get projects associated with this team
     const projects = await prisma.project.findMany({
@@ -108,6 +161,11 @@ export async function GET(
         icon: true,
         status: true,
         description: true,
+        // Facts for the caller's canManage below (Remove from team).
+        ownerId: true,
+        workspaceId: true,
+        visibility: true,
+        members: { where: { userId }, select: { role: true } },
       },
       orderBy: {
         updatedAt: "desc",
@@ -135,17 +193,36 @@ export async function GET(
       }
     }
 
-    // Transform projects to work items format
-    const workItems = projects.map((project) => ({
-      id: project.id,
-      name: project.name,
-      type: "project" as const,
-      color: project.color,
-      icon: project.icon,
-      status: project.status,
-      description: project.description,
-      _count: { tasks: countsByProject.get(project.id) ?? 0 },
-    }));
+    // Transform projects to work items format. canManage is the bar the
+    // DELETE below enforces, decided by the same pure rule resolveProjectAccess
+    // uses, from facts already loaded: requireTeamStanding guaranteed a
+    // contributor seat in the team's workspace, and the manager standing only
+    // counts on a project in that same workspace.
+    const workItems = projects.map((project) => {
+      const sameWorkspace = project.workspaceId === standing.workspaceId;
+      const memberRole = (project.members[0]?.role ?? null) as ProjectRole | null;
+      const { canManage } = decideProjectCapabilities({
+        visibility: project.visibility,
+        projectWorkspaceId: project.workspaceId,
+        viewerWorkspaceIds: [standing.workspaceId],
+        isOwner: project.ownerId === userId,
+        isMember: memberRole !== null,
+        memberRole,
+        isWorkspaceManager: sameWorkspace && standing.isWorkspaceManager,
+        isTeamMember: sameWorkspace && standing.isMember,
+      });
+      return {
+        id: project.id,
+        name: project.name,
+        type: "project" as const,
+        color: project.color,
+        icon: project.icon,
+        status: project.status,
+        description: project.description,
+        _count: { tasks: countsByProject.get(project.id) ?? 0 },
+        canManage,
+      };
+    });
 
     return NextResponse.json(workItems);
   } catch (error) {
@@ -163,7 +240,7 @@ export async function GET(
 
 // DELETE /api/teams/:teamId/work?projectId=X - Remove a project from the team.
 // Only unsets the project's teamId (it stays in the workspace). Requires
-// team membership AND write access to the project — mirroring the link POST.
+// team standing AND manage access to the project — mirroring the link POST.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ teamId: string }> }

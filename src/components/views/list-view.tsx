@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useId } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import {
   Trash2,
   CheckCircle2,
   ArrowRight,
+  Circle,
+  UserPlus,
   X,
   Check,
   Diamond,
@@ -48,6 +50,7 @@ import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
 import { EditableCustomFieldCell } from "@/components/tasks/editable-custom-field-cell";
 import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
+import { AssigneeSelector } from "@/components/tasks/assignee-selector";
 import { formatRangeLabel } from "@/lib/task-helpers";
 import type { FieldTypeConfig, BuiltinFieldConfig } from "@/lib/field-types";
 import { BUILTIN_FIELDS } from "@/lib/field-types";
@@ -196,6 +199,11 @@ interface ListViewProps {
    *  Rename/delete/add-task all address `section.id` server-side, so they
    *  are hidden rather than offered against an id that can only 404. */
   sectionsAreEditable?: boolean;
+  /** False for a member who can read but not edit the project (VIEWER /
+   *  COMMENTER, senior read-only). Every inline editor, the bulk bar and the
+   *  add/rename/delete/drag affordances are withheld: the server would
+   *  refuse each of them with a 403. */
+  canEdit?: boolean;
 }
 
 // Asana's enum-chip palette, measured in the real app: solid fills,
@@ -243,8 +251,15 @@ export function ListView({
   reorderDisabled = false,
   rawSectionCounts,
   sectionsAreEditable = true,
+  canEdit = true,
 }: ListViewProps) {
   const router = useRouter();
+  // Stable across server and client render. Without it dnd-kit numbers its
+  // aria-describedby ids from a module counter, the two renders disagree and
+  // React reports a hydration mismatch on every load.
+  const dndContextId = useId();
+  // Dragging persists a new order, so it is an edit too.
+  const dragDisabled = reorderDisabled || !canEdit;
   // Local midnight, null until mounted — the red/green date tones and the
   // "Today"/"Tomorrow" labels are all measured from it.
   const today = useToday();
@@ -361,7 +376,7 @@ export function ListView({
   );
 
   // Optimistically reflect an inline custom-field edit in the local value
-  // map so the per-section SUMA footer updates immediately (before the
+  // map so the per-section Sum footer updates immediately (before the
   // refetch that picks up server-recomputed FORMULA/ROLLUP columns).
   const handleCustomFieldChange = useCallback(
     (taskId: string, fieldId: string, next: unknown) => {
@@ -389,16 +404,15 @@ export function ListView({
   // Order: checkbox · Name · Assignee · Due date · Priority · Status ·
   // N × custom (140px each) · "+ add column" (40px).
   //
-  // Checkbox column widened from 32px → 48px so the GripVertical
-  // drag handle (14px) + gap (4px) + completion icon (16px) fit
-  // inside the column. With the old 32px, content overflowed into
-  // the Name column and the task title visually touched the circle.
+  // Checkbox column: GripVertical drag handle (14px) + selection checkbox
+  // (16px) + completion icon (18px), two 4px gaps and the cell's 8px side
+  // padding. Narrower and the content overflows into the Name column.
   const gridTemplate = useMemo(() => {
     const customCols = visibleCustomFieldDefs.map(() => "140px").join(" ");
     const builtinCols = pinnedBuiltins
       .map((b) => `${b.defaultWidth}px`)
       .join(" ");
-    return `48px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""}${
+    return `72px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""}${
       builtinCols ? ` ${builtinCols}` : ""
     } 40px`;
   }, [visibleCustomFieldDefs, pinnedBuiltins]);
@@ -461,15 +475,23 @@ export function ListView({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
+  // "Select all" means every row the user can SEE: tasks inside a collapsed
+  // section are left out, so a bulk delete never sweeps up hidden rows.
   const allTaskIds = useMemo(
-    () => localSections.flatMap((s) => s.tasks.map((t) => t.id)),
-    [localSections]
+    () =>
+      localSections
+        .filter((s) => expandedSections.has(s.id))
+        .flatMap((s) => s.tasks.map((t) => t.id)),
+    [localSections, expandedSections]
   );
   const allSelected = allTaskIds.length > 0 && allTaskIds.every((id) => selectedTasks.has(id));
   const someSelected = selectedTasks.size > 0;
+  // One bulk request at a time: a second click while the first is in flight
+  // would act on a selection the first is about to clear.
+  const [bulkPending, setBulkPending] = useState(false);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    if (reorderDisabled) return;
+    if (dragDisabled) return;
     const id = event.active.id as string;
     isDraggingRef.current = true;
     for (const section of localSections) {
@@ -480,14 +502,14 @@ export function ListView({
         break;
       }
     }
-  }, [localSections, reorderDisabled]);
+  }, [localSections, dragDisabled]);
 
   // Mid-drag updater that runs entirely inside setLocalSections so
   // there are no stale closure reads of localSections. This is the
   // exact pattern that makes the my-tasks list drag visually fluid
   // across columns without the dreaded bounce-back.
   const handleDragOver = useCallback((event: DragOverEvent) => {
-    if (reorderDisabled) return;
+    if (dragDisabled) return;
     const { active, over } = event;
     if (!over) return;
     const activeId = active.id as string;
@@ -524,7 +546,7 @@ export function ListView({
         return s;
       });
     });
-  }, [reorderDisabled]);
+  }, [dragDisabled]);
 
   // ---- DRAG CANCEL (Escape) ----
   // dnd-kit fires onDragCancel (not onDragEnd) on Escape. Without this
@@ -540,7 +562,7 @@ export function ListView({
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
-      if (reorderDisabled) return;
+      if (dragDisabled) return;
       const { active, over } = event;
       setActiveTask(null);
       dragSourceSectionRef.current = null;
@@ -624,11 +646,11 @@ export function ListView({
         setLocalSections(sections); // rollback to server truth
       }
     },
-    [localSections, sections, router, reorderDisabled]
+    [localSections, sections, router, dragDisabled]
   );
 
-  const toggleTaskSelection = (taskId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleTaskSelection = (taskId: string, e?: React.SyntheticEvent) => {
+    e?.stopPropagation();
     setSelectedTasks((prev) => {
       const next = new Set(prev);
       if (next.has(taskId)) next.delete(taskId);
@@ -646,7 +668,8 @@ export function ListView({
   };
 
   const handleBulkAction = async (action: string, value?: string) => {
-    if (selectedTasks.size === 0) return;
+    if (selectedTasks.size === 0 || bulkPending) return;
+    setBulkPending(true);
     try {
       const response = await fetch("/api/tasks/bulk", {
         method: "POST",
@@ -657,13 +680,44 @@ export function ListView({
           value,
         }),
       });
-      if (!response.ok) throw new Error("Bulk action failed");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to perform bulk action");
+      }
       const data = await response.json();
-      toast.success(`${data.count} task${data.count > 1 ? "s" : ""} updated`);
+      const count = Number(data?.count) || 0;
+      // The route counts only rows that actually changed, so completing
+      // tasks that were already complete answers 0.
+      if (count === 0) {
+        toast.info(
+          action === "complete"
+            ? "Those tasks are already complete"
+            : action === "incomplete"
+              ? "Those tasks are already incomplete"
+              : "Nothing needed to change"
+        );
+      } else {
+        toast.success(
+          `${count} task${count === 1 ? "" : "s"} ${
+            action === "delete" ? "deleted" : "updated"
+          }`
+        );
+      }
       setSelectedTasks(new Set());
+      // Same signal a single-row edit sends, so an open task panel picks up
+      // the new state (a deleted task has nothing left to refresh).
+      if (action !== "delete") {
+        for (const id of selectedTasks) notifyTaskMutated(id);
+      }
       router.refresh();
-    } catch {
-      toast.error("Failed to perform bulk action");
+    } catch (error) {
+      toast.error(
+        error instanceof Error && !(error instanceof TypeError)
+          ? error.message
+          : "Failed to perform bulk action"
+      );
+    } finally {
+      setBulkPending(false);
     }
   };
 
@@ -861,6 +915,8 @@ export function ListView({
       body.dueDate = value || null;
     } else if (field === "startDate") {
       body.startDate = value || null;
+    } else if (field === "assigneeId") {
+      body.assigneeId = value || null;
     } else if (field === "priority") {
       body.priority = value;
     } else if (field === "taskStatus") {
@@ -882,6 +938,7 @@ export function ListView({
         const payload = await response.json().catch(() => null);
         throw new Error(payload?.error || "Failed to update task");
       }
+      notifyTaskMutated(taskId);
       router.refresh();
     } catch (error) {
       toast.error(
@@ -911,6 +968,7 @@ export function ListView({
           row is hidden via opacity:0 during drag, a portal-mounted
           DragOverlay renders the ghost, no bounce-back. */}
       <DndContext
+        id={dndContextId}
         sensors={sensors}
         collisionDetection={kanbanCollisionDetection}
         onDragStart={handleDragStart}
@@ -938,12 +996,18 @@ export function ListView({
           className="hidden md:grid px-6 py-2 text-xs font-normal text-[#626364] [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:flex [&>*]:items-center"
           style={{ gridTemplateColumns: gridTemplate }}
         >
-          <div onClick={(e) => e.stopPropagation()}>
-            <Checkbox
-              checked={allSelected}
-              onClick={toggleSelectAll}
-              className="rounded"
-            />
+          <div onClick={(e) => e.stopPropagation()} className="gap-1">
+            {/* Spacer the width of the row's drag grip, so this box sits
+                right above the per-row selection boxes. */}
+            <span className="w-3.5 flex-shrink-0" aria-hidden />
+            {canEdit && (
+              <Checkbox
+                checked={allSelected}
+                onClick={toggleSelectAll}
+                className="rounded"
+                aria-label="Select all visible tasks"
+              />
+            )}
           </div>
           {/* Header labels only — sorting is driven from the toolbar
               Sort menu in project-content, so these cells intentionally
@@ -973,13 +1037,19 @@ export function ListView({
                   openColHeaderId === field.id ? null : field.id
                 )
               }
+              // Hiding is a personal view setting; adding and deleting a
+              // field change the project, so those need edit access.
               callbacks={{
-                onAddColumn: () => setCustomFieldModalOpen(true),
+                onAddColumn: canEdit
+                  ? () => setCustomFieldModalOpen(true)
+                  : undefined,
                 onHideColumn: () =>
                   setHiddenCustomFieldIds((prev) =>
                     prev.includes(field.id) ? prev : [...prev, field.id]
                   ),
-                onDeleteField: () => handleDeleteCustomField(field),
+                onDeleteField: canEdit
+                  ? () => handleDeleteCustomField(field)
+                  : undefined,
               }}
             />
           ))}
@@ -1001,7 +1071,9 @@ export function ListView({
                 setOpenColHeaderId(openColHeaderId === b.id ? null : b.id)
               }
               callbacks={{
-                onAddColumn: () => setCustomFieldModalOpen(true),
+                onAddColumn: canEdit
+                  ? () => setCustomFieldModalOpen(true)
+                  : undefined,
                 onHideColumn: () =>
                   setPinnedBuiltinIds((prev) =>
                     prev.filter((id) => id !== b.id)
@@ -1014,6 +1086,7 @@ export function ListView({
               Priority is excluded because it's already a hardcoded
               column to the left of Status. */}
           <AddColumnDropdown
+            canCreateFields={canEdit}
             activeBuiltinIds={[
               "priority", // suppress — already a column
               ...pinnedBuiltins.map((b) => b.id),
@@ -1066,6 +1139,7 @@ export function ListView({
                     type="text"
                     value={renamingSectionName}
                     onChange={(e) => setRenamingSectionName(e.target.value)}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onKeyDown={(e) => {
                       e.stopPropagation();
                       if (e.key === "Enter") handleRenameSection(section.id);
@@ -1092,7 +1166,7 @@ export function ListView({
                   Under a group-by that id is a synthetic `group:*` key with
                   no row behind it, so the menu is withheld entirely rather
                   than offering three actions that can only ever 404. */}
-              {sectionsAreEditable && (
+              {sectionsAreEditable && canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -1184,6 +1258,7 @@ export function ListView({
                     pinnedBuiltins={pinnedBuiltins}
                     gridTemplate={gridTemplate}
                     reorderDisabled={reorderDisabled}
+                    canEdit={canEdit}
                     onCustomFieldChange={handleCustomFieldChange}
                     onCustomFieldCommitted={reloadCustomFieldValues}
                   />
@@ -1224,7 +1299,7 @@ export function ListView({
                       // /api/tasks (it does not go through onAddTask, which
                       // knows to fall back off a `group:` id), so under a
                       // group-by it is withheld rather than left to 404.
-                      sectionsAreEditable && (
+                      sectionsAreEditable && canEdit && (
                         <button
                           onClick={() => setAddingTaskInSection(section.id)}
                           className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700"
@@ -1239,7 +1314,7 @@ export function ListView({
                   <div className="hidden md:block"></div>
                   <div className="hidden md:block"></div>
                   <div className="hidden md:block"></div>
-                  {/* Per-column SUMA — Asana shows "SUMA X.X" at the
+                  {/* Per-column Sum — Asana shows "SUM X.X" at the
                       bottom of NUMBER / CURRENCY / PERCENTAGE / FORMULA
                       / ROLLUP columns aggregating every visible row.
                       We mirror that: walk the section's tasks, sum the
@@ -1333,7 +1408,7 @@ export function ListView({
                         {any && (
                           <>
                             <span className="font-medium tracking-wide uppercase">
-                              Suma
+                              Sum
                             </span>
                             <span className="tabular-nums text-slate-700 font-medium">
                               {f.type === "CURRENCY"
@@ -1441,7 +1516,7 @@ export function ListView({
         {/* Add Section Button — naturally clean (action row, not a task).
             Hidden under a group-by: the section would really be created but
             could not show up until the grouping is cleared. */}
-        {sectionsAreEditable && (
+        {sectionsAreEditable && canEdit && (
           <button
             onClick={handleAddSection}
             className="flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
@@ -1465,22 +1540,64 @@ export function ListView({
       </DndContext>
 
       {/* Floating Bulk Actions Bar */}
-      {someSelected && (
-        <div className="sticky bottom-4 mx-auto w-fit bg-slate-900 text-white rounded-lg shadow-xl px-4 py-2 flex items-center gap-3 z-20 animate-in slide-in-from-bottom-4">
+      {someSelected && canEdit && (
+        <div className="sticky bottom-4 mx-auto w-fit max-w-[calc(100%-2rem)] flex-wrap justify-center bg-slate-900 text-white rounded-lg shadow-xl px-4 py-2 flex items-center gap-3 z-20 animate-in slide-in-from-bottom-4">
           <span className="text-sm font-medium">{selectedTasks.size} selected</span>
           <div className="h-4 w-px bg-slate-600" />
           <Button
             variant="ghost"
             size="sm"
             className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs"
+            disabled={bulkPending}
             onClick={() => handleBulkAction("complete")}
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
             Complete
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs"
+            disabled={bulkPending}
+            onClick={() => handleBulkAction("incomplete")}
+          >
+            <Circle className="h-3.5 w-3.5" />
+            Mark incomplete
+          </Button>
+          {/* Scoped by the first selected task: the picker then offers only
+              people of this project's workspace, which is what the bulk
+              route accepts for every task in the selection. */}
+          <AssigneeSelector
+            value={null}
+            taskId={Array.from(selectedTasks)[0]}
+            onChange={(user) =>
+              handleBulkAction("assign", user?.id ?? "unassign")
+            }
+            trigger={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs"
+                disabled={bulkPending}
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Assign
+              </Button>
+            }
+          />
+          {/* Only real sections can be a destination. Under a group-by the
+              headings are synthetic `group:*` buckets the bulk route cannot
+              resolve, so the menu is withheld like the other section
+              controls. */}
+          {sectionsAreEditable && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs"
+                disabled={bulkPending}
+              >
                 <ArrowRight className="h-3.5 w-3.5" />
                 Move to
               </Button>
@@ -1496,9 +1613,15 @@ export function ListView({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs"
+                disabled={bulkPending}
+              >
                 Priority
               </Button>
             </DropdownMenuTrigger>
@@ -1517,8 +1640,9 @@ export function ListView({
             variant="ghost"
             size="sm"
             className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs"
+            disabled={bulkPending}
             onClick={() => {
-              if (confirm(`Delete ${selectedTasks.size} task${selectedTasks.size > 1 ? "s" : ""}? This cannot be undone.`)) {
+              if (confirm(`Delete ${selectedTasks.size} task${selectedTasks.size === 1 ? "" : "s"}? This cannot be undone.`)) {
                 handleBulkAction("delete");
               }
             }}
@@ -1530,6 +1654,7 @@ export function ListView({
           <button
             onClick={() => setSelectedTasks(new Set())}
             className="p-1 hover:bg-slate-700 rounded"
+            aria-label="Clear selection"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -1617,19 +1742,28 @@ function TaskCompletionIcon({
   task,
   onToggle,
   size = "default",
+  disabled = false,
 }: {
   task: Task;
   onToggle: (e: React.MouseEvent) => void;
   size?: "default" | "small";
+  /** Read-only viewer: the icon still shows the state but is not a toggle. */
+  disabled?: boolean;
 }) {
   const dim = size === "small" ? "w-4 h-4" : "h-5 w-5";
+  // A disabled button swallows the click, so it would not reach the row and
+  // open the task — stop nothing and let it through instead.
+  const handleClick = disabled ? undefined : onToggle;
 
   if (task.taskType === "MILESTONE") {
     return (
       <button
-        onClick={onToggle}
+        type="button"
+        onClick={handleClick}
+        aria-disabled={disabled || undefined}
         className={cn(
           "flex items-center justify-center flex-shrink-0",
+          disabled && "cursor-default",
           task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
         )}
         aria-label={task.completed ? "Mark milestone incomplete" : "Mark milestone complete"}
@@ -1641,9 +1775,12 @@ function TaskCompletionIcon({
   if (task.taskType === "APPROVAL") {
     return (
       <button
-        onClick={onToggle}
+        type="button"
+        onClick={handleClick}
+        aria-disabled={disabled || undefined}
         className={cn(
           "flex items-center justify-center flex-shrink-0",
+          disabled && "cursor-default",
           task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
         )}
         aria-label={task.completed ? "Mark approval incomplete" : "Approve"}
@@ -1654,8 +1791,11 @@ function TaskCompletionIcon({
   }
   return (
     <button
-      onClick={onToggle}
+      type="button"
+      onClick={handleClick}
+      aria-disabled={disabled || undefined}
       className={cn(
+        disabled && "cursor-default",
         size === "small"
           ? "w-[18px] h-[18px]"
           : "h-5 w-5",
@@ -1704,7 +1844,7 @@ interface SortableTaskRowProps {
   formatMobileDate: (dueDate: string) => string;
   selectedTasks: Set<string>;
   someSelected: boolean;
-  toggleTaskSelection: (taskId: string, e: React.MouseEvent) => void;
+  toggleTaskSelection: (taskId: string, e?: React.SyntheticEvent) => void;
   editingTaskId: string | null;
   editingField: string | null;
   editingValue: string;
@@ -1734,6 +1874,8 @@ interface SortableTaskRowProps {
   gridTemplate: string;
   /** When true, the row can't be drag-reordered (a filter/sort is active). */
   reorderDisabled?: boolean;
+  /** False for a read-only member: values render, editors do not. */
+  canEdit?: boolean;
   /** Reflects an inline custom-field edit in the parent value map. */
   onCustomFieldChange?: (taskId: string, fieldId: string, next: unknown) => void;
   /** Refetches custom-field values after a successful inline save. */
@@ -1761,9 +1903,11 @@ function SortableTaskRow({
   pinnedBuiltins,
   gridTemplate,
   reorderDisabled = false,
+  canEdit = true,
   onCustomFieldChange,
   onCustomFieldCommitted,
 }: SortableTaskRowProps) {
+  const router = useRouter();
   // Null until mounted: the range pill's red/green tone is measured from it,
   // and the server's "today" is a UTC day ahead all evening.
   const today = useToday();
@@ -1774,7 +1918,27 @@ function SortableTaskRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, disabled: reorderDisabled });
+  } = useSortable({ id: task.id, disabled: reorderDisabled || !canEdit });
+
+  // Touch has no hover checkbox and no Ctrl-click, so a long press starts
+  // (or extends) a selection on the mobile card. The click that ends the
+  // press must not also open the task.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClickRef = useRef(false);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  useEffect(
+    () => () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    },
+    []
+  );
+  const isSelected = selectedTasks.has(task.id);
 
   // Hide the source row entirely while dragging — the portal-mounted
   // DragOverlay paints the visual ghost. Anything other than full
@@ -1789,8 +1953,15 @@ function SortableTaskRow({
   const completionIcon = (
     <TaskCompletionIcon
       task={task}
+      disabled={!canEdit}
       onToggle={(e) => {
         e.stopPropagation();
+        // A long press that started on this circle already selected the
+        // card; the click that ends it must not also toggle completion.
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          return;
+        }
         handleTaskComplete(e, task.id, task.completed);
       }}
     />
@@ -1800,8 +1971,53 @@ function SortableTaskRow({
     <div ref={setNodeRef} style={dragStyle} {...attributes} {...listeners}>
       {/* ===== Mobile Task Card ===== */}
       <div
-        className="md:hidden mobile-task-card"
-        onClick={() => onTaskClick(task.id)}
+        className={cn(
+          "md:hidden mobile-task-card",
+          isSelected && "ring-2 ring-[#c9a84c] ring-inset"
+        )}
+        onPointerDown={(e) => {
+          if (!canEdit || e.pointerType === "mouse") return;
+          cancelLongPress();
+          suppressClickRef.current = false;
+          pressStartRef.current = { x: e.clientX, y: e.clientY };
+          longPressTimerRef.current = setTimeout(() => {
+            longPressTimerRef.current = null;
+            suppressClickRef.current = true;
+            toggleTaskSelection(task.id);
+          }, 500);
+        }}
+        onPointerUp={cancelLongPress}
+        onPointerCancel={cancelLongPress}
+        onPointerMove={(e) => {
+          // A finger that travels is scrolling or dragging, not pressing.
+          const start = pressStartRef.current;
+          if (
+            longPressTimerRef.current &&
+            start &&
+            Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8
+          ) {
+            cancelLongPress();
+          }
+        }}
+        onContextMenu={(e) => {
+          // A long press also opens the browser's context menu on Android.
+          if (longPressTimerRef.current || suppressClickRef.current) {
+            e.preventDefault();
+          }
+        }}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
+          // While a selection is open a tap adds/removes the card, the
+          // usual mobile multi-select pattern.
+          if (canEdit && someSelected) {
+            toggleTaskSelection(task.id);
+            return;
+          }
+          onTaskClick(task.id);
+        }}
       >
         <div className="flex items-start gap-3">
           <div className="mt-0.5">{completionIcon}</div>
@@ -1883,16 +2099,30 @@ function SortableTaskRow({
       <div
         className="hidden md:grid px-6 py-1.5 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:min-w-0"
         style={{ gridTemplateColumns: gridTemplate }}
-        onClick={() => onTaskClick(task.id)}
+        onClick={(e) => {
+          // Ctrl/Cmd/Shift-click adds the row to the selection instead of
+          // opening it (desktop list convention).
+          if (canEdit && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+            e.preventDefault();
+            toggleTaskSelection(task.id, e);
+            return;
+          }
+          onTaskClick(task.id);
+        }}
       >
-        {/* Checkbox - select or complete (icon swaps per task type) */}
+        {/* Grip · selection checkbox · completion icon. The checkbox is
+            always there (revealed on hover, pinned once anything is
+            selected), so one task can be picked without "select all" and
+            the completion circle never doubles as the selector. */}
         <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
           {/* Dragging is disabled while a filter/sort/search is active, so the
               grip stays faint and explains itself instead of looking broken. */}
           <GripVertical
             className={cn(
               "h-3.5 w-3.5 text-slate-300 opacity-0 transition-opacity flex-shrink-0",
-              reorderDisabled
+              !canEdit
+                ? "invisible"
+                : reorderDisabled
                 ? "group-hover:opacity-30 cursor-not-allowed"
                 : "group-hover:opacity-100"
             )}
@@ -1900,26 +2130,30 @@ function SortableTaskRow({
           >
             {reorderDisabled && <title>Clear filters and sorting to reorder</title>}
           </GripVertical>
-          {someSelected ? (
+          {canEdit && (
             <Checkbox
-              checked={selectedTasks.has(task.id)}
+              checked={isSelected}
               onClick={(e) => toggleTaskSelection(task.id, e)}
+              aria-label={`Select ${task.name}`}
               className={cn(
-                "rounded",
-                selectedTasks.has(task.id) &&
+                "rounded flex-shrink-0 transition-opacity",
+                someSelected
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                isSelected &&
                   "border-[#c9a84c] data-[state=checked]:bg-[#c9a84c]"
               )}
             />
-          ) : (
-            <TaskCompletionIcon
-              task={task}
-              onToggle={(e) => {
-                e.stopPropagation();
-                handleTaskComplete(e, task.id, task.completed);
-              }}
-              size="small"
-            />
           )}
+          <TaskCompletionIcon
+            task={task}
+            disabled={!canEdit}
+            onToggle={(e) => {
+              e.stopPropagation();
+              handleTaskComplete(e, task.id, task.completed);
+            }}
+            size="small"
+          />
         </div>
 
         {/* Task Name — clicking the name (or anywhere in this column)
@@ -1933,6 +2167,9 @@ function SortableTaskRow({
               value={editingValue}
               onChange={(e) => setEditingValue(e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              // The row carries the drag listeners: without this, dragging
+              // across the text to select it starts a row drag after 6px.
+              onPointerDown={(e) => e.stopPropagation()}
               onKeyDown={(e) => {
                 if (e.key === "Enter")
                   saveInlineEdit(task.id, "name", editingValue);
@@ -1950,6 +2187,7 @@ function SortableTaskRow({
                   task.completed && "line-through text-slate-400"
                 )}
                 onDoubleClick={(e) => {
+                  if (!canEdit) return;
                   // Asana parity — double-click jumps straight into
                   // inline rename. Single click stays as "open panel"
                   // (the row's onClick) so single-click users aren't
@@ -1964,6 +2202,7 @@ function SortableTaskRow({
               {/* Hover-only rename trigger — keeps inline edit
                   available without hijacking the row's open-panel
                   click. */}
+              {canEdit && (
               <button
                 type="button"
                 aria-label="Rename task"
@@ -1976,6 +2215,7 @@ function SortableTaskRow({
               >
                 <Pencil className="h-3 w-3" />
               </button>
+              )}
               {task._count.subtasks > 0 && (
                 <span className="text-xs text-slate-500 flex-shrink-0">
                   {task.subtasks.filter((s) => s.completed).length}/
@@ -1992,45 +2232,62 @@ function SortableTaskRow({
           )}
         </div>
 
-        {/* Assignee */}
-        <div>
-          {task.assignee ? (
-            <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={task.assignee.image || ""} />
-                <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
-                  {task.assignee.name?.[0] || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm text-slate-700 truncate">
-                {task.assignee.name}
-              </span>
-            </div>
-          ) : (
-            <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
-              <User className="w-3 h-3 text-slate-300" />
-            </div>
-          )}
+        {/* Assignee — same picker as the task panel, scoped by taskId to
+            the people of this task's workspace. */}
+        <div onClick={canEdit ? (e) => e.stopPropagation() : undefined}>
+          {(() => {
+            const display = task.assignee ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={task.assignee.image || ""} />
+                  <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
+                    {task.assignee.name?.[0] || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm text-slate-700 truncate">
+                  {task.assignee.name}
+                </span>
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
+                <User className="w-3 h-3 text-slate-300" />
+              </div>
+            );
+            if (!canEdit) return display;
+            return (
+              <AssigneeSelector
+                value={task.assignee}
+                taskId={task.id}
+                onChange={(user) => {
+                  if ((user?.id ?? null) === (task.assignee?.id ?? null)) return;
+                  saveInlineEdit(task.id, "assigneeId", user?.id ?? null);
+                }}
+                trigger={
+                  <button
+                    type="button"
+                    aria-label={
+                      task.assignee
+                        ? `Assignee: ${task.assignee.name ?? "unnamed"}. Change`
+                        : "Assign task"
+                    }
+                    className="hover:bg-slate-100 rounded px-1 -mx-1 w-full text-left min-w-0"
+                  >
+                    {display}
+                  </button>
+                }
+              />
+            );
+          })()}
         </div>
 
         {/* Due Date — Asana-style range picker. Opens a popover with
             two date fields (start + due) instead of a single native
             date input. Persists both edges through saveInlineEdit in
             one request so the row instantly reflects "May 14 – 27". */}
-        <div onClick={(e) => e.stopPropagation()}>
-          <DueDatePicker
-            startDate={task.startDate ? dueDateToLocalMidnight(task.startDate) : null}
-            dueDate={task.dueDate ? dueDateToLocalMidnight(task.dueDate) : null}
-            onChange={(start, due) => {
-              const startStr = start ? format(start, "yyyy-MM-dd") : null;
-              const dueStr = due ? format(due, "yyyy-MM-dd") : null;
-              saveInlineEdit(task.id, "dateRange", {
-                startDate: startStr,
-                dueDate: dueStr,
-              });
-            }}
-            trigger={
-              <div className="cursor-pointer hover:bg-slate-100 rounded px-1 -mx-1">
+        <div onClick={canEdit ? (e) => e.stopPropagation() : undefined}>
+          {(() => {
+            const dateLabel = (
+              <>
                 {task.startDate || task.dueDate ? (
                   task.startDate && task.dueDate ? (
                     // Range present → "May 14 – 27" pill matching
@@ -2082,133 +2339,170 @@ function SortableTaskRow({
                 ) : (
                   <span className="text-slate-400 text-sm">---</span>
                 )}
-              </div>
-            }
-          />
+              </>
+            );
+            // Read-only: the same label, no picker.
+            if (!canEdit) return <div className="px-1 -mx-1">{dateLabel}</div>;
+            return (
+              <DueDatePicker
+                startDate={task.startDate ? dueDateToLocalMidnight(task.startDate) : null}
+                dueDate={task.dueDate ? dueDateToLocalMidnight(task.dueDate) : null}
+                onChange={(start, due) => {
+                  const startStr = start ? format(start, "yyyy-MM-dd") : null;
+                  const dueStr = due ? format(due, "yyyy-MM-dd") : null;
+                  saveInlineEdit(task.id, "dateRange", {
+                    startDate: startStr,
+                    dueDate: dueStr,
+                  });
+                }}
+                trigger={
+                  <div className="cursor-pointer hover:bg-slate-100 rounded px-1 -mx-1">
+                    {dateLabel}
+                  </div>
+                }
+              />
+            );
+          })()}
         </div>
 
-        {/* Priority - Inline Editable */}
-        <div onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="hover:bg-slate-100 rounded px-1 -mx-1 w-full text-left">
-                {task.priority && task.priority !== "NONE" ? (
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      CHIP_BASE,
-                      PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS]
-                    )}
-                  >
-                    {PRIORITY_LABELS[task.priority as keyof typeof PRIORITY_LABELS]}
-                  </Badge>
-                ) : (
-                  <span className="text-slate-400 text-sm">---</span>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {(["HIGH", "MEDIUM", "LOW", "NONE"] as const).map((p) => (
-                <DropdownMenuItem
-                  key={p}
-                  onClick={() => saveInlineEdit(task.id, "priority", p)}
-                  className={cn(task.priority === p && "bg-slate-100")}
+        {/* Priority - Inline Editable (a plain chip for read-only members,
+            so the click reaches the row and opens the task — a disabled
+            trigger button would swallow it). */}
+        <div onClick={canEdit ? (e) => e.stopPropagation() : undefined}>
+          {(() => {
+            const chip =
+              task.priority && task.priority !== "NONE" ? (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    CHIP_BASE,
+                    PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS]
+                  )}
                 >
-                  {p === "NONE" ? "No priority" : PRIORITY_LABELS[p]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  {PRIORITY_LABELS[task.priority as keyof typeof PRIORITY_LABELS]}
+                </Badge>
+              ) : (
+                <span className="text-slate-400 text-sm">---</span>
+              );
+            if (!canEdit) return <div className="px-1 -mx-1">{chip}</div>;
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="hover:bg-slate-100 rounded px-1 -mx-1 w-full text-left">
+                    {chip}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {(["HIGH", "MEDIUM", "LOW", "NONE"] as const).map((p) => (
+                    <DropdownMenuItem
+                      key={p}
+                      onClick={() => saveInlineEdit(task.id, "priority", p)}
+                      className={cn(task.priority === p && "bg-slate-100")}
+                    >
+                      {p === "NONE" ? "No priority" : PRIORITY_LABELS[p]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          })()}
         </div>
 
         {/* Status — clickable pill that opens a dropdown to set
             workflow status (On track / At risk / Off track), toggle
             completion, or clear back to the derived state. Mirrors
-            the Priority cell's inline-edit pattern. */}
-        <div onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="hover:bg-slate-100 rounded px-1 -mx-1 w-full text-left">
-                {(() => {
-                  // Asana enum semantics: a chip renders ONLY when the
-                  // status field is explicitly set — no derived
-                  // Done/Overdue/To do pills (completion shows via the
-                  // check + strikethrough, lateness via the red date).
-                  if (task.taskStatus === "ON_TRACK") {
-                    return (
-                      <Badge
-                        variant="secondary"
-                        className={cn(CHIP_BASE, "bg-[#85D7A2] text-[#06321B]")}
-                      >
-                        On track
-                      </Badge>
-                    );
-                  }
-                  if (task.taskStatus === "AT_RISK") {
-                    return (
-                      <Badge
-                        variant="secondary"
-                        className={cn(CHIP_BASE, "bg-[#F6D861] text-[#352B00]")}
-                      >
-                        At risk
-                      </Badge>
-                    );
-                  }
-                  if (task.taskStatus === "OFF_TRACK") {
-                    return (
-                      <Badge
-                        variant="secondary"
-                        className={cn(CHIP_BASE, "bg-[#FF878A] text-[#4F1A1D]")}
-                      >
-                        Off track
-                      </Badge>
-                    );
-                  }
-                  return <span className="text-slate-400 text-sm">---</span>;
-                })()}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem
-                onClick={() => saveInlineEdit(task.id, "taskStatus", "ON_TRACK")}
-                className={cn(task.taskStatus === "ON_TRACK" && "bg-slate-100")}
-              >
-                <span className="inline-block w-2 h-2 rounded-full bg-[#1d6b3e] mr-2" />
-                On track
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => saveInlineEdit(task.id, "taskStatus", "AT_RISK")}
-                className={cn(task.taskStatus === "AT_RISK" && "bg-slate-100")}
-              >
-                <span className="inline-block w-2 h-2 rounded-full bg-[#a8893a] mr-2" />
-                At risk
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => saveInlineEdit(task.id, "taskStatus", "OFF_TRACK")}
-                className={cn(task.taskStatus === "OFF_TRACK" && "bg-slate-100")}
-              >
-                <span className="inline-block w-2 h-2 rounded-full bg-black mr-2" />
-                Off track
-              </DropdownMenuItem>
-              {task.taskStatus && (
-                <DropdownMenuItem
-                  onClick={() => saveInlineEdit(task.id, "taskStatus", null)}
-                >
-                  <span className="inline-block w-2 h-2 rounded-full bg-slate-300 mr-2" />
-                  Clear status
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() =>
-                  saveInlineEdit(task.id, "completed", !task.completed)
-                }
-              >
-                <Check className="mr-2 h-4 w-4 text-[#a8893a]" />
-                {task.completed ? "Mark incomplete" : "Mark complete"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            the Priority cell's inline-edit pattern.
+            Read-only members get the plain pill, like Priority. */}
+        <div onClick={canEdit ? (e) => e.stopPropagation() : undefined}>
+          {(() => {
+            const pill = (() => {
+              // Asana enum semantics: a chip renders ONLY when the
+              // status field is explicitly set — no derived
+              // Done/Overdue/To do pills (completion shows via the
+              // check + strikethrough, lateness via the red date).
+              if (task.taskStatus === "ON_TRACK") {
+                return (
+                  <Badge
+                    variant="secondary"
+                    className={cn(CHIP_BASE, "bg-[#85D7A2] text-[#06321B]")}
+                  >
+                    On track
+                  </Badge>
+                );
+              }
+              if (task.taskStatus === "AT_RISK") {
+                return (
+                  <Badge
+                    variant="secondary"
+                    className={cn(CHIP_BASE, "bg-[#F6D861] text-[#352B00]")}
+                  >
+                    At risk
+                  </Badge>
+                );
+              }
+              if (task.taskStatus === "OFF_TRACK") {
+                return (
+                  <Badge
+                    variant="secondary"
+                    className={cn(CHIP_BASE, "bg-[#FF878A] text-[#4F1A1D]")}
+                  >
+                    Off track
+                  </Badge>
+                );
+              }
+              return <span className="text-slate-400 text-sm">---</span>;
+            })();
+            if (!canEdit) return <div className="px-1 -mx-1">{pill}</div>;
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="hover:bg-slate-100 rounded px-1 -mx-1 w-full text-left">
+                    {pill}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onClick={() => saveInlineEdit(task.id, "taskStatus", "ON_TRACK")}
+                    className={cn(task.taskStatus === "ON_TRACK" && "bg-slate-100")}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-[#1d6b3e] mr-2" />
+                    On track
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => saveInlineEdit(task.id, "taskStatus", "AT_RISK")}
+                    className={cn(task.taskStatus === "AT_RISK" && "bg-slate-100")}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-[#a8893a] mr-2" />
+                    At risk
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => saveInlineEdit(task.id, "taskStatus", "OFF_TRACK")}
+                    className={cn(task.taskStatus === "OFF_TRACK" && "bg-slate-100")}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-black mr-2" />
+                    Off track
+                  </DropdownMenuItem>
+                  {task.taskStatus && (
+                    <DropdownMenuItem
+                      onClick={() => saveInlineEdit(task.id, "taskStatus", null)}
+                    >
+                      <span className="inline-block w-2 h-2 rounded-full bg-slate-300 mr-2" />
+                      Clear status
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() =>
+                      saveInlineEdit(task.id, "completed", !task.completed)
+                    }
+                  >
+                    <Check className="mr-2 h-4 w-4 text-[#a8893a]" />
+                    {task.completed ? "Mark incomplete" : "Mark complete"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          })()}
         </div>
 
         {/* Custom field value cells — one per project-linked field.
@@ -2221,10 +2515,11 @@ function SortableTaskRow({
           <div
             key={field.id}
             className="overflow-hidden flex items-center"
-            onClick={(e) => e.stopPropagation()}
+            onClick={canEdit ? (e) => e.stopPropagation() : undefined}
             title={field.name}
           >
             <EditableCustomFieldCell
+              readOnly={!canEdit}
               taskId={task.id}
               fieldId={field.id}
               type={field.type}
@@ -2246,11 +2541,19 @@ function SortableTaskRow({
           <div
             key={b.id}
             className="overflow-hidden flex items-center"
-            onClick={(e) => e.stopPropagation()}
+            onClick={canEdit ? (e) => e.stopPropagation() : undefined}
             title={b.label}
           >
             <BuiltinFieldCell
               builtinId={b.id}
+              readOnly={!canEdit}
+              // Priority/Tags save themselves; refresh so the row's own
+              // props (and an open task panel) catch up with the write,
+              // instead of the cell holding a private copy forever.
+              onPatchTask={(id) => {
+                notifyTaskMutated(id);
+                router.refresh();
+              }}
               task={{
                 id: task.id,
                 priority: task.priority as "NONE" | "LOW" | "MEDIUM" | "HIGH",

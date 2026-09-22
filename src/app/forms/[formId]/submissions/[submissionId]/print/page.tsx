@@ -2,12 +2,15 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { resolveProjectAccess } from "@/lib/project-access";
+import { isVercelBlobUrl } from "@/lib/storage";
 import {
   type FormField,
   type FormSubmissionPayload,
   type FormAnswerValue,
   type FormAttachment,
   formatAnswerForText,
+  neutralizeStoredAnswers,
 } from "@/lib/form-types";
 import { PrintSubmissionClient } from "./print-client";
 
@@ -23,6 +26,14 @@ import { PrintSubmissionClient } from "./print-client";
  * The accompanying client component auto-triggers the browser's
  * print dialog on mount so the user can immediately save as PDF.
  */
+
+/**
+ * The firm works in Miami. This page renders on the server (UTC on Vercel),
+ * so without an explicit zone a 2:10 PM submission printed as 6:10 PM, and a
+ * PDF printed in the evening carried tomorrow's date — on a document that
+ * becomes a project record.
+ */
+const FIRM_TIME_ZONE = "America/New_York";
 
 function isAttachment(v: unknown): v is FormAttachment {
   return (
@@ -61,31 +72,19 @@ export default async function PrintSubmissionPage({ params }: PageProps) {
           ownerId: true,
           visibility: true,
           workspaceId: true,
-          members: { select: { userId: true } },
+          teamId: true,
+          members: { select: { userId: true, role: true } },
         },
       },
     },
   });
   if (!form) notFound();
 
-  // Access check — same as /api/forms/:id/submissions. Submissions carry PII,
-  // so (unlike plain project read) a PUBLIC project does NOT expose them: only
-  // the owner, a project member, or a workspace member may view a submission.
-  const member = form.project.members.find((m) => m.userId === user.id);
-  const isOwner = form.project.ownerId === user.id;
-  let allowed = isOwner || !!member;
-  if (!allowed && form.project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: user.id,
-          workspaceId: form.project.workspaceId,
-        },
-      },
-    });
-    if (wsMember) allowed = true;
-  }
-  if (!allowed) notFound();
+  // Access check — the same rule as the submissions inbox and the CSV
+  // export (/api/forms/:id/submissions): the project read rule plus a
+  // contributor seat, because submissions carry external submitters' PII.
+  const access = await resolveProjectAccess(form.project, user.id);
+  if (!access.ok || !access.hasContributorSeat) notFound();
 
   const submission = await prisma.formSubmission.findFirst({
     where: { id: submissionId, formId },
@@ -96,21 +95,30 @@ export default async function PrintSubmissionPage({ params }: PageProps) {
   if (!submission) notFound();
 
   const fields = (form.fields as unknown as FormField[]) || [];
-  const data = (submission.data as FormSubmissionPayload) || {};
+  // Only links into our own blob store stay clickable — a forged
+  // {name,url,size} answer must not print as a source file.
+  const data = neutralizeStoredAnswers(
+    fields,
+    (submission.data as FormSubmissionPayload) || {},
+    isVercelBlobUrl
+  );
 
   // Build a stable rendered list of answers in field order.
   const rows = fields
     .filter((f) => f.type !== "HEADING")
     .map((f) => {
       const v = data[f.id];
-      const attachments: FormAttachment[] = Array.isArray(v)
-        ? (v as FormAnswerValue[]).filter(isAttachment)
-        : isAttachment(v)
-          ? [v]
-          : [];
+      const attachments: FormAttachment[] =
+        f.type !== "ATTACHMENT"
+          ? []
+          : Array.isArray(v)
+            ? (v as FormAnswerValue[]).filter(isAttachment)
+            : isAttachment(v)
+              ? [v]
+              : [];
       return {
         label: f.label,
-        text: attachments.length === 0 ? formatAnswerForText(v) : "",
+        text: attachments.length === 0 ? formatAnswerForText(v, f) : "",
         attachments,
       };
     });
@@ -123,6 +131,8 @@ export default async function PrintSubmissionPage({ params }: PageProps) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: FIRM_TIME_ZONE,
+    timeZoneName: "short",
   });
 
   return (
@@ -158,9 +168,13 @@ export default async function PrintSubmissionPage({ params }: PageProps) {
                 <ul className="print-attachments">
                   {row.attachments.map((att, j) => (
                     <li key={j}>
-                      <a href={att.url} target="_blank" rel="noopener noreferrer">
-                        {att.name}
-                      </a>{" "}
+                      {att.url ? (
+                        <a href={att.url} target="_blank" rel="noopener noreferrer">
+                          {att.name}
+                        </a>
+                      ) : (
+                        <span>{att.name} (link unavailable)</span>
+                      )}{" "}
                       <span className="print-size">
                         ({Math.round(att.size / 1024)} KB)
                       </span>
@@ -182,6 +196,7 @@ export default async function PrintSubmissionPage({ params }: PageProps) {
             year: "numeric",
             month: "long",
             day: "numeric",
+            timeZone: FIRM_TIME_ZONE,
           })}</p>
         </footer>
       </div>

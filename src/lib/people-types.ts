@@ -494,12 +494,14 @@ export const WORKSPACE_ROLE_META: Record<
   OWNER: {
     label: "Owner",
     color: "#c9a84c",
-    description: "Full control of the workspace. Only one per workspace.",
+    description:
+      "Full control of the workspace, including roles. The last owner can't be removed.",
   },
   ADMIN: {
     label: "Admin",
     color: "#a8893a",
-    description: "Can create projects, invite people, manage billing.",
+    description:
+      "Can invite and remove people and manage every project. Can't change roles.",
   },
   MEMBER: {
     label: "Member",
@@ -514,7 +516,7 @@ export const WORKSPACE_ROLE_META: Record<
   GUEST: {
     label: "Guest",
     color: "#6b7280",
-    description: "External collaborator — project-scoped access only.",
+    description: "External collaborator — not available yet; can't be invited or assigned.",
   },
   CLIENT: {
     label: "Client",
@@ -614,4 +616,40 @@ export function isWorkspaceAdmin(
   workspaceRole: WorkspaceRole | null | undefined
 ): boolean {
   return workspaceRole === "OWNER" || workspaceRole === "ADMIN";
+}
+
+/**
+ * Who may change a member's workspace role. PUT /api/workspace/members,
+ * PATCH /api/team/directory and both screens that show a role picker read
+ * this one rule, so which screen you use can't decide whether an admin may
+ * mint or demote other admins. OWNER is never assignable and never
+ * re-roled: there is no transfer-ownership flow, and the last owner is what
+ * keeps the workspace governable.
+ */
+export function canChangeWorkspaceRole(
+  callerRole: string | null | undefined,
+  targetRole: string | null | undefined,
+  isSelf: boolean
+): boolean {
+  return callerRole === "OWNER" && !isSelf && targetRole !== "OWNER";
+}
+
+/**
+ * Who may remove a member from the workspace. Anyone may leave; an owner may
+ * remove anyone (DELETE /api/workspace/members still refuses the last
+ * owner); an admin may remove regular members but not another admin or an
+ * owner — otherwise removing an admin would be the way around the owner-only
+ * role rule above.
+ */
+export function canRemoveWorkspaceMember(
+  callerRole: string | null | undefined,
+  targetRole: string | null | undefined,
+  isSelf: boolean
+): boolean {
+  if (isSelf) return true;
+  if (callerRole === "OWNER") return true;
+  if (callerRole === "ADMIN") {
+    return targetRole !== "OWNER" && targetRole !== "ADMIN";
+  }
+  return false;
 }

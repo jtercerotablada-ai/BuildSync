@@ -14,7 +14,23 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, verifyTaskAccess } from "@/lib/auth-guards";
+import {
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+  getUserWorkspaceId,
+  verifyTaskAccess,
+} from "@/lib/auth-guards";
+
+/** A task the caller cannot read (or that was deleted) is a 404/403 with the
+ *  guard's message, not a server error. */
+function guardErrorResponse(err: unknown) {
+  if (err instanceof AuthorizationError || err instanceof NotFoundError) {
+    const { status, message } = getErrorStatus(err);
+    return NextResponse.json({ error: message }, { status });
+  }
+  return null;
+}
 
 const createSchema = z.object({
   name: z.string().min(1).max(60),
@@ -63,6 +79,8 @@ export async function GET(req: Request) {
     });
     return NextResponse.json(tags);
   } catch (err) {
+    const denied = guardErrorResponse(err);
+    if (denied) return denied;
     console.error("[tags GET] error:", err);
     return NextResponse.json(
       { error: "Failed to list tags" },
@@ -77,7 +95,7 @@ export async function POST(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -110,6 +128,8 @@ export async function POST(req: Request) {
       throw e;
     }
   } catch (err) {
+    const denied = guardErrorResponse(err);
+    if (denied) return denied;
     console.error("[tags POST] error:", err);
     return NextResponse.json(
       { error: "Failed to create tag" },

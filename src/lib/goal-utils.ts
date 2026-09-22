@@ -77,7 +77,8 @@ export const STATUS_OPTIONS: GoalStatusOption[] = [
   },
   {
     value: "DROPPED",
-    label: "Discarded",
+    // "Dropped", as the list filter and the check-in dialog call it.
+    label: "Dropped",
     color: "bg-gray-400",
     textColor: "text-black",
     hex: "#666666",

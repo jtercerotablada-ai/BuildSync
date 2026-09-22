@@ -37,6 +37,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
 import { downloadFile } from "@/lib/download";
+import { maxUploadBytes } from "@/lib/storage";
+import { uploadDirect, responseError } from "@/lib/direct-upload";
 
 /**
  * Project messages view — the team channel that lives on every
@@ -116,6 +118,9 @@ interface MessageRow {
   reactions: MessageReaction[];
   attachments: MessageAttachment[];
   mine: boolean;
+  /** May the caller delete this message? Absent when the scope's route does
+   *  not report it; the server stays the gate either way. */
+  canDelete?: boolean;
   // Thread meta — only populated on root messages. Replies don't
   // have nested replies (threads are flat) so these stay at 0/null
   // for any reply rendered inside a thread.
@@ -268,9 +273,8 @@ export function MessagesView({
     [scope.type, scopeKey]
   );
 
-  // Where an attachment's BYTES live. Uploads are private blobs now, so the
-  // url the list endpoint returns on the row is an address only the server can
-  // fetch — the attachments endpoint doubles as the authenticated read door
+  // Where an attachment's BYTES live. The stored url is a storage address that
+  // is never handed out as a link — the attachments endpoint doubles as the authenticated read door
   // (it already holds the message's access rule) and takes the attachment id
   // as a query param.
   const attachmentHref = useCallback(
@@ -292,6 +296,17 @@ export function MessagesView({
 
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Paging back through older roots. Only routes that send X-Has-More
+  // (team channels today) ever turn this on; the others return a single
+  // page and the control never shows.
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  // `?before=` cursor for the next older page.
+  const olderCursorRef = useRef<string | null>(null);
+  // Ids that arrived through "Load older". The 10s poll only returns
+  // page one, so its merge must keep these or they'd vanish on the
+  // next tick.
+  const olderIdsRef = useRef<Set<string>>(new Set());
   const [newContent, setNewContent] = useState("");
   const [sending, setSending] = useState(false);
   // The composer unmounts whenever the user steps away (opens a task,
@@ -398,14 +413,38 @@ export function MessagesView({
   // resolved from `members`.
   const editMentionNamesRef = useRef<Record<string, string>>({});
 
+  // What the caller may do in this channel. Only the project feed reports
+  // it; elsewhere it stays unknown (true) and the server remains the gate.
+  // Used to hide controls the server would refuse, never to grant anything.
+  const [canPost, setCanPost] = useState(true);
+
   useEffect(() => {
     // Best-effort: a 403 or 500 here just disables @ typeahead, the
     // composer still works in plain mode.
-    fetch(endpoints.members)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: { user: ProjectMemberLite }[] | unknown) => {
-        if (!Array.isArray(data)) return;
-        const list = data
+    let canceled = false;
+    setCanPost(true);
+    setMembers([]);
+    // A project's audience is everyone who can read it — on a WORKSPACE
+    // project that is the whole firm, not just the member rows — so the
+    // project feed asks its own route; the other scopes list their members.
+    const url =
+      scope.type === "project"
+        ? `${endpoints.list}?audience=1`
+        : endpoints.members;
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: unknown) => {
+        if (canceled || !data) return;
+        let rows: unknown = data;
+        if (!Array.isArray(data) && typeof data === "object") {
+          const audience = data as { people?: unknown; canPost?: unknown };
+          if (typeof audience.canPost === "boolean") {
+            setCanPost(audience.canPost);
+          }
+          rows = audience.people;
+        }
+        if (!Array.isArray(rows)) return;
+        const list = rows
           .map((row) => (row as { user?: ProjectMemberLite }).user)
           .filter((u): u is ProjectMemberLite => Boolean(u));
         setMembers(list);
@@ -413,7 +452,10 @@ export function MessagesView({
       .catch(() => {
         // Silent failure — composer falls back to plain text mode.
       });
-  }, [endpoints.members]);
+    return () => {
+      canceled = true;
+    };
+  }, [scope.type, endpoints.list, endpoints.members]);
 
   // Real-time poll bookkeeping. The feed is newest-first, so new
   // messages land at the TOP: the scroll container ref lets us tell
@@ -504,6 +546,7 @@ export function MessagesView({
         const res = await fetch(endpoints.list);
         if (!res.ok) throw new Error("Failed to load");
         const data: MessageRow[] = await res.json();
+        const hasMoreHeader = res.headers.get("X-Has-More") === "1";
         // An edit committed while this request was travelling is
         // newer than anything it can carry — applying it would show
         // the pre-edit text back. The next poll picks the row up.
@@ -515,15 +558,48 @@ export function MessagesView({
 
         if (!silent) {
           setMessages(incoming);
+          // Page one resets paging. Pinned roots ride along on page one
+          // whatever their age, so the cursor is the oldest NON-pinned
+          // root; any pinned row the older pages repeat is de-duplicated.
+          olderIdsRef.current = new Set();
+          let cursor: string | null = null;
+          for (const m of incoming) {
+            if (m.isPinned) continue;
+            if (cursor === null || m.createdAt < cursor) cursor = m.createdAt;
+          }
+          olderCursorRef.current = cursor;
+          setHasOlder(hasMoreHeader && cursor !== null);
           return;
         }
 
         // Silent merge — preserve optimistic temp rows + don't stomp
         // the message the user is editing right now.
         setMessages((prev) => {
-          const serverById = new Map(incoming.map((m) => [m.id, m]));
           const result: MessageRow[] = [];
-          const seenServer = new Set<string>();
+          const seenServer = new Set<string>(incoming.map((m) => m.id));
+
+          // Rows loaded through "Load older" are not on page one; keep
+          // them (oldest end of the array) unless page one now carries
+          // them itself, e.g. a message pinned since. Once older pages
+          // are loaded, a row that new arrivals pushed off page one is
+          // kept too — the cursor is already below it, so dropping it
+          // would leave a gap until reload.
+          const older = olderIdsRef.current;
+          let pageFloor: string | null = null;
+          for (const m of incoming) {
+            if (m.isPinned) continue;
+            if (pageFloor === null || m.createdAt < pageFloor)
+              pageFloor = m.createdAt;
+          }
+          for (const lm of prev) {
+            if (seenServer.has(lm.id) || lm.id.startsWith("temp-")) continue;
+            const fellOff =
+              older.size > 0 && pageFloor !== null && lm.createdAt < pageFloor;
+            if (older.has(lm.id) || fellOff) {
+              older.add(lm.id);
+              result.push(lm);
+            }
+          }
 
           // Walk the server list first to keep server order. Replace
           // each server message with the local version if we're
@@ -545,7 +621,6 @@ export function MessagesView({
             } else {
               result.push(sm);
             }
-            seenServer.add(sm.id);
           }
 
           // Re-append any local optimistic temp messages that haven't
@@ -628,6 +703,52 @@ export function MessagesView({
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
+
+  // Scope the older-page request was issued for, so a response that
+  // lands after a team switch is dropped instead of mixing feeds.
+  const scopeKeyRef = useRef(scopeKey);
+  useEffect(() => {
+    scopeKeyRef.current = scopeKey;
+    setLoadingOlder(false);
+  }, [scopeKey]);
+
+  const loadOlder = useCallback(async () => {
+    const cursor = olderCursorRef.current;
+    if (!cursor || loadingOlder) return;
+    const requestScope = scopeKey;
+    setLoadingOlder(true);
+    try {
+      const res = await fetch(
+        `${endpoints.list}?before=${encodeURIComponent(cursor)}`
+      );
+      if (!res.ok) throw new Error("Failed to load");
+      const data: MessageRow[] = await res.json();
+      if (scopeKeyRef.current !== requestScope) return;
+      const older = Array.isArray(data) ? data : [];
+      let next: string | null = null;
+      for (const m of older) {
+        if (next === null || m.createdAt < next) next = m.createdAt;
+      }
+      // Only move the cursor backwards; a stale response can't rewind it.
+      if (next !== null && next < cursor) olderCursorRef.current = next;
+      setHasOlder(res.headers.get("X-Has-More") === "1" && next !== null);
+      setMessages((prev) => {
+        const have = new Set(prev.map((m) => m.id));
+        const fresh = older.filter((m) => !have.has(m.id)).reverse();
+        if (fresh.length === 0) return prev;
+        for (const m of fresh) olderIdsRef.current.add(m.id);
+        // Oldest end of the array: the poll merge treats the last row
+        // as the newest arrival.
+        return [...fresh, ...prev];
+      });
+    } catch {
+      if (scopeKeyRef.current === requestScope) {
+        toast.error("Couldn't load older messages");
+      }
+    } finally {
+      if (scopeKeyRef.current === requestScope) setLoadingOlder(false);
+    }
+  }, [endpoints, scopeKey, loadingOlder]);
 
   // (Deep-link scroll + highlight effect lives further down, after
   // fetchReplies is declared, so the useEffect can reference it
@@ -1065,7 +1186,7 @@ export function MessagesView({
         });
       }
     },
-    [replyDrafts, replySending, currentUser, replyMentionUserIds, members]
+    [replyDrafts, replySending, currentUser, replyMentionUserIds, members, endpoints]
   );
 
   // ── Upload one file to an existing message ─────────────
@@ -1073,24 +1194,31 @@ export function MessagesView({
   // hover-add UI on existing messages (future surface). Updates the
   // attachments array on the target message as each upload returns.
   const uploadFileToMessage = useCallback(
-    async (messageId: string, file: File) => {
-      const fd = new FormData();
-      fd.append("file", file);
+    async (messageId: string, file: File): Promise<boolean> => {
       setUploadingByMessage((prev) => ({
         ...prev,
         [messageId]: (prev[messageId] || 0) + 1,
       }));
       try {
-        const res = await fetch(
-          endpoints.attachments(messageId),
-          {
-            method: "POST",
-            body: fd,
-          }
+        // Browser → blob storage, then JSON records the row: a function
+        // refuses a request body over ~4.5MB, which a drawing set clears.
+        const { url } = await uploadDirect(
+          file,
+          scope.type === "team"
+            ? {
+                kind: "team-message-attachment",
+                teamId: scope.teamId,
+                messageId,
+              }
+            : { kind: "message-attachment", messageId }
         );
+        const res = await fetch(endpoints.attachments(messageId), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blobUrl: url, name: file.name }),
+        });
         if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(body?.error || "Upload failed");
+          throw new Error(await responseError(res, "Upload failed"));
         }
         const created: MessageAttachment = await res.json();
         // Works for both root messages and replies — the helper
@@ -1099,12 +1227,14 @@ export function MessagesView({
           ...m,
           attachments: [...m.attachments, created],
         }));
+        return true;
       } catch (err) {
         toast.error(
           err instanceof Error
             ? `${file.name}: ${err.message}`
             : `${file.name}: upload failed`
         );
+        return false;
       } finally {
         setUploadingByMessage((prev) => {
           const next = { ...prev };
@@ -1115,7 +1245,7 @@ export function MessagesView({
         });
       }
     },
-    [updateAnyMessage]
+    [updateAnyMessage, endpoints, scope]
   );
 
   // ── Send ────────────────────────────────────────────────
@@ -1197,9 +1327,21 @@ export function MessagesView({
       // continue in the background and the chips fill in as each
       // resolves.
       if (files.length > 0) {
-        await Promise.all(
+        const uploaded = await Promise.all(
           files.map((f) => uploadFileToMessage(created.id, f))
         );
+        // A files-only message is nothing but its attachments: when every
+        // upload failed, the channel would keep a bare paperclip forever.
+        // Take it back down and hand the files back to the composer.
+        if (!content && !uploaded.some(Boolean)) {
+          const del = await fetch(endpoints.message(created.id), {
+            method: "DELETE",
+          }).catch(() => null);
+          if (del?.ok) {
+            setMessages((prev) => prev.filter((m) => m.id !== created.id));
+            setPendingFiles((prev) => [...files, ...prev]);
+          }
+        }
       }
     } catch (err) {
       // Roll back the optimistic insert + restore inputs so the user
@@ -1232,15 +1374,18 @@ export function MessagesView({
     const list = e.target.files;
     if (!list || list.length === 0) return;
     const incoming = Array.from(list);
-    // Deliberately NOT storage.ts's cap: these bytes travel through a route
-    // handler, which the platform bounds far below it. Checking a
-    // conservative ceiling here shows the user the offending file before they
-    // hit send, instead of an opaque failure from the edge.
-    const tooBig = incoming.filter((f) => f.size > 10 * 1024 * 1024);
+    // The same ceiling the upload token pins (storage.ts): the bytes go
+    // straight to blob storage, so the platform's function body limit no
+    // longer applies. Checked here so the user sees the offending file
+    // before they hit send.
+    const maxBytes = maxUploadBytes();
+    const tooBig = incoming.filter((f) => f.size > maxBytes);
     if (tooBig.length > 0) {
-      toast.error(`${tooBig[0].name} exceeds 10MB`);
+      toast.error(
+        `${tooBig[0].name} exceeds ${Math.floor(maxBytes / (1024 * 1024))}MB`
+      );
     }
-    const ok = incoming.filter((f) => f.size <= 10 * 1024 * 1024);
+    const ok = incoming.filter((f) => f.size <= maxBytes);
     setPendingFiles((prev) => [...prev, ...ok]);
     // Reset the input so re-selecting the same file fires onChange.
     e.target.value = "";
@@ -1590,7 +1735,11 @@ export function MessagesView({
         <div className="max-w-3xl mx-auto py-6 px-4 space-y-3">
           {/* Composer — collapsed "Send message to members" bar that
               expands in place (Asana pattern). */}
-          {!composerOpen ? (
+          {!canPost ? (
+            <p className="pb-2 text-sm text-slate-500">
+              You have view-only access to this channel.
+            </p>
+          ) : !composerOpen ? (
             <div className="flex items-center gap-2 pb-2">
               <Avatar className="h-7 w-7 flex-shrink-0">
                 <AvatarImage src={currentUser?.image || ""} />
@@ -1746,6 +1895,7 @@ export function MessagesView({
                 onReact={(emoji) => handleReact(m.id, emoji)}
                 onCopyLink={() => void copyLink(m.id)}
                 canCopyLink={canCopyLink}
+                canPost={canPost}
                 onOpenAttachment={(idx) =>
                   setViewer({ messageId: m.id, index: idx })
                 }
@@ -1807,6 +1957,22 @@ export function MessagesView({
               />
               ))(item.message)
             )
+          )}
+
+          {hasOlder && (
+            <div className="flex justify-center py-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void loadOlder()}
+                disabled={loadingOlder}
+              >
+                {loadingOlder ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : null}
+                Load older messages
+              </Button>
+            </div>
           )}
 
           {/* Education card — an EMPTY state, not a footer. It used to close
@@ -1875,6 +2041,9 @@ interface MessageItemProps {
   // False where this surface has no addressable URL, so the action
   // is hidden instead of handing out a link that opens nothing.
   canCopyLink?: boolean;
+  // False when the caller may only read this channel: pinning, replying
+  // and the reply composer are hidden instead of failing on click.
+  canPost?: boolean;
   onOpenAttachment: (index: number) => void;
   onDeleteAttachment: (attachmentId: string) => void;
   onAddFiles: (files: File[]) => void;
@@ -1930,6 +2099,7 @@ function MessageItem({
   onReact,
   onCopyLink,
   canCopyLink = true,
+  canPost = true,
   onOpenAttachment,
   onDeleteAttachment,
   onAddFiles,
@@ -1968,6 +2138,11 @@ function MessageItem({
     : m.author?.name || m.author?.email || "Unknown";
   const initial = (authorName).charAt(0).toUpperCase();
   const wasEdited = m.updatedAt !== m.createdAt;
+  // Offer only what the server will accept. canDelete is absent on scopes
+  // whose feed doesn't report it; those keep the item and the server decides.
+  const canPin = !isReply && canPost;
+  const canDelete = m.canDelete ?? true;
+  const hasMenu = canPin || m.mine || canDelete;
 
   return (
     <div
@@ -2043,7 +2218,7 @@ function MessageItem({
             </PopoverContent>
           </Popover>
 
-          {!isReply && onToggleThread && (
+          {!isReply && onToggleThread && canPost && (
             <button
               type="button"
               onClick={onToggleThread}
@@ -2064,6 +2239,7 @@ function MessageItem({
             </button>
           )}
 
+          {hasMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -2074,7 +2250,7 @@ function MessageItem({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {!isReply && (
+              {canPin && (
                 <DropdownMenuItem onClick={onPinToggle}>
                   <Pin className="w-4 h-4 mr-2" />
                   {m.isPinned ? "Unpin" : "Pin"}
@@ -2086,15 +2262,18 @@ function MessageItem({
                     <Pencil className="w-4 h-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  {canDelete && <DropdownMenuSeparator />}
                 </>
               )}
-              <DropdownMenuItem onClick={onDelete}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
+              {canDelete && (
+                <DropdownMenuItem onClick={onDelete}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -2307,7 +2486,7 @@ function MessageItem({
                 </div>
               ) : threadReplies.length === 0 ? (
                 <p className="py-2 text-xs text-slate-400">
-                  No replies yet — be the first.
+                  {canPost ? "No replies yet — be the first." : "No replies yet."}
                 </p>
               ) : (
                 threadReplies.map((r) => (
@@ -2331,6 +2510,7 @@ function MessageItem({
                     onReact={(emoji) => onReplyReact?.(r.id, emoji)}
                     onCopyLink={() => onReplyCopyLink?.(r.id)}
                     canCopyLink={canCopyLink}
+                    canPost={canPost}
                     onOpenAttachment={(idx) =>
                       onReplyOpenAttachment?.(r.id, idx)
                     }
@@ -2348,14 +2528,16 @@ function MessageItem({
               )}
 
               {/* Reply composer */}
-              <ReplyComposer
-                draft={replyDraft || ""}
-                sending={!!replyIsSending}
-                members={members || []}
-                onChange={(v) => onReplyDraftChange?.(v)}
-                onMentionAdd={(member) => onReplyMentionAdd?.(member)}
-                onSend={() => onSendReply?.()}
-              />
+              {canPost && (
+                <ReplyComposer
+                  draft={replyDraft || ""}
+                  sending={!!replyIsSending}
+                  members={members || []}
+                  onChange={(v) => onReplyDraftChange?.(v)}
+                  onMentionAdd={(member) => onReplyMentionAdd?.(member)}
+                  onSend={() => onSendReply?.()}
+                />
+              )}
             </div>
           )}
         </div>

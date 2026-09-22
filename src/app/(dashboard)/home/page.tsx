@@ -17,9 +17,8 @@
  *
  * The header (greeting + period selector + two summary chips) stays.
  * The chips ("X tasks completed", "Y collaborators") consume
- * /api/dashboard/ceo?slim=1, which skips the heavy cockpit pipeline
- * and returns just the two counts; everything else on this page is
- * per-widget self-fetching.
+ * /api/dashboard/ceo, which returns just those two counts; everything
+ * else on this page is per-widget self-fetching.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -44,7 +43,7 @@ import {
   arrayMove,
   type SortingStrategy,
 } from "@dnd-kit/sortable";
-import { Loader2, Plus, Eye } from "lucide-react";
+import { Loader2, Plus, Eye, LayoutGrid } from "lucide-react";
 import { useWidgetPreferences } from "@/hooks/use-widget-preferences";
 import { useUiState } from "@/hooks/use-ui-state";
 import {
@@ -55,7 +54,6 @@ import {
 import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-modal";
 import { openQuickCreateTask } from "@/components/layout/dashboard-shell";
 import type { WidgetType } from "@/types/dashboard";
-import type { CockpitData } from "@/components/cockpit/types";
 import { startOfLocalDay } from "@/lib/date-only";
 import {
   getHomeBackground,
@@ -65,6 +63,7 @@ import {
 
 import {
   HomeHeader,
+  normalizeHomePeriod,
   type HomePeriod,
 } from "@/components/home/home-header";
 
@@ -97,17 +96,15 @@ const PERIOD_UI_STATE_KEY = "home.period";
 // the grid settles once, on the card the user actually pointed at.
 const staticGridSortingStrategy: SortingStrategy = () => null;
 
-// /api/dashboard/ceo now also returns explicit header-chip counts.
-// Typed locally (optional) so older cached payloads without it don't
-// crash the UI right after a deploy.
-type HomeCockpitData = CockpitData & {
+// The header-chip counts from /api/dashboard/ceo. Optional so a
+// response without them renders 0 instead of crashing.
+type HomeSummaryData = {
   summary?: { tasksCompleted: number; teamCount: number };
 };
 
-// Maps the header period to the PAST window the "tasks completed"
-// chip counts over. next14/lookahead3w are forward-looking planning
-// windows where a completed-count is meaningless, so they fall back
-// to the last 7 days (same as "week").
+// Maps the header period to the window the "tasks completed" chip
+// counts over. Every window is a calendar one in the viewer's own
+// time zone — "This week" starts on Monday 00:00, not 7 days ago.
 //
 // The clock read below is the safe kind: this is only ever called from the
 // fetch effect, so it runs on the browser, with the browser's day. It must
@@ -118,14 +115,22 @@ function periodStartFor(period: HomePeriod): Date {
   const now = new Date();
   switch (period) {
     case "today":
-      return startOfLocalDay();
+      return startOfLocalDay(now);
+    case "month":
+      return new Date(now.getFullYear(), now.getMonth(), 1);
     case "quarter":
       return new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
     case "week":
-    case "next14":
-    case "lookahead3w":
-    default:
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    default: {
+      const today = startOfLocalDay(now);
+      // getDay(): Sunday = 0. Days since Monday: Mon 0 … Sun 6.
+      const sinceMonday = (today.getDay() + 6) % 7;
+      return new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - sinceMonday
+      );
+    }
   }
 }
 
@@ -135,15 +140,18 @@ export default function HomePage() {
   // We keep this fetch only for the two summary chips in HomeHeader
   // ("X tasks completed" + "Y collaborators"). All widgets below
   // self-fetch.
-  const [data, setData] = useState<HomeCockpitData | null>(null);
+  const [data, setData] = useState<HomeSummaryData | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The Gmail-compose-style task composer is mounted ONCE at the
   // DashboardShell level; CTAs here open it via openQuickCreateTask()
   // so Home never stacks a second pixel-identical composer over it.
-  const { value: period, setValue: setPeriod } = useUiState<HomePeriod>(
+  const { value: storedPeriod, setValue: setPeriod } = useUiState<HomePeriod>(
     PERIOD_UI_STATE_KEY,
     "week"
   );
+  // A saved "next14"/"lookahead3w" from before those options were retired
+  // reads as the default instead of a period nothing understands.
+  const period = normalizeHomePeriod(storedPeriod);
   const { value: backgroundId, setValue: setBackgroundId } =
     useUiState<HomeBackgroundId>(HOME_BACKGROUND_UI_STATE_KEY, "default");
   const background = getHomeBackground(backgroundId);
@@ -187,11 +195,11 @@ export default function HomePage() {
       try {
         const periodStart = periodStartFor(period).toISOString();
         const res = await fetch(
-          `/api/dashboard/ceo?slim=1&periodStart=${encodeURIComponent(periodStart)}`,
+          `/api/dashboard/ceo?periodStart=${encodeURIComponent(periodStart)}`,
           { cache: "no-store" }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as HomeCockpitData;
+        const json = (await res.json()) as HomeSummaryData;
         if (!cancelled) setData(json);
       } catch (e) {
         if (!cancelled)
@@ -229,9 +237,6 @@ export default function HomePage() {
     if (!data) return { tasksCompleted: null, collaborators: null };
     return {
       tasksCompleted: data.summary?.tasksCompleted ?? 0,
-      // No fallback to data.team.length: for a manager that array is the whole
-      // firm, which is the number this chip was corrected away from. A missing
-      // summary means we do not know, and 0 is the honest stand-in.
       collaborators: data.summary?.teamCount ?? 0,
     };
   }, [data, error]);
@@ -367,6 +372,10 @@ export default function HomePage() {
   // feeds the two header chips, and every widget below self-fetches.
   // On error the chips are simply hidden (see the `chips` memo).
 
+  const visibleOrder = preferences.widgetOrder.filter((w) =>
+    preferences.visibleWidgets.includes(w)
+  );
+
   return (
     <div
       className="flex-1 flex flex-col h-full overflow-auto transition-colors duration-300"
@@ -389,22 +398,41 @@ export default function HomePage() {
         }
       />
 
+      {/* A fixed id: dnd-kit otherwise numbers its aria-describedby ids from
+          a module counter that differs between the server render and the
+          browser, which is a hydration mismatch React never repairs. */}
       <DndContext
+        id="home-widget-grid"
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <SortableContext
-          items={preferences.widgetOrder.filter((w) =>
-            preferences.visibleWidgets.includes(w)
-          )}
+          items={visibleOrder}
           strategy={staticGridSortingStrategy}
         >
-          <div className="px-4 md:px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 auto-rows-[360px] pb-12">
-            {preferences.widgetOrder
-              .filter((w) => preferences.visibleWidgets.includes(w))
-              .map((id) => (
+          {visibleOrder.length === 0 ? (
+            // Every widget removed: say so and offer the way back, instead
+            // of a header over an empty page.
+            <div className="px-4 md:px-6 py-4 pb-12">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-white/70 px-6 py-16 text-center">
+                <LayoutGrid className="h-6 w-6 text-gray-400" />
+                <p className="text-sm text-gray-600">
+                  Your Home has no widgets. Add some back to get started.
+                </p>
+                <CustomizeWidgetsModal
+                  preferences={preferences}
+                  onToggleWidget={toggleWidget}
+                  onReset={resetToDefaults}
+                  backgroundId={backgroundId}
+                  onBackgroundChange={setBackgroundId}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 md:px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 auto-rows-[360px] pb-12">
+              {visibleOrder.map((id) => (
                 <WidgetContainer
                   key={id}
                   id={id}
@@ -417,7 +445,8 @@ export default function HomePage() {
                   {renderWidgetBody(id)}
                 </WidgetContainer>
               ))}
-          </div>
+            </div>
+          )}
         </SortableContext>
         <DragOverlay>
           {activeId ? (

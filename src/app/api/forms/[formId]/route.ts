@@ -3,6 +3,9 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
+import { isNonContributorRole } from "@/lib/workspace-roles";
+import { canBeFormAssignee } from "@/lib/form-notifications";
 
 /**
  * GET /api/forms/:formId
@@ -10,9 +13,9 @@ import { getCurrentUserId } from "@/lib/auth-utils";
  *   visibility, confirmationMessage). Used by the form-render page.
  *   The settings panel uses ?settings=1 + auth to get the full row.
  *
- * PATCH /api/forms/:formId — full update (auth, project edit role).
+ * PATCH /api/forms/:formId — full update (auth, project write access).
  *
- * DELETE /api/forms/:formId — auth, project edit role.
+ * DELETE /api/forms/:formId — auth, project write access.
  */
 
 const fieldSchema = z.object({
@@ -72,6 +75,13 @@ const patchSchema = z.object({
     .nullable(),
 });
 
+/**
+ * Editing a form is editing the project: the canonical project rule decides
+ * (owner, ADMIN/EDITOR member, team or workspace-shared Editor, workspace
+ * OWNER/ADMIN). The old inline owner-or-member check 403'd the workspace
+ * owner and team members on forms the Workflow tab showed them. 404 when the
+ * caller can't even read the project, so a form id can't be probed.
+ */
 async function assertFormEditAccess(formId: string, userId: string) {
   const form = await prisma.form.findUnique({
     where: { id: formId },
@@ -80,6 +90,9 @@ async function assertFormEditAccess(formId: string, userId: string) {
         select: {
           id: true,
           ownerId: true,
+          workspaceId: true,
+          visibility: true,
+          teamId: true,
           members: { select: { userId: true, role: true } },
         },
       },
@@ -87,12 +100,9 @@ async function assertFormEditAccess(formId: string, userId: string) {
   });
   if (!form) return { ok: false as const, status: 404 };
 
-  const member = form.project.members.find((m) => m.userId === userId);
-  const isOwner = form.project.ownerId === userId;
-  const canEdit =
-    isOwner ||
-    (member && (member.role === "ADMIN" || member.role === "EDITOR"));
-  if (!canEdit) return { ok: false as const, status: 403 };
+  const access = await resolveProjectAccess(form.project, userId);
+  if (!access.ok) return { ok: false as const, status: 404 };
+  if (!access.canWrite) return { ok: false as const, status: 403 };
   return { ok: true as const, form };
 }
 
@@ -171,12 +181,16 @@ export async function GET(
       );
     }
     // ORGANIZATION forms are NOT public — the builder promises "only members
-    // of your organization can access this form". Require an authenticated
-    // workspace member before returning the definition.
+    // of your organization can access this form". Require a signed-in
+    // contributor of the project's workspace (the submit route applies the
+    // same rule, so a form you can open is a form you can send).
     if (form.visibility === "ORGANIZATION") {
       const userId = await getCurrentUserId();
       if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return NextResponse.json(
+          { error: "Sign in to open this form." },
+          { status: 401 }
+        );
       }
       const wsMember = await prisma.workspaceMember.findUnique({
         where: {
@@ -185,10 +199,13 @@ export async function GET(
             workspaceId: form.project.workspaceId,
           },
         },
-        select: { userId: true },
+        select: { role: true },
       });
-      if (!wsMember) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      if (!wsMember || isNonContributorRole(wsMember.role)) {
+        return NextResponse.json(
+          { error: "This form is limited to members of the organization." },
+          { status: 403 }
+        );
       }
     }
     const { project: _project, ...publicForm } = form;
@@ -249,6 +266,19 @@ export async function PATCH(
       if (!sec) {
         return NextResponse.json(
           { error: "defaultSection doesn't belong to this project" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (p.defaultAssigneeId) {
+      const ok = await canBeFormAssignee(
+        access.form.projectId,
+        p.defaultAssigneeId
+      );
+      if (!ok) {
+        return NextResponse.json(
+          { error: "The default assignee must have access to this project." },
           { status: 400 }
         );
       }

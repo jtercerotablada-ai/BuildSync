@@ -156,8 +156,8 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
   },
   {
     id: 'learning',
-    title: 'Learn TT',
-    description: 'Tips and tutorials to get started',
+    title: 'Getting started',
+    description: 'A getting-started checklist',
     icon: 'GraduationCap',
     defaultEnabled: false,
     defaultOrder: 107,

@@ -6,21 +6,24 @@ import { Button } from '@/components/ui/button';
 import { useUiState } from '@/hooks/use-ui-state';
 import { cn } from '@/lib/utils';
 
+// A getting-started checklist of shortcuts into the app. There is no
+// tutorial content behind these, so they are worded as things to do and
+// carry no reading time — the old "3 min" durations promised lessons that
+// did not exist.
 interface Tutorial {
   id: string;
   title: string;
   description: string;
-  duration: string;
   completed: boolean;
   url: string;
 }
 
+// Ids are persisted in uiState.learningCompleted — keep them stable.
 const TUTORIALS: Tutorial[] = [
   {
     id: 'getting-started',
-    title: 'Getting started with TT',
-    description: 'Learn the basics of navigating and using TT',
-    duration: '3 min',
+    title: 'Browse the knowledge base',
+    description: "The firm's wiki and glossary",
     completed: false,
     url: '/knowledge',
   },
@@ -28,23 +31,20 @@ const TUTORIALS: Tutorial[] = [
     id: 'create-project',
     title: 'Create your first project',
     description: 'Set up a project and invite your team',
-    duration: '2 min',
     completed: false,
     url: '/projects/new',
   },
   {
     id: 'manage-tasks',
-    title: 'Managing tasks effectively',
-    description: 'Learn to create, assign, and track tasks',
-    duration: '4 min',
+    title: 'Organize your tasks',
+    description: 'Plan, schedule and track what is assigned to you',
     completed: false,
-    url: '/inbox',
+    url: '/my-tasks',
   },
   {
     id: 'goals-okrs',
-    title: 'Setting goals and OKRs',
-    description: 'Track your team\'s objectives and key results',
-    duration: '3 min',
+    title: 'Set a goal',
+    description: "Track your team's objectives and key results",
     completed: false,
     url: '/goals',
   },
@@ -97,14 +97,14 @@ export function LearningWidget() {
     return (
       <div className="text-center py-8">
         <GraduationCap className="h-12 w-12 mx-auto mb-2 text-slate-300" />
-        <p className="font-medium text-slate-900 mb-1">Learning dismissed</p>
+        <p className="font-medium text-slate-900 mb-1">Checklist dismissed</p>
         <Button
           variant="link"
           size="sm"
           className="text-black"
           onClick={() => setDismissed(false)}
         >
-          Show tutorials again
+          Show checklist again
         </Button>
       </div>
     );
@@ -182,7 +182,6 @@ export function LearningWidget() {
               tabIndex={-1}
               aria-hidden="true"
             >
-              <span className="text-xs">{tutorial.duration}</span>
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { resolveProjectAccess } from "@/lib/project-access";
+import { getProjectAccess } from "@/lib/project-access";
 import type { CompanyRole } from "@prisma/client";
 
 /**
@@ -16,7 +16,8 @@ import type { CompanyRole } from "@prisma/client";
  * Access:
  *  - read: anyone with project read access (members, owner, workspace
  *    members for WORKSPACE-visible projects, anyone for PUBLIC).
- *  - write: project OWNER or ADMIN only.
+ *  - write: whoever can manage the project (owner, member ADMIN, or a
+ *    workspace OWNER/ADMIN) — staffing a project is a management action.
  */
 
 const COMPANY_ROLE_ENUM = [
@@ -44,26 +45,14 @@ const createSchema = z.object({
   isOwn: z.boolean().optional(),
 });
 
+// Canonical read rule (matches the page). An unreadable project answers 404,
+// same as a missing one, so ids cannot be probed. Write follows canManage,
+// which includes the workspace OWNER/ADMIN arm an inline owner/ADMIN check
+// left out.
 async function loadProjectAccess(projectId: string, userId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      ownerId: true,
-      visibility: true,
-      workspaceId: true,
-      members: { select: { userId: true, role: true } },
-    },
-  });
-  if (!project) return { ok: false as const, status: 404 };
-
-  // Canonical read rule (matches the page): the old inline check leaked
-  // WORKSPACE-visibility projects to any member and 403'd workspace admins /
-  // L4+ who can legitimately open a PRIVATE project's Team tab.
-  const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
-  const canWrite = access.isOwner || access.memberRole === "ADMIN";
-  return { ok: true as const, project, canWrite };
+  const access = await getProjectAccess(projectId, userId);
+  if (!access.ok) return { ok: false as const, status: 404 };
+  return { ok: true as const, canWrite: access.canManage };
 }
 
 export async function GET(
@@ -78,10 +67,7 @@ export async function GET(
     const { projectId } = await params;
     const access = await loadProjectAccess(projectId, userId);
     if (!access.ok) {
-      return NextResponse.json(
-        { error: access.status === 404 ? "Not found" : "Forbidden" },
-        { status: access.status }
-      );
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     const companies = await prisma.projectCompany.findMany({
@@ -178,14 +164,11 @@ export async function POST(
     const { projectId } = await params;
     const access = await loadProjectAccess(projectId, userId);
     if (!access.ok) {
-      return NextResponse.json(
-        { error: access.status === 404 ? "Not found" : "Forbidden" },
-        { status: access.status }
-      );
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     if (!access.canWrite) {
       return NextResponse.json(
-        { error: "Only project Owner / Admin can add companies" },
+        { error: "Only a project or workspace admin can add companies" },
         { status: 403 }
       );
     }
@@ -199,23 +182,25 @@ export async function POST(
       );
     }
 
-    // Only one isOwn=true per project. Demote any existing one if
-    // the caller flags this new company as own.
-    if (parsed.data.isOwn) {
-      await prisma.projectCompany.updateMany({
-        where: { projectId, isOwn: true },
-        data: { isOwn: false },
+    // Only one isOwn=true per project. Demote any existing one if the
+    // caller flags this new company as own — in the same transaction as the
+    // create, so a duplicate-name failure does not strip the host firm.
+    const created = await prisma.$transaction(async (tx) => {
+      if (parsed.data.isOwn) {
+        await tx.projectCompany.updateMany({
+          where: { projectId, isOwn: true },
+          data: { isOwn: false },
+        });
+      }
+      return tx.projectCompany.create({
+        data: {
+          projectId,
+          name: parsed.data.name.trim(),
+          role: parsed.data.role as CompanyRole,
+          domain: parsed.data.domain ?? null,
+          isOwn: parsed.data.isOwn ?? false,
+        },
       });
-    }
-
-    const created = await prisma.projectCompany.create({
-      data: {
-        projectId,
-        name: parsed.data.name.trim(),
-        role: parsed.data.role as CompanyRole,
-        domain: parsed.data.domain ?? null,
-        isOwn: parsed.data.isOwn ?? false,
-      },
     });
 
     return NextResponse.json(

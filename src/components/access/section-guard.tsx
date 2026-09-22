@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2, ShieldAlert } from "lucide-react";
+import { AlertCircle, Loader2, RotateCw, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
 import {
@@ -107,7 +107,7 @@ export function SectionGuard({
               : "We couldn't check your permissions for this section. Check your connection and try again."}
           </p>
           <Button variant="outline" onClick={refetch} className="gap-1.5">
-            <Loader2 className="w-4 h-4" />
+            <RotateCw className="w-4 h-4" />
             Retry
           </Button>
         </div>

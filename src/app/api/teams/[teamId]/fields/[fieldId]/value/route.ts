@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
+import { getErrorStatus } from "@/lib/auth-guards";
+import { requireTeamStanding } from "@/lib/team-access";
 
 // PUT /api/teams/:teamId/fields/:fieldId/value — set one member's value.
 // Any team member can edit values (collaboration); only the field's
@@ -17,7 +18,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await verifyTeamAccess(userId, teamId);
+    await requireTeamStanding(userId, teamId);
 
     const body = await req.json();
     const teamMemberId =

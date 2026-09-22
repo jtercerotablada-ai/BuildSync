@@ -166,7 +166,9 @@ async function assertProjectAccess(projectId: string, userId: string) {
   // Canonical read rule (matches the page); the old inline check leaked
   // WORKSPACE-visibility projects to any member.
   const access = await resolveProjectAccess(project, userId);
-  if (!access.ok) return { ok: false as const, status: 403 };
+  // A project the caller cannot read is reported as missing, not forbidden,
+  // so its existence can't be probed.
+  if (!access.ok) return { ok: false as const, status: 404 };
   return {
     ok: true as const,
     project,

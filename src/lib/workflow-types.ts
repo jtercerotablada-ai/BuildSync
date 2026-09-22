@@ -4,9 +4,9 @@
  * A Workflow belongs to a project. It contains N rules. Each rule is:
  *   (trigger) → (actions[])
  *
- * Currently the only trigger is "task moved to section X". When such
- * a move happens, the engine looks up rules whose trigger matches the
- * destination section and runs every action in order.
+ * Triggers are "task moved to section X" and "task completed". When one
+ * fires on a top-level task, the engine runs every matching rule's actions
+ * in rule-creation order.
  *
  * Actions are intentionally narrow today (5 types) — adding more is
  * additive: extend WorkflowAction union, extend the engine switch,
@@ -59,6 +59,10 @@ export interface WorkflowRow {
   id: string;
   name: string;
   isActive: boolean;
+  /** Whether the caller may change rules/sections (project write access). */
+  canEdit?: boolean;
+  /** The project's workspace — scopes the people/project pickers. */
+  workspaceId?: string | null;
   rules: WorkflowRuleRow[];
 }
 
@@ -79,3 +83,23 @@ export const TRIGGER_LABELS: Record<WorkflowTriggerType, string> = {
   TASK_MOVED_TO_SECTION: "When a task moves to this section",
   TASK_COMPLETED: "When a task is marked complete",
 };
+
+/**
+ * Key-order-independent JSON for comparing rule triggers/actions. Postgres
+ * jsonb reorders object keys, so a stored rule never matches a plain
+ * JSON.stringify of the spec it was created from.
+ */
+export function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}

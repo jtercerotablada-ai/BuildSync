@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -27,8 +26,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { X, Users, Info, Lightbulb, Globe, Lock } from "lucide-react";
+import { Users, Info, Lightbulb, Globe, Lock } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToday } from "@/lib/use-today";
+import {
+  currentQuarterPeriod,
+  formatGoalPeriodRange,
+  goalPeriodOptions,
+} from "@/components/goals/views/types";
 
 interface CreateObjectiveDialogProps {
   open: boolean;
@@ -48,13 +53,8 @@ interface Team {
   name: string;
 }
 
-const TIME_PERIODS = [
-  { id: "Q1_FY26", name: "Q1 FY26", startDate: "Jan 1", endDate: "Mar 31" },
-  { id: "Q2_FY26", name: "Q2 FY26", startDate: "Apr 1", endDate: "Jun 30" },
-  { id: "Q3_FY26", name: "Q3 FY26", startDate: "Jul 1", endDate: "Sep 30" },
-  { id: "Q4_FY26", name: "Q4 FY26", startDate: "Oct 1", endDate: "Dec 31" },
-  { id: "FY26", name: "FY26", startDate: "Jan 1", endDate: "Dec 31" },
-];
+// Radix Select cannot hold an empty-string value, so "no team" needs a token.
+const NO_TEAM = "__none__";
 
 export function CreateObjectiveDialog({
   open,
@@ -63,14 +63,16 @@ export function CreateObjectiveDialog({
 }: CreateObjectiveDialogProps) {
   const router = useRouter();
   const { data: session } = useSession();
+  const today = useToday();
   const [loading, setLoading] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
   const [owner, setOwner] = useState<User | null>(null);
   const [accountableTeam, setAccountableTeam] = useState<Team | null>(null);
-  const [notifyMembers, setNotifyMembers] = useState(true);
-  const [timePeriod, setTimePeriod] = useState("Q1_FY26");
+  // Set to the current quarter when the dialog opens (in an effect, so the
+  // clock is never read during a server render).
+  const [timePeriod, setTimePeriod] = useState("");
   const [privacy, setPrivacy] = useState<"public" | "private">("public");
 
   // Data
@@ -89,17 +91,17 @@ export function CreateObjectiveDialog({
     }
   }, [session, owner]);
 
-  // Fetch teams
+  // Teams of the workspace the goal is created in. /api/teams/list spans
+  // every workspace the user belongs to while the create route refuses a
+  // team from any other one, so pre-selecting its first entry could make
+  // every save fail. Nothing is pre-selected: a team is an explicit choice.
   useEffect(() => {
     async function fetchTeams() {
       try {
-        const res = await fetch("/api/teams/list");
+        const res = await fetch("/api/teams");
         if (res.ok) {
-          const data = await res.json();
-          setTeams(data);
-          if (data.length > 0 && !accountableTeam) {
-            setAccountableTeam(data[0]);
-          }
+          const data = (await res.json()) as Team[];
+          setTeams(data.map((t) => ({ id: t.id, name: t.name })));
         }
       } catch (error) {
         console.error("Failed to fetch teams:", error);
@@ -108,14 +110,35 @@ export function CreateObjectiveDialog({
     if (open) fetchTeams();
   }, [open]);
 
-  // Fetch workspace users
+  // Owner candidates: contributors of the same workspace, the only people
+  // the create route accepts as an owner.
   useEffect(() => {
     async function fetchUsers() {
       try {
-        const res = await fetch("/api/users/search?limit=10");
+        const res = await fetch("/api/team/directory");
         if (res.ok) {
-          const data = await res.json();
-          setUsers(data);
+          const data = (await res.json()) as {
+            members?: {
+              id: string;
+              name: string | null;
+              email: string | null;
+              image: string | null;
+              workspaceRole?: string;
+            }[];
+          };
+          setUsers(
+            (data.members ?? [])
+              .filter(
+                (m) =>
+                  m.workspaceRole !== "GUEST" && m.workspaceRole !== "CLIENT"
+              )
+              .map((m) => ({
+                id: m.id,
+                name: m.name,
+                email: m.email ?? "",
+                image: m.image,
+              }))
+          );
         }
       } catch (error) {
         console.error("Failed to fetch users:", error);
@@ -135,16 +158,17 @@ export function CreateObjectiveDialog({
     setLoading(true);
 
     try {
-      const selectedPeriod = TIME_PERIODS.find((p) => p.id === timePeriod);
-
       const response = await fetch("/api/objectives", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: title,
+          name: title.trim(),
           ownerId: owner?.id,
           teamId: accountableTeam?.id,
-          period: selectedPeriod?.name,
+          period: timePeriod || undefined,
+          // Key results drive the goal's number. Without this the route
+          // stores MANUAL and the key results added next never move it.
+          progressSource: "KEY_RESULTS",
           // The picker has to arrive as the column the privacy gate reads
           // (Objective.isPrivate). Sent under any other name it is dropped
           // as an unknown key and every goal is created public.
@@ -153,7 +177,10 @@ export function CreateObjectiveDialog({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create goal");
+        // The route says why (e.g. "Team not found"); that is the only clue
+        // the user has about what to change.
+        const err = await response.json().catch(() => null);
+        throw new Error(err?.error || "Failed to create goal");
       }
 
       const objective = await response.json();
@@ -163,7 +190,11 @@ export function CreateObjectiveDialog({
       onObjectiveCreated?.();
       router.push(`/goals/${objective.id}`);
     } catch (error) {
-      toast.error("Failed to create goal");
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to create goal"
+      );
     } finally {
       setLoading(false);
     }
@@ -171,15 +202,22 @@ export function CreateObjectiveDialog({
 
   const resetForm = () => {
     setTitle("");
-    setNotifyMembers(true);
-    setTimePeriod("Q1_FY26");
+    setAccountableTeam(null);
     setPrivacy("public");
   };
 
-  // Reset form when dialog closes
+  // Reset the form when the dialog closes; default the period when it opens.
   useEffect(() => {
-    if (!open) resetForm();
+    if (open) setTimePeriod(currentQuarterPeriod(new Date()));
+    else resetForm();
   }, [open]);
+
+  // This fiscal year and the next; the chosen label is always kept listed.
+  const periodOptions = today
+    ? goalPeriodOptions(today, { yearsBack: 0, extra: [timePeriod] })
+    : timePeriod
+      ? [timePeriod]
+      : [];
 
   const getInitials = (name: string | null) => {
     if (!name) return "?";
@@ -190,8 +228,6 @@ export function CreateObjectiveDialog({
       .toUpperCase()
       .slice(0, 2);
   };
-
-  const selectedPeriod = TIME_PERIODS.find((p) => p.id === timePeriod);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -268,11 +304,10 @@ export function CreateObjectiveDialog({
                   Company or accountable team
                 </Label>
                 <Select
-                  value={accountableTeam?.id || ""}
-                  onValueChange={(value) => {
-                    const team = teams.find((t) => t.id === value);
-                    if (team) setAccountableTeam(team);
-                  }}
+                  value={accountableTeam?.id || NO_TEAM}
+                  onValueChange={(value) =>
+                    setAccountableTeam(teams.find((t) => t.id === value) ?? null)
+                  }
                 >
                   <SelectTrigger className="h-10">
                     {accountableTeam ? (
@@ -281,10 +316,13 @@ export function CreateObjectiveDialog({
                         <span className="truncate">{accountableTeam.name}</span>
                       </div>
                     ) : (
-                      <SelectValue placeholder="Select team" />
+                      <span className="text-gray-500">No team</span>
                     )}
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={NO_TEAM}>
+                      <span className="text-gray-500">No team</span>
+                    </SelectItem>
                     {teams.map((team) => (
                       <SelectItem key={team.id} value={team.id}>
                         <div className="flex items-center gap-2">
@@ -296,67 +334,6 @@ export function CreateObjectiveDialog({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            {/* Members */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1">
-                <Label className="text-sm text-gray-700">Members</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Add team members who will contribute to this goal</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-10 border rounded-md flex items-center px-3 bg-gray-50">
-                  {accountableTeam && (
-                    <div className="flex items-center gap-2 bg-gray-100 rounded-full px-2 py-1 text-sm">
-                      <Users className="h-3.5 w-3.5 text-gray-500" />
-                      <span className="truncate max-w-[150px]">
-                        1 {accountableTeam.name}
-                      </span>
-                      <button
-                        type="button"
-                        className="hover:bg-gray-200 rounded-full p-0.5"
-                        onClick={() => setAccountableTeam(null)}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <Select defaultValue="commenter">
-                  <SelectTrigger className="w-[130px] h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="commenter">Commenter</SelectItem>
-                    <SelectItem value="editor">Editor</SelectItem>
-                    <SelectItem value="owner">Owner</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Notify checkbox */}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="notify"
-                checked={notifyMembers}
-                onCheckedChange={(checked) => setNotifyMembers(checked as boolean)}
-              />
-              <Label
-                htmlFor="notify"
-                className="text-sm text-gray-700 cursor-pointer"
-              >
-                Notify new members about joining this goal
-              </Label>
             </div>
 
             {/* Time period + Privacy */}
@@ -378,24 +355,24 @@ export function CreateObjectiveDialog({
                 </div>
                 <Select value={timePeriod} onValueChange={setTimePeriod}>
                   <SelectTrigger className="h-10">
-                    <SelectValue>
-                      {selectedPeriod && (
+                    <SelectValue placeholder="Select period">
+                      {timePeriod && (
                         <span>
-                          {selectedPeriod.name}{" "}
+                          {timePeriod}{" "}
                           <span className="text-gray-400">
-                            {selectedPeriod.startDate} – {selectedPeriod.endDate}
+                            {formatGoalPeriodRange(timePeriod)}
                           </span>
                         </span>
                       )}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {TIME_PERIODS.map((period) => (
-                      <SelectItem key={period.id} value={period.id}>
+                    {periodOptions.map((period) => (
+                      <SelectItem key={period} value={period}>
                         <span>
-                          {period.name}{" "}
+                          {period}{" "}
                           <span className="text-gray-400">
-                            {period.startDate} – {period.endDate}
+                            {formatGoalPeriodRange(period)}
                           </span>
                         </span>
                       </SelectItem>
@@ -430,12 +407,18 @@ export function CreateObjectiveDialog({
                       <div className="flex items-center gap-2">
                         <Globe className="h-4 w-4 text-gray-500" />
                         <span>Public</span>
+                        <span className="text-[11px] text-gray-500">
+                          Everyone in the workspace
+                        </span>
                       </div>
                     </SelectItem>
                     <SelectItem value="private">
                       <div className="flex items-center gap-2">
                         <Lock className="h-4 w-4 text-gray-500" />
                         <span>Private</span>
+                        <span className="text-[11px] text-gray-500">
+                          Owner and members only
+                        </span>
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -448,8 +431,8 @@ export function CreateObjectiveDialog({
               <Lightbulb className="h-4 w-4 text-[#a8893a] mt-0.5 flex-shrink-0" />
               <p className="text-sm text-gray-500">
                 <span className="font-medium text-gray-600">Pro tip:</span>{" "}
-                You can edit these details and progress settings after creating
-                this goal
+                You can add members, key results and progress settings after
+                creating this goal
               </p>
             </div>
           </div>

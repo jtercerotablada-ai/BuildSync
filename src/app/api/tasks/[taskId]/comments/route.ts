@@ -12,6 +12,7 @@ import {
   mentionHandle,
 } from "@/lib/comment-format";
 import { fileReadUrl } from "@/lib/storage";
+import { autoFollowTasks } from "@/lib/task-notifications";
 
 // Helper function to strip HTML for notification preview
 function getTextPreview(html: string, maxLength: number = 100): string {
@@ -163,6 +164,7 @@ export async function POST(
         projectId: true,
         assigneeId: true,
         creatorId: true,
+        isPrivate: true,
       },
     });
 
@@ -202,10 +204,25 @@ export async function POST(
     );
     let allowedMembers: { id: string; name: string | null; email: string | null }[] = [];
     if (rawMentionIds.length > 0 && task.projectId) {
-      const allowedIds = await resolveAllowedMentionUserIds(
+      let allowedIds = await resolveAllowedMentionUserIds(
         task.projectId,
         rawMentionIds
       );
+      // Reading the project is not enough on a private task: its audience is
+      // the creator, assignee, followers and workspace leadership. Anyone else
+      // would get a notification quoting the comment and then a 404. The task
+      // gate itself decides, so the two can never disagree.
+      if (task.isPrivate && allowedIds.length > 0) {
+        const canOpen = await Promise.all(
+          allowedIds.map((id) =>
+            verifyTaskAccess(id, taskId).then(
+              () => true,
+              () => false
+            )
+          )
+        );
+        allowedIds = allowedIds.filter((_, i) => canOpen[i]);
+      }
       if (allowedIds.length > 0) {
         allowedMembers = await prisma.user.findMany({
           where: { id: { in: allowedIds } },
@@ -266,6 +283,18 @@ export async function POST(
         data: {},
       },
     });
+
+    // Whoever joins the conversation follows the task from then on, so they
+    // hear the replies (Asana behaviour). The creator and assignee are pinged
+    // about comments already, so they get no row of their own; the fan-out
+    // below dedupes recipients either way. autoFollowTasks skips tasks where
+    // the row would become a lasting access key (private tasks and projects).
+    if (
+      currentUser.id !== task.creatorId &&
+      currentUser.id !== task.assigneeId
+    ) {
+      await autoFollowTasks([{ taskId, userId: currentUser.id }], "task comment");
+    }
 
     // Touch the task so the "Last modified" field reflects the comment.
     await prisma.task

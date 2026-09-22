@@ -88,13 +88,26 @@ describe("templateTaskDates", () => {
     expect(anchor.getTime()).toBe(START.getTime());
   });
 
-  it("counts calendar days from a start that carries a time of day", () => {
-    // POST /api/projects stores `new Date()` when the creator picks no start,
-    // so the anchor is an instant, not a midnight.
+  it("stores UTC midnight even when the anchor carries a time of day", () => {
+    // An anchor stamped with the creation instant used to leak its time onto
+    // every task; the app reads dates by UTC day and assumes midnight.
     const anchor = new Date("2026-09-01T18:42:11.000Z");
     const { startDate, dueDate } = templateTaskDates(anchor, 1, 8);
 
-    expect(daysBetween(anchor, startDate!)).toBe(1);
-    expect(daysBetween(anchor, dueDate!)).toBe(8);
+    expect(startDate!.toISOString()).toBe("2026-09-02T00:00:00.000Z");
+    expect(dueDate!.toISOString()).toBe("2026-09-09T00:00:00.000Z");
+  });
+
+  it("stays on UTC midnight across a DST change", () => {
+    // US DST ends 2026-11-01; local-calendar arithmetic drifted to 23:00Z/01:00Z.
+    const { dueDate } = templateTaskDates(START, undefined, 90);
+
+    expect(dueDate!.toISOString()).toBe("2026-11-30T00:00:00.000Z");
+  });
+
+  it("keeps the picked day for a date-only start string", () => {
+    const { startDate } = templateTaskDates(new Date("2026-03-07"), 0, 0);
+
+    expect(startDate!.toISOString()).toBe("2026-03-07T00:00:00.000Z");
   });
 });

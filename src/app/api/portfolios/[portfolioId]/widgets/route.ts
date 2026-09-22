@@ -7,6 +7,7 @@ import {
   chartConfigSchema,
   chartTypeToWidgetType,
 } from "@/lib/report-config";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 /**
  * Widgets API for a PORTFOLIO's Panel (dashboard) view. Portfolios are SHARED
@@ -23,9 +24,9 @@ import {
  * shows up in the Reporting UI.
  *
  * This route mirrors /api/dashboards/[dashboardId]/widgets verbatim except the
- * gate: GET is open to any portfolio VIEWER (owner | member | PUBLIC);
- * POST/PATCH/DELETE require EDIT capability (owner or member role OWNER/EDITOR)
- * — the exact predicate used by PATCH /api/portfolios/[portfolioId].
+ * gate: GET is open to anyone who may view the portfolio; POST/PATCH/DELETE
+ * require EDIT capability — the exact rule decidePortfolioAccess applies in
+ * PATCH /api/portfolios/[portfolioId].
  *
  * config.kind discriminates how a widget renders (same union as the dashboards
  * route):
@@ -115,8 +116,8 @@ interface PortfolioGate {
 /**
  * Load a portfolio and resolve the caller's view + edit capability. Returns
  * null when the portfolio is missing, cross-workspace, or the caller cannot
- * VIEW it (owner | member | PUBLIC) — the caller maps null to 404 to mask
- * existence, matching GET /api/portfolios/[portfolioId].
+ * VIEW it — the caller maps null to 404 to mask existence, matching GET
+ * /api/portfolios/[portfolioId] (see decidePortfolioAccess there).
  */
 async function resolvePortfolioGate(
   userId: string,
@@ -136,18 +137,31 @@ async function resolvePortfolioGate(
   if (!portfolio) return null;
 
   // Must be a member of the portfolio's workspace at all.
-  await verifyWorkspaceAccess(userId, portfolio.workspaceId);
+  const wsMember = await verifyWorkspaceAccess(userId, portfolio.workspaceId);
+  const isContributor = !isNonContributorRole(wsMember.role);
+  const isWorkspaceManager =
+    wsMember.role === "OWNER" || wsMember.role === "ADMIN";
 
   const isOwner = portfolio.ownerId === userId;
   const membership = portfolio.members.find((m) => m.userId === userId);
   const isMember = membership != null;
-  const isPublic = portfolio.privacy === "PUBLIC";
-  if (!isOwner && !isMember && !isPublic) return null;
+  const canView =
+    isOwner ||
+    isMember ||
+    isWorkspaceManager ||
+    portfolio.privacy === "PUBLIC" ||
+    (portfolio.privacy === "WORKSPACE" && isContributor);
+  if (!canView) return null;
 
-  // Edit gate: owner or member role OWNER/EDITOR (VIEWER/PUBLIC = read-only).
+  // Edit gate: owner, member role OWNER/EDITOR or workspace manager, from a
+  // contributor seat (VIEWER and privacy-only access = read-only).
   const memberRole = membership?.role;
   const canEdit =
-    isOwner || memberRole === "OWNER" || memberRole === "EDITOR";
+    isContributor &&
+    (isOwner ||
+      isWorkspaceManager ||
+      memberRole === "OWNER" ||
+      memberRole === "EDITOR");
 
   return { workspaceId: portfolio.workspaceId, ownerId: portfolio.ownerId, canEdit };
 }
@@ -157,38 +171,48 @@ async function resolvePortfolioGate(
  * write. Keyed by the sentinel name so repeated writes reuse the same row.
  * ownerId = portfolio owner (falls back to the acting user when the portfolio
  * has no owner, since Report.ownerId is required and non-null).
+ *
+ * There is no unique key on the name, so two first-widget adds racing each
+ * other can both create one. Every reader takes the OLDEST row (see
+ * findBackingReportId), and a creator that finds it lost the race deletes its
+ * own still-empty row and uses the winner — so both requests converge on the
+ * same report and neither widget is hidden.
  */
 async function ensureBackingReport(
   portfolioId: string,
   gate: PortfolioGate,
   actingUserId: string
 ): Promise<string> {
-  const name = portfolioReportName(portfolioId);
-  const existing = await prisma.report.findFirst({
-    where: { workspaceId: gate.workspaceId, name },
-    select: { id: true },
-  });
-  if (existing) return existing.id;
+  const existing = await findBackingReportId(portfolioId, gate.workspaceId);
+  if (existing) return existing;
 
   const created = await prisma.report.create({
     data: {
-      name,
+      name: portfolioReportName(portfolioId),
       type: "CUSTOM",
       workspaceId: gate.workspaceId,
       ownerId: gate.ownerId ?? actingUserId,
     },
     select: { id: true },
   });
+
+  const winner = await findBackingReportId(portfolioId, gate.workspaceId);
+  if (winner && winner !== created.id) {
+    await prisma.report.deleteMany({ where: { id: created.id } });
+    return winner;
+  }
   return created.id;
 }
 
-/** Find the backing report id WITHOUT creating it (read paths). */
+/** Find the backing report id WITHOUT creating it (read paths). The oldest
+ *  row wins, deterministically, should more than one exist. */
 async function findBackingReportId(
   portfolioId: string,
   workspaceId: string
 ): Promise<string | null> {
   const report = await prisma.report.findFirst({
     where: { workspaceId, name: portfolioReportName(portfolioId) },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { id: true },
   });
   return report?.id ?? null;

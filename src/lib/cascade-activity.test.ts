@@ -197,6 +197,22 @@ describe("cascadeShiftMoved", () => {
     expect(cascadeShiftMoved({})).toBe(true);
   });
 
+  it("compares calendar days, not instants", () => {
+    // A noon-stored date re-written at UTC midnight of the same day.
+    expect(
+      cascadeShiftMoved({
+        oldEnd: "2026-09-18T16:00:00.000Z",
+        newEnd: "2026-09-18T00:00:00.000Z",
+      })
+    ).toBe(false);
+    expect(
+      cascadeShiftMoved({
+        oldEnd: "2026-09-18T16:00:00.000Z",
+        newEnd: "2026-09-19T00:00:00.000Z",
+      })
+    ).toBe(true);
+  });
+
   it("counts a date appearing or disappearing as a move", () => {
     expect(
       cascadeShiftMoved({ oldEnd: null, newEnd: utc("2026-09-25") })

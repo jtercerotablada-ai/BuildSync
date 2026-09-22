@@ -23,6 +23,9 @@ import {
   Folder,
   FolderOpen,
   ChevronRight,
+  UserPlus,
+  FileText,
+  ClipboardList,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
@@ -58,6 +61,10 @@ interface NavItemDef {
   // are always shown (e.g. /home, /my-tasks — visible to everyone
   // but with filtered content).
   section: AppSection;
+  // Shown even when the section itself is gated: the page serves a reduced
+  // view to members below the section's level (Reporting shows L1/L2 just
+  // their own "My impact" dashboard), so hiding the link would strand them.
+  alwaysVisible?: boolean;
 }
 
 function getMainNavItems(basePath: string): NavItemDef[] {
@@ -85,6 +92,7 @@ function getInsightsNavItems(basePath: string): NavItemDef[] {
       label: "Reporting",
       icon: BarChart3,
       section: "reporting",
+      alwaysVisible: true,
     },
     {
       href: `${basePath}/portfolios`,
@@ -101,6 +109,16 @@ function getInsightsNavItems(basePath: string): NavItemDef[] {
   ];
 }
 
+// Workspace admin screens (worker invites, intake forms, submissions). They
+// only exist under the /portal route group, so they are linked by absolute
+// path from both shells; without these entries the pages could only be
+// reached by typing the URL. The pages themselves redirect non-admins.
+const ADMIN_NAV_ITEMS: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { href: "/portal/admin/workers", label: "Workers", icon: UserPlus },
+  { href: "/portal/admin/forms", label: "Forms", icon: FileText },
+  { href: "/portal/admin/submissions", label: "Submissions", icon: ClipboardList },
+];
+
 // Apply access rules; while access is still loading, render the
 // items optimistically so the sidebar doesn't pop empty on first
 // paint. Items the user truly can't access are hidden once the
@@ -110,7 +128,9 @@ function filterByAccess(
   access: EffectiveAccess | null
 ): NavItemDef[] {
   if (!access) return items;
-  return items.filter((item) => canAccessSection(access, item.section));
+  return items.filter(
+    (item) => item.alwaysVisible || canAccessSection(access, item.section)
+  );
 }
 
 function NavItem({
@@ -177,6 +197,10 @@ export function Sidebar({
     getInsightsNavItems(basePath),
     access
   );
+  // Unlike the sections above, admin links are hidden until access resolves:
+  // showing them optimistically would flash them for everyone.
+  const showAdminNav =
+    access?.workspaceRole === "OWNER" || access?.workspaceRole === "ADMIN";
   // Session no longer needed at this layer (was fetching teams for
   // the inline list which has been removed).
   // The "+ New project / New portfolio" menu still uses these.
@@ -276,8 +300,13 @@ export function Sidebar({
   // in the Projects dropdown).
   const loadNav = useCallback(async () => {
     try {
+      // Only id/name/color are drawn here, so ask for the slim summary row:
+      // the default shape hydrates owner, members and every root task of
+      // every visible project, and this runs on each page load and each
+      // SIDEBAR_REFRESH_EVENT. Alphabetical keeps the list from reshuffling
+      // whenever a task somewhere bumps a project's updatedAt.
       const [pRes, tRes] = await Promise.all([
-        fetch("/api/projects"),
+        fetch("/api/projects?fields=summary&sort=alphabetical"),
         fetch("/api/teams/list"),
       ]);
       if (pRes.ok) {
@@ -421,20 +450,32 @@ export function Sidebar({
             ) : (
               <div>
                 <div className="relative" ref={projectsDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setProjectsOpen((o) => !o)}
-                    className="w-full flex items-center gap-2 rounded-md px-3 py-1.5 pr-8 text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <ChevronRight
-                      className={cn(
-                        "h-3.5 w-3.5 text-gray-400 transition-transform flex-shrink-0",
-                        projectsOpen && "rotate-90"
-                      )}
-                    />
-                    <Folder className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    <span className="flex-1 text-left truncate">Projects</span>
-                  </button>
+                  {/* The chevron toggles the inline list; the label is the
+                      only way to the /projects/all overview while the rail
+                      is expanded (the collapsed rail links there directly). */}
+                  <div className="w-full flex items-center gap-1 rounded-md pl-1.5 pr-8 text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+                    <button
+                      type="button"
+                      aria-label={projectsOpen ? "Collapse projects" : "Expand projects"}
+                      aria-expanded={projectsOpen}
+                      onClick={() => setProjectsOpen((o) => !o)}
+                      className="h-6 w-6 flex items-center justify-center rounded hover:bg-gray-200 flex-shrink-0"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "h-3.5 w-3.5 text-gray-400 transition-transform",
+                          projectsOpen && "rotate-90"
+                        )}
+                      />
+                    </button>
+                    <Link
+                      href={`${basePath || ""}/projects/all`}
+                      className="flex flex-1 min-w-0 items-center gap-2 py-1.5"
+                    >
+                      <Folder className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                      <span className="flex-1 text-left truncate">Projects</span>
+                    </Link>
+                  </div>
                   <button
                     type="button"
                     aria-label="Add project or portfolio"
@@ -511,8 +552,10 @@ export function Sidebar({
 
             {/* Teams — same collapsible pattern as Projects. */}
             {collapsed ? (
+              // Unprefixed on purpose: the /portal shell only has
+              // portal/teams/[teamId], so /portal/teams would 404.
               <NavItem
-                href={`${basePath || ""}/teams`}
+                href="/teams"
                 label="Teams"
                 icon={Users}
                 isActive={pathname.startsWith(`${basePath}/teams/`)}
@@ -521,26 +564,38 @@ export function Sidebar({
             ) : (
               <div>
                 <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setTeamsOpen((o) => !o)}
-                    className="w-full flex items-center gap-2 rounded-md px-3 py-1.5 pr-8 text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <ChevronRight
-                      className={cn(
-                        "h-3.5 w-3.5 text-gray-400 transition-transform flex-shrink-0",
-                        teamsOpen && "rotate-90"
-                      )}
-                    />
-                    <Users className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    <span className="flex-1 text-left truncate">Teams</span>
-                  </button>
+                  <div className="w-full flex items-center gap-1 rounded-md pl-1.5 pr-8 text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+                    <button
+                      type="button"
+                      aria-label={teamsOpen ? "Collapse teams" : "Expand teams"}
+                      aria-expanded={teamsOpen}
+                      onClick={() => setTeamsOpen((o) => !o)}
+                      className="h-6 w-6 flex items-center justify-center rounded hover:bg-gray-200 flex-shrink-0"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "h-3.5 w-3.5 text-gray-400 transition-transform",
+                          teamsOpen && "rotate-90"
+                        )}
+                      />
+                    </button>
+                    {/* Unprefixed: the /portal shell has no teams index. */}
+                    <Link
+                      href="/teams"
+                      className="flex flex-1 min-w-0 items-center gap-2 py-1.5"
+                    >
+                      <Users className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                      <span className="flex-1 text-left truncate">Teams</span>
+                    </Link>
+                  </div>
                   <button
                     type="button"
                     aria-label="Create team"
                     onClick={(e) => {
                       e.stopPropagation();
-                      router.push(`${basePath || ""}/teams/new`);
+                      // Unprefixed: /portal/teams/new would match the
+                      // portal's teams/[teamId] page and show "Team not found".
+                      router.push("/teams/new");
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors z-10"
                   >
@@ -585,6 +640,29 @@ export function Sidebar({
                   </nav>
                 )}
               </div>
+            )}
+
+            {showAdminNav && (
+              <>
+                <div className="h-5" />
+                {!collapsed && (
+                  <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Admin
+                  </div>
+                )}
+                <nav className="space-y-0.5">
+                  {ADMIN_NAV_ITEMS.map((item) => (
+                    <NavItem
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      isActive={pathname === item.href || pathname.startsWith(item.href + "/")}
+                      collapsed={collapsed}
+                    />
+                  ))}
+                </nav>
+              </>
             )}
           </div>
         </ScrollArea>

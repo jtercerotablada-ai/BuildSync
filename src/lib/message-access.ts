@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma";
 import { resolveProjectAccess } from "@/lib/project-access";
-import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
+import {
+  NON_CONTRIBUTOR_ROLES,
+  isNonContributorRole,
+} from "@/lib/workspace-roles";
 
 /**
  * Shared access helpers for the polymorphic `Message` model.
@@ -80,17 +83,37 @@ export function canPostInProject(access: {
 }
 
 /**
+ * May the caller moderate a PROJECT channel (delete anyone's message)? Pure.
+ *
+ * Project owner or an explicit project ADMIN member. Deliberately NOT widened
+ * to workspace managers — read access grew, moderation authority did not.
+ * GET /api/projects/[projectId]/messages mirrors this inline
+ * (canModerateChannel) to decide which controls the feed shows.
+ */
+export function canModerateProjectMessages(input: {
+  isOwner: boolean;
+  memberRole: string | null | undefined;
+}): boolean {
+  return input.isOwner || input.memberRole === "ADMIN";
+}
+
+/**
  * May the caller author in a PORTFOLIO channel? Pure.
  *
  * PortfolioRole is OWNER | EDITOR | VIEWER — there is no COMMENTER, so the
- * write bar is the same set that may moderate. A VIEWER reads.
+ * write bar is the same set that may moderate. A VIEWER reads. Workspace
+ * OWNER/ADMIN may post and moderate in every portfolio, as they may edit
+ * every portfolio (decidePortfolioAccess in /api/portfolios/[portfolioId]).
+ * The contributor-seat requirement is applied by the caller.
  */
 export function canPostInPortfolio(input: {
   isOwner: boolean;
   memberRole: string | null | undefined;
+  isWorkspaceManager?: boolean;
 }): boolean {
   return (
     input.isOwner ||
+    input.isWorkspaceManager === true ||
     input.memberRole === "OWNER" ||
     input.memberRole === "EDITOR"
   );
@@ -172,11 +195,12 @@ export async function loadMessageWithAccess(
       // 404, but here the caller already holds a messageId.
       return { ok: false, status: 403, error: "Forbidden" };
     }
-    // Moderation (delete-anyone) is unchanged: project owner or an explicit
-    // project ADMIN. Deliberately NOT widened to workspace managers — read
-    // access grew, moderation authority did not.
+    // Moderation (delete-anyone): see canModerateProjectMessages.
     const member = msg.project.members.find((m) => m.userId === userId);
-    const isAdmin = access.isOwner || member?.role === "ADMIN";
+    const isAdmin = canModerateProjectMessages({
+      isOwner: access.isOwner,
+      memberRole: member?.role,
+    });
     // Same predicate as POST /api/projects/[projectId]/messages.
     const canPost = canPostInProject(access);
     return { ok: true, message: msg, isAuthor, isAdmin, canPost };
@@ -195,6 +219,10 @@ export async function loadMessageWithAccess(
     // removed on offboarding but whose PortfolioMember row survives (it does
     // NOT cascade) keeping access. PUBLIC then means "everyone in THIS
     // workspace", never "everyone with an account".
+    //
+    // Same view rule as decidePortfolioAccess in /api/portfolios/
+    // [portfolioId]: owner | member | workspace OWNER/ADMIN | PUBLIC |
+    // WORKSPACE for any contributor of that workspace.
     const wsMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -203,17 +231,31 @@ export async function loadMessageWithAccess(
         },
       },
     });
+    if (!wsMember) {
+      return { ok: false, status: 403, error: "Forbidden" };
+    }
+    const isContributor = !isNonContributorRole(wsMember.role);
+    const isWorkspaceManager =
+      wsMember.role === "OWNER" || wsMember.role === "ADMIN";
     const allowed =
-      !!wsMember && (isOwner || isMember || msg.portfolio.privacy === "PUBLIC");
+      isOwner ||
+      isMember ||
+      isWorkspaceManager ||
+      msg.portfolio.privacy === "PUBLIC" ||
+      (msg.portfolio.privacy === "WORKSPACE" && isContributor);
     if (!allowed) {
       return { ok: false, status: 403, error: "Forbidden" };
     }
-    // Portfolio moderation: owner or OWNER/EDITOR member. Same set that may
-    // author (see canPostInPortfolio), so both flags read from one predicate.
-    const isAdmin = canPostInPortfolio({
-      isOwner,
-      memberRole: member?.role,
-    });
+    // Portfolio moderation: owner, OWNER/EDITOR member or workspace manager,
+    // with a contributor seat. Same set that may author (see
+    // canPostInPortfolio), so both flags read from one predicate.
+    const isAdmin =
+      isContributor &&
+      canPostInPortfolio({
+        isOwner,
+        memberRole: member?.role,
+        isWorkspaceManager,
+      });
     const canPost = isAdmin;
     return { ok: true, message: msg, isAuthor, isAdmin, canPost };
   }
@@ -224,8 +266,7 @@ export async function loadMessageWithAccess(
   // tenant's announcement through the generic /api/messages/[id]/* routes,
   // which check only loadMessageWithAccess. This is the same cross-tenant
   // class as the project and portfolio branches above — the third parent the
-  // rewrite must not leave open. Mirrors the workspace scoping that
-  // /api/workspace/messages enforces on its own PUT/DELETE.
+  // rewrite must not leave open.
   const wsMember = msg.workspaceId
     ? await prisma.workspaceMember.findUnique({
         where: {

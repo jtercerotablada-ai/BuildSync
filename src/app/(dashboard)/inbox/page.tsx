@@ -68,6 +68,12 @@ interface Notification {
   // the project's Messages tab (with scroll + highlight).
   messageId?: string;
   rootMessageId?: string;
+  // Goal shares (/goals/[id]) and portfolio invitations / message-board
+  // mentions (/portfolios/[id]).
+  objectiveId?: string;
+  portfolioId?: string;
+  // Rows on the Favorites tab can be archived ones (see fetchNotifications).
+  archived?: boolean;
 }
 
 // Visual type metadata. Each notification type gets a small icon
@@ -100,14 +106,16 @@ const TYPE_META: Record<
   },
 };
 
-// Whether a row has somewhere to go when clicked. Portfolio/workspace
-// invitations and plain system rows arrive with no deep-link payload at
-// all, yet every row was painted with a pointer cursor and an "Open
-// notification" label — promising a destination the click could never
-// reach. Those rows still mark themselves read; they just no longer
-// advertise a navigation that does not exist.
+// Whether a row has somewhere to go when clicked. Workspace invitations and
+// plain system rows arrive with no deep-link payload at all, yet every row
+// was painted with a pointer cursor and an "Open notification" label —
+// promising a destination the click could never reach. Those rows still
+// mark themselves read; they just no longer advertise a navigation that
+// does not exist.
 function hasNavigationTarget(n: Notification): boolean {
-  return Boolean(n.taskId || n.projectId || n.teamId);
+  return Boolean(
+    n.taskId || n.projectId || n.teamId || n.objectiveId || n.portfolioId
+  );
 }
 
 // Helper function to format relative time
@@ -145,10 +153,11 @@ export default function InboxPage() {
     isHydrated: defaultTabHydrated,
   } = useUiState<string>("inbox.defaultTab", "activity");
   // Persisted favorites — array of notification ids the user starred.
-  const { value: favorites, setValue: setFavorites } = useUiState<string[]>(
-    "inbox.favorites",
-    []
-  );
+  const {
+    value: favorites,
+    setValue: setFavorites,
+    isHydrated: favoritesHydrated,
+  } = useUiState<string[]>("inbox.favorites", []);
   const [activeTab, setActiveTab] = useState("activity");
   // Only apply the persisted default once, on first hydration, so we
   // don't fight the user's in-session tab clicks.
@@ -213,17 +222,39 @@ export default function InboxPage() {
     setCtxMenu({ tabId, tabLabel, x, y });
   };
 
-  // Favorites are logically part of the "activity" stream (non-archived
-  // notifications), so we hit the same archived=false endpoint for them.
   const isArchivedScope = activeTab === "archive";
+  // Favorites are fetched BY ID, archived or not: filtering the
+  // archived=false stream lost every starred row the moment it was archived
+  // (e.g. by "Archive all"), while its id stayed starred in uiState.
+  const isFavoritesScope = activeTab === "favorites";
+  const fetchScope = isArchivedScope
+    ? "archive"
+    : isFavoritesScope
+      ? "favorites"
+      : "active";
+  // Most recent stars first; the API caps an ids query at 100 rows.
+  const favoriteIdsParam = useMemo(
+    () => favorites.slice(-100).join(","),
+    [favorites]
+  );
+  // Only the Favorites fetch depends on the starred ids. Feeding them to the
+  // other scopes' deps made every star on Activity/Archive refetch page 1 and
+  // discard the pages loaded with "Load more".
+  const favoritesFetchKey = isFavoritesScope ? favoriteIdsParam : "";
+  const favoritesPending = isFavoritesScope && !favoritesHydrated;
 
   const fetchNotifications = useCallback(async () => {
     // Snapshot the generation for this scope; if the user switches tabs
     // before this resolves, gen won't match and we drop the (stale) result.
     const gen = scopeGenRef.current;
+    // Until the starred ids hydrate, an empty list would flash "No favorites
+    // yet"; stay on the spinner — this runs again once they arrive.
+    if (favoritesPending) return;
     try {
       const res = await fetch(
-        `/api/notifications?archived=${isArchivedScope}`
+        isFavoritesScope
+          ? `/api/notifications?ids=${encodeURIComponent(favoritesFetchKey)}`
+          : `/api/notifications?archived=${isArchivedScope}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -265,7 +296,7 @@ export default function InboxPage() {
     } finally {
       if (gen === scopeGenRef.current) setLoading(false);
     }
-  }, [isArchivedScope]);
+  }, [isArchivedScope, isFavoritesScope, favoritesPending, favoritesFetchKey]);
 
   // Lightweight count-only refresh — used by the poll while the user has
   // paginated, so we keep the Activity badge fresh without replacing the
@@ -356,7 +387,7 @@ export default function InboxPage() {
     setLoading(true);
     setLoadError(false);
     setNotifications([]);
-  }, [isArchivedScope]);
+  }, [fetchScope]);
 
   useEffect(() => {
     fetchNotifications();
@@ -452,7 +483,8 @@ export default function InboxPage() {
     // read, so an unread row on the Archive tab is outside the server's
     // count and reading it must leave the badge (and the bell) alone.
     const target = notifications.find((n) => n.id === id);
-    const wasUnread = !!target && !target.read && !isArchivedScope;
+    const wasUnread =
+      !!target && !target.read && !isArchivedScope && !target.archived;
     setNotifications((cur) =>
       cur.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
@@ -492,7 +524,9 @@ export default function InboxPage() {
     // list optimistically made those rows look read for 30 seconds until
     // the poll put the unread styling back — as if the action undid itself.
     if (!isArchivedScope) {
-      setNotifications((cur) => cur.map((n) => ({ ...n, read: true })));
+      setNotifications((cur) =>
+        cur.map((n) => (n.archived ? n : { ...n, read: true }))
+      );
     }
     // Server marks every non-archived row read, so the unread badge is 0.
     setServerUnreadCount(0);
@@ -526,8 +560,15 @@ export default function InboxPage() {
     // Archiving an unread row removes it from the (unread AND non-archived)
     // set the badge counts, so decrement optimistically; restore on error.
     const target = prev.find((n) => n.id === id);
+    if (target?.archived) return;
     const wasUnread = !!target && !target.read;
-    setNotifications((cur) => cur.filter((n) => n.id !== id));
+    // A starred row stays on the Favorites tab after archiving — that tab
+    // lists starred rows whatever their archive state.
+    setNotifications((cur) =>
+      isFavoritesScope
+        ? cur.map((n) => (n.id === id ? { ...n, archived: true } : n))
+        : cur.filter((n) => n.id !== id)
+    );
     if (wasUnread) setServerUnreadCount((c) => Math.max(0, c - 1));
     try {
       const res = await fetch("/api/notifications", {
@@ -573,7 +614,17 @@ export default function InboxPage() {
   // row from the archived list and flips archived=false server-side.
   const unarchiveOne = async (id: string) => {
     const prev = notifications;
-    setNotifications((cur) => cur.filter((n) => n.id !== id));
+    // Mirror of archiveOne: an unread row rejoins the (unread AND
+    // non-archived) set the badge counts, so bump it now; undo on error.
+    const target = prev.find((n) => n.id === id);
+    const wasUnread =
+      !!target && (isArchivedScope || !!target.archived) && !target.read;
+    setNotifications((cur) =>
+      isFavoritesScope
+        ? cur.map((n) => (n.id === id ? { ...n, archived: false } : n))
+        : cur.filter((n) => n.id !== id)
+    );
+    if (wasUnread) setServerUnreadCount((c) => c + 1);
     try {
       const res = await fetch("/api/notifications", {
         method: "PATCH",
@@ -584,6 +635,7 @@ export default function InboxPage() {
     } catch (error) {
       console.error("Error unarchiving notification:", error);
       setNotifications(prev);
+      if (wasUnread) setServerUnreadCount((c) => Math.max(0, c - 1));
     }
   };
 
@@ -611,8 +663,33 @@ export default function InboxPage() {
         params.set("thread", notification.rootMessageId);
       }
       const qs = params.toString();
+      // Unprefixed: the team Messages page has no /portal copy.
       router.push(
         `/teams/${notification.teamId}/messages${qs ? `?${qs}` : ""}`
+      );
+      return;
+    }
+
+    // Portfolio message-board mention: the portfolio page, Messages view,
+    // scrolled to the message (same ?view=/?message= contract as projects).
+    if (
+      notification.type === "mention" &&
+      notification.portfolioId &&
+      !notification.projectId
+    ) {
+      const params = new URLSearchParams();
+      params.set("view", "messages");
+      if (notification.messageId) {
+        params.set("message", notification.messageId);
+      }
+      if (
+        notification.rootMessageId &&
+        notification.rootMessageId !== notification.messageId
+      ) {
+        params.set("thread", notification.rootMessageId);
+      }
+      router.push(
+        `${shellPrefix}/portfolios/${notification.portfolioId}?${params.toString()}`
       );
       return;
     }
@@ -621,7 +698,13 @@ export default function InboxPage() {
     // to the specific message id. messages-view.tsx reads ?message=
     // and highlights it. The project page reads `?view=` to pick
     // the active tab (see app/(dashboard)/projects/[id]/page.tsx).
-    if (notification.type === "mention" && notification.projectId) {
+    // A mention in a TASK comment carries a taskId and no messageId; it
+    // belongs to the task, so it falls through to the task link below.
+    if (
+      notification.type === "mention" &&
+      notification.projectId &&
+      (notification.messageId || !notification.taskId)
+    ) {
       const params = new URLSearchParams();
       params.set("view", "messages");
       if (notification.messageId) {
@@ -634,25 +717,36 @@ export default function InboxPage() {
         // For a mention inside a reply, open the parent thread too.
         params.set("thread", notification.rootMessageId);
       }
-      router.push(`/projects/${notification.projectId}?${params.toString()}`);
+      router.push(
+        `${shellPrefix}/projects/${notification.projectId}?${params.toString()}`
+      );
       return;
     }
 
+    // Project, portfolio and team pages exist in both shells, so these keep
+    // the click inside the shell it came from (this page is also mounted at
+    // /portal/inbox).
     if (notification.taskId && notification.projectId) {
       router.push(
-        `/projects/${notification.projectId}?task=${notification.taskId}`
+        `${shellPrefix}/projects/${notification.projectId}?task=${notification.taskId}`
       );
     } else if (notification.taskId) {
-      router.push(`/my-tasks?task=${notification.taskId}`);
+      // A task with no project has no board to open it on; the full-page
+      // task route shows it directly.
+      router.push(`/tasks/${notification.taskId}`);
     } else if (notification.projectId) {
-      router.push(`/projects/${notification.projectId}`);
+      router.push(`${shellPrefix}/projects/${notification.projectId}`);
     } else if (notification.teamId) {
       // Team invitations ("You were added to X") carry only teamId, and
       // teamId used to be honoured for mentions alone — so those rows
       // fell through to a bare return and clicking them went nowhere.
-      // This page is also mounted at /portal/inbox, and the portal has its
-      // own team route, so keep the click inside the shell it came from.
       router.push(`${shellPrefix}/teams/${notification.teamId}`);
+    } else if (notification.portfolioId) {
+      // "You were added to a portfolio".
+      router.push(`${shellPrefix}/portfolios/${notification.portfolioId}`);
+    } else if (notification.objectiveId) {
+      // Goal shares. Unprefixed: the portal has no goal detail route.
+      router.push(`/goals/${notification.objectiveId}`);
     }
   };
 
@@ -690,7 +784,37 @@ export default function InboxPage() {
     return scope;
   }, [notifications, filterType, activeTab, favoriteSet]);
 
-  const groupedNotifications = groupNotificationsByTime(filteredNotifications);
+  // Sort is derived at render time, never written into `notifications`: the
+  // 30s poll replaces that array in server order (newest first), which used
+  // to undo a chosen sort while the button still showed it.
+  const sortedNotifications = useMemo(() => {
+    const byNewest = (a: Notification, b: Notification) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    const rows = [...filteredNotifications];
+    if (sortOrder === "oldest") return rows.sort((a, b) => byNewest(b, a));
+    if (sortOrder === "unread") {
+      return rows.sort((a, b) =>
+        a.read === b.read ? byNewest(a, b) : a.read ? 1 : -1
+      );
+    }
+    return rows.sort(byNewest);
+  }, [filteredNotifications, sortOrder]);
+
+  // Time buckets fit the date sorts only (in reverse for "Oldest first", so
+  // the oldest row really is at the top); "Unread first" groups by read state,
+  // or it would only ever reorder rows inside each day.
+  const groupedNotifications: [string, Notification[]][] =
+    sortOrder === "unread"
+      ? [
+          ["Unread", sortedNotifications.filter((n) => !n.read)],
+          ["Read", sortedNotifications.filter((n) => n.read)],
+        ]
+      : (() => {
+          const entries = Object.entries(
+            groupNotificationsByTime(sortedNotifications)
+          );
+          return sortOrder === "oldest" ? entries.reverse() : entries;
+        })();
 
   // Load more (older) — only when the server says there's another page.
   // Mentions and Favorites are narrowed client-side over the loaded page, so
@@ -743,7 +867,9 @@ export default function InboxPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem
-              onClick={() => router.push("/settings?tab=notifications")}
+              onClick={() =>
+                router.push(`${shellPrefix}/settings?tab=notifications`)
+              }
             >
               <Settings className="w-4 h-4 mr-2" />
               Notification settings
@@ -834,30 +960,7 @@ export default function InboxPage() {
         sortOrder={sortOrder}
         density={density}
         filterType={filterType}
-        onSortChange={(val) => {
-          setSortOrder(val);
-          if (val === "recent") {
-            setNotifications((prev) =>
-              [...prev].sort(
-                (a, b) =>
-                  new Date(b.createdAt).getTime() -
-                  new Date(a.createdAt).getTime()
-              )
-            );
-          } else if (val === "oldest") {
-            setNotifications((prev) =>
-              [...prev].sort(
-                (a, b) =>
-                  new Date(a.createdAt).getTime() -
-                  new Date(b.createdAt).getTime()
-              )
-            );
-          } else if (val === "unread") {
-            setNotifications((prev) =>
-              [...prev].sort((a, b) => (a.read === b.read ? 0 : a.read ? 1 : -1))
-            );
-          }
-        }}
+        onSortChange={setSortOrder}
         onDensityChange={setDensity}
         onFilter={(type) => {
           setFilterType(type as "all" | "unread" | "mentions" | "assignments");
@@ -948,6 +1051,12 @@ export default function InboxPage() {
                     body: JSON.stringify({
                       prompt: `Summarize these notifications from the ${periodLabel} concisely in 2-3 bullet points. Focus on what needs attention:`,
                       text: summaryText,
+                      // The default 'transform' mode appends "respond only
+                      // with the improved/modified text", which contradicts a
+                      // summary request. 'summary' answers the prompt as asked
+                      // without 'qa's workspace task context, which would pull
+                      // the summary toward overdue tasks not in these rows.
+                      mode: "summary",
                     }),
                   });
                   if (res.ok) {
@@ -1005,7 +1114,7 @@ export default function InboxPage() {
               </div>
             ) : (
               <div className="px-4 md:px-8 py-4">
-                {Object.entries(groupedNotifications).map(
+                {groupedNotifications.map(
                   ([period, notifs]) =>
                     notifs.length > 0 && (
                       <div key={period} className="mb-6">
@@ -1018,6 +1127,7 @@ export default function InboxPage() {
                               key={notification.id}
                               notification={notification}
                               compact={density === "compact"}
+                              archived={!!notification.archived}
                               favorited={favoriteSet.has(notification.id)}
                               onToggleFavorite={() =>
                                 toggleFavorite(notification.id)
@@ -1025,7 +1135,11 @@ export default function InboxPage() {
                               onClick={() =>
                                 handleNotificationClick(notification)
                               }
-                              onArchive={() => archiveOne(notification.id)}
+                              onArchive={() =>
+                                notification.archived
+                                  ? unarchiveOne(notification.id)
+                                  : archiveOne(notification.id)
+                              }
                             />
                           ))}
                         </div>
@@ -1072,7 +1186,7 @@ export default function InboxPage() {
               </div>
             ) : (
               <div className="px-6 py-4 space-y-1">
-                {filteredNotifications.map((notification) => (
+                {sortedNotifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
                     notification={notification}
@@ -1491,7 +1605,7 @@ function InboxSummaryCard({
               </DropdownMenu>
             </div>
             {aiSummary && (
-              <div className="mt-3 p-3 bg-white/80 rounded-lg border border-gray-200 text-[13px] text-gray-700 leading-relaxed">
+              <div className="mt-3 p-3 bg-white/80 rounded-lg border border-gray-200 text-[13px] text-gray-700 leading-relaxed whitespace-pre-line">
                 {aiSummary}
               </div>
             )}

@@ -53,9 +53,19 @@ export function readPeople(value: unknown): PersonRef[] {
 export function PeopleFieldEditor({
   value,
   onChange,
+  taskId,
+  projectId,
+  workspaceId,
 }: {
   value: unknown;
   onChange: (next: PersonRef[]) => void;
+  /** Scope the candidates to the workspace the value belongs to. Without
+   *  one, /api/users/search falls back to the caller's primary workspace.
+   *  The route's precedence applies: taskId, then projectId, then
+   *  workspaceId. */
+  taskId?: string | null;
+  projectId?: string | null;
+  workspaceId?: string | null;
 }) {
   const selected = readPeople(value);
   const selectedIds = new Set(selected.map((p) => p.id));
@@ -71,9 +81,11 @@ export function PeopleFieldEditor({
     const run = async () => {
       setLoading(true);
       try {
-        const res = await fetch(
-          `/api/users/search?q=${encodeURIComponent(search)}`
-        );
+        const qs = new URLSearchParams({ q: search });
+        if (taskId) qs.set("taskId", taskId);
+        else if (projectId) qs.set("projectId", projectId);
+        else if (workspaceId) qs.set("workspaceId", workspaceId);
+        const res = await fetch(`/api/users/search?${qs.toString()}`);
         if (res.ok) setUsers(await res.json());
       } catch {
         /* silent — empty list renders */
@@ -83,7 +95,7 @@ export function PeopleFieldEditor({
     };
     const t = setTimeout(run, 200);
     return () => clearTimeout(t);
-  }, [search, open]);
+  }, [search, open, taskId, projectId, workspaceId]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 0);

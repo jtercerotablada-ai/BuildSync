@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyTrackingToken } from "@/lib/tracking-token";
+import { isPrivateBlobUrl, isVercelBlobUrl } from "@/lib/storage";
 import {
+  type FormAttachment,
   type FormField,
   type FormSubmissionPayload,
   formatAnswerForText,
+  neutralizeStoredAnswers,
 } from "@/lib/form-types";
+
+/**
+ * The link a guest can open for a stored file, or null. The page has no
+ * session, so only a PUBLIC blob of our own store is usable; a private blob
+ * (legacy staff upload) or a foreign url is listed by name without a link.
+ */
+function guestFileUrl(url: string): string | null {
+  return isVercelBlobUrl(url) && !isPrivateBlobUrl(url) ? url : null;
+}
 
 /**
  * GET /api/forms/:formId/track/:submissionId?token=...
@@ -22,10 +34,13 @@ import {
  *   - the comment thread, filtered to EXTERNAL visibility only
  *     (INTERNAL_NOTE rows are hidden — that's the whole point of the
  *     visibility flag)
- *   - attachments on the task (so the engineer's response file shows up)
+ *   - files attached to those EXTERNAL comments (so the engineer's response
+ *     file shows up — attach it to a reply shared with the submitter)
  *
  * Never exposes:
- *   - internal team comments marked INTERNAL_NOTE
+ *   - internal team comments marked INTERNAL_NOTE, or their files
+ *   - files uploaded to the task itself (staff files are internal unless
+ *     posted on an EXTERNAL reply — the flag fails closed)
  *   - other tasks in the project
  *   - other submissions
  *   - workspace data, members not assigned to this task
@@ -107,10 +122,6 @@ export async function GET(
                 },
               },
             },
-            attachments: {
-              orderBy: { createdAt: "asc" },
-              select: { id: true, name: true, url: true, size: true, mimeType: true, createdAt: true },
-            },
           },
         })
       : null;
@@ -119,37 +130,40 @@ export async function GET(
     // tracking page doesn't need to re-implement the field-rendering
     // logic.
     const fields = (submission.form.fields as unknown as FormField[]) || [];
-    const data = (submission.data as FormSubmissionPayload) || {};
+    // Only links into our own store survive — a forged {name,url,size}
+    // answer is shown as text, never as a download.
+    const data = neutralizeStoredAnswers(
+      fields,
+      (submission.data as FormSubmissionPayload) || {},
+      isVercelBlobUrl
+    );
     const renderedAnswers = fields
       .filter((f) => f.type !== "HEADING")
       .map((f) => {
         const v = data[f.id];
         // Attachments returned as a structured list so the page can
         // render proper download links instead of "name (url)" text.
-        const attachments: { name: string; url: string; size: number; mimeType: string }[] = [];
-        if (Array.isArray(v)) {
-          for (const item of v) {
-            if (
-              typeof item === "object" &&
-              item !== null &&
-              "url" in item &&
-              "name" in item &&
-              "size" in item
-            ) {
-              attachments.push(item as {
-                name: string;
-                url: string;
-                size: number;
-                mimeType: string;
-              });
-            }
+        const attachments: {
+          name: string;
+          url: string | null;
+          size: number;
+          mimeType: string;
+        }[] = [];
+        if (f.type === "ATTACHMENT" && Array.isArray(v)) {
+          for (const item of v as FormAttachment[]) {
+            attachments.push({
+              name: item.name,
+              url: item.url ? guestFileUrl(item.url) : null,
+              size: item.size,
+              mimeType: item.mimeType,
+            });
           }
         }
         return {
           fieldId: f.id,
           label: f.label,
           // Plain text for everything except attachments.
-          text: attachments.length === 0 ? formatAnswerForText(v) : "",
+          text: attachments.length === 0 ? formatAnswerForText(v, f) : "",
           attachments,
         };
       });
@@ -179,10 +193,13 @@ export async function GET(
             name: task.name,
             // Derived status pill — closed/in-progress/open. Keeps the
             // public surface simple (don't expose internal taskStatus
-            // enum values that may change).
+            // enum values that may change). "In review" needs a sign of
+            // life from the team — a reply shared with the submitter. A
+            // default assignee is set at submit time, so keying off the
+            // assignee showed "In review" before anyone had looked.
             statusLabel: task.completed
               ? "Answered"
-              : task.assigneeId
+              : task.comments.some((c) => c.source === "INTERNAL")
                 ? "In review"
                 : "Received",
             completed: task.completed,
@@ -206,15 +223,13 @@ export async function GET(
                   : c.author?.name || c.author?.email || "Engineering team",
               authorImage:
                 c.source === "INTERNAL" ? c.author?.image || null : null,
-              attachments: c.attachments,
-            })),
-            attachments: task.attachments.map((a) => ({
-              id: a.id,
-              name: a.name,
-              url: a.url,
-              size: a.size,
-              mimeType: a.mimeType,
-              createdAt: a.createdAt.toISOString(),
+              attachments: c.attachments.map((a) => ({
+                id: a.id,
+                name: a.name,
+                url: guestFileUrl(a.url),
+                size: a.size,
+                mimeType: a.mimeType,
+              })),
             })),
           }
         : null,

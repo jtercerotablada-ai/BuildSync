@@ -14,7 +14,8 @@ import type { Position, ProjectRole, WorkspaceRole } from "@prisma/client";
 /**
  * Workspace invitations — admin-only invite flow.
  *
- * GET    list pending invitations for the caller's workspace.
+ * GET    list pending, unexpired invitations for the caller's workspace
+ *        (OWNER / ADMIN only; everyone else gets an empty list).
  * POST   create an invitation, generate a 7-day token, send email.
  * DELETE revoke a pending invitation.
  *
@@ -140,10 +141,22 @@ export async function GET() {
       );
     }
 
+    /* Pending invitations are hiring information (who, at what role, with
+       the inviter's personal note), and only Owner/Admin can act on them.
+       An empty list rather than a 403: the People and Settings screens load
+       this for every member and simply show no section when it is empty. */
+    if (!["OWNER", "ADMIN"].includes(workspaceMember.role)) {
+      return NextResponse.json([]);
+    }
+
     const invitations = await prisma.workspaceInvitation.findMany({
       where: {
         workspaceId: workspaceMember.workspaceId,
         status: "PENDING",
+        // Nothing ever writes EXPIRED, so an old row stays PENDING forever.
+        // It can no longer be accepted; listing it as pending was a lie.
+        // Re-inviting the address (POST below) refreshes the same row.
+        expiresAt: { gt: new Date() },
       },
       orderBy: { createdAt: "desc" },
       include: {
@@ -201,6 +214,20 @@ export async function POST(req: Request) {
     const data = parsed.data;
     const email = data.email.toLowerCase().trim();
 
+    /* Guest is not offered. proxy.ts refuses every internal API call for a
+       GUEST (only self-service routes pass), so the "project-scoped access"
+       the role promises does not exist yet — the account could not see
+       anything at all. Refuse clearly instead of creating a dead account. */
+    if (data.role === "GUEST") {
+      return NextResponse.json(
+        {
+          error:
+            "Guest access isn't available yet. Invite them as a Worker or Member instead.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Resolve the target workspace (explicit id preferred, else heuristic).
     const currentMember = await resolveCallerWorkspace(userId, data.workspaceId);
     // Caller must be ADMIN or OWNER of the target workspace.
@@ -219,8 +246,10 @@ export async function POST(req: Request) {
 
     // Already a member? Treat as a conflict (409), not a validation error —
     // the caller sent a well-formed request, the target simply already belongs.
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    // Case-insensitive, like the login lookup: a legacy mixed-case row is
+    // still the same person.
+    const existingUser = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
       select: { id: true },
     });
     if (existingUser) {
@@ -241,12 +270,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // Already pending?
+    // Already pending? An expired PENDING row doesn't count: it is hidden
+    // from the list, so "use Resend" would point at nothing — the upsert
+    // below turns it into a fresh invitation instead.
     const existingInvitation = await prisma.workspaceInvitation.findFirst({
       where: {
         email,
         workspaceId: currentMember.workspaceId,
         status: "PENDING",
+        expiresAt: { gt: new Date() },
       },
       select: { id: true },
     });
@@ -279,12 +311,18 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      // Inviter must be allowed to add members to that project.
+      // Inviter must be allowed to add members to that project. Only a
+      // workspace OWNER/ADMIN reaches this point (checked above), and both
+      // manage every project in their workspace (project-access rule), so
+      // the same-workspace check above is the whole gate. Kept explicit so a
+      // future widening of who may invite doesn't silently widen this too.
       const isProjOwner = project.ownerId === userId;
       const isProjAdmin = project.members.some(
         (m) => m.userId === userId && m.role === "ADMIN"
       );
-      if (!isProjOwner && !isProjAdmin && currentMember.role !== "OWNER") {
+      const isWorkspaceManager =
+        currentMember.role === "OWNER" || currentMember.role === "ADMIN";
+      if (!isProjOwner && !isProjAdmin && !isWorkspaceManager) {
         return NextResponse.json(
           {
             error:
@@ -367,10 +405,12 @@ export async function POST(req: Request) {
         projectId,
         companyId,
         projectRole,
-        // This dialog never binds a portfolio; clear any stale bind from a
-        // prior invite so a re-invite here doesn't silently resurrect it.
+        // This dialog never binds a portfolio or a team; clear any stale bind
+        // from a prior invite so a re-invite here doesn't silently resurrect
+        // it (accept adds a TeamMember whenever teamId is set).
         portfolioId: null,
         portfolioRole: null,
+        teamId: null,
         acceptedAt: null,
         acceptedUserId: null,
       },

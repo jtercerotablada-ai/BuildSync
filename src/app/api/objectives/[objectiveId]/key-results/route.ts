@@ -185,8 +185,15 @@ export async function PATCH(
       },
     });
 
-    // Recalculate objective progress if currentValue changed
-    if (data.currentValue !== undefined && data.currentValue !== existing.currentValue) {
+    // Recalculate objective progress whenever the KR's percentage can have
+    // moved. Target and start count as much as the current value: editing the
+    // target alone left the stored number (read by the parent roll-up,
+    // portfolios and the Coach) at the old percentage.
+    if (
+      (data.currentValue !== undefined && data.currentValue !== existing.currentValue) ||
+      (data.targetValue !== undefined && data.targetValue !== existing.targetValue) ||
+      (data.startValue !== undefined && data.startValue !== existing.startValue)
+    ) {
       await GoalProgressService.recalculateProgress(existing.objectiveId);
     }
 

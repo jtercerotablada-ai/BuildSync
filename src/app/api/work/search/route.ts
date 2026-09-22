@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
-import { getLevel } from "@/lib/people-types";
+import { buildProjectVisibilityClauses } from "@/lib/project-visibility";
+import type { Prisma } from "@prisma/client";
 
 // GET /api/work/search - Search for work items (projects) the caller can link
 export async function GET(req: Request) {
@@ -15,54 +16,77 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("q") || "";
+    // The team doing the linking: its own projects are already on its list,
+    // so they are left out of the results.
+    const excludeTeamId = searchParams.get("teamId");
 
     if (!query || query.length < 2) {
       return NextResponse.json([]);
     }
 
-    // Resolve the caller's workspace and whether they manage it (OWNER/ADMIN
-    // or Position level >= 4) — mirrors resolveProjectAccess.
+    // Resolve the caller's workspace; linking is scoped to it.
     const workspaceMember = await getPrimaryWorkspaceMembership(userId);
 
     if (!workspaceMember) {
       return NextResponse.json([]);
     }
 
-    const isWorkspaceManager =
-      workspaceMember.role === "OWNER" ||
-      workspaceMember.role === "ADMIN" ||
-      getLevel(workspaceMember.position) >= 4;
+    // READ: the canonical list rule, so this search can never surface a
+    // project the caller could not open anywhere else.
+    const visibilityClauses = await buildProjectVisibilityClauses(userId);
+    if (!visibilityClauses) {
+      return NextResponse.json([]);
+    }
 
-    // Only surface projects the caller can actually READ (owner | member |
-    // PUBLIC), unless they manage the workspace. Without this filter the
-    // linker search leaks the names of private projects a user can't open
-    // (audit SEC-02). `visibility: "WORKSPACE"` is intentionally NOT an
-    // auto-grant — it matches the canonical project-page read rule.
-    const accessFilter = isWorkspaceManager
+    // MANAGE: POST /api/teams/[teamId]/work requires canManage (owner,
+    // project ADMIN, or workspace OWNER/ADMIN — see decideProjectCapabilities),
+    // because linking shares the project with the whole team. Offering
+    // projects the caller can only read or edit ended every pick in a 403.
+    const isWorkspaceManager =
+      workspaceMember.role === "OWNER" || workspaceMember.role === "ADMIN";
+    const manageFilter: Prisma.ProjectWhereInput = isWorkspaceManager
       ? {}
       : {
           OR: [
             { ownerId: userId },
-            { members: { some: { userId } } },
-            { visibility: "PUBLIC" as const },
+            { members: { some: { userId, role: "ADMIN" } } },
           ],
         };
 
-    // Search projects the caller can see
     const projects = await prisma.project.findMany({
       where: {
-        workspaceId: workspaceMember.workspaceId,
-        name: {
-          contains: query,
-          mode: "insensitive",
-        },
-        ...accessFilter,
+        AND: [
+          {
+            workspaceId: workspaceMember.workspaceId,
+            name: {
+              contains: query,
+              mode: "insensitive",
+            },
+            // The team's work list shows active projects only, so linking an
+            // archived one reported success and then never appeared.
+            isArchived: false,
+            ...(excludeTeamId
+              ? { OR: [{ teamId: null }, { teamId: { not: excludeTeamId } }] }
+              : {}),
+          },
+          { OR: visibilityClauses },
+          manageFilter,
+        ],
       },
       select: {
         id: true,
         name: true,
         color: true,
+        team: {
+          select: {
+            id: true,
+            name: true,
+            privacy: true,
+            members: { where: { userId }, select: { userId: true } },
+          },
+        },
       },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
       take: 10,
     });
 
@@ -72,6 +96,20 @@ export async function GET(req: Request) {
       name: p.name,
       type: "project" as const,
       color: p.color,
+      // The team the project already belongs to, so the picker can warn that
+      // linking moves it. A PRIVATE team's name stays hidden from anyone who
+      // is neither on it nor a workspace manager.
+      team: p.team
+        ? {
+            id: p.team.id,
+            name:
+              p.team.privacy === "PRIVATE" &&
+              p.team.members.length === 0 &&
+              !isWorkspaceManager
+                ? null
+                : p.team.name,
+          }
+        : null,
     }));
 
     return NextResponse.json(results);

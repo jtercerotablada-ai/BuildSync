@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
+import { toast } from "sonner";
 
 export function InviteWorkerDialog() {
   const [open, setOpen] = useState(false);
@@ -31,6 +32,7 @@ export function InviteWorkerDialog() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError("");
 
@@ -41,12 +43,19 @@ export function InviteWorkerDialog() {
         body: JSON.stringify({ email, role }),
       });
 
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Failed to send invitation");
+        setError(data?.error || "Failed to send invitation");
         return;
       }
 
+      // The invitation is stored even when the email fails; say so instead
+      // of implying the invitee has been notified.
+      if (data?.warning) {
+        toast.warning(data.warning);
+      } else {
+        toast.success(`Invitation sent to ${email.trim()}`);
+      }
       setOpen(false);
       setEmail("");
       setRole("WORKER");

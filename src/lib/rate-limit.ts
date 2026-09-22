@@ -47,6 +47,37 @@ export function rateLimit(
   return { ok: true, retryAfter: 0 };
 }
 
+/**
+ * Read-only check: is `key` already at `limit` hits in its current window?
+ * Pair it with `rateLimit(key, …)` called only on the outcomes that should
+ * count — e.g. login counts FAILED attempts only, so a user who signs in
+ * correctly several times never locks themselves out.
+ */
+export function isRateLimited(
+  key: string,
+  limit: number
+): { limited: boolean; retryAfter: number } {
+  const bucket = buckets.get(key);
+  const now = Date.now();
+  if (!bucket || now > bucket.resetAt || bucket.count < limit) {
+    return { limited: false, retryAfter: 0 };
+  }
+  return { limited: true, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
+}
+
+/**
+ * Gives back one hit taken with `rateLimit(key, …)`. For limits that should
+ * count only failures but must still reserve the attempt up front: a
+ * peek-then-count check lets every request of a parallel burst through before
+ * the first failure is recorded.
+ */
+export function refundRateLimit(key: string): void {
+  const bucket = buckets.get(key);
+  if (bucket && Date.now() <= bucket.resetAt && bucket.count > 0) {
+    bucket.count--;
+  }
+}
+
 /** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
 export function clientIp(headers: Headers | Record<string, unknown>): string {
   const get = (name: string): string | null => {
