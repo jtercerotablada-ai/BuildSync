@@ -1,8 +1,11 @@
 /* ══════════════════════════════════════════════════════════════════════════
    QUIET PRECISION — Tercero Tablada public site design system
    ──────────────────────────────────────────────────────────────────────────
-   Everything is scoped under `.mp`. This is the ONLY stylesheet the public
-   site loads; it is imported once from (public)/layout.tsx.
+   Everything is scoped under `.mp`. This is the only stylesheet the public
+   site loads (next/font adds its @font-face rules); it is imported once from
+   (public)/layout.tsx. The root layout is bare — Tailwind, shadcn and
+   globals.css belong to the authenticated app's SaasShell — so the reset
+   below is this site's own, not Tailwind's.
 
    The system in one paragraph: two type families (Geist for everything,
 Instrument Serif italic for one accent word at a time),
@@ -48,7 +51,261 @@ cards…)
      18  Contact & form
      19  Responsive
      20  Reduced motion / print / forced colours
+   (Reset, above 00, sits in its own cascade layer.)
    ══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ RESET ═══════════════════════════════════════════════════════════════
+   Tailwind v4.1's preflight, rule for rule, scoped to `:where(.mp)`. The site
+   was designed on top of it while the root layout still loaded globals.css,
+   so reproducing it is what keeps every page pixel-identical now that it
+   doesn't. `:where()` adds no specificity, so each selector weighs exactly
+   what Tailwind's did, and the layer keeps every rule in this file winning
+   over the reset the same way it won over Tailwind's `@layer base`.
+   The last rule carries over the one globals.css base rule the site relied
+   on (pointer cursor on buttons).
+   ────────────────────────────────────────────────────────────────────────── */
+
+@layer mp-reset {
+  /* <body> sits outside .mp, so this is the one rule that cannot be scoped.
+     Harmless if it lingers after a client-side hop into the app: the app's
+     own preflight sets the same margin. */
+  body {
+    margin: 0;
+  }
+
+  :where(.mp),
+  :where(.mp)::after,
+  :where(.mp)::before,
+  :where(.mp) *,
+  :where(.mp) ::after,
+  :where(.mp) ::before,
+  :where(.mp) ::backdrop,
+  :where(.mp) ::file-selector-button {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+
+  /* Tailwind puts these on `html`; all are inherited, so .mp is enough. */
+  :where(.mp) {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+      'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :where(.mp) hr {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+
+  :where(.mp) abbr:where([title]) {
+    -webkit-text-decoration: underline dotted;
+    text-decoration: underline dotted;
+  }
+
+  :where(.mp) h1,
+  :where(.mp) h2,
+  :where(.mp) h3,
+  :where(.mp) h4,
+  :where(.mp) h5,
+  :where(.mp) h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  :where(.mp) a {
+    color: inherit;
+    -webkit-text-decoration: inherit;
+    text-decoration: inherit;
+  }
+
+  :where(.mp) b,
+  :where(.mp) strong {
+    font-weight: bolder;
+  }
+
+  /* The stack the pages actually rendered with: Tailwind's default was
+     overridden by the app theme's --font-mono (globals.css). */
+  :where(.mp) code,
+  :where(.mp) kbd,
+  :where(.mp) samp,
+  :where(.mp) pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    font-size: 1em;
+  }
+
+  :where(.mp) small {
+    font-size: 80%;
+  }
+
+  :where(.mp) sub,
+  :where(.mp) sup {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+
+  :where(.mp) sub {
+    bottom: -0.25em;
+  }
+
+  :where(.mp) sup {
+    top: -0.5em;
+  }
+
+  :where(.mp) table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+
+  :where(.mp) :-moz-focusring {
+    outline: auto;
+  }
+
+  :where(.mp) progress {
+    vertical-align: baseline;
+  }
+
+  :where(.mp) summary {
+    display: list-item;
+  }
+
+  :where(.mp) ol,
+  :where(.mp) ul,
+  :where(.mp) menu {
+    list-style: none;
+  }
+
+  :where(.mp) img,
+  :where(.mp) svg,
+  :where(.mp) video,
+  :where(.mp) canvas,
+  :where(.mp) audio,
+  :where(.mp) iframe,
+  :where(.mp) embed,
+  :where(.mp) object {
+    display: block;
+    vertical-align: middle;
+  }
+
+  :where(.mp) img,
+  :where(.mp) video {
+    max-width: 100%;
+    height: auto;
+  }
+
+  :where(.mp) button,
+  :where(.mp) input,
+  :where(.mp) select,
+  :where(.mp) optgroup,
+  :where(.mp) textarea,
+  :where(.mp) ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+
+  :where(.mp) :where(select:is([multiple], [size])) optgroup {
+    font-weight: bolder;
+  }
+
+  :where(.mp) :where(select:is([multiple], [size])) optgroup option {
+    padding-inline-start: 20px;
+  }
+
+  :where(.mp) ::file-selector-button {
+    margin-inline-end: 4px;
+  }
+
+  :where(.mp) ::placeholder {
+    opacity: 1;
+  }
+
+  @supports (not (-webkit-appearance: -apple-pay-button)) or
+    (contain-intrinsic-size: 1px) {
+    :where(.mp) ::placeholder {
+      color: color-mix(in oklab, currentcolor 50%, transparent);
+    }
+  }
+
+  :where(.mp) textarea {
+    resize: vertical;
+  }
+
+  :where(.mp) ::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+
+  :where(.mp) ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+
+  :where(.mp) ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+
+  :where(.mp) ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+
+  :where(.mp) ::-webkit-datetime-edit,
+  :where(.mp) ::-webkit-datetime-edit-year-field,
+  :where(.mp) ::-webkit-datetime-edit-month-field,
+  :where(.mp) ::-webkit-datetime-edit-day-field,
+  :where(.mp) ::-webkit-datetime-edit-hour-field,
+  :where(.mp) ::-webkit-datetime-edit-minute-field,
+  :where(.mp) ::-webkit-datetime-edit-second-field,
+  :where(.mp) ::-webkit-datetime-edit-millisecond-field,
+  :where(.mp) ::-webkit-datetime-edit-meridiem-field {
+    padding-block: 0;
+  }
+
+  :where(.mp) ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+
+  :where(.mp) :-moz-ui-invalid {
+    box-shadow: none;
+  }
+
+  :where(.mp) button,
+  :where(.mp) input:where([type='button'], [type='reset'], [type='submit']),
+  :where(.mp) ::file-selector-button {
+    appearance: button;
+  }
+
+  :where(.mp) ::-webkit-inner-spin-button,
+  :where(.mp) ::-webkit-outer-spin-button {
+    height: auto;
+  }
+
+  :where(.mp) [hidden]:where(:not([hidden='until-found'])) {
+    display: none !important;
+  }
+
+  /* From globals.css, not preflight: v4 leaves buttons at cursor:default. */
+  :where(.mp) button:not(:disabled),
+  :where(.mp) [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
 
 /* ═══ 00 · TOKENS ═════════════════════════════════════════════════════════ */
 
@@ -153,13 +410,10 @@ cards…)
   -moz-osx-font-smoothing: grayscale;
   font-synthesis-weight: none;
   overflow-x: clip;
-}/* Neutralise the legacy dark-theme body chrome behind the light site. */
-html:has(.mp),
-body:has(.mp) {
+}/* Paint the canvas paper, so overscroll and the space under a short page
+   never show white. <html> sits outside .mp, hence :has(). */
+html:has(.mp) {
   background: #f6f4ef;
-}
-body:has(.mp)::before {
-  display: none;
 }/* ── Large displays ───────────────────────────────────────────────────────
    Past ~1500px every fluid clamp has hit its ceiling,
 so without these steps

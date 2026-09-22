@@ -148,8 +148,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* font-sans + antialiased used to be classes on <body> in the root
+     layout. The root is bare now (the public site must not load this file),
+     so SaasShell defines --font-inter on :root and they are applied here. */
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
   }
   /* Tailwind v4 preflight leaves buttons at cursor:default (v3 used
      pointer). Restore the pointer app-wide per the official v4 upgrade

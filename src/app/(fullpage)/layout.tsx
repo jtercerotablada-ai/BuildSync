@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { SaasShell } from "@/components/layout/saas-shell";
 
 export default async function FullPageLayout({
   children,
@@ -13,5 +14,5 @@ export default async function FullPageLayout({
     redirect("/login");
   }
 
-  return <>{children}</>;
+  return <SaasShell>{children}</SaasShell>;
 }

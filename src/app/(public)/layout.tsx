@@ -11,12 +11,15 @@ import './mp.css';
    section indices), and Instrument Serif appears only as an italic accent on
    single words.
 
-   mp.css is the ONLY stylesheet the public site loads. The five legacy
-   sheets (ttc-globals, ttc-pop, ttc-refresh-2026, ttc-fx-pro,
-   ttc-sections-pro — ~12,000 lines between them) and the Leaflet CSS served
-   the retired chrome and are no longer referenced by any public page, so
-   they no longer ship. Same for LanguageProvider: nothing under (public)
-   consumes useTranslation any more.
+   mp.css is the only stylesheet the public site loads, reset included. The
+   root layout is bare: the app's globals.css (Tailwind + shadcn), Inter and
+   the session/query/AI providers and toaster live in SaasShell, used only by
+   the SaaS layouts, so none of it ships here. The five legacy sheets
+   (ttc-globals, ttc-pop, ttc-refresh-2026, ttc-fx-pro, ttc-sections-pro —
+   ~12,000 lines between them) and the Leaflet CSS served the retired chrome
+   and are no longer referenced by any public page, so they no longer ship.
+   Same for LanguageProvider: nothing under (public) consumes useTranslation
+   any more.
    ────────────────────────────────────────────────────────────────────────── */
 
 const mpSans = Geist({

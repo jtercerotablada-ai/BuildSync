@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { SaasShell } from "@/components/layout/saas-shell";
 import prisma from "@/lib/prisma";
 import { getPrimaryWorkspaceMembership } from "@/lib/auth-guards";
 // The Home page (Firm view map) is re-exported under /portal — Leaflet's base
@@ -40,5 +41,9 @@ export default async function PortalLayout({
     }
   }
 
-  return <DashboardShell basePath="/portal">{children}</DashboardShell>;
+  return (
+    <SaasShell>
+      <DashboardShell basePath="/portal">{children}</DashboardShell>
+    </SaasShell>
+  );
 }

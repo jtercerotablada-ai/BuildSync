@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { SaasShell } from "@/components/layout/saas-shell";
 import "leaflet/dist/leaflet.css";
 
 export default async function DashboardLayout({
@@ -21,5 +22,9 @@ export default async function DashboardLayout({
   // uses the i18n hooks — the product UI is English-only. Dropping it also
   // removes one of the duplicate GET /api/users/preferences requests that
   // fired on every dashboard page load.
-  return <DashboardShell>{children}</DashboardShell>;
+  return (
+    <SaasShell>
+      <DashboardShell>{children}</DashboardShell>
+    </SaasShell>
+  );
 }
