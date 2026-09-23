@@ -317,7 +317,7 @@ const services: SiteContent['services'] = [
           jurisdiction: 'Condado de Miami-Dade',
           source: 'Código del Condado de Miami-Dade §8-11(f)',
           facts: [
-            { k: 'Primer vencimiento', v: '30 años — 25 años para edificios a unas 3 millas o menos de la costa' },
+            { k: 'Primer vencimiento', v: '30 años — 25 años para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa' },
             { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura' },
             { k: 'Plazo para cumplir', v: '90 días desde la notificación del condado' },
             { k: 'Fuera del programa', v: 'Viviendas unifamiliares, dúplex y edificios de 10 ocupantes o menos y 2,000 pies cuadrados o menos' },
@@ -820,7 +820,7 @@ export const es: SiteContent = {
     plainTitle: 'Miles de edificios. Un plazo para cada uno.',
     body: 'Los programas de recertificación del Sur de Florida alcanzan a la mayoría de los edificios, salvo las viviendas unifamiliares y los dúplex, a los 25 o 30 años de edad, y regresan cada diez años durante la vida de la estructura. Llevamos la parte estructural de principio a fin: inspección, hallazgos, alcance de reparaciones, reinspección, presentación.',
     facts: [
-      { k: 'Miami-Dade', v: '30 años · 25 cerca de la costa · luego cada 10' },
+      { k: 'Miami-Dade', v: '30 años · 25 para condominios costeros (3+ pisos) · luego cada 10' },
       { k: 'Broward', v: '25 años · luego cada 10' },
       { k: 'Inspección de hito estatal', v: 'Condominios de 3+ pisos · 30 años (25 por regla local) · luego cada 10' },
     ],
@@ -1043,7 +1043,7 @@ export const es: SiteContent = {
     timeline: {
       eyebrow: 'Recertificación de edificios',
       title: 'Un camino claro desde la notificación hasta el cumplimiento.',
-      lede: 'Miami-Dade exige la primera recertificación a los 30 años — 25 cerca de la costa; Broward a los 25; la inspección de hito estatal a los 30 para condominios de tres pisos habitables o más. Todas regresan cada diez años. Llevamos la parte estructural de principio a fin para que la junta directiva sepa qué sigue en cada etapa.',
+      lede: 'Miami-Dade exige la primera recertificación a los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a tres millas o menos de la costa; Broward a los 25; la inspección de hito estatal a los 30 para condominios de tres pisos habitables o más. Todas regresan cada diez años. Llevamos la parte estructural de principio a fin para que la junta directiva sepa qué sigue en cada etapa.',
       cta: { href: '/services/building-recertification', label: 'Recertificación en detalle' },
       steps: [
         { n: '01', title: 'Revisión de la notificación', detail: 'Leemos la notificación y el registro del edificio, confirmamos qué pide la jurisdicción y fijamos el calendario en función del plazo indicado.' },

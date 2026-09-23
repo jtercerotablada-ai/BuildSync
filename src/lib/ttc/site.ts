@@ -720,7 +720,11 @@ export const services: Service[] = [
           jurisdiction: 'Miami-Dade County',
           source: 'Code of Miami-Dade County §8-11(f)',
           facts: [
-            { k: 'First due', v: '30 years — 25 years for buildings within about 3 miles of the coast' },
+            // Re-checked 2026-09-22 against miamidade.gov: the 25-year trigger
+            // is for "condominium and cooperative association buildings that
+            // are three stories or taller located within three miles of the
+            // coastline"; every other building is 30. Not "coastal buildings".
+            { k: 'First due', v: '30 years — 25 years for condominium and cooperative buildings of three or more stories within 3 miles of the coast' },
             { k: 'Then', v: 'Every 10 years, for the life of the structure' },
             { k: 'Time to comply', v: '90 days from the county notice' },
             { k: 'Outside the program', v: 'Single-family homes, duplexes, and buildings of 10 occupants or fewer and 2,000 sq ft or less' },
@@ -1048,7 +1052,7 @@ export const recertBand = {
      Florida buildings are single-family homes, outside the program. */
   body: 'South Florida’s recertification programs reach most buildings other than single-family homes and duplexes at 25 or 30 years of age, and return every ten years for the life of the structure. We carry the structural side end to end: inspection, findings, repair scope, reinspection, submission.',
   facts: [
-    { k: 'Miami-Dade', v: '30 years · 25 near the coast · then every 10' },
+    { k: 'Miami-Dade', v: '30 years · 25 for coastal condos (3+ stories) · then every 10' },
     { k: 'Broward', v: '25 years · then every 10' },
     { k: 'State milestone', v: 'Condos 3+ stories · 30 years (25 by local rule) · then every 10' },
   ],
@@ -1343,7 +1347,7 @@ export const existingPage = {
   timeline: {
     eyebrow: 'Building recertification',
     title: 'A clear path from notice to compliance.',
-    lede: 'Miami-Dade calls the first recertification at 30 years — 25 near the coast; Broward at 25; the state milestone inspection at 30 for condominiums of three habitable stories or more. All of them come back every ten years. We run the structural side end to end so the board knows what happens next at every stage.',
+    lede: 'Miami-Dade calls the first recertification at 30 years — 25 for condominium and co-op buildings of three or more stories within three miles of the coast; Broward at 25; the state milestone inspection at 30 for condominiums of three habitable stories or more. All of them come back every ten years. We run the structural side end to end so the board knows what happens next at every stage.',
     cta: { href: '/services/building-recertification', label: 'Recertification in Detail' },
     steps: [
       { n: '01', title: 'Notice review', detail: 'We read the notice and the building record, confirm what the jurisdiction is asking for, and set the schedule against the stated deadline.' },
