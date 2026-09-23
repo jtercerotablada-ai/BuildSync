@@ -31,16 +31,54 @@ export function SmoothScroll() {
     rafId = requestAnimationFrame(raf);
 
     // In-page anchor links (e.g. hero → #services) scroll smoothly too.
+    //
+    // Taking over a click means taking over everything the browser would have
+    // done with it, not just the scroll: the target gets focus (so the next
+    // Tab continues from THERE, not from the top of the header) and the URL
+    // gets the hash. The skip link is not ours — SiteHeader handles it (an
+    // instant jump is the point for a keyboard user). This handler used to
+    // swallow it: preventDefault, a smooth scroll, focus still on the link,
+    // no hash, and the next Tab back on the logo.
     const onClick = (e: MouseEvent) => {
+      if (
+        e.defaultPrevented ||
+        e.button !== 0 ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.shiftKey ||
+        e.altKey
+      ) {
+        return;
+      }
       const a = (e.target as HTMLElement)?.closest?.('a[href^="#"]') as HTMLAnchorElement | null;
-      if (!a) return;
+      if (!a || a.classList.contains('mp-skip')) return;
       const id = a.getAttribute('href');
       if (!id || id === '#') return;
-      const el = document.querySelector(id);
-      if (el) {
-        e.preventDefault();
-        lenis.scrollTo(el as HTMLElement, { offset: -80 });
+      // getElementById, not querySelector: a fragment like "#2024" is a valid
+      // id but an invalid selector, and querySelector would throw.
+      let el: HTMLElement | null = null;
+      try {
+        el = document.getElementById(decodeURIComponent(id.slice(1)));
+      } catch {
+        return;
       }
+      if (!el) return;
+      e.preventDefault();
+      // No offset here: mp.css sets `scroll-padding-top` on <html> to the
+      // header height (+12px) at every breakpoint, and Lenis 1.3 subtracts the
+      // container's scroll-padding (and the target's scroll-margin) itself
+      // when handed an element. Passing the header height again would land
+      // every anchor one header too low.
+      lenis.scrollTo(el);
+      if (!el.matches('a[href], button, input, select, textarea, [tabindex]')) {
+        el.setAttribute('tabindex', '-1');
+      }
+      el.focus({ preventScroll: true });
+      // history.state is passed through untouched so the entry keeps the App
+      // Router's state: a native hash jump would push a state-less entry, and
+      // Next ignores a popstate without state, so Back onto it would change
+      // the URL and leave the previous page on screen. Replace, not push.
+      history.replaceState(history.state, '', id);
     };
     document.addEventListener('click', onClick);
 

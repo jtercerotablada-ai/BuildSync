@@ -39,6 +39,11 @@ export function L({
  * The root layout stamps `<html lang="en">` for the whole app. The Spanish
  * pages correct it on the client so screen readers and translation tools get
  * the right language; the `hreflang` metadata carries it for crawlers.
+ *
+ * Before this runs (and without JavaScript) the server HTML is still scoped
+ * correctly element by element: es/layout.tsx wraps the page body in
+ * `<div lang="es">`, and the skip link, header, menu and footer each carry
+ * `lang={htmlLang[lang]}` themselves.
  */
 export function LangHtml() {
   const lang = useLang();

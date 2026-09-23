@@ -5,12 +5,25 @@ Usage: python process_brand_logos.py <img1> <img2> [...]
 Auto-classifies each input as 'square' (aspect ~1) or 'horizontal' (wide), then
 writes every variant the live site references into ../public/ttc/img/:
 
-  logo-square.png        dark mark, transparent  (auth + onboarding, light bg)
-  logo-white.png         white+gold mark         (public header + footer, dark bg)
+  logo-square.png        dark mark, transparent  (auth + onboarding + JSON-LD logo, light bg)
+  logo-white.png         white+gold mark         (email templates; master for logo-white@256)
   logo-icon-dark.svg     dark mark               (SaaS app header, light bg)
   logo-icon.svg          white+gold mark         (mobile public header, dark bg)
   logo-icon-favicon.svg  white mark on black tile (browser tab)
-  logo-horizontal*.png / logo-white-wide.png  (lockup variants, for completeness)
+  logo-horizontal.png / logo-white-wide.png   (lockup masters; source of the @640
+                                               rendition, not loaded by the site)
+  logo-square@256.png / logo-white@256.png    (display renditions: public header,
+                                               engineer plate, SaaS fallback screen)
+  logo-white-wide@640.png                     (display rendition: public footer)
+
+The renditions are straight resizes of the masters and are what the pages
+actually load (company.logo.*Sm in src/lib/ttc/site.ts + site.es.ts). If the
+lockup's aspect changes, update company.logo.lockupSmSize in BOTH files — the
+script prints the new size.
+
+NOT generated here, but cut from logo-white.png on the graphite tile and to be
+regenerated whenever the mark changes: public/ttc/icons/{apple-touch-icon,
+icon-48,icon-192}.png and public/favicon.ico (16/32/48).
 """
 import sys, os, io, base64
 import numpy as np
@@ -163,6 +176,9 @@ def main():
         save(sq, 'logo-square.png'); out.append(('logo-square.png', sq.shape, alpha_cov(sq)))
         sw = to_white(sq)
         save(sw, 'logo-white.png'); out.append(('logo-white.png', sw.shape, alpha_cov(sw)))
+        for arr, name in ((sq, 'logo-square@256.png'), (sw, 'logo-white@256.png')):
+            to_image(arr).resize((256, 256), Image.LANCZOS).save(os.path.join(OUT, name), 'PNG', optimize=True)
+            out.append((name, (256, 256), alpha_cov(arr)))
 
         mark_dark = fit_square(s, 256, pad_frac=0.05)
         mark_white = to_white(mark_dark)
@@ -182,10 +198,14 @@ def main():
     if horiz_src:
         h = autocrop(make_transparent(load_rgba(horiz_src)), pad_frac=0.02)
         hz = fit_width(h, 2172, pad_frac=0.03)
-        save(hz, 'logo-horizontal-wide.png'); out.append(('logo-horizontal-wide.png', hz.shape, alpha_cov(hz)))
         save(hz, 'logo-horizontal.png'); out.append(('logo-horizontal.png', hz.shape, alpha_cov(hz)))
         hw = to_white(hz)
         save(hw, 'logo-white-wide.png'); out.append(('logo-white-wide.png', hw.shape, alpha_cov(hw)))
+        im = to_image(hw)
+        nh = round(im.height * 640 / im.width)
+        im.resize((640, nh), Image.LANCZOS).save(os.path.join(OUT, 'logo-white-wide@640.png'), 'PNG', optimize=True)
+        out.append(('logo-white-wide@640.png', (nh, 640), alpha_cov(hw)))
+        print(f'company.logo.lockupSmSize must be {{ w: 640, h: {nh} }} in site.ts AND site.es.ts')
 
     print('\nOUTPUTS:')
     for n, sh, c in out:

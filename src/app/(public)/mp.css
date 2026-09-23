@@ -8,50 +8,41 @@
    below is this site's own, not Tailwind's.
 
    The system in one paragraph: two type families (Geist for everything,
-Instrument Serif italic for one accent word at a time),
-a five-colour
-   palette (graphite,
-charcoal,
-concrete,
-paper,
-gold),
-hairlines instead of
-   boxes,
-photographs instead of drawings,
-and a lot of air. Section
+   Instrument Serif italic for one accent word at a time), a five-colour
+   palette (graphite, charcoal, concrete, paper, gold), hairlines instead of
+   boxes, photographs instead of drawings, and a lot of air. Section
    furniture is one small index + label. Nothing is decorated.
 
    Structure
      00  Tokens
      01  Base & layout
-     02  Section language (eyebrow,
-section heading,
-intro,
-rules,
-notes)
+     02  Section language (eyebrow, section heading, intro, rules, notes)
      03  Buttons & links
      04  Header / mobile menu
      05  Footer
      06  Hero
      07  The practice (statement + two paths)
      08  Typologies
-     09  Video band
+     09  Video band (+ the background-video pause toggle)
      10  BIM + toolchain
-     11  Process stages
+     11  (retired)
      12  Service area
      13  Closing CTA
-     14  Internal pages (page hero,
-breadcrumbs,
-split,
-prose,
-cards…)
+     14  Internal pages (page hero, breadcrumbs, split, prose, cards…)
      15  Work + gallery
      16  Timeline
      17  Credentials + leadership
      18  Contact & form
      19  Responsive
-     20  Reduced motion / print / forced colours
+     20  V3 additions (engineer, doors, steps, service cards, attachments),
+         with their own responsive rules
+     21  Reduced motion / print / forced colours
+     22  Large displays (≥1500 / ≥2000) — last, so its overrides win
    (Reset, above 00, sits in its own cascade layer.)
+
+   Order is load-bearing: a media query adds no specificity, so a responsive
+   or large-display override only works if it comes AFTER the base rule it
+   overrides. Base rules go in their numbered section; overrides go below.
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ═══ RESET ═══════════════════════════════════════════════════════════════
@@ -344,6 +335,20 @@ cards…)
   --mp-line-strong: rgba(11, 12, 13, 0.28);
   --mp-line-dark: rgba(246, 244, 239, 0.16);
   --mp-line-dark-soft: rgba(246, 244, 239, 0.08);
+  /* A form field has no box: its underline is the only edge that says where
+     the input is, so it is a UI boundary (WCAG 1.4.11, 3:1), not decoration.
+     3.6:1 on paper, 3.5:1 on concrete — still a 1px hairline. */
+  --mp-line-input: rgba(11, 12, 13, 0.5);
+
+  /* The one surface outside the five: white cards (service cards, the
+     jurisdiction cards) lifted off a paper section. Paper-on-paper would
+     lose the lift. */
+  --mp-card: #ffffff;
+
+  /* Form errors only. The mark red (borders, the square) and the text red,
+     7.5:1 on paper. */
+  --mp-error: #a63a2a;
+  --mp-error-ink: #8c2f21;
 
   /* ── Type ────────────────────────────────────────────────────────────── */
   --mp-sans: var(--mp-font-sans), ui-sans-serif, system-ui, -apple-system,
@@ -381,9 +386,9 @@ cards…)
   --mp-section-y-lg: clamp(5.5rem, 8.5vw, 8rem);
 
   /* ── Containers ──────────────────────────────────────────────────────── */
+  /* One content width for everything, header included, so the monogram and
+     the CTA sit on the same edges as every section's text. */
   --mp-w: 1400px;
-  --mp-w-wide: 1600px;
-  --mp-w-narrow: 1120px;
   --mp-w-text: 64ch;
   --mp-pad: clamp(1.25rem, 4.5vw, 4.5rem);
 
@@ -410,90 +415,34 @@ cards…)
   -moz-osx-font-smoothing: grayscale;
   font-synthesis-weight: none;
   overflow-x: clip;
-}/* Paint the canvas paper, so overscroll and the space under a short page
+}
+
+/* Paint the canvas paper, so overscroll and the space under a short page
    never show white. <html> sits outside .mp, hence :has(). */
 html:has(.mp) {
   background: #f6f4ef;
-}/* ── Large displays ───────────────────────────────────────────────────────
-   Past ~1500px every fluid clamp has hit its ceiling,
-so without these steps
-   the site collapses into a narrow column on a 1920 or 2560 monitor. The
-   container,
-gutters,
-type and section rhythm all scale together. */
-@media (min-width: 1500px) {
-  .mp {
-    --mp-w: 1640px;
-    --mp-w-wide: 1820px;
-    --mp-w-narrow: 1300px;
-    --mp-pad: clamp(3.5rem, 4.4vw, 6rem);
+}
 
-    --mp-t-display: clamp(5.75rem, 5.4vw, 7.5rem);
-    --mp-t-h1: clamp(4.25rem, 4vw, 5.75rem);
-    --mp-t-h2: clamp(3.1rem, 3vw, 4.2rem);
-    --mp-t-h3: clamp(1.6rem, 1.5vw, 2.1rem);
-    --mp-t-h4: clamp(1.2rem, 1.02vw, 1.45rem);
-    --mp-t-lead: clamp(1.3rem, 1.05vw, 1.5rem);
-    --mp-t-body: clamp(1.0625rem, 0.86vw, 1.1875rem);
-    --mp-t-small: clamp(0.9rem, 0.72vw, 1rem);
-    --mp-t-label: clamp(0.75rem, 0.56vw, 0.85rem);
-
-    --mp-section-y: clamp(6.5rem, 5.4vw, 8.5rem);
-    --mp-section-y-lg: clamp(8rem, 7vw, 11rem);
-    --mp-header-h: 96px;
-  }
-  .mp-header__lockup {
-    height: clamp(46px, 3.2vw, 54px);
-  }
-  .mp-tool__plate {
-    --plate-h: clamp(46px, 3vw, 58px);
-  }
-  .mp-paths__title {
-    font-size: clamp(4.6rem, 4.4vw, 6.4rem);
-  }
-  .mp-close__title {
-    font-size: clamp(4.6rem, 4.3vw, 6.2rem);
-  }
-  .mp-paths__title,
-  .mp-hero__title,
-  .mp-close__title {
-    letter-spacing: -0.036em;
-  }
-  .mp-svcgrid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .mp-creds {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-  .mp-cred:nth-child(3n) {
-    border-inline-end: 1px solid var(--mp-line);
-  }
-  .mp-cred:nth-child(6n) {
-    border-inline-end: 0;
+/* The header is fixed, so anything the browser scrolls into view for us — a
+   #hash target, a focused link on Tab / Shift+Tab, PageDown — must stop below
+   it, or the focused control lands under the bar (WCAG 2.4.11). The header
+   height lives on .mp, which html cannot read, hence literal values: header +
+   12px, at every header height (76 → 68 at ≤1180 → 96 at ≥1500, below and in
+   the large-display block at the end of the file). Lenis honours it too:
+   handed an element, Lenis 1.3 subtracts the container's scroll-padding
+   itself, so smooth-scroll.tsx passes NO extra header offset. */
+html:has(.mp) {
+  scroll-padding-top: 88px;
+}
+@media (max-width: 1180px) {
+  html:has(.mp) {
+    scroll-padding-top: 80px;
   }
 }
 
-@media (min-width: 2000px) {.mp {
-    --mp-w: 1880px;
-    --mp-w-wide: 2040px;
-    --mp-pad: 6.5rem;
-    --mp-t-display: 8.25rem;
-    --mp-t-h1: 6.25rem;
-    --mp-section-y: 11rem;
-    --mp-section-y-lg: 14rem;
-  }
-.mp-paths__title {
-    font-size: 7.25rem;
-  }
-.mp-close__title {
-    font-size: 6.75rem;
-  }
-}/* ═══ 01 · BASE & LAYOUT ══════════════════════════════════════════════════ */
+/* ═══ 01 · BASE & LAYOUT ══════════════════════════════════════════════════ */
 
-.mp :where(h1,
-h2,
-h3,
-h4) {
+.mp :where(h1, h2, h3, h4) {
   font-weight: 500;
   letter-spacing: var(--mp-track-tight);
   line-height: 1.04;
@@ -502,42 +451,33 @@ h4) {
 .mp :where(p) {
   text-wrap: pretty;
 }
-.mp :where(img,
-svg,
-video) {
+.mp :where(img, svg, video) {
   max-width: 100%;
 }
 .mp ::selection {
   background: var(--mp-gold);
   color: var(--mp-graphite);
-}/* Focus — always visible,
-never removed */
-.mp :where(a,
-button,
-input,
-select,
-textarea,
-[tabindex]):focus-visible {
+}
+
+/* Focus — always visible, never removed. One rule for every surface: the ring
+   reads --mp-gold-ink, which is bronze on paper and concrete (5.6 / 4.9:1)
+   and is remapped to the bright gold (7.7:1) by every dark context — the dark
+   surface token block below, and the header while it floats over a dark
+   hero (04 · HEADER). A new dark context gets the right ring by joining one
+   of those, not by being added to a list here. */
+.mp :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--mp-gold-ink);
   outline-offset: 3px;
 }
-.mp-surface--graphite :where(a,
-button,
-[tabindex]):focus-visible,
-.mp-surface--charcoal :where(a,
-button,
-[tabindex]):focus-visible,
-.mp-band :where(a,
-button,
-[tabindex]):focus-visible,
-.mp-phero :where(a,
-button,
-[tabindex]):focus-visible,
-.mp-footer :where(a,
-button,
-[tabindex]):focus-visible {
-  outline-color: var(--mp-gold);
+
+/* <main id="main" tabIndex={-1}> is where "Skip to content" moves focus. It
+   is a programmatic focus target, not a control, so it must not draw a ring
+   around the whole page. The id beats the :where() rule above. */
+.mp #main:focus,
+.mp #main:focus-visible {
+  outline: none;
 }
+
 .mp-skip {
   position: absolute;
   left: var(--mp-4);
@@ -553,18 +493,35 @@ button,
 }
 .mp-skip:focus {
   transform: translateY(0);
-}/* ── Shell / layout ──────────────────────────────────────────────────────── */
+}
+
+/* Visually hidden, still read: a section's hidden h2 label, a link's
+   "which service" suffix, a live region, the file input behind its button.
+   Absolutely positioned, so inside an inline-flex link or a flex row it adds
+   no gap. (.mp-form__hp is the honeypot's own copy of these declarations —
+   do not reuse it for anything a person should hear.) */
+.mp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Hook classes — names the markup carries so a section or a column can be
+   targeted, which need no rule of their own today:
+     .mp-eng  .mp-eng__copy  .mp-geo__copy  .mp-sechead__label
+     .mp-tools-sec  .mp-typo__card
+   Listed here so a "class with no rule" audit can tell a hook from a class
+   whose styles were lost. */
+
+/* ── Shell / layout ──────────────────────────────────────────────────────── */
 .mp-shell {
   width: 100%;
   max-width: var(--mp-w);
   margin-inline: auto;
   padding-inline: var(--mp-pad);
-}
-.mp-shell--wide {
-  max-width: var(--mp-w-wide);
-}
-.mp-shell--narrow {
-  max-width: var(--mp-w-narrow);
 }
 .mp-measure {
   max-width: var(--mp-w-text);
@@ -576,9 +533,29 @@ button,
 .mp-section--lg {
   padding-block: var(--mp-section-y-lg);
 }
-.mp-section--flush-top {
+
+/* Two sections of the same surface in a row (/services "Existing buildings"
+   → "How we work", /contact form → "Where we work", …) would stack both
+   paddings into one ~245px field of flat colour with nothing marking the
+   seam. The second one drops its top padding and opens with a hairline on
+   the content edge instead. The rule is sized like .mp-shell's content box
+   (the shell's width less its two gutters, centred), so it starts and ends
+   where the text does, like every other rule on the site, whatever the
+   section's first child is. Graphite → graphite (gallery → closing CTA) is
+   left alone: the closing section has its own plan-grid motif. */
+:is(.mp-surface--paper + .mp-surface--paper, .mp-surface--concrete + .mp-surface--concrete) {
   padding-block-start: 0;
-}/* ── Surfaces ────────────────────────────────────────────────────────────── */
+}
+:is(.mp-surface--paper + .mp-surface--paper, .mp-surface--concrete + .mp-surface--concrete)::before {
+  content: '';
+  display: block;
+  width: calc(min(100%, var(--mp-w)) - 2 * var(--mp-pad));
+  height: 1px;
+  margin: 0 auto var(--mp-section-y);
+  background: var(--mp-line);
+}
+
+/* ── Surfaces ────────────────────────────────────────────────────────────── */
 .mp-surface--paper {
   background: var(--mp-paper);
   color: var(--mp-ink);
@@ -586,19 +563,22 @@ button,
 .mp-surface--concrete {
   background: var(--mp-concrete);
   color: var(--mp-ink);
-}/* Every dark surface carries the same token block,
-so any component that
+}
+
+/* Every dark surface carries the same token block, so any component that
    reads --mp-ink-* or --mp-line is right on either surface without knowing
-   which one it is on. */
+   which one it is on — text, hairlines, focus rings and the dark button
+   variants (03). The mobile menu is a graphite surface too. */
 .mp-surface--graphite,
-.mp-surface--charcoal,
 .mp-band,
 .mp-phero,
-.mp-footer {
+.mp-footer,
+.mp-menu {
   color: var(--mp-snow);
   --mp-line: var(--mp-line-dark);
   --mp-line-soft: var(--mp-line-dark-soft);
   --mp-line-strong: rgba(246, 244, 239, 0.32);
+  --mp-line-input: rgba(246, 244, 239, 0.5);
   --mp-ink: var(--mp-snow);
   --mp-ink-2: var(--mp-snow-2);
   --mp-ink-3: var(--mp-snow-2);
@@ -608,18 +588,8 @@ so any component that
 .mp-surface--graphite {
   background: var(--mp-graphite);
 }
-.mp-surface--charcoal {
-  background: var(--mp-charcoal);
-}/* ── Type utilities ──────────────────────────────────────────────────────── */
-.mp-display {
-  font-size: var(--mp-t-display);
-  font-weight: 500;
-  line-height: 0.96;
-  letter-spacing: var(--mp-track-tight);
-}
-.mp-h1 {
-  font-size: var(--mp-t-h1);
-}
+
+/* ── Type utilities ──────────────────────────────────────────────────────── */
 .mp-h2 {
   font-size: var(--mp-t-h2);
   line-height: 1.04;
@@ -628,11 +598,6 @@ so any component that
   font-size: var(--mp-t-h3);
   line-height: 1.15;
   letter-spacing: -0.02em;
-}
-.mp-h4 {
-  font-size: var(--mp-t-h4);
-  line-height: 1.25;
-  letter-spacing: -0.012em;
 }
 .mp-lead {
   font-size: var(--mp-t-lead);
@@ -648,16 +613,17 @@ so any component that
   font-weight: 400;
   letter-spacing: -0.005em;
 }
-.mp-mono {
-  font-family: var(--mp-mono);
-  font-size: var(--mp-t-label);
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}/* ═══ 02 · SECTION LANGUAGE ═══════════════════════════════════════════════ */
+/* The gold accent in a headline is one phrase ("South Florida.", "Sur de
+   Florida.") and must never break across two lines — split, it reads as two
+   accents. Every accent is three short words at most (~300px at the phone
+   headline size), so it always fits the line on its own. */
+.mp :is(h1, h2) .mp-serif {
+  white-space: nowrap;
+}
 
-/* Eyebrow: a short gold rule and a small tracked label. Used on the hero,
-the
+/* ═══ 02 · SECTION LANGUAGE ═══════════════════════════════════════════════ */
+
+/* Eyebrow: a short gold rule and a small tracked label. Used on the hero, the
    page heroes and the video bands. */
 .mp-eyebrow {
   display: inline-flex;
@@ -676,7 +642,9 @@ the
   height: 1px;
   background: var(--mp-gold);
   flex: none;
-}/* Section heading: "01 — What we design". The only furniture a section has. */
+}
+
+/* Section heading: "01 — What we design". The only furniture a section has. */
 .mp-sechead {
   display: flex;
   align-items: center;
@@ -702,7 +670,9 @@ the
   width: 20px;
   height: 1px;
   background: var(--mp-gold);
-}/* Small index used inside cards and rows */
+}
+
+/* Small index used inside cards and rows */
 .mp-secnum {
   font-family: var(--mp-mono);
   font-size: var(--mp-t-label);
@@ -710,7 +680,9 @@ the
   color: var(--mp-gold-ink);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
-}/* Intro block: headline + lede that opens most sections */
+}
+
+/* Intro block: headline + lede that opens most sections */
 .mp-intro {
   display: grid;
   gap: var(--mp-6);
@@ -727,15 +699,16 @@ the
   color: var(--mp-ink-3);
   margin: 0;
   max-width: 58ch;
-}/* Hairline rule that draws itself on reveal. */
+}
+
+/* Hairline rule that draws itself on reveal. */
 .mp-rule {
   height: 1px;
   background: var(--mp-line);
   transform-origin: left center;
 }
-.mp-rule--gold {
-  background: var(--mp-gold);
-}/* A quiet footnote under a section */
+
+/* A quiet footnote under a section */
 .mp-note {
   font-size: var(--mp-t-small);
   line-height: 1.65;
@@ -743,10 +716,17 @@ the
   max-width: 72ch;
   margin: var(--mp-8) 0 0;
 }
+/* Underlined, not just coloured: bronze against the grey note text is
+   1.04:1 in luminance, so without the line the link is invisible to anyone
+   who cannot tell the hues apart (WCAG 1.4.1). Same treatment as .mp-prose a. */
 .mp-note a {
   color: var(--mp-gold-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mp-gold);
   text-underline-offset: 3px;
-}/* Honest small print */
+}
+
+/* Honest small print */
 .mp-disclaimer {
   margin-block-start: var(--mp-8);
   padding-block-start: var(--mp-4);
@@ -755,7 +735,17 @@ the
   line-height: 1.7;
   color: var(--mp-ink-3);
   max-width: 80ch;
-}/* ═══ 03 · BUTTONS & LINKS ════════════════════════════════════════════════ */
+}
+
+/* ═══ 03 · BUTTONS & LINKS ════════════════════════════════════════════════ */
+
+/* Hover effects — every one in this file — sit inside
+   `@media (hover: hover) and (pointer: fine)`. On a touch screen a tap
+   fires :hover and it stays on until the next tap elsewhere (and bfcache
+   restores it on Back): a zoomed photo, a coloured logo, a half-drawn gold
+   sweep left behind on a card the visitor has already left. The
+   :focus-visible counterparts stay outside the query — a keyboard user on
+   any device still gets them. */
 
 .mp-btn {
   --btn-bg: var(--mp-graphite);
@@ -789,9 +779,8 @@ the
   display: inline-block;
   transition: transform var(--mp-dur) var(--mp-ease);
 }
-.mp-btn:hover .mp-btn__arrow {
-  transform: translateX(4px);
-}/* Gold underline sweeps across the button face on hover. */
+
+/* Gold underline sweeps across the button face on hover. */
 .mp-btn::after {
   content: '';
   position: absolute;
@@ -804,7 +793,6 @@ the
   transform-origin: left center;
   transition: transform var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-btn:hover::after,
 .mp-btn:focus-visible::after {
   transform: scaleX(1);
 }
@@ -813,29 +801,50 @@ the
   --btn-fg: var(--mp-ink);
   --btn-line: var(--mp-line-strong);
 }
-.mp-btn--line:hover {
-  --btn-line: var(--mp-ink);
+@media (hover: hover) and (pointer: fine) {
+  .mp-btn:hover .mp-btn__arrow {
+    transform: translateX(4px);
+  }
+  .mp-btn:hover::after {
+    transform: scaleX(1);
+  }
+  .mp-btn--line:hover {
+    --btn-line: var(--mp-ink);
+  }
 }
+
+/* On a dark surface the solid button inverts to a snow face. The mobile menu
+   is graphite too: without it here, its "Request a Proposal" — the only
+   proposal CTA on a phone, since the header CTA is hidden ≤640 — rendered
+   graphite-on-graphite, a label with no button. */
 .mp-surface--graphite .mp-btn--solid,
-.mp-surface--charcoal .mp-btn--solid,
 .mp-band .mp-btn--solid,
-.mp-phero .mp-btn--solid {
+.mp-phero .mp-btn--solid,
+.mp-menu .mp-btn--solid {
   --btn-bg: var(--mp-snow);
   --btn-fg: var(--mp-graphite);
   --btn-line: var(--mp-snow);
 }
 .mp-surface--graphite .mp-btn--line,
-.mp-surface--charcoal .mp-btn--line,
 .mp-band .mp-btn--line,
-.mp-phero .mp-btn--line {
+.mp-phero .mp-btn--line,
+.mp-menu .mp-btn--line {
   --btn-fg: var(--mp-snow);
   --btn-line: rgba(246, 244, 239, 0.34);
 }
-.mp-surface--graphite .mp-btn--line:hover,
-.mp-band .mp-btn--line:hover {
-  --btn-line: var(--mp-snow);
-}/* Inline text link with a rule — the quiet CTA. */
+@media (hover: hover) and (pointer: fine) {
+  .mp-surface--graphite .mp-btn--line:hover,
+  .mp-band .mp-btn--line:hover,
+  .mp-menu .mp-btn--line:hover {
+    --btn-line: var(--mp-snow);
+  }
+}
+
+/* Inline text link with a rule — the quiet CTA. The ::before grows the tap
+   target to 44px without moving the rule off the text (a min-height would
+   push the underline away from the words). */
 .mp-link {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
@@ -848,41 +857,51 @@ the
   transition: color var(--mp-dur) var(--mp-ease),
     border-color var(--mp-dur) var(--mp-ease);
 }
-.mp-link:hover {
-  color: var(--mp-gold-ink);
-  border-color: var(--mp-gold);
+.mp-link::before {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
 }
 .mp-link i {
   font-style: normal;
   transition: transform var(--mp-dur) var(--mp-ease);
 }
-.mp-link:hover i {
-  transform: translateX(4px);
+@media (hover: hover) and (pointer: fine) {
+  .mp-link:hover {
+    color: var(--mp-gold-ink);
+    border-color: var(--mp-gold);
+  }
+  .mp-link:hover i {
+    transform: translateX(4px);
+  }
 }
 .mp-cta-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--mp-3);
   margin-block-start: var(--mp-8);
-}/* ═══ 04 · HEADER ═════════════════════════════════════════════════════════ */
+}
+
+/* ═══ 04 · HEADER ═════════════════════════════════════════════════════════ */
 
 /*
-  Two states,
-expressed through custom properties so there is one override:
+  Two states, expressed through custom properties so there is one override:
 
-    solid   — paper + blur,
-dark text. The DEFAULT,
-so it is also what renders
+    solid   — paper + blur, dark text. The DEFAULT, so it is also what renders
               before any JavaScript runs and in browsers without :has().
-    overlay — transparent,
-light text,
-sitting on a dark hero.
+    overlay — transparent, light text, sitting on a dark hero.
 
   Which applies is a pure CSS question: does this page contain a dark hero
-  (`:has([data-mp-dark-hero])`),
-and have we scrolled past it (`.is-stuck`,
-the only thing JS toggles)? No first-paint flash,
-no route allow-list.
+  (`:has([data-mp-dark-hero])`), and have we scrolled past it (`.is-stuck`,
+  the only thing JS toggles)? No first-paint flash, no route allow-list.
+
+  The states swap in ONE frame, with no fade on the backing or the text
+  colour. The two monograms swap through `display` (which cannot fade), so a
+  320ms background fade used to leave the dark mark on a still-dark bar
+  (only the gold stroke of the TT showing), and after any instant jump —
+  reload mid-page, End, a #hash, focus scrolling to a field — a half-faded
+  bar with the page showing through it: the "thin grey strip". Only the
+  hairline keeps its fade.
 */
 .mp-header {
   --hdr-bg: rgba(246, 244, 239, 0.96);
@@ -908,10 +927,13 @@ no route allow-list.
   backdrop-filter: var(--hdr-blur);
   -webkit-backdrop-filter: var(--hdr-blur);
   border-block-end: 1px solid var(--hdr-line);
-  transition: background var(--mp-dur) var(--mp-ease),
-    border-color var(--mp-dur) var(--mp-ease),
-    color var(--mp-dur) var(--mp-ease);
+  transition: border-color var(--mp-dur) var(--mp-ease);
 }
+/* Overlay (and the open menu, which is graphite behind the bar). The header
+   is fixed, outside every section, so it does not inherit a dark surface's
+   tokens: remapping --mp-gold-ink here is what turns every focus ring in the
+   bar from bronze (1.1–2.9:1 over the dark photo) to gold. The stuck paper
+   header keeps bronze, 5.6:1 on paper. */
 body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
 .mp-header.is-menu-open {
   --hdr-bg: transparent;
@@ -924,37 +946,59 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
   --hdr-btn-line: rgba(246, 244, 239, 0.4);
   --hdr-mark-dark: none;
   --hdr-mark-light: block;
-}/* Third state: once the page has moved but the dark hero is still behind the
-   header,
-take a graphite backing so hero copy never slides under the logo.
+  --mp-gold-ink: var(--mp-gold);
+}
+
+/* Third state: once the page has moved but the dark hero is still behind the
+   header, take a graphite backing so hero copy never slides under the logo.
    Transparent → dark → paper. Both backings are near-opaque on purpose: the
-   blur is a bonus,
-not the thing keeping the logo legible. */
-body:has([data-mp-dark-hero])
-  .mp-header.is-floating:not(.is-stuck):not(.is-menu-open) {
+   blur is a bonus, not the thing keeping the logo legible.
+   A keyboard user inside the transparent bar gets the same backing, so a
+   gold ring never sits over the lighter pixels of the photo (it dipped to
+   ~2.6:1 behind the CTA). */
+body:has([data-mp-dark-hero]) .mp-header.is-floating:not(.is-stuck):not(.is-menu-open),
+body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open):has(:focus-visible) {
   --hdr-bg: rgba(11, 12, 13, 0.94);
   --hdr-blur: saturate(1.2) blur(16px);
   --hdr-line: rgba(246, 244, 239, 0.12);
 }
+/* Same content width and gutter as .mp-shell: the monogram and the CTA line
+   up with the eyebrow, the headline and every section below. */
 .mp-header__inner {
   width: 100%;
-  max-width: var(--mp-w-wide);
+  max-width: var(--mp-w);
   margin-inline: auto;
   padding-inline: var(--mp-pad);
   display: flex;
   align-items: center;
   gap: var(--mp-8);
 }
+/* 44×44 tap target at least (the mark alone was 36, 32 at ≤380). No
+   justify-content: the mark stays on the left content edge and the extra
+   hit area grows to the right. */
 .mp-header__logo {
   display: flex;
   align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   text-decoration: none;
   color: inherit;
   flex: none;
-}/* The mark is a square monogram; height drives it and width follows. */
+}
+
+/* The mark is a square monogram; height drives it and width follows. The
+   PNG carries 13.3% transparent margin on each side, so the image is pulled
+   left by that much: the visible TT, not its transparent box, sits on the
+   content edge. --hdr-mark-h is the one number the breakpoints change. */
 .mp-header__lockup {
-  height: clamp(36px, 4vw, 44px);
+  --hdr-mark-h: clamp(36px, 4vw, 44px);
+  height: var(--hdr-mark-h);
   width: auto;
+  /* The base img rule's max-width:100% would trim the mark by exactly the
+     negative margin below (the link shrink-wraps to width − margin), so the
+     large-display 54px step rendered 46.8px wide. */
+  max-width: none;
+  margin-inline-start: calc(var(--hdr-mark-h) * -0.133);
   object-fit: contain;
   flex: none;
 }
@@ -998,13 +1042,19 @@ body:has([data-mp-dark-hero])
   transform-origin: left center;
   transition: transform var(--mp-dur) var(--mp-ease);
 }
-.mp-header__nav a:hover,
 .mp-header__nav a[aria-current='page'] {
   opacity: 1;
 }
-.mp-header__nav a:hover::after,
 .mp-header__nav a[aria-current='page']::after {
   transform: scaleX(1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-header__nav a:hover {
+    opacity: 1;
+  }
+  .mp-header__nav a:hover::after {
+    transform: scaleX(1);
+  }
 }
 .mp-header__actions {
   display: flex;
@@ -1012,6 +1062,10 @@ body:has([data-mp-dark-hero])
   gap: var(--mp-3);
   flex: none;
 }
+/* The CTA keeps only its hover border fade: a background/colour fade would
+   lag the (instant) bar by 320ms — a transparent button on a paper bar, or a
+   graphite one on the transparent hero. The gold ::after sweep is its own
+   transition. */
 .mp-header__cta {
   min-height: 42px;
   padding: 0.55rem 1.15rem;
@@ -1019,9 +1073,12 @@ body:has([data-mp-dark-hero])
   --btn-bg: var(--hdr-btn-bg);
   --btn-fg: var(--hdr-btn-fg);
   --btn-line: var(--hdr-btn-line);
+  transition: border-color var(--mp-dur) var(--mp-ease);
 }
-.mp-header__cta:hover {
-  --btn-line: var(--hdr-fg);
+@media (hover: hover) and (pointer: fine) {
+  .mp-header__cta:hover {
+    --btn-line: var(--hdr-fg);
+  }
 }
 .mp-burger {
   display: none;
@@ -1060,7 +1117,73 @@ body:has([data-mp-dark-hero])
 }
 .mp-burger[aria-expanded='true'] .mp-burger__box span:nth-child(2) {
   transform: translateY(-5.25px) rotate(-45deg);
-}/* ── Mobile menu ─────────────────────────────────────────────────────────── */
+}
+
+/* ── Header: language switch ─────────────────────────────────────────────── */
+.mp-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mp-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: inherit;
+}
+.mp-lang span[aria-current='true'] {
+  border-block-end: 1px solid var(--mp-gold);
+  padding-block-end: 1px;
+}
+.mp-lang__off {
+  opacity: 0.32;
+  cursor: default;
+}
+.mp-lang__sep {
+  opacity: 0.4;
+}
+/* Same .74 as the nav links beside it: at .62 the 12px label measured
+   4.1–4.4:1 over the photo under the transparent header. */
+.mp-lang a {
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.74;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.15rem;
+  transition: opacity var(--mp-dur) var(--mp-ease);
+}
+.mp-lang a:focus-visible {
+  opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-lang a:hover {
+    opacity: 1;
+  }
+}
+.mp-header__lang {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--mp-3);
+  border-inline-end: 1px solid var(--hdr-border);
+  margin-inline-end: var(--mp-1);
+}
+
+/* Compact switch for ≤1180px, where the full .mp-header__lang is hidden:
+   SiteHeader renders only the OTHER language (an <a>, or an inert
+   .mp-lang__off span on English-only pages) in .mp-header__actions. It takes
+   the .mp-lang type and the header colour, so it follows the transparent and
+   paper states. Hidden while the menu is open — the menu has its own switch,
+   and visibility:hidden also takes it out of the Tab order, so the open-menu
+   Tab cycle is burger + menu only. Selectors are doubled so they beat the
+   plain `.mp-lang` / `.mp-lang a` rules. */
+.mp-lang.mp-header__lang-compact {
+  display: none;
+}
+
+/* ── Mobile menu ─────────────────────────────────────────────────────────── */
+/* A graphite surface: it is in the dark-surface token block (01), so its
+   rings are gold and its solid CTA has a snow face (03). */
 .mp-menu {
   position: fixed;
   inset: 0;
@@ -1093,9 +1216,13 @@ body:has([data-mp-dark-hero])
   line-height: 1.05;
   transition: color var(--mp-dur) var(--mp-ease);
 }
-.mp-menu__nav a:hover,
 .mp-menu__nav a[aria-current='page'] {
   color: var(--mp-gold);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-menu__nav a:hover {
+    color: var(--mp-gold);
+  }
 }
 .mp-menu__n {
   font-family: var(--mp-mono);
@@ -1117,9 +1244,37 @@ body:has([data-mp-dark-hero])
   color: var(--mp-snow-2);
   text-decoration: none;
 }
-.mp-menu__mail:hover {
-  color: var(--mp-gold);
-}/* ═══ 05 · FOOTER ═════════════════════════════════════════════════════════ */
+/* The mail link is a tap target (was 350×28); the service-area <span> that
+   shares the class is not. */
+a.mp-menu__mail {
+  min-height: 44px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-menu__mail:hover {
+    color: var(--mp-gold);
+  }
+}
+.mp-menu__lang {
+  padding-block: var(--mp-2);
+}
+.mp-menu__lang .mp-lang {
+  font-size: 0.85rem;
+}
+/* The menu's EN / ES link was 23×30 — and on a phone it is the only language
+   switch besides the compact one. Grown with an invisible ::before rather
+   than a 44px box, so "EN / ES" keeps its spacing (a centred box would push
+   "ES" ~13px off the slash): 30 + 2×7 = 44 tall, ~23 + 2×11 ≈ 45 wide. The
+   foot's grid gap keeps it clear of the CTA above and the mail link below. */
+.mp-menu__lang .mp-lang a {
+  position: relative;
+}
+.mp-menu__lang .mp-lang a::before {
+  content: '';
+  position: absolute;
+  inset: -7px -11px;
+}
+
+/* ═══ 05 · FOOTER ═════════════════════════════════════════════════════════ */
 
 .mp-footer {
   background: var(--mp-charcoal);
@@ -1152,12 +1307,17 @@ body:has([data-mp-dark-hero])
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--mp-8);
 }
-.mp-footer__col h2 {
+/* Column titles are <p>, not <h2>: "Navigate" / "Services" / "Contact" are
+   labels, and as h2s they added three headings to every page's outline.
+   line-height 1.04 is what the h2 got from the base heading rule, so the
+   column rhythm is unchanged. */
+.mp-footer__title {
   font-size: var(--mp-t-label);
   letter-spacing: var(--mp-track-label);
   text-transform: uppercase;
   color: var(--mp-snow-3);
   font-weight: 500;
+  line-height: 1.04;
   margin: 0 0 var(--mp-4);
 }
 .mp-footer__col a,
@@ -1169,9 +1329,6 @@ body:has([data-mp-dark-hero])
   text-decoration: none;
   padding-block: 0.3rem;
   transition: color var(--mp-dur) var(--mp-ease);
-}
-.mp-footer__col a:hover {
-  color: var(--mp-snow);
 }
 .mp-footer__notice {
   margin-block-start: var(--mp-6);
@@ -1203,9 +1360,16 @@ body:has([data-mp-dark-hero])
   text-decoration: none;
   transition: color var(--mp-dur) var(--mp-ease);
 }
-.mp-footer__legal a:hover {
-  color: var(--mp-gold);
-}/* ═══ 06 · HERO ═══════════════════════════════════════════════════════════ */
+@media (hover: hover) and (pointer: fine) {
+  .mp-footer__col a:hover {
+    color: var(--mp-snow);
+  }
+  .mp-footer__legal a:hover {
+    color: var(--mp-gold);
+  }
+}
+
+/* ═══ 06 · HERO ═══════════════════════════════════════════════════════════ */
 
 .mp-hero {
   position: relative;
@@ -1222,9 +1386,10 @@ body:has([data-mp-dark-hero])
   inset: 0;
   z-index: -3;
   background: var(--mp-graphite);
-}/* The footage runs the full band. A directional scrim buries the left third
-   in graphite so the copy always sits on flat colour,
-while the water and the
+}
+
+/* The footage runs the full band. A directional scrim buries the left third
+   in graphite so the copy always sits on flat colour, while the water and the
    towers stay genuinely visible on the right. Scrim rather than a soft mask:
    legibility must not depend on where the bright parts of a frame fall. */
 .mp-hero__photo {
@@ -1274,6 +1439,10 @@ while the water and the
 }
 .mp-hero__body > * {
   max-width: min(100%, 60ch);
+}
+/* The one column that holds the eyebrow, headline, sub and CTAs. */
+.mp-hero__col {
+  max-width: min(100%, 64ch);
 }
 .mp-hero__eyebrow {
   margin-block-end: var(--mp-8);
@@ -1325,7 +1494,116 @@ while the water and the
   height: 4px;
   background: var(--mp-gold);
   flex: none;
-}/* ═══ 07 · THE PRACTICE ═══════════════════════════════════════════════════ */
+}
+/* The capability list and the motion toggle share the foot row. */
+.mp-hero__footrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mp-4);
+}
+.mp-hero__footrow .mp-hero__caps {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ── Above-the-fold entrances ────────────────────────────────────────────
+   Used by both heroes: Hero.tsx (photo, eyebrow, sub, CTA row, foot row),
+   PageHero.tsx (photo, eyebrow, sub, facts) and RevealText with
+   `animateOnMount` (each headline line, per-line inline animation-delay).
+
+   CSS, not Motion: Motion serialises its `initial` state (opacity 0,
+   translateY(108%)) into the server HTML, so the whole first screen shipped
+   invisible and waited for React to hydrate — LCP 8–11 s on a throttled
+   phone, reduced-motion visitors included. A keyframe starts at first paint,
+   with or without JavaScript.
+
+   Opacity starts at .001, never 0: Chrome records no paint (FCP/LCP) for an
+   element at opacity 0, so the LCP candidate would still wait for the fade.
+
+   Fill mode `backwards`, not `both`: the from-state holds through the delay
+   (no flash of the final state before the stagger starts), and once the
+   animation ends it lets go of opacity/transform instead of pinning them over
+   every later hover or state rule. The end state equals the unanimated
+   state, so nothing jumps. */
+@keyframes mp-enter {
+  from {
+    opacity: 0.001;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The headline mask-rise: each line climbs out of its overflow:hidden mask
+   (RevealText LINE_MASK). The opacity step hides the line while it waits out
+   its delay — the mask's ink slack (padding 0.18em below the line box) would
+   otherwise show the top of the parked glyphs as a row of gold slivers. */
+@keyframes mp-enter-line {
+  from {
+    opacity: 0.001;
+    transform: translateY(108%);
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The hero photograph / footage settles from a hair of scale. No fade: it is
+   the LCP candidate on internal pages, and a fade only delays what the
+   network has already delivered. Transform-origin comes from the element
+   (.mp-hero__photo sets 72% 40%). */
+@keyframes mp-enter-photo {
+  from {
+    transform: scale(1.03);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.mp-enter {
+  animation: mp-enter 0.55s var(--mp-ease) backwards;
+}
+.mp-enter--line {
+  animation-name: mp-enter-line;
+  animation-duration: 0.7s;
+}
+.mp-enter--photo {
+  animation-name: mp-enter-photo;
+  animation-duration: 1.2s;
+}
+
+/* Stagger steps — the same beats the Motion versions used:
+   d1 hero eyebrow · d2 page-hero sub · d3 page-hero facts ·
+   d4 hero sub · d5 hero CTA row · d6 hero foot row.
+   Headline lines carry their own inline delay (delay + i × 0.07 s). */
+.mp-enter--d1 {
+  animation-delay: 0.05s;
+}
+.mp-enter--d2 {
+  animation-delay: 0.16s;
+}
+.mp-enter--d3 {
+  animation-delay: 0.2s;
+}
+.mp-enter--d4 {
+  animation-delay: 0.32s;
+}
+.mp-enter--d5 {
+  animation-delay: 0.4s;
+}
+.mp-enter--d6 {
+  animation-delay: 0.6s;
+}
+
+/* ═══ 07 · THE PRACTICE ═══════════════════════════════════════════════════ */
 
 .mp-paths__intro {
   max-width: 72ch;
@@ -1368,13 +1646,14 @@ while the water and the
   height: 100%;
   object-fit: cover;
   filter: saturate(0.8) contrast(1.04);
-  transition:
-    transform 1000ms var(--mp-ease),
+  transition: transform 1000ms var(--mp-ease),
     filter var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-path:hover .mp-path__photo {
-  transform: scale(1.03);
-  filter: saturate(1) contrast(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .mp-path:hover .mp-path__photo {
+    transform: scale(1.03);
+    filter: saturate(1) contrast(1.05);
+  }
 }
 .mp-path__title {
   font-size: var(--mp-t-h3);
@@ -1390,9 +1669,16 @@ while the water and the
   max-width: 50ch;
   margin: 0;
 }
+/* Pinned to the bottom of the door: the two service lists differ in length
+   (4 and 3), and a CTA placed straight after its list sat 47px higher on
+   one side. .mp-path is a flex column and the grid stretches both doors to
+   the same height, so an auto margin puts both links on one line. */
 .mp-path__cta {
-  margin-block-start: var(--mp-6);
-}/* ═══ 08 · TYPOLOGIES ═════════════════════════════════════════════════════ */
+  margin-block-start: auto;
+  padding-block-start: var(--mp-6);
+}
+
+/* ═══ 08 · TYPOLOGIES ═════════════════════════════════════════════════════ */
 
 .mp-typo {
   display: grid;
@@ -1422,14 +1708,18 @@ while the water and the
   height: 100%;
   object-fit: cover;
   filter: saturate(0.82) contrast(1.04);
-  transition:
-    transform 1000ms var(--mp-ease),
+  transition: transform 1000ms var(--mp-ease),
     filter var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-typo__link:hover .mp-typo__img,
 .mp-typo__link:focus-visible .mp-typo__img {
   transform: scale(1.035);
   filter: saturate(1) contrast(1.05);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-typo__link:hover .mp-typo__img {
+    transform: scale(1.035);
+    filter: saturate(1) contrast(1.05);
+  }
 }
 .mp-typo__body {
   display: flex;
@@ -1453,15 +1743,21 @@ while the water and the
   flex: none;
   transition: transform var(--mp-dur) var(--mp-ease);
 }
-.mp-typo__link:hover .mp-typo__title i,
 .mp-typo__link:focus-visible .mp-typo__title i {
   transform: translateX(4px);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-typo__link:hover .mp-typo__title i {
+    transform: translateX(4px);
+  }
 }
 .mp-typo__lede {
   font-size: var(--mp-t-small);
   line-height: 1.6;
   color: var(--mp-ink-3);
-}/* ═══ 09 · VIDEO BAND ═════════════════════════════════════════════════════ */
+}
+
+/* ═══ 09 · VIDEO BAND ═════════════════════════════════════════════════════ */
 
 .mp-band {
   position: relative;
@@ -1485,7 +1781,9 @@ while the water and the
   height: 100%;
   object-fit: cover;
   filter: saturate(0.5) contrast(1.06) brightness(0.66);
-}/* Fixed scrims — never a blur or an opacity on the media itself. */
+}
+
+/* Fixed scrims — never a blur or an opacity on the media itself. */
 .mp-band__media::after {
   content: '';
   position: absolute;
@@ -1571,7 +1869,66 @@ while the water and the
 }
 .mp-band__cta {
   margin-block-start: var(--mp-8);
-}/* ═══ 10 · BIM + TOOLCHAIN ════════════════════════════════════════════════ */
+}
+
+/* ── Motion toggle (WCAG 2.2.2 pause control) ──────────────────────────────
+   media.tsx MotionToggle: <button class="mp-motion-toggle" aria-pressed> with
+   a 12×12 pause/play glyph — one shared switch for every background loop
+   (hero foot row, video bands, BIM stage). It always sits on dark footage,
+   so it uses the dark-surface palette. Square, like every control on the
+   site; 36px, 44px where the pointer is a finger. */
+.mp-motion-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 36px;
+  block-size: 36px;
+  padding: 0;
+  border: 1px solid var(--mp-line-dark);
+  border-radius: var(--mp-radius);
+  background: rgba(11, 12, 13, 0.55);
+  color: var(--mp-snow);
+  cursor: pointer;
+  transition: border-color var(--mp-dur) var(--mp-ease),
+    color var(--mp-dur) var(--mp-ease);
+}
+.mp-motion-toggle svg {
+  display: block;
+  inline-size: 12px;
+  block-size: 12px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-motion-toggle:hover {
+    border-color: var(--mp-gold);
+    color: var(--mp-gold);
+  }
+}
+/* Pressed = paused: a gold edge so the state reads without the glyph too. */
+.mp-motion-toggle[aria-pressed='true'] {
+  border-color: var(--mp-gold);
+}
+@media (pointer: coarse) {
+  .mp-motion-toggle {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+}
+
+/* Video band: bottom corner over the footage — right when the copy is on the
+   left, left when it is on the right. Inside the band's 6rem bottom padding,
+   so it never meets the copy. */
+.mp-band__toggle {
+  position: absolute;
+  z-index: 1;
+  inset-block-end: var(--mp-6);
+  inset-inline-end: var(--mp-pad);
+}
+.mp-band--right .mp-band__toggle {
+  inset-inline-end: auto;
+  inset-inline-start: var(--mp-pad);
+}
+
+/* ═══ 10 · BIM + TOOLCHAIN ════════════════════════════════════════════════ */
 
 .mp-bim__grid {
   display: grid;
@@ -1625,7 +1982,16 @@ while the water and the
   width: 100%;
   height: 100%;
   object-fit: cover;
-}/* ── Toolchain ───────────────────────────────────────────────────────────── */
+}
+/* The motion toggle, inside the clip's corner (.mp-bim__stage is relative). */
+.mp-bim__toggle {
+  position: absolute;
+  z-index: 1;
+  inset-block-end: var(--mp-3);
+  inset-inline-end: var(--mp-3);
+}
+
+/* ── Toolchain ───────────────────────────────────────────────────────────── */
 .mp-tools-sec--strip {
   padding-block: clamp(3rem, 5vw, 4.5rem);
 }
@@ -1658,7 +2024,9 @@ while the water and the
   place-items: center;
   width: 100%;
   height: var(--plate-h);
-}/* Explicit px caps: a percentage max-height against a grid area lets the
+}
+
+/* Explicit px caps: a percentage max-height against a grid area lets the
    square PNGs size from width alone and spill over the labels below. */
 .mp-tool__plate img {
   max-width: min(100%, 130px);
@@ -1675,9 +2043,11 @@ while the water and the
   transition: filter var(--mp-dur-slow) var(--mp-ease),
     opacity var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-tool:hover .mp-tool__plate img {
-  filter: none;
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .mp-tool:hover .mp-tool__plate img {
+    filter: none;
+    opacity: 1;
+  }
 }
 .mp-tool__name {
   font-size: 0.8125rem;
@@ -1695,7 +2065,9 @@ while the water and the
   line-height: 1.6;
   color: var(--mp-ink-faint);
   max-width: 78ch;
-}/* ═══ 12 · SERVICE AREA ═══════════════════════════════════════════════════ */
+}
+
+/* ═══ 12 · SERVICE AREA ═══════════════════════════════════════════════════ */
 
 .mp-geo__grid {
   display: grid;
@@ -1744,7 +2116,9 @@ while the water and the
   letter-spacing: var(--mp-track-label);
   text-transform: uppercase;
   color: var(--mp-ink-faint);
-}/* ═══ 13 · CLOSING CTA ════════════════════════════════════════════════════ */
+}
+
+/* ═══ 13 · CLOSING CTA ════════════════════════════════════════════════════ */
 
 .mp-close {
   position: relative;
@@ -1795,9 +2169,13 @@ while the water and the
   color: var(--mp-snow-2);
   text-decoration: none;
 }
-.mp-close__meta a:hover {
-  color: var(--mp-gold);
-}/* ═══ 14 · INTERNAL PAGES ═════════════════════════════════════════════════ */
+@media (hover: hover) and (pointer: fine) {
+  .mp-close__meta a:hover {
+    color: var(--mp-gold);
+  }
+}
+
+/* ═══ 14 · INTERNAL PAGES ═════════════════════════════════════════════════ */
 
 .mp-phero {
   position: relative;
@@ -1805,8 +2183,9 @@ while the water and the
   padding-block: calc(var(--mp-header-h) + var(--mp-16)) var(--mp-16);
   overflow: clip;
   isolation: isolate;
-}/* Same photographic treatment as the home hero: image across the band,
-a
+}
+
+/* Same photographic treatment as the home hero: image across the band, a
    directional scrim burying the left third so the copy sits on flat colour. */
 .mp-phero__photo {
   position: absolute;
@@ -1911,29 +2290,54 @@ a
   text-decoration: none;
   transition: color var(--mp-dur) var(--mp-ease);
 }
-.mp-breadcrumbs a:hover {
-  color: var(--mp-gold);
+@media (hover: hover) and (pointer: fine) {
+  .mp-breadcrumbs a:hover {
+    color: var(--mp-gold);
+  }
 }
+/* The slash is drawn, not read: `/ ''` gives the generated text an empty
+   alternative, so screen readers stop announcing "Home, slash". The plain
+   declaration comes first for engines without the syntax (Firefox < 128,
+   Safari < 17.4), which drop the second line and keep the visible slash. */
 .mp-breadcrumbs li::after {
   content: '/';
+  content: '/' / '';
   margin-inline-start: 0.5rem;
   color: var(--mp-snow-3);
   opacity: 0.5;
 }
 .mp-breadcrumbs li:last-child::after {
   content: none;
-}/* Two-column editorial block used across internal pages */
+}
+
+/* Two-column editorial block used across internal pages. The title column
+   sticks while the right column scrolls past. The sticky box is the title's
+   Reveal wrapper — the grid item — not the h2: the wrapper is exactly the
+   h2's height, so a sticky h2 inside it had no room to travel. */
 .mp-split {
   display: grid;
   grid-template-columns: minmax(0, 0.42fr) minmax(0, 1fr);
   gap: clamp(1.5rem, 4vw, 4rem);
   align-items: start;
 }
+.mp-split > :has(> .mp-split__title) {
+  position: sticky;
+  top: calc(var(--mp-header-h) + var(--mp-6));
+}
 .mp-split__title {
   font-size: var(--mp-t-h2);
   margin: 0;
-  position: sticky;
-  top: calc(var(--mp-header-h) + var(--mp-6));
+}
+/* ServiceDetailView "When you need it": the h2 is the short problemTitle and
+   the longer `problem` paragraph opens the right column as its lede, above
+   the numbered list — outside the sticky wrapper, so the title never slides
+   over it. */
+.mp-split__lede {
+  margin: 0 0 var(--mp-8);
+  max-width: 58ch;
+  font-size: var(--mp-t-lead);
+  line-height: 1.55;
+  color: var(--mp-ink-2);
 }
 .mp-prose p {
   color: var(--mp-ink-3);
@@ -1978,16 +2382,18 @@ a
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-color: var(--mp-gold);
-}/* Numbered "spec list" — hairline rows,
-used for scope/deliverables */
+}
+
+/* Numbered "spec list" — hairline rows, used for scope/deliverables */
 .mp-speclist {
   list-style: none;
   margin: 0;
   padding: 0;
   border-block-start: 1px solid var(--mp-line);
   counter-reset: mp-spec;
-}/* An explicit counter: a flex `li` is no longer a list item,
-so the built-in
+}
+
+/* An explicit counter: a flex `li` is no longer a list item, so the built-in
    `list-item` counter stops incrementing and every row reads "00". */
 .mp-speclist li {
   display: flex;
@@ -2008,9 +2414,9 @@ so the built-in
   color: var(--mp-gold-ink);
   flex: none;
   min-width: 1.75rem;
-}/* Key · value rows (About principles,
-Existing Buildings triggers,
-the
+}
+
+/* Key · value rows (About principles, Existing Buildings triggers, the
    practice-record pillars) */
 .mp-pillars {
   list-style: none;
@@ -2035,20 +2441,40 @@ the
   font-size: var(--mp-t-body);
   line-height: 1.65;
   color: var(--mp-ink-3);
-}/* Service cards (Expertise index,
-Existing Buildings index) */
+}
+
+/* Service cards (Expertise index, Existing Buildings index). Two columns at
+   every desktop width — the tracks hold 4 and 3 cards, so three columns would
+   orphan one card in the 4-card track. */
 .mp-svcgrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(2.5rem, 4vw, 4rem) clamp(1.5rem, 3vw, 3rem);
-}/* Design basis line on a service page */
-.mp-basis {
-  margin: var(--mp-8) 0 0;
-  padding-block-start: var(--mp-4);
-  border-block-start: 1px solid var(--mp-line);
-  font-size: var(--mp-t-small);
-  color: var(--mp-ink-3);
-}/* Callout used for "considerations" — honest caveats */
+}
+/* An odd last card (the 3-card existing-buildings track) spans the row as a
+   horizontal card — photo left, text right — instead of sitting alone with
+   an empty half beside it. Only while the grid has two columns. The photo
+   is taken out of flow and the media box stretches to the text column, so
+   the text sets the card's height (a portrait source would otherwise make
+   the card as tall as the photo and leave the text column half empty). */
+@media (min-width: 901px) {
+  .mp-svcgrid > .mp-svc:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+  .mp-svcgrid > .mp-svc:last-child:nth-child(odd) .mp-svc__media {
+    position: relative;
+    aspect-ratio: auto;
+    min-height: 22rem;
+  }
+  .mp-svcgrid > .mp-svc:last-child:nth-child(odd) .mp-svc__media img {
+    position: absolute;
+    inset: 0;
+  }
+}
+
+/* Callout used for "considerations" — honest caveats */
 .mp-callout {
   border-inline-start: 2px solid var(--mp-gold);
   padding: var(--mp-4) 0 var(--mp-4) var(--mp-6);
@@ -2064,7 +2490,9 @@ Existing Buildings index) */
   font-weight: 500;
   margin: 0 0 var(--mp-4);
   color: var(--mp-ink);
-}/* Regulatory trigger table — the "when it applies" block on the two
+}
+
+/* Regulatory trigger table — the "when it applies" block on the two
    existing-building services. */
 .mp-timing {
   margin: 0;
@@ -2099,10 +2527,15 @@ Existing Buildings index) */
   font-size: var(--mp-t-label);
   letter-spacing: 0.04em;
   color: var(--mp-ink-faint);
-}/* Cross-links between services */
+}
+
+/* Cross-links between services. auto-fit, not a fixed three: the
+   existing-building services have only two same-track siblings, and a fixed
+   third track stood blank under the full-width top rule. Empty tracks
+   collapse, so 3 links give three equal columns and 2 give two. */
 .mp-more {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
   border-block-start: 1px solid var(--mp-line);
 }
 .mp-more a {
@@ -2118,9 +2551,6 @@ Existing Buildings index) */
 }
 .mp-more a:last-child {
   border-inline-end: 0;
-}
-.mp-more a:hover {
-  background: rgba(11, 12, 13, 0.028);
 }
 .mp-more__t {
   font-size: var(--mp-t-h4);
@@ -2140,9 +2570,16 @@ Existing Buildings index) */
   color: var(--mp-gold-ink);
   transition: transform var(--mp-dur) var(--mp-ease);
 }
-.mp-more a:hover .mp-more__go i {
-  transform: translateX(4px);
-}/* ═══ 15 · WORK + GALLERY ═════════════════════════════════════════════════ */
+@media (hover: hover) and (pointer: fine) {
+  .mp-more a:hover {
+    background: rgba(11, 12, 13, 0.028);
+  }
+  .mp-more a:hover .mp-more__go i {
+    transform: translateX(4px);
+  }
+}
+
+/* ═══ 15 · WORK + GALLERY ═════════════════════════════════════════════════ */
 
 .mp-work {
   display: grid;
@@ -2154,7 +2591,9 @@ Existing Buildings index) */
   display: flex;
   flex-direction: column;
 }
+/* Positioned for the "Illustrative image" flag (.mp-work__illus). */
 .mp-work__photo {
+  position: relative;
   aspect-ratio: 16 / 10;
   overflow: hidden;
   margin-block-end: var(--mp-6);
@@ -2165,13 +2604,14 @@ Existing Buildings index) */
   height: 100%;
   object-fit: cover;
   filter: saturate(0.78) contrast(1.05);
-  transition:
-    transform 1000ms var(--mp-ease),
+  transition: transform 1000ms var(--mp-ease),
     filter var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-work__item:hover .mp-work__photo img {
-  transform: scale(1.03);
-  filter: saturate(0.95) contrast(1.07);
+@media (hover: hover) and (pointer: fine) {
+  .mp-work__item:hover .mp-work__photo img {
+    transform: scale(1.03);
+    filter: saturate(0.95) contrast(1.07);
+  }
 }
 .mp-work__head {
   display: flex;
@@ -2230,9 +2670,12 @@ Existing Buildings index) */
   color: var(--mp-ink-3);
   max-width: 76ch;
   line-height: 1.7;
-}/* Gallery — the material. Twelve uniform tiles: 12 divides by 4,
-3 and 2,
-so the wall closes on a straight edge at every breakpoint. */
+}
+
+/* Gallery — the material. Uniform full-bleed tiles, 2 / 3 / 4 columns
+   (breakpoints match Gallery.tsx `sizes`: ≤720 → 50vw, ≤1200 → 33vw, else
+   25vw). The wall closes on a straight edge at a width only when the tile
+   count divides by that column count. */
 .mp-gal-sec {
   overflow: clip;
 }
@@ -2249,6 +2692,16 @@ so the wall closes on a straight edge at every breakpoint. */
   gap: 2px;
   padding-inline: 2px;
 }
+@media (min-width: 721px) {
+  .mp-gal {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1201px) {
+  .mp-gal {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 .mp-gal__cell {
   position: relative;
   overflow: hidden;
@@ -2260,18 +2713,21 @@ so the wall closes on a straight edge at every breakpoint. */
   height: 100%;
   object-fit: cover;
   filter: saturate(0.62) contrast(1.05) brightness(0.92);
-  transition:
-    transform 1100ms var(--mp-ease),
+  transition: transform 1100ms var(--mp-ease),
     filter var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-gal__cell:hover img {
-  transform: scale(1.05);
-  filter: saturate(1) contrast(1.06) brightness(1);
+@media (hover: hover) and (pointer: fine) {
+  .mp-gal__cell:hover img {
+    transform: scale(1.05);
+    filter: saturate(1) contrast(1.06) brightness(1);
+  }
 }
 .mp-gal__note {
   margin-block-start: var(--mp-12);
   color: var(--mp-snow-3);
-}/* ═══ 16 · TIMELINE ═══════════════════════════════════════════════════════ */
+}
+
+/* ═══ 16 · TIMELINE ═══════════════════════════════════════════════════════ */
 
 .mp-timeline {
   position: relative;
@@ -2351,41 +2807,13 @@ so the wall closes on a straight edge at every breakpoint. */
   font-size: var(--mp-t-small);
   max-width: 62ch;
   margin: 0;
-}/* ═══ 17 · CREDENTIALS + LEADERSHIP ═══════════════════════════════════════ */
+}
 
-.mp-creds {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-block-start: 1px solid var(--mp-line);
-}
-.mp-cred {
-  padding: var(--mp-6) clamp(1rem, 2vw, 1.75rem);
-  border-inline-end: 1px solid var(--mp-line);
-  border-block-end: 1px solid var(--mp-line);
-  display: grid;
-  gap: 0.3rem;
-  align-content: start;
-}
-.mp-cred:nth-child(3n) {
-  border-inline-end: 0;
-}
-.mp-cred__k {
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-ink-faint);
-}
-.mp-cred__v {
-  font-size: var(--mp-t-h4);
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  color: var(--mp-ink);
-}
-.mp-cred__note {
-  font-size: 0.8125rem;
-  line-height: 1.55;
-  color: var(--mp-ink-3);
-}
+/* ═══ 17 · CREDENTIALS + LEADERSHIP ═══════════════════════════════════════ */
+
+/* The sealing statement: the P.E. mark and one sentence, rendered by
+   SealStatement under About's principles. (The code-standard credentials
+   grid that used to live here is gone with its markup.) */
 .mp-creds__seal {
   display: flex;
   align-items: flex-start;
@@ -2411,12 +2839,9 @@ so the wall closes on a straight edge at every breakpoint. */
   line-height: 1.7;
   color: var(--mp-ink-2);
   margin: 0;
-}/* Practice record: real type over a photograph {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  isolation: isolate;
-}/* ═══ 18 · CONTACT & FORM ═════════════════════════════════════════════════ */
+}
+
+/* ═══ 18 · CONTACT & FORM ═════════════════════════════════════════════════ */
 
 .mp-contact__grid {
   display: grid;
@@ -2453,7 +2878,7 @@ so the wall closes on a straight edge at every breakpoint. */
   min-height: 48px;
   background: transparent;
   border: 0;
-  border-block-end: 1px solid var(--mp-line-strong);
+  border-block-end: 1px solid var(--mp-line-input);
   border-radius: 0;
   padding: 0.65rem 0;
   font-family: inherit;
@@ -2465,8 +2890,10 @@ so the wall closes on a straight edge at every breakpoint. */
 .mp-field__input::placeholder {
   color: var(--mp-ink-faint);
 }
-.mp-field__input:hover {
-  border-color: var(--mp-ink-3);
+@media (hover: hover) and (pointer: fine) {
+  .mp-field__input:hover {
+    border-color: var(--mp-ink-3);
+  }
 }
 .mp-field__input:focus {
   outline: none;
@@ -2493,23 +2920,31 @@ so the wall closes on a straight edge at every breakpoint. */
   cursor: pointer;
 }
 .mp-field[data-invalid='true'] .mp-field__input {
-  border-color: #a63a2a;
+  border-color: var(--mp-error);
 }
+/* Errors run to two or three lines on a phone (the send error by the button,
+   "setup.exe — File type not accepted. Up to five files…"), so the square
+   is pinned to the first line rather than centred on the block; a one-line
+   error looks as before. 14px, not the 12px label size: an error is read,
+   not scanned. (Without the `lh` unit the square sits at the top — fine.) */
 .mp-field__error {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.4rem;
-  font-size: var(--mp-t-label);
+  font-size: 0.875rem;
   letter-spacing: 0.04em;
-  color: #8c2f21;
+  color: var(--mp-error-ink);
 }
 .mp-field__error::before {
   content: '';
   width: 5px;
   height: 5px;
-  background: #a63a2a;
+  margin-top: calc((1lh - 5px) / 2);
+  background: var(--mp-error);
   flex: none;
 }
+/* The honeypot's own visually-hidden recipe (bots fill it, people never see
+   it). Everything else that is visually hidden uses .mp-sr-only. */
 .mp-form__hp {
   position: absolute;
   width: 1px;
@@ -2524,6 +2959,14 @@ so the wall closes on a straight edge at every breakpoint. */
   align-items: center;
   gap: var(--mp-4);
 }
+/* A copy of the send error, first inside .mp-form__actions, so it shows
+   where the visitor tapped Send (the announced alert is at the top of a
+   ~1500px form). A full-width row: the error sits above the button, and the
+   button and response note keep their own line. Text styling comes from
+   .mp-field__error, also on the element. */
+.mp-form__actions-error {
+  flex-basis: 100%;
+}
 .mp-form__note {
   font-size: 0.8125rem;
   line-height: 1.65;
@@ -2534,9 +2977,9 @@ so the wall closes on a straight edge at every breakpoint. */
   display: flex;
   gap: 0.75rem;
   padding: var(--mp-4);
-  border: 1px solid #a63a2a;
+  border: 1px solid var(--mp-error);
   font-size: var(--mp-t-small);
-  color: #8c2f21;
+  color: var(--mp-error-ink);
   line-height: 1.6;
 }
 .mp-form__success {
@@ -2554,6 +2997,18 @@ so the wall closes on a straight edge at every breakpoint. */
   border: 1px solid var(--mp-gold);
   color: var(--mp-gold-ink);
 }
+/* After a send, ContactForm scrolls the result under the header and moves
+   focus to it (the success <h3 tabIndex=-1>, or the error alert), so the
+   reader lands on it instead of <body>. Programmatic focus targets, not
+   controls: after a keyboard submit Chrome would otherwise draw the global
+   ring around a heading or the whole alert box. Same specificity as the
+   global `.mp :where(…[tabindex]):focus-visible` rule, and later. */
+.mp-form__success-title:focus,
+.mp-form__success-title:focus-visible,
+.mp-form__alert:focus,
+.mp-form__alert:focus-visible {
+  outline: none;
+}
 .mp-btn[data-busy='true'] {
   pointer-events: none;
   opacity: 0.72;
@@ -2567,11 +3022,13 @@ so the wall closes on a straight edge at every breakpoint. */
   animation: mp-spin 0.8s linear infinite;
   flex: none;
 }
+
 @keyframes mp-spin {
   to {
     transform: rotate(360deg);
   }
 }
+
 .mp-info {
   display: grid;
   gap: var(--mp-6);
@@ -2596,8 +3053,10 @@ so the wall closes on a straight edge at every breakpoint. */
   text-decoration: none;
   word-break: break-word;
 }
-a.mp-info__value:hover {
-  color: var(--mp-gold-ink);
+@media (hover: hover) and (pointer: fine) {
+  a.mp-info__value:hover {
+    color: var(--mp-gold-ink);
+  }
 }
 .mp-info__meta {
   font-size: 0.875rem;
@@ -2606,7 +3065,9 @@ a.mp-info__value:hover {
 }
 .mp-info__list {
   color: var(--mp-ink-2);
-}/* ═══ 19 · RESPONSIVE ═════════════════════════════════════════════════════ */
+}
+
+/* ═══ 19 · RESPONSIVE ═════════════════════════════════════════════════════ */
 
 @media (max-width: 1180px) {
   .mp {
@@ -2621,6 +3082,37 @@ a.mp-info__value:hover {
   .mp-burger {
     display: inline-flex;
   }
+  /* The full EN / ES switch gives way to the compact one (see 04). */
+  .mp-header__lang {
+    display: none;
+  }
+  .mp-lang.mp-header__lang-compact {
+    display: inline-flex;
+  }
+  .mp-lang.mp-header__lang-compact a,
+  .mp-lang.mp-header__lang-compact .mp-lang__off {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 0;
+  }
+  .mp-header.is-menu-open .mp-header__lang-compact {
+    visibility: hidden;
+  }
+  /* The one-tap language switch on a phone sits over the brightest band of
+     the page-top photo. The desktop .74 opacity measured 2.6–3.7:1 there;
+     full snow plus a soft graphite halo clears 4.5:1 on every route at
+     360–768, and the halo is only drawn while the header is transparent. */
+  .mp-lang.mp-header__lang-compact a {
+    opacity: 1;
+  }
+  body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open) .mp-header__lang-compact a {
+    text-shadow:
+      0 0 8px rgba(11, 12, 13, 0.85),
+      0 0 3px rgba(11, 12, 13, 0.7);
+  }
   .mp-bim__grid,
   .mp-geo__grid,
   .mp-contact__grid {
@@ -2629,17 +3121,8 @@ a.mp-info__value:hover {
   .mp-split {
     grid-template-columns: minmax(0, 1fr);
   }
-  .mp-split__title {
+  .mp-split > :has(> .mp-split__title) {
     position: static;
-  }
-  .mp-creds {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mp-cred:nth-child(3n) {
-    border-inline-end: 1px solid var(--mp-line);
-  }
-  .mp-cred:nth-child(2n) {
-    border-inline-end: 0;
   }
   .mp-more {
     grid-template-columns: minmax(0, 1fr);
@@ -2663,21 +3146,22 @@ a.mp-info__value:hover {
   }
 }
 
-@media (max-width: 900px) {.mp-hero__body {
+@media (max-width: 900px) {
+  .mp-hero__body {
     align-items: start;
   }
-.mp-hero__body > * {
+  .mp-hero__body > * {
     max-width: 100%;
-  }/* On a phone the footage runs full width behind the copy,
-so the scrim
-     flips to vertical: image at the top,
-flat graphite under the text. */
+  }
+
+  /* On a phone the footage runs full width behind the copy, so the scrim
+     flips to vertical: image at the top, flat graphite under the text. */
   .mp-hero__photo video,
-.mp-hero__photo img {
+  .mp-hero__photo img {
     object-position: 56% 22%;
     filter: saturate(0.5) contrast(1.1) brightness(0.56);
   }
-.mp-hero__photo::after {
+  .mp-hero__photo::after {
     background: linear-gradient(
       to bottom,
       rgba(11, 12, 13, 0.5) 0%,
@@ -2687,182 +3171,193 @@ flat graphite under the text. */
       var(--mp-graphite) 100%
     );
   }
-.mp-hero {
+  .mp-hero {
     min-height: 0;
     padding-block-start: calc(var(--mp-header-h) + 22svh);
   }
-.mp-phero {
-    padding-block-start: calc(var(--mp-header-h) + 16svh);
+
+  /* Page heroes: the photograph becomes a band ABOVE the copy instead of a
+     backdrop behind it. Full-height, a landscape frame was scaled to the
+     portrait hero's height and its subject — the skyline, the towers, in the
+     bottom 40% of the frame — ended up under the solid graphite that keeps
+     the copy legible: a grey sky and nothing else.
+     The band is exactly the hero's top padding (--phero-top), so it ends
+     where the breadcrumb row begins, and it is wider than 3:2 at every phone
+     width, so `cover` scales it by width and the vertical focal point
+     (88%: the buildings) works. The scrim only darkens the top under the
+     header, keeps the middle open, and reaches solid graphite at the band's
+     bottom edge — so the breadcrumb and everything below sit on flat
+     graphite (the current-page crumb was 2.3–3.9:1 on the old scrim's light
+     band; on graphite it is 5.3:1). Portrait frames keep their inline
+     `photo.pos` focal point, which beats this object-position. */
+  .mp-phero {
+    --phero-top: calc(var(--mp-header-h) + 16svh);
+    padding-block-start: var(--phero-top);
   }
-.mp-phero__grid > * {
-    max-width: 100%;
+  .mp-phero__photo {
+    inset: 0 0 auto;
+    height: var(--phero-top);
   }
-.mp-phero__photo img {
-    object-position: 56% 28%;
-    filter: grayscale(1) contrast(1.12) brightness(0.6);
+  .mp-phero__photo img {
+    object-position: 60% 88%;
+    filter: grayscale(1) contrast(1.12) brightness(0.72);
   }
-.mp-phero__photo::after {
+  /* Dark through the header's own height (logo, ES link and burger sit
+     there, transparent), then open onto the photo, then graphite where the
+     breadcrumbs start. */
+  .mp-phero__photo::after {
     background: linear-gradient(
       to bottom,
-      rgba(11, 12, 13, 0.52) 0%,
-      rgba(11, 12, 13, 0.3) 14%,
-      rgba(11, 12, 13, 0.88) 40%,
-      var(--mp-graphite) 58%,
+      rgba(11, 12, 13, 0.62) 0,
+      rgba(11, 12, 13, 0.6) var(--mp-header-h),
+      rgba(11, 12, 13, 0.15) calc(var(--mp-header-h) + 32px),
+      rgba(11, 12, 13, 0.15) 70%,
       var(--mp-graphite) 100%
     );
   }
-.mp-hero__body {
+  .mp-phero__grid > * {
+    max-width: 100%;
+  }
+  .mp-hero__body {
     padding-block-end: var(--mp-6);
   }
-.mp-hero__eyebrow {
+  .mp-hero__eyebrow {
     margin-block-end: var(--mp-4);
   }
-.mp-hero__sub {
+  .mp-hero__sub {
     margin-block-start: var(--mp-4);
   }
-.mp-cta-row {
+  .mp-cta-row {
     margin-block-start: var(--mp-6);
   }
-.mp-paths,
-.mp-work,
-.mp-svcgrid {
+  .mp-work,
+  .mp-svcgrid {
     grid-template-columns: minmax(0, 1fr);
   }
-.mp-typo {
+  .mp-typo {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-.mp-tools {
+  .mp-tools {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-.mp-tool:nth-child(3n) {
+  .mp-tool:nth-child(3n) {
     border-inline-end: 0;
   }
-.mp-step {
+  .mp-step {
     grid-template-columns: 44px minmax(0, 1fr);
     gap: var(--mp-4);
   }
-.mp-step__detail {
+  .mp-step__detail {
     grid-column: 2;
   }
-.mp-pillars li,
-.mp-work__specs > div {
+  .mp-pillars li,
+  .mp-work__specs > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.25rem;
   }
-.mp-footer__top {
+  .mp-footer__top {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--mp-12);
   }
 }
 
-@media (max-width: 640px) {.mp {
-    --mp-t-label: 0.75rem;
+/* Short phones (360×640, 375×667, any phone with the browser's toolbars
+   showing): the hero's 22svh empty band pushed the primary CTA onto or past
+   the fold. Most of the band sits under the transparent header anyway. The
+   page-hero band shrinks with its padding (one variable). */
+@media (max-width: 900px) and (max-height: 720px) {
+  .mp-hero {
+    padding-block-start: calc(var(--mp-header-h) + 10svh);
   }
-.mp-hero__caps {
+  .mp-phero {
+    --phero-top: calc(var(--mp-header-h) + 8svh);
+  }
+}
+
+/* The two client doors stay side by side down to 701px: two ~340px columns
+   fit at 768, and stacked they were two 698×480 photographs and double the
+   section's height. */
+@media (max-width: 700px) {
+  .mp-paths {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .mp-hero__caps {
     gap: var(--mp-2) var(--mp-6);
     padding-block: var(--mp-4);
   }
-.mp-typo {
+  /* The foot row also holds the motion toggle; a no-wrap Spanish label
+     ('Evaluación de edificios existentes') ran under it at 320–360px. */
+  .mp-hero__caps li {
+    white-space: normal;
+    align-items: flex-start;
+  }
+  /* …and a wrapped label keeps its marker on the FIRST line, not centred
+     between the two (no lh support: it sits at the top, still right). */
+  .mp-hero__caps li::before {
+    margin-block-start: calc((1lh - 4px) / 2);
+  }
+  .mp-typo {
     grid-template-columns: minmax(0, 1fr);
   }
-.mp-typo__media {
+  .mp-typo__media {
     aspect-ratio: 4 / 3;
   }
-.mp-form__row {
+  .mp-form__row {
     grid-template-columns: minmax(0, 1fr);
   }
-.mp-creds {
-    grid-template-columns: minmax(0, 1fr);
-  }
-.mp-cred {
-    border-inline-end: 0 !important;
-  }
-.mp-tools {
+  /* Two columns: the divider is on every odd cell. The ≤900 three-column
+     rule took it off every third cell, which in two columns is a left-hand
+     cell (Autodesk | CYPE lost its line). */
+  .mp-tools {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-.mp-tool:nth-child(2n) {
+  .mp-tool:nth-child(3n) {
+    border-inline-end: 1px solid var(--mp-line);
+  }
+  .mp-tool:nth-child(2n) {
     border-inline-end: 0;
   }
-.mp-footer__cols {
+  .mp-footer__cols {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--mp-8);
   }
-.mp-btn {
+  /* Full-width buttons may wrap: nowrap + overflow:hidden silently cut long
+     Spanish labels at 320px ("Servicios para edificios existentes →" lost
+     its arrow), and 320 is the WCAG reflow width. */
+  .mp-btn {
     width: 100%;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
   }
-.mp-header__cta {
+  .mp-header__cta {
     display: none;
   }
-.mp-timing > div {
+  .mp-timing > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.25rem;
   }
 }
 
-@media (max-width: 380px) {.mp {
+@media (max-width: 380px) {
+  .mp {
     --mp-pad: 1rem;
   }
-.mp-header__lockup {
-    height: 32px;
-  }
-}/* ═══ 20 · REDUCED MOTION / PRINT / FORCED COLOURS ════════════════════════ */
-
-@media (prefers-reduced-motion: reduce) {
-  .mp *,
-  .mp *::before,
-  .mp *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-  .mp-path:hover .mp-path__photo,
-  .mp-typo__link:hover .mp-typo__img,
-  .mp-svc:hover .mp-svc__media img,
-  .mp-work__item:hover .mp-work__photo img,
-  .mp-gal__cell:hover img {
-    transform: none;
+  .mp-header__lockup {
+    --hdr-mark-h: 32px;
   }
 }
 
-@media print {.mp-header,
-.mp-menu,
-.mp-hero__photo,
-.mp-band__media {
-    display: none !important;
-  }
-.mp,
-.mp-surface--graphite,
-.mp-surface--charcoal,
-.mp-band,
-.mp-phero,
-.mp-footer {
-    background: #fff !important;
-    color: #000 !important;
-  }
-}
-
-@media (forced-colors: active) {.mp-btn,
-.mp-field__input {
-    border: 1px solid ButtonBorder;
-  }
-.mp-eyebrow::before,
-.mp-sechead__num::after,
-.mp-rule--gold {
-    forced-color-adjust: none;
-  }
-}/* ═══ 21 · V3 — CREDIBILITY & CONVERSION ══════════════════════════════════
-   Added 2026-09: the engineer,
-the two doors,
-services in the client's
-   terms,
-the five-step process,
-attachments on the proposal request,
-the
-   language switch,
-and one quiet drawing-sheet motif — a faint plan grid on
-   dark surfaces. No drawn objects,
-no line-art.
+/* ═══ 20 · V3 — CREDIBILITY & CONVERSION ══════════════════════════════════
+   Added 2026-09: the engineer, the two doors, services in the client's
+   terms, the five-step process, attachments on the proposal request, and
+   one quiet drawing-sheet motif — a faint plan grid on dark surfaces. No
+   drawn objects, no line-art. (The language switch that arrived with it
+   lives in 04 · HEADER.) Its responsive rules are at the end of this
+   section, after the base rules they override.
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Plan grid on dark surfaces ──────────────────────────────────────────── */
@@ -2881,63 +3376,21 @@ no line-art.
 }
 .mp-hero .mp-grid-bg {
   opacity: 0.55;
-  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.35) 45%, transparent 70%);
-  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.35) 45%, transparent 70%);
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.8) 0%,
+    rgba(0, 0, 0, 0.35) 45%,
+    transparent 70%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.8) 0%,
+    rgba(0, 0, 0, 0.35) 45%,
+    transparent 70%
+  );
 }
-.mp-phero {
-  isolation: isolate;
-}/* ── Header: language switch ─────────────────────────────────────────────── */
-.mp-lang {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--mp-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: inherit;
-}
-.mp-lang span[aria-current='true'] {
-  border-block-end: 1px solid var(--mp-gold);
-  padding-block-end: 1px;
-}
-.mp-lang__off {
-  opacity: 0.32;
-  cursor: default;
-}
-.mp-lang__sep {
-  opacity: 0.4;
-}
-.mp-lang a {
-  color: inherit;
-  text-decoration: none;
-  opacity: 0.62;
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  padding-inline: 0.15rem;
-  transition: opacity var(--mp-dur) var(--mp-ease);
-}
-.mp-lang a:hover,
-.mp-lang a:focus-visible {
-  opacity: 1;
-}
-.mp-header__lang {
-  display: flex;
-  align-items: center;
-  padding-inline-end: var(--mp-3);
-  border-inline-end: 1px solid var(--hdr-border);
-  margin-inline-end: var(--mp-1);
-}
-.mp-menu__lang {
-  padding-block: var(--mp-2);
-}
-.mp-menu__lang .mp-lang {
-  font-size: 0.85rem;
-}/* ── Hero ───────────────────────────────────────────────────────────────── */
-.mp-hero__col {
-  max-width: min(100%, 64ch);
-}/* ── Two paths: service lists inside each door ───────────────────────────── */
+
+/* ── Two paths: service lists inside each door ───────────────────────────── */
 .mp-path__eyebrow {
   display: flex;
   align-items: center;
@@ -2971,17 +3424,21 @@ no line-art.
   text-decoration: none;
   transition: color var(--mp-dur) var(--mp-ease);
 }
-.mp-path__services a:hover {
-  color: var(--mp-gold-ink);
-}
 .mp-path__services i {
   font-style: normal;
   color: var(--mp-gold);
   transition: transform var(--mp-dur) var(--mp-ease);
 }
-.mp-path__services a:hover i {
-  transform: translateX(4px);
-}/* ── The engineer ────────────────────────────────────────────────────────── */
+@media (hover: hover) and (pointer: fine) {
+  .mp-path__services a:hover {
+    color: var(--mp-gold-ink);
+  }
+  .mp-path__services a:hover i {
+    transform: translateX(4px);
+  }
+}
+
+/* ── The engineer ────────────────────────────────────────────────────────── */
 .mp-eng__grid {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
@@ -3001,6 +3458,9 @@ no line-art.
   object-fit: cover;
   display: block;
 }
+/* Only with a real portrait (EngineerSection renders it then): a photograph
+   needs a caption, while the typographic plate already states the same
+   facts. */
 .mp-eng__caption {
   position: absolute;
   inset-inline: 0;
@@ -3020,7 +3480,9 @@ no line-art.
 .mp-eng__caption span:first-child {
   color: var(--mp-ink);
   font-weight: 500;
-}/* Typographic plate while there is no portrait: monogram + name as type.
+}
+
+/* Typographic plate while there is no portrait: monogram + name as type.
    4:5 is a PREFERRED size — the plate grows when the list needs more room on
    a narrow screen — and the monogram sits in normal flow above the list, so
    the two can never overlap. Only the backdrop is absolutely positioned. */
@@ -3028,14 +3490,16 @@ no line-art.
   position: relative;
   aspect-ratio: 4 / 5;
   /* No overflow:hidden here: with overflow clipped, the automatic minimum
-     height becomes 0 and the plate would stop growing with its content —
-     the last row then hides under the caption. The figure clips instead. */
+     height becomes 0 and the plate would stop growing with its content, so
+     the last row would be cut off. The figure clips instead. Symmetric
+     padding: the extra bottom room that kept the last row clear of a
+     caption over the plate went with that caption. */
   isolation: isolate;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: var(--mp-8);
-  padding: clamp(1.5rem, 3.5vw, 2.75rem) clamp(1.5rem, 3.5vw, 2.75rem) calc(clamp(1.5rem, 3.5vw, 2.75rem) + 2.6rem);
+  padding: clamp(1.5rem, 3.5vw, 2.75rem);
 }
 .mp-eng__plate-bg {
   position: absolute;
@@ -3051,7 +3515,12 @@ no line-art.
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(to bottom, rgba(11, 12, 13, 0.35) 0%, rgba(11, 12, 13, 0.6) 40%, rgba(11, 12, 13, 0.88) 100%);
+  background: linear-gradient(
+    to bottom,
+    rgba(11, 12, 13, 0.35) 0%,
+    rgba(11, 12, 13, 0.6) 40%,
+    rgba(11, 12, 13, 0.88) 100%
+  );
 }
 .mp-eng__plate-mark {
   position: relative;
@@ -3077,7 +3546,7 @@ no line-art.
   border-block-end: 0;
 }
 .mp-eng__plate-list dt {
-  font-size: 0.68rem;
+  font-size: var(--mp-t-label);
   letter-spacing: var(--mp-track-label);
   text-transform: uppercase;
   color: var(--mp-gold);
@@ -3180,7 +3649,9 @@ no line-art.
 }
 .mp-eng__for {
   margin: 0;
-}/* ── Footer: signature line ──────────────────────────────────────────────── */
+}
+
+/* ── Footer: signature line ──────────────────────────────────────────────── */
 .mp-footer__pe {
   display: flex;
   align-items: center;
@@ -3207,7 +3678,9 @@ no line-art.
   letter-spacing: 0.05em;
   color: var(--mp-gold);
   flex: none;
-}/* ── How we work: five step cards ────────────────────────────────────────── */
+}
+
+/* ── How we work: five step cards ────────────────────────────────────────── */
 .mp-steps {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -3220,6 +3693,20 @@ no line-art.
   display: grid;
   align-content: start;
   gap: var(--mp-3);
+}
+/* The four parts of every card (number, title, your part, you get) share
+   rows across the whole row of cards, so the "You get" hairlines line up
+   even when one card's first paragraph wraps an extra line (step 03 at
+   1440 sat 23px low). Four implicit rows per row of cards, so it holds at 5,
+   3, 2 and 1 columns alike. Without subgrid each card keeps its own rows. */
+@supports (grid-template-rows: subgrid) {
+  .mp-steps {
+    grid-template-rows: repeat(4, auto);
+  }
+  .mp-stepcard {
+    grid-row: span 4;
+    grid-template-rows: subgrid;
+  }
 }
 .mp-stepcard:last-child {
   border-inline-end: 0;
@@ -3251,12 +3738,27 @@ no line-art.
   color: var(--mp-ink-2);
   padding-block-start: var(--mp-3);
   border-block-start: 1px solid var(--mp-line-soft);
-}/* ── Service cards,
-in the client's terms ────────────────────────────────── */
+}
+/* "Your part" / "You get": a small mono label on its own line at the top of
+   each paragraph. Styled like the step number but in ink-3, so it reads as
+   furniture, not as the gold index. Inside .mp-stepcard__get, so that
+   paragraph's hairline stays above "You get", between the two halves. */
+.mp-stepcard__k {
+  display: block;
+  margin-block-end: 0.3rem;
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--mp-ink-3);
+}
+
+/* ── Service cards, in the client's terms ────────────────────────────────── */
 .mp-svc {
   display: grid;
   grid-template-rows: auto 1fr;
-  background: #fff;
+  background: var(--mp-card);
   border: 1px solid var(--mp-line);
 }
 .mp-svc__media {
@@ -3265,16 +3767,28 @@ in the client's terms ───────────────────�
   overflow: hidden;
   background: var(--mp-concrete);
 }
+/* One photographic treatment for the whole grid: the sources mix
+   black-and-white files with colour ones (a teal render beside a B&W tower,
+   hi-vis vests beside a B&W facade), so every card is greyscale — like the
+   page heroes — and the colour comes back on hover, or when a link inside
+   the card has keyboard focus. */
 .mp-svc__media img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: saturate(0.7) contrast(1.06);
-  transition: transform 900ms var(--mp-ease), filter var(--mp-dur-slow) var(--mp-ease);
+  filter: grayscale(1) contrast(1.06);
+  transition: transform 900ms var(--mp-ease),
+    filter var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-svc:hover .mp-svc__media img {
+.mp-svc:has(:focus-visible) .mp-svc__media img {
   transform: scale(1.03);
-  filter: saturate(0.95) contrast(1.05);
+  filter: grayscale(0.2) contrast(1.05);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-svc:hover .mp-svc__media img {
+    transform: scale(1.03);
+    filter: grayscale(0.2) contrast(1.05);
+  }
 }
 .mp-svc__body {
   padding: var(--mp-6) clamp(1.25rem, 2.2vw, 1.75rem) var(--mp-8);
@@ -3302,8 +3816,10 @@ in the client's terms ───────────────────�
   color: inherit;
   text-decoration: none;
 }
-.mp-svc__title a:hover {
-  color: var(--mp-gold-ink);
+@media (hover: hover) and (pointer: fine) {
+  .mp-svc__title a:hover {
+    color: var(--mp-gold-ink);
+  }
 }
 .mp-svc__summary {
   margin: 0;
@@ -3323,7 +3839,7 @@ in the client's terms ───────────────────�
   border-block-end: 1px solid var(--mp-line-soft);
 }
 .mp-svc__qa dt {
-  font-size: 0.7rem;
+  font-size: var(--mp-t-label);
   letter-spacing: var(--mp-track-label);
   text-transform: uppercase;
   color: var(--mp-gold-ink);
@@ -3339,9 +3855,9 @@ in the client's terms ───────────────────�
 .mp-svc__go {
   margin-block-start: var(--mp-3);
   justify-self: start;
-}/* ── Service detail: two columns,
-jurisdiction cards,
-plain pillars ─────── */
+}
+
+/* ── Service detail: two columns, jurisdiction cards, plain pillars ─────── */
 .mp-cols2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3351,10 +3867,12 @@ plain pillars ─────── */
 .mp-cols2__title {
   margin: 0 0 var(--mp-4);
 }
-.mp-speclist--gold li::before {
-  color: var(--mp-gold-ink);
-}
+/* "Next step": the caveat callout drawn as a full box. It keeps the 2px gold
+   left rule and gets an equal inset all round — the plain callout's 0 right
+   padding ran the text (and on phones the full-width button) into the right
+   border. */
 .mp-callout--next {
+  padding: var(--mp-6);
   background: var(--mp-paper);
   border: 1px solid var(--mp-line);
   border-inline-start: 2px solid var(--mp-gold);
@@ -3374,7 +3892,7 @@ plain pillars ─────── */
   border: 1px solid var(--mp-line);
   border-block-start: 2px solid var(--mp-gold);
   padding: var(--mp-6);
-  background: #fff;
+  background: var(--mp-card);
 }
 .mp-juris__title {
   margin: 0 0 var(--mp-4);
@@ -3391,11 +3909,9 @@ plain pillars ─────── */
 }
 .mp-pillars--plain li {
   grid-template-columns: 48px minmax(0, 1fr);
-}/* ── Work: illustrative flag,
-groups ─────────────────────────────────────── */
-.mp-work__photo {
-  position: relative;
 }
+
+/* ── Work: illustrative flag, groups ─────────────────────────────────────── */
 .mp-work__illus {
   position: absolute;
   left: 0;
@@ -3415,9 +3931,9 @@ groups ────────────────────────�
   margin: 0 0 var(--mp-6);
   padding-block-end: var(--mp-3);
   border-block-end: 1px solid var(--mp-line);
-}/* ── Contact: intro,
-attachments,
-success ────────────────────────────────── */
+}
+
+/* ── Contact: intro, attachments, success ────────────────────────────────── */
 .mp-contact__intro {
   margin: 0 0 var(--mp-8);
   max-width: 60ch;
@@ -3454,6 +3970,14 @@ success ────────────────────────
   display: grid;
   gap: 0.4rem;
 }
+/* The list is always mounted — it is the aria-live region for the
+   attachments, and a live region that appears already holding content is
+   not announced. Empty, it is out of flow: no margin, no .mp-files grid gap
+   under the "Add files" row, the same layout as when it was not there. */
+.mp-files__list:empty {
+  position: absolute;
+  margin: 0;
+}
 .mp-files__item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -3465,7 +3989,7 @@ success ────────────────────────
   font-size: var(--mp-t-small);
 }
 .mp-files__item[data-state='error'] {
-  border-color: #a63a2a;
+  border-color: var(--mp-error);
 }
 .mp-files__name {
   grid-area: name;
@@ -3481,7 +4005,7 @@ success ────────────────────────
   white-space: nowrap;
 }
 .mp-files__item[data-state='error'] .mp-files__meta {
-  color: #8c2f21;
+  color: var(--mp-error-ink);
 }
 .mp-files__bar {
   grid-area: bar;
@@ -3498,7 +4022,10 @@ success ────────────────────────
 .mp-files__item[data-state='error'] .mp-files__bar {
   display: none;
 }
+/* 28px visual square; the ::before makes the tap target 44×44 (28 + 2×8).
+   The item's 0.55rem padding contains it vertically. */
 .mp-files__remove {
+  position: relative;
   grid-area: remove;
   width: 28px;
   height: 28px;
@@ -3509,9 +4036,52 @@ success ────────────────────────
   font-size: 1rem;
   line-height: 1;
 }
-.mp-files__remove:hover {
-  border-color: var(--mp-ink);
+.mp-files__remove::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-files__remove:hover {
+    border-color: var(--mp-ink);
+    color: var(--mp-ink);
+  }
+}
+/* "Retry" on an attachment whose upload failed, inline after the error text
+   in .mp-files__meta: a quiet underlined text action in ink (not colour-only),
+   gold on hover like .mp-link. The ::before grows the hit area vertically
+   only (≈37px, well over 24px), more downward than upward: sideways it must
+   not reach the remove button's expanded hit area 12px to its right, and on
+   the phone layout the row above is the one holding that button. */
+.mp-files__retry {
+  position: relative;
+  margin-inline-start: 0.6rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
   color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.mp-files__retry::before {
+  content: '';
+  position: absolute;
+  inset: -8px 0 -14px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-files__retry:hover {
+    color: var(--mp-gold-ink);
+  }
+}
+/* Remove / Retry are disabled only while the request is being sent (the file
+   list is already captured). */
+.mp-files__remove:disabled,
+.mp-files__retry:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 .mp-form__ref {
   display: inline-block;
@@ -3539,16 +4109,21 @@ success ────────────────────────
 }
 .mp-form__note a {
   color: var(--mp-gold-ink);
-}/* ── Responsive for the additions ────────────────────────────────────────── */
+}
+
+/* ── Responsive for the additions ────────────────────────────────────────── */
 @media (max-width: 1180px) {
-  .mp-header__lang {
-    display: none;
-  }
   .mp-eng__grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .mp-eng__figure {
     max-width: 520px;
+  }
+  /* Stacked, the home teaser's role eyebrow sits right under the plate that
+     already lists LICENSURE and ROLE — the same facts twice in a row. Only
+     the teaser: on /about the eyebrow is the kicker of the engineer's name. */
+  .mp-eng--teaser .mp-eng__role {
+    display: none;
   }
   .mp-steps {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3561,19 +4136,17 @@ success ────────────────────────
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@media (max-width: 860px) {.mp-steps {
+@media (max-width: 860px) {
+  .mp-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-.mp-stepcard:nth-child(3n) {
+  .mp-stepcard:nth-child(3n) {
     border-inline-end: 1px solid var(--mp-line);
     margin-inline-end: clamp(1rem, 1.8vw, 1.5rem);
   }
-.mp-stepcard:nth-child(2n) {
+  .mp-stepcard:nth-child(2n) {
     border-inline-end: 0;
     margin-inline-end: 0;
-  }
-.mp-svcgrid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 720px) {
@@ -3581,27 +4154,317 @@ success ────────────────────────
     grid-template-columns: minmax(0, 1fr);
     border-block-start: 0;
   }
-.mp-stepcard,
-.mp-stepcard:nth-child(2n),
-.mp-stepcard:nth-child(3n) {
+  .mp-stepcard,
+  .mp-stepcard:nth-child(2n),
+  .mp-stepcard:nth-child(3n) {
     border-inline-end: 0;
     margin-inline-end: 0;
     padding-inline-end: 0;
     border-block-start: 1px solid var(--mp-line);
     padding-block: var(--mp-6);
   }
-.mp-svc__qa > div {
+  .mp-svc__qa > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.2rem;
   }
-.mp-pillars--plain li {
+  .mp-pillars--plain li {
     grid-template-columns: minmax(0, 1fr);
   }
-.mp-eng__meta {
+  .mp-eng__meta {
     grid-template-columns: minmax(0, 1fr);
   }
-.mp-files__item {
+  .mp-files__item {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: 'name remove' 'meta meta' 'bar bar';
+  }
+  /* On this layout the meta row is the item's full width, and the longer
+     errors ("Too many requests from this connection. Please try again
+     shortly." + Retry) overflowed a 390px screen as one nowrap line. */
+  .mp-files__item[data-state='error'] .mp-files__meta {
+    white-space: normal;
+  }
+}
+@media (max-width: 640px) {
+  /* /contact on a phone: the first field on the first screen. The section
+     label and the form intro only repeated the hero's eyebrow and lede a
+     few hundred px above, and the --lg top padding added 88px more. The
+     visually hidden h2#mp-contact-title stays, so aria-labelledby still
+     resolves. Two classes on the padding rule so it beats .mp-section--lg. */
+  .mp-section.mp-contact {
+    padding-block-start: var(--mp-section-y);
+  }
+  .mp-contact .mp-sechead,
+  .mp-contact .mp-contact__intro {
+    display: none;
+  }
+  /* The hint carries the accepted types and the size limit: body-small on a
+     phone, not 13px. */
+  .mp-files__hint,
+  .mp-form__note {
+    font-size: var(--mp-t-small);
+  }
+}
+
+/* ═══ 21 · REDUCED MOTION / PRINT / FORCED COLOURS ════════════════════════
+   After every component rule, so equal-specificity overrides here win. */
+
+@media (prefers-reduced-motion: reduce) {
+  .mp *,
+  .mp *::before,
+  .mp *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .mp-path:hover .mp-path__photo,
+  .mp-typo__link:hover .mp-typo__img,
+  .mp-typo__link:focus-visible .mp-typo__img,
+  .mp-svc:hover .mp-svc__media img,
+  .mp-svc:has(:focus-visible) .mp-svc__media img,
+  .mp-work__item:hover .mp-work__photo img,
+  .mp-gal__cell:hover img {
+    transform: none;
+  }
+
+  /* The clamp above shortens durations but keeps animation-delay, so a
+     staggered entrance would sit at opacity .001 for up to 0.6s. Off,
+     outright: the element renders in its final state from the first paint.
+     The extra .mp wins on specificity wherever these land. */
+  .mp .mp-enter {
+    animation: none;
+  }
+
+  /* Reduced-motion loops are posters (media.tsx): nothing to pause. Hidden
+     here rather than in JS, so the server markup never depends on the
+     preference. */
+  .mp .mp-motion-toggle {
+    display: none;
+  }
+
+  /* ProcessTimeline: the track drawn complete and every node filled from the
+     start. This was a JS branch on useReducedMotion(), which shipped markup
+     that hydration never repaired (the track stayed empty, the nodes hollow).
+     !important because the progress bar's scale is an inline Motion style. */
+  .mp .mp-timeline__progress {
+    transform: none !important;
+  }
+  .mp .mp-step__dot::after {
+    transform: scale(1);
+  }
+}
+
+/* Print: a condo board printing the recertification page for a meeting is a
+   real case. Everything on paper is black on white; nothing on screen-only
+   (header, menu, skip link, burger, pause buttons, footage, scrims, the plan
+   grid) prints. */
+@media print {
+  .mp-header,
+  .mp-menu,
+  .mp-skip,
+  .mp-burger,
+  .mp-motion-toggle,
+  .mp-hero__photo,
+  .mp-phero__photo,
+  .mp-band__media,
+  .mp-grid-bg {
+    display: none !important;
+  }
+  .mp,
+  .mp-surface--graphite,
+  .mp-band,
+  .mp-phero,
+  .mp-footer {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  /* Text that was snow or gold on a dark surface would print white on
+     white. */
+  .mp-hero *,
+  .mp-band *,
+  .mp-close *,
+  .mp-phero *,
+  .mp-surface--graphite *,
+  .mp-footer * {
+    color: #000 !important;
+  }
+  /* Every block the visitor had not scrolled to still carried Motion's
+     inline opacity:0 — 21 of 31 on the recertification page, the Miami-Dade
+     and Broward timing cards among them. Same rule as the <noscript> one in
+     (public)/layout.tsx; !important beats the inline style. */
+  .mp .mp-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .mp .mp-enter {
+    animation: none !important;
+  }
+  /* The first-screen heights mean nothing on paper once the footage is gone. */
+  .mp-hero,
+  .mp-band {
+    min-height: 0 !important;
+  }
+  /* The footer lockup is the white logo, for a dark footer: on white paper
+     only its gold stroke would show. The same real file prints on a small
+     charcoal plate — no second image, no extra request. */
+  .mp-footer__brand-logo {
+    display: inline-block;
+    padding: 8px;
+    background: #121416 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* The engineer plate is a dark panel inside a paper section, and solid
+     buttons carry a snow label: both printed light grey on white. The plate
+     prints as a ruled box, its white monogram on the same charcoal chip as
+     the footer lockup. */
+  .mp-eng__figure {
+    background: #fff !important;
+    border: 1px solid #000;
+  }
+  .mp-eng__plate-bg {
+    display: none !important;
+  }
+  .mp-eng__plate::before {
+    background: none !important;
+  }
+  .mp-eng__plate *,
+  .mp-btn--solid,
+  .mp-btn--solid * {
+    color: #000 !important;
+  }
+  .mp-btn--solid {
+    background: #fff !important;
+    border-color: #000 !important;
+  }
+  .mp-eng__plate-mark {
+    padding: 8px;
+    background: #121416 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+@media (forced-colors: active) {
+  .mp-btn,
+  .mp-field__input {
+    border: 1px solid ButtonBorder;
+  }
+  .mp-eyebrow::before,
+  .mp-sechead__num::after {
+    forced-color-adjust: none;
+  }
+}
+
+/* ═══ 22 · LARGE DISPLAYS ═════════════════════════════════════════════════
+   Past ~1500px every fluid clamp has hit its ceiling, so without these steps
+   the site collapses into a narrow column on a 1920 or 2560 monitor. The
+   container, gutters, type and section rhythm all scale together.
+   LAST in the file on purpose: media queries add no specificity, so these
+   overrides only win if they come after the base rules they override.
+   (They sat at the top of the file until 2026-09-22 and every one of the
+   component overrides was dead — a 44px logo in a 96px header, section
+   titles stuck at 73.6px while the hero grew to 132px.)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 1500px) {
+  .mp {
+    --mp-w: 1640px;
+    --mp-pad: clamp(3.5rem, 4.4vw, 6rem);
+
+    --mp-t-display: clamp(5.75rem, 5.4vw, 7.5rem);
+    --mp-t-h1: clamp(4.25rem, 4vw, 5.75rem);
+    --mp-t-h2: clamp(3.1rem, 3vw, 4.2rem);
+    --mp-t-h3: clamp(1.6rem, 1.5vw, 2.1rem);
+    --mp-t-h4: clamp(1.2rem, 1.02vw, 1.45rem);
+    --mp-t-lead: clamp(1.3rem, 1.05vw, 1.5rem);
+    --mp-t-body: clamp(1.0625rem, 0.86vw, 1.1875rem);
+    --mp-t-small: clamp(0.9rem, 0.72vw, 1rem);
+    --mp-t-label: clamp(0.75rem, 0.56vw, 0.85rem);
+
+    --mp-section-y: clamp(6.5rem, 5.4vw, 8.5rem);
+    --mp-section-y-lg: clamp(8rem, 7vw, 11rem);
+    --mp-header-h: 96px;
+  }
+  /* header 96px + 12 (see scroll-padding in 00) */
+  html:has(.mp) {
+    scroll-padding-top: 108px;
+  }
+  .mp-header__lockup {
+    --hdr-mark-h: clamp(46px, 3.2vw, 54px);
+  }
+  .mp-tool__plate {
+    --plate-h: clamp(46px, 3vw, 58px);
+  }
+  .mp-paths__title {
+    font-size: clamp(4.6rem, 4.4vw, 6.4rem);
+  }
+  .mp-close__title {
+    font-size: clamp(4.6rem, 4.3vw, 6.2rem);
+  }
+  .mp-paths__title,
+  .mp-hero__title,
+  .mp-close__title {
+    letter-spacing: -0.036em;
+  }
+
+  /* Title measures in the title's own em. The base caps are body-text `ch`
+     (60–64ch ≈ 680–720px), which stop growing while the headline type keeps
+     scaling, so headlines wrapped HARDER on bigger screens: the services
+     H1 went to four lines with a one-word widow, "Five steps…" to three.
+     The ems below are a little looser than what the 1440 layout works out
+     to, so a large screen never wraps more than a laptop does. */
+  .mp-hero__body > *,
+  .mp-hero__col {
+    max-width: none;
+  }
+  .mp-hero__title {
+    max-width: 8.5em;
+  }
+  .mp-hero__sub {
+    max-width: 60ch;
+  }
+  .mp-phero__grid > * {
+    max-width: none;
+  }
+  .mp-phero__title {
+    max-width: 11em;
+  }
+  .mp-phero__sub {
+    max-width: 58ch;
+  }
+  .mp-intro {
+    max-width: none;
+  }
+  .mp-intro__title {
+    max-width: 16em;
+  }
+  .mp-paths__intro {
+    max-width: none;
+  }
+  .mp-paths__title {
+    max-width: 10em;
+  }
+}
+
+@media (min-width: 2000px) {
+  .mp {
+    --mp-w: 1880px;
+    --mp-pad: 6.5rem;
+    --mp-t-display: 8.25rem;
+    --mp-t-h1: 6.25rem;
+    --mp-section-y: 11rem;
+    --mp-section-y-lg: 14rem;
+  }
+  .mp-paths__title {
+    font-size: 7.25rem;
+  }
+  .mp-close__title {
+    font-size: 6.75rem;
+  }
+  /* The 980px cap left a ~340px paper strip with a lone section label on the
+     first screen of a 2560×1440 monitor. */
+  .mp-hero {
+    min-height: clamp(640px, 92svh, 1320px);
   }
 }

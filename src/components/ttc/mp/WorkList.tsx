@@ -14,16 +14,24 @@ import { useContent } from './lang';
  *     the other. Each shows the building type, general location, problem,
  *     scope, our role and the documented result. Illustrative photographs are
  *     labelled as such.
- *   • `caseStudies` is empty → anonymized representative engagements, with
- *     the note saying exactly what they are.
+ *   • `caseStudies` is empty → TYPICAL ENGAGEMENTS: profiles of the kind of
+ *     work the practice takes on, with the note saying exactly what they are.
+ *     They carry no location row: a specific county beside each profile read
+ *     as a real past job, and the honest value ("Miami-Dade or Broward") is
+ *     the same on all six and already stated by the hero's Coverage fact.
+ *     No code row either — the client site does not list code standards.
  *   • There is no "coming soon" state.
+ *
+ * The visible section label is hidden from assistive tech; the visually
+ * hidden h2 carries the same words, so the label is announced once, as the
+ * section's heading.
  */
 export function WorkList({ n = '01' }: { n?: string }) {
   const c = useContent();
   const u = c.ui.work;
   const real = c.caseStudies;
   const usingReal = real.length > 0;
-  const label = usingReal ? c.workSection.eyebrowReal : c.workSection.eyebrowRepresentative;
+  const label = usingReal ? c.workSection.eyebrowReal : c.ui.typicalEngagements;
 
   const groups = usingReal
     ? [
@@ -38,8 +46,10 @@ export function WorkList({ n = '01' }: { n?: string }) {
       aria-labelledby="mp-work-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={label} />
-        <h2 id="mp-work-title" className="mp-form__hp">
+        <div aria-hidden="true">
+          <SectionHeading n={n} label={label} />
+        </div>
+        <h2 id="mp-work-title" className="mp-sr-only">
           {label}
         </h2>
 
@@ -92,11 +102,9 @@ export function WorkList({ n = '01' }: { n?: string }) {
                 </div>
                 <dl className="mp-work__specs">
                   <div><dt>{u.projectType}</dt><dd>{e.projectType}</dd></div>
-                  <div><dt>{u.location}</dt><dd>{e.location}</dd></div>
                   <div><dt>{u.scope}</dt><dd>{e.scope}</dd></div>
                   <div><dt>{u.structuralSystem}</dt><dd>{e.structuralSystem}</dd></div>
                   <div><dt>{u.deliverables}</dt><dd>{e.deliverables}</dd></div>
-                  <div><dt>{u.codes}</dt><dd>{e.codes}</dd></div>
                   <div>
                     <dt>{u.status}</dt>
                     <dd><span className="mp-work__status">{e.status}</span></dd>

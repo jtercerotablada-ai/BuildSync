@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { imagery } from '@/lib/ttc/site';
-import { VideoLoop } from './media';
+import { MotionToggle, VideoLoop } from './media';
 import { ButtonLink, Reveal, SectionHeading } from './primitives';
 import { useContent, useL } from './lang';
 
@@ -10,6 +10,10 @@ import { useContent, useL } from './lang';
  * BIM is shown, not listed — with a model rather than a drawing of one. The
  * clip is a structure assembling floor plate by floor plate: the one thing on
  * this site a camera cannot be pointed at.
+ *
+ * The clip loops for as long as the section is on screen, so the stage
+ * carries a pause control in its corner (WCAG 2.2.2) — the same shared switch
+ * as the hero and the video band.
  */
 export function BIMExperience({ n = '05' }: { n?: string }) {
   const c = useContent();
@@ -50,6 +54,7 @@ export function BIMExperience({ n = '05' }: { n?: string }) {
           <Reveal delay={0.08}>
             <div className="mp-bim__stage">
               <VideoLoop clip={imagery.clips.bim} className="mp-bim__clip" />
+              <MotionToggle className="mp-bim__toggle" />
             </div>
           </Reveal>
         </div>

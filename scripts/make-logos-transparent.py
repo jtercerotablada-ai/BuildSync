@@ -3,7 +3,7 @@ from PIL import Image
 import os
 
 LOGO_DIR = os.path.join(os.path.dirname(__file__), '..', 'public', 'ttc', 'img')
-FILES = ['logo-horizontal-wide.png', 'logo-horizontal.png', 'logo-square.png', 'logo-stacked.png']
+FILES = ['logo-horizontal.png', 'logo-square.png']
 
 # Background threshold: a pixel is considered "background" (made transparent)
 # if all RGB channels are above this value AND have low saturation.

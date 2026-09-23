@@ -7,9 +7,23 @@
  * user prefers reduced motion — the element renders in its final state, never
  * hidden. Nothing on this site depends on an animation to become readable.
  *
- * Why `animate` is set explicitly in the reduced-motion branch: the server
- * cannot know the visitor's motion preference, so it always serialises the
- * animating `initial` state (opacity: 0) into the HTML. Passing
+ * Two mechanisms, split at the fold:
+ *
+ *   • ABOVE THE FOLD — the hero and page-hero photo, eyebrow, headline, sub,
+ *     CTA row and facts — entrances are CSS keyframes (`mp-enter` classes in
+ *     mp.css). Motion serialises its `initial` state into the server HTML, so
+ *     those elements used to ship invisible and waited for React to hydrate:
+ *     an 8–11 s LCP on a throttled phone, for reduced-motion visitors too. A
+ *     keyframe starts at first paint, JavaScript or not, and the
+ *     reduced-motion media query switches it off.
+ *
+ *   • BELOW THE FOLD — `Reveal`, scroll-triggered `RevealText`, the stagger
+ *     lists — Motion's `whileInView`. Hidden-until-hydrated is harmless there:
+ *     by the time anyone scrolls to them, React has long since arrived.
+ *
+ * Why `animate` is set explicitly in the reduced-motion branch below: the
+ * server cannot know the visitor's motion preference, so it always serialises
+ * the animating `initial` state (opacity: 0) into the HTML. Passing
  * `initial={false}` on the client only stops Motion from *setting* a value —
  * it does not clear what the server already wrote. Without an explicit
  * `animate` target, every scroll-revealed element would stay invisible
@@ -23,10 +37,12 @@ import { motion, useReducedMotion, type Variants } from 'motion/react';
 export const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
- * Marker class on every animated element. Motion serialises its `initial`
- * state into the SSR markup (opacity: 0), so if JavaScript never arrives the
- * content would stay invisible. The <noscript> block in (public)/layout.tsx
- * resets anything carrying this class to its final state.
+ * Marker class on every Motion-animated element. Motion serialises its
+ * `initial` state into the SSR markup (opacity: 0), so if JavaScript never
+ * arrives the content would stay invisible. The <noscript> block in
+ * (public)/layout.tsx resets anything carrying this class to its final state.
+ * The CSS `mp-enter` entrances need no such reset — a keyframe runs without
+ * JavaScript.
  */
 const REVEAL = 'mp-reveal';
 const cx = (...parts: (string | undefined | false)[]) =>
@@ -91,6 +107,29 @@ const LINE_VARIANTS: Variants = {
   show: { y: '0%' },
 };
 
+/**
+ * The mask clips at the line box, but glyph ink (descenders, and ascenders at
+ * line-height < 1) spills past it. The padding adds slack to the clip rect and
+ * the negative margin takes it back out of the layout, so nothing shifts.
+ */
+const LINE_MASK: React.CSSProperties = {
+  display: 'block',
+  overflow: 'hidden',
+  paddingBlock: '0.06em 0.18em',
+  marginBlock: '-0.06em -0.18em',
+};
+
+/**
+ * Each line is its own block span, so the heading's raw text needs a real
+ * space between them: without it `textContent` — what crawlers, link
+ * previews and readability parsers read — ran the words together
+ * ("Structural Engineeringfor South Florida."). A whitespace-only text node
+ * between two blocks renders nothing, so the layout is untouched.
+ *
+ * `id` goes on the heading itself, so a section can point `aria-labelledby`
+ * at the real headline instead of at a visually hidden copy of it (which
+ * screen readers used to announce a second time).
+ */
 export function RevealText({
   lines,
   className,
@@ -98,6 +137,7 @@ export function RevealText({
   delay = 0,
   animateOnMount = false,
   as: Tag = 'h2',
+  id,
 }: {
   /** Each entry is one visual line. Strings or nodes both work. */
   lines: React.ReactNode[];
@@ -107,47 +147,68 @@ export function RevealText({
   /** true for above-the-fold headlines, false for scroll-triggered ones. */
   animateOnMount?: boolean;
   as?: 'h1' | 'h2' | 'h3' | 'p';
+  id?: string;
 }) {
   const reduce = useReducedMotion();
-  const immediate = animateOnMount || reduce;
+
+  // Above the fold: the same mask-rise, as a CSS keyframe (`mp-enter--line`)
+  // that starts at first paint — no `initial` state in the server HTML, no
+  // wait for hydration. The per-line stagger is an inline animation-delay,
+  // identical on the server and the client.
+  if (animateOnMount) {
+    return (
+      <Tag id={id} className={className}>
+        {lines.map((line, i) => (
+          <React.Fragment key={i}>
+            {i > 0 ? ' ' : null}
+            <span className={lineClassName} style={LINE_MASK}>
+              <span
+                className="mp-enter mp-enter--line"
+                style={{
+                  display: 'block',
+                  // Whole milliseconds: 0.1 + 2 × 0.07 is 0.24000000000000002.
+                  animationDelay: `${Math.round((delay + i * 0.07) * 1000)}ms`,
+                }}
+              >
+                {line}
+              </span>
+            </span>
+          </React.Fragment>
+        ))}
+      </Tag>
+    );
+  }
 
   return (
-    <Tag className={className}>
+    <Tag id={id} className={className}>
       {lines.map((line, i) => (
-        <motion.span
-          key={i}
-          className={lineClassName}
-          // The mask clips at the line box, but glyph ink (descenders, and
-          // ascenders at line-height < 1) spills past it. The padding adds
-          // slack to the clip rect and the negative margin takes it back out
-          // of the layout, so nothing shifts.
-          style={{
-            display: 'block',
-            overflow: 'hidden',
-            paddingBlock: '0.06em 0.18em',
-            marginBlock: '-0.06em -0.18em',
-          }}
-          initial={reduce ? false : 'hidden'}
-          {...(immediate
-            ? { animate: 'show' as const }
-            : {
-                whileInView: 'show' as const,
-                viewport: { once: true, margin: '-60px' },
-              })}
-        >
+        <React.Fragment key={i}>
+          {i > 0 ? ' ' : null}
           <motion.span
-            className={REVEAL}
-            style={{ display: 'block' }}
-            variants={LINE_VARIANTS}
-            transition={
-              reduce
-                ? { duration: 0 }
-                : { duration: 0.7, ease: EASE, delay: delay + i * 0.07 }
-            }
+            className={lineClassName}
+            style={LINE_MASK}
+            initial={reduce ? false : 'hidden'}
+            {...(reduce
+              ? { animate: 'show' as const }
+              : {
+                  whileInView: 'show' as const,
+                  viewport: { once: true, margin: '-60px' },
+                })}
           >
-            {line}
+            <motion.span
+              className={REVEAL}
+              style={{ display: 'block' }}
+              variants={LINE_VARIANTS}
+              transition={
+                reduce
+                  ? { duration: 0 }
+                  : { duration: 0.7, ease: EASE, delay: delay + i * 0.07 }
+              }
+            >
+              {line}
+            </motion.span>
           </motion.span>
-        </motion.span>
+        </React.Fragment>
       ))}
     </Tag>
   );
@@ -208,20 +269,12 @@ export function SectionHeading({
 
 export function TechnicalEyebrow({
   children,
-  dot = false,
   className = '',
 }: {
   children: React.ReactNode;
-  dot?: boolean;
   className?: string;
 }) {
-  return (
-    <p
-      className={`mp-eyebrow${dot ? ' mp-eyebrow--dot' : ''} ${className}`.trim()}
-    >
-      {children}
-    </p>
-  );
+  return <p className={`mp-eyebrow ${className}`.trim()}>{children}</p>;
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */

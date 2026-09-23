@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { Clip } from '@/lib/ttc/media';
-import { VideoLoop } from './media';
+import { MotionToggle, VideoLoop } from './media';
 import { ButtonLink, Reveal, RevealText, TechnicalEyebrow } from './primitives';
 
 /**
@@ -15,6 +15,10 @@ import { ButtonLink, Reveal, RevealText, TechnicalEyebrow } from './primitives';
  * The scrim is a fixed gradient rather than a blur or an opacity on the video,
  * because legibility must not depend on where the bright parts of the footage
  * happen to fall. Same reasoning as the hero.
+ *
+ * The loop runs past five seconds beside readable content, so the band
+ * carries its own pause control (WCAG 2.2.2), in the corner over the footage.
+ * It drives the same switch as the hero's — one choice stops every loop.
  */
 export function VideoBand({
   eyebrow,
@@ -28,7 +32,8 @@ export function VideoBand({
 }: {
   eyebrow: string;
   titleLines: React.ReactNode[];
-  /** Plain-text headline for the accessible name. */
+  /** Plain-text headline. Only used to derive a stable, readable heading id —
+   *  the accessible name comes from the visible heading itself. */
   plainTitle: string;
   body: string;
   facts?: { k: string; v: string }[];
@@ -52,10 +57,12 @@ export function VideoBand({
             <TechnicalEyebrow>{eyebrow}</TechnicalEyebrow>
           </Reveal>
 
-          <RevealText as="h2" className="mp-band__title" lines={titleLines} />
-          <span id={`${id}-title`} className="mp-form__hp">
-            {plainTitle}
-          </span>
+          <RevealText
+            as="h2"
+            id={`${id}-title`}
+            className="mp-band__title"
+            lines={titleLines}
+          />
 
           <Reveal delay={0.16}>
             <p className="mp-band__body">{body}</p>
@@ -85,6 +92,8 @@ export function VideoBand({
           ) : null}
         </div>
       </div>
+
+      <MotionToggle className="mp-band__toggle" />
     </section>
   );
 }

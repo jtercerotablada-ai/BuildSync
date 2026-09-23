@@ -9,6 +9,17 @@
  * Content integrity rules from `site.ts` apply here verbatim: no invented
  * clients, metrics, license numbers or portraits; regulatory numbers stay
  * factually identical to the English rows and name their authority.
+ *
+ * Spanish style, so the copy does not read as a translation:
+ *   • Sentence case in titles, service names and buttons ("Diseño de
+ *     concreto reforzado", "Solicitar propuesta"); months in lowercase.
+ *   • "y", never "&", inside Spanish text (the firm's legal name keeps its &).
+ *   • "Inspección de hito (milestone)" on first mention, then "de hito".
+ *   • "Con licencia", not "licenciado" (a degree title in Latin America);
+ *     "la firma", not "la práctica"; "tramitar/obtener el permiso", never
+ *     "permitir" (which means "to allow").
+ *   • Avoid the "contra" calque of "checked against": "con base en",
+ *     "según", "se compara con".
  */
 
 import { photo } from './media';
@@ -22,13 +33,14 @@ const services: SiteContent['services'] = [
   {
     slug: 'reinforced-concrete-design',
     n: '01',
-    title: 'Diseño de Concreto Reforzado',
-    shortTitle: 'Diseño de Concreto Reforzado',
+    title: 'Diseño de concreto reforzado',
+    shortTitle: 'Diseño de concreto reforzado',
     track: 'new',
     summary:
       'Cimentaciones, columnas, vigas, losas y muros de corte diseñados como una sola trayectoria de carga — detallados para la obra y emitidos listos para permiso.',
+    problemTitle: 'El concreto se resuelve primero en el papel.',
     problem:
-      'El concreto no perdona: un refuerzo que no se puede colocar, una condición de transferencia resuelta tarde o un espesor de losa fijado antes de conocer las cargas se convierten en problemas de obra que cuestan mucho más de lo que ahorraron. El diseño tiene que estar bien en el papel antes de estar bien en el encofrado.',
+      'El concreto no perdona: un refuerzo que no se puede colocar, una condición de transferencia resuelta tarde o un espesor de losa fijado antes de conocer las cargas se convierten en problemas de obra que cuestan mucho más de lo que ahorraron.',
     audience: [
       'Desarrolladores y propietarios de edificios',
       'Arquitectos que llevan un proyecto a través del proceso de permisos',
@@ -55,11 +67,11 @@ const services: SiteContent['services'] = [
       'RFIs en fase de construcción y revisión de submittals',
     ],
     process: [
-      { step: 'Bajada de cargas', detail: 'Ocupación, carga muerta, viva, viento y sismo establecidas según ASCE 7 antes de dimensionar cualquier miembro.' },
+      { step: 'Bajada de cargas', detail: 'Ocupación, carga muerta, carga viva y viento de huracán establecidos para el sitio real antes de dimensionar cualquier miembro.' },
       { step: 'Selección del sistema', detail: 'Distribución de la estructura, tipo de losa y estrategia lateral elegidos con el arquitecto — luz, peralte y costo evaluados en conjunto.' },
-      { step: 'Análisis y dimensionamiento', detail: 'Miembros analizados y diseñados según ACI 318 y el Código de Construcción de Florida (FBC), con deflexión y condiciones de servicio verificadas.' },
+      { step: 'Análisis y dimensionamiento', detail: 'Miembros analizados y diseñados según el Código de Construcción de Florida (FBC), con deflexión y condiciones de servicio verificadas.' },
       { step: 'Detallado', detail: 'Refuerzo dibujado de modo que realmente se pueda colocar — congestión, recubrimiento, ganchos y empalmes resueltos en el plano.' },
-      { step: 'Revisión y sello', detail: 'Verificación interna independiente; luego firmado y sellado para la presentación del permiso.' },
+      { step: 'Revisión y sello', detail: 'Planos cotejados línea por línea con los cálculos; luego firmados y sellados para la presentación del permiso.' },
     ],
     deliverables: [
       'Juego de planos estructurales, listo para permiso',
@@ -74,24 +86,24 @@ const services: SiteContent['services'] = [
       'El alcance y los honorarios cambian con la irregularidad — transferencias, voladizos, postensado y geometrías inusuales se cotizan con honestidad, no se absorben en silencio.',
       'Los comentarios de la revisión del permiso son parte del proceso; los respondemos, pero ningún ingeniero puede garantizar la decisión de una jurisdicción.',
     ],
-    standards: ['ACI 318', 'ASCE 7', 'Florida Building Code'],
     seo: {
-      title: 'Diseño de Concreto Reforzado',
+      title: 'Diseño de concreto reforzado — Miami-Dade y Broward',
       description:
-        'Diseño de concreto reforzado para edificios en el Sur de Florida — cimentaciones, columnas, vigas, losas y muros de corte detallados según ACI 318 y el Código de Construcción de Florida, emitidos listos para permiso. Miami-Dade y Broward.',
+        'Diseño de concreto reforzado en el Sur de Florida: cimentaciones, columnas, losas y muros de casas y edificios, con planos listos para el permiso.',
       keywords: ['diseño de concreto reforzado', 'diseño de estructuras de concreto Miami', 'ingeniero estructural Miami', 'ingeniero estructural Broward'],
     },
   },
   {
     slug: 'structural-analysis',
     n: '02',
-    title: 'Análisis Estructural y Cimentaciones',
-    shortTitle: 'Análisis Estructural y Cimentaciones',
+    title: 'Análisis estructural y cimentaciones',
+    shortTitle: 'Análisis estructural y cimentaciones',
     track: 'new',
     summary:
       'Análisis de gravedad y lateral, demanda de viento y sismo, y el sistema de cimentación que lleva todo eso al terreno.',
+    problemTitle: 'Una sola trayectoria de carga, del techo al suelo.',
     problem:
-      'Cada edificio es una sola trayectoria de carga continua, del techo al suelo. Cuando el diseño por gravedad, el lateral y el de cimentaciones se tratan como ejercicios separados, las costuras entre ellos son donde viven las fallas y las órdenes de cambio.',
+      'Cuando el diseño por gravedad, el diseño por viento y las cimentaciones se tratan como ejercicios separados, es en las uniones entre ellos donde aparecen las fallas y las órdenes de cambio.',
     audience: [
       'Equipos de diseño que necesitan un modelo estructural completo',
       'Propietarios que evalúan factibilidad u opciones estructurales',
@@ -105,11 +117,11 @@ const services: SiteContent['services'] = [
     capabilities: ['Modelado 3D', 'Demanda de viento y sismo', 'Control de deriva', 'Cimentaciones profundas', 'Verificación de asentamientos'],
     scope: [
       'Modelado analítico tridimensional de la estructura',
-      'Demanda de viento y sismo según ASCE 7',
+      'Demanda de viento de huracán y lateral para el sitio real',
       'Selección del sistema lateral y control de deriva',
       'Verificación de diafragmas, colectores y continuidad de la trayectoria de carga',
       'Diseño de cimentaciones superficiales y profundas',
-      'Verificación de asentamiento, capacidad portante y levantamiento contra el estudio geotécnico',
+      'Verificación de asentamiento, capacidad portante y levantamiento con base en el estudio geotécnico',
     ],
     process: [
       { step: 'Definir la demanda', detail: 'Categoría de riesgo, exposición, velocidad de viento y parámetros sísmicos fijados para el sitio real — no supuestos.' },
@@ -131,24 +143,24 @@ const services: SiteContent['services'] = [
       'Las estructuras existentes requieren verificación en campo antes de que un modelo analítico sea confiable.',
       'Los resultados del análisis se reportan tal como son — incluso cuando muestran que un sistema no funciona.',
     ],
-    standards: ['ASCE 7', 'ACI 318', 'AISC 360', 'Florida Building Code'],
     seo: {
-      title: 'Análisis Estructural y Cimentaciones',
+      title: 'Análisis estructural y cimentaciones — Miami-Dade y Broward',
       description:
-        'Análisis estructural y diseño de cimentaciones para el Sur de Florida — sistemas de gravedad y laterales, demanda de viento y sismo según ASCE 7, cimentaciones superficiales y profundas en Miami-Dade y Broward.',
+        'Análisis estructural y diseño de cimentaciones en Miami-Dade y Broward: viento de huracán, sistemas laterales y cimentaciones para sitios difíciles.',
       keywords: ['análisis estructural Sur de Florida', 'diseño de cimentaciones Miami', 'análisis de viento ASCE 7 Florida', 'diseño de sistema lateral'],
     },
   },
   {
     slug: 'bim-coordination',
     n: '03',
-    title: 'Modelado y Coordinación BIM',
+    title: 'Modelado y coordinación BIM',
     shortTitle: 'Coordinación BIM',
     track: 'new',
     summary:
       'Modelos digitales coordinados que resuelven los conflictos antes de que lleguen a la obra y producen entregables estructurales más claros.',
+    problemTitle: 'Encuentre los conflictos antes de llegar a obra.',
     problem:
-      'La mayoría de los conflictos entre estructura, arquitectura y MEP se descubren en obra, donde corregirlos cuesta más. Un modelo coordinado traslada ese descubrimiento al diseño, donde cuesta una conversación en lugar de una orden de cambio.',
+      'La mayoría de los conflictos entre la estructura, la arquitectura y las instalaciones mecánicas, eléctricas y de plomería se descubren en obra, donde corregirlos cuesta más. Un modelo coordinado traslada ese descubrimiento al diseño, donde cuesta una conversación en lugar de una orden de cambio.',
     audience: [
       'Equipos de diseño que llevan coordinación multidisciplinaria',
       'Contratistas que requieren entregables basados en modelo',
@@ -188,24 +200,24 @@ const services: SiteContent['services'] = [
       'Un modelo no sustituye un juego de planos firmado y sellado — lo respalda.',
       'El nivel de información debe corresponder a la decisión que se toma, no al número más alto disponible.',
     ],
-    standards: ['ISO 19650', 'Coordinación basada en modelo'],
     seo: {
-      title: 'Modelado y Coordinación BIM',
+      title: 'Modelado y coordinación BIM — Miami-Dade y Broward',
       description:
-        'Modelado BIM estructural y coordinación multidisciplinaria — modelos Revit federados, detección de interferencias y entregables estructurales derivados del modelo para proyectos en el Sur de Florida.',
+        'Modelado BIM estructural y coordinación para proyectos en el Sur de Florida: modelos Revit, detección de interferencias y planos derivados del modelo.',
       keywords: ['coordinación BIM Miami', 'modelado BIM estructural', 'detección de interferencias estructural', 'ingeniero estructural Revit Florida'],
     },
   },
   {
     slug: 'peer-review',
     n: '04',
-    title: 'Revisión por Pares y Cumplimiento',
+    title: 'Revisión por pares y cumplimiento',
     shortTitle: 'Revisión por pares',
     track: 'new',
     summary:
       'Una segunda lectura independiente del diseño estructural — cumplimiento de código, trayectoria de carga, constructibilidad y calidad de la documentación.',
+    problemTitle: 'Una segunda lectura antes de emitir los planos.',
     problem:
-      'Cuando un problema estructural aparece en construcción, ya es un evento de cronograma. Una revisión independiente antes de emitir es la reducción de riesgo más barata disponible en un proyecto.',
+      'Cuando un problema estructural aparece en construcción, ya es un evento de cronograma. Una revisión independiente antes de emitir el juego de planos es la reducción de riesgo más barata disponible en un proyecto.',
     audience: [
       'Propietarios y desarrolladores que gestionan riesgo estructural',
       'Equipos de diseño que buscan una verificación independiente',
@@ -223,11 +235,11 @@ const services: SiteContent['services'] = [
       'Revisión de las hipótesis de análisis y del modelado',
       'Revisión de constructibilidad y detallado',
       'Revisión de integridad y coordinación de la documentación',
-      'Registro escrito de comentarios con seguimiento de resolución',
+      'Revisión de las respuestas del equipo de diseño hasta cerrar cada comentario',
     ],
     process: [
       { step: 'Definir el alcance', detail: 'Profundidad acordada desde el inicio — revisión completa, sistemas específicos o una inquietud concreta.' },
-      { step: 'Revisar', detail: 'Planos, cálculos y modelos leídos de forma independiente contra el código aplicable.' },
+      { step: 'Revisar', detail: 'Planos, cálculos y modelos revisados de forma independiente según el código aplicable.' },
       { step: 'Comentar', detail: 'Hallazgos emitidos como un registro estructurado de comentarios, priorizados por consecuencia estructural.' },
       { step: 'Cerrar', detail: 'Respuestas revisadas y comentarios seguidos hasta su cierre para que el registro quede completo.' },
     ],
@@ -243,49 +255,50 @@ const services: SiteContent['services'] = [
       'La profundidad de la revisión y los honorarios escalan con el tamaño y la complejidad del juego de planos.',
       'Los comentarios se escriben para resolverse, no para asignar culpas.',
     ],
-    standards: ['ACI 318', 'ASCE 7', 'AISC 360', 'Florida Building Code'],
     seo: {
-      title: 'Revisión Estructural por Pares y Cumplimiento',
+      title: 'Revisión estructural por pares — Miami-Dade y Broward',
       description:
-        'Revisión estructural independiente por pares — cumplimiento de código, trayectoria de carga, constructibilidad y revisión de documentación para proyectos en Miami-Dade y Broward.',
+        'Revisión estructural independiente por pares en Miami-Dade y Broward: cumplimiento de código, trayectoria de carga, constructibilidad y documentación.',
       keywords: ['revisión estructural por pares', 'revisión estructural independiente Florida', 'revisión estructural de terceros Miami', 'due diligence estructural'],
     },
   },
   {
     slug: 'building-recertification',
     n: '05',
-    title: 'Recertificación de Edificios',
-    shortTitle: 'Recertificación de Edificios',
+    title: 'Recertificación de edificios',
+    shortTitle: 'Recertificación de edificios',
     track: 'existing',
     summary:
       'Un camino claro desde la notificación del condado hasta el informe de recertificación estructural presentado — inspección, hallazgos, reparaciones, reinspección.',
+    problemTitle: 'Llega una notificación con un plazo.',
     problem:
-      'Una notificación de recertificación llega con un plazo, un formulario y muy poca explicación de lo que realmente tiene que ocurrir. Las juntas directivas y los propietarios necesitan a alguien que conozca la secuencia y pueda llevar la parte estructural de principio a fin.',
+      'La notificación trae un formulario y muy poca explicación de lo que realmente tiene que ocurrir. Las juntas directivas y los propietarios necesitan a alguien que conozca la secuencia y pueda llevar la parte estructural de principio a fin.',
     audience: [
       'Asociaciones de condominio y de propietarios',
       'Administradores de propiedades',
-      'Propietarios de edificios y gestores de activos',
+      'Propietarios de edificios y administradores de activos',
     ],
     when: [
       'Llegó una notificación de recertificación de Miami-Dade o Broward, o el edificio se acerca a la edad en la que llegará.',
-      'Un informe anterior identificó reparaciones y ahora el edificio debe reinspeccionarse y cerrarse.',
+      /* "Cerrarse" read as "the building must be shut down". */
+      'Un informe anterior identificó reparaciones y ahora hay que reinspeccionar el edificio y cerrar el expediente de recertificación.',
       'Está comprando o administrando un edificio y quiere saber en qué punto del ciclo de recertificación se encuentra.',
     ],
     capabilities: ['Revisión de la notificación', 'Inspección en sitio', 'Informe de hallazgos', 'Alcance de reparaciones', 'Reinspección'],
     scope: [
       'Revisión de la notificación, los registros del edificio e informes previos',
-      'Inspección estructural visual del edificio',
-      'Documentación de las condiciones observadas con fotografías',
-      'Informe de recertificación estructural en el formulario requerido',
-      'Recomendaciones de reparación donde las condiciones lo requieran',
-      'Reinspección tras las reparaciones y apoyo en la presentación',
+      'Inspección estructural visual de los elementos accesibles — estructura, losas, balcones, estructura de techo',
+      'Clasificación de las condiciones observadas según su importancia estructural',
+      'Alcance de reparaciones definido para que los contratistas coticen el mismo trabajo',
+      'Reinspección de las reparaciones terminadas',
+      'Presentación del informe y respuesta a las preguntas de la oficina revisora',
     ],
     process: [
       { step: 'Revisión de la notificación', detail: 'Leemos la notificación y el historial del edificio, y confirmamos qué está pidiendo realmente la jurisdicción y para cuándo.' },
       { step: 'Inspección en sitio', detail: 'Inspección estructural visual de los elementos accesibles — estructura, losas, balcones, estructura de techo y cimentaciones donde estén expuestas.' },
       { step: 'Hallazgos', detail: 'Condiciones observadas documentadas y clasificadas, con el razonamiento estructural escrito en lenguaje claro para la junta directiva.' },
-      { step: 'Reparaciones', detail: 'Donde se requieran reparaciones, describimos qué debe corregirse y con qué estándar, para que el trabajo pueda licitarse con justicia.' },
-      { step: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan y documentan contra los hallazgos originales.' },
+      { step: 'Reparaciones', detail: 'Donde se requieran reparaciones, describimos qué debe corregirse y con qué estándar, para que los contratistas coticen el mismo trabajo y las ofertas sean comparables.' },
+      { step: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales.' },
       { step: 'Presentación', detail: 'El informe se finaliza y se presenta, y respondemos a las preguntas que plantee la oficina revisora.' },
     ],
     deliverables: [
@@ -297,8 +310,8 @@ const services: SiteContent['services'] = [
     nextStep:
       'Adjunte la notificación (o indíquenos la edad y la dirección del edificio). Confirmamos qué programa aplica y respondemos con una propuesta para la inspección y el informe.',
     timing: {
-      checked: 'Septiembre de 2026',
-      note: 'La recertificación del condado y la inspección milestone (hito estructural) del estado son obligaciones separadas. Un condominio en Miami-Dade o Broward puede deber ambas, con plazos distintos y en informes distintos. Qué programas alcanzan a su edificio se confirma antes de comenzar.',
+      checked: 'septiembre de 2026',
+      note: 'La recertificación del condado y la inspección de hito (milestone) del estado son obligaciones separadas. Un condominio en Miami-Dade o Broward puede deber ambas, con plazos distintos y en informes distintos. Qué programas alcanzan a su edificio se confirma antes de comenzar.',
       rows: [
         {
           jurisdiction: 'Condado de Miami-Dade',
@@ -316,38 +329,40 @@ const services: SiteContent['services'] = [
           facts: [
             { k: 'Primer vencimiento', v: '25 años' },
             { k: 'Después', v: 'Cada 10 años' },
-            { k: 'Alcance', v: 'Estructural y eléctrico, reportados por separado por profesionales licenciados' },
+            { k: 'Alcance', v: 'Estructural y eléctrico, presentados por separado por profesionales con licencia' },
           ],
         },
       ],
     },
     considerations: [
+      /* A naming note, not a deadline — see the comment on the EN row in site.ts. */
+      'Todavía se la conoce como la “recertificación de 40 años” — la primera ahora vence antes, a las edades indicadas arriba.',
       'Los requisitos difieren entre Miami-Dade y Broward y entre municipios — la secuencia anterior es típica, no universal.',
       'La recertificación no es un evento único. Después del primer informe, el edificio vuelve a vencer cada diez años, durante la vida de la estructura.',
       'La recertificación cubre el alcance estructural; la recertificación eléctrica es una disciplina separada.',
       'Un informe documenta condiciones observadas. Ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
       'Las condiciones ocultas pueden requerir investigación adicional antes de poder extraer conclusiones.',
     ],
-    standards: ['Florida Building Code', 'Requisitos de Miami-Dade y Broward'],
     seo: {
-      title: 'Recertificación de Edificios — Miami-Dade y Broward',
+      title: 'Recertificación de edificios — Miami-Dade y Broward',
       description:
-        'Recertificación estructural de edificios en Miami-Dade (30 / 25 años) y Broward (25 años) — revisión de la notificación, inspección, hallazgos, recomendaciones de reparación, reinspección y presentación del informe por un P.E. de Florida.',
-      keywords: ['recertificación de edificios Miami-Dade', 'recertificación de edificios Broward', 'recertificación 30 años Miami', 'recertificación 25 años Broward', 'informe de recertificación estructural'],
+        'Recertificación de edificios en Miami-Dade (30 / 25 años) y Broward (25 años): revisión de la notificación, inspección, reparaciones e informe sellado.',
+      keywords: ['recertificación de edificios Miami-Dade', 'recertificación de edificios Broward', 'recertificación 40 años Miami', 'recertificación 30 años Miami', 'recertificación 25 años Broward', 'informe de recertificación estructural'],
     },
   },
   {
     slug: 'building-safety-inspections',
     n: '06',
-    title: 'Inspecciones Milestone y de Seguridad Estructural',
-    shortTitle: 'Inspecciones milestone y de seguridad',
+    title: 'Inspecciones de hito (milestone) y de seguridad estructural',
+    shortTitle: 'Inspecciones de hito y de seguridad',
     track: 'existing',
     summary:
-      'Inspecciones milestone (hito estructural) y de seguridad estructural que documentan la condición real — con hallazgos escritos para actuar, no para archivar.',
+      'Inspecciones de hito (milestone inspections) y de seguridad estructural que documentan la condición real — con hallazgos escritos para actuar, no para archivar.',
+    problemTitle: 'Un informe vago no le sirve a nadie.',
     problem:
-      'Una inspección de seguridad que produce un informe vago no ayuda a nadie. Los propietarios necesitan saber qué se observó realmente, qué significa estructuralmente y qué tiene que pasar después.',
+      'Los propietarios y las juntas directivas necesitan saber qué se observó realmente, qué significa para la estructura y qué tiene que pasar después.',
     audience: [
-      'Asociaciones de condominio sujetas a inspección milestone',
+      'Asociaciones de condominio sujetas a la inspección de hito',
       'Propietarios de edificios antiguos o costeros',
       'Administradores que preparan planes de capital',
     ],
@@ -362,7 +377,7 @@ const services: SiteContent['services'] = [
       'Revisión estructural de balcones, pasillos y barandas',
       'Mapeo de deterioro del concreto — desprendimientos, grietas, manchas de corrosión',
       'Revisión del deterioro estructural relacionado con la impermeabilización',
-      'Hallazgos priorizados y seguimiento recomendado',
+      'Distinción entre lo cosmético y lo estructural, y entre lo urgente y lo que puede monitorearse',
       'Definición del alcance de la investigación de fase dos cuando se justifique',
     ],
     process: [
@@ -378,13 +393,14 @@ const services: SiteContent['services'] = [
       'Documentos firmados y sellados donde el alcance lo requiera',
     ],
     nextStep:
-      'Indíquenos la edad, la altura y la distancia a la costa del edificio. Confirmamos si aplica la inspección milestone y proponemos el alcance de la fase uno.',
+      'Indíquenos la edad, la altura y la distancia a la costa del edificio. Confirmamos si aplica la inspección de hito y proponemos el alcance de la fase uno.',
     timing: {
-      checked: 'Septiembre de 2026',
-      note: 'La inspección milestone es una obligación estatal bajo el Estatuto de Florida 553.899 y es independiente de la recertificación del condado. Ambas pueden aplicar al mismo edificio, con plazos distintos.',
+      checked: 'septiembre de 2026',
+      /* The statute number stays in the row's `source`, not in the prose. */
+      note: 'La inspección de hito (milestone inspection) es una obligación estatal según la ley de Florida y es independiente de la recertificación del condado. Ambas pueden aplicar al mismo edificio, con plazos distintos.',
       rows: [
         {
-          jurisdiction: 'Estado de Florida — inspección milestone',
+          jurisdiction: 'Estado de Florida — inspección de hito',
           source: 'Florida Statute 553.899',
           facts: [
             { k: 'Aplica a', v: 'Edificios de condominio y cooperativa de tres pisos habitables o más' },
@@ -397,25 +413,26 @@ const services: SiteContent['services'] = [
     },
     considerations: [
       'La inspección visual cubre condiciones accesibles y observables. El deterioro oculto puede requerir ensayos o demolición selectiva.',
-      'Los requisitos de la inspección milestone dependen de la edad, la altura y la ubicación del edificio; la aplicabilidad se confirma caso por caso.',
+      'Los requisitos de la inspección de hito dependen de la edad, la altura y la ubicación del edificio; la aplicabilidad se confirma caso por caso.',
       'Una inspección reporta la condición en un momento dado; no es una garantía de desempeño futuro.',
     ],
-    standards: ['Florida Building Code', 'Florida Statute 553.899'],
     seo: {
-      title: 'Inspecciones Milestone y de Seguridad Estructural',
+      title: 'Inspecciones de hito (milestone) y de seguridad estructural',
       description:
-        'Inspecciones milestone de Florida (F.S. 553.899) e inspecciones de seguridad estructural en el Sur de Florida — inspección estructural visual, documentación del deterioro del concreto y hallazgos priorizados por un P.E. licenciado.',
-      keywords: ['inspección milestone Florida', 'inspección milestone Miami', 'inspección de seguridad de edificios Broward', 'inspección de balcones Miami', 'inspección estructural Sur de Florida'],
+        'Inspecciones de hito (milestone) y de seguridad estructural para condominios en Miami-Dade y Broward: balcones, deterioro del concreto y hallazgos priorizados.',
+      // "Milestone" stays in the keywords: people search it in English.
+      keywords: ['inspección milestone Florida', 'inspección milestone Miami', 'inspección de hito Florida', 'inspección de hitos condominio', 'inspección de seguridad de edificios Broward', 'inspección de balcones Miami', 'inspección estructural Sur de Florida'],
     },
   },
   {
     slug: 'structural-condition-assessments',
     n: '07',
-    title: 'Evaluaciones Estructurales y Diseño de Reparaciones',
+    title: 'Evaluaciones estructurales y diseño de reparaciones',
     shortTitle: 'Evaluaciones y reparaciones',
     track: 'existing',
     summary:
-      'Lo que el edificio está haciendo realmente hoy — deterioro evaluado, capacidad verificada, reparaciones diseñadas para que puedan licitarse y construirse.',
+      'Cómo se está comportando realmente el edificio hoy — deterioro evaluado, capacidad verificada, reparaciones diseñadas para que puedan cotizarse y construirse.',
+    problemTitle: 'No toda grieta es un problema estructural.',
     problem:
       'Grietas, desprendimientos y movimientos parecen alarmantes y significan cosas muy distintas. Antes de gastar en reparaciones, un propietario necesita saber qué condiciones afectan la capacidad y cuáles no — y luego necesita reparaciones especificadas con la precisión suficiente para cotizarlas.',
     audience: [
@@ -440,8 +457,8 @@ const services: SiteContent['services'] = [
     process: [
       { step: 'Entender el edificio', detail: 'Planos originales, modificaciones e historial de reparaciones revisados; donde faltan planos, la estructura se verifica en campo.' },
       { step: 'Evaluar la condición', detail: 'Deterioro mapeado y su significado estructural evaluado elemento por elemento.' },
-      { step: 'Evaluar la capacidad', detail: 'Donde la condición o el uso han cambiado, la capacidad remanente se verifica contra la demanda actual.' },
-      { step: 'Diseñar la reparación', detail: 'Reparaciones descritas con el detalle suficiente para licitarse, ejecutarse e inspeccionarse — no dejadas como una recomendación general.' },
+      { step: 'Evaluar la capacidad', detail: 'Donde la condición o el uso han cambiado, la capacidad remanente se compara con la demanda actual.' },
+      { step: 'Diseñar la reparación', detail: 'Reparaciones descritas con el detalle suficiente para cotizarse, ejecutarse e inspeccionarse — no dejadas como una recomendación general.' },
     ],
     deliverables: [
       'Informe de evaluación de condición',
@@ -452,15 +469,14 @@ const services: SiteContent['services'] = [
     nextStep:
       'Envíe fotografías de las condiciones y cualquier informe previo. Le decimos si hace falta una visita al sitio y qué cubrirá la evaluación.',
     considerations: [
-      'Las evaluaciones de estructuras existentes conllevan incertidumbre; donde importa, se recomiendan ensayos o calas exploratorias en lugar de darla por resuelta.',
+      'Las evaluaciones de estructuras existentes conllevan incertidumbre; donde importa, se recomiendan ensayos o aperturas exploratorias en lugar de dar la incertidumbre por resuelta.',
       'La falta de documentación original aumenta la verificación en campo requerida.',
       'El diseño de reparaciones se define y cotiza por separado de la evaluación que lo origina.',
     ],
-    standards: ['ACI 318', 'Práctica de reparación ACI', 'Florida Building Code'],
     seo: {
-      title: 'Evaluaciones de Condición Estructural y Diseño de Reparaciones',
+      title: 'Evaluaciones estructurales y reparaciones — Miami-Dade y Broward',
       description:
-        'Evaluaciones de condición estructural, evaluación de capacidad y diseño de reparaciones de concreto para edificios existentes en el Sur de Florida — evaluación del deterioro, planos y especificaciones de reparación.',
+        'Evaluaciones de condición estructural y diseño de reparaciones de concreto para edificios existentes del Sur de Florida: qué significa el daño y cómo repararlo.',
       keywords: ['evaluación de condición estructural Miami', 'ingeniero de reparación de concreto Florida', 'diseño de reparación de balcones', 'evaluación de edificios existentes', 'due diligence estructural Miami'],
     },
   },
@@ -480,8 +496,8 @@ export const es: SiteContent = {
     discipline: 'Ingeniería Civil y Estructural',
     url: 'https://ttcivilstructural.com',
     description:
-      'Ingeniería estructural para el Sur de Florida — diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios, inspecciones milestone y de seguridad, y coordinación BIM en Miami-Dade y Broward.',
-    tagline: 'Ingeniería Estructural para el Sur de Florida.',
+      'Ingeniería estructural para el Sur de Florida — diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios, inspecciones de hito (milestone) y de seguridad, y coordinación BIM en Miami-Dade y Broward.',
+    tagline: 'Ingeniería estructural para el Sur de Florida.',
     logo: {
       lockupDark: '/ttc/img/logo-horizontal.png',
       lockupLight: '/ttc/img/logo-white-wide.png',
@@ -489,11 +505,16 @@ export const es: SiteContent = {
       dark: '/ttc/img/logo-square.png',
       light: '/ttc/img/logo-white.png',
       markSize: { w: 1254, h: 1254 },
+      markDarkSm: '/ttc/img/logo-square@256.png',
+      markLightSm: '/ttc/img/logo-white@256.png',
+      lockupLightSm: '/ttc/img/logo-white-wide@640.png',
+      markSmSize: { w: 256, h: 256 },
+      lockupSmSize: { w: 640, h: 244 },
     },
     /**
      * Florida Engineering Business Registry number (DBPR).
      *
-     * This is the FIRM's registration, not the engineer's personal P.E. licence,
+     * This is the FIRM's registration, not the engineer's personal P.E. license,
      * and it is the one that belongs in public view: it says the COMPANY may
      * legally offer engineering services in Florida, which is what a board or a
      * developer is actually hiring. Verified 2026-09-12 in the DBPR registry —
@@ -559,30 +580,40 @@ export const es: SiteContent = {
     closeMenu: 'Cerrar menú',
     siteMenu: 'Menú del sitio',
     primaryNavLabel: 'Principal',
-    language: { label: 'Idioma', en: 'EN', es: 'ES', switchTo: 'View in English' },
+    language: {
+      label: 'Idioma',
+      en: 'EN',
+      es: 'ES',
+      switchTo: 'View in English',
+      unavailable: 'Versión en inglés no disponible',
+    },
     breadcrumb: 'Ruta de navegación',
     explore: 'Explorar',
     exploreService: 'Ver este servicio',
     learnMore: 'Más información',
     requestProposal: 'Solicitar propuesta',
-    exploreServices: 'Explore nuestros servicios',
+    /* Infinitive, like "Solicitar propuesta" beside it. */
+    exploreServices: 'Ver nuestros servicios',
     seeAllServices: 'Todos los servicios',
     newProjects: 'Proyectos nuevos',
     existingBuildings: 'Edificios existentes',
     whenYouNeedIt: 'Cuándo lo necesita',
     whatsIncluded: 'Qué incluye',
     whatYouReceive: 'Qué recibe',
+    scopeAndDeliverables: 'Alcance y entregables',
     nextStep: 'Siguiente paso',
     whenItApplies: 'Cuándo aplica',
     howItRuns: 'Cómo se desarrolla el trabajo',
     considerations: 'Conviene saber',
-    designBasis: 'Base de diseño',
+    considerationsTitle: 'Qué cambia el alcance, y lo que ningún ingeniero puede prometer.',
+    stepYourPart: 'Su parte',
+    stepYouGet: 'Usted recibe',
+    pauseMotion: 'Pausar video de fondo',
+    typicalEngagements: 'Encargos típicos',
     relatedServices: 'Servicios relacionados',
     atAGlance: 'De un vistazo',
-    service: 'Servicio',
     appliesTo: 'Aplica a',
     newConstruction: 'Construcción nueva',
-    basis: 'Base',
     coverage: 'Cobertura',
     verified: 'Verificado',
     lastChecked: 'Última verificación',
@@ -597,11 +628,11 @@ export const es: SiteContent = {
       eyebrow: 'Conozca al ingeniero',
       eyebrowTeaser: 'Quién responde',
       role: 'Ingeniero Principal',
-      credential: 'Ingeniero Profesional (P.E.) licenciado en Florida',
+      credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
       license: 'Licencia P.E. de Florida',
       verify: 'Verificar en el DBPR de Florida',
       education: 'Formación',
-      focus: 'Enfoque de la práctica',
+      focus: 'Áreas de especialidad',
       approach: 'Cómo trabajo',
       forYou: 'Qué significa eso para usted',
       readMore: 'Conozca al ingeniero',
@@ -616,18 +647,17 @@ export const es: SiteContent = {
       result: 'Resultado',
       structuralSystem: 'Sistema estructural',
       deliverables: 'Entregables',
-      codes: 'Códigos',
       status: 'Estado',
-      illustrative: 'Imagen ilustrativa — no es el proyecto descrito.',
+      illustrative: 'Imagen ilustrativa',
       firmProjects: 'Proyectos de la firma',
       priorExperience: 'Experiencia profesional previa',
       priorNote:
-        'Trabajo realizado en otras firmas antes de fundar la práctica. Se lista solo como experiencia — no son proyectos de Tercero Tablada Civil & Structural Engineering Inc.',
+        'Trabajo realizado en otras empresas antes de fundar la firma. Se lista solo como experiencia — no son proyectos de Tercero Tablada Civil & Structural Engineering Inc.',
     },
     form: {
       heading: 'Solicitar propuesta',
       intro:
-        'Cuéntenos qué posee, qué está planificando o qué recibió. Cuanto más específica sea la descripción, más precisa será la propuesta.',
+        'Cuéntenos sobre su edificio, lo que está planificando o la notificación que recibió. Cuanto más específica sea la descripción, más precisa será la propuesta.',
       name: 'Nombre',
       email: 'Correo electrónico',
       phone: 'Teléfono',
@@ -639,12 +669,13 @@ export const es: SiteContent = {
       locationPlaceholder: 'Ciudad o condado — p. ej. Coral Gables, Miami-Dade',
       message: 'Descripción del proyecto',
       messagePlaceholder:
-        'Tipo de edificio, número de pisos, qué necesita diseñar o inspeccionar, y cualquier plazo o notificación con la que esté trabajando.',
+        'Tipo de edificio, número de pisos, qué necesita diseñar o inspeccionar, y cualquier plazo o notificación que tenga pendiente.',
       attachments: 'Archivos adjuntos',
       attachmentsHint:
-        'Notificación municipal, fotografías o planos. PDF, imágenes, DWG, DXF o ZIP — hasta 25 MB cada uno, cinco archivos.',
+        'Notificación municipal, fotografías o planos. PDF, imágenes, DWG, DXF o ZIP — hasta cinco archivos de 25 MB cada uno.',
       addFiles: 'Agregar archivos',
       removeFile: 'Quitar',
+      retry: 'Reintentar',
       uploading: 'Subiendo',
       optional: 'opcional',
       send: 'Enviar solicitud',
@@ -652,7 +683,7 @@ export const es: SiteContent = {
       sendAnother: 'Enviar otra solicitud',
       successTitle: 'Solicitud recibida.',
       successBody: 'Su solicitud está en la bandeja del ingeniero.',
-    successConfirmed: 'Se envió una confirmación a su correo electrónico.',
+      successConfirmed: 'Se envió una confirmación a su correo electrónico.',
       successRef: 'Referencia',
       whatNext: 'Qué sigue',
       nextSteps: [
@@ -664,11 +695,13 @@ export const es: SiteContent = {
       errors: {
         name: 'Por favor, ingrese su nombre',
         email: 'Por favor, ingrese un correo electrónico',
-        emailFormat: 'Revise el correo electrónico',
+        /* "Revise el correo electrónico" read as "check your inbox". */
+        emailFormat: 'Revise la dirección de correo electrónico',
         service: 'Seleccione el servicio que necesita',
         location: 'Indíquenos dónde está el proyecto o el edificio',
-        message: 'Cuéntenos un poco más sobre el proyecto',
+        message: 'Cuéntenos un poco más sobre el proyecto — al menos una frase (12 caracteres o más)',
         generic: 'Algo salió mal. Por favor, escríbanos por correo electrónico.',
+        network: 'No pudimos conectar con el servidor. Revise su conexión e inténtelo de nuevo, o escríbanos directamente por correo electrónico.',
         upload: 'Ese archivo no se pudo subir.',
         fileType: 'Tipo de archivo no aceptado.',
         fileSize: 'Los archivos deben ser de 25 MB o menos.',
@@ -688,24 +721,35 @@ export const es: SiteContent = {
         'Las descripciones de este sitio son generales. El alcance, la secuencia y los entregables para cualquier edificio específico se confirman por escrito antes de comenzar el trabajo, y los requisitos varían según la jurisdicción.',
     },
     typologiesNote:
-      'Las fotografías ilustran el tipo de estructura descrito. No son proyectos de Tercero Tablada — los casos de estudio publicados aparecen en',
+      'Las fotografías ilustran el tipo de estructura descrito; ninguna muestra un proyecto de Tercero Tablada Civil & Structural Engineering Inc. Los encargos típicos se describen en',
     typologiesNoteLink: 'Proyectos',
-    typologiesNoteEnd: ', con autorización del cliente.',
+    typologiesNoteEnd: '.',
     galleryNote:
-      'Fotografía arquitectónica con licencia, mostrada como material y no como portafolio. Ninguna imagen de esta página muestra un proyecto de Tercero Tablada.',
+      'Fotografía arquitectónica con licencia, mostrada como material y no como portafolio. Ninguna imagen de esta página muestra un proyecto de Tercero Tablada Civil & Structural Engineering Inc.',
     processDisclaimer:
       'Los requisitos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Esto describe una secuencia típica, no un procedimiento ni un resultado garantizado.',
     legalPages: { privacy: 'Política de privacidad', terms: 'Términos de uso', legal: 'Legal' },
+    notFound: {
+      eyebrow: 'Error 404',
+      title: 'Esta página no existe.',
+      sub: 'Puede que el enlace esté desactualizado o que la dirección tenga un error. Estas páginas le ayudarán a retomar el camino.',
+      home: 'Inicio',
+      services: 'Todos los servicios',
+      contact: 'Solicitar propuesta',
+      metaTitle: 'Página no encontrada',
+    },
   },
 
   hero: {
     eyebrow: 'Miami-Dade · Broward · Ingeniero Profesional de Florida',
-    title: 'Ingeniería Estructural para el Sur de Florida.',
-    titleLines: ['Ingeniería Estructural', 'para el Sur de Florida.'],
+    title: 'Ingeniería estructural para el Sur de Florida.',
+    titleLines: ['Ingeniería estructural', 'para el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
-    sub: 'Diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios y coordinación BIM — dirigidos por un Ingeniero Profesional (P.E.) licenciado en Florida que acompaña su proyecto desde la primera llamada hasta el informe final.',
+    /* Kept short on purpose: the longer sub pushed the /es hero to 915px at
+       1440×900 and clipped the caps strip below the fold. */
+    sub: 'Diseño estructural de edificios nuevos, evaluación de los existentes, recertificación y coordinación BIM — a cargo de un Ingeniero Profesional (P.E.) con licencia en Florida, desde el primer contacto hasta el informe final.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
-    secondary: { href: '/services', label: 'Explore nuestros servicios' },
+    secondary: { href: '/services', label: 'Ver nuestros servicios' },
     caps: [
       'Diseño estructural',
       'Evaluación de edificios existentes',
@@ -725,7 +769,7 @@ export const es: SiteContent = {
     eyebrow: 'Qué diseñamos',
     title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
     accentWord: 'mediana altura',
-    lede: 'El mismo ingeniero, la misma trayectoria de carga, el mismo estándar de detallado — a la escala del edificio que tenemos enfrente. Si su proyecto no está en esta lista, vale más una conversación que una suposición.',
+    lede: 'El mismo ingeniero y el mismo estándar de detallado, a la escala del edificio que tenemos enfrente. Si su proyecto no está en esta lista, vale más una conversación que una suposición.',
   },
 
   typologies: [
@@ -733,15 +777,15 @@ export const es: SiteContent = {
     { n: '02', title: 'Townhouses y dúplex', lede: 'Muros medianeros, cimentaciones compartidas y crujías repetidas — la estructura resuelta una vez y detallada para que la repetición siga siendo un ahorro y no un riesgo.', track: 'new', href: '/services/structural-analysis', photo: photo.houseTownhouses },
     { n: '03', title: 'Concreto reforzado de mediana altura', lede: 'Losas planas, núcleos de muros de corte y balcones en voladizo — el sistema con el que se construye el Sur de Florida, diseñado como una sola trayectoria de carga continua.', track: 'new', href: '/services/reinforced-concrete-design', photo: photo.frameCurvedBalconies },
     { n: '04', title: 'Estructuras comerciales y de uso mixto', lede: 'Luces largas sobre el comercio de planta baja, estructura de transferencia donde cambia la retícula, y coordinación con todos cuyas instalaciones pasan por ella.', track: 'new', href: '/services/bim-coordination', photo: photo.frameCraneClean },
-    { n: '05', title: 'Cimentaciones en sitios difíciles', lede: 'Lotes estrechos, suelo de baja capacidad, nivel freático alto y vecinos lo bastante cerca como para importar — la subestructura diseñada contra el estudio geotécnico, no a pesar de él.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
-    { n: '06', title: 'Reparaciones de estructuras existentes', lede: 'Balcones, fachadas, losas y columnas con décadas en servicio — condición documentada, reparaciones diseñadas, y la documentación que pide el condado.', track: 'existing', href: '/existing-buildings', photo: photo.facadeRepairRope },
+    { n: '05', title: 'Cimentaciones en sitios difíciles', lede: 'Lotes estrechos, suelo de baja capacidad, nivel freático alto y vecinos lo bastante cerca como para importar — la subestructura diseñada a partir del estudio geotécnico, no a pesar de él.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
+    { n: '06', title: 'Reparaciones de estructuras existentes', lede: 'Balcones, fachadas, losas y columnas con décadas en servicio — condición documentada, reparaciones diseñadas, y la documentación que pide el condado.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
   ],
 
   pathsSection: {
     eyebrow: 'Qué resolvemos',
     titleLines: ['Dos tipos de clientes.', 'Un solo ingeniero responsable de ambos.'],
     accentWord: 'ambos',
-    lede: 'Algunos clientes están construyendo algo nuevo y necesitan que la estructura se diseñe y se permita. Otros poseen un edificio que ya está en pie y necesitan evaluarlo, recertificarlo o repararlo. Ambos reciben el mismo ingeniero, el mismo estándar de documentación y la misma línea directa.',
+    lede: 'Algunos clientes están construyendo algo nuevo y necesitan que la estructura se diseñe y obtenga su permiso de construcción. Otros poseen un edificio que ya está en pie y necesitan evaluarlo, recertificarlo o repararlo. Ambos reciben el mismo ingeniero, el mismo estándar de documentación y la misma línea directa.',
   },
 
   paths: [
@@ -754,7 +798,7 @@ export const es: SiteContent = {
       lede: 'Casas, townhouses, concreto de mediana altura y estructuras comerciales — diseñados desde la trayectoria de carga hasta el juego de planos sellado para permiso, y coordinados en BIM con el resto del equipo.',
       serviceSlugs: ['reinforced-concrete-design', 'structural-analysis', 'bim-coordination', 'peer-review'],
       cta: { href: '/services#new', label: 'Servicios para proyectos nuevos' },
-      photo: photo.frameTowerSunlit,
+      photo: photo.frameCraneSky,
     },
     {
       n: '02',
@@ -762,7 +806,7 @@ export const es: SiteContent = {
       eyebrow: 'Edificios existentes',
       title: 'Soy dueño o administro un edificio existente.',
       accentWord: 'existente',
-      lede: 'Notificaciones de recertificación, inspecciones milestone, deterioro visible y alcances de reparación — condición documentada, reparaciones diseñadas, y una ruta clara para cumplir con Miami-Dade y Broward.',
+      lede: 'Notificaciones de recertificación, inspecciones de hito (milestone), deterioro visible y alcances de reparación — condición documentada, reparaciones diseñadas, y una ruta clara para cumplir con Miami-Dade y Broward.',
       serviceSlugs: ['building-recertification', 'building-safety-inspections', 'structural-condition-assessments'],
       cta: { href: '/existing-buildings', label: 'Servicios para edificios existentes' },
       photo: photo.midriseBalconies,
@@ -774,11 +818,11 @@ export const es: SiteContent = {
     titleLines: ['Miles de edificios.', 'Un plazo para cada uno.'],
     accentWord: 'plazo',
     plainTitle: 'Miles de edificios. Un plazo para cada uno.',
-    body: 'Los programas de recertificación del Sur de Florida alcanzan a la mayoría de los edificios entre los 25 y los 30 años de edad y regresan cada diez años durante la vida de la estructura. Llevamos la parte estructural de principio a fin: inspección, hallazgos, alcance de reparaciones, reinspección, presentación.',
+    body: 'Los programas de recertificación del Sur de Florida alcanzan a la mayoría de los edificios, salvo las viviendas unifamiliares y los dúplex, a los 25 o 30 años de edad, y regresan cada diez años durante la vida de la estructura. Llevamos la parte estructural de principio a fin: inspección, hallazgos, alcance de reparaciones, reinspección, presentación.',
     facts: [
       { k: 'Miami-Dade', v: '30 años · 25 cerca de la costa · luego cada 10' },
       { k: 'Broward', v: '25 años · luego cada 10' },
-      { k: 'Milestone estatal', v: 'Condominios de 3+ pisos · 30 años (25 por regla local) · luego cada 10' },
+      { k: 'Inspección de hito estatal', v: 'Condominios de 3+ pisos · 30 años (25 por regla local) · luego cada 10' },
     ],
     cta: { href: '/existing-buildings', label: 'Servicios para edificios existentes' },
   },
@@ -786,11 +830,11 @@ export const es: SiteContent = {
   bim: {
     eyebrow: 'BIM / Coordinación digital',
     title: 'Conflictos resueltos en el modelo, no en su obra.',
-    body: 'Construimos el modelo estructural como fuente del diseño, lo federamos con arquitectura y MEP, y seguimos cada interferencia hasta su cierre — para que los planos que usted permite sean los planos que se construyen.',
+    body: 'Construimos primero el modelo estructural, lo comparamos con el modelo del arquitecto y con los de las instalaciones mecánicas, eléctricas y de plomería, y resolvemos cada conflicto en pantalla — antes de que se convierta en una orden de cambio en obra.',
     notes: [
-      'Un modelo como fuente del diseño, no como subproducto del dibujo.',
-      'Conflictos encontrados y resueltos en coordinación, no en campo.',
-      'Planos, tablas y cantidades derivados del mismo modelo.',
+      'Los planos salen del modelo estructural, no de un dibujo aparte.',
+      'Tuberías, ductos y vigas verificados entre sí antes de construir.',
+      'Planos, tablas y cantidades tomados del mismo modelo.',
     ],
     cta: { href: '/services/bim-coordination', label: 'Coordinación BIM en detalle' },
   },
@@ -813,7 +857,7 @@ export const es: SiteContent = {
   howWeWork: {
     eyebrow: 'Cómo trabajamos',
     title: 'Cinco pasos. Usted siempre sabe en cuál está.',
-    lede: 'La secuencia es la misma tanto si está permitiendo una estructura nueva como si está respondiendo a una notificación de recertificación. Lo que cambia es la profundidad del paso tres.',
+    lede: 'La secuencia es la misma tanto si está tramitando el permiso de una estructura nueva como si está respondiendo a una notificación de recertificación. Lo que cambia es la profundidad del paso tres.',
     steps: [
       {
         n: '01',
@@ -831,12 +875,12 @@ export const es: SiteContent = {
         n: '03',
         title: 'Evaluación o diseño',
         youDo: 'Dé acceso al sitio, o responda las preguntas de coordinación del arquitecto a medida que surjan.',
-        youGet: 'Inspección y hallazgos para edificios existentes; análisis, modelado y detallado para los nuevos — con un avance que usted puede ver.',
+        youGet: 'Inspección y hallazgos para edificios existentes; análisis, modelado y detallado para los nuevos — con las preguntas planteadas a medida que surgen, no guardadas para el final.',
       },
       {
         n: '04',
         title: 'Entrega',
-        youDo: 'Reciba el informe o el juego de planos firmado y sellado, y los cálculos que lo respaldan.',
+        youDo: 'Revise el informe o el juego de planos firmado y sellado, y pregunte lo que no quede claro.',
         youGet: 'Documentos escritos para actuar: una junta directiva puede leer los hallazgos, un contratista puede construir los detalles, un revisor puede seguir el razonamiento.',
       },
       {
@@ -851,88 +895,79 @@ export const es: SiteContent = {
   caseStudies,
 
   engagements: [
-    { n: '01', title: 'Estructura residencial de mediana altura', projectType: 'Residencial — construcción nueva', location: 'Condado de Miami-Dade, FL', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales', codes: 'ACI 318 · ASCE 7 · Florida Building Code', status: 'Alcance representativo' },
-    { n: '02', title: 'Recertificación de condominio costero', projectType: 'Edificio existente — recertificación', location: 'Condado de Broward, FL', scope: 'Revisión de la notificación, inspección estructural, hallazgos, recomendaciones de reparación, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'Informe de recertificación · Registro fotográfico · Alcance de reparaciones', codes: 'Florida Building Code · Requisitos de recertificación del condado', status: 'Alcance representativo' },
-    { n: '03', title: 'Inspección estructural milestone', projectType: 'Edificio existente — inspección de seguridad', location: 'Sur de Florida', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento', codes: 'Florida Building Code · F.S. 553.899', status: 'Alcance representativo' },
-    { n: '04', title: 'Sistema de cimentación para un sitio restringido', projectType: 'Construcción nueva — cimentaciones', location: 'Condado de Miami-Dade, FL', scope: 'Diseño de cimentaciones contra el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo', codes: 'ACI 318 · ASCE 7 · Florida Building Code', status: 'Alcance representativo' },
-    { n: '05', title: 'Coordinación BIM multidisciplinaria', projectType: 'Construcción nueva — coordinación', location: 'Sur de Florida', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo', codes: 'Gestión de la información ISO 19650', status: 'Alcance representativo' },
-    { n: '06', title: 'Revisión estructural independiente por pares', projectType: 'Revisión de diseño — terceros', location: 'Sur de Florida', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución', codes: 'ACI 318 · ASCE 7 · AISC 360 · Florida Building Code', status: 'Alcance representativo' },
+    { n: '01', title: 'Estructura residencial de mediana altura', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales', status: 'Encargo típico' },
+    { n: '02', title: 'Recertificación de condominio costero', projectType: 'Edificio existente — recertificación', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural, hallazgos, recomendaciones de reparación, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'Informe de recertificación · Registro fotográfico · Alcance de reparaciones', status: 'Encargo típico' },
+    { n: '03', title: 'Inspección estructural de hito', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento', status: 'Encargo típico' },
+    { n: '04', title: 'Sistema de cimentación para un sitio restringido', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo', status: 'Encargo típico' },
+    { n: '05', title: 'Coordinación BIM multidisciplinaria', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo', status: 'Encargo típico' },
+    { n: '06', title: 'Revisión estructural independiente por pares', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución', status: 'Encargo típico' },
   ],
 
   workSection: {
     eyebrowReal: 'Trabajos seleccionados',
-    eyebrowRepresentative: 'Alcance representativo',
     engagementsNote:
-      'Perfiles de encargos representativos — alcance, sistemas estructurales y entregables anonimizados, del tipo que la práctica lleva a cabo. Los casos de estudio con nombre se publican solo con autorización del cliente, y se etiquetan como proyectos de la firma o experiencia profesional previa.',
+      'Perfiles de encargos típicos, no proyectos anteriores concretos: el alcance, el sistema estructural y los entregables de cada tipo de trabajo que realiza la firma. Los casos de estudio con nombre se publican solo con autorización del cliente, y se identifican como proyectos de la firma o experiencia profesional previa.',
     galleryEyebrow: 'El material',
     galleryLede: 'Concreto reforzado, refuerzo, residencias y la costa sobre la que se levantan — el vocabulario del trabajo, sin pies de foto a propósito.',
   },
 
   credentials: {
-    eyebrow: 'Estándares y responsabilidad',
     sealedDeliverables: true,
     sealingStatement:
-      'Los entregables son firmados y sellados por Juan Tercero, PE., M.Sc., Ingeniero Profesional (P.E.) licenciado en Florida, donde el alcance del trabajo lo requiere.',
-    items: [
-      { k: 'Base de diseño', v: 'ACI 318', note: 'Diseño y detallado de concreto reforzado' },
-      { k: 'Cargas', v: 'ASCE 7', note: 'Viento, sismo y combinaciones de carga' },
-      { k: 'Código aplicable', v: 'Florida Building Code', note: 'Disposiciones estructurales y requisitos para edificios existentes' },
-      { k: 'Diseño en acero', v: 'AISC 360', note: 'Se aplica donde el acero estructural está en el alcance' },
-      { k: 'Coordinación', v: 'ISO 19650', note: 'Gestión de la información basada en modelo' },
-      { k: 'Área de servicio', v: 'Miami-Dade & Broward', note: 'Jurisdicciones del Sur de Florida' },
-    ],
+      'Juan Tercero, PE., M.Sc., Ingeniero Profesional (P.E.) con licencia en Florida, firma y sella los entregables cuando el alcance del trabajo lo requiere.',
   },
 
   leadership: {
     name: 'Juan Tercero, PE., M.Sc.',
     firstName: 'Juan',
     role: 'Ingeniero Principal · Fundador',
-    credential: 'Ingeniero Profesional (P.E.) licenciado en Florida',
+    credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
     portrait: null,
     license: null,
     linkedin: null,
     teaserTitle: 'Un solo ingeniero responsable de todo el proyecto.',
     teaser:
-      'Cada proyecto en Tercero Tablada es diseñado, revisado y firmado por la misma persona. Usted habla con el ingeniero de registro desde la primera llamada, y la propuesta que aprueba es el alcance que se construye.',
+      'En Tercero Tablada Civil & Structural Engineering Inc., cada proyecto lo diseña, revisa y firma la misma persona. Usted trata directamente con el ingeniero desde su primer mensaje, y el alcance que aprueba en la propuesta es el alcance que entregamos.',
     bio: [
-      'Juan Tercero es Ingeniero Profesional (P.E.) licenciado en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Dirección de Proyectos de Construcción (Construction Project Management) por la Universidad de Barcelona, dirige personalmente cada encargo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
-      'La práctica cubre las dos mitades del trabajo estructural en el Sur de Florida: el diseño de edificios nuevos de concreto reforzado, y la evaluación, recertificación y reparación de edificios que ya están en pie. Ambas se hacen con la misma disciplina — el razonamiento detrás de cada conclusión queda escrito, y nada sale de la oficina sin haberse revisado línea por línea.',
+      /* The Master's keeps the program's own name ("…en Construction Project
+         Management", Universidad de Barcelona), the same in bio and education. */
+      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada encargo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
+      'La firma cubre las dos mitades del trabajo estructural en el Sur de Florida: el diseño de edificios nuevos de concreto reforzado, y la evaluación, recertificación y reparación de edificios que ya están en pie. Ambas se hacen con la misma disciplina — el razonamiento detrás de cada conclusión queda escrito, y nada sale de la oficina sin haberse revisado línea por línea.',
     ],
     education: [
       'Máster en Construction Project Management — Universidad de Barcelona',
       'Ingeniero Civil — Universidad Nacional de Ingeniería',
-      'Ingeniero Profesional (P.E.) licenciado, Estado de Florida',
+      'Ingeniero Profesional (P.E.) con licencia del Estado de Florida',
     ],
     focus: [
       'Diseño en concreto reforzado para casas, edificios de mediana altura y estructuras comerciales',
-      'Recertificación, inspecciones milestone y evaluaciones de condición',
+      'Recertificación, inspecciones de hito (milestone) y evaluaciones de condición',
       'Modelado BIM estructural y coordinación multidisciplinaria',
       'Diseño por viento y lateral para la Zona de Huracanes de Alta Velocidad (HVHZ)',
     ],
     approach:
       'Prefiero explicar una decisión estructural en lenguaje claro antes que esconderla detrás de una referencia de código. Una junta directiva debe poder leer un informe de hallazgos y saber qué hacer a continuación; un contratista debe poder construir desde el plano sin llamar; y un revisor debe poder seguir el cálculo desde la carga hasta el detalle.',
     forYou: [
-      { k: 'Comunicación directa', v: 'Usted habla con el ingeniero que está haciendo el trabajo — no con un gestor de cuentas que transmite preguntas.' },
+      { k: 'Comunicación directa', v: 'Usted habla con el ingeniero que está haciendo el trabajo — no con un ejecutivo de cuentas que transmite preguntas.' },
       { k: 'Un alcance que se puede leer', v: 'Cada propuesta establece qué se incluye, qué no, qué recibe y cuánto cuesta, antes de que empiece cualquier cosa.' },
       { k: 'El criterio de un solo ingeniero', v: 'La persona que inspecciona el edificio o fija la base de diseño es la persona que firma el informe y responde al revisor.' },
     ],
     plate: [
       { k: 'Nombre', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Licencia', v: 'Ingeniero Profesional, Florida' },
-      { k: 'Rol', v: 'Ingeniero Principal · Fundador' },
-      { k: 'Práctica', v: 'Tercero Tablada Civil & Structural Engineering Inc.' },
-      { k: 'Región', v: 'Miami-Dade & Broward' },
+      { k: 'Cargo', v: 'Ingeniero Principal · Fundador' },
+      { k: 'Firma', v: 'Tercero Tablada Civil & Structural Engineering Inc.' },
+      { k: 'Región', v: 'Miami-Dade y Broward' },
     ],
   },
 
   aboutPage: {
-    eyebrow: 'Sobre la práctica',
-    titleLines: ['Una práctica estructural construida', 'alrededor de un ingeniero responsable.'],
+    eyebrow: 'Sobre la firma',
+    titleLines: ['Una firma de ingeniería estructural', 'con un solo ingeniero responsable.'],
     accentWord: 'responsable',
-    plainTitle: 'Una práctica estructural construida alrededor de un ingeniero responsable.',
     sub: 'Tercero Tablada Civil & Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
     facts: [
-      { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
+      { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Enfoque', v: 'Concreto · Edificios existentes · BIM' },
       { k: 'Región', v: 'Sur de Florida' },
     ],
@@ -940,8 +975,8 @@ export const es: SiteContent = {
       eyebrow: 'Enfoque',
       title: 'Revisado línea por línea, antes de salir.',
       body: [
-        'Dos tipos de trabajo pasan por esta práctica, y se informan mutuamente. Diseñar estructuras nuevas enseña qué falla en campo; inspeccionar edificios que llevan décadas en pie enseña qué detallar de otra manera la próxima vez.',
-        'Nuestro método parte del modelo. La estructura se modela, coordina y documenta como una sola fuente de verdad conectada, verificada contra la base de diseño, para que el diseño que se permite sea el diseño que se construye.',
+        'Por esta firma pasan dos tipos de trabajo, y cada uno enriquece al otro. Diseñar estructuras nuevas enseña qué falla en campo; inspeccionar edificios que llevan décadas en pie enseña qué detallar de otra manera la próxima vez.',
+        'Nuestro método parte del modelo. La estructura se modela, coordina y documenta como una sola fuente de verdad conectada, verificada con la base de diseño, para que lo que se presenta a permiso esté completo y coordinado.',
         'En edificios existentes la misma disciplina se aplica a la inversa: el edificio se verifica en campo antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado en sitio.',
       ],
     },
@@ -949,9 +984,9 @@ export const es: SiteContent = {
       eyebrow: 'Principios',
       title: 'Cómo mantenemos el estándar.',
       items: [
-        { k: 'Rigor', v: 'Cada miembro se analiza y se verifica contra el código aplicable antes de llegar a un plano.' },
+        { k: 'Rigor', v: 'Cada miembro se analiza y se verifica según el código aplicable antes de llegar a un plano.' },
         { k: 'Constructibilidad', v: 'Detalles que respetan la obra — construibles, secuenciables y claros para el contratista.' },
-        { k: 'Coordinación', v: 'Estructura resuelta contra arquitectura e instalaciones desde temprano, para que los conflictos se detecten en el modelo y no en sitio.' },
+        { k: 'Coordinación', v: 'La estructura se coordina con la arquitectura y las instalaciones desde el inicio, para que los conflictos se detecten en el modelo y no en sitio.' },
         { k: 'Razonamiento documentado', v: 'Hipótesis, cargas y disposiciones de código quedan escritas, para que cualquier revisor pueda seguir el argumento.' },
         { k: 'Durabilidad', v: 'Diseñado para durabilidad y vida útil en un entorno costero, no solo para el primer día de ocupación.' },
       ],
@@ -962,12 +997,11 @@ export const es: SiteContent = {
     eyebrow: 'Servicios',
     titleLines: ['Organizados por lo que usted necesita,', 'no por lo que hacemos.'],
     accentWord: 'necesita',
-    plainTitle: 'Organizados por lo que usted necesita, no por lo que hacemos.',
     sub: 'Siete servicios en dos líneas. Si está construyendo algo, empiece por proyectos nuevos. Si posee o administra un edificio que ya está en pie, empiece por edificios existentes. Cada servicio dice cuándo lo necesita, qué incluye, qué recibe y qué hacer a continuación.',
     facts: [
       { k: 'Proyectos nuevos', v: '4 servicios' },
       { k: 'Edificios existentes', v: '3 servicios' },
-      { k: 'Cobertura', v: 'Miami-Dade & Broward' },
+      { k: 'Cobertura', v: 'Miami-Dade y Broward' },
     ],
     tracks: {
       new: {
@@ -989,18 +1023,17 @@ export const es: SiteContent = {
     eyebrow: 'Edificios existentes',
     titleLines: ['El edificio', 'ya está en pie.'],
     accentWord: 'en pie.',
-    plainTitle: 'El edificio ya está en pie.',
-    sub: 'Recertificación, inspección milestone (hito estructural), evaluación estructural y diseño de reparaciones para edificios en servicio en Miami-Dade y Broward. Documentamos lo que realmente hay, explicamos qué significa estructuralmente y definimos el trabajo que sigue.',
+    sub: 'Recertificación, inspección de hito (milestone), evaluación estructural y diseño de reparaciones para edificios en servicio en Miami-Dade y Broward. Documentamos lo que realmente hay, explicamos qué significa estructuralmente y definimos el trabajo que sigue.',
     facts: [
       { k: 'Para', v: 'Asociaciones, propietarios, administradores' },
-      { k: 'Cobertura', v: 'Miami-Dade & Broward' },
+      { k: 'Cobertura', v: 'Miami-Dade y Broward' },
       { k: 'Resultado', v: 'Informes, alcances de reparación, reinspecciones' },
     ],
     triggers: {
       eyebrow: 'Cuándo llamar',
-      title: 'Cuatro momentos que necesitan un ingeniero.',
+      title: 'Cuatro situaciones en las que conviene llamar a un ingeniero.',
       items: [
-        { k: 'Llegó una notificación', v: 'Se ha emitido una notificación de recertificación o de inspección milestone y la junta directiva necesita contratar a un ingeniero estructural antes del plazo.' },
+        { k: 'Llegó una notificación', v: 'Se ha emitido una notificación de recertificación o de inspección de hito y la junta directiva necesita contratar a un ingeniero estructural antes del plazo.' },
         { k: 'Deterioro visible', v: 'Han aparecido grietas, desprendimientos, manchas de corrosión o movimiento y alguien tiene que decir si afecta la capacidad.' },
         { k: 'Antes de gastar', v: 'Se están cotizando reparaciones y el alcance no ha sido definido por un ingeniero, así que las ofertas no son comparables.' },
         { k: 'Antes de comprar', v: 'Due diligence estructural en una adquisición, incluidas modificaciones y preguntas sobre cambio de uso.' },
@@ -1010,30 +1043,28 @@ export const es: SiteContent = {
     timeline: {
       eyebrow: 'Recertificación de edificios',
       title: 'Un camino claro desde la notificación hasta el cumplimiento.',
-      lede: 'Miami-Dade exige la primera recertificación a los 30 años — 25 cerca de la costa; Broward a los 25; la inspección milestone estatal a los 30 para condominios de tres pisos habitables o más. Todas regresan cada diez años. Llevamos la parte estructural de principio a fin para que la junta directiva sepa qué sigue en cada etapa.',
+      lede: 'Miami-Dade exige la primera recertificación a los 30 años — 25 cerca de la costa; Broward a los 25; la inspección de hito estatal a los 30 para condominios de tres pisos habitables o más. Todas regresan cada diez años. Llevamos la parte estructural de principio a fin para que la junta directiva sepa qué sigue en cada etapa.',
       cta: { href: '/services/building-recertification', label: 'Recertificación en detalle' },
       steps: [
-        { n: '01', title: 'Revisión de la notificación', detail: 'Leemos la notificación y el registro del edificio, confirmamos qué pide la jurisdicción y fijamos el calendario contra el plazo indicado.' },
+        { n: '01', title: 'Revisión de la notificación', detail: 'Leemos la notificación y el registro del edificio, confirmamos qué pide la jurisdicción y fijamos el calendario en función del plazo indicado.' },
         { n: '02', title: 'Inspección en sitio', detail: 'Inspección estructural visual de los elementos accesibles — estructura, losas, balcones, estructura de techo y cimentaciones expuestas — documentada en campo.' },
         { n: '03', title: 'Hallazgos', detail: 'Las condiciones observadas se clasifican y explican en un lenguaje con el que la junta directiva puede actuar, con fotografías vinculadas a ubicaciones.' },
-        { n: '04', title: 'Reparaciones', detail: 'Donde se requieran reparaciones definimos qué debe corregirse y con qué estándar, para que el trabajo pueda licitarse y ejecutarse con justicia.' },
-        { n: '05', title: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan y documentan contra los hallazgos originales antes de certificar nada.' },
-        { n: '06', title: 'Presentación', detail: 'El informe se finaliza, se presenta, y respondemos a las preguntas que plantee la oficina revisora.' },
+        { n: '04', title: 'Reparaciones', detail: 'Donde se requieran reparaciones definimos qué debe corregirse y con qué estándar, para que el trabajo pueda cotizarse en igualdad de condiciones y ejecutarse correctamente.' },
+        { n: '05', title: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales antes de certificar nada.' },
+        { n: '06', title: 'Presentación', detail: 'El informe se finaliza y se presenta, y respondemos a las preguntas que plantee la oficina revisora.' },
       ],
     },
   },
 
   workPage: {
     eyebrowReal: 'Trabajos seleccionados',
-    eyebrowRepresentative: 'Capacidades representativas',
     titleLines: ['La estructura detrás', 'del proyecto.'],
     accentWord: 'proyecto.',
-    plainTitle: 'La estructura detrás del proyecto.',
     subReal: 'Encargos estructurales en el Sur de Florida — el edificio, el problema, el alcance, nuestro rol y el resultado documentado.',
     subRepresentative:
-      'Perfiles de encargos que describen los sistemas estructurales con los que trabajamos, el alcance que lleva cada uno y los documentos que resultan. Anonimizados por defecto; los casos de estudio con nombre se publican solo con autorización del cliente.',
+      'Perfiles de encargos típicos: el sistema estructural, el alcance y los documentos que produce cada tipo de trabajo. Describen lo que realiza la firma, no proyectos anteriores concretos. Los casos de estudio con nombre se publican solo con autorización del cliente.',
     facts: [
-      { k: 'Cobertura', v: 'Miami-Dade & Broward' },
+      { k: 'Cobertura', v: 'Miami-Dade y Broward' },
       { k: 'Sistemas', v: 'Concreto reforzado, acero' },
     ],
   },
@@ -1042,7 +1073,6 @@ export const es: SiteContent = {
     eyebrow: 'Solicitar propuesta',
     titleLines: ['Cuéntenos sobre el edificio.', 'Respondemos con un alcance.'],
     accentWord: 'alcance.',
-    plainTitle: 'Cuéntenos sobre el edificio. Respondemos con un alcance.',
     sub: 'Describa el proyecto, el edificio o la notificación que recibió — y adjunte lo que ya tenga. El ingeniero lee cada solicitud y responde con preguntas o con una propuesta escrita.',
   },
 
@@ -1055,13 +1085,14 @@ export const es: SiteContent = {
       { name: 'Condado de Broward', code: 'BRW', note: 'Zona de Huracanes de Alta Velocidad (HVHZ)' },
     ],
     note: 'El Sur de Florida desde el aire. La cobertura se define por jurisdicción, no por el encuadre de una fotografía.',
+    cities:
+      'Incluye Miami, Miami Beach, Coral Gables, Doral, Hialeah, Aventura, Sunny Isles Beach, Fort Lauderdale, Hollywood, Hallandale Beach, Pompano Beach, Coral Springs y el resto de ambos condados.',
   },
 
   closingCta: {
     eyebrow: 'Siguiente paso',
     titleLines: ['Cuéntenos sobre el edificio.', 'Respondemos con un alcance.'],
     accentWord: 'alcance.',
-    plainTitle: 'Cuéntenos sobre el edificio. Respondemos con un alcance.',
     body: 'Un proyecto nuevo, un edificio existente o una notificación con plazo — descríbalo y adjunte lo que tenga. El ingeniero le responde, con preguntas o con una propuesta escrita.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
     secondary: { href: '/about#engineer', label: 'Conozca al ingeniero' },
@@ -1099,7 +1130,7 @@ export const es: SiteContent = {
         { h: 'Resultados regulatorios', p: 'Los requisitos de inspección, recertificación y permisos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Las edades y los plazos publicados aquí fueron verificados en la fecha indicada junto a ellos y pueden cambiar. Las descripciones de cualquier proceso en este sitio son secuencias típicas, no garantías. No prometemos la aprobación de ningún departamento de construcción ni autoridad revisora.' },
         { h: 'Documentos sellados', p: 'Donde se requiera un documento firmado y sellado, se emite como entregable formal bajo un alcance de trabajo acordado. El contenido de este sitio web nunca es un entregable sellado.' },
         { h: 'Exactitud y disponibilidad', p: 'Mantenemos este sitio actualizado, pero no garantizamos que cada afirmación sea completa o esté libre de errores, ni que el sitio esté siempre disponible.' },
-        { h: 'Propiedad intelectual', p: 'Los textos, dibujos y marcas de este sitio pertenecen a Tercero Tablada Civil & Structural Engineering Inc. salvo que se indique lo contrario, y no pueden reproducirse sin autorización.' },
+        { h: 'Propiedad intelectual', p: 'Los textos, el nombre y el logotipo de la firma que aparecen en este sitio pertenecen a Tercero Tablada Civil & Structural Engineering Inc. y no pueden reproducirse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
       ],
     },
     contactHeading: 'Contacto',

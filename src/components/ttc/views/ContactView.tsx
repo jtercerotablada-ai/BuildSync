@@ -9,6 +9,16 @@ import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
+/**
+ * The proposal page. `presetService` is the raw `?service=` value — normally
+ * a service slug from a service page; ContactForm maps it to this language's
+ * option (or to nothing).
+ *
+ * `mp-contact` is the hook for the phone layout: every "Request a Proposal"
+ * on the site lands here, so on a phone the first field must be on the first
+ * screen. mp.css trims this section's top padding there and hides the label
+ * and intro, which only repeat the hero's eyebrow and lede.
+ */
 export function ContactView({ lang, presetService }: { lang: Lang; presetService?: string }) {
   const c = getContent(lang);
   const p = c.contactPage;
@@ -23,15 +33,21 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
         eyebrow={p.eyebrow}
         crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
-        plainTitle={p.plainTitle}
         sub={p.sub}
         photo={imagery.pages.contact}
       />
 
-      <section className="mp-section mp-section--lg mp-surface--paper" aria-labelledby="mp-contact-title">
+      <section
+        className="mp-section mp-section--lg mp-surface--paper mp-contact"
+        aria-labelledby="mp-contact-title"
+      >
         <div className="mp-shell">
-          <SectionHeading n="01" label={c.ui.form.heading} />
-          <h2 id="mp-contact-title" className="mp-form__hp">
+          {/* Visible label for sighted readers, hidden h2 for the outline —
+              the same words, announced once. */}
+          <div aria-hidden="true">
+            <SectionHeading n="01" label={c.ui.form.heading} />
+          </div>
+          <h2 id="mp-contact-title" className="mp-sr-only">
             {c.ui.form.heading}
           </h2>
 

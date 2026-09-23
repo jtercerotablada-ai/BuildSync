@@ -6,7 +6,15 @@ import { Img } from './media';
 import { Reveal, SectionHeading } from './primitives';
 import { useContent } from './lang';
 
-/** Service area — the territory from the air beside the two counties. */
+/**
+ * Service area — the territory from the air beside the two counties.
+ *
+ * `cities` is one plain sentence naming the main municipalities. Without it
+ * the only visible place names on the site were "Miami-Dade" and "Broward";
+ * the full municipality list lives in JSON-LD, which a search for "structural
+ * engineer Fort Lauderdale" cannot match against on-page text. Kept to one
+ * sentence of about a dozen names so it reads as coverage, not keywords.
+ */
 export function SouthFloridaMap({ n = '06' }: { n?: string }) {
   const c = useContent();
   const a = c.serviceArea;
@@ -46,6 +54,7 @@ export function SouthFloridaMap({ n = '06' }: { n?: string }) {
                   </li>
                 ))}
               </ul>
+              <p className="mp-note">{a.cities}</p>
             </Reveal>
           </div>
         </div>

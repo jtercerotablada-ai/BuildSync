@@ -1,10 +1,9 @@
 'use client';
 
 import React from 'react';
-import { motion, useReducedMotion } from 'motion/react';
 import { imagery } from '@/lib/ttc/site';
-import { ButtonLink, DarkHeroSentinel, EASE, Reveal, RevealText } from './primitives';
-import { VideoLoop } from './media';
+import { ButtonLink, DarkHeroSentinel, RevealText } from './primitives';
+import { MotionToggle, VideoLoop } from './media';
 import { accentLines } from './text';
 import { useContent, useL } from './lang';
 
@@ -17,84 +16,60 @@ import { useContent, useL } from './lang';
  * The footage is a slow aerial pass over the South Florida waterfront. The
  * scrim is a fixed gradient so legibility never depends on where the bright
  * water happens to be in a given frame. `VideoLoop` paints the poster first
- * and only upgrades to video on the client; reduced motion keeps the poster.
+ * and only upgrades to video once the page has loaded; reduced motion keeps
+ * the poster, and the toggle in the foot row stops the loop (WCAG 2.2.2).
+ *
+ * Every entrance here is a CSS keyframe (`mp-enter`, staggered by the
+ * `--dN` modifiers), not Motion: this is the whole first screen, and it has
+ * to paint from the server HTML without waiting for React. See primitives.tsx.
  */
 export function Hero() {
   const c = useContent();
   const l = useL();
-  const reduce = useReducedMotion();
   const h = c.hero;
 
   return (
     <section className="mp-hero mp-surface--graphite" aria-labelledby="mp-hero-title">
       <div className="mp-hero__bg" aria-hidden="true" />
       <div className="mp-grid-bg" aria-hidden="true" />
-      <motion.div
-        className="mp-hero__photo"
-        aria-hidden="true"
-        initial={reduce ? false : { opacity: 0, scale: 1.03 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1.2, ease: EASE }}
-      >
+      <div className="mp-hero__photo mp-enter mp-enter--photo" aria-hidden="true">
         <VideoLoop clip={imagery.hero} priority />
-      </motion.div>
+      </div>
 
       <div className="mp-shell mp-hero__body">
         <div className="mp-hero__col">
-          <motion.p
-            className="mp-eyebrow mp-hero__eyebrow"
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: EASE, delay: 0.05 }}
-          >
-            {h.eyebrow}
-          </motion.p>
+          <p className="mp-eyebrow mp-hero__eyebrow mp-enter mp-enter--d1">{h.eyebrow}</p>
 
           <RevealText
             as="h1"
+            id="mp-hero-title"
             className="mp-hero__title"
             animateOnMount
             delay={0.1}
             lines={accentLines(h.titleLines, h.accentWord)}
           />
-          <span id="mp-hero-title" className="mp-form__hp">
-            {h.title}
-          </span>
 
-          <motion.p
-            className="mp-hero__sub"
-            initial={reduce ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: EASE, delay: 0.32 }}
-          >
-            {h.sub}
-          </motion.p>
+          <p className="mp-hero__sub mp-enter mp-enter--d4">{h.sub}</p>
 
-          <motion.div
-            className="mp-cta-row"
-            initial={reduce ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: EASE, delay: 0.4 }}
-          >
+          <div className="mp-cta-row mp-enter mp-enter--d5">
             <ButtonLink href={l(h.primary.href)} variant="solid">
               {h.primary.label}
             </ButtonLink>
             <ButtonLink href={l(h.secondary.href)} variant="line" arrow={false}>
               {h.secondary.label}
             </ButtonLink>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       <div className="mp-hero__foot">
-        <div className="mp-shell">
-          <Reveal as="div" delay={0.6} y={8}>
-            <ul className="mp-hero__caps">
-              {h.caps.map((cap) => (
-                <li key={cap}>{cap}</li>
-              ))}
-            </ul>
-          </Reveal>
+        <div className="mp-shell mp-hero__footrow mp-enter mp-enter--d6">
+          <ul className="mp-hero__caps">
+            {h.caps.map((cap) => (
+              <li key={cap}>{cap}</li>
+            ))}
+          </ul>
+          <MotionToggle />
         </div>
       </div>
 

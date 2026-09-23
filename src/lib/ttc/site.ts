@@ -16,7 +16,9 @@
  *     portrait and a verified license number exist; the UI renders a
  *     finished composition without them — never a "coming soon".
  *   • `caseStudies` is empty until real, publishable work exists. Until then
- *     the work page renders `engagements` (anonymized, representative scope).
+ *     the work page renders `engagements`: TYPICAL engagement profiles, not
+ *     past jobs. Never call them "anonymized" or give them a specific county —
+ *     both tell a reader these are real projects.
  *   • Photographs and video come from `media.ts` and illustrate TYPOLOGIES and
  *     SERVICES — never a specific job. Read that file's rules before adding a
  *     placement; the "one placement per asset" rule is enforced by hand.
@@ -57,6 +59,10 @@ export const company = {
    *   mark*   = monogram only, for tight spots.
    * The `dark` variants are for LIGHT backgrounds and the `light` variants
    * are white, for DARK backgrounds only.
+   *
+   * The `*Sm` files are pure resizes of the same masters (no redraw) for the
+   * site chrome, where a 1254px or 2172px PNG was being shipped to draw a
+   * 40px mark. The masters stay for JSON-LD, the SaaS and email.
    */
   logo: {
     lockupDark: '/ttc/img/logo-horizontal.png',
@@ -65,11 +71,16 @@ export const company = {
     dark: '/ttc/img/logo-square.png',
     light: '/ttc/img/logo-white.png',
     markSize: { w: 1254, h: 1254 },
+    markDarkSm: '/ttc/img/logo-square@256.png',
+    markLightSm: '/ttc/img/logo-white@256.png',
+    lockupLightSm: '/ttc/img/logo-white-wide@640.png',
+    markSmSize: { w: 256, h: 256 },
+    lockupSmSize: { w: 640, h: 244 },
   },
   /**
    * Florida Engineering Business Registry number (DBPR).
    *
-   * This is the FIRM's registration, not the engineer's personal P.E. licence,
+   * This is the FIRM's registration, not the engineer's personal P.E. license,
    * and it is the one that belongs in public view: it says the COMPANY may
    * legally offer engineering services in Florida, which is what a board or a
    * developer is actually hiring. Verified 2026-09-12 in the DBPR registry —
@@ -162,30 +173,47 @@ export const ui = {
   closeMenu: 'Close menu',
   siteMenu: 'Site menu',
   primaryNavLabel: 'Primary',
-  language: { label: 'Language', en: 'EN', es: 'ES', switchTo: 'Ver en español' },
+  language: {
+    label: 'Language',
+    en: 'EN',
+    es: 'ES',
+    switchTo: 'Ver en español',
+    /** Visually hidden note on the inert switch of an English-only page (/credits). */
+    unavailable: 'Spanish version not available',
+  },
   breadcrumb: 'Breadcrumb',
   explore: 'Explore',
-  exploreService: 'See this service',
-  learnMore: 'Learn more',
+  /* Button and link CTAs are Title Case in English, matching the header's
+     "Request a Proposal"; headings stay in sentence case. */
+  exploreService: 'See This Service',
+  learnMore: 'Learn More',
   requestProposal: 'Request a Proposal',
   exploreServices: 'Explore Our Services',
-  seeAllServices: 'All services',
+  seeAllServices: 'All Services',
   newProjects: 'New projects',
   existingBuildings: 'Existing buildings',
   whenYouNeedIt: 'When you need it',
   whatsIncluded: "What's included",
   whatYouReceive: 'What you receive',
+  /** Section label above the two columns "What's included" / "What you receive". */
+  scopeAndDeliverables: 'Scope & deliverables',
   nextStep: 'Next step',
   whenItApplies: 'When it applies',
   howItRuns: 'How the work runs',
   considerations: 'Good to know',
-  designBasis: 'Design basis',
+  /** The heading under the "Good to know" label, so the label is not repeated as the H2. */
+  considerationsTitle: 'What changes the scope — and what no engineer can promise.',
+  /** Labels over the two halves of each How-we-work card. */
+  stepYourPart: 'Your part',
+  stepYouGet: 'You get',
+  /** Background-video toggle (WCAG 2.2.2). The label names the action the button takes. */
+  pauseMotion: 'Pause background video',
+  /** The one label for the representative profiles on Work — they are not past jobs. */
+  typicalEngagements: 'Typical engagements',
   relatedServices: 'Related services',
   atAGlance: 'At a glance',
-  service: 'Service',
   appliesTo: 'Applies to',
   newConstruction: 'New construction',
-  basis: 'Basis',
   coverage: 'Coverage',
   verified: 'Verified',
   lastChecked: 'Last verified',
@@ -208,7 +236,7 @@ export const ui = {
     focus: 'Practice focus',
     approach: 'How I work',
     forYou: 'What that means for you',
-    readMore: 'Meet the engineer',
+    readMore: 'Meet the Engineer',
     plateNote: 'Professional portrait to follow',
   },
   work: {
@@ -220,9 +248,11 @@ export const ui = {
     result: 'Result',
     structuralSystem: 'Structural system',
     deliverables: 'Deliverables',
-    codes: 'Codes',
     status: 'Status',
-    illustrative: 'Illustrative image — not the project described.',
+    /* The engagements are typical profiles, not jobs, so "not the project
+       described" implied a real project behind each card. If a real case
+       study ever carries a stock photo, revisit this wording for it. */
+    illustrative: 'Illustrative image',
     firmProjects: 'Firm projects',
     priorExperience: 'Prior professional experience',
     priorNote:
@@ -243,12 +273,14 @@ export const ui = {
     locationPlaceholder: 'City or county — e.g. Coral Gables, Miami-Dade',
     message: 'Project description',
     messagePlaceholder:
-      'Building type, number of stories, what you need engineered or inspected, and any deadline or notice you are working to.',
+      'Building type, number of stories, what you need engineered or inspected, and any deadline or notice you are facing.',
     attachments: 'Attachments',
     attachmentsHint:
       'Municipal notice, photographs or drawings. PDF, images, DWG, DXF or ZIP — up to 25 MB each, five files.',
     addFiles: 'Add files',
     removeFile: 'Remove',
+    /** Re-upload a file that failed (the form reads it as "Retry <file name>"). */
+    retry: 'Retry',
     uploading: 'Uploading',
     optional: 'optional',
     send: 'Send request',
@@ -271,8 +303,11 @@ export const ui = {
       emailFormat: 'Check the email address',
       service: 'Select the service you need',
       location: 'Tell us where the project or building is',
-      message: 'Tell us a little more about the project',
+      /* States the rule the form enforces (12+ characters), WCAG 3.3.3. */
+      message: 'Tell us a little more about the project — at least a sentence (12+ characters)',
       generic: 'Something went wrong. Please email us instead.',
+      /** A fetch that never reached the server; replaces the browser's raw "Failed to fetch". */
+      network: "We couldn't reach the server. Check your connection and try again, or email us directly.",
       upload: 'That file could not be uploaded.',
       fileType: 'File type not accepted.',
       fileSize: 'Files must be 25 MB or smaller.',
@@ -291,15 +326,28 @@ export const ui = {
     disclaimer:
       'Descriptions on this site are general. The scope, sequence and deliverables for any specific building are confirmed in writing before work begins, and requirements vary by jurisdiction.',
   },
+  /* Rendered as note + link + end. Work has no case studies yet, so the
+     note points at what IS there (the typical engagements), not at
+     "published case studies" that do not exist. */
   typologiesNote:
-    'Photographs illustrate the kind of structure described. They are not Tercero Tablada projects — published case studies appear on',
+    'Photographs illustrate the kind of structure described; none shows a project by Tercero Tablada Civil & Structural Engineering Inc. Typical engagements are listed under',
   typologiesNoteLink: 'Work',
-  typologiesNoteEnd: ', with client permission.',
+  typologiesNoteEnd: '.',
   galleryNote:
-    'Licensed architectural photography, shown as material rather than as portfolio. No image on this page depicts a Tercero Tablada project.',
+    'Licensed architectural photography, shown as material rather than as a portfolio. No image on this page depicts a project by Tercero Tablada Civil & Structural Engineering Inc.',
   processDisclaimer:
     'Requirements vary by jurisdiction, building age, construction type and scope. This describes a typical sequence, not a guaranteed procedure or outcome.',
   legalPages: { privacy: 'Privacy Policy', terms: 'Terms of Use', legal: 'Legal' },
+  /** The public 404 (EN and /es), rendered with the site chrome. */
+  notFound: {
+    eyebrow: 'Error 404',
+    title: 'This page doesn’t exist.',
+    sub: 'The link may be out of date, or the address may have a typo. The pages below will get you back on track.',
+    home: 'Home',
+    services: 'All Services',
+    contact: 'Request a Proposal',
+    metaTitle: 'Page not found',
+  },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -312,7 +360,7 @@ export const hero = {
   /** Line breaks of the headline as rendered; the accent word is italic serif. */
   titleLines: ['Structural Engineering', 'for South Florida.'],
   accentWord: 'South Florida.',
-  sub: 'Structural design for new buildings, evaluation of existing ones, building recertification and BIM coordination — led by a Florida Professional Engineer who stays on your project from the first call to the final report.',
+  sub: 'Structural design for new buildings, evaluation of existing ones, building recertification and BIM coordination — led by a Florida Professional Engineer who stays on your project from the first conversation to the final report.',
   primary: { href: '/contact', label: 'Request a Proposal' },
   secondary: { href: '/services', label: 'Explore Our Services' },
   caps: [
@@ -338,7 +386,13 @@ export type Service = {
   track: ServiceTrack;
   /** One or two lines. Used on cards and list rows. */
   summary: string;
-  /** The problem this service solves, in the client's terms. */
+  /**
+   * The H2 of the "When you need it" section: 3–9 words, client language, no
+   * promise. It used to be the whole `problem` paragraph set at display size,
+   * which ran 13–23 lines beside an empty column.
+   */
+  problemTitle: string;
+  /** The problem this service solves, in the client's terms. The lede under `problemTitle`, so it does not repeat it. */
   problem: string;
   /** Who it is for. */
   audience: string[];
@@ -369,8 +423,6 @@ export type Service = {
     note: string;
     rows: { jurisdiction: string; source: string; facts: { k: string; v: string }[] }[];
   };
-  /** Reference standards. Kept short; this is not a code list. */
-  standards: string[];
   seo: { title: string; description: string; keywords: string[] };
 };
 
@@ -383,8 +435,9 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'Foundations, columns, beams, slabs and shear walls designed as one load path — detailed for the field and issued permit-ready.',
+    problemTitle: 'Concrete has to be right on paper first.',
     problem:
-      'Concrete is unforgiving: reinforcement that cannot be placed, a transfer condition resolved late, or a slab thickness set before the loads are known all become field problems that cost far more than they saved. The design has to be right on paper before it is right in formwork.',
+      'Concrete is unforgiving: reinforcement that cannot be placed, a transfer condition resolved late, or a slab thickness set before the loads are known all become field problems that cost far more than they saved.',
     audience: [
       'Developers and building owners',
       'Architects carrying a project through permitting',
@@ -411,11 +464,12 @@ export const services: Service[] = [
       'Construction-phase RFIs and submittal review',
     ],
     process: [
-      { step: 'Load take-down', detail: 'Occupancy, dead, live, wind and seismic demand established against ASCE 7 before any member is sized.' },
+      { step: 'Load take-down', detail: 'Occupancy, dead, live and hurricane-wind loads established for the actual site before any member is sized.' },
       { step: 'System selection', detail: 'Framing layout, slab type and lateral strategy chosen with the architect — span, depth and cost tested together.' },
-      { step: 'Analysis & sizing', detail: 'Members analyzed and designed to ACI 318 and the Florida Building Code, with deflection and serviceability checked.' },
+      { step: 'Analysis & sizing', detail: 'Members analyzed and designed to the Florida Building Code, with deflection and serviceability checked.' },
       { step: 'Detailing', detail: 'Reinforcement drawn so it can actually be placed — congestion, cover, hooks and splices resolved on the drawing.' },
-      { step: 'Review & seal', detail: 'Independent internal check, then signed and sealed for permit submittal.' },
+      /* One engineer: the check is thorough, not "independent". */
+      { step: 'Check & seal', detail: 'Drawings checked line by line against the calculations, then signed and sealed for permit submittal.' },
     ],
     deliverables: [
       'Structural drawing set, permit-ready',
@@ -430,11 +484,13 @@ export const services: Service[] = [
       'Scope and fee change with irregularity — transfers, cantilevers, post-tensioning and unusual geometry are priced honestly, not absorbed silently.',
       'Permit review comments are part of the process; we respond to them, but no engineer can guarantee a jurisdiction’s decision.',
     ],
-    standards: ['ACI 318', 'ASCE 7', 'Florida Building Code'],
+    /* seo.title: keyword + place inside the ~55 characters a result shows
+       before the layout's firm-name suffix. seo.description: 110–160
+       characters, no code names. */
     seo: {
-      title: 'Reinforced Concrete Design',
+      title: 'Reinforced Concrete Design — Miami-Dade & Broward',
       description:
-        'Reinforced concrete design for South Florida buildings — foundations, columns, beams, slabs and shear walls detailed to ACI 318 and the Florida Building Code, issued permit-ready. Miami-Dade and Broward.',
+        'Reinforced concrete design for South Florida houses, mid-rise and commercial buildings: foundations, columns, slabs and shear walls, issued permit-ready.',
       keywords: ['reinforced concrete design', 'concrete structure design Miami', 'structural engineer Miami', 'structural engineer Broward'],
     },
   },
@@ -446,8 +502,9 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'Gravity and lateral analysis, wind and seismic demand, and the foundation system that carries all of it into the ground.',
+    problemTitle: 'One load path, from roof to soil.',
     problem:
-      'Every building is a single continuous load path from roof to soil. When gravity, lateral and foundation design are handled as separate exercises, the seams between them are where failures and change orders live.',
+      'When the gravity design, the wind design and the foundations are handled as separate exercises, the seams between them are where failures and change orders start.',
     audience: [
       'Design teams needing a complete structural model',
       'Owners evaluating feasibility or structural options',
@@ -455,13 +512,13 @@ export const services: Service[] = [
     ],
     when: [
       'You need to know whether a site, a soil report or a building concept works structurally before committing.',
-      'The project has a difficult site: tight lot, poor bearing, high water table, close neighbours.',
+      'The project has a difficult site: tight lot, poor bearing, high water table, close neighbors.',
       'You need wind and lateral demand resolved for a High-Velocity Hurricane Zone site.',
     ],
-    capabilities: ['3D modelling', 'Wind & seismic demand', 'Drift control', 'Deep foundations', 'Settlement checks'],
+    capabilities: ['3D modeling', 'Wind & seismic demand', 'Drift control', 'Deep foundations', 'Settlement checks'],
     scope: [
-      'Three-dimensional analytical modelling of the structure',
-      'Wind and seismic demand per ASCE 7',
+      'Three-dimensional analytical modeling of the structure',
+      'Hurricane wind and lateral demand for the actual site',
       'Lateral system selection and drift control',
       'Diaphragm, collector and load-path continuity checks',
       'Shallow and deep foundation design',
@@ -487,11 +544,10 @@ export const services: Service[] = [
       'Existing structures require field verification before an analytical model can be trusted.',
       'Analysis results are reported as they are — including when they show a system does not work.',
     ],
-    standards: ['ASCE 7', 'ACI 318', 'AISC 360', 'Florida Building Code'],
     seo: {
-      title: 'Structural Analysis & Foundations',
+      title: 'Structural Analysis & Foundations — Miami-Dade & Broward',
       description:
-        'Structural analysis and foundation design for South Florida — gravity and lateral systems, wind and seismic demand per ASCE 7, shallow and deep foundations in Miami-Dade and Broward.',
+        'Structural analysis and foundation design in Miami-Dade and Broward: hurricane wind, lateral systems, and shallow or deep foundations for difficult sites.',
       keywords: ['structural analysis South Florida', 'foundation design Miami', 'wind analysis ASCE 7 Florida', 'lateral system design'],
     },
   },
@@ -503,21 +559,22 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'Coordinated digital models that resolve conflicts before they reach the field and produce clearer structural deliverables.',
+    problemTitle: 'Find the conflicts before the site does.',
     problem:
-      'Most conflicts between structure, architecture and MEP are discovered on site, where they are most expensive to fix. A coordinated model moves that discovery back into design, where it costs a conversation instead of a change order.',
+      'Most conflicts between the structure, the architecture and the mechanical, electrical and plumbing systems are discovered on site, where they cost the most to fix. A coordinated model moves that discovery back into design, where it costs a conversation instead of a change order.',
     audience: [
       'Design teams running multi-discipline coordination',
       'Contractors requiring model-based deliverables',
       'Owners who want the as-designed model to survive into operations',
     ],
     when: [
-      'The project team works in Revit and needs the structure modelled to the same standard.',
+      'The project team works in Revit and needs the structure modeled to the same standard.',
       'The owner or contractor requires a federated model and clash reports as a deliverable.',
       'Ducts, pipes and structure keep colliding on drawings and someone has to own the resolution.',
     ],
-    capabilities: ['Structural modelling', 'Model federation', 'Clash detection', 'Issue tracking', 'Model-derived drawings'],
+    capabilities: ['Structural modeling', 'Model federation', 'Clash detection', 'Issue tracking', 'Model-derived drawings'],
     scope: [
-      'Structural modelling — foundations, columns, slabs, walls, framing',
+      'Structural modeling — foundations, columns, slabs, walls, framing',
       'Federation of structural, architectural and MEP models',
       'Interference checking and clash resolution tracking',
       'Model-derived drawings, schedules and quantities',
@@ -525,7 +582,7 @@ export const services: Service[] = [
       'Model delivery aligned to project information requirements',
     ],
     process: [
-      { step: 'Set the rules', detail: 'Shared coordinates, level and grid naming, model breakdown and level of information agreed before modelling starts.' },
+      { step: 'Set the rules', detail: 'Shared coordinates, level and grid naming, model breakdown and level of information agreed before modeling starts.' },
       { step: 'Model the structure', detail: 'The structural model is built as the design source, not as a drafting by-product.' },
       { step: 'Federate', detail: 'Discipline models combined and checked against each other on a fixed cycle.' },
       { step: 'Resolve', detail: 'Conflicts logged, assigned and tracked to closure — with the structural fix engineered, not improvised.' },
@@ -538,17 +595,16 @@ export const services: Service[] = [
       'Coordination record for the project file',
     ],
     nextStep:
-      'Tell us the software the team uses, the level of detail required and the coordination schedule. We propose the modelling scope and the exchange format.',
+      'Tell us the software the team uses, the level of detail required and the coordination schedule. We propose the modeling scope and the exchange format.',
     considerations: [
       'Coordination quality depends on what the other disciplines deliver and when; the process is collaborative by definition.',
       'A model is not a substitute for a signed and sealed drawing set — it supports it.',
       'Level of information should match the decision being made, not the largest number available.',
     ],
-    standards: ['ISO 19650', 'Model-based coordination'],
     seo: {
-      title: 'BIM Modeling & Coordination',
+      title: 'BIM Modeling & Coordination — Miami-Dade & Broward',
       description:
-        'Structural BIM modeling and multi-discipline coordination — federated Revit models, clash detection and model-derived structural deliverables for South Florida projects.',
+        'Structural BIM modeling and coordination for South Florida projects: Revit models, clash detection and model-derived structural drawings.',
       keywords: ['BIM coordination Miami', 'structural BIM modeling', 'clash detection structural', 'Revit structural engineer Florida'],
     },
   },
@@ -560,8 +616,9 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'An independent second read of the structural design — code compliance, load path, constructability and documentation quality.',
+    problemTitle: 'A second read before the drawings go out.',
     problem:
-      'By the time a structural problem is found in construction, it is a schedule event. An independent review before issue is the cheapest risk reduction available on a project.',
+      'By the time a structural problem is found in construction, it is a schedule event. An independent review before the set is issued is the cheapest risk reduction available on a project.',
     audience: [
       'Owners and developers managing structural risk',
       'Design teams seeking an independent check',
@@ -576,10 +633,11 @@ export const services: Service[] = [
     scope: [
       'Independent review of structural drawings and calculations',
       'Code compliance and load-path continuity check',
-      'Review of analysis assumptions and modelling',
+      'Review of analysis assumptions and modeling',
       'Constructability and detailing review',
       'Documentation completeness and coordination review',
-      'Written comment log with resolution tracking',
+      /* Work the engineer does; the comment log itself is a deliverable. */
+      'Review of the design team’s responses until every comment is closed',
     ],
     process: [
       { step: 'Scope the review', detail: 'Depth agreed up front — full review, targeted systems, or a specific concern.' },
@@ -599,9 +657,8 @@ export const services: Service[] = [
       'Review depth and fee scale with the size and complexity of the set.',
       'Comments are written to be resolved, not to assign blame.',
     ],
-    standards: ['ACI 318', 'ASCE 7', 'AISC 360', 'Florida Building Code'],
     seo: {
-      title: 'Structural Peer Review & Compliance',
+      title: 'Structural Peer Review & Compliance — Miami-Dade & Broward',
       description:
         'Independent structural peer review — code compliance, load path, constructability and documentation review for projects in Miami-Dade and Broward.',
       keywords: ['structural peer review', 'independent structural review Florida', 'third party structural review Miami', 'structural due diligence'],
@@ -615,8 +672,9 @@ export const services: Service[] = [
     track: 'existing',
     summary:
       'A clear path from the county notice to a submitted structural recertification report — inspection, findings, repairs, reinspection.',
+    problemTitle: 'A notice arrives with a deadline.',
     problem:
-      'A recertification notice arrives with a deadline, a form, and very little explanation of what actually has to happen. Boards and owners need someone who knows the sequence and can carry the structural side of it end to end.',
+      'The notice comes with a form and very little explanation of what actually has to happen. Boards and owners need someone who knows the sequence and can carry the structural side of it end to end.',
     audience: [
       'Condominium and homeowner associations',
       'Property managers',
@@ -628,20 +686,22 @@ export const services: Service[] = [
       'You are buying or managing a building and want to know where it stands in the recertification cycle.',
     ],
     capabilities: ['Notice review', 'Site inspection', 'Findings report', 'Repair scope', 'Reinspection'],
+    /* Scope = work the engineer does; deliverables = documents the client
+       keeps. Four of six scope lines used to restate a deliverable. */
     scope: [
       'Review of the notice, building records and prior reports',
-      'Visual structural inspection of the building',
-      'Documentation of observed conditions with photographs',
-      'Structural recertification report on the required form',
-      'Repair recommendations where conditions require them',
-      'Reinspection after repairs and submission support',
+      'Visual structural inspection of accessible elements — frame, slabs, balconies, roof structure',
+      'Classification of observed conditions by structural significance',
+      'Repair scope defined so contractors bid the same work',
+      'Reinspection of completed repairs',
+      'Submission, and answers to the reviewing office’s questions',
     ],
     process: [
       { step: 'Notice review', detail: 'We read the notice and the building’s history, then confirm what the jurisdiction is actually asking for and by when.' },
       { step: 'Site inspection', detail: 'Visual structural inspection of accessible elements — frame, slabs, balconies, roof structure, foundations where exposed.' },
       { step: 'Findings', detail: 'Observed conditions documented and classified, with the structural reasoning written in plain language for the board.' },
       { step: 'Repairs', detail: 'Where repairs are required, we describe what has to be corrected and to what standard, so the work can be bid fairly.' },
-      { step: 'Reinspection', detail: 'Completed repairs are re-inspected and documented against the original findings.' },
+      { step: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings.' },
       { step: 'Submission', detail: 'The report is finalized and submitted, and we respond to questions the reviewing office raises.' },
     ],
     deliverables: [
@@ -678,18 +738,25 @@ export const services: Service[] = [
       ],
     },
     considerations: [
+      /* A naming note, not a deadline: Miami-Dade's own notice under §8-11(f)
+         was titled "Notice of Required Recertification of 40 Year Old
+         Building(s)" (checked 2026-09-22), and owners still search for it by
+         that name. It deliberately restates NO threshold: the county's 25-year
+         trigger is narrower than a one-line paraphrase (condo and co-op
+         buildings of 3+ stories near the coast), so the note points at the
+         verified rows instead of re-deriving them. */
+      'Still widely called the “40-year recertification” — the first one now falls due earlier, at the ages listed above.',
       'Requirements differ between Miami-Dade and Broward and between municipalities — the sequence above is typical, not universal.',
       'Recertification is not a one-time event. After the first report the building is due again every ten years, for the life of the structure.',
       'Recertification covers the structural scope; electrical recertification is a separate discipline.',
       'A report documents observed conditions. No engineer can guarantee how a reviewing office will act on it.',
       'Concealed conditions may require additional investigation before conclusions can be drawn.',
     ],
-    standards: ['Florida Building Code', 'Miami-Dade & Broward requirements'],
     seo: {
       title: 'Building Recertification — Miami-Dade & Broward',
       description:
-        'Structural building recertification in Miami-Dade (30 / 25 years) and Broward (25 years) — notice review, inspection, findings, repair recommendations, reinspection and report submission by a Florida P.E.',
-      keywords: ['building recertification Miami-Dade', 'building recertification Broward', '30 year recertification Miami', '25 year recertification Broward', 'structural recertification report'],
+        'Building recertification in Miami-Dade (30 or 25 years) and Broward (25 years): inspection, findings, repair scope, reinspection and report, by a Florida P.E.',
+      keywords: ['building recertification Miami-Dade', 'building recertification Broward', '40 year recertification Miami', '30 year recertification Miami', '25 year recertification Broward', 'structural recertification report'],
     },
   },
   {
@@ -700,8 +767,9 @@ export const services: Service[] = [
     track: 'existing',
     summary:
       'Milestone and structural safety inspections that document real condition — with findings written to be acted on, not filed.',
+    problemTitle: 'A vague inspection report helps nobody.',
     problem:
-      'A safety inspection that produces a vague report helps nobody. Owners need to know what was actually observed, what it means structurally, and what has to happen next.',
+      'Owners and boards need to know what was actually observed, what it means for the structure, and what has to happen next.',
     audience: [
       'Condominium associations subject to milestone inspection',
       'Owners of aging or coastal buildings',
@@ -718,8 +786,8 @@ export const services: Service[] = [
       'Balcony, walkway and railing structural review',
       'Concrete distress mapping — spalling, cracking, corrosion staining',
       'Waterproofing-related structural deterioration review',
-      'Prioritized findings and recommended follow-up',
-      'Phase two investigation scoping where warranted',
+      'Separating cosmetic from structural, and urgent from monitorable',
+      'Phase-two investigation scoping where warranted',
     ],
     process: [
       { step: 'Records review', detail: 'Available drawings, prior reports and repair history reviewed before the site visit.' },
@@ -737,7 +805,9 @@ export const services: Service[] = [
       'Tell us the building’s age, height and distance from the coast. We confirm whether the milestone inspection applies and propose the phase-one scope.',
     timing: {
       checked: 'September 2026',
-      note: 'The milestone inspection is a state obligation under Florida Statute 553.899 and is separate from county recertification. Both can apply to the same building, on different deadlines.',
+      /* The statute number stays in the row's `source` (the authority every
+         regulatory number must name), not in the prose. */
+      note: 'The milestone inspection is a state obligation under Florida law and is separate from county recertification. Both can apply to the same building, on different deadlines.',
       rows: [
         {
           jurisdiction: 'State of Florida — milestone inspection',
@@ -756,11 +826,10 @@ export const services: Service[] = [
       'Milestone inspection requirements depend on building age, height and location; applicability is confirmed case by case.',
       'An inspection reports condition at a point in time; it is not a warranty of future performance.',
     ],
-    standards: ['Florida Building Code', 'Florida Statute 553.899'],
     seo: {
-      title: 'Milestone & Building Safety Inspections',
+      title: 'Milestone & Safety Inspections — Miami-Dade & Broward',
       description:
-        'Florida milestone inspections (F.S. 553.899) and structural safety inspections across South Florida — visual structural inspection, concrete distress documentation and prioritized findings by a licensed P.E.',
+        'Florida milestone inspections and structural safety inspections for condos in Miami-Dade and Broward: balconies, concrete distress and prioritized findings.',
       keywords: ['milestone inspection Florida', 'milestone inspection Miami', 'building safety inspection Broward', 'balcony inspection Miami', 'structural inspection South Florida'],
     },
   },
@@ -772,6 +841,7 @@ export const services: Service[] = [
     track: 'existing',
     summary:
       'What the building is actually doing today — deterioration assessed, capacity evaluated, repairs engineered so they can be bid and built.',
+    problemTitle: 'Not every crack is a structural problem.',
     problem:
       'Cracking, spalling and movement all look alarming and mean very different things. Before spending on repairs, an owner needs to know which conditions affect capacity and which do not — and then needs repairs specified precisely enough to price.',
     audience: [
@@ -812,11 +882,10 @@ export const services: Service[] = [
       'Missing original documentation increases the field verification required.',
       'Repair design is scoped and quoted separately from the assessment that leads to it.',
     ],
-    standards: ['ACI 318', 'ACI repair practice', 'Florida Building Code'],
     seo: {
-      title: 'Structural Condition Assessments & Repair Design',
+      title: 'Structural Assessments & Repair Design — Miami-Dade & Broward',
       description:
-        'Structural condition assessments, capacity evaluation and concrete repair design for existing South Florida buildings — deterioration evaluation, repair drawings and specifications.',
+        'Structural condition assessments and concrete repair design for existing South Florida buildings: what the distress means, and repairs specified to bid.',
       keywords: ['structural condition assessment Miami', 'concrete repair engineer Florida', 'balcony repair design', 'existing building evaluation', 'structural due diligence Miami'],
     },
   },
@@ -869,24 +938,22 @@ export const imagery = {
     '06': photo.rebarCageTower,
   } as Record<string, Photo>,
   clips: {
-    design: video.craneSky,
     existing: video.existingMidrise,
-    practice: video.structureGeometry,
     bim: video.bimAssembly,
   } as Record<string, Clip>,
   gallery: [
-    photo.houseConcreteCarport,
-    photo.frameGolden,
-    photo.housePalm,
+    photo.houseModernLevels,
     photo.concreteVault,
-    photo.midriseClean,
+    photo.housePalm,
     photo.rebarSlabCrew,
-    photo.concreteSteppedGold,
-    photo.frameTower,
-    photo.houseDarkBrick,
     photo.miamiSkylineTeal,
-    photo.houseWhiteTree,
+    photo.frameGolden,
+    photo.midriseClean,
+    photo.concreteSteppedGold,
+    photo.rebarTyingHands,
+    photo.houseDarkBrick,
     photo.miamiBeachDusk,
+    photo.houseWhiteTree,
   ],
 } as const;
 
@@ -907,7 +974,7 @@ export const typologiesSection = {
   eyebrow: 'What we design',
   title: 'From a single house to a mid-rise concrete frame.',
   accentWord: 'mid-rise',
-  lede: 'The same engineer, the same load path, the same detailing standard — scaled to the building in front of us. If your project is not on this list, it is worth a conversation rather than an assumption.',
+  lede: 'The same engineer and the same detailing standard, scaled to the building in front of us. If your project is not on this list, it is worth a conversation rather than an assumption.',
 } as const;
 
 export const typologies: Typology[] = [
@@ -915,8 +982,8 @@ export const typologies: Typology[] = [
   { n: '02', title: 'Townhouses & duplexes', lede: 'Party walls, shared foundations and repeated bays — the structure resolved once and detailed so the repetition stays a saving instead of a risk.', track: 'new', href: '/services/structural-analysis', photo: photo.houseTownhouses },
   { n: '03', title: 'Mid-rise reinforced concrete', lede: 'Flat plates, shear-wall cores and cantilevered balconies — the system South Florida is built from, engineered as one continuous load path.', track: 'new', href: '/services/reinforced-concrete-design', photo: photo.frameCurvedBalconies },
   { n: '04', title: 'Mixed-use & commercial frames', lede: 'Long spans over ground-floor retail, transfer structure where the grid changes, and coordination with everyone whose services run through it.', track: 'new', href: '/services/bim-coordination', photo: photo.frameCraneClean },
-  { n: '05', title: 'Foundations on difficult sites', lede: 'Tight lots, poor bearing, high water table and neighbours close enough to matter — the substructure engineered against the geotechnical report, not around it.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
-  { n: '06', title: 'Repairs to existing structures', lede: 'Balconies, facades, slabs and columns that have been in service for decades — condition documented, repairs engineered, and the paperwork the county asks for.', track: 'existing', href: '/existing-buildings', photo: photo.facadeRepairRope },
+  { n: '05', title: 'Foundations on difficult sites', lede: 'Tight lots, poor bearing, high water table and neighbors close enough to matter — the substructure engineered against the geotechnical report, not around it.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
+  { n: '06', title: 'Repairs to existing structures', lede: 'Balconies, facades, slabs and columns that have been in service for decades — condition documented, repairs engineered, and the paperwork the county asks for.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -952,8 +1019,8 @@ export const paths: Path[] = [
     accentWord: 'new',
     lede: 'Houses, townhouses, mid-rise concrete and commercial frames — engineered from the load path to the sealed permit set, and coordinated in BIM with the rest of the team.',
     serviceSlugs: ['reinforced-concrete-design', 'structural-analysis', 'bim-coordination', 'peer-review'],
-    cta: { href: '/services#new', label: 'Services for new projects' },
-    photo: photo.frameTowerSunlit,
+    cta: { href: '/services#new', label: 'Services for New Projects' },
+    photo: photo.frameCraneSky,
   },
   {
     n: '02',
@@ -963,7 +1030,7 @@ export const paths: Path[] = [
     accentWord: 'existing',
     lede: 'Recertification notices, milestone inspections, visible distress and repair scopes — documented condition, engineered repairs, and a clear route through Miami-Dade and Broward compliance.',
     serviceSlugs: ['building-recertification', 'building-safety-inspections', 'structural-condition-assessments'],
-    cta: { href: '/existing-buildings', label: 'Services for existing buildings' },
+    cta: { href: '/existing-buildings', label: 'Services for Existing Buildings' },
     photo: photo.midriseBalconies,
   },
 ];
@@ -977,13 +1044,15 @@ export const recertBand = {
   titleLines: ['Thousands of buildings.', 'One deadline each.'],
   accentWord: 'deadline',
   plainTitle: 'Thousands of buildings. One deadline each.',
-  body: 'South Florida’s recertification programs reach most buildings between 25 and 30 years of age and return every ten years for the life of the structure. We carry the structural side end to end: inspection, findings, repair scope, reinspection, submission.',
+  /* "Most buildings" alone read as if it reached houses; by count most South
+     Florida buildings are single-family homes, outside the program. */
+  body: 'South Florida’s recertification programs reach most buildings other than single-family homes and duplexes at 25 or 30 years of age, and return every ten years for the life of the structure. We carry the structural side end to end: inspection, findings, repair scope, reinspection, submission.',
   facts: [
     { k: 'Miami-Dade', v: '30 years · 25 near the coast · then every 10' },
     { k: 'Broward', v: '25 years · then every 10' },
     { k: 'State milestone', v: 'Condos 3+ stories · 30 years (25 by local rule) · then every 10' },
   ],
-  cta: { href: '/existing-buildings', label: 'Existing-building services' },
+  cta: { href: '/existing-buildings', label: 'Existing-Building Services' },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -993,13 +1062,15 @@ export const recertBand = {
 export const bim = {
   eyebrow: 'BIM / Digital coordination',
   title: 'Conflicts resolved in the model, not on your site.',
-  body: 'We build the structural model as the design source, federate it with architecture and MEP, and track every clash to closure — so the drawings you permit are the drawings that get built.',
+  /* Home-page copy: owners and boards read it, so no "federate", "MEP" or
+     "drafting by-product", and no promise about what gets built. */
+  body: 'We build the structural model first, check it against the architect’s model and the mechanical, electrical and plumbing models, and settle every conflict on screen — before it can become a change order on site.',
   notes: [
-    'One model as the design source, not a drafting by-product.',
-    'Conflicts found and resolved in coordination, not in the field.',
-    'Drawings, schedules and quantities derived from the same model.',
+    'The drawings come from the structural model, not a separate drafting pass.',
+    'Pipes, ducts and beams checked against each other before construction.',
+    'Drawings, schedules and quantities taken from the same model.',
   ],
-  cta: { href: '/services/bim-coordination', label: 'BIM coordination in detail' },
+  cta: { href: '/services/bim-coordination', label: 'BIM Coordination in Detail' },
 } as const;
 
 export const software = {
@@ -1007,7 +1078,7 @@ export const software = {
   title: 'The model has to survive the hand-off.',
   body: 'We work in the tools the rest of the project team already uses, and exchange through open formats so the model does not become a dead end when it leaves our office.',
   items: [
-    { name: 'Revit', role: 'Structural modelling', logo: '/ttc/img/software/revit.svg' },
+    { name: 'Revit', role: 'Structural modeling', logo: '/ttc/img/software/revit.svg' },
     { name: 'Navisworks', role: 'Clash detection', logo: '/ttc/img/software/navisworks.png' },
     { name: 'Autodesk', role: 'Platform', logo: '/ttc/img/software/autodesk.svg' },
     { name: 'CYPE', role: 'Structural analysis', logo: '/ttc/img/software/cype.png' },
@@ -1042,12 +1113,14 @@ export const howWeWork = {
       n: '03',
       title: 'Evaluation or design',
       youDo: 'Give access to the site, or answer the architect’s coordination questions as they come.',
-      youGet: 'Inspection and findings for existing buildings; analysis, modelling and detailing for new ones — with progress you can see.',
+      /* No client portal exists, so no "progress you can see". */
+      youGet: 'Inspection and findings for existing buildings; analysis, modeling and detailing for new ones — with questions raised as they come up, not saved for the end.',
     },
     {
       n: '04',
       title: 'Delivery',
-      youDo: 'Receive the report or the signed and sealed drawing set, and the calculations behind it.',
+      /* An action, so the "Your part" label above it reads true. */
+      youDo: 'Review the report or the signed and sealed drawing set, and ask about anything that is unclear.',
       youGet: 'Documents written to be acted on: a board can read the findings, a contractor can build the details, a reviewer can follow the reasoning.',
     },
     {
@@ -1060,7 +1133,7 @@ export const howWeWork = {
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   WORK — real case studies (empty until supplied) + representative engagements
+   WORK — real case studies (empty until supplied) + typical engagements
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type CaseStudy = {
@@ -1092,45 +1165,38 @@ export type Engagement = {
   scope: string;
   structuralSystem: string;
   deliverables: string;
-  codes: string;
   status: string;
 };
 
+/* Typical profiles, not jobs: every `location` is the service area, never a
+   specific county, and every `status` carries the one Work label. */
 export const engagements: Engagement[] = [
-  { n: '01', title: 'Mid-rise residential frame', projectType: 'Residential — new construction', location: 'Miami-Dade County, FL', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes', codes: 'ACI 318 · ASCE 7 · Florida Building Code', status: 'Representative scope' },
-  { n: '02', title: 'Coastal condominium recertification', projectType: 'Existing building — recertification', location: 'Broward County, FL', scope: 'Notice review, structural inspection, findings, repair recommendations, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'Recertification report · Photographic record · Repair scope', codes: 'Florida Building Code · County recertification requirements', status: 'Representative scope' },
-  { n: '03', title: 'Milestone structural inspection', projectType: 'Existing building — safety inspection', location: 'South Florida', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope', codes: 'Florida Building Code · F.S. 553.899', status: 'Representative scope' },
-  { n: '04', title: 'Foundation system for a constrained site', projectType: 'New construction — foundations', location: 'Miami-Dade County, FL', scope: 'Foundation design against geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations', codes: 'ACI 318 · ASCE 7 · Florida Building Code', status: 'Representative scope' },
-  { n: '05', title: 'Multi-discipline BIM coordination', projectType: 'New construction — coordination', location: 'South Florida', scope: 'Structural modelling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings', codes: 'ISO 19650 information management', status: 'Representative scope' },
-  { n: '06', title: 'Independent structural peer review', projectType: 'Design review — third party', location: 'South Florida', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record', codes: 'ACI 318 · ASCE 7 · AISC 360 · Florida Building Code', status: 'Representative scope' },
+  { n: '01', title: 'Mid-rise residential frame', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes', status: 'Typical engagement' },
+  { n: '02', title: 'Coastal condominium recertification', projectType: 'Existing building — recertification', location: 'Miami-Dade or Broward', scope: 'Notice review, structural inspection, findings, repair recommendations, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'Recertification report · Photographic record · Repair scope', status: 'Typical engagement' },
+  { n: '03', title: 'Milestone structural inspection', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope', status: 'Typical engagement' },
+  { n: '04', title: 'Foundation system for a constrained site', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations', status: 'Typical engagement' },
+  { n: '05', title: 'Multi-discipline BIM coordination', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings', status: 'Typical engagement' },
+  { n: '06', title: 'Independent structural peer review', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record', status: 'Typical engagement' },
 ];
 
 export const workSection = {
   eyebrowReal: 'Selected work',
-  eyebrowRepresentative: 'Representative scope',
   engagementsNote:
-    'Representative engagement profiles — anonymized scope, structural systems and deliverables of the kind the practice carries. Named case studies are published only with client permission, and are labelled as firm projects or prior professional experience.',
+    'Typical engagement profiles, not specific past projects: the scope, structural system and deliverables of each kind of work the firm takes on. Named case studies are published only with client permission and are labeled as firm projects or prior professional experience.',
   galleryEyebrow: 'The material',
   galleryLede: 'Reinforced concrete, reinforcement, residences and the coastline they stand on — the vocabulary of the work, uncaptioned on purpose.',
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CREDENTIALS — design basis, stated once
+   CREDENTIALS — accountability, stated once (About only)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const credentials = {
-  eyebrow: 'Standards & accountability',
+  /* Only the sealing statement renders. The code-name grid that used to sit
+     here was the "Codes & Standards" band Juan rejected — do not bring it back. */
   sealedDeliverables: true,
   sealingStatement:
     'Deliverables are signed and sealed by Juan Tercero, PE., M.Sc., Florida-licensed Professional Engineer, where the scope of work requires it.',
-  items: [
-    { k: 'Design basis', v: 'ACI 318', note: 'Reinforced concrete design and detailing' },
-    { k: 'Loads', v: 'ASCE 7', note: 'Wind, seismic and load combinations' },
-    { k: 'Governing code', v: 'Florida Building Code', note: 'Structural provisions and existing-building requirements' },
-    { k: 'Steel design', v: 'AISC 360', note: 'Applied where structural steel is in scope' },
-    { k: 'Coordination', v: 'ISO 19650', note: 'Model-based information management' },
-    { k: 'Service area', v: 'Miami-Dade & Broward', note: 'South Florida jurisdictions' },
-  ],
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1155,8 +1221,10 @@ export const leadership = {
   /** Home teaser: two sentences. */
   /** Home-teaser headline. Carries the promise without naming anyone. */
   teaserTitle: 'One engineer is responsible for the whole project.',
+  /* No phone is published, so "first message", not "first call"; and the
+     promise is the scope we deliver, not what gets built. */
   teaser:
-    'Every project at Tercero Tablada is engineered, reviewed and signed by the same person. You speak to the engineer of record from the first call, and the proposal you approve is the scope that gets built.',
+    'Every project at Tercero Tablada Civil & Structural Engineering Inc. is engineered, checked and signed by the same person. You deal directly with the engineer from your first message, and the scope you approve in the proposal is the scope we deliver.',
   bio: [
     'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil & Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
     'The practice covers both halves of structural work in South Florida: the design of new reinforced-concrete buildings, and the evaluation, recertification and repair of buildings already standing. Both are done with the same discipline — the reasoning behind every conclusion is written down, and nothing leaves the office that has not been checked line by line.',
@@ -1169,7 +1237,7 @@ export const leadership = {
   focus: [
     'Reinforced-concrete design for houses, mid-rise and commercial frames',
     'Recertification, milestone inspections and condition assessments',
-    'Structural BIM modelling and multi-discipline coordination',
+    'Structural BIM modeling and multi-discipline coordination',
     'Wind and lateral design for the High-Velocity Hurricane Zone',
   ],
   approach:
@@ -1193,7 +1261,6 @@ export const aboutPage = {
   eyebrow: 'About the practice',
   titleLines: ['A structural practice built', 'around one accountable engineer.'],
   accentWord: 'accountable',
-  plainTitle: 'A structural practice built around one accountable engineer.',
   sub: 'Tercero Tablada Civil & Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
   facts: [
     { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
@@ -1205,7 +1272,7 @@ export const aboutPage = {
     title: 'Reviewed line by line, before it leaves.',
     body: [
       'Two kinds of work run through this practice, and they inform each other. Designing new structures teaches you what fails in the field; inspecting buildings that have been standing for decades teaches you what to detail differently the next time.',
-      'Our method is model-first. Structure is modelled, coordinated and documented as one connected source of truth, checked against the design basis, so that the design that gets permitted is the design that gets built.',
+      'Our method is model-first. Structure is modeled, coordinated and documented as one connected source of truth, checked against the design basis, so that what goes to permit is complete and coordinated.',
       'On existing buildings the same discipline applies in reverse: the building is field-verified before it is analyzed, and nothing is concluded from a drawing that has not been confirmed on site.',
     ],
   },
@@ -1214,7 +1281,7 @@ export const aboutPage = {
     title: 'How we hold the line.',
     items: [
       { k: 'Rigor', v: 'Every member is analyzed and checked against the governing code before it reaches a drawing.' },
-      { k: 'Constructibility', v: 'Details that respect the field — buildable, sequenceable and clear to the contractor.' },
+      { k: 'Constructability', v: 'Details that respect the field — buildable, sequenceable and clear to the contractor.' },
       { k: 'Coordination', v: 'Structure resolved against architecture and services early, so conflicts are caught in the model rather than on site.' },
       { k: 'Documented reasoning', v: 'Assumptions, loads and code provisions are written down, so any reviewer can follow the argument.' },
       { k: 'Longevity', v: 'Designed for durability and service life in a coastal environment, not just for the first day of occupancy.' },
@@ -1228,9 +1295,8 @@ export const aboutPage = {
 
 export const servicesPage = {
   eyebrow: 'Services',
-  titleLines: ['Organised by what you need,', 'not by what we do.'],
+  titleLines: ['Organized by what you need,', 'not by what we do.'],
   accentWord: 'need',
-  plainTitle: 'Organised by what you need, not by what we do.',
   sub: 'Seven services in two tracks. If you are building something, start with new projects. If you own or manage a building that is already standing, start with existing buildings. Each service says when you need it, what is included, what you receive and what to do next.',
   facts: [
     { k: 'New projects', v: '4 services' },
@@ -1257,7 +1323,6 @@ export const existingPage = {
   eyebrow: 'Existing buildings',
   titleLines: ['The building is', 'already standing.'],
   accentWord: 'standing.',
-  plainTitle: 'The building is already standing.',
   sub: 'Recertification, milestone inspection, structural assessment and repair design for buildings in service across Miami-Dade and Broward. We document what is actually there, explain what it means structurally, and define the work that follows.',
   facts: [
     { k: 'For', v: 'Associations, owners, managers' },
@@ -1279,27 +1344,27 @@ export const existingPage = {
     eyebrow: 'Building recertification',
     title: 'A clear path from notice to compliance.',
     lede: 'Miami-Dade calls the first recertification at 30 years — 25 near the coast; Broward at 25; the state milestone inspection at 30 for condominiums of three habitable stories or more. All of them come back every ten years. We run the structural side end to end so the board knows what happens next at every stage.',
-    cta: { href: '/services/building-recertification', label: 'Recertification in detail' },
+    cta: { href: '/services/building-recertification', label: 'Recertification in Detail' },
     steps: [
       { n: '01', title: 'Notice review', detail: 'We read the notice and the building record, confirm what the jurisdiction is asking for, and set the schedule against the stated deadline.' },
       { n: '02', title: 'Site inspection', detail: 'Visual structural inspection of accessible elements — frame, slabs, balconies, roof structure and exposed foundations — documented in the field.' },
       { n: '03', title: 'Findings', detail: 'Observed conditions are classified and explained in language a board can act on, with photographs tied to locations.' },
       { n: '04', title: 'Repairs', detail: 'Where repairs are required we define what must be corrected and to what standard, so the work can be bid and executed fairly.' },
-      { n: '05', title: 'Reinspection', detail: 'Completed repairs are re-inspected and documented against the original findings before anything is certified.' },
-      { n: '06', title: 'Submission', detail: 'The report is finalized, submitted, and we respond to questions raised by the reviewing office.' },
+      { n: '05', title: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings before anything is certified.' },
+      { n: '06', title: 'Submission', detail: 'The report is finalized and submitted, and we answer any questions the reviewing office raises.' },
     ],
   },
 } as const;
 
 export const workPage = {
   eyebrowReal: 'Selected work',
-  eyebrowRepresentative: 'Representative capabilities',
+  /* One label for the profiles everywhere (hero, section, status): they are
+     typical engagements, not past jobs, and nothing here says "anonymized". */
   titleLines: ['The frame behind', 'the project.'],
   accentWord: 'project.',
-  plainTitle: 'The frame behind the project.',
   subReal: 'Structural engagements across South Florida — the building, the problem, the scope, our role and the documented result.',
   subRepresentative:
-    'Engagement profiles describing the structural systems we work with, the scope each one carries, and the documents that come out of it. Anonymized by default; named case studies are published only with client permission.',
+    'Typical engagement profiles: the structural system, the scope and the documents each kind of work produces. They describe what the firm takes on, not specific past projects. Named case studies are published only with client permission.',
   facts: [
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
     { k: 'Systems', v: 'Reinforced concrete, steel' },
@@ -1310,7 +1375,6 @@ export const contactPage = {
   eyebrow: 'Request a proposal',
   titleLines: ['Tell us about the building.', 'We reply with a scope.'],
   accentWord: 'scope.',
-  plainTitle: 'Tell us about the building. We reply with a scope.',
   sub: 'Describe the project, the building or the notice you received — and attach whatever you already have. The engineer reads every request and replies with questions or with a written proposal.',
 } as const;
 
@@ -1327,9 +1391,18 @@ export const serviceArea = {
     { name: 'Broward County', code: 'BRW', note: 'High-Velocity Hurricane Zone' },
   ],
   note: 'South Florida from the air. Coverage is defined by jurisdiction, not by the frame of a photograph.',
+  /**
+   * One visible sentence of the main municipalities, under the county list.
+   * Without it the only place names on the site were "Miami-Dade" and
+   * "Broward"; a search for a city had no on-page text to match. Keep it to a
+   * dozen names so it reads as information, not keyword stuffing.
+   */
+  cities:
+    'Including Miami, Miami Beach, Coral Gables, Doral, Hialeah, Aventura, Sunny Isles Beach, Fort Lauderdale, Hollywood, Hallandale Beach, Pompano Beach and Coral Springs — and everywhere else in both counties.',
 } as const;
 
-/* Kept for local SEO (`areaServed`). Not rendered as a visible list. */
+/* Kept for local SEO (`areaServed`). Not rendered as a visible list; the
+   visible sentence of main cities is `serviceArea.cities`. */
 export const municipalities = [
   'Miami', 'Miami Beach', 'Coral Gables', 'Hialeah', 'Miami Springs',
   'North Miami', 'North Miami Beach', 'Opa-locka', 'South Miami',
@@ -1356,10 +1429,9 @@ export const closingCta = {
   eyebrow: 'Next step',
   titleLines: ['Tell us about the building.', 'We reply with a scope.'],
   accentWord: 'scope.',
-  plainTitle: 'Tell us about the building. We reply with a scope.',
   body: 'A new project, an existing building or a notice with a deadline — describe it and attach what you have. You hear back from the engineer, with questions or with a written proposal.',
   primary: { href: '/contact', label: 'Request a Proposal' },
-  secondary: { href: '/about#engineer', label: 'Meet the engineer' },
+  secondary: { href: '/about#engineer', label: 'Meet the Engineer' },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1398,7 +1470,8 @@ export const legal = {
       { h: 'Regulatory outcomes', p: 'Requirements for inspection, recertification and permitting vary by jurisdiction, building age, construction type and scope. Ages and deadlines published here were verified on the date stated next to them and can change. Descriptions of any process on this site are typical sequences, not guarantees. We do not promise approval by any building department or reviewing authority.' },
       { h: 'Sealed documents', p: 'Where a signed and sealed document is required, it is issued as a formal deliverable under an agreed scope of work. Content on this website is never a sealed deliverable.' },
       { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available.' },
-      { h: 'Intellectual property', p: 'The text, drawings and marks on this site belong to Tercero Tablada Civil & Structural Engineering Inc. unless stated otherwise, and may not be reproduced without permission.' },
+      /* The site has no drawings, and every photo and video is licensed stock. */
+      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil & Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],
   },
   contactHeading: 'Contact',

@@ -35,7 +35,7 @@ export function ServiceCard({
       <Link href={href} className="mp-svc__media" tabIndex={-1} aria-hidden="true">
         <Img
           photo={imagery.services[service.slug]}
-          sizes="(max-width: 720px) 100vw, (max-width: 1180px) 50vw, 33vw"
+          sizes="(max-width: 900px) 100vw, 50vw"
         />
       </Link>
       <div className="mp-svc__body">
@@ -69,8 +69,12 @@ export function ServiceCard({
           </dl>
         ) : null}
 
+        {/* Seven "See this service" links on /services are indistinguishable
+            in a screen reader's link list; the hidden suffix names each one
+            without changing what a sighted visitor sees. */}
         <Link href={href} className="mp-link mp-svc__go">
-          {u.exploreService} <i aria-hidden="true">→</i>
+          {u.exploreService}
+          <span className="mp-sr-only">: {service.title}</span> <i aria-hidden="true">→</i>
         </Link>
       </div>
     </Reveal>

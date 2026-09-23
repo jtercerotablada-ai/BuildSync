@@ -1,26 +1,70 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useContent, useL } from './lang';
+import { htmlLang } from '@/lib/ttc/i18n';
+import { useContent, useL, useLang } from './lang';
+
+/**
+ * The year the HTML was rendered in. The public pages are prerendered, so on
+ * the server this is the BUILD year; in the browser it is the visitor's.
+ * Module scope keeps the clock read out of render.
+ */
+const RENDER_YEAR = new Date().getFullYear();
+
+/**
+ * "© 2026" without a hydration mismatch.
+ *
+ * The static HTML freezes the build year. The first visit after 1 January
+ * without a redeploy (or a UTC build on New Year's Eve, Miami time) would
+ * render a different number on the client, and React 19 answers a text
+ * mismatch by re-rendering the tree on the client — restarting the hero
+ * video and every entrance. So the server's year is kept as-is
+ * (suppressHydrationWarning, one level deep: this span only), and the
+ * browser's year is written in after mount. Written to the node directly
+ * because React does not patch suppressed text and a state update to the
+ * value it already rendered would not touch the DOM.
+ */
+function CopyrightYear() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const now = String(new Date().getFullYear());
+    if (ref.current && ref.current.textContent !== now) {
+      ref.current.textContent = now;
+    }
+  }, []);
+  return (
+    <span ref={ref} suppressHydrationWarning>
+      {RENDER_YEAR}
+    </span>
+  );
+}
 
 export function SiteFooter() {
   const c = useContent();
   const l = useL();
-  const year = new Date().getFullYear();
+  const lang = useLang();
 
   return (
-    <footer className="mp-footer">
+    // Its own `lang`: the footer renders outside es/layout.tsx's <div
+    // lang="es">, and <html lang> is only corrected after hydration.
+    <footer className="mp-footer" lang={htmlLang[lang]}>
       <div className="mp-shell">
         <div className="mp-footer__top">
           <div>
             <div className="mp-footer__brand-logo">
+              {/* The 640px straight resize of the real white lockup (shown
+                  44–60px tall ≈ 158px wide, so ≥4x), lazy because it sits at
+                  the very bottom of every page and would otherwise be
+                  preloaded ahead of the hero. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={c.company.logo.lockupLight}
+                src={c.company.logo.lockupLightSm}
                 alt={c.company.legalName}
-                width={c.company.logo.lockupSize.w}
-                height={c.company.logo.lockupSize.h}
+                width={c.company.logo.lockupSmSize.w}
+                height={c.company.logo.lockupSmSize.h}
+                loading="lazy"
+                decoding="async"
               />
             </div>
             <p className="mp-footer__tag">{c.company.description}</p>
@@ -40,10 +84,13 @@ export function SiteFooter() {
             </p>
           </div>
 
+          {/* Column titles are labels, not headings: as h2s they added
+              "Navigate", "Services" and "Contact" to the outline of every
+              page — /privacy ended up with two h2s named "Contact". */}
           <div className="mp-footer__cols">
             {c.footerNav.map((group) => (
               <div className="mp-footer__col" key={group.title}>
-                <h2>{group.title}</h2>
+                <p className="mp-footer__title">{group.title}</p>
                 {group.items.map((item) => (
                   <Link key={item.href} href={l(item.href)}>
                     {item.label}
@@ -53,7 +100,7 @@ export function SiteFooter() {
             ))}
 
             <div className="mp-footer__col">
-              <h2>{c.ui.footer.services}</h2>
+              <p className="mp-footer__title">{c.ui.footer.services}</p>
               {c.services.map((s) => (
                 <Link key={s.slug} href={l(`/services/${s.slug}`)}>
                   {s.shortTitle}
@@ -62,7 +109,7 @@ export function SiteFooter() {
             </div>
 
             <div className="mp-footer__col">
-              <h2>{c.ui.footer.contact}</h2>
+              <p className="mp-footer__title">{c.ui.footer.contact}</p>
               <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>
               {c.contact.phone ? (
                 <a href={c.contact.phone.href}>{c.contact.phone.display}</a>
@@ -92,7 +139,7 @@ export function SiteFooter() {
 
         <div className="mp-footer__bottom">
           <span>
-            © {year} {c.company.legalName}
+            © <CopyrightYear /> {c.company.legalName}
           </span>
           <div className="mp-footer__legal">
             {c.legal.links.map((lk) => (

@@ -4,15 +4,22 @@ import { company, imagery } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
-import { HowWeWork } from '@/components/ttc/mp/HowWeWork';
-import { CredentialsBar } from '@/components/ttc/mp/CredentialsBar';
-import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
+import { SealStatement } from '@/components/ttc/mp/CredentialsBar';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
-/** About: the practice, then the engineer (anchored), then how the work is held. */
+/**
+ * About: the practice, then the engineer (anchored), then how the work is held.
+ *
+ * Four sections and a close — engineer (paper) → approach (concrete) →
+ * principles (paper) → CTA (graphite). The five-step process lives on Home
+ * and Services and the service-area band on Home and Contact; repeating them
+ * here made a Home → Services → About visit read the same blocks three times.
+ * The code-standard grid that used to sit here is gone for good (client site,
+ * client language); the sealing statement it carried now closes Principles.
+ */
 export function AboutView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.aboutPage;
@@ -47,7 +54,6 @@ export function AboutView({ lang }: { lang: Lang }) {
         eyebrow={p.eyebrow}
         crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
-        plainTitle={p.plainTitle}
         sub={p.sub}
         facts={p.facts}
         photo={imagery.pages.about}
@@ -73,32 +79,33 @@ export function AboutView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <HowWeWork n="03" />
-
       <section className="mp-section mp-surface--paper">
         <div className="mp-shell">
-          <SectionHeading n="04" label={p.principles.eyebrow} />
+          <SectionHeading n="03" label={p.principles.eyebrow} />
           <div className="mp-split">
             <Reveal>
               <h2 className="mp-split__title">{p.principles.title}</h2>
             </Reveal>
-            <Reveal delay={0.05}>
-              <ul className="mp-pillars">
-                {p.principles.items.map((it) => (
-                  <li key={it.k}>
-                    <b>{it.k}</b>
-                    <span>{it.v}</span>
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
+            <div>
+              <Reveal delay={0.05}>
+                <ul className="mp-pillars">
+                  {p.principles.items.map((it) => (
+                    <li key={it.k}>
+                      <b>{it.k}</b>
+                      <span>{it.v}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+              <SealStatement />
+            </div>
           </div>
         </div>
       </section>
 
-      <CredentialsBar n="05" />
-      <SouthFloridaMap n="06" />
-      <ContactCTA n="07" />
+      {/* The default secondary ("Meet the engineer" → /about#engineer) would
+          point back up this same page. */}
+      <ContactCTA n="04" secondary={{ href: '/services', label: c.ui.seeAllServices }} />
     </>
   );
 }

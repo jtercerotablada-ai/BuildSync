@@ -20,6 +20,11 @@ import { useContent, useL } from './lang';
  * photograph of structure, with the engineer's name and licensure as type.
  * No stock person, no silhouette, no "photo coming soon". Supplying the
  * portrait in `site.ts` swaps it in without touching this component.
+ *
+ * The caption belongs to the PORTRAIT only. The plate already sets name (or
+ * role) and licensure as type, so a caption under it repeated the same facts
+ * a second time — a third with the role eyebrow beside it, and a stutter
+ * once the columns stack on a phone.
  */
 export function EngineerSection({
   n = '03',
@@ -71,13 +76,16 @@ export function EngineerSection({
                     sizes="(max-width: 900px) 100vw, 40vw"
                   />
                   <div className="mp-grid-bg" aria-hidden="true" />
+                  {/* The 256 px resize of the real white monogram (never a
+                      redraw): the plate shows it at up to ~84 px, so the
+                      1254 px master was ~230 KB for nothing. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     className="mp-eng__plate-mark"
-                    src={c.company.logo.light}
+                    src={c.company.logo.markLightSm}
                     alt=""
-                    width={c.company.logo.markSize.w}
-                    height={c.company.logo.markSize.h}
+                    width={c.company.logo.markSmSize.w}
+                    height={c.company.logo.markSmSize.h}
                     loading="lazy"
                     decoding="async"
                   />
@@ -91,10 +99,12 @@ export function EngineerSection({
                   </dl>
                 </div>
               )}
-              <figcaption className="mp-eng__caption">
-                <span>{named ? e.name : e.role}</span>
-                <span>{e.credential}</span>
-              </figcaption>
+              {e.portrait ? (
+                <figcaption className="mp-eng__caption">
+                  <span>{named ? e.name : e.role}</span>
+                  <span>{e.credential}</span>
+                </figcaption>
+              ) : null}
             </figure>
           </Reveal>
 

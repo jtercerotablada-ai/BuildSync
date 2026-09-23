@@ -25,7 +25,6 @@ export function ExistingView({ lang }: { lang: Lang }) {
         eyebrow={p.eyebrow}
         crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
-        plainTitle={p.plainTitle}
         sub={p.sub}
         facts={p.facts}
         photo={imagery.pages.existingBuildings}

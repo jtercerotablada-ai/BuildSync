@@ -1,17 +1,30 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
+import { prepareDestination } from "next/dist/shared/lib/router/utils/prepare-destination";
 import {
+  APP_SEGMENTS,
   appHostLanding,
+  EN_PUBLIC_PAGES,
+  ES_PUBLIC_PAGES,
+  hostSplitAction,
   isApiForbiddenForRole,
   isClientApi,
+  isMarketingRoute,
   isPublicRoute,
   isRoleAgnosticUploadRequest,
   isSessionCookieName,
   isSessionOptionalApi,
   loginRedirectUrl,
+  PUBLIC_NOT_FOUND,
+  PUBLIC_NOT_FOUND_ES,
+  publicNotFoundTarget,
 } from "./proxy";
+import nextConfig from "../next.config";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
+import { services } from "@/lib/ttc/site";
 
 /**
  * The CLIENT API allowlist.
@@ -448,5 +461,625 @@ describe("isRoleAgnosticUploadRequest", () => {
     ).toBe(false);
     expect(isRoleAgnosticUploadRequest(null)).toBe(false);
     expect(isRoleAgnosticUploadRequest("form-attachment")).toBe(false);
+  });
+});
+
+/**
+ * Read the top-level URL segments straight out of src/app.
+ *
+ * Route groups — (auth), (dashboard)… — and @parallel slots add no segment, so
+ * their children count as top-level. _private folders are not routable. The
+ * (public) group is collected separately: it is the marketing site.
+ *
+ * Same idea as reading the WorkspaceRole enum from schema.prisma above: the
+ * file system is the arbiter, so a new app folder that nobody added to
+ * APP_SEGMENTS fails this suite instead of silently 404ing on the apex.
+ */
+function topLevelRouteSegments(): { app: string[]; marketing: string[] } {
+  const app = new Set<string>();
+  const marketing = new Set<string>();
+  const walk = (dir: string, bucket: Set<string>) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const name = entry.name;
+      if (name.startsWith("_")) continue;
+      if (/^\(.+\)$/.test(name) || name.startsWith("@")) {
+        walk(join(dir, name), name === "(public)" ? marketing : bucket);
+        continue;
+      }
+      bucket.add(name);
+    }
+  };
+  walk(join(__dirname, "app"), app);
+  return { app: [...app].sort(), marketing: [...marketing].sort() };
+}
+
+describe("APP_SEGMENTS — drift against src/app", () => {
+  const { app, marketing } = topLevelRouteSegments();
+
+  it("sees a route tree that still contains the known folders", () => {
+    // Guards the walker itself: one that silently found nothing would make
+    // every assertion below vacuous.
+    expect(app).toEqual(expect.arrayContaining(["login", "home", "api", "projects"]));
+    expect(marketing).toEqual(expect.arrayContaining(["about", "services", "es"]));
+  });
+
+  it("lists exactly the app's top-level route folders — no more, no less", () => {
+    // A folder missing from APP_SEGMENTS 404s on the public host instead of
+    // being sent to the app host; a stale entry keeps redirecting to a route
+    // that no longer exists. Update APP_SEGMENTS in the SAME commit that adds
+    // or removes the folder.
+    expect([...APP_SEGMENTS].sort()).toEqual(app);
+  });
+
+  it("has no dynamic top-level segment the list could not represent", () => {
+    // A top-level [param] folder would match every path, on both hosts.
+    expect([...app, ...marketing].filter((s) => s.startsWith("["))).toEqual([]);
+  });
+
+  it("serves every (public) page folder as marketing on the apex", () => {
+    // A public page missing from the marketing set would be treated as a
+    // typo on the public host (404) and as an app path on the app host. The
+    // English rewrite target is the one top-level (public) folder that is not
+    // a page of its own (its Spanish twin lives under /es).
+    const pages = marketing.filter((s) => `/${s}` !== PUBLIC_NOT_FOUND);
+    for (const segment of pages) {
+      expect(isMarketingRoute(`/${segment}`), segment).toBe(true);
+    }
+  });
+
+  it("never lets an app segment double as a marketing prefix", () => {
+    // /projects is the one deliberate overlap: the bare index is marketing,
+    // everything under it is the app.
+    for (const segment of APP_SEGMENTS) {
+      expect(isMarketingRoute(`/${segment}/x`), segment).toBe(false);
+      if (segment !== "projects") {
+        expect(isMarketingRoute(`/${segment}`), segment).toBe(false);
+      }
+    }
+  });
+});
+
+describe("hostSplitAction", () => {
+  const hosts = { app: "app.example.com", public: "example.com" };
+  const onPublic = (path: string, search = "") =>
+    hostSplitAction("example.com", path, search, hosts);
+  const onApp = (path: string, search = "") =>
+    hostSplitAction("app.example.com", path, search, hosts);
+
+  describe("inert unless configured, and only on the configured hosts", () => {
+    it("does nothing when neither host is set", () => {
+      const none = { app: "", public: "" };
+      expect(hostSplitAction("example.com", "/abuot", "", none)).toBeNull();
+      expect(hostSplitAction("www.example.com", "/about", "", none)).toBeNull();
+    });
+
+    it("leaves localhost, previews and bare IPs alone", () => {
+      for (const host of ["localhost:3002", "ttc-git-x.vercel.app", "127.0.0.1:3002"]) {
+        expect(hostSplitAction(host, "/abuot", "", hosts)).toBeNull();
+        expect(hostSplitAction(host, "/login", "", hosts)).toBeNull();
+        expect(hostSplitAction(host, "/", "", hosts)).toBeNull();
+      }
+    });
+  });
+
+  describe("www", () => {
+    it("308s www to the apex, path and query intact", () => {
+      expect(hostSplitAction("www.example.com", "/about", "?a=1", hosts)).toEqual({
+        kind: "redirect",
+        location: "https://example.com/about?a=1",
+        status: 308,
+      });
+      expect(hostSplitAction("WWW.example.com:443", "/", "", hosts)).toEqual({
+        kind: "redirect",
+        location: "https://example.com/",
+        status: 308,
+      });
+    });
+
+    it("needs PUBLIC_HOST only — www is not part of the reversible split", () => {
+      expect(
+        hostSplitAction("www.example.com", "/es/about", "", { app: "", public: "example.com" }),
+      ).toEqual({ kind: "redirect", location: "https://example.com/es/about", status: 308 });
+    });
+
+    it("does not treat the app host's own www as the public site", () => {
+      expect(hostSplitAction("www.app.example.com", "/about", "", hosts)).toBeNull();
+    });
+  });
+
+  describe("public host", () => {
+    it("serves the marketing site in place", () => {
+      for (const path of [
+        "/",
+        "/about",
+        "/projects",
+        "/services",
+        "/services/building-recertification",
+        "/credits",
+        "/api/contact",
+      ]) {
+        expect(onPublic(path), path).toBeNull();
+      }
+    });
+
+    it("leaves every /es/* path to publicNotFoundTarget — the split never rewrites it", () => {
+      // Unknown Spanish paths still 404, in Spanish: proxy() asks
+      // publicNotFoundTarget right after the split (see its tests below).
+      for (const path of [
+        "/es",
+        "/es/about",
+        "/es/nope",
+        "/es/services/bogus",
+        "/es/contacto",
+        "/es/credits",
+        PUBLIC_NOT_FOUND_ES,
+      ]) {
+        expect(onPublic(path), path).toBeNull();
+      }
+    });
+
+    it("leaves unknown paths under the other marketing prefixes to publicNotFoundTarget too", () => {
+      for (const path of [
+        "/services/nope",
+        "/services/peer-review/x",
+        "/resources",
+        "/resources/steel-member",
+      ]) {
+        expect(onPublic(path), path).toBeNull();
+      }
+    });
+
+    it("answers host-neutral paths in place", () => {
+      for (const path of ["/ttc/og/og-en.jpg", "/robots.txt", "/sitemap.xml", "/api/auth/session"]) {
+        expect(onPublic(path), path).toBeNull();
+      }
+    });
+
+    it("sends a real app path to the app host with a 307, query intact", () => {
+      expect(onPublic("/login")).toEqual({
+        kind: "redirect",
+        location: "https://app.example.com/login",
+        status: 307,
+      });
+      expect(onPublic("/projects/p1", "?task=t1")).toEqual({
+        kind: "redirect",
+        location: "https://app.example.com/projects/p1?task=t1",
+        status: 307,
+      });
+      for (const path of ["/home", "/register", "/invite/tok", "/forms/f1", "/api/tasks", "/teams/t1"]) {
+        expect(onPublic(path)?.kind, path).toBe("redirect");
+      }
+    });
+
+    it("rewrites a typo or an unknown path to the public 404 instead of the login wall", () => {
+      for (const path of [
+        "/abuot",
+        "/About",
+        "/ES",
+        "/servicess",
+        "/about-us",
+        "/blog",
+        "/wp-login.php",
+        "/apple-touch-icon.png",
+        // Only the FIRST segment decides: these merely start like app routes.
+        "/loginx",
+        "/homes",
+        "/escalate",
+        "/icon.svg",
+        // A direct request for the internal target itself: a 404, never a 200.
+        PUBLIC_NOT_FOUND,
+      ]) {
+        expect(onPublic(path), path).toEqual({
+          kind: "rewrite",
+          pathname: PUBLIC_NOT_FOUND,
+          status: 404,
+        });
+      }
+    });
+  });
+
+  describe("app host", () => {
+    it("lands the app's own root and /projects on the app", () => {
+      expect(onApp("/", "?x=1")).toEqual({ kind: "redirect", location: "/home?x=1", status: 307 });
+      expect(onApp("/projects")).toEqual({ kind: "redirect", location: "/projects/all", status: 307 });
+    });
+
+    it("sends marketing pages to the apex with a 307", () => {
+      expect(onApp("/about")).toEqual({
+        kind: "redirect",
+        location: "https://example.com/about",
+        status: 307,
+      });
+      expect(onApp("/es/services")?.kind).toBe("redirect");
+    });
+
+    it("leaves app paths — and its own unknown paths — to the app", () => {
+      for (const path of ["/home", "/projects/all", "/login", "/abuot", "/api/tasks"]) {
+        expect(onApp(path), path).toBeNull();
+      }
+    });
+  });
+});
+
+/*
+ * The public 404. Every unknown path under a marketing prefix is rewritten,
+ * with status 404, to a (public) page that the SERVER renders in full — not
+ * thrown with notFound(), which Next 16 answers with an empty client-built
+ * error shell. These pin the decision (publicNotFoundTarget), the response
+ * proxy() builds from it with the host split both off and on, and the drift
+ * between the known-page lists and the (public) route files.
+ */
+describe("publicNotFoundTarget", () => {
+  const slug = services[0].slug;
+
+  it("lets every known English and Spanish page through", () => {
+    for (const path of [...EN_PUBLIC_PAGES, ...ES_PUBLIC_PAGES]) {
+      expect(publicNotFoundTarget(path), path).toBeNull();
+    }
+  });
+
+  it("sends unknown English marketing paths to the English 404", () => {
+    for (const path of [
+      "/services/nope",
+      `/services/${slug}/x`,
+      "/services/x/y/z",
+      // The retired calculators: the prefix is marketing, no page exists.
+      "/resources",
+      "/resources/steel-member",
+      "/resources/load-gen",
+    ]) {
+      expect(publicNotFoundTarget(path), path).toBe(PUBLIC_NOT_FOUND);
+    }
+  });
+
+  it("sends unknown Spanish paths to the Spanish 404, English-only pages included", () => {
+    for (const path of [
+      "/es/nope",
+      "/es/contacto",
+      "/es/services/nope",
+      `/es/services/${slug}/x`,
+      "/es/resources",
+      // Real in English, but with no Spanish twin (i18n's EN_ONLY).
+      "/es/credits",
+      "/es/logo-styles",
+    ]) {
+      expect(publicNotFoundTarget(path), path).toBe(PUBLIC_NOT_FOUND_ES);
+    }
+  });
+
+  it("answers a direct request for either 404 target with that target", () => {
+    expect(publicNotFoundTarget(PUBLIC_NOT_FOUND)).toBe(PUBLIC_NOT_FOUND);
+    expect(publicNotFoundTarget(PUBLIC_NOT_FOUND_ES)).toBe(PUBLIC_NOT_FOUND_ES);
+  });
+
+  it("matches real pages the way the router does — percent-decoded", () => {
+    // The router decodes each segment before it matches a page, so these ARE
+    // the real pages; looking up the raw string answered them with a 404.
+    expect(publicNotFoundTarget("/services/peer%2Dreview")).toBeNull();
+    expect(publicNotFoundTarget("/es/services/peer%2dreview")).toBeNull();
+    expect(publicNotFoundTarget("/es/%61bout")).toBeNull();
+    // An encoded "/" or a malformed escape is never one of our pages.
+    expect(publicNotFoundTarget("/services/peer-review%2Fx")).toBe(PUBLIC_NOT_FOUND);
+    expect(publicNotFoundTarget("/es/services/peer-review%2Fx")).toBe(PUBLIC_NOT_FOUND_ES);
+    expect(publicNotFoundTarget("/services/%E0")).toBe(PUBLIC_NOT_FOUND);
+  });
+
+  it("does not depend on a trailing slash", () => {
+    // Next 308s these away before the proxy runs; the answer must not change
+    // if that setting ever does.
+    expect(publicNotFoundTarget("/es/about/")).toBeNull();
+    expect(publicNotFoundTarget(`/services/${slug}/`)).toBeNull();
+    expect(publicNotFoundTarget("/es/")).toBeNull();
+    expect(publicNotFoundTarget("/services/nope/")).toBe(PUBLIC_NOT_FOUND);
+    expect(publicNotFoundTarget("/es/credits/")).toBe(PUBLIC_NOT_FOUND_ES);
+  });
+
+  it("never touches anything outside the marketing page prefixes", () => {
+    // App routes, the API (marketing or not), assets, host-neutral files and
+    // top-level typos are the host split's and the auth guard's business.
+    for (const path of [
+      "/",
+      "/about",
+      "/credits",
+      "/projects",
+      "/projects/p1",
+      "/abuot",
+      "/login",
+      "/home",
+      "/api/contact",
+      "/api/load-gen",
+      "/api/auth/session",
+      "/_next/static/chunks/x.js",
+      "/ttc/og/og-en.jpg",
+      "/favicon.ico",
+      "/robots.txt",
+      "/sitemap.xml",
+      // Lookalikes that merely start with a prefix's letters.
+      "/escalate",
+      "/servicesx",
+      "/resourcesful",
+      "/Services/nope",
+    ]) {
+      expect(publicNotFoundTarget(path), path).toBeNull();
+    }
+  });
+
+  it("knows exactly the Spanish mirror of the translated English pages", () => {
+    expect([...ES_PUBLIC_PAGES].sort()).toEqual(
+      [
+        "/es",
+        "/es/about",
+        "/es/contact",
+        "/es/existing-buildings",
+        "/es/privacy",
+        "/es/projects",
+        "/es/services",
+        "/es/terms",
+        ...services.map((s) => `/es/services/${s.slug}`),
+      ].sort(),
+    );
+  });
+});
+
+describe("proxy() — the public 404 response", () => {
+  const load = async (env: { app: string; public: string }) => {
+    vi.stubEnv("APP_HOST", env.app);
+    vi.stubEnv("PUBLIC_HOST", env.public);
+    vi.resetModules();
+    return (await import("./proxy")).proxy;
+  };
+  const call = async (
+    proxy: (r: NextRequest) => Promise<Response>,
+    host: string,
+    path: string,
+  ) => proxy(new NextRequest(`https://${host}${path}`, { headers: { host } }));
+  const rewrittenTo = (res: Response) => {
+    const header = res.headers.get("x-middleware-rewrite");
+    return header ? new URL(header).pathname : null;
+  };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  describe("host split OFF (localhost, previews)", () => {
+    it("rewrites unknown marketing paths to the right language's 404, with status 404", async () => {
+      const proxy = await load({ app: "", public: "" });
+      for (const [path, target] of [
+        ["/services/nope", PUBLIC_NOT_FOUND],
+        [`/services/${services[0].slug}/x`, PUBLIC_NOT_FOUND],
+        ["/resources", PUBLIC_NOT_FOUND],
+        ["/resources/steel-member", PUBLIC_NOT_FOUND],
+        [PUBLIC_NOT_FOUND, PUBLIC_NOT_FOUND],
+        ["/es/nope", PUBLIC_NOT_FOUND_ES],
+        ["/es/credits", PUBLIC_NOT_FOUND_ES],
+        ["/es/services/nope", PUBLIC_NOT_FOUND_ES],
+        [PUBLIC_NOT_FOUND_ES, PUBLIC_NOT_FOUND_ES],
+      ]) {
+        const res = await call(proxy, "localhost:3002", path);
+        expect(res.status, path).toBe(404);
+        expect(rewrittenTo(res), path).toBe(target);
+      }
+    });
+
+    it("lets the real pages through untouched", async () => {
+      const proxy = await load({ app: "", public: "" });
+      for (const path of ["/", "/about", "/credits", "/services", `/services/${services[0].slug}`, "/es", "/es/about"]) {
+        const res = await call(proxy, "localhost:3002", path);
+        expect(res.headers.get("x-middleware-next"), path).toBe("1");
+        expect(rewrittenTo(res), path).toBeNull();
+      }
+    });
+  });
+
+  describe("host split ON", () => {
+    const hosts = { app: "app.example.com", public: "example.com" };
+
+    it("public host: unknown marketing, typos and the target itself all 404 in place", async () => {
+      const proxy = await load(hosts);
+      for (const [path, target] of [
+        ["/services/nope", PUBLIC_NOT_FOUND],
+        ["/resources/load-gen", PUBLIC_NOT_FOUND],
+        ["/abuot", PUBLIC_NOT_FOUND],
+        ["/wp-login.php", PUBLIC_NOT_FOUND],
+        [PUBLIC_NOT_FOUND, PUBLIC_NOT_FOUND],
+        ["/es/contacto", PUBLIC_NOT_FOUND_ES],
+        ["/es/logo-styles", PUBLIC_NOT_FOUND_ES],
+      ]) {
+        const res = await call(proxy, hosts.public, path);
+        expect(res.status, path).toBe(404);
+        expect(rewrittenTo(res), path).toBe(target);
+      }
+    });
+
+    it("public host: real pages pass, app paths still 307 to the app host", async () => {
+      const proxy = await load(hosts);
+      for (const path of ["/", "/about", "/es/services", `/services/${services[0].slug}`]) {
+        const res = await call(proxy, hosts.public, path);
+        expect(res.headers.get("x-middleware-next"), path).toBe("1");
+      }
+      const login = await call(proxy, hosts.public, "/login");
+      expect(login.status).toBe(307);
+      expect(login.headers.get("location")).toBe("https://app.example.com/login");
+    });
+
+    it("app host: marketing paths, unknown ones included, still go to the apex", async () => {
+      const proxy = await load(hosts);
+      const res = await call(proxy, hosts.app, "/services/nope");
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe("https://example.com/services/nope");
+    });
+
+    it("app host: a direct request for the English target is a 404, not a login bounce", async () => {
+      const proxy = await load(hosts);
+      const res = await call(proxy, hosts.app, PUBLIC_NOT_FOUND);
+      expect(res.status).toBe(404);
+      expect(rewrittenTo(res)).toBe(PUBLIC_NOT_FOUND);
+    });
+  });
+});
+
+/**
+ * Every page file under src/app/(public), as a URL pattern: route groups and
+ * @slots add no segment, _private folders are skipped. The file system is the
+ * arbiter, as with APP_SEGMENTS above.
+ */
+function publicPageRoutes(): string[] {
+  const routes: string[] = [];
+  const walk = (dir: string, url: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith("_")) continue;
+        const grouped = /^\(.+\)$/.test(entry.name) || entry.name.startsWith("@");
+        walk(join(dir, entry.name), grouped ? url : `${url}/${entry.name}`);
+      } else if (/^page\.[jt]sx?$/.test(entry.name)) {
+        routes.push(url || "/");
+      }
+    }
+  };
+  walk(join(__dirname, "app", "(public)"), "");
+  return routes.sort();
+}
+
+/** Files under (public) that would create a URL without being a page. */
+function publicNonPageRouteFiles(): string[] {
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (
+        /^(route|opengraph-image|twitter-image|icon|apple-icon|sitemap|robots|manifest|favicon)\./.test(
+          entry.name,
+        )
+      ) {
+        found.push(full);
+      }
+    }
+  };
+  walk(join(__dirname, "app", "(public)"));
+  return found;
+}
+
+describe("public 404 — drift against src/app/(public)", () => {
+  const routes = publicPageRoutes();
+  const isCatchAll = (r: string) => r.includes("[...") || r.includes("[[...");
+  const slugRoutes = ["/services/[slug]", "/es/services/[slug]"];
+  const pages = routes
+    .filter((r) => !isCatchAll(r))
+    .flatMap((r) =>
+      slugRoutes.includes(r) ? services.map((s) => r.replace("[slug]", s.slug)) : [r],
+    )
+    .filter((r) => r !== PUBLIC_NOT_FOUND && r !== PUBLIC_NOT_FOUND_ES);
+  const isEs = (r: string) => r === "/es" || r.startsWith("/es/");
+
+  it("sees a route tree that still contains the known pages", () => {
+    // Guards the walker: one that found nothing would make the rest vacuous.
+    expect(routes).toEqual(
+      expect.arrayContaining(["/", "/about", "/es", "/es/about", "/services/[slug]"]),
+    );
+  });
+
+  it("has a page file for both 404 targets", () => {
+    expect(routes).toContain(PUBLIC_NOT_FOUND);
+    expect(routes).toContain(PUBLIC_NOT_FOUND_ES);
+  });
+
+  it("knows exactly the English pages that exist — no more, no less", () => {
+    // A page missing from EN_PUBLIC_PAGES would be rewritten to the 404; a
+    // stale entry would let a dead path fall through to the app's not-found.
+    expect(pages.filter((r) => !isEs(r)).sort()).toEqual([...EN_PUBLIC_PAGES].sort());
+  });
+
+  it("knows exactly the Spanish pages that exist under (public)/es", () => {
+    expect(pages.filter(isEs).sort()).toEqual([...ES_PUBLIC_PAGES].sort());
+  });
+
+  it("has no dynamic page the known lists cannot enumerate", () => {
+    // [slug] is expanded from site.ts; any other dynamic segment needs its
+    // own entry in the proxy before it can be served.
+    const dynamic = routes.filter((r) => r.includes("[") && !isCatchAll(r));
+    expect(dynamic.sort()).toEqual([...slugRoutes].sort());
+  });
+
+  it("keeps every catch-all a fallback the proxy answers first", () => {
+    // A catch-all under a path the proxy does not own would start serving
+    // pages the known lists never heard of.
+    const catchAlls = routes.filter(isCatchAll);
+    expect(catchAlls.length).toBeGreaterThan(0);
+    for (const route of catchAlls) {
+      const sample = route
+        .replace(/\[\[?\.\.\.[^\]]+\]\]?/, "x")
+        .replace("[slug]", services[0].slug);
+      expect(publicNotFoundTarget(sample), route).not.toBeNull();
+      if (route.includes("[[...")) {
+        // An optional catch-all also matches its bare parent.
+        const bare = route.replace(/\/\[\[\.\.\.[^\]]+\]\]$/, "");
+        expect(publicNotFoundTarget(bare), route).not.toBeNull();
+      }
+    }
+  });
+
+  it("has no route handler or metadata image the known lists would 404", () => {
+    expect(publicNonPageRouteFiles()).toEqual([]);
+  });
+
+  it("shadows no file in public/", () => {
+    // Middleware runs before public/ files are served, so a static file under
+    // a marketing page prefix would be rewritten to the 404.
+    const roots = readdirSync(join(__dirname, "..", "public"));
+    for (const name of ["services", "es", "resources", PUBLIC_NOT_FOUND.slice(1)]) {
+      expect(roots, name).not.toContain(name);
+    }
+  });
+});
+
+/*
+ * Retired URLs are redirected in next.config.ts, which runs before the proxy.
+ * The /v2 pair used to be a block in proxy() that sat after the host split,
+ * so on the public host the split's fail-closed 404 answered first. Resolved
+ * here with Next's own matcher (the one it builds for custom routes), so the
+ * test covers what the config actually does, not merely what it lists.
+ */
+describe("next.config.ts — retired URL redirects", () => {
+  const resolve = async (pathname: string) => {
+    const redirects = (await nextConfig.redirects?.()) ?? [];
+    for (const r of redirects) {
+      const params = getPathMatch(r.source, { strict: true, removeUnnamedParams: true })(pathname);
+      if (!params) continue;
+      const { parsedDestination } = prepareDestination({
+        appendParamsToQuery: false,
+        destination: r.destination,
+        params,
+        query: {},
+      });
+      return { to: parsedDestination.pathname, permanent: "permanent" in r && r.permanent };
+    }
+    return null;
+  };
+
+  it.each([
+    ["/v2", "/"],
+    ["/v2/about", "/about"],
+    ["/v2/services", "/services"],
+    ["/v2/services/peer-review", "/services/peer-review"],
+    ["/about.html", "/about"],
+  ])("308s %s to %s", async (from, to) => {
+    expect(await resolve(from)).toEqual({ to, permanent: true });
+  });
+
+  it("leaves the live pages alone", async () => {
+    for (const path of ["/", "/about", "/v2x", "/es/v2"]) {
+      expect(await resolve(path), path).toBeNull();
+    }
+  });
+
+  it("the proxy no longer carries a /v2 rule of its own", () => {
+    // Two copies drifted once already; the config is the only one now.
+    const source = readFileSync(join(__dirname, "proxy.ts"), "utf8");
+    expect(source).not.toMatch(/pathname\s*===\s*["']\/v2["']/);
+    expect(source).not.toMatch(/startsWith\(\s*["']\/v2\//);
   });
 });

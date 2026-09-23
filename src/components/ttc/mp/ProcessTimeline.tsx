@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, useReducedMotion, useScroll, useSpring } from 'motion/react';
+import { motion, useScroll, useSpring } from 'motion/react';
 import { ButtonLink, Reveal, SectionHeading } from './primitives';
 import { useContent, useL } from './lang';
 
@@ -9,12 +9,18 @@ import { useContent, useL } from './lang';
  * Recertification timeline. The gold track fills as the section scrolls and
  * each node fills as it enters view; with reduced motion the track is drawn
  * complete and the nodes are filled from the start.
+ *
+ * That reduced-motion branch lives in CSS (mp.css, reduced-motion block), not
+ * here. `useReducedMotion()` is null on the server but the real preference on
+ * the first client render, so branching the class or style on it shipped
+ * markup that hydration flagged and never repaired: reduced-motion visitors
+ * got an empty track and hollow nodes forever. The markup below is identical
+ * on the server and the first client pass for everyone.
  */
 export function ProcessTimeline({ n = '03' }: { n?: string }) {
   const c = useContent();
   const l = useL();
   const t = c.existingPage.timeline;
-  const reduce = useReducedMotion();
   const listRef = useRef<HTMLDivElement>(null);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [seen, setSeen] = useState<boolean[]>(() => t.steps.map(() => false));
@@ -81,7 +87,7 @@ export function ProcessTimeline({ n = '03' }: { n?: string }) {
           <motion.div
             className="mp-timeline__progress"
             aria-hidden="true"
-            style={reduce ? { height: '100%' } : { height: '100%', scaleY: progress }}
+            style={{ height: '100%', scaleY: progress }}
           />
           {t.steps.map((s, i) => (
             <div
@@ -89,7 +95,7 @@ export function ProcessTimeline({ n = '03' }: { n?: string }) {
               ref={(el) => {
                 stepRefs.current[i] = el;
               }}
-              className={`mp-step${reduce || seen[i] ? ' is-in' : ''}`}
+              className={`mp-step${seen[i] ? ' is-in' : ''}`}
             >
               <div className="mp-step__node">
                 <span className="mp-step__dot" aria-hidden="true" />

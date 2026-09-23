@@ -9,10 +9,22 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. | Project Management",
   description: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Project Management Platform",
+  // One icon set for BOTH hosts, all cut from the real TT monogram (never
+  // redrawn). Everything lives under /ttc/ or at /favicon.ico, which the host
+  // split serves in place on either host.
+  //   - SVG first for modern browsers, a 48px PNG (Google's search favicon
+  //     minimum) and a 192px PNG for Android home-screen shortcuts.
+  //   - /favicon.ico (16/32/48) for legacy agents that request it blindly.
+  //   - A 180px OPAQUE PNG for iOS, which ignores SVG touch icons and would
+  //     otherwise screenshot the page for the home-screen tile.
   icons: {
-    icon: "/ttc/img/logo-icon-favicon.svg",
-    shortcut: "/ttc/img/logo-icon-favicon.svg",
-    apple: "/ttc/img/logo-icon-favicon.svg",
+    icon: [
+      { url: "/ttc/img/logo-icon-favicon.svg", type: "image/svg+xml" },
+      { url: "/ttc/icons/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/ttc/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: { url: "/ttc/icons/apple-touch-icon.png", sizes: "180x180" },
   },
 };
 

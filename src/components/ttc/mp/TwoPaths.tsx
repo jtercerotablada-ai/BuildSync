@@ -27,14 +27,14 @@ export function TwoPaths({ n = '01' }: { n?: string }) {
         <SectionHeading n={n} label={s.eyebrow} />
 
         <div className="mp-paths__intro">
+          {/* The section is named by the real headline, so screen readers
+              hear it once (no visually hidden duplicate beside it). */}
           <RevealText
             as="h2"
+            id="mp-paths-title"
             className="mp-paths__title"
             lines={accentLines(s.titleLines, s.accentWord)}
           />
-          <span id="mp-paths-title" className="mp-form__hp">
-            {s.titleLines.join(' ')}
-          </span>
           <Reveal delay={0.08}>
             <p className="mp-paths__lede">{s.lede}</p>
           </Reveal>

@@ -27,7 +27,6 @@ export function ServicesView({ lang }: { lang: Lang }) {
         eyebrow={p.eyebrow}
         crumbs={[{ href: '/', label: c.ui.home }, { label: c.primaryNav[0].label }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
-        plainTitle={p.plainTitle}
         sub={p.sub}
         facts={p.facts}
         photo={imagery.pages.services}

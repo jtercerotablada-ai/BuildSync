@@ -63,8 +63,8 @@ export function hreflangFor(canonicalPath: string): Record<string, string> {
 }
 
 /**
- * Pages that exist in English only. `/credits` is image attribution and licence
- * text, and `/logo-styles` is an internal brand sheet; neither has a Spanish
+ * Pages that exist in English only. `/credits` is a short image-license note,
+ * and `/logo-styles` is an internal brand sheet; neither has a Spanish
  * twin. The header switcher must not offer `/es/...` for these — it would send
  * the visitor to a 404, and it publishes a crawlable link to one.
  */

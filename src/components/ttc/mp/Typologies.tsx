@@ -43,10 +43,15 @@ export function Typologies({ n = '02' }: { n?: string }) {
             <Reveal as="li" key={t.n} delay={(i % 3) * 0.05} className="mp-typo__card">
               <Link href={l(t.href)} className="mp-typo__link">
                 <span className="mp-typo__media">
+                  {/* The card's real rendered width, per the .mp-typo grid: one
+                      column to 640, two to 900, then three inside the shell,
+                      which caps at ~400 px until the 1500 / 2000 px steps
+                      widen it. "33vw" overstated every desktop card (402 px is
+                      28vw at 1440) and sent retina screens the 2000w master. */}
                   <Img
                     photo={t.photo}
                     className="mp-typo__img"
-                    sizes="(max-width: 720px) 100vw, (max-width: 1080px) 50vw, 33vw"
+                    sizes="(max-width: 640px) 92vw, (max-width: 900px) 45vw, (max-width: 1499px) 29vw, (max-width: 1999px) 470px, 540px"
                   />
                 </span>
                 <span className="mp-typo__body">

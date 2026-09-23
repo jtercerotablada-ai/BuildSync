@@ -1,7 +1,8 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { legal, primaryNav } from "@/lib/ttc/site";
+import { hasTranslation, langFromPathname, localePath } from "@/lib/ttc/i18n";
+import { legal, primaryNav, services } from "@/lib/ttc/site";
 import { isNonContributorRole } from "@/lib/workspace-roles";
 
 // Public routes that don't require authentication
@@ -20,6 +21,10 @@ const publicPrefixes = [
   "/api/auth",
   "/api/my-tasks/calendar-feed",
   "/api/contact",
+  // The retired public calculators. Nothing renders here any more — the proxy
+  // answers every /resources path with the public 404 (publicNotFoundTarget)
+  // before this list is read — but the prefix stays so that, if they return,
+  // they are public from day one rather than behind the login wall.
   "/resources",
   "/api/load-gen",
   // Marketing: /services and every /services/<slug> detail page.
@@ -236,6 +241,114 @@ export function isRoleAgnosticUploadRequest(body: unknown): boolean {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PUBLIC 404 — unknown marketing paths, rendered by the server
+   ═══════════════════════════════════════════════════════════════════════════
+   The marketing site owns every path under /services, /es and /resources, and
+   which of those are real pages is a small closed set known right here: the
+   English pages (publicExactRoutes plus /services/<slug> for every slug in
+   site.ts) and their Spanish mirrors. Any other path under those prefixes is
+   REWRITTEN, with status 404, to the public 404 page of its language:
+
+     /services/nope, /services/<slug>/x, /resources, /resources/*  → PUBLIC_NOT_FOUND
+     /es/nope, /es/services/nope, /es/credits (English-only page)  → PUBLIC_NOT_FOUND_ES
+
+   This is decided on EVERY host — localhost and previews included, split on
+   or off — so what a visitor sees never depends on how the deployment is
+   configured. With the split on, the public host also rewrites any unknown
+   non-marketing path to PUBLIC_NOT_FOUND (see the host split below).
+
+   WHY A REWRITE, NOT notFound(). Next 16 answers a notFound() thrown during
+   SSR with its error shell: <html id="__next_error__"> and an empty <body>
+   that the client fills in only after the whole JS bundle has run — no
+   header, hero or copy without JavaScript, no stylesheet link in the HTML,
+   and a <head> resolved from the layouts instead of the page. The rewrite
+   targets are ordinary pages that render NotFoundView; the server completes
+   them, and the status rides on the rewrite itself
+   (NextResponse.rewrite(url, { status: 404 })). A direct request for either
+   target gets the same 404, never a 200.
+
+   The (public) catch-alls (es/[...rest], services/[slug]/[...rest],
+   resources/[[...rest]]) and the not-found boundaries remain as a fallback for
+   a path this list somehow misses. proxy.test.ts diffs the list against the
+   (public) page files, so a page added without updating it fails the suite
+   instead of 404ing in production.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** The internal (public) routes unknown paths are rewritten to, one per
+ *  language. Never linked, never in the sitemap. Each renders NotFoundView;
+ *  the 404 status and the address the visitor typed both survive the rewrite. */
+export const PUBLIC_NOT_FOUND = "/public-not-found";
+export const PUBLIC_NOT_FOUND_ES = "/es/public-not-found";
+
+/** Every English marketing page, exact. "/es" is left out: it is the Spanish
+ *  home, and it is listed below with the rest of the mirror. */
+export const EN_PUBLIC_PAGES: readonly string[] = [
+  ...publicExactRoutes.filter((href) => href !== "/es"),
+  ...services.map((s) => `/services/${s.slug}`),
+];
+
+/** The Spanish mirror: every English page that has a Spanish twin (all but
+ *  i18n's English-only pages, /credits and /logo-styles), under /es. */
+export const ES_PUBLIC_PAGES: readonly string[] = EN_PUBLIC_PAGES.filter(
+  (href) => hasTranslation(href),
+).map((href) => localePath(href, "es"));
+
+const knownPublicPages = new Set<string>([...EN_PUBLIC_PAGES, ...ES_PUBLIC_PAGES]);
+
+/** Prefixes whose every path is a marketing PAGE (unlike /api/contact). The
+ *  app has no route under any of them. */
+const marketingPagePrefixes = ["/services", "/es", "/resources"];
+
+/**
+ * Where an unknown public path is rewritten to, or null to carry on. A pure
+ * function of the path — no host involved — exported for tests.
+ *
+ * It only ever answers for the two 404 targets themselves and for paths under
+ * marketingPagePrefixes, so /api/*, /_next, /ttc/* and every file in public/
+ * (none of which live under those prefixes; proxy.test.ts checks public/)
+ * pass through untouched.
+ */
+/** The path as Next's router will match it: each segment percent-decoded.
+ *  null when a segment is malformed or decodes to a "/" (%2F) — neither can
+ *  be one of our pages, so the raw path (never in the set) is used instead. */
+function decodedPath(pathname: string): string | null {
+  const out: string[] = [];
+  for (const seg of pathname.split("/")) {
+    let d: string;
+    try {
+      d = decodeURIComponent(seg);
+    } catch {
+      return null;
+    }
+    if (d.includes("/")) return null;
+    out.push(d);
+  }
+  return out.join("/");
+}
+
+export function publicNotFoundTarget(pathname: string): string | null {
+  // The proxy sees the path still percent-encoded, but the router decodes it
+  // before matching a page: /services/peer%2Dreview IS the peer-review page,
+  // so the lookup must use the decoded form or a real page answers 404.
+  const decoded = decodedPath(pathname) ?? pathname;
+  // Next already 308s a trailing slash away before the proxy runs; tolerate
+  // one anyway, so this answer never depends on that setting.
+  const path = decoded.length > 1 ? decoded.replace(/\/+$/, "") || "/" : decoded;
+  if (path === PUBLIC_NOT_FOUND || path === PUBLIC_NOT_FOUND_ES) return path;
+  if (!marketingPagePrefixes.some((p) => path === p || path.startsWith(`${p}/`))) {
+    return null;
+  }
+  if (knownPublicPages.has(path)) return null;
+  return langFromPathname(path) === "es" ? PUBLIC_NOT_FOUND_ES : PUBLIC_NOT_FOUND;
+}
+
+/** A 404 the server renders in full: the target page, the 404 status, and
+ *  the visitor's own address left in the bar. */
+function rewriteToNotFound(request: NextRequest, target: string): NextResponse {
+  return NextResponse.rewrite(new URL(target, request.url), { status: 404 });
+}
+
 /**
  * Maintenance mode — when true, every request from the public web
  * lands on /maintenance. Localhost (`next dev`) is NEVER affected
@@ -258,12 +371,13 @@ const MAINTENANCE_MODE = false;
 
    INERT BY DEFAULT. Both vars must be set before anything is redirected, so
    this can ship before DNS moves and be switched on — or off — from the Vercel
-   dashboard without a deploy.
+   dashboard without a code change. (The one exception is www, below: it needs
+   PUBLIC_HOST only.)
 
      APP_HOST=app.ttcivilstructural.com
      PUBLIC_HOST=ttcivilstructural.com
 
-   Two deliberate safety properties:
+   Three deliberate safety properties:
 
    1. It only acts when the request's Host is one of the two configured hosts.
       `vercel pull` writes project env vars into `.env.local`, which is exactly
@@ -276,6 +390,21 @@ const MAINTENANCE_MODE = false;
       reverted mid-rollout, and a browser that has cached a permanent redirect
       to the wrong host is a genuinely painful thing to undo. Nothing on the
       app host is indexed, so there is no SEO argument for 308 here.
+      The exception is www.<PUBLIC_HOST> → PUBLIC_HOST: that is not part of
+      the reversible split — the apex is canonical either way — so it is a
+      308, and it fires whenever PUBLIC_HOST is set. www used to serve a full
+      duplicate of the site with a 200.
+
+   3. The public host fails CLOSED. Marketing is an exact, known set; a path
+      outside it is sent to the app host only when its first segment is one
+      the app actually has (APP_SEGMENTS). Anything else — a typo, an old
+      guess like /about-us, /wp-login.php — is rewritten, with status 404, to
+      the public 404 (PUBLIC_NOT_FOUND) instead of bouncing a client through
+      the staff login. An app route someone forgets to list therefore 404s on
+      the apex; it can never render there. proxy.test.ts reads src/app and
+      fails when the list and the route folders disagree. Unknown paths UNDER
+      a marketing prefix (/services/nope, /es/nope) are not this rule's job:
+      publicNotFoundTarget handles them, after the split, on every host.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const APP_HOST = (process.env.APP_HOST ?? "").trim().toLowerCase();
@@ -290,11 +419,65 @@ const PUBLIC_HOST = (process.env.PUBLIC_HOST ?? "").trim().toLowerCase();
  *  `/projects` index separate from the app's `/projects/all`. */
 const marketingPrefixes = ["/services", "/es", "/resources", "/api/contact", "/api/load-gen"];
 
-function isMarketingRoute(pathname: string): boolean {
+/** Exported for tests — pure string matching. */
+export function isMarketingRoute(pathname: string): boolean {
   if (publicExactRoutes.includes(pathname)) return true;
   return marketingPrefixes.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
+}
+
+/**
+ * First URL segments that belong to the APP. On the public host a non-marketing
+ * path is sent to the app host only when it starts with one of these; every
+ * other path gets the public 404.
+ *
+ * This is NOT an allowlist of what may render on the apex — marketing stays
+ * the closed set above, and nothing here makes a route public. It only decides
+ * where a stray request is pointed: a missing entry fails closed (the apex
+ * answers 404), it never leaks the route onto the public host.
+ *
+ * Mirrors the top-level folders of src/app, route groups flattened, (public)
+ * excluded. proxy.test.ts diffs the two and fails on any drift, so adding an
+ * app route folder without adding it here fails the suite.
+ *
+ * `projects` is shared on purpose: the bare /projects is the marketing index
+ * (publicExactRoutes, matched first), /projects/<anything> is the app's.
+ */
+export const APP_SEGMENTS: readonly string[] = [
+  // (auth)
+  "login",
+  "register",
+  "forgot-password",
+  "reset-password",
+  "verify-email",
+  // Top-level app folders outside any group.
+  "api",
+  "forms",
+  "invite",
+  "maintenance",
+  "onboarding",
+  // (dashboard) — and (fullpage), whose only folder is teams.
+  "goals",
+  "home",
+  "inbox",
+  "knowledge",
+  "my-tasks",
+  "people",
+  "portfolios",
+  "profile",
+  "projects",
+  "reporting",
+  "settings",
+  "tasks",
+  "teams",
+  "templates",
+  // (portal)
+  "portal",
+];
+
+function isAppSegment(pathname: string): boolean {
+  return APP_SEGMENTS.includes(pathname.split("/")[1] ?? "");
 }
 
 /** Served identically on both hosts — redirecting these would break asset
@@ -333,8 +516,7 @@ function isHostNeutral(pathname: string): boolean {
     isSessionOptionalApi(pathname) ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
-    pathname === "/favicon.ico" ||
-    pathname === "/icon.svg"
+    pathname === "/favicon.ico"
   );
 }
 
@@ -352,43 +534,90 @@ export function appHostLanding(pathname: string): string | null {
   return null;
 }
 
-/** Returns a redirect when the request reached the wrong host, else null. */
-function hostSplit(request: NextRequest): NextResponse | null {
-  if (!APP_HOST || !PUBLIC_HOST) return null;
+/** What the host split does with a request: nothing (null), a redirect, or a
+ *  rewrite to the public 404 (always with status 404). */
+export type HostSplitAction =
+  | { kind: "redirect"; location: string; status: 307 | 308 }
+  | { kind: "rewrite"; pathname: string; status: 404 };
 
-  const host = (request.headers.get("host") ?? "")
-    .toLowerCase()
-    .split(":")[0];
+/**
+ * The whole host-split decision, as a pure function of the Host header and
+ * the path — so every branch is unit-testable without a request. `location`
+ * is either absolute (another host) or a path on the SAME host; the caller
+ * resolves it against the request URL. `hosts` defaults to the env config and
+ * exists only so tests can supply their own.
+ */
+export function hostSplitAction(
+  hostHeader: string,
+  pathname: string,
+  search: string,
+  hosts: { app: string; public: string } = { app: APP_HOST, public: PUBLIC_HOST },
+): HostSplitAction | null {
+  const host = hostHeader.toLowerCase().split(":")[0];
 
-  const isAppHost = host === APP_HOST;
-  const isPublicHost = host === PUBLIC_HOST || host === `www.${PUBLIC_HOST}`;
+  // www is never canonical. Checked before the both-vars guard below: it only
+  // needs PUBLIC_HOST, and it applies to every path, assets included — no page
+  // is ever rendered on www, so nothing there needs answering in place.
+  if (hosts.public && host === `www.${hosts.public}`) {
+    return {
+      kind: "redirect",
+      location: `https://${hosts.public}${pathname}${search}`,
+      status: 308,
+    };
+  }
+
+  if (!hosts.app || !hosts.public) return null;
+
+  const isAppHost = host === hosts.app;
+  const isPublicHost = host === hosts.public;
   // Anything else — localhost, a preview deployment, a bare IP — is left alone.
   if (!isAppHost && !isPublicHost) return null;
 
-  const { pathname, search } = request.nextUrl;
   if (isHostNeutral(pathname)) return null;
+
+  const marketing = isMarketingRoute(pathname);
 
   if (isAppHost) {
     const landing = appHostLanding(pathname);
     if (landing) {
-      return NextResponse.redirect(new URL(`${landing}${search}`, request.url), 307);
+      return { kind: "redirect", location: `${landing}${search}`, status: 307 };
     }
+    if (marketing) {
+      return {
+        kind: "redirect",
+        location: `https://${hosts.public}${pathname}${search}`,
+        status: 307,
+      };
+    }
+    return null;
   }
 
-  const marketing = isMarketingRoute(pathname);
-  if (isAppHost && marketing) {
-    return NextResponse.redirect(
-      `https://${PUBLIC_HOST}${pathname}${search}`,
-      307,
-    );
+  // Public host from here on.
+  if (marketing) return null;
+  if (isAppSegment(pathname)) {
+    return {
+      kind: "redirect",
+      location: `https://${hosts.app}${pathname}${search}`,
+      status: 307,
+    };
   }
-  if (isPublicHost && !marketing) {
-    return NextResponse.redirect(
-      `https://${APP_HOST}${pathname}${search}`,
-      307,
-    );
-  }
-  return null;
+  // Fail closed: see safety property 3 above. Returned before the auth guard
+  // in proxy(), so a typo on the apex never reaches the /login redirect. A
+  // direct request for PUBLIC_NOT_FOUND lands here too, and gets its 404.
+  return { kind: "rewrite", pathname: PUBLIC_NOT_FOUND, status: 404 };
+}
+
+/** Applies hostSplitAction to a live request; null means "carry on". */
+function hostSplit(request: NextRequest): NextResponse | null {
+  const { pathname, search } = request.nextUrl;
+  const action = hostSplitAction(
+    request.headers.get("host") ?? "",
+    pathname,
+    search,
+  );
+  if (!action) return null;
+  if (action.kind === "rewrite") return rewriteToNotFound(request, action.pathname);
+  return NextResponse.redirect(new URL(action.location, request.url), action.status);
 }
 
 function isMaintenanceActive(): boolean {
@@ -440,7 +669,6 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith("/ttc/") ||
       pathname.startsWith("/api/health") ||
       pathname === "/favicon.ico" ||
-      pathname === "/icon.svg" ||
       pathname === "/robots.txt"
     ) {
       return NextResponse.next();
@@ -450,16 +678,18 @@ export async function proxy(request: NextRequest) {
 
   // ── Host split ──────────────────────────────────────────────────
   // Runs before everything else so a request is on the right host before any
-  // other rule reasons about it. No-op until APP_HOST and PUBLIC_HOST are set.
+  // other rule reasons about it. No-op until APP_HOST and PUBLIC_HOST are set
+  // (except the www → apex redirect, which needs PUBLIC_HOST only).
   const wrongHost = hostSplit(request);
   if (wrongHost) return wrongHost;
 
-  // Retired /v2 preview routes → permanent redirect to the real public pages.
-  // The editorial redesign now lives on /, /services, /about, /contact, /projects.
-  if (pathname === "/v2" || pathname.startsWith("/v2/")) {
-    const dest = pathname === "/v2" ? "/" : pathname.slice(3);
-    return NextResponse.redirect(new URL(dest, request.url), 308);
-  }
+  // ── Public 404 ──────────────────────────────────────────────────
+  // An unknown path under a marketing prefix, on any host, or a direct hit on
+  // either 404 target. Before the auth guard, so a stale public link never
+  // reaches /login. (The retired /v2/* preview URLs are 308'd by
+  // next.config.ts redirects(), which run before this proxy on every host.)
+  const notFoundTarget = publicNotFoundTarget(pathname);
+  if (notFoundTarget) return rewriteToNotFound(request, notFoundTarget);
 
   // Skip public routes
   if (isPublicRoute(pathname)) {

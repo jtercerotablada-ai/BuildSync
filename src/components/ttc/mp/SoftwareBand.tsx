@@ -24,7 +24,15 @@ export function SoftwareBand({
       aria-labelledby="mp-software-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={s.eyebrow} />
+        {/* In the strip the visually hidden h2 repeats the label, so the
+            visible label is hidden from assistive tech (announced once). */}
+        {variant === 'full' ? (
+          <SectionHeading n={n} label={s.eyebrow} />
+        ) : (
+          <div aria-hidden="true">
+            <SectionHeading n={n} label={s.eyebrow} />
+          </div>
+        )}
         {variant === 'full' ? (
           <div className="mp-intro">
             <Reveal>
@@ -37,7 +45,7 @@ export function SoftwareBand({
             </Reveal>
           </div>
         ) : (
-          <h2 id="mp-software-title" className="mp-form__hp">
+          <h2 id="mp-software-title" className="mp-sr-only">
             {s.eyebrow}
           </h2>
         )}
@@ -47,8 +55,10 @@ export function SoftwareBand({
             {s.items.map((t) => (
               <li className="mp-tool" key={t.name}>
                 <span className="mp-tool__plate">
+                  {/* Decorative: the name is printed right below, so an alt
+                      would announce it twice (and in English on /es). */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={t.logo} alt={`${t.name} logo`} loading="lazy" decoding="async" />
+                  <img src={t.logo} alt="" loading="lazy" decoding="async" />
                 </span>
                 <span className="mp-tool__name">{t.name}</span>
                 <span className="mp-tool__role">{t.role}</span>

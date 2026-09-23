@@ -46,8 +46,11 @@ export function FallbackScreen({
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <div className="ttc-fb__box">
         {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* The 256px rendition of the real mark, not the 1254px master: this
+            boundary sits in every page's RSC payload, and React preloads the
+            image it names — 377 KB on every public page for a 64px logo. */}
         <img
-          src="/ttc/img/logo-square.png"
+          src="/ttc/img/logo-square@256.png"
           alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
           width={64}
           height={64}

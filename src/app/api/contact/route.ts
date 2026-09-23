@@ -87,16 +87,23 @@ const COPY = {
   },
   es: {
     subject: "Recibimos su solicitud de propuesta",
-    title: "Su solicitud está con el ingeniero.",
+    title: "Su solicitud ya está en manos del ingeniero.",
     body: (service: string, ref: string) =>
       `Gracias. Su solicitud de propuesta (${escapeHtml(service)}) fue recibida y será leída por Juan Tercero, PE., M.Sc. Recibirá respuesta por correo con preguntas o con una propuesta escrita. Referencia: ${ref}.`,
     files: (n: number) => `${n} archivo${n === 1 ? "" : "s"} adjunto${n === 1 ? "" : "s"}.`,
-    footer: "Esta es una confirmación automática. Si responde a este correo, llega a la oficina.",
+    footer: "Esta es una confirmación automática. Si responde a este correo, su mensaje llegará a la oficina.",
   },
 } as const;
 
-function shell(inner: string) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+/**
+ * The email document. `lang` is the language the copy inside is written in:
+ * mail clients read it for read-aloud, hyphenation and "translate this"
+ * offers, and without it a Spanish confirmation is treated as unknown (or
+ * English). The office notification is always English, so that is the
+ * default; only the visitor's confirmation passes its own.
+ */
+function shell(inner: string, lang: "en" | "es" = "en") {
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f6f4ef;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0b0c0d">
 <div style="max-width:560px;margin:32px auto;background:#fff;border:1px solid #e8e4dc">
   <div style="background:#0b0c0d;padding:22px 24px;border-bottom:2px solid #c99a38">
@@ -227,7 +234,7 @@ export async function POST(request: Request) {
           <p style="margin:0 0 12px">${t.body(service, ref)}</p>
           ${files.length ? `<p style="margin:0 0 12px;color:#62655f">${t.files(files.length)}</p>` : ""}
           <p style="margin:20px 0 0;font-size:12px;color:#62655f">${t.footer}</p>
-        `),
+        `, lang),
       });
       confirmed = true;
     } catch (emailError) {
