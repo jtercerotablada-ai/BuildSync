@@ -122,10 +122,15 @@ export function ProgramSection({
           <Reveal delay={0.08} className="mp-prog__media">
             <Img
               photo={imagery.services[service.slug]}
-              // The plate's real width: the full column on a phone, the
-              // narrower grid column from 901px (36vw at 1440, then the
-              // shell's fixed steps at 1500 and 2000).
-              sizes="(max-width: 900px) 92vw, (max-width: 1499px) 36vw, (max-width: 1999px) 600px, 680px"
+              // The photograph's DRAWN width, not the plate's. On a phone the
+              // 16:10 plate is the full column and the 3:2 frame fills it by
+              // width (92vw). From 901px the plate is 4:5 and `object-fit:
+              // cover` fits the 3:2 frame to the plate's HEIGHT, so the image
+              // is drawn 1.875x the plate's width (1.25 x 1.5): 36vw -> 68vw
+              // at 1440, then the shell's fixed steps, 600 -> 1125px at 1500
+              // and 680 -> 1275px at 2000. Change the plate's ratio in mp.css
+              // and these three numbers change with it.
+              sizes="(max-width: 900px) 92vw, (max-width: 1499px) 68vw, (max-width: 1999px) 1125px, 1275px"
             />
           </Reveal>
 

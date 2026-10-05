@@ -566,7 +566,7 @@ export const services: Service[] = [
     ],
     when: [
       'A Notice of Required Inspection has arrived from your city or from Miami-Dade County — or a courtesy notice says one is on its way.',
-      'A previous report listed repairs, and the building still needs its reinspection and the amended report that closes the recertification.',
+      'A previous report listed repairs and the recertification is still open.',
       'You are buying or managing a Miami-Dade building and want to know where it stands in the recertification cycle.',
     ],
     capabilities: ['Notice review', 'Structural inspection', 'Report on the county’s form', 'Repair scope', 'Reinspection'],
@@ -607,9 +607,11 @@ export const services: Service[] = [
          county code says the opposite: the recertification "shall serve as
          compliance" with the milestone requirement (Sec. 8-11(f)(2)(A)), and
          the county states that only the recertification reports are filed.
-         What state law still asks of the BOARD is the two duties to unit
-         owners below (F.S. 553.899(5) and (9)). */
-      note: 'The notice comes from the Building Official of your city, or from the county in unincorporated areas, and the report is filed with that same office. For condominium and cooperative buildings the recertification report serves as the state milestone inspection, but the board’s own duties to unit owners remain: tell them about the required inspection within 14 days of receiving the notice, and send every owner the engineer’s summary within 45 days of receiving the report.',
+         What state law still asks of the BOARD is the unit-owner duties of
+         F.S. 553.899(5) and (9), which reach only buildings of three habitable
+         stories or more. The statute is named in the prose because this
+         block's row source is the county's. */
+      note: 'The notice comes from the Building Official of your city, or from the county in unincorporated areas, and the report is filed with that same office. For condominium and cooperative buildings of three habitable stories or more, the recertification report serves as the state milestone inspection, and the board’s duties to unit owners under state law (Florida Statute 553.899) remain: within 14 days of receiving the notice, tell them about the required inspection and the date it must be completed; within 45 days of receiving the report, send every owner the engineer’s summary, post it in a conspicuous place on the property, and publish the report and the summary on the association’s website where the association is required to have one.',
       rows: [
         {
           jurisdiction: 'Miami-Dade County',
@@ -632,7 +634,7 @@ export const services: Service[] = [
              provide" the courtesy notices and that not receiving them
              excuses nothing — so "should arrive", never "arrive". */
           facts: [
-            { k: 'Applies to', v: 'Almost every building type — condominiums, co-ops, apartments, offices, retail and industrial. Outside the program: single-family homes, duplexes, and buildings with both 10 occupants or fewer and 2,000 sq ft or less.' },
+            { k: 'Applies to', v: 'Almost every building type — condominiums, co-ops, apartments, offices, retail and industrial. Outside the program: single-family homes, duplexes, and buildings with both an occupant load of 10 or less under the Florida Building Code and a gross area of 2,000 sq ft or less.' },
             { k: 'First due', v: 'At 30 years — 25 for condominium and cooperative buildings of three or more stories within 3 miles of the coast. Age is counted from the year built on the Property Appraiser’s record.' },
             { k: 'Then', v: 'Every 10 years, for the life of the structure.' },
             { k: 'Time to file', v: '90 days from the Notice of Required Inspection. Courtesy notices should arrive two years and one year ahead; not receiving them does not move the deadline.' },
@@ -659,8 +661,9 @@ export const services: Service[] = [
       'The structural and electrical reports go on the county’s own forms; a firm’s own form is not accepted. The county’s packet also includes certificates for parking-lot illumination and, where a lot is next to water, guardrails.',
       'The building is judged against the code in force when it was built. Recertification does not require bringing it up to today’s code.',
       'The Building Official may grant an extension of up to 60 days to file the report or to obtain permits, on a signed and sealed request from the engineer stating that the building can remain occupied.',
+      'The amended report that closes a recertification comes from the engineer or architect who filed the original report. If another firm filed yours, say so when you write — we confirm what closing it will take before we propose.',
       'A condition that puts life or property in danger is reported to the owner and to the Building Official; the engineer has a duty to do so.',
-      'Each city runs its own notices and filing, and some use their own forms. Questions about a notice go to the office that sent it, and we read your city’s letter first.',
+      'Each city runs its own notices and filing, and may have its own forms. Questions about a notice go to the office that sent it, and we read your city’s letter first.',
       'A report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
     ],
     crossLink: { text: 'Building in Broward?', label: 'See the BSIP', slug: 'broward-bsip' },
@@ -687,7 +690,7 @@ export const services: Service[] = [
     seo: {
       title: 'Miami-Dade Building Recertification — Structural Engineer',
       description:
-        'Miami-Dade building recertification: notice review, structural inspection, the report on the county’s own form, repair scope and reinspection, by a Florida P.E.',
+        'Miami-Dade building recertification: notice review, structural inspection and report on the county’s own form, repair scope and reinspection, by a Florida P.E.',
       keywords: ['building recertification Miami-Dade', 'Miami-Dade recertification engineer', '40 year recertification Miami', '30 year recertification Miami', 'condo recertification Miami', 'structural recertification report'],
     },
   },
@@ -715,7 +718,7 @@ export const services: Service[] = [
     ],
     when: [
       'A Notice of Required Inspection has arrived from your city’s Building Official — or the building is nearing the age at which one will.',
-      'A previous report listed repairs and the file is still open: permits, reinspection, the amended report and the completion letter.',
+      'A previous report listed repairs and the file is still open.',
       'You are buying or managing a Broward building and want to know where it stands in the inspection cycle.',
     ],
     capabilities: ['Notice review', 'Structural inspection', 'Report on the official form', 'Repair scope', 'Reinspection & close-out'],
@@ -750,7 +753,7 @@ export const services: Service[] = [
          both phase one and phase two milestone inspection requirements". The
          two duties to unit owners are the state's (F.S. 553.899(5) and (9))
          and stay with the board. */
-      note: 'For condominium and cooperative buildings the BSIP report serves as phase one and phase two of the state milestone inspection, but the board’s own duties to unit owners remain: tell them about the required inspection within 14 days of receiving the notice, and send every owner the engineer’s summary within 45 days of receiving the report. Your city’s Building Official enforces the program, and your city’s letter states its own date — which is why we read it first.',
+      note: 'For condominium and cooperative buildings of three habitable stories or more, the BSIP report serves as phase one and phase two of the state milestone inspection, and the board’s duties to unit owners under state law (Florida Statute 553.899) remain: within 14 days of receiving the notice, tell them about the required inspection and the date it must be completed; within 45 days of receiving the report, send every owner the engineer’s summary, post it in a conspicuous place on the property, and publish the report and the summary on the association’s website where the association is required to have one. Your city’s Building Official enforces the program, and your city’s letter states its own date — which is why we read it first.',
       rows: [
         {
           jurisdiction: 'Broward County',
@@ -795,7 +798,8 @@ export const services: Service[] = [
       'Only the Board of Rules and Appeals’ own structural and electrical forms are accepted — a firm’s own form is not — and they come in addition to a written narrative report with color photographs, not instead of it.',
       'The building is judged against the code in force when it was built. The program does not require bringing it up to today’s code.',
       'While repairs are underway, the engineer issues a signed and sealed letter on whether the building can remain occupied.',
-      'Also outside the program: federal and State of Florida buildings, buildings on sovereign tribal lands, Broward County School Board schools, and railroads. Parking garages, guardrails, and the balconies, elevated decks, docks and seawalls attached to a building are part of the inspection.',
+      'The amended report and the completion letter come from the professional who inspected the building and issued the original report. If another firm issued yours, say so when you write — we confirm what closing the file will take before we propose.',
+      'Also outside the program: federal and State of Florida buildings, buildings on sovereign tribal lands, Broward County School Board schools, and railroads. Parking garages, guardrails, and the balconies, elevated decks, docks and seawalls attached to or supporting a structure are part of the inspection.',
       'A condition that puts life or property in danger is reported to the owner and to the Building Official; the engineer has a duty to do so.',
       'Each city handles filing its own way. We read your city’s letter first, and work to the date it states.',
       'A report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
@@ -822,7 +826,7 @@ export const services: Service[] = [
     seo: {
       title: 'Broward Building Safety Inspection Program (BSIP) — Structural Engineer',
       description:
-        'Broward’s Building Safety Inspection Program (BSIP): notice review, structural inspection, report on the official form and close-out, by a Florida P.E.',
+        'Broward’s Building Safety Inspection Program (BSIP): notice review, structural inspection and report on the official form, and close-out, by a Florida P.E.',
       keywords: ['Broward BSIP engineer', 'building safety inspection program Broward', '25-year building inspection Broward', 'Broward BSIP', 'building safety inspection Broward', '40 year inspection Broward', 'BSIP structural report'],
     },
   },
@@ -835,7 +839,9 @@ export const services: Service[] = [
        its own report. In Miami-Dade and Broward it is not: the county report
        serves as the milestone inspection. So the page now does three things
        the two county pages do not — it explains the state law to a board,
-       it covers the further (phase-two) investigation, and it covers
+       it covers the further investigation a report calls for ("phase two"
+       is named only in the state row and the note: in both counties the
+       county report serves as it), and it covers
        structural safety inspections nobody sent a notice for. */
     slug: 'milestone-inspections',
     n: '03',
@@ -857,16 +863,16 @@ export const services: Service[] = [
          applies only where the local agency requires it. The ages are in the
          row below and on each county's page. */
       'Your board needs to know whether Florida’s milestone law reaches the building, and how it is met in your county.',
-      'A report found substantial structural deterioration, and the further (phase-two) investigation has to be scoped and carried out.',
+      'A report found substantial structural deterioration, and the further investigation it calls for — testing or opened finishes — has to be scoped and carried out.',
       'There is no notice, but there is a reason to look: a purchase, visible distress, or a lender’s or insurer’s request.',
     ],
-    capabilities: ['Applicability review', 'Structural inspection', 'Phase-two investigation', 'Prioritized findings'],
+    capabilities: ['Applicability review', 'Structural inspection', 'Further investigation', 'Prioritized findings'],
     scope: [
       'Review of which rules reach the building — the state milestone law, the county program, or neither',
       'Visual inspection of the primary structural system',
       'Balcony, walkway and railing structural review',
       'Concrete distress mapping — spalling, cracking, corrosion staining',
-      'Phase-two investigation where a report found substantial structural deterioration, with testing located where it disturbs least',
+      'Further investigation where a report found substantial structural deterioration, with testing located where it disturbs least',
       'Separating cosmetic from structural, and urgent from monitorable',
     ],
     process: [
@@ -880,7 +886,7 @@ export const services: Service[] = [
       'Inspection report with photographic record',
       'Condition findings organized by priority',
       'Summary of findings for unit owners, for condominiums and co-ops',
-      'Scope and report of the phase-two investigation, where one is required',
+      'Scope and findings of any further investigation the inspection calls for',
       'Signed and sealed documents where the scope requires it',
     ],
     nextStep:
@@ -907,14 +913,14 @@ export const services: Service[] = [
             { k: 'First due', v: 'By December 31 of the year the building reaches 30 years, counted from the certificate of occupancy — 25 years where the local enforcement agency requires it, for conditions such as proximity to salt water' },
             { k: 'Then', v: 'Every 10 years' },
             { k: 'Phase two', v: 'Only where phase one finds substantial structural deterioration' },
-            { k: 'Unit owners', v: 'The association tells unit owners about the required inspection within 14 days of receiving the notice, and sends every owner the engineer’s summary within 45 days of receiving the report' },
+            { k: 'Unit owners', v: 'Within 14 days of receiving the notice, the association tells unit owners about the required inspection and the date it must be completed; within 45 days of receiving the report, it sends every owner the engineer’s summary, posts it in a conspicuous place on the property, and publishes the report and the summary on its website where it is required to have one' },
           ],
         },
       ],
     },
     considerations: [
       'The state law reaches only the condominium and cooperative buildings described above. Other buildings can still fall under a county program, which covers almost every building type.',
-      'A phase-two investigation is as limited or as extensive as the distress requires. Its scope is set after the first inspection, not before.',
+      'Further investigation is as limited or as extensive as the distress requires. Its scope is set from what the inspection finds, not before.',
       'Visual inspection covers accessible, observable conditions. Concealed deterioration may require testing or selective demolition.',
       /* Neutral on purpose: states the counties' rule, claims no credential. */
       'For buildings over three stories or 50 feet, each county asks additional qualifications of the engineer who signs the structural report. We confirm this for your building before we propose.',

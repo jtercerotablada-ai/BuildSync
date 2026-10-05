@@ -256,34 +256,35 @@ const catalogue = {
   ),
 
   /* ── The two county programs ────────────────────────────────────────────
-     Chosen AS A PAIR, one per program: the same height, the same midday
-     light, white concrete against water, so the two home sections mirror each
-     other. Both are wide views of MANY buildings, on purpose — most of them
-     the ordinary balconied concrete stock these programs reach.
+     One per program, white concrete against water in midday light, so the two
+     home sections mirror each other. Both are views of SEVERAL buildings, on
+     purpose — the ordinary balconied concrete stock these programs reach.
      One recognisable building beside the word "recertification" says that
      building has a problem. The frame these replace said it outright:
      `recert-balconies-bw` was a derelict facade with broken glass and razor
      wire.
 
-     Keep it that way. By its Pexels page each was taken in the county whose
-     program it illustrates (docs/IMAGE-CREDITS.md), so the pairing in
-     `site.ts` is honest — but the alt text names no city, county or building,
-     and no caption may: nothing here shows a building that received a notice,
-     and nothing here is a Tercero Tablada project.
+     Keep it that way. Each was taken in the county whose program it
+     illustrates (docs/IMAGE-CREDITS.md), so the pairing in `site.ts` is
+     honest — but the alt text names no city, county or building, and no
+     caption may: nothing here shows a building that received a notice, and
+     nothing here is a Tercero Tablada project.
 
-     The first is retouched once: a faint wordmark on one white facade, too
-     small to read at this size, was filled from the wall around it. See
-     docs/IMAGE-CREDITS.md.
+     The Miami-Dade frame is the SECOND one tried. The first (an aerial,
+     Pexels 4366059) was a soft video-quality still centred on one hotel
+     complex with an excavator at its foot; the review caught all three. This
+     one is a sharp 4032px still of a row of condominium towers across the
+     water. Retouched once: faint lettering on one office parapet, unreadable
+     at this size, was blurred into the wall. See docs/IMAGE-CREDITS.md.
 
      Its focal point matters only in boxes narrower than the 3:2 frame (the
-     4:5 plate, a phone hero). Centred, such a box cuts through a newer glass
-     tower at the left edge; 70% moves the window onto the group of white
-     balcony buildings, which is the subject. Wider boxes crop top and bottom
-     only and stay centred. */
+     4:5 plate): 28% puts the three residential towers in the window. Wider
+     boxes crop top and bottom only; 42% keeps the buildings, which sit in the
+     upper half of the frame, inside a short wide band. */
   recertMiamiDade: p(
-    'recert-miami-dade', 2000, 1334,
-    'Aerial view of a row of beachfront mid-rise and high-rise buildings in South Florida, with a bay and a city skyline in the distance',
-    '70% 50%',
+    'recert-miami-dade', 2000, 1333,
+    'A row of white residential high-rise buildings reflected in calm water under a blue sky, in South Florida',
+    '28% 42%',
   ),
   bsipBroward: p(
     'bsip-broward', 2000, 1333,

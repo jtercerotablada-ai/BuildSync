@@ -69,6 +69,18 @@ class FormMessage extends Error {}
 const BUNDLES = [getContent('en'), getContent('es')];
 const norm = (s: string) => s.trim().toLocaleLowerCase();
 
+/* Values this site once put in a `?service=` link and has since renamed. The
+   page URL has its 308 in next.config.ts; a query value cannot be redirected
+   there, so it maps to the current slug here. The old two-county label
+   "Building Recertification" is left out on purpose: it no longer names one
+   county's program, so that visitor chooses. A Map, not an object literal, so
+   a value like ?service=constructor cannot hit a prototype key. */
+const RETIRED_PRESETS = new Map<string, string>([
+  ['building-safety-inspections', 'milestone-inspections'],
+  ['milestone & safety inspections', 'milestone-inspections'],
+  ['inspecciones milestone y de seguridad', 'milestone-inspections'],
+]);
+
 /**
  * Map a `?service=` value to an option of THIS language's dropdown, or ''.
  *
@@ -76,12 +88,14 @@ const norm = (s: string) => s.trim().toLocaleLowerCase();
  * language) carry a label in either language. A slug or a service label maps
  * through the service itself, so the preset survives the language switch and
  * a renamed shortTitle; the extra options that are not services ("Other / not
- * sure yet") map by position. Anything else becomes '' — the dropdown must
+ * sure yet") map by position. A slug or label the site has since renamed maps
+ * through RETIRED_PRESETS first. Anything else becomes '' — the dropdown must
  * never show its placeholder while state holds a value the server will refuse.
  */
 function presetOption(preset: unknown, c: SiteContent): string {
   if (typeof preset !== 'string' || !preset.trim()) return '';
-  const v = norm(preset);
+  const raw = norm(preset);
+  const v = RETIRED_PRESETS.get(raw) ?? raw;
   const toOption = (slug: string) => {
     const title = c.services.find((s) => s.slug === slug)?.shortTitle;
     return title && c.contactServiceOptions.includes(title) ? title : '';
