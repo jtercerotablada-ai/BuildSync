@@ -26,7 +26,7 @@ catalogue entry at a time (`src/lib/ttc/media.ts`). No component changes.
 
 | Source | What | Terms |
 |---|---|---|
-| **Pexels** | All 40 photographs in `public/ttc/img/site/`; clips `hero-miami`, `existing-midrise` | Free for commercial use, modification allowed, **no attribution required**, no share-alike |
+| **Pexels** | All 41 photographs in `public/ttc/img/site/`; clip `hero-miami` | Free for commercial use, modification allowed, **no attribution required**, no share-alike |
 | **Artgrid / Artlist** (the firm's paid subscription) | Clip `bim-assembly` | Commercial use, **no attribution required**. A different license from Pexels: an asset is covered only if it was downloaded while the subscription was active. Record the provenance of any future Artgrid clip here for the same reason. |
 
 The Pexels license still forbids some uses, and they apply here:
@@ -35,10 +35,17 @@ The Pexels license still forbids some uses, and they apply here:
 - Do not use identifiable people or brands in a way that implies endorsement.
   `inspect-*` and `repair-soffit-trowel` show people. They illustrate *an
   inspection* or *a repair*, never a Tercero Tablada employee, and no caption
-  names them. Two photographs were **retouched to remove brand marks** so that
-  no company rides along with a claim about our work (see the log below). The
-  license allows modification. Only the marks were removed; nothing about the
-  structure shown was changed.
+  names them. Three photographs were **retouched to remove brand marks** so
+  that no company rides along with a claim about our work (see the log
+  below). The license allows modification. Only the marks were removed;
+  nothing about the structure shown was changed.
+- The two county-program photographs (`recert-miami-dade`, `bsip-broward`)
+  show real buildings that have nothing to do with the firm. They are wide
+  views of many buildings so that none is singled out, and **the photograph
+  itself is never captioned or alt-described as a particular city or
+  building**. Each sits in the section of the county it was taken in (see
+  the log), and that is all the page says about it. A named building beside
+  a recertification pitch reads as a building with a problem, or as a client.
 
 Nothing on the site requires attribution any more. The legacy Creative
 Commons images that did (`projects/project-01…12.jpg`, `hero-bg.jpg`,
@@ -50,13 +57,20 @@ confirmed provenance.
 
 ## Where each asset is placed (one placement per asset)
 
-Allocation lives in `src/lib/ttc/site.ts` (`imagery`, `typologies`, `paths`).
-Each photograph is placed exactly once. A service's card photo reappearing as
-the hero of that service's own page counts as one placement, and so does a
-shared section component rendered on more than one page (SouthFloridaMap on
-Home and Contact; the EngineerSection plate on the Home teaser and About) —
-one slot in `site.ts`, one placement. Adding a placement means adding a
-photograph, never reusing one.
+Allocation lives in `src/lib/ttc/site.ts` (`imagery`, `typologies`).
+Each photograph is placed at most once. A service's card photo reappearing as
+the hero of that service's own page counts as one placement — and for the two
+county programs the same photo is also the plate of that program's section on
+the home page: one service, one photograph, three doors. A shared section
+component rendered on more than one page is one placement too
+(SouthFloridaMap on Home and Contact; the EngineerSection plate on the Home
+teaser and About) — one slot in `site.ts`, one placement. Adding a placement
+means adding a photograph, never reusing one.
+
+Two photographs are **spares with no placement** since 2026-10-04, when the
+two doors ("I own or manage an existing building" / "I am building something
+new") left the home page: `midrise-balconies` and `frame-crane-sky`. They
+stay in the catalogue; delete them if no slot claims them.
 
 "id n/r" = Pexels, but the source id was not recorded at import.
 
@@ -72,8 +86,9 @@ photograph, never reusing one.
 | concrete-frame-slabs | concreteFrameSlabs | Service: Reinforced Concrete Design | id n/r (commit cdc0ded) |
 | analysis-towers-up | analysisTowersUp | Service: Structural Analysis | 9408402 |
 | bim-wireframe-model | bimWireframeModel | Service: BIM Coordination | 38289825 |
-| recert-balconies-bw | recertBalconiesBw | Service: Building Recertification | 23220600 |
-| inspect-balcony-pair | inspectBalconyPair | Service: Milestone & Safety Inspections (`pos 50% 30%`) | 8961152 |
+| **recert-miami-dade** | recertMiamiDade | Service: Miami-Dade Building Recertification — card, service-page hero, Home section 01 (`pos 70% 50%`) *(new 2026-10-04, retouched)* | **4366059** |
+| **bsip-broward** | bsipBroward | Service: Broward Building Safety Inspection Program (BSIP) — card, service-page hero, Home section 02 *(new 2026-10-04)* | **18080724** |
+| inspect-balcony-pair | inspectBalconyPair | Service: Milestone & Structural Safety Inspections (`pos 50% 30%`) | 8961152 |
 | inspect-wall | inspectWall | Service: Condition Assessments (`pos 50% 30%`) | 8961700 |
 | peer-tower-bw | peerTowerBw | Service: Peer Review | 15786966 |
 | south-florida-aerial | southFloridaAerial | Home + Contact, South Florida section (shared SouthFloridaMap) | 30147234 |
@@ -90,8 +105,8 @@ photograph, never reusing one.
 | frame-crane-clean | frameCraneClean | Typology 04, mixed-use | 12453934 |
 | foundation-mat-pit | foundationMatPit | Typology 05, foundations | 37733181 |
 | **repair-soffit-trowel** | repairSoffitTrowel | Typology 06, repairs *(new 2026-09-22, retouched)* | **30580529** |
-| **frame-crane-sky** | frameCraneSky | Home, "New projects" door *(new 2026-09-22, retouched)* | **38450719** |
-| midrise-balconies | midriseBalconies | Home, "Existing buildings" door | 27459248 |
+| **frame-crane-sky** | frameCraneSky | *Spare, no placement since 2026-10-04.* Was Home, "New projects" door *(new 2026-09-22, retouched)* | **38450719** |
+| midrise-balconies | midriseBalconies | *Spare, no placement since 2026-10-04.* Was Home, "Existing buildings" door | 27459248 |
 | house-modern-levels | houseModernLevels | Work gallery | 323780 |
 | concrete-vault | concreteVault | Work gallery | 9039829 |
 | house-palm | housePalm | Work gallery | 30211366 |
@@ -112,8 +127,7 @@ Pexels photo URL pattern: `https://www.pexels.com/photo/<id>/`.
 | File | Key | Placement | Source |
 |---|---|---|---|
 | hero-miami | heroMiami | Home hero | Pexels video 13846342 (per the 2026-08-16 fetch script) |
-| **existing-midrise** | existingMidrise | Home recertification band | **Pexels video 3859468** ("Drone footage of an island community", by Kelly) *(replaced 2026-09-22)* |
-| bim-assembly | bimAssembly | Home BIM stage | Artgrid, *3d Glowing Transform Sci Fi*, Finn Moeller |
+| bim-assembly | bimAssembly | Home, new-buildings section (`imagery.clips.bim`; it took the place of the BIM stage on 2026-10-04) | Artgrid, *3d Glowing Transform Sci Fi*, Finn Moeller |
 
 Each clip ships as `<name>.mp4` (1920×1080) + `<name>-poster.jpg`
 (1600×900), and as `<name>-mobile.mp4` + `<name>-mobile-poster.jpg` for
@@ -180,12 +194,13 @@ size, and record the source here. Portrait frames shown in wide boxes need a
 1920×1080, 10–12 s, under ~3 MB. Phone file (`-mobile.mp4`, same length and
 frame count, no audio, faststart):
 
-- Full-bleed clips (hero, band): a **608×1080 portrait crop**. The hero
-  crop is `crop=608:1080:743:0` of the 1080p file, centered on the phone
-  framing the CSS asks for (`object-position: 56% 22%`). The band crop is
-  centered, because the band uses the default position. CRF 30–31, maxrate
-  750–800k.
-- The BIM stage is 16:9 at every width: `scale=720:-2`, CRF 27, maxrate 800k.
+- A full-bleed clip (today only the hero): a **608×1080 portrait crop**. The
+  hero crop is `crop=608:1080:743:0` of the 1080p file, centered on the phone
+  framing the CSS asks for (`object-position: 56% 22%`). A full-bleed clip
+  whose slot uses the default position is cropped on the frame center, as
+  the retired band clip was. CRF 30–31, maxrate 750–800k.
+- The model clip is not full-bleed. It was cut for a 16:9 stage, so its
+  phone file is the same frame: `scale=720:-2`, CRF 27, maxrate 800k.
 
 Posters are taken from the same frame as the desktop poster: `-mobile-poster`
 is 608×1080 (720×406 for BIM), mozjpeg q74.
@@ -199,7 +214,7 @@ re-verify. Record the source of anything added from now on.
 
 | Date | File | Source | Replaced / note |
 |---|---|---|---|
-| 2026-08 | 35 of the photographs above | Pexels (ids in the table) | Initial set and the service-card round (`fetch-final.mjs`, `fetch-round2.mjs`) |
+| 2026-08 | 35 photographs, 34 of them still in the table above | Pexels (ids in the table) | Initial set and the service-card round (`fetch-final.mjs`, `fetch-round2.mjs`). The 35th, recert-balconies-bw, was removed on 2026-10-04. |
 | 2026-08-16 | video/hero-miami.mp4 | Pexels video 13846342 | Per the 2026-08-16 `fetch-video.mjs` |
 | 2026-08-16 | site/concrete-frame-slabs.jpg | Pexels, id n/r | rebar-cage-up (read as a steel yard) |
 | 2026-09-03 | site/frame-crane-clean.jpg | Pexels 12453934 | frame-curved-crane (busy construction shot) |
@@ -209,6 +224,9 @@ re-verify. Record the source of anything added from now on.
 | 2026-09-22 | video/existing-midrise.mp4 | Pexels video 3859468 (Kelly) | Previous clip (Pexels 9432187 per the 2026-08-16 fetch script) showed a legible hotel sign in every frame. New clip: 11 s from 10.4 s into the 2560×1440 source, 0.4 s cross-fade at the loop point. Every frame was checked at full resolution: no names or logos. |
 | 2026-09-22 | all `*-mobile.mp4` / `*-mobile-poster.jpg` | Derived from the clips above | Phone renditions, no new footage |
 | 2026-09-22 | `@md` + `.avif` renditions of every photo | Derived | 1200w rung and AVIF |
+| 2026-10-04 | site/recert-miami-dade.jpg | Pexels 4366059 (Antonio Cuellar), 2500×1667 | recert-balconies-bw (Pexels 23220600: a derelict facade with broken glass and razor wire). Aerial of a row of beachfront buildings with a bay and a city skyline behind. Its Pexels tags are "aerial, beach, miami", and Pexels describes the neighboring frames of the same flight (4366058, 4366060, 4366061) as Miami Beach, which is in Miami-Dade County; the site does not name the city. **Crop:** 2050×1367 from the top-left region (`left 0, top 70`), which drops a single tall tower at the right edge that became the one clear building in the dark service-page hero. **Grade:** saturation 0.9, contrast +5%, to sit beside its pair. **Retouched:** a faint two-line wordmark on one white facade (about 33×14 px in the source, not readable at 100%) was masked and filled from the surrounding wall, on the full-resolution source, before the renditions were made; 499 pixels changed, nothing else. A small excavator on a sand lot beside one pool is still in the frame. |
+| 2026-10-04 | site/bsip-broward.jpg | Pexels 18080724 (Larry Milligan), 6048×4024 | New placement (the Broward BSIP service did not exist). Aerial along a waterway lined with mid-rise and high-rise residential buildings, the ocean beyond. Its Pexels title says Fort Lauderdale and its Pexels description says Hollywood, Florida; both are in Broward County, and the site names neither. **Crop:** 5370×3580 (`left 375, top 250`), which drops the roof parapet the frame was shot over, a sliver of a newer glass tower at the right edge and some empty sky. **Grade:** saturation 0.85, brightness +2%. **Not retouched.** Checked at source resolution (2.7× the master): the sign on posts in the channel, a street sign, the moored yacht, the roof lines and the parked cars carry nothing readable. One cleared lot on the right bank is in the frame. |
+| 2026-10-04 | (pair) | — | The two were chosen together from about 2,200 Pexels candidates reviewed on contact sheets: same height, same midday light, white concrete against water. Contact sheets, the inspection crops and `final-pair-preview.jpg` (both photos in the 4:5 plate, 16:10, the 16:9 card and the greyscale service hero) were kept in the session scratchpad under `recert/assets/`, with `gen.cjs`, `retouch.cjs` and `retouch-jobs.json`. |
 
 ### Removed 2026-09-22
 
@@ -223,6 +241,13 @@ re-verify. Record the source of anything added from now on.
 | img/logo-tt.svg, img/logo-tt-v2.svg | Hand-drawn TT marks, not the real logo, unreferenced |
 | img/logo-horizontal-wide.png | Byte-identical copy of logo-horizontal.png |
 
+### Removed 2026-10-04
+
+| File | Why |
+|---|---|
+| site/recert-balconies-bw (.jpg, @md.jpg, @sm.jpg, .avif, @md.avif, @sm.avif) | Pexels 23220600. A derelict facade with broken glass and razor wire in its lower third, beside the word "recertification". Replaced by recert-miami-dade. |
+| video/existing-midrise.mp4, -poster.jpg, -mobile.mp4, -mobile-poster.jpg | Pexels video 3859468 (Kelly). The home recertification band was removed; the two county-program sections that took its place are photographs, so no second clip loads behind the hero's. Nothing was wrong with the clip itself: every frame had been checked for names and logos. |
+
 ### Reviewed and rejected (do not reintroduce)
 
 The deleted CC set is recorded so the decision is not re-litigated:
@@ -233,3 +258,16 @@ rejected on 2026-09-22 were 1463917 (the old frame-curved-crane: saturated,
 busy site) and 11666822 (shoring props, which read as a blank wall in a 5:4
 card). Recurring traps: snow, conifers and pitched Nordic roofs; legible
 company names on helmets, cranes and hoardings; European number plates.
+
+Rejected on 2026-10-04 for the two county-program slots: 4366061 and 4366060
+(same flight as the chosen Miami-Dade frame, but one distinctive tower stands
+dead center in the first, and in the second the facade wordmark that was
+retouched out of the chosen frame is larger and close to readable); 9400888
+(flat overcast light, a script name readable on a building, construction
+fencing in the foreground); 32207987 (a few towers fill the frame, close
+enough to be identified, and it is nearer than its pair); 18080725 and
+18080723 (new glass towers, one with a monogram sign). Recurring traps in
+this subject: building names on parapets and facades; one landmark tower in
+an otherwise anonymous row; glossy new glass towers, which are not the stock
+these programs reach; and "Florida" searches that return Sarasota, Puerto
+Rico, Mexico, Spain or Toronto.

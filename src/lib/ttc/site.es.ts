@@ -15,6 +15,11 @@
  *     concreto reforzado", "Solicitar propuesta"); months in lowercase.
  *   • "y", never "&", inside Spanish text (the firm's legal name keeps its &).
  *   • "Inspección de hito (milestone)" on first mention, then "de hito".
+ *   • The two county programs by their own names: "recertificación de
+ *     edificios" (Miami-Dade) and "Programa de Inspección de Seguridad de
+ *     Edificios (BSIP)" (Broward) on first mention, then "el BSIP". Never
+ *     "recertificación" for Broward's program, except as the name people
+ *     still give it.
  *   • "Con licencia", not "licenciado" (a degree title in Latin America);
  *     "la firma", not "la práctica"; "tramitar/obtener el permiso", never
  *     "permitir" (which means "to allow").
@@ -25,14 +30,410 @@
 import { photo } from './media';
 import type { SiteContent } from './site';
 
+/**
+ * The same date as `regulatoryChecked` in site.ts, in Spanish (month in
+ * lowercase). It feeds `timing.checked` of the three regulated services.
+ * Move both together, and only after re-reading the sources.
+ */
+export const regulatoryChecked = '4 de octubre de 2026';
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SERVICES — built first so the contact-form options can reference them
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const services: SiteContent['services'] = [
+  /* ── EXISTING BUILDINGS — listed first everywhere ───────────────────────
+     Mirror of the same three blocks in site.ts: same order, same slugs, the
+     same six row labels on the two county programs, and the same facts. The
+     reasoning behind every number and every hedge is in the comments there;
+     read them before amending a row. Only what is specific to the Spanish
+     wording is noted here:
+
+       • The official names a reader will see on the letter stay recognisable
+         on first mention — "Notificación de Inspección Requerida (Notice of
+         Required Inspection)", "Building Official (el funcionario de
+         construcción)" — and are then used in the short form.
+       • "Presentar el informe" for "file the report"; "con permiso" /
+         "obtener los permisos", never "permitir".
+       • "Deberían llegar" for the courtesy notices ("should arrive"): the
+         code obliges the county to send them, not the owner to have them. */
+  {
+    slug: 'building-recertification',
+    n: '01',
+    title: 'Recertificación de edificios en Miami-Dade',
+    shortTitle: 'Recertificación en Miami-Dade',
+    track: 'existing',
+    coverage: 'Condado de Miami-Dade, Florida',
+    areaServed: ['Miami-Dade County, Florida'],
+    summary:
+      'Un camino claro desde la notificación de Miami-Dade hasta el cierre de la recertificación — inspección, informe estructural en el formulario del condado, alcance de reparaciones, reinspección.',
+    problemTitle: 'Llega una notificación con un plazo.',
+    problem:
+      'La Notificación de Inspección Requerida (Notice of Required Inspection) trae formularios y muy poca explicación de lo que realmente tiene que ocurrir. Las juntas directivas y los propietarios necesitan a alguien que conozca la secuencia del condado y pueda llevar la parte estructural desde la primera visita al sitio hasta el informe que cierra la recertificación.',
+    audience: [
+      'Asociaciones de condominio, de cooperativa y de propietarios',
+      'Administradores de propiedades',
+      'Propietarios de edificios y administradores de activos',
+    ],
+    when: [
+      'Llegó una Notificación de Inspección Requerida de su ciudad o del Condado de Miami-Dade — o un aviso de cortesía le anuncia que viene en camino.',
+      /* "Cierra la recertificación", never a bare "cerrarse": that read as
+         "the building must be shut down". */
+      'Un informe anterior identificó reparaciones, y al edificio todavía le faltan la reinspección y el informe enmendado que cierra la recertificación.',
+      'Está comprando o administrando un edificio en Miami-Dade y quiere saber en qué punto del ciclo de recertificación se encuentra.',
+    ],
+    capabilities: ['Revisión de la notificación', 'Inspección estructural', 'Informe en el formulario del condado', 'Alcance de reparaciones', 'Reinspección'],
+    scope: [
+      'Revisión de la notificación, los registros del edificio y los informes previos',
+      'Inspección estructural en sitio — estructura, losas, balcones, fachada, techo y cimentaciones',
+      'Clasificación de las condiciones observadas según su importancia estructural',
+      'Alcance de reparaciones definido para que los contratistas coticen el mismo trabajo',
+      'Reinspección de las reparaciones terminadas',
+      'Respuesta a las preguntas de la oficina revisora sobre el informe estructural',
+    ],
+    /* The county's order — see the EN block. Same six labels as Broward's. */
+    process: [
+      { step: 'Revisión de la notificación', detail: 'Leemos la notificación y el historial del edificio, y confirmamos qué está pidiendo el Building Official (el funcionario de construcción) y para cuándo.' },
+      { step: 'Inspección', detail: 'Inspección estructural en sitio — estructura, losas, balcones, fachada, techo y cimentaciones expuestas — documentada con fotografías vinculadas a su ubicación.' },
+      { step: 'Informe presentado', detail: 'El informe estructural se prepara en el formulario del propio condado, firmado y sellado, y se presenta aunque enumere reparaciones. El condado pide el informe primero, no después de la obra.' },
+      { step: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones, definimos qué debe corregirse para que los contratistas coticen el mismo trabajo. Las reparaciones que requieren permiso esperan a tenerlo y luego siguen su calendario.' },
+      { step: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales.' },
+      { step: 'Cierre', detail: 'Un informe enmendado indica que las reparaciones están completas. Eso es lo que cierra la recertificación, hasta el siguiente ciclo.' },
+    ],
+    deliverables: [
+      'Informe estructural de recertificación en el formulario del propio condado, firmado y sellado',
+      'Registro fotográfico de las condiciones observadas',
+      'Alcance de reparaciones por escrito, cuando se requieran',
+      'Carta sobre si el edificio puede seguir ocupado durante las reparaciones, cuando se requiera',
+      'Informe enmendado tras las reparaciones',
+    ],
+    nextStep:
+      'Envíe la notificación — basta una foto tomada con el teléfono — o la dirección y el año de construcción. Confirmamos qué le está pidiendo el Building Official y respondemos con una propuesta para la inspección y el informe estructural.',
+    timing: {
+      checked: regulatoryChecked,
+      /* Corrected with the EN note: the county report SERVES AS the state
+         milestone inspection; it is not a separate obligation. */
+      note: 'La notificación la envía el Building Official (el funcionario de construcción) de su ciudad, o el condado en las áreas no incorporadas, y el informe se presenta ante esa misma oficina. En edificios de condominio y cooperativa, el informe de recertificación sirve como la inspección de hito (milestone) del estado, pero los deberes de la junta directiva con los propietarios de las unidades se mantienen: avisarles de la inspección requerida dentro de los 14 días de recibir la notificación, y enviar a cada propietario el resumen del ingeniero dentro de los 45 días de recibir el informe.',
+      rows: [
+        {
+          jurisdiction: 'Condado de Miami-Dade',
+          source: 'Código del Condado de Miami-Dade, Sección 8-11(f)',
+          /* Same six labels, same order, as the Broward row. Numbers are
+             identical to the EN row — amend both or neither. */
+          facts: [
+            { k: 'Aplica a', v: 'Casi todos los tipos de edificio — condominios, cooperativas, apartamentos, oficinas, comercios e industrias. Fuera del programa: viviendas unifamiliares, dúplex y edificios que tengan a la vez 10 ocupantes o menos y 2,000 pies cuadrados o menos.' },
+            { k: 'Primer vencimiento', v: 'A los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa. La edad se cuenta desde el año de construcción que figura en el registro del Property Appraiser (el tasador de propiedades del condado).' },
+            { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura.' },
+            { k: 'Plazo para presentar', v: '90 días desde la Notificación de Inspección Requerida (Notice of Required Inspection). Los avisos de cortesía deberían llegar dos años y un año antes; no recibirlos no mueve el plazo.' },
+            { k: 'Si hay reparaciones', v: '150 días desde la notificación para terminar las reparaciones que no requieren permiso y obtener los permisos de las demás. La obra con permiso sigue luego el calendario de su permiso, y un informe enmendado cierra la recertificación.' },
+            { k: 'Condominios y cooperativas', v: 'La recertificación sirve como cumplimiento de la inspección de hito (milestone) del estado — no se presenta un informe de hito aparte.' },
+          ],
+        },
+      ],
+    },
+    considerations: [
+      /* A naming note, not a deadline — see the comment on the EN row in
+         site.ts. The one place this page says "40 años". */
+      'Todavía se la conoce como la “recertificación de 40 años” — la primera ahora vence antes, a las edades indicadas arriba.',
+      /* Scope honesty: replaced "la recertificación eléctrica es una
+         disciplina separada". */
+      'El programa de Miami-Dade pide un informe estructural y un informe eléctrico. Nosotros preparamos el informe estructural; el informe eléctrico lo firma un profesional calificado en diseño eléctrico.',
+      /* Threshold buildings: neutral on purpose, claims no credential. */
+      'Los edificios de más de tres pisos o 50 pies se consideran “threshold buildings” (edificios de umbral), y su informe estructural debe prepararlo un ingeniero con las calificaciones adicionales que exige el Condado de Miami-Dade. Lo confirmamos para su edificio antes de presentar una propuesta.',
+      'Los informes estructural y eléctrico se presentan en los formularios del propio condado; no se acepta el formulario de una firma. El paquete del condado también incluye certificados de la iluminación del estacionamiento y, donde el estacionamiento colinda con agua, de las barreras de protección.',
+      'El edificio se evalúa según el código vigente cuando se construyó. La recertificación no exige llevarlo al código actual.',
+      'El Building Official puede conceder una prórroga de hasta 60 días para presentar el informe o para obtener los permisos, a solicitud firmada y sellada del ingeniero en la que declare que el edificio puede seguir ocupado.',
+      'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official; el ingeniero tiene el deber de hacerlo.',
+      'Cada ciudad maneja sus propias notificaciones y su propia presentación, y algunas usan formularios propios. Las preguntas sobre una notificación se dirigen a la oficina que la envió, y nosotros leemos primero la carta de su ciudad.',
+      'Un informe documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
+    ],
+    crossLink: { text: '¿Su edificio está en Broward?', label: 'Vea el BSIP', slug: 'broward-bsip' },
+    program: {
+      id: 'miami-dade',
+      eyebrow: 'Condado de Miami-Dade · Recertificación de edificios',
+      /* "90 días" must always equal the row's "Plazo para presentar". */
+      titleLines: ['Recertificación en Miami-Dade.', '90 días desde la notificación.'],
+      accentWord: '90 días',
+      lede: 'La recertificación de Miami-Dade alcanza a casi todos los edificios, salvo las viviendas unifamiliares y los dúplex. Envíenos la notificación de su ciudad o del condado: inspeccionamos el edificio, preparamos el informe estructural en el formulario del propio condado y lo acompañamos durante las reparaciones hasta el informe enmendado que la cierra.',
+      steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
+      scopeNote:
+        'El programa de Miami-Dade pide un informe estructural y un informe eléctrico. Nosotros preparamos el informe estructural; el informe eléctrico lo firma un profesional calificado en diseño eléctrico.',
+      cta: 'Enviar la notificación de Miami-Dade',
+      ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
+      detail: 'La recertificación en detalle',
+    },
+    /* No ages and no day counts in the description — see the EN block. */
+    seo: {
+      title: 'Recertificación de edificios en Miami-Dade — Ingeniero estructural',
+      description:
+        'Recertificación de edificios en Miami-Dade: revisión de la notificación, inspección estructural, informe en el formulario del condado y reinspección.',
+      keywords: ['recertificación de edificios Miami-Dade', 'ingeniero recertificación Miami-Dade', 'recertificación 40 años Miami', 'recertificación 30 años Miami', 'recertificación de condominios Miami', 'informe de recertificación estructural'],
+    },
+  },
+  {
+    slug: 'broward-bsip',
+    n: '02',
+    title: 'Programa de Inspección de Seguridad de Edificios (BSIP) de Broward',
+    shortTitle: 'BSIP de Broward',
+    track: 'existing',
+    coverage: 'Condado de Broward, Florida',
+    areaServed: ['Broward County, Florida'],
+    summary:
+      'Desde la Notificación de Inspección Requerida hasta la carta de finalización que cierra el expediente — inspección, informe estructural en el formulario oficial del programa, alcance de reparaciones, reinspección.',
+    problemTitle: 'Una carta certificada con un plazo.',
+    /* The one place this page says "40 años": as the name people still use,
+       never as a trigger. The English program name appears once, because it
+       is what the letter says. */
+    problem:
+      'El Programa de Inspección de Seguridad de Edificios (BSIP, por Building Safety Inspection Program) de Broward exige una inspección de seguridad, estructural y eléctrica, de los edificios antiguos de todo el condado. Lo redacta la Junta de Reglas y Apelaciones del Condado de Broward (Board of Rules and Appeals) y lo hace cumplir el Building Official (el funcionario de construcción) de su ciudad. Muchos propietarios todavía lo llaman la recertificación de 40 años, y buena parte de lo que se ha escrito sobre él describe reglas que ya cambiaron. Las juntas directivas y los propietarios necesitan a alguien que trabaje con la política vigente y pueda llevar la parte estructural desde la primera visita al sitio hasta el cierre.',
+    audience: [
+      'Asociaciones de condominio, de cooperativa y de propietarios',
+      'Administradores de propiedades',
+      'Propietarios de edificios de alquiler, comerciales y de uso mixto',
+    ],
+    when: [
+      'Llegó una Notificación de Inspección Requerida del Building Official de su ciudad — o el edificio se acerca a la edad en la que llegará.',
+      'Un informe anterior identificó reparaciones y el expediente sigue abierto: permisos, reinspección, informe enmendado y carta de finalización.',
+      'Está comprando o administrando un edificio en Broward y quiere saber en qué punto del ciclo de inspección se encuentra.',
+    ],
+    capabilities: ['Revisión de la notificación', 'Inspección estructural', 'Informe en el formulario oficial', 'Alcance de reparaciones', 'Reinspección y cierre'],
+    scope: [
+      'Revisión de la notificación, los registros del edificio y los informes previos',
+      'Inspección estructural en sitio — estructura, losas, balcones, escaleras, barandas, techo y cimentaciones, y el garaje de estacionamiento donde lo haya',
+      'Clasificación de las condiciones observadas según su importancia estructural',
+      'Alcance de reparaciones definido para que los contratistas coticen el mismo trabajo',
+      'Reinspección de las áreas reparadas',
+      'Respuesta a las preguntas del Building Official sobre el informe estructural',
+    ],
+    /* Same six labels as the Miami-Dade page; Broward's own content. */
+    process: [
+      { step: 'Revisión de la notificación', detail: 'Leemos primero la carta de su ciudad: la fecha en que se recibió, la fecha que fija y lo que el Building Official pide que se presente.' },
+      { step: 'Inspección', detail: 'Un examen visual sistemático de la estructura en sitio, con ensayos o aperturas de acabados solo donde lo que vemos lo justifica.' },
+      { step: 'Informe presentado', detail: 'Un informe narrativo escrito con fotografías a color, más el formulario estructural oficial de la Junta de Reglas y Apelaciones, firmado y sellado. Se presenta en cuanto está completo, aunque enumere reparaciones.' },
+      { step: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones, definimos el trabajo para que los contratistas coticen el mismo alcance, y emitimos la carta firmada y sellada sobre si el edificio puede seguir ocupado mientras tanto. Las reparaciones esperan a tener sus permisos.' },
+      { step: 'Reinspección', detail: 'Terminada la obra, se reinspeccionan las áreas señaladas en el informe original.' },
+      { step: 'Cierre', detail: 'Un informe enmendado y una carta de finalización firmada y sellada se entregan al propietario y al Building Official. Eso cierra el expediente, hasta el siguiente ciclo.' },
+    ],
+    deliverables: [
+      'Informe estructural en el formulario oficial del programa, con informe narrativo y fotografías a color, firmado y sellado',
+      'Alcance de reparaciones por escrito, cuando se requieran',
+      'Carta firmada y sellada sobre si el edificio puede seguir ocupado durante las reparaciones',
+      'Informe enmendado y carta de finalización tras las reparaciones',
+    ],
+    nextStep:
+      'Envíe la notificación — basta una foto tomada con el teléfono — o la dirección y el año del certificado de ocupación. Leemos lo que pide su ciudad y respondemos con una propuesta para la inspección y el informe estructural.',
+    timing: {
+      checked: regulatoryChecked,
+      note: 'En edificios de condominio y cooperativa, el informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado, pero los deberes de la junta directiva con los propietarios de las unidades se mantienen: avisarles de la inspección requerida dentro de los 14 días de recibir la notificación, y enviar a cada propietario el resumen del ingeniero dentro de los 45 días de recibir el informe. El Building Official de su ciudad hace cumplir el programa, y la carta de su ciudad indica su propia fecha — por eso la leemos primero.',
+      rows: [
+        {
+          jurisdiction: 'Condado de Broward',
+          source: 'Junta de Reglas y Apelaciones del Condado de Broward, Política n.º 05-05 · Código de Construcción de Florida, Enmiendas del Condado de Broward, Sección 110.15',
+          /* Same six labels, same order, as the Miami-Dade row. "Plazo para
+             presentar" keeps BOTH hedges of the EN row (older guides say 90;
+             the city's letter states its own date) — neither may be cut. The
+             180 days run from RECEIVING the notice: "desde que se recibe". */
+          facts: [
+            { k: 'Aplica a', v: 'Casi todos los tipos de edificio, en todas las ciudades de Broward y en el área no incorporada. Fuera del programa: viviendas de una a cuatro familias de tres pisos habitables o menos, townhouses en dominio pleno (fee simple) y estructuras menores de menos de 3,500 pies cuadrados de área de edificio.' },
+            { k: 'Primer vencimiento', v: 'A los 25 años, contados desde el certificado de ocupación.' },
+            { k: 'Después', v: 'Cada 10 años.' },
+            { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta de su ciudad indica su propia fecha.' },
+            { k: 'Si hay reparaciones', v: '180 días desde la fecha del informe, con permiso, salvo que el Building Official fije otro plazo. Una reinspección, un informe enmendado y una carta de finalización firmada y sellada cierran el expediente.' },
+            { k: 'Condominios y cooperativas', v: 'El informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado.' },
+          ],
+        },
+      ],
+    },
+    considerations: [
+      'La Junta de Reglas y Apelaciones envía a cada ciudad su lista de edificios a más tardar en junio, y el Building Official envía las notificaciones por correo certificado de junio a agosto. No recibir la notificación no es excusa: la inspección, el informe y las reparaciones que correspondan se deben igual, y a tiempo.',
+      /* "Una prórroga", never "una sola": the policy does not say whether
+         more than one can be granted. */
+      'El Building Official puede conceder una prórroga de hasta 60 días para presentar el informe.',
+      /* Scope honesty — the same sentence as the Miami-Dade page. */
+      'El programa de Broward pide un informe estructural y un informe eléctrico. Nosotros preparamos el informe estructural; el informe eléctrico lo firma un profesional calificado en diseño eléctrico.',
+      /* Threshold buildings: neutral on purpose, claims no credential. */
+      'Los edificios de más de tres pisos o 50 pies se consideran “threshold buildings” (edificios de umbral), y su informe estructural debe prepararlo un ingeniero con las calificaciones adicionales que exige el Condado de Broward. Lo confirmamos para su edificio antes de presentar una propuesta.',
+      'Solo se aceptan los formularios estructural y eléctrico de la propia Junta de Reglas y Apelaciones — no el formulario de una firma — y se presentan además de un informe narrativo escrito con fotografías a color, no en su lugar.',
+      'El edificio se evalúa según el código vigente cuando se construyó. El programa no exige llevarlo al código actual.',
+      'Mientras duran las reparaciones, el ingeniero emite una carta firmada y sellada sobre si el edificio puede seguir ocupado.',
+      'También quedan fuera del programa los edificios federales y del Estado de Florida, los edificios en tierras tribales soberanas, las escuelas de la Junta Escolar del Condado de Broward y los ferrocarriles. Los garajes de estacionamiento, las barandas de protección y los balcones, terrazas elevadas, muelles y muros de contención costeros (seawalls) unidos a un edificio sí forman parte de la inspección.',
+      'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official; el ingeniero tiene el deber de hacerlo.',
+      'Cada ciudad maneja la presentación a su manera. Leemos primero la carta de su ciudad y trabajamos con la fecha que indica.',
+      'Un informe documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
+    ],
+    crossLink: { text: '¿Su edificio está en Miami-Dade?', label: 'Vea la recertificación de Miami-Dade', slug: 'building-recertification' },
+    program: {
+      id: 'broward',
+      eyebrow: 'Condado de Broward · Programa de Inspección de Seguridad de Edificios (BSIP)',
+      /* "180 días" must always equal the row's "Plazo para presentar". */
+      titleLines: ['BSIP de Broward.', '180 días desde la notificación.'],
+      accentWord: '180 días',
+      /* Shorter than a literal translation on purpose: 55 words at most, and
+         the full program name is already in the label above it. */
+      lede: 'El BSIP de Broward — muchos propietarios todavía lo llaman la recertificación de 40 años — alcanza a casi todos los tipos de edificio, en todas las ciudades. Envíenos la notificación de su Building Official: inspeccionamos el edificio, preparamos el informe estructural en el formulario oficial del programa y lo acompañamos durante las reparaciones y el cierre.',
+      steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
+      scopeNote:
+        'El programa de Broward pide un informe estructural y un informe eléctrico. Nosotros preparamos el informe estructural; el informe eléctrico lo firma un profesional calificado en diseño eléctrico.',
+      cta: 'Enviar la notificación de Broward',
+      ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
+      detail: 'El BSIP en detalle',
+    },
+    /* The title leads with the words people type: "BSIP", "Broward" and the
+       program's name. The English queries stay in the keywords — the letter
+       is in English and so is most of what people search for. */
+    seo: {
+      title: 'BSIP de Broward: Programa de Inspección de Seguridad de Edificios',
+      description:
+        'Programa de Inspección de Seguridad de Edificios (BSIP) de Broward: notificación, inspección estructural, informe en el formulario oficial y cierre.',
+      keywords: ['ingeniero BSIP Broward', 'programa de inspección de seguridad de edificios Broward', 'inspección de edificios de 25 años Broward', 'BSIP Broward', 'Broward BSIP engineer', 'building safety inspection program Broward', 'recertificación 40 años Broward'],
+    },
+  },
+  {
+    /* Renamed from `building-safety-inspections` — see the EN block for why,
+       and for what this page is now for. */
+    slug: 'milestone-inspections',
+    n: '03',
+    title: 'Inspecciones de hito (milestone) y de seguridad estructural',
+    shortTitle: 'Inspecciones de hito (milestone)',
+    track: 'existing',
+    summary:
+      'La inspección de hito (milestone) de Florida explicada para su edificio, la investigación adicional cuando un informe la exige, y las inspecciones de seguridad estructural fuera del ciclo de un programa.',
+    problemTitle: '¿Qué inspección debe el edificio?',
+    problem:
+      'La ley de inspecciones de hito de Florida se superpone con la recertificación de Miami-Dade y con el Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, y es fácil concluir que un edificio debe dos inspecciones distintas: la del estado y la del condado. En Miami-Dade y en Broward, la inspección de hito se cumple a través del programa del condado. Lo que una junta directiva necesita es que alguien le diga qué reglas alcanzan a su edificio, qué se observó realmente y qué tiene que pasar después.',
+    audience: [
+      'Asociaciones de condominio y de cooperativa',
+      'Compradores, prestamistas y aseguradoras',
+      'Propietarios y administradores de edificios antiguos o costeros',
+    ],
+    when: [
+      /* Was "…se acerca a los 30 años — 25 cerca de la costa": under state
+         law 25 applies only where the local agency requires it. */
+      'Su junta directiva necesita saber si la ley de inspecciones de hito de Florida alcanza al edificio, y cómo se cumple en su condado.',
+      'Un informe encontró deterioro estructural sustancial, y hay que definir y realizar la investigación adicional (fase dos).',
+      'No hay notificación, pero sí un motivo para revisar: una compra, deterioro visible, o la solicitud de un prestamista o de una aseguradora.',
+    ],
+    capabilities: ['Revisión de aplicabilidad', 'Inspección estructural', 'Investigación de fase dos', 'Hallazgos priorizados'],
+    scope: [
+      'Revisión de qué reglas alcanzan al edificio — la ley estatal de inspecciones de hito, el programa del condado, o ninguna',
+      'Inspección visual del sistema estructural principal',
+      'Revisión estructural de balcones, pasillos y barandas',
+      'Mapeo de deterioro del concreto — desprendimientos, grietas, manchas de corrosión',
+      'Investigación de fase dos donde un informe encontró deterioro estructural sustancial, con ensayos ubicados donde menos afecten',
+      'Distinción entre lo cosmético y lo estructural, y entre lo urgente y lo que puede monitorearse',
+    ],
+    process: [
+      { step: 'Aplicabilidad', detail: 'Confirmamos qué reglas alcanzan al edificio y qué pide la notificación, si la hay. Donde aplica el programa de un condado, el trabajo se hace como ese programa.' },
+      { step: 'Revisión de registros', detail: 'Planos disponibles, informes previos e historial de reparaciones revisados antes de la visita al sitio.' },
+      { step: 'Inspección en campo', detail: 'Inspección visual sistemática con documentación fotográfica y mapeo de ubicaciones.' },
+      { step: 'Evaluación', detail: 'Observaciones evaluadas estructuralmente — distinguiendo lo cosmético de lo estructural, y lo urgente de lo que puede monitorearse. Donde el deterioro es sustancial, se define la investigación adicional.' },
+      { step: 'Informe', detail: 'Hallazgos emitidos con prioridades claras y, para condominios y cooperativas, un resumen aparte que la junta directiva puede enviar a los propietarios de las unidades.' },
+    ],
+    deliverables: [
+      'Informe de inspección con registro fotográfico',
+      'Hallazgos de condición organizados por prioridad',
+      'Resumen de hallazgos para los propietarios de las unidades, en condominios y cooperativas',
+      'Alcance e informe de la investigación de fase dos, cuando se requiera',
+      'Documentos firmados y sellados donde el alcance lo requiera',
+    ],
+    nextStep:
+      'Indíquenos el condado, la edad y el número de pisos del edificio, y qué originó la pregunta — una notificación, un informe, una venta. Le respondemos con las reglas que aplican y una propuesta para la inspección.',
+    timing: {
+      checked: regulatoryChecked,
+      /* The statute number stays in the row's `source`, not in the prose.
+         Corrected with the EN note: the milestone inspection is met THROUGH
+         the county program in both counties, not beside it. */
+      note: 'En Miami-Dade y en Broward, la inspección de hito del estado se cumple a través del programa del condado. La recertificación de Miami-Dade sirve como cumplimiento de ella — allí no se presenta un informe de hito aparte — y el informe del BSIP de Broward sirve como su fase uno y su fase dos. El plazo de su notificación es el del programa del condado, y está en la página de ese condado. Los deberes de la junta directiva con los propietarios de las unidades aplican en ambos condados.',
+      rows: [
+        {
+          jurisdiction: 'Estado de Florida — inspección de hito',
+          source: 'Florida Statute 553.899',
+          facts: [
+            { k: 'Aplica a', v: 'Edificios de condominio y cooperativa de tres pisos habitables o más' },
+            { k: 'Primer vencimiento', v: 'A más tardar el 31 de diciembre del año en que el edificio cumple 30 años, contados desde el certificado de ocupación — 25 años donde la autoridad local lo exija, por condiciones como la proximidad al agua salada' },
+            { k: 'Después', v: 'Cada 10 años' },
+            { k: 'Fase dos', v: 'Solo donde la fase uno encuentra deterioro estructural sustancial' },
+            { k: 'Propietarios de las unidades', v: 'La asociación les avisa de la inspección requerida dentro de los 14 días de recibir la notificación, y envía a cada propietario el resumen del ingeniero dentro de los 45 días de recibir el informe' },
+          ],
+        },
+      ],
+    },
+    considerations: [
+      'La ley estatal alcanza solo a los edificios de condominio y cooperativa descritos arriba. Otros edificios pueden quedar igualmente dentro del programa de un condado, que cubre casi todos los tipos de edificio.',
+      'Una investigación de fase dos es tan limitada o tan extensa como lo exija el deterioro. Su alcance se define después de la primera inspección, no antes.',
+      'La inspección visual cubre condiciones accesibles y observables. El deterioro oculto puede requerir ensayos o demolición selectiva.',
+      /* Neutral on purpose: states the counties' rule, claims no credential. */
+      'Para edificios de más de tres pisos o 50 pies, cada condado exige calificaciones adicionales al ingeniero que firma el informe estructural. Lo confirmamos para su edificio antes de presentar una propuesta.',
+      'Una inspección reporta la condición en un momento dado; no es una garantía de desempeño futuro.',
+    ],
+    seo: {
+      title: 'Inspecciones de hito (milestone) — Miami-Dade y Broward',
+      description:
+        'Inspecciones de hito (milestone) para condominios y cooperativas en Miami-Dade y Broward: cómo las cumple el programa del condado, y la fase dos.',
+      // "Milestone" stays in the keywords: people search it in English.
+      keywords: ['inspección milestone Florida', 'inspección milestone Miami', 'inspección de hito Florida', 'inspección de hitos condominio', 'inspección milestone fase dos', 'inspección de balcones Miami', 'inspección estructural Sur de Florida'],
+    },
+  },
+  {
+    slug: 'structural-condition-assessments',
+    n: '04',
+    title: 'Evaluaciones estructurales y diseño de reparaciones',
+    shortTitle: 'Evaluaciones y reparaciones',
+    track: 'existing',
+    summary:
+      'Cómo se está comportando realmente el edificio hoy — deterioro evaluado, capacidad verificada, reparaciones diseñadas para que puedan cotizarse y construirse.',
+    problemTitle: 'No toda grieta es un problema estructural.',
+    problem:
+      'Grietas, desprendimientos y movimientos parecen alarmantes y significan cosas muy distintas. Antes de gastar en reparaciones, un propietario necesita saber qué condiciones afectan la capacidad y cuáles no — y luego necesita reparaciones especificadas con la precisión suficiente para cotizarlas.',
+    audience: [
+      'Propietarios que planifican reparaciones u obras de capital',
+      'Compradores que realizan due diligence estructural',
+      'Asociaciones que responden a hallazgos de inspección',
+    ],
+    when: [
+      'Un informe de recertificación, del BSIP o de inspección enumera reparaciones y las ofertas de los contratistas no son comparables porque nadie definió el alcance.',
+      'Ha aparecido deterioro visible y alguien tiene que decir si afecta la estructura.',
+      'Está comprando un edificio, agregando un piso, cambiando su uso o abriendo un vano en un muro o una losa.',
+    ],
+    capabilities: ['Evaluación en campo', 'Mapeo de deterioro', 'Evaluación de capacidad', 'Especificación de reparaciones'],
+    scope: [
+      'Evaluación en campo del sistema estructural en su estado actual',
+      'Evaluación del deterioro del concreto y la corrosión del refuerzo',
+      'Evaluación de capacidad de miembros existentes donde se requiera',
+      'Evaluación de modificaciones, sobrecargas y cambios de uso',
+      'Diseño de reparaciones — concepto, detalles y especificación',
+      'Orientación sobre priorización y fases',
+    ],
+    process: [
+      { step: 'Entender el edificio', detail: 'Planos originales, modificaciones e historial de reparaciones revisados; donde faltan planos, la estructura se verifica en campo.' },
+      { step: 'Evaluar la condición', detail: 'Deterioro mapeado y su significado estructural evaluado elemento por elemento.' },
+      { step: 'Evaluar la capacidad', detail: 'Donde la condición o el uso han cambiado, la capacidad remanente se compara con la demanda actual.' },
+      { step: 'Diseñar la reparación', detail: 'Reparaciones descritas con el detalle suficiente para cotizarse, ejecutarse e inspeccionarse — no dejadas como una recomendación general.' },
+    ],
+    deliverables: [
+      'Informe de evaluación de condición',
+      'Mapeo de deterioro y registro fotográfico',
+      'Evaluación de capacidad donde se realice',
+      'Planos y especificaciones de reparación',
+    ],
+    nextStep:
+      'Envíe fotografías de las condiciones y cualquier informe previo. Le decimos si hace falta una visita al sitio y qué cubrirá la evaluación.',
+    considerations: [
+      'Las evaluaciones de estructuras existentes conllevan incertidumbre; donde importa, se recomiendan ensayos o aperturas exploratorias en lugar de dar la incertidumbre por resuelta.',
+      'La falta de documentación original aumenta la verificación en campo requerida.',
+      'El diseño de reparaciones se define y cotiza por separado de la evaluación que lo origina.',
+    ],
+    seo: {
+      title: 'Evaluaciones estructurales y reparaciones — Miami-Dade y Broward',
+      description:
+        'Evaluaciones de condición estructural y diseño de reparaciones de concreto para edificios existentes del Sur de Florida: qué significa el daño y cómo repararlo.',
+      keywords: ['evaluación de condición estructural Miami', 'ingeniero de reparación de concreto Florida', 'diseño de reparación de balcones', 'evaluación de edificios existentes', 'due diligence estructural Miami'],
+    },
+  },
+  /* ── NEW PROJECTS ──────────────────────────────────────────────────────── */
   {
     slug: 'reinforced-concrete-design',
-    n: '01',
+    n: '05',
     title: 'Diseño de concreto reforzado',
     shortTitle: 'Diseño de concreto reforzado',
     track: 'new',
@@ -95,7 +496,7 @@ const services: SiteContent['services'] = [
   },
   {
     slug: 'structural-analysis',
-    n: '02',
+    n: '06',
     title: 'Análisis estructural y cimentaciones',
     shortTitle: 'Análisis estructural y cimentaciones',
     track: 'new',
@@ -152,7 +553,7 @@ const services: SiteContent['services'] = [
   },
   {
     slug: 'bim-coordination',
-    n: '03',
+    n: '07',
     title: 'Modelado y coordinación BIM',
     shortTitle: 'Coordinación BIM',
     track: 'new',
@@ -209,7 +610,7 @@ const services: SiteContent['services'] = [
   },
   {
     slug: 'peer-review',
-    n: '04',
+    n: '08',
     title: 'Revisión por pares y cumplimiento',
     shortTitle: 'Revisión por pares',
     track: 'new',
@@ -262,224 +663,6 @@ const services: SiteContent['services'] = [
       keywords: ['revisión estructural por pares', 'revisión estructural independiente Florida', 'revisión estructural de terceros Miami', 'due diligence estructural'],
     },
   },
-  {
-    slug: 'building-recertification',
-    n: '05',
-    title: 'Recertificación de edificios',
-    shortTitle: 'Recertificación de edificios',
-    track: 'existing',
-    summary:
-      'Un camino claro desde la notificación del condado hasta el informe de recertificación estructural presentado — inspección, hallazgos, reparaciones, reinspección.',
-    problemTitle: 'Llega una notificación con un plazo.',
-    problem:
-      'La notificación trae un formulario y muy poca explicación de lo que realmente tiene que ocurrir. Las juntas directivas y los propietarios necesitan a alguien que conozca la secuencia y pueda llevar la parte estructural de principio a fin.',
-    audience: [
-      'Asociaciones de condominio y de propietarios',
-      'Administradores de propiedades',
-      'Propietarios de edificios y administradores de activos',
-    ],
-    when: [
-      'Llegó una notificación de recertificación de Miami-Dade o Broward, o el edificio se acerca a la edad en la que llegará.',
-      /* "Cerrarse" read as "the building must be shut down". */
-      'Un informe anterior identificó reparaciones y ahora hay que reinspeccionar el edificio y cerrar el expediente de recertificación.',
-      'Está comprando o administrando un edificio y quiere saber en qué punto del ciclo de recertificación se encuentra.',
-    ],
-    capabilities: ['Revisión de la notificación', 'Inspección en sitio', 'Informe de hallazgos', 'Alcance de reparaciones', 'Reinspección'],
-    scope: [
-      'Revisión de la notificación, los registros del edificio e informes previos',
-      'Inspección estructural visual de los elementos accesibles — estructura, losas, balcones, estructura de techo',
-      'Clasificación de las condiciones observadas según su importancia estructural',
-      'Alcance de reparaciones definido para que los contratistas coticen el mismo trabajo',
-      'Reinspección de las reparaciones terminadas',
-      'Presentación del informe y respuesta a las preguntas de la oficina revisora',
-    ],
-    process: [
-      { step: 'Revisión de la notificación', detail: 'Leemos la notificación y el historial del edificio, y confirmamos qué está pidiendo realmente la jurisdicción y para cuándo.' },
-      { step: 'Inspección en sitio', detail: 'Inspección estructural visual de los elementos accesibles — estructura, losas, balcones, estructura de techo y cimentaciones donde estén expuestas.' },
-      { step: 'Hallazgos', detail: 'Condiciones observadas documentadas y clasificadas, con el razonamiento estructural escrito en lenguaje claro para la junta directiva.' },
-      { step: 'Reparaciones', detail: 'Donde se requieran reparaciones, describimos qué debe corregirse y con qué estándar, para que los contratistas coticen el mismo trabajo y las ofertas sean comparables.' },
-      { step: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales.' },
-      { step: 'Presentación', detail: 'El informe se finaliza y se presenta, y respondemos a las preguntas que plantee la oficina revisora.' },
-    ],
-    deliverables: [
-      'Informe de recertificación estructural en el formulario requerido',
-      'Documentación fotográfica de las condiciones observadas',
-      'Recomendaciones de reparación por escrito cuando apliquen',
-      'Documentación de reinspección tras las reparaciones',
-    ],
-    nextStep:
-      'Adjunte la notificación (o indíquenos la edad y la dirección del edificio). Confirmamos qué programa aplica y respondemos con una propuesta para la inspección y el informe.',
-    timing: {
-      checked: 'septiembre de 2026',
-      note: 'La recertificación del condado y la inspección de hito (milestone) del estado son obligaciones separadas. Un condominio en Miami-Dade o Broward puede deber ambas, con plazos distintos y en informes distintos. Qué programas alcanzan a su edificio se confirma antes de comenzar.',
-      rows: [
-        {
-          jurisdiction: 'Condado de Miami-Dade',
-          source: 'Código del Condado de Miami-Dade §8-11(f)',
-          facts: [
-            { k: 'Primer vencimiento', v: '30 años — 25 años para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa' },
-            { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura' },
-            { k: 'Plazo para cumplir', v: '90 días desde la notificación del condado' },
-            { k: 'Fuera del programa', v: 'Viviendas unifamiliares, dúplex y edificios de 10 ocupantes o menos y 2,000 pies cuadrados o menos' },
-          ],
-        },
-        {
-          jurisdiction: 'Condado de Broward',
-          source: 'Building Safety Inspection Program (Board of Rules and Appeals)',
-          facts: [
-            { k: 'Primer vencimiento', v: '25 años' },
-            { k: 'Después', v: 'Cada 10 años' },
-            { k: 'Alcance', v: 'Estructural y eléctrico, presentados por separado por profesionales con licencia' },
-          ],
-        },
-      ],
-    },
-    considerations: [
-      /* A naming note, not a deadline — see the comment on the EN row in site.ts. */
-      'Todavía se la conoce como la “recertificación de 40 años” — la primera ahora vence antes, a las edades indicadas arriba.',
-      'Los requisitos difieren entre Miami-Dade y Broward y entre municipios — la secuencia anterior es típica, no universal.',
-      'La recertificación no es un evento único. Después del primer informe, el edificio vuelve a vencer cada diez años, durante la vida de la estructura.',
-      'La recertificación cubre el alcance estructural; la recertificación eléctrica es una disciplina separada.',
-      'Un informe documenta condiciones observadas. Ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
-      'Las condiciones ocultas pueden requerir investigación adicional antes de poder extraer conclusiones.',
-    ],
-    seo: {
-      title: 'Recertificación de edificios — Miami-Dade y Broward',
-      description:
-        'Recertificación de edificios en Miami-Dade (30 / 25 años) y Broward (25 años): revisión de la notificación, inspección, reparaciones e informe sellado.',
-      keywords: ['recertificación de edificios Miami-Dade', 'recertificación de edificios Broward', 'recertificación 40 años Miami', 'recertificación 30 años Miami', 'recertificación 25 años Broward', 'informe de recertificación estructural'],
-    },
-  },
-  {
-    slug: 'building-safety-inspections',
-    n: '06',
-    title: 'Inspecciones de hito (milestone) y de seguridad estructural',
-    shortTitle: 'Inspecciones de hito y de seguridad',
-    track: 'existing',
-    summary:
-      'Inspecciones de hito (milestone inspections) y de seguridad estructural que documentan la condición real — con hallazgos escritos para actuar, no para archivar.',
-    problemTitle: 'Un informe vago no le sirve a nadie.',
-    problem:
-      'Los propietarios y las juntas directivas necesitan saber qué se observó realmente, qué significa para la estructura y qué tiene que pasar después.',
-    audience: [
-      'Asociaciones de condominio sujetas a la inspección de hito',
-      'Propietarios de edificios antiguos o costeros',
-      'Administradores que preparan planes de capital',
-    ],
-    when: [
-      'Su condominio o cooperativa tiene tres pisos habitables o más y se acerca a los 30 años — 25 cerca de la costa.',
-      'Un informe de fase uno encontró deterioro y se ha requerido una investigación de fase dos.',
-      'Balcones, pasillos o barandas muestran desprendimientos, grietas o manchas de corrosión y la junta directiva necesita la lectura de un ingeniero.',
-    ],
-    capabilities: ['Inspección estructural', 'Revisión de balcones y barandas', 'Mapeo de deterioro', 'Hallazgos priorizados'],
-    scope: [
-      'Inspección visual del sistema estructural principal',
-      'Revisión estructural de balcones, pasillos y barandas',
-      'Mapeo de deterioro del concreto — desprendimientos, grietas, manchas de corrosión',
-      'Revisión del deterioro estructural relacionado con la impermeabilización',
-      'Distinción entre lo cosmético y lo estructural, y entre lo urgente y lo que puede monitorearse',
-      'Definición del alcance de la investigación de fase dos cuando se justifique',
-    ],
-    process: [
-      { step: 'Revisión de registros', detail: 'Planos disponibles, informes previos e historial de reparaciones revisados antes de la visita al sitio.' },
-      { step: 'Inspección en campo', detail: 'Inspección visual sistemática con documentación fotográfica y mapeo de ubicaciones.' },
-      { step: 'Evaluación', detail: 'Observaciones evaluadas estructuralmente — distinguiendo lo cosmético de lo estructural, y lo urgente de lo que puede monitorearse.' },
-      { step: 'Informe', detail: 'Hallazgos emitidos con prioridades claras y, donde se requiera, un alcance definido para investigación adicional.' },
-    ],
-    deliverables: [
-      'Informe de inspección con registro fotográfico',
-      'Hallazgos de condición organizados por prioridad',
-      'Seguimiento recomendado o alcance de investigación adicional',
-      'Documentos firmados y sellados donde el alcance lo requiera',
-    ],
-    nextStep:
-      'Indíquenos la edad, la altura y la distancia a la costa del edificio. Confirmamos si aplica la inspección de hito y proponemos el alcance de la fase uno.',
-    timing: {
-      checked: 'septiembre de 2026',
-      /* The statute number stays in the row's `source`, not in the prose. */
-      note: 'La inspección de hito (milestone inspection) es una obligación estatal según la ley de Florida y es independiente de la recertificación del condado. Ambas pueden aplicar al mismo edificio, con plazos distintos.',
-      rows: [
-        {
-          jurisdiction: 'Estado de Florida — inspección de hito',
-          source: 'Florida Statute 553.899',
-          facts: [
-            { k: 'Aplica a', v: 'Edificios de condominio y cooperativa de tres pisos habitables o más' },
-            { k: 'Primer vencimiento', v: 'Antes del 31 de diciembre del año en que el edificio cumple 30 años — 25 años donde la autoridad local lo exija por proximidad al agua salada' },
-            { k: 'Después', v: 'Cada 10 años' },
-            { k: 'Fase dos', v: 'Solo donde la fase uno encuentra deterioro estructural sustancial' },
-          ],
-        },
-      ],
-    },
-    considerations: [
-      'La inspección visual cubre condiciones accesibles y observables. El deterioro oculto puede requerir ensayos o demolición selectiva.',
-      'Los requisitos de la inspección de hito dependen de la edad, la altura y la ubicación del edificio; la aplicabilidad se confirma caso por caso.',
-      'Una inspección reporta la condición en un momento dado; no es una garantía de desempeño futuro.',
-    ],
-    seo: {
-      title: 'Inspecciones de hito (milestone) y de seguridad estructural',
-      description:
-        'Inspecciones de hito (milestone) y de seguridad estructural para condominios en Miami-Dade y Broward: balcones, deterioro del concreto y hallazgos priorizados.',
-      // "Milestone" stays in the keywords: people search it in English.
-      keywords: ['inspección milestone Florida', 'inspección milestone Miami', 'inspección de hito Florida', 'inspección de hitos condominio', 'inspección de seguridad de edificios Broward', 'inspección de balcones Miami', 'inspección estructural Sur de Florida'],
-    },
-  },
-  {
-    slug: 'structural-condition-assessments',
-    n: '07',
-    title: 'Evaluaciones estructurales y diseño de reparaciones',
-    shortTitle: 'Evaluaciones y reparaciones',
-    track: 'existing',
-    summary:
-      'Cómo se está comportando realmente el edificio hoy — deterioro evaluado, capacidad verificada, reparaciones diseñadas para que puedan cotizarse y construirse.',
-    problemTitle: 'No toda grieta es un problema estructural.',
-    problem:
-      'Grietas, desprendimientos y movimientos parecen alarmantes y significan cosas muy distintas. Antes de gastar en reparaciones, un propietario necesita saber qué condiciones afectan la capacidad y cuáles no — y luego necesita reparaciones especificadas con la precisión suficiente para cotizarlas.',
-    audience: [
-      'Propietarios que planifican reparaciones u obras de capital',
-      'Compradores que realizan due diligence estructural',
-      'Asociaciones que responden a hallazgos de inspección',
-    ],
-    when: [
-      'Un informe de inspección o recertificación enumera reparaciones y las ofertas de los contratistas no son comparables porque nadie definió el alcance.',
-      'Ha aparecido deterioro visible y alguien tiene que decir si afecta la estructura.',
-      'Está comprando un edificio, agregando un piso, cambiando su uso o abriendo un vano en un muro o una losa.',
-    ],
-    capabilities: ['Evaluación en campo', 'Mapeo de deterioro', 'Evaluación de capacidad', 'Especificación de reparaciones'],
-    scope: [
-      'Evaluación en campo del sistema estructural en su estado actual',
-      'Evaluación del deterioro del concreto y la corrosión del refuerzo',
-      'Evaluación de capacidad de miembros existentes donde se requiera',
-      'Evaluación de modificaciones, sobrecargas y cambios de uso',
-      'Diseño de reparaciones — concepto, detalles y especificación',
-      'Orientación sobre priorización y fases',
-    ],
-    process: [
-      { step: 'Entender el edificio', detail: 'Planos originales, modificaciones e historial de reparaciones revisados; donde faltan planos, la estructura se verifica en campo.' },
-      { step: 'Evaluar la condición', detail: 'Deterioro mapeado y su significado estructural evaluado elemento por elemento.' },
-      { step: 'Evaluar la capacidad', detail: 'Donde la condición o el uso han cambiado, la capacidad remanente se compara con la demanda actual.' },
-      { step: 'Diseñar la reparación', detail: 'Reparaciones descritas con el detalle suficiente para cotizarse, ejecutarse e inspeccionarse — no dejadas como una recomendación general.' },
-    ],
-    deliverables: [
-      'Informe de evaluación de condición',
-      'Mapeo de deterioro y registro fotográfico',
-      'Evaluación de capacidad donde se realice',
-      'Planos y especificaciones de reparación',
-    ],
-    nextStep:
-      'Envíe fotografías de las condiciones y cualquier informe previo. Le decimos si hace falta una visita al sitio y qué cubrirá la evaluación.',
-    considerations: [
-      'Las evaluaciones de estructuras existentes conllevan incertidumbre; donde importa, se recomiendan ensayos o aperturas exploratorias en lugar de dar la incertidumbre por resuelta.',
-      'La falta de documentación original aumenta la verificación en campo requerida.',
-      'El diseño de reparaciones se define y cotiza por separado de la evaluación que lo origina.',
-    ],
-    seo: {
-      title: 'Evaluaciones estructurales y reparaciones — Miami-Dade y Broward',
-      description:
-        'Evaluaciones de condición estructural y diseño de reparaciones de concreto para edificios existentes del Sur de Florida: qué significa el daño y cómo repararlo.',
-      keywords: ['evaluación de condición estructural Miami', 'ingeniero de reparación de concreto Florida', 'diseño de reparación de balcones', 'evaluación de edificios existentes', 'due diligence estructural Miami'],
-    },
-  },
 ];
 
 const caseStudies: SiteContent['caseStudies'] = [];
@@ -495,8 +678,10 @@ export const es: SiteContent = {
     shortName: 'Tercero Tablada',
     discipline: 'Ingeniería Civil y Estructural',
     url: 'https://ttcivilstructural.com',
+    /* Existing buildings first, each county's program by its own name — the
+       order the whole site follows. No number belongs here. */
     description:
-      'Ingeniería estructural para el Sur de Florida — diseño estructural de edificios nuevos, evaluación de edificios existentes, recertificación de edificios, inspecciones de hito (milestone) y de seguridad, y coordinación BIM en Miami-Dade y Broward.',
+      'Ingeniería estructural para el Sur de Florida — recertificación de edificios en Miami-Dade, el Programa de Inspección de Seguridad de Edificios (BSIP) en Broward, evaluaciones estructurales y diseño de reparaciones, y diseño estructural de edificios nuevos.',
     tagline: 'Ingeniería estructural para el Sur de Florida.',
     logo: {
       lockupDark: '/ttc/img/logo-horizontal.png',
@@ -617,6 +802,7 @@ export const es: SiteContent = {
     coverage: 'Cobertura',
     verified: 'Verificado',
     lastChecked: 'Última verificación',
+    sourceLabel: 'Fuente',
     footer: {
       services: 'Servicios',
       contact: 'Contacto',
@@ -745,16 +931,24 @@ export const es: SiteContent = {
     title: 'Ingeniería estructural para el Sur de Florida.',
     titleLines: ['Ingeniería estructural', 'para el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
-    /* Kept short on purpose: the longer sub pushed the /es hero to 915px at
-       1440×900 and clipped the caps strip below the fold. */
-    sub: 'Diseño estructural de edificios nuevos, evaluación de los existentes, recertificación y coordinación BIM — a cargo de un Ingeniero Profesional (P.E.) con licencia en Florida, desde el primer contacto hasta el informe final.',
+    /* Kept short on purpose: a longer sub pushed the /es hero to 915px at
+       1440×900 and clipped the caps strip below the fold. That is why
+       Broward's program is "el BSIP" here and not its full Spanish name —
+       the full name is the label of the section right under the hero, and
+       this line is no longer than the one it replaced. No regulatory number
+       in the hero, as in English. */
+    sub: 'Recertificación de edificios en Miami-Dade, el BSIP de Broward y diseño estructural de edificios nuevos — a cargo de un Ingeniero Profesional (P.E.) con licencia en Florida, desde el primer contacto hasta el informe final.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
     secondary: { href: '/services', label: 'Ver nuestros servicios' },
+    /* Four links — same hrefs as English; the hash ones are anchors on the
+       home page and are not localized. The third label is the service's own
+       short title: the literal "Evaluaciones y diseño de reparaciones" was
+       ten characters longer than any English cap and would wrap the strip. */
     caps: [
-      'Diseño estructural',
-      'Evaluación de edificios existentes',
-      'Recertificación de edificios',
-      'Coordinación BIM',
+      { label: 'Miami-Dade · Recertificación', href: '#miami-dade' },
+      { label: 'Broward · BSIP', href: '#broward' },
+      { label: 'Evaluaciones y reparaciones', href: '/services/structural-condition-assessments' },
+      { label: 'Diseño de edificios nuevos', href: '#new-buildings' },
     ],
   },
 
@@ -781,62 +975,17 @@ export const es: SiteContent = {
     { n: '06', title: 'Reparaciones de estructuras existentes', lede: 'Balcones, fachadas, losas y columnas con décadas en servicio — condición documentada, reparaciones diseñadas, y la documentación que pide el condado.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
   ],
 
-  pathsSection: {
-    eyebrow: 'Qué resolvemos',
-    titleLines: ['Dos tipos de clientes.', 'Un solo ingeniero responsable de ambos.'],
-    accentWord: 'ambos',
-    lede: 'Algunos clientes están construyendo algo nuevo y necesitan que la estructura se diseñe y obtenga su permiso de construcción. Otros poseen un edificio que ya está en pie y necesitan evaluarlo, recertificarlo o repararlo. Ambos reciben el mismo ingeniero, el mismo estándar de documentación y la misma línea directa.',
-  },
-
-  paths: [
-    {
-      n: '01',
-      key: 'new',
-      eyebrow: 'Proyectos nuevos',
-      title: 'Estoy construyendo algo nuevo.',
-      accentWord: 'nuevo',
-      lede: 'Casas, townhouses, concreto de mediana altura y estructuras comerciales — diseñados desde la trayectoria de carga hasta el juego de planos sellado para permiso, y coordinados en BIM con el resto del equipo.',
-      serviceSlugs: ['reinforced-concrete-design', 'structural-analysis', 'bim-coordination', 'peer-review'],
-      cta: { href: '/services#new', label: 'Servicios para proyectos nuevos' },
-      photo: photo.frameCraneSky,
-    },
-    {
-      n: '02',
-      key: 'existing',
-      eyebrow: 'Edificios existentes',
-      title: 'Soy dueño o administro un edificio existente.',
-      accentWord: 'existente',
-      lede: 'Notificaciones de recertificación, inspecciones de hito (milestone), deterioro visible y alcances de reparación — condición documentada, reparaciones diseñadas, y una ruta clara para cumplir con Miami-Dade y Broward.',
-      serviceSlugs: ['building-recertification', 'building-safety-inspections', 'structural-condition-assessments'],
-      cta: { href: '/existing-buildings', label: 'Servicios para edificios existentes' },
-      photo: photo.midriseBalconies,
-    },
-  ],
-
-  recertBand: {
-    eyebrow: 'Edificios existentes',
-    titleLines: ['Miles de edificios.', 'Un plazo para cada uno.'],
-    accentWord: 'plazo',
-    plainTitle: 'Miles de edificios. Un plazo para cada uno.',
-    body: 'Los programas de recertificación del Sur de Florida alcanzan a la mayoría de los edificios, salvo las viviendas unifamiliares y los dúplex, a los 25 o 30 años de edad, y regresan cada diez años durante la vida de la estructura. Llevamos la parte estructural de principio a fin: inspección, hallazgos, alcance de reparaciones, reinspección, presentación.',
-    facts: [
-      { k: 'Miami-Dade', v: '30 años · 25 para condominios costeros (3+ pisos) · luego cada 10' },
-      { k: 'Broward', v: '25 años · luego cada 10' },
-      { k: 'Inspección de hito estatal', v: 'Condominios de 3+ pisos · 30 años (25 por regla local) · luego cada 10' },
-    ],
-    cta: { href: '/existing-buildings', label: 'Servicios para edificios existentes' },
-  },
-
-  bim: {
-    eyebrow: 'BIM / Coordinación digital',
-    title: 'Conflictos resueltos en el modelo, no en su obra.',
-    body: 'Construimos primero el modelo estructural, lo comparamos con el modelo del arquitecto y con los de las instalaciones mecánicas, eléctricas y de plomería, y resolvemos cada conflicto en pantalla — antes de que se convierta en una orden de cambio en obra.',
-    notes: [
-      'Los planos salen del modelo estructural, no de un dibujo aparte.',
-      'Tuberías, ductos y vigas verificados entre sí antes de construir.',
-      'Planos, tablas y cantidades tomados del mismo modelo.',
-    ],
-    cta: { href: '/services/bim-coordination', label: 'Coordinación BIM en detalle' },
+  /* The design side of the practice in ONE home-page section — see the
+     banner over `newBuildings` in site.ts. It replaced `pathsSection`,
+     `paths`, `recertBand` and `bim`, which are gone from both bundles. The
+     headline is the approved "Qué diseñamos" line; the typology grid that
+     also carries it now lives on /services. */
+  newBuildings: {
+    eyebrow: 'Edificios nuevos',
+    title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
+    accentWord: 'mediana altura',
+    body: 'Casas, townhouses, edificios de concreto de mediana altura y estructuras comerciales — cimentaciones, estructura y diseño por viento de huracán resueltos como una sola estructura y emitidos como un juego de planos firmado y sellado para el permiso. Construimos primero el modelo estructural y lo comparamos con el modelo del arquitecto y con los de las instalaciones mecánicas, eléctricas y de plomería, para que los conflictos se resuelvan en pantalla antes de convertirse en una orden de cambio en obra.',
+    cta: { href: '/services#new', label: 'Servicios para proyectos nuevos' },
   },
 
   software: {
@@ -857,12 +1006,12 @@ export const es: SiteContent = {
   howWeWork: {
     eyebrow: 'Cómo trabajamos',
     title: 'Cinco pasos. Usted siempre sabe en cuál está.',
-    lede: 'La secuencia es la misma tanto si está tramitando el permiso de una estructura nueva como si está respondiendo a una notificación de recertificación. Lo que cambia es la profundidad del paso tres.',
+    lede: 'La secuencia es la misma tanto si está respondiendo a una notificación del condado como si está tramitando el permiso de una estructura nueva. Lo que cambia es la profundidad del paso tres.',
     steps: [
       {
         n: '01',
         title: 'Consulta inicial',
-        youDo: 'Describa el proyecto o el edificio y comparta lo que tenga — planos, fotos, la notificación.',
+        youDo: 'Envíe la notificación, o describa el edificio o el proyecto, y comparta lo que tenga — fotos, planos, informes previos.',
         youGet: 'Una conversación directa con el ingeniero y una primera lectura de lo que se necesita.',
       },
       {
@@ -887,7 +1036,9 @@ export const es: SiteContent = {
         n: '05',
         title: 'Seguimiento',
         youDo: 'Reenvíe los comentarios del revisor, los RFIs del contratista o la solicitud de reinspección.',
-        youGet: 'Respuestas del ingeniero que hizo el trabajo — durante los comentarios del permiso, las preguntas de construcción y, en edificios existentes, la reinspección y la presentación.',
+        /* "El cierre", not "la presentación": the report is filed before the
+           repairs in both counties — see the EN step. */
+        youGet: 'Respuestas del ingeniero que hizo el trabajo — durante los comentarios del permiso, las preguntas de construcción y, en edificios existentes, la reinspección y el cierre.',
       },
     ],
   },
@@ -896,8 +1047,10 @@ export const es: SiteContent = {
 
   engagements: [
     { n: '01', title: 'Estructura residencial de mediana altura', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales', status: 'Encargo típico' },
-    { n: '02', title: 'Recertificación de condominio costero', projectType: 'Edificio existente — recertificación', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural, hallazgos, recomendaciones de reparación, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'Informe de recertificación · Registro fotográfico · Alcance de reparaciones', status: 'Encargo típico' },
-    { n: '03', title: 'Inspección estructural de hito', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento', status: 'Encargo típico' },
+    /* 02 names both county programs and 03 is no longer a "milestone"
+       inspection — see the comment over `engagements` in site.ts. */
+    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural, informe estructural en el formulario oficial, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'Informe estructural en el formulario oficial · Registro fotográfico · Alcance de reparaciones', status: 'Encargo típico' },
+    { n: '03', title: 'Inspección de seguridad estructural', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento', status: 'Encargo típico' },
     { n: '04', title: 'Sistema de cimentación para un sitio restringido', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo', status: 'Encargo típico' },
     { n: '05', title: 'Coordinación BIM multidisciplinaria', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo', status: 'Encargo típico' },
     { n: '06', title: 'Revisión estructural independiente por pares', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución', status: 'Encargo típico' },
@@ -940,8 +1093,8 @@ export const es: SiteContent = {
       'Ingeniero Profesional (P.E.) con licencia del Estado de Florida',
     ],
     focus: [
+      'Recertificación en Miami-Dade, inspecciones del BSIP en Broward y evaluaciones de condición',
       'Diseño en concreto reforzado para casas, edificios de mediana altura y estructuras comerciales',
-      'Recertificación, inspecciones de hito (milestone) y evaluaciones de condición',
       'Modelado BIM estructural y coordinación multidisciplinaria',
       'Diseño por viento y lateral para la Zona de Huracanes de Alta Velocidad (HVHZ)',
     ],
@@ -997,24 +1150,26 @@ export const es: SiteContent = {
     eyebrow: 'Servicios',
     titleLines: ['Organizados por lo que usted necesita,', 'no por lo que hacemos.'],
     accentWord: 'necesita',
-    sub: 'Siete servicios en dos líneas. Si está construyendo algo, empiece por proyectos nuevos. Si posee o administra un edificio que ya está en pie, empiece por edificios existentes. Cada servicio dice cuándo lo necesita, qué incluye, qué recibe y qué hacer a continuación.',
+    /* Existing buildings first, as in English: the page opens with them.
+       The counts follow the `services` array (four and four). */
+    sub: 'Ocho servicios en dos líneas. Si posee o administra un edificio que ya está en pie, empiece por edificios existentes. Si está construyendo algo, empiece por proyectos nuevos. Cada servicio dice cuándo lo necesita, qué incluye, qué recibe y qué hacer a continuación.',
     facts: [
+      { k: 'Edificios existentes', v: '4 servicios' },
       { k: 'Proyectos nuevos', v: '4 servicios' },
-      { k: 'Edificios existentes', v: '3 servicios' },
       { k: 'Cobertura', v: 'Miami-Dade y Broward' },
     ],
     tracks: {
+      existing: {
+        id: 'existing',
+        eyebrow: 'Edificios existentes',
+        title: 'Usted posee o administra un edificio.',
+        lede: 'Para asociaciones, administradores de propiedades y propietarios con una notificación del condado, un plazo, deterioro visible o una reparación por definir. Miami-Dade y Broward tienen cada uno su propio programa, y cada uno tiene aquí su propia página.',
+      },
       new: {
         id: 'new',
         eyebrow: 'Proyectos nuevos',
         title: 'Usted está construyendo algo.',
         lede: 'Para propietarios, desarrolladores, arquitectos y contratistas con un proyecto en diseño o camino al permiso.',
-      },
-      existing: {
-        id: 'existing',
-        eyebrow: 'Edificios existentes',
-        title: 'Usted posee o administra un edificio.',
-        lede: 'Para asociaciones, administradores de propiedades y propietarios con una notificación, un plazo, deterioro visible o una reparación por definir.',
       },
     },
   },
@@ -1023,7 +1178,7 @@ export const es: SiteContent = {
     eyebrow: 'Edificios existentes',
     titleLines: ['El edificio', 'ya está en pie.'],
     accentWord: 'en pie.',
-    sub: 'Recertificación, inspección de hito (milestone), evaluación estructural y diseño de reparaciones para edificios en servicio en Miami-Dade y Broward. Documentamos lo que realmente hay, explicamos qué significa estructuralmente y definimos el trabajo que sigue.',
+    sub: 'Recertificación en Miami-Dade, el Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, inspecciones de hito (milestone), evaluaciones estructurales y diseño de reparaciones para edificios ya en servicio. Documentamos lo que realmente hay, explicamos qué significa estructuralmente y definimos el trabajo que sigue.',
     facts: [
       { k: 'Para', v: 'Asociaciones, propietarios, administradores' },
       { k: 'Cobertura', v: 'Miami-Dade y Broward' },
@@ -1033,25 +1188,30 @@ export const es: SiteContent = {
       eyebrow: 'Cuándo llamar',
       title: 'Cuatro situaciones en las que conviene llamar a un ingeniero.',
       items: [
-        { k: 'Llegó una notificación', v: 'Se ha emitido una notificación de recertificación o de inspección de hito y la junta directiva necesita contratar a un ingeniero estructural antes del plazo.' },
+        { k: 'Llegó una notificación', v: 'Llegó una Notificación de Inspección Requerida de su ciudad o de su condado — recertificación en Miami-Dade, el BSIP en Broward — y la junta directiva necesita contratar a un ingeniero estructural antes del plazo.' },
         { k: 'Deterioro visible', v: 'Han aparecido grietas, desprendimientos, manchas de corrosión o movimiento y alguien tiene que decir si afecta la capacidad.' },
         { k: 'Antes de gastar', v: 'Se están cotizando reparaciones y el alcance no ha sido definido por un ingeniero, así que las ofertas no son comparables.' },
         { k: 'Antes de comprar', v: 'Due diligence estructural en una adquisición, incluidas modificaciones y preguntas sobre cambio de uso.' },
       ],
     },
     servicesEyebrow: 'Servicios para edificios existentes',
+    /* The one sequence both county programs share — NO age and NO deadline
+       here; they are on each county's page. Step order and the six titles
+       match the `process` of the two program pages. `cta` → Miami-Dade,
+       `ctaSecondary` → Broward. See the EN comment in site.ts. */
     timeline: {
-      eyebrow: 'Recertificación de edificios',
-      title: 'Un camino claro desde la notificación hasta el cumplimiento.',
-      lede: 'Miami-Dade exige la primera recertificación a los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a tres millas o menos de la costa; Broward a los 25; la inspección de hito estatal a los 30 para condominios de tres pisos habitables o más. Todas regresan cada diez años. Llevamos la parte estructural de principio a fin para que la junta directiva sepa qué sigue en cada etapa.',
-      cta: { href: '/services/building-recertification', label: 'Recertificación en detalle' },
+      eyebrow: 'Recertificación y BSIP',
+      title: 'Un camino claro desde la notificación hasta el cierre.',
+      lede: 'Miami-Dade lo llama recertificación de edificios; Broward, Programa de Inspección de Seguridad de Edificios. Las edades y los plazos son distintos, y los de cada condado están en su propia página. La secuencia es la misma: primero se presenta el informe, las reparaciones siguen con permiso, y un informe final cierra el expediente. Llevamos la parte estructural para que la junta directiva sepa qué sigue en cada etapa.',
+      cta: { href: '/services/building-recertification', label: 'La recertificación de Miami-Dade en detalle' },
+      ctaSecondary: { href: '/services/broward-bsip', label: 'El BSIP de Broward en detalle' },
       steps: [
-        { n: '01', title: 'Revisión de la notificación', detail: 'Leemos la notificación y el registro del edificio, confirmamos qué pide la jurisdicción y fijamos el calendario en función del plazo indicado.' },
-        { n: '02', title: 'Inspección en sitio', detail: 'Inspección estructural visual de los elementos accesibles — estructura, losas, balcones, estructura de techo y cimentaciones expuestas — documentada en campo.' },
-        { n: '03', title: 'Hallazgos', detail: 'Las condiciones observadas se clasifican y explican en un lenguaje con el que la junta directiva puede actuar, con fotografías vinculadas a ubicaciones.' },
-        { n: '04', title: 'Reparaciones', detail: 'Donde se requieran reparaciones definimos qué debe corregirse y con qué estándar, para que el trabajo pueda cotizarse en igualdad de condiciones y ejecutarse correctamente.' },
-        { n: '05', title: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales antes de certificar nada.' },
-        { n: '06', title: 'Presentación', detail: 'El informe se finaliza y se presenta, y respondemos a las preguntas que plantee la oficina revisora.' },
+        { n: '01', title: 'Revisión de la notificación', detail: 'Leemos la notificación y el registro del edificio, confirmamos qué pide el Building Official y fijamos el calendario en función de la fecha de la carta.' },
+        { n: '02', title: 'Inspección', detail: 'Inspección estructural en sitio — estructura, losas, balcones, techo y cimentaciones expuestas — documentada en campo, con fotografías vinculadas a su ubicación.' },
+        { n: '03', title: 'Informe presentado', detail: 'El informe estructural se prepara en el formulario oficial que exige el condado, en un lenguaje con el que la junta directiva puede actuar, y se presenta aunque enumere reparaciones.' },
+        { n: '04', title: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones definimos qué debe corregirse y con qué estándar, para que el trabajo pueda cotizarse en igualdad de condiciones. La obra que requiere permiso espera a tenerlo.' },
+        { n: '05', title: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales.' },
+        { n: '06', title: 'Cierre', detail: 'Un informe enmendado — en Broward, con una carta de finalización firmada y sellada — indica que las reparaciones están completas. Eso cierra el expediente hasta el siguiente ciclo.' },
       ],
     },
   },
@@ -1093,7 +1253,9 @@ export const es: SiteContent = {
     eyebrow: 'Siguiente paso',
     titleLines: ['Cuéntenos sobre el edificio.', 'Respondemos con un alcance.'],
     accentWord: 'alcance.',
-    body: 'Un proyecto nuevo, un edificio existente o una notificación con plazo — descríbalo y adjunte lo que tenga. El ingeniero le responde, con preguntas o con una propuesta escrita.',
+    /* Leads with the notice, as in English: notice, existing building, new
+       project. */
+    body: 'Una notificación del condado en la mano, un edificio que le preocupa o un proyecto nuevo — descríbalo y adjunte lo que tenga. Basta una foto de la carta tomada con el teléfono. El ingeniero le responde, con preguntas o con una propuesta escrita.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
     secondary: { href: '/about#engineer', label: 'Conozca al ingeniero' },
   },

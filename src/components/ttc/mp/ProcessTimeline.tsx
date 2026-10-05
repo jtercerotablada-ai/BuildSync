@@ -6,9 +6,14 @@ import { ButtonLink, Reveal, SectionHeading } from './primitives';
 import { useContent, useL } from './lang';
 
 /**
- * Recertification timeline. The gold track fills as the section scrolls and
- * each node fills as it enters view; with reduced motion the track is drawn
- * complete and the nodes are filled from the start.
+ * The one sequence Miami-Dade's recertification and Broward's BSIP share, on
+ * /existing-buildings: six steps, report filed first, and no number at all —
+ * each county's ages and deadlines live on its own page, which is where the
+ * two buttons under the lede lead.
+ *
+ * The gold track fills as the section scrolls and each node fills as it
+ * enters view; with reduced motion the track is drawn complete and the nodes
+ * are filled from the start.
  *
  * That reduced-motion branch lives in CSS (mp.css, reduced-motion block), not
  * here. `useReducedMotion()` is null on the server but the real preference on
@@ -74,9 +79,14 @@ export function ProcessTimeline({ n = '03' }: { n?: string }) {
           </Reveal>
           <Reveal delay={0.06}>
             <p className="mp-lead mp-measure">{t.lede}</p>
+            {/* One door per county: with one program page each, a single
+                "in detail" link would leave the other county without one. */}
             <div className="mp-cta-row">
               <ButtonLink href={l(t.cta.href)} variant="line">
                 {t.cta.label}
+              </ButtonLink>
+              <ButtonLink href={l(t.ctaSecondary.href)} variant="line">
+                {t.ctaSecondary.label}
               </ButtonLink>
             </div>
           </Reveal>

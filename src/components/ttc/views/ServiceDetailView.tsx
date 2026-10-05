@@ -6,7 +6,7 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
-import { ButtonLink, SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
+import { ButtonLink, SectionHeading, Reveal, TextLink } from '@/components/ttc/mp/primitives';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
@@ -30,12 +30,38 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   const service = c.services.find((s) => s.slug === slug);
   if (!service) return null;
   const l = (href: string) => localePath(href, lang);
-  // Existing-building services have only two same-track siblings. The grid
-  // auto-fits (mp.css `.mp-more`), so two links fill the row instead of
-  // leaving a blank third column.
+  // Both tracks hold four services, so every page has three same-track
+  // siblings and the row is three equal columns. The grid still auto-fits
+  // (mp.css `.mp-more`): were a track to shrink, the links would fill the row
+  // instead of leaving a blank column.
   const related = c.services.filter((s) => s.slug !== slug && s.track === service.track).slice(0, 3);
   const isBim = service.slug === 'bim-coordination';
   const trackLabel = service.track === 'new' ? u.newProjects : u.existingBuildings;
+  // Each regulated service now carries ONE jurisdiction: Miami-Dade and
+  // Broward have a page each, and the milestone page has the State's row. A
+  // single card in the old auto-fit grid stretched across the whole shell,
+  // with 250-character values running in one line. So one row is laid out
+  // beside its own notes (`.mp-juris--single`); several rows keep the grid,
+  // with the notes underneath.
+  const singleRow = service.timing?.rows.length === 1;
+  const timingNotes = service.timing ? (
+    <>
+      <p className="mp-timing__note">{service.timing.note}</p>
+      <p className="mp-timing__src">
+        {u.lastChecked}: {service.timing.checked}
+      </p>
+      {/* The other county's page. The two programs never share a page or a
+          number, so each one ends by pointing at the other. */}
+      {service.crossLink ? (
+        <p className="mp-timing__cross">
+          <span>{service.crossLink.text}</span>
+          <TextLink href={l(`/services/${service.crossLink.slug}`)}>
+            {service.crossLink.label}
+          </TextLink>
+        </p>
+      ) : null}
+    </>
+  ) : null;
 
   // The provider is the ONE Organization node the (public) layout emits, by
   // @id — a second, unnamed ProfessionalService here read as a different
@@ -50,7 +76,10 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
     description: service.seo.description,
     serviceType: service.title,
     provider: { '@id': `${company.url}/#organization` },
-    areaServed: ['Miami-Dade County, Florida', 'Broward County, Florida'],
+    // A county program is offered in its own county only: the Broward page
+    // must not tell a search engine it serves Miami-Dade, or the reverse.
+    // Every other service is offered in both.
+    areaServed: service.areaServed ?? ['Miami-Dade County, Florida', 'Broward County, Florida'],
     url: pageUrl,
   };
 
@@ -79,10 +108,11 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         sub={service.summary}
         // Client terms only: what kind of building, and where. The old
         // "Service 01" index meant nothing to a client, and "Basis" put a
-        // code list in the first screen.
+        // code list in the first screen. "Coverage" is the service's own
+        // county on the two program pages, and both counties everywhere else.
         facts={[
           { k: u.appliesTo, v: service.track === 'new' ? u.newConstruction : u.existingBuildings },
-          { k: u.coverage, v: c.contact.serviceAreaLabel },
+          { k: u.coverage, v: service.coverage ?? c.contact.serviceAreaLabel },
         ]}
         photo={imagery.services[service.slug]}
       />
@@ -164,7 +194,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               <SectionHeading n={next()} label={u.whenItApplies} />
             </div>
             <h2 className="mp-sr-only">{u.whenItApplies}</h2>
-            <div className="mp-juris">
+            <div className={singleRow ? 'mp-juris mp-juris--single' : 'mp-juris'}>
               {service.timing.rows.map((row) => (
                 <Reveal as="div" key={row.jurisdiction} className="mp-juris__card">
                   <h3 className="mp-juris__title">{row.jurisdiction}</h3>
@@ -179,13 +209,13 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                   <p className="mp-timing__src">{row.source}</p>
                 </Reveal>
               ))}
+              {singleRow ? (
+                <Reveal delay={0.06} className="mp-juris__aside">
+                  {timingNotes}
+                </Reveal>
+              ) : null}
             </div>
-            <Reveal delay={0.06}>
-              <p className="mp-timing__note">{service.timing.note}</p>
-              <p className="mp-timing__src">
-                {u.lastChecked}: {service.timing.checked}
-              </p>
-            </Reveal>
+            {singleRow ? null : <Reveal delay={0.06}>{timingNotes}</Reveal>}
           </div>
         </section>
       ) : null}

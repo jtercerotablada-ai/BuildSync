@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { imagery } from '@/lib/ttc/site';
 import { ButtonLink, DarkHeroSentinel, RevealText } from './primitives';
 import { MotionToggle, VideoLoop } from './media';
@@ -18,6 +19,16 @@ import { useContent, useL } from './lang';
  * water happens to be in a given frame. `VideoLoop` paints the poster first
  * and only upgrades to video once the page has loaded; reduced motion keeps
  * the poster, and the toggle in the foot row stops the loop (WCAG 2.2.2).
+ *
+ * The strip in the foot row is four links, not four labels: the two county
+ * programs, assessments, and new-building design. A `#hash` href is a section
+ * of this page and is rendered as a PLAIN anchor, exactly as written — in
+ * both languages, since the ids are the same on `/` and `/es`. Plain, not
+ * `next/link`: Link would take the click itself, and the smooth-scroll
+ * handler (smooth-scroll.tsx) that lands the section below the fixed header,
+ * moves focus into it and writes the hash only acts on a click nobody has
+ * handled. Without JavaScript the same href is a native jump. A path href is
+ * a page, and goes through the locale helper like every other link.
  *
  * Every entrance here is a CSS keyframe (`mp-enter`, staggered by the
  * `--dN` modifiers), not Motion: this is the whole first screen, and it has
@@ -66,7 +77,13 @@ export function Hero() {
         <div className="mp-shell mp-hero__footrow mp-enter mp-enter--d6">
           <ul className="mp-hero__caps">
             {h.caps.map((cap) => (
-              <li key={cap}>{cap}</li>
+              <li key={cap.href}>
+                {cap.href.startsWith('#') ? (
+                  <a href={cap.href}>{cap.label}</a>
+                ) : (
+                  <Link href={l(cap.href)}>{cap.label}</Link>
+                )}
+              </li>
             ))}
           </ul>
           <MotionToggle />

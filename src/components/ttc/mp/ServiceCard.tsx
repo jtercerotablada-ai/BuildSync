@@ -69,7 +69,7 @@ export function ServiceCard({
           </dl>
         ) : null}
 
-        {/* Seven "See this service" links on /services are indistinguishable
+        {/* Eight "See this service" links on /services are indistinguishable
             in a screen reader's link list; the hidden suffix names each one
             without changing what a sighted visitor sees. */}
         <Link href={href} className="mp-link mp-svc__go">

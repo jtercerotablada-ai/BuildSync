@@ -14,8 +14,9 @@ import { useContent } from './lang';
  * Each label sits inside its paragraph, so the hairline above "You get" stays
  * between the two halves and a screen reader hears label and text together.
  *
- * Rendered on Home and Services only — the pages where "what happens after I
- * write" decides whether a visitor writes.
+ * Rendered on /services only. It left the home page when the two county
+ * programs took the first sections: each of them carries its own four-step
+ * line, and five more steps under those said the same thing twice.
  */
 export function HowWeWork({ n = '04' }: { n?: string }) {
   const c = useContent();

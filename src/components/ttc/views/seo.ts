@@ -12,27 +12,38 @@ type Pages = 'home' | 'services' | 'existing' | 'work' | 'about' | 'contact' | '
  * ~55 characters of each title: the service keyword and the place go there.
  * Descriptions stay between 110 and 160 characters (longer ones are cut off
  * mid-sentence), each one unique, with no code names (ACI, ASCE, F.S.…).
+ *
+ * The descriptions lead with the two county programs, each by its own name —
+ * Miami-Dade's is "recertification", Broward's is the "Building Safety
+ * Inspection Program (BSIP)" — because that is the order of the site and
+ * what the people holding a notice search for. NO age and NO day count goes
+ * in a description: those numbers live in the timing rows of site.ts, next
+ * to their authority and their date, and a meta description is where a
+ * stale number survives longest. The titles keep their structure on purpose:
+ * the home title is the approved tagline, and the two program pages (their
+ * `seo` lives with each service in site.ts) are the ones that target the
+ * program queries — the home page must not compete with them.
  */
 export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   en: {
     home: {
       title: 'Structural Engineering for South Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       description:
-        'Structural engineer for Miami-Dade and Broward: design of new buildings, recertification, milestone inspections and repair design, led by a Florida P.E.',
+        'Miami-Dade building recertification, Broward BSIP inspections and structural design for new buildings in South Florida, led by a Florida Professional Engineer.',
       ogTitle: 'Structural Engineering for South Florida | Tercero Tablada Civil & Structural Engineering Inc.',
-      keywords: ['structural engineer Miami', 'structural engineer Broward', 'building recertification Miami-Dade', 'milestone inspection Florida', 'structural engineering South Florida'],
+      keywords: ['structural engineer Miami', 'structural engineer Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'building safety inspection program Broward', '40 year recertification Miami', 'structural engineering South Florida'],
     },
     services: {
       title: 'Structural Engineering Services — Miami-Dade & Broward',
       description:
-        'Seven structural services in Miami-Dade and Broward: design, analysis, BIM and peer review for new projects; recertification, inspections and repairs.',
-      keywords: ['structural engineering services Miami', 'structural design Broward', 'building recertification', 'milestone inspection', 'BIM coordination'],
+        'Eight structural services in Miami-Dade and Broward: recertification, BSIP, inspections and repairs; design, analysis, BIM and peer review for new projects.',
+      keywords: ['structural engineering services Miami', 'structural design Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'milestone inspection', 'BIM coordination'],
     },
     existing: {
-      title: 'Existing Buildings — Recertification, Inspections & Repairs',
+      title: 'Existing Buildings — Recertification, BSIP & Repairs',
       description:
-        'Miami-Dade and Broward recertification, Florida milestone inspections, condition assessments and repair design for existing buildings, by a Florida P.E.',
-      keywords: ['building recertification Miami-Dade', 'building recertification Broward', 'milestone inspection', 'condo structural inspection', 'balcony repair engineer'],
+        'Miami-Dade recertification, Broward BSIP, milestone inspections, condition assessments and repair design for existing buildings, by a Florida P.E.',
+      keywords: ['building recertification Miami-Dade', 'Broward BSIP', 'building safety inspection program Broward', 'milestone inspection', 'condo structural inspection', 'balcony repair engineer'],
     },
     work: {
       // "Typical", never "representative work" or "anonymized": the profiles
@@ -59,22 +70,24 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     home: {
       title: 'Ingeniería estructural para el Sur de Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       description:
-        'Ingeniero estructural en Miami-Dade y Broward: diseño de edificios nuevos, recertificación, inspecciones de hito (milestone), reparaciones y BIM.',
+        'Recertificación de edificios en Miami-Dade, BSIP en Broward y diseño estructural de edificios nuevos, a cargo de un Ingeniero Profesional (P.E.) de Florida.',
       ogTitle: 'Ingeniería estructural para el Sur de Florida | Tercero Tablada Civil & Structural Engineering Inc.',
-      // People search "inspección milestone"; the page says "inspección de hito".
-      keywords: ['ingeniero estructural Miami', 'ingeniero estructural Broward', 'recertificación de edificios Miami-Dade', 'inspección milestone Florida', 'inspección de hito Florida', 'ingeniería estructural Sur de Florida'],
+      // "BSIP" and "recertificación 40 años" are what people type; the page
+      // says "Programa de Inspección de Seguridad de Edificios (BSIP)".
+      keywords: ['ingeniero estructural Miami', 'ingeniero estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'recertificación 40 años Miami', 'ingeniería estructural Sur de Florida'],
     },
     services: {
       title: 'Servicios de ingeniería estructural — Miami-Dade y Broward',
       description:
-        'Siete servicios estructurales en Miami-Dade y Broward: diseño, análisis, BIM y revisión por pares para obra nueva; recertificación, inspecciones y reparaciones.',
-      keywords: ['servicios ingeniería estructural Miami', 'diseño estructural Broward', 'recertificación de edificios', 'inspección milestone', 'inspección de hito', 'coordinación BIM'],
+        'Ocho servicios estructurales en Miami-Dade y Broward: recertificación, BSIP, inspecciones y reparaciones; diseño, análisis, BIM y revisión por pares.',
+      // People search "inspección milestone"; the page says "inspección de hito".
+      keywords: ['servicios ingeniería estructural Miami', 'diseño estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección milestone', 'inspección de hito', 'coordinación BIM'],
     },
     existing: {
-      title: 'Edificios existentes — Recertificación, inspecciones y reparaciones',
+      title: 'Edificios existentes — Recertificación, BSIP y reparaciones',
       description:
-        'Recertificación en Miami-Dade y Broward, inspecciones de hito (milestone), evaluaciones de condición y diseño de reparaciones para edificios existentes.',
-      keywords: ['recertificación de edificios Miami-Dade', 'recertificación Broward', 'inspección milestone condominio', 'inspección de hitos condominio', 'ingeniero reparación de balcones'],
+        'Recertificación en Miami-Dade, BSIP en Broward, inspecciones de hito (milestone), evaluaciones de condición y diseño de reparaciones para edificios existentes.',
+      keywords: ['recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'inspección milestone condominio', 'inspección de hitos condominio', 'ingeniero reparación de balcones'],
     },
     work: {
       title: 'Proyectos — Encargos estructurales típicos',

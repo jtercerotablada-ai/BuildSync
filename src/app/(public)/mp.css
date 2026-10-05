@@ -21,10 +21,10 @@
      04  Header / mobile menu
      05  Footer
      06  Hero
-     07  The practice (statement + two paths)
+     07  County programs (the two home-page program sections)
      08  Typologies
-     09  Video band (+ the background-video pause toggle)
-     10  BIM + toolchain
+     09  Background-video pause toggle
+     10  New buildings (model stage, service link list) + toolchain
      11  (retired)
      12  Service area
      13  Closing CTA
@@ -34,8 +34,8 @@
      17  Credentials + leadership
      18  Contact & form
      19  Responsive
-     20  V3 additions (engineer, doors, steps, service cards, attachments),
-         with their own responsive rules
+     20  V3 additions (engineer, steps, service cards, service detail,
+         attachments), with their own responsive rules
      21  Reduced motion / print / forced colours
      22  Large displays (≥1500 / ≥2000) — last, so its overrides win
    (Reset, above 00, sits in its own cascade layer.)
@@ -478,6 +478,16 @@ html:has(.mp) {
   outline: none;
 }
 
+/* Same for a section reached through an in-page link — the hero strip jumps
+   to #miami-dade, #broward and #new-buildings. smooth-scroll.tsx gives the
+   target tabindex="-1" and focuses it, so the next Tab continues from inside
+   the section; after a keyboard activation the global rule would then draw
+   the ring around the whole section. A place, not a control. */
+.mp section[tabindex='-1']:focus,
+.mp section[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
 .mp-skip {
   position: absolute;
   left: var(--mp-4);
@@ -570,7 +580,6 @@ html:has(.mp) {
    which one it is on — text, hairlines, focus rings and the dark button
    variants (03). The mobile menu is a graphite surface too. */
 .mp-surface--graphite,
-.mp-band,
 .mp-phero,
 .mp-footer,
 .mp-menu {
@@ -623,8 +632,8 @@ html:has(.mp) {
 
 /* ═══ 02 · SECTION LANGUAGE ═══════════════════════════════════════════════ */
 
-/* Eyebrow: a short gold rule and a small tracked label. Used on the hero, the
-   page heroes and the video bands. */
+/* Eyebrow: a short gold rule and a small tracked label. Used on the hero and
+   the page heroes. */
 .mp-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -818,7 +827,6 @@ html:has(.mp) {
    proposal CTA on a phone, since the header CTA is hidden ≤640 — rendered
    graphite-on-graphite, a label with no button. */
 .mp-surface--graphite .mp-btn--solid,
-.mp-band .mp-btn--solid,
 .mp-phero .mp-btn--solid,
 .mp-menu .mp-btn--solid {
   --btn-bg: var(--mp-snow);
@@ -826,7 +834,6 @@ html:has(.mp) {
   --btn-line: var(--mp-snow);
 }
 .mp-surface--graphite .mp-btn--line,
-.mp-band .mp-btn--line,
 .mp-phero .mp-btn--line,
 .mp-menu .mp-btn--line {
   --btn-fg: var(--mp-snow);
@@ -834,7 +841,6 @@ html:has(.mp) {
 }
 @media (hover: hover) and (pointer: fine) {
   .mp-surface--graphite .mp-btn--line:hover,
-  .mp-band .mp-btn--line:hover,
   .mp-menu .mp-btn--line:hover {
     --btn-line: var(--mp-snow);
   }
@@ -1495,6 +1501,28 @@ a.mp-menu__mail {
   background: var(--mp-gold);
   flex: none;
 }
+/* The four items are links (Hero.tsx): two county programs and the
+   new-buildings section on this page, and the assessments page. They keep the
+   label's type and colour — the strip is a quiet index, like the footer
+   columns — and turn gold on hover. The padding makes the target 24px tall
+   for a mouse and 44px for a finger without moving the text off its line.
+   (No `lh` support: the 0.15rem stays, which is still a 24px target.) */
+.mp-hero__caps a {
+  padding-block: 0.15rem;
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--mp-dur) var(--mp-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-hero__caps a:hover {
+    color: var(--mp-gold);
+  }
+}
+@media (pointer: coarse) {
+  .mp-hero__caps a {
+    padding-block: calc((44px - 1lh) / 2);
+  }
+}
 /* The capability list and the motion toggle share the foot row. */
 .mp-hero__footrow {
   display: flex;
@@ -1603,79 +1631,197 @@ a.mp-menu__mail {
   animation-delay: 0.6s;
 }
 
-/* ═══ 07 · THE PRACTICE ═══════════════════════════════════════════════════ */
+/* ═══ 07 · COUNTY PROGRAMS ════════════════════════════════════════════════ */
 
-.mp-paths__intro {
-  max-width: 72ch;
-  margin-block-end: clamp(3rem, 6vw, 5.5rem);
-}
-.mp-paths__title {
-  font-size: clamp(2.2rem, 5.2vw, 4.6rem);
-  line-height: 1.02;
+/* ProgramSection.tsx, rendered twice under the home hero: Miami-Dade's
+   recertification (paper) and Broward's BSIP (concrete, mirrored). One
+   two-line headline across the shell, then a reading column — lede, the
+   button and what to send, six hairline rows, their source, the steps, the
+   scope note, a link — beside one photograph.
+
+   No card. The rows are the same dl.mp-timing the service pages set inside
+   .mp-juris__card; here they sit on the bare surface, hairlines only. Rules
+   that restyle that list are written `.mp-prog .mp-timing…` so they outweigh
+   the base .mp-timing rules, which come later in the file (14).
+
+   The markup is in phone order, and that IS the layout up to 900px: one
+   column, the photograph between the rows and the steps. The two-column
+   placement is the min-width block below. */
+.mp-prog__title {
+  font-size: var(--mp-t-h1);
+  line-height: 1;
   letter-spacing: -0.034em;
-  margin: 0;
+  margin: 0 0 clamp(2rem, 4vw, 3.5rem);
 }
-.mp-paths__title .mp-serif {
+.mp-prog__title .mp-serif {
   color: var(--mp-gold-ink);
 }
-.mp-paths__lede {
-  margin: var(--mp-6) 0 0;
+.mp-prog__lede {
+  margin: 0;
+  max-width: 58ch;
   font-size: var(--mp-t-lead);
   line-height: 1.6;
-  color: var(--mp-ink-3);
-  max-width: 58ch;
+  color: var(--mp-ink-2);
 }
-.mp-paths {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(2rem, 4vw, 4rem);
-}
-.mp-path {
+/* The action sits right under the lede — above the rows — with the one line
+   that says what to send beside it (under it once the row wraps, and on a
+   phone, where the button is full width). */
+.mp-prog__action {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mp-4) var(--mp-6);
+  margin-block-start: var(--mp-8);
 }
-.mp-path__media {
-  display: block;
-  aspect-ratio: 16 / 11;
+.mp-prog__ctanote {
+  flex: 1 1 16rem;
+  max-width: 40ch;
+  margin: 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+/* The six rows. On a service page this list is a reference table inside a
+   card; here it is the section's main content, so the values are set at body
+   size with a little more air between the hairlines. */
+.mp-prog .mp-timing {
+  margin-block-start: clamp(2.5rem, 5vw, 3.5rem);
+}
+.mp-prog .mp-timing > div {
+  align-items: baseline;
+  padding-block: 0.95rem;
+}
+.mp-prog .mp-timing dd {
+  font-size: var(--mp-t-body);
+  line-height: 1.6;
+}
+.mp-prog .mp-timing__src {
+  line-height: 1.6;
+}
+/* One photograph, in a plain plate. Landscape while the section is a single
+   column; a 4:5 portrait once it stands beside the reading column. The
+   photograph's own focal point (`photo.pos`, inline) decides the crop. */
+.mp-prog__media {
+  position: relative;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
-  background: var(--mp-concrete);
-  margin-block-end: var(--mp-6);
+  margin-block: clamp(2.5rem, 7vw, 3.5rem);
+  background: var(--mp-line-soft);
 }
-.mp-path__photo {
+.mp-prog__media img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   filter: saturate(0.8) contrast(1.04);
-  transition: transform 1000ms var(--mp-ease),
-    filter var(--mp-dur-slow) var(--mp-ease);
 }
-@media (hover: hover) and (pointer: fine) {
-  .mp-path:hover .mp-path__photo {
-    transform: scale(1.03);
-    filter: saturate(1) contrast(1.05);
+/* The four steps: one quiet numbered line, four equal cells under a hairline
+   each, the index over its label. A grid rather than a wrapping row: the
+   longer Spanish labels wrap INSIDE their cell instead of dropping the fourth
+   step onto a line of its own. */
+.mp-prog__steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--mp-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--mp-t-small);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--mp-ink);
+  /* A label that needs two lines splits evenly — 'Repairs &' / 'close-out' —
+     instead of filling the first line and breaking at the hyphen
+     ('Repairs & close-' / 'out'). Inherited by the labels. */
+  text-wrap: balance;
+}
+.mp-prog__steps li {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding-block-start: var(--mp-3);
+  border-block-start: 1px solid var(--mp-line-strong);
+}
+/* What the firm signs and what it does not: the caveat callout (.mp-callout,
+   14) supplies the gold rule and the inset. */
+.mp-prog__scope {
+  max-width: 62ch;
+  margin: var(--mp-6) 0 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.65;
+  color: var(--mp-ink-2);
+}
+.mp-prog__more {
+  margin-block-start: var(--mp-6);
+}
+
+/* Two columns from 901px. The photograph follows the rows in the markup, so
+   it is PLACED: in the other column, across both rows of the reading column.
+   The second row takes any slack (1fr), so a plate taller than the copy
+   never opens a gap between the rows and the steps. `mirrored` swaps the
+   sides. */
+@media (min-width: 901px) {
+  .mp-prog__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    grid-template-rows: auto 1fr;
+    column-gap: clamp(2.5rem, 6vw, 6rem);
+    align-items: start;
+  }
+  .mp-prog__main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .mp-prog__after {
+    grid-column: 1;
+    grid-row: 2;
+    margin-block-start: var(--mp-8);
+  }
+  .mp-prog__media {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    aspect-ratio: 4 / 5;
+    margin-block: 0;
+  }
+  .mp-prog--mirrored .mp-prog__grid {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+  .mp-prog--mirrored .mp-prog__main,
+  .mp-prog--mirrored .mp-prog__after {
+    grid-column: 2;
+  }
+  .mp-prog--mirrored .mp-prog__media {
+    grid-column: 1;
   }
 }
-.mp-path__title {
-  font-size: var(--mp-t-h3);
-  line-height: 1.1;
-  margin: 0 0 var(--mp-3);
+/* The reading column is the long one, so the plate travels with the reader —
+   the same device as .mp-split's title (14). The max-height keeps the whole
+   plate on screen under the header while it does: on a short window the
+   4:5 plate gives up some height (the photograph is cover-cropped anyway)
+   rather than sticking with its lower edge out of view. 20rem is a floor for
+   a window too short to be worth fitting. `vh` first for engines without
+   `svh`. The explicit width matters: without it the max-height is carried
+   through the aspect ratio into a max-WIDTH, and the capped plate shrinks
+   away from the shell's edge instead of just getting shorter. */
+@media (min-width: 901px) {
+  .mp-prog__media {
+    position: sticky;
+    top: calc(var(--mp-header-h) + var(--mp-6));
+    width: 100%;
+    max-height: max(20rem, calc(100vh - var(--mp-header-h) - 2 * var(--mp-6)));
+    max-height: max(20rem, calc(100svh - var(--mp-header-h) - 2 * var(--mp-6)));
+  }
 }
-.mp-path__title .mp-serif {
-  color: var(--mp-gold-ink);
-}
-.mp-path__lede {
-  color: var(--mp-ink-3);
-  line-height: 1.65;
-  max-width: 50ch;
-  margin: 0;
-}
-/* Pinned to the bottom of the door: the two service lists differ in length
-   (4 and 3), and a CTA placed straight after its list sat 47px higher on
-   one side. .mp-path is a flex column and the grid stretches both doors to
-   the same height, so an auto margin puts both links on one line. */
-.mp-path__cta {
-  margin-block-start: auto;
-  padding-block-start: var(--mp-6);
+/* Between 901 and 1180 the reading column is 440–560px. A 12rem label column
+   would leave the values a ragged 30 characters wide: label over value, as
+   on a phone. And four step cells would be under 120px each: two by two. */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .mp-prog .mp-timing > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+  .mp-prog__steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ═══ 08 · TYPOLOGIES ═════════════════════════════════════════════════════ */
@@ -1757,126 +1903,19 @@ a.mp-menu__mail {
   color: var(--mp-ink-3);
 }
 
-/* ═══ 09 · VIDEO BAND ═════════════════════════════════════════════════════ */
-
-.mp-band {
-  position: relative;
-  min-height: clamp(520px, 74svh, 820px);
-  display: flex;
-  align-items: center;
-  isolation: isolate;
-  overflow: clip;
-  background: var(--mp-graphite);
-  padding-block: var(--mp-24);
-}
-.mp-band__media {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-}
-.mp-band__video,
-.mp-band__media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: saturate(0.5) contrast(1.06) brightness(0.66);
-}
-
-/* Fixed scrims — never a blur or an opacity on the media itself. */
-.mp-band__media::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(
-      to right,
-      var(--mp-graphite) 0%,
-      rgba(11, 12, 13, 0.9) 30%,
-      rgba(11, 12, 13, 0.42) 62%,
-      rgba(11, 12, 13, 0.22) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(11, 12, 13, 0.55) 0%,
-      transparent 28%,
-      transparent 70%,
-      rgba(11, 12, 13, 0.72) 100%
-    );
-}
-.mp-band--right .mp-band__media::after {
-  background:
-    linear-gradient(
-      to left,
-      var(--mp-graphite) 0%,
-      rgba(11, 12, 13, 0.9) 30%,
-      rgba(11, 12, 13, 0.42) 62%,
-      rgba(11, 12, 13, 0.22) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(11, 12, 13, 0.55) 0%,
-      transparent 28%,
-      transparent 70%,
-      rgba(11, 12, 13, 0.72) 100%
-    );
-}
-.mp-band__inner {
-  width: 100%;
-}
-.mp-band__col {
-  max-width: 54ch;
-}
-.mp-band--right .mp-band__col {
-  margin-inline-start: auto;
-}
-.mp-band__title {
-  font-size: var(--mp-t-h1);
-  font-weight: 500;
-  line-height: 0.98;
-  letter-spacing: var(--mp-track-tight);
-  color: var(--mp-snow);
-  margin: var(--mp-6) 0 var(--mp-8);
-}
-.mp-band__title .mp-serif {
-  color: var(--mp-gold);
-}
-.mp-band__body {
-  font-size: var(--mp-t-lead);
-  line-height: 1.6;
-  color: var(--mp-snow-2);
-  margin: 0;
-}
-.mp-band__facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--mp-8);
-  margin: var(--mp-8) 0 0;
-  padding-block-start: var(--mp-6);
-  border-block-start: 1px solid var(--mp-line-dark);
-}
-.mp-band__facts dt {
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-snow-2);
-  margin-block-end: var(--mp-2);
-}
-.mp-band__facts dd {
-  margin: 0;
-  font-size: var(--mp-t-small);
-  color: var(--mp-snow);
-}
-.mp-band__cta {
-  margin-block-start: var(--mp-8);
-}
+/* ═══ 09 · BACKGROUND-VIDEO PAUSE TOGGLE ══════════════════════════════════
+   (The full-bleed video band that used to open this section went with the
+   recertification band: the home page's only loops are the hero's and the
+   model in the new-buildings section.)
+   ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Motion toggle (WCAG 2.2.2 pause control) ──────────────────────────────
    media.tsx MotionToggle: <button class="mp-motion-toggle" aria-pressed> with
    a 12×12 pause/play glyph — one shared switch for every background loop
-   (hero foot row, video bands, BIM stage). It always sits on dark footage,
-   so it uses the dark-surface palette. Square, like every control on the
-   site; 36px, 44px where the pointer is a finger. */
+   (the hero's foot row and the model stage in the new-buildings section).
+   It always sits on dark footage, so it uses the dark-surface palette.
+   Square, like every control on the site; 36px, 44px where the pointer is a
+   finger. */
 .mp-motion-toggle {
   display: inline-grid;
   place-items: center;
@@ -1914,22 +1953,12 @@ a.mp-menu__mail {
   }
 }
 
-/* Video band: bottom corner over the footage — right when the copy is on the
-   left, left when it is on the right. Inside the band's 6rem bottom padding,
-   so it never meets the copy. */
-.mp-band__toggle {
-  position: absolute;
-  z-index: 1;
-  inset-block-end: var(--mp-6);
-  inset-inline-end: var(--mp-pad);
-}
-.mp-band--right .mp-band__toggle {
-  inset-inline-end: auto;
-  inset-inline-start: var(--mp-pad);
-}
+/* ═══ 10 · NEW BUILDINGS + TOOLCHAIN ══════════════════════════════════════ */
 
-/* ═══ 10 · BIM + TOOLCHAIN ════════════════════════════════════════════════ */
-
+/* NewBuildings.tsx, the graphite section on the home page: headline, one
+   paragraph and the four new-project services on the left, the model clip on
+   the right. The .mp-bim__* names are kept from the BIM section this grew out
+   of — the stage still shows the model. */
 .mp-bim__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
@@ -1940,6 +1969,9 @@ a.mp-menu__mail {
   font-size: var(--mp-t-h2);
   margin: 0 0 var(--mp-6);
 }
+.mp-bim__title .mp-serif {
+  color: var(--mp-gold-ink);
+}
 .mp-bim__body {
   font-size: var(--mp-t-lead);
   color: var(--mp-snow-2);
@@ -1947,28 +1979,47 @@ a.mp-menu__mail {
   max-width: 46ch;
   margin: 0;
 }
-.mp-bim__notes {
+
+/* A list of links as hairline rows, each closed by an arrow: the four
+   new-project services. It reads --mp-ink, --mp-line and --mp-gold-ink, which
+   the dark-surface block (01) remaps, so the same rules are right on graphite
+   — where it is used — and on a light surface. 48px rows: a tap target with
+   no extra box. */
+.mp-linklist {
   list-style: none;
   margin: var(--mp-8) 0 0;
   padding: 0;
-  border-block-start: 1px solid var(--mp-line-dark);
+  border-block-start: 1px solid var(--mp-line);
 }
-.mp-bim__notes li {
+.mp-linklist li {
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-linklist a {
   display: flex;
-  gap: 0.85rem;
-  padding-block: 0.85rem;
-  border-block-end: 1px solid var(--mp-line-dark);
-  font-size: var(--mp-t-small);
-  line-height: 1.55;
-  color: var(--mp-snow-2);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mp-4);
+  min-height: 48px;
+  padding-block: 0.55rem;
+  color: var(--mp-ink);
+  font-size: var(--mp-t-body);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--mp-dur) var(--mp-ease);
 }
-.mp-bim__notes li::before {
-  content: '';
-  width: 14px;
-  height: 1px;
-  margin-block-start: 0.75em;
+.mp-linklist i {
   flex: none;
-  background: var(--mp-gold);
+  font-style: normal;
+  color: var(--mp-gold);
+  transition: transform var(--mp-dur) var(--mp-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-linklist a:hover {
+    color: var(--mp-gold-ink);
+  }
+  .mp-linklist a:hover i {
+    transform: translateX(4px);
+  }
 }
 .mp-bim__stage {
   position: relative;
@@ -2443,17 +2494,18 @@ a.mp-menu__mail {
   color: var(--mp-ink-3);
 }
 
-/* Service cards (Expertise index, Existing Buildings index). Two columns at
-   every desktop width — the tracks hold 4 and 3 cards, so three columns would
-   orphan one card in the 4-card track. */
+/* Service cards (Services index, Existing Buildings index). Two columns at
+   every desktop width — both tracks hold 4 cards, so three columns would
+   orphan one card in each. */
 .mp-svcgrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(2.5rem, 4vw, 4rem) clamp(1.5rem, 3vw, 3rem);
 }
-/* An odd last card (the 3-card existing-buildings track) spans the row as a
-   horizontal card — photo left, text right — instead of sitting alone with
-   an empty half beside it. Only while the grid has two columns. The photo
+/* An odd last card spans the row as a horizontal card — photo left, text
+   right — instead of sitting alone with an empty half beside it. No track is
+   odd today (4 and 4); the rule stays so a fifth service, or a track back at
+   three, still closes the grid. Only while it has two columns. The photo
    is taken out of flow and the media box stretches to the text column, so
    the text sets the card's height (a portrait source would otherwise make
    the card as tall as the photo and leave the text column half empty). */
@@ -2492,15 +2544,20 @@ a.mp-menu__mail {
   color: var(--mp-ink);
 }
 
-/* Regulatory trigger table — the "when it applies" block on the two
-   existing-building services. */
+/* Regulatory trigger table — the "when it applies" block on the three
+   regulated existing-building services, inside a jurisdiction card (20), and
+   the same rows, bare, in the home page's two program sections (07). */
 .mp-timing {
   margin: 0;
   border-block-start: 1px solid var(--mp-line);
 }
+/* 12rem, not 10: the longest English label, 'CONDOMINIUMS & CO-OPS', needs
+   ~190px at this size and tracking, and in a narrower column it broke at the
+   hyphen ('CO-' / 'OPS'). The longer Spanish labels still wrap, between
+   words. */
 .mp-timing > div {
   display: grid;
-  grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
   gap: var(--mp-4);
   padding-block: 0.7rem;
   border-block-end: 1px solid var(--mp-line);
@@ -2528,11 +2585,17 @@ a.mp-menu__mail {
   letter-spacing: 0.04em;
   color: var(--mp-ink-faint);
 }
+/* 'Last verified: October 4, 2026' where it shares a line with the authority
+   (the home program sections): the date stays in one piece when the line
+   wraps. */
+.mp-timing__checked {
+  white-space: nowrap;
+}
 
-/* Cross-links between services. auto-fit, not a fixed three: the
-   existing-building services have only two same-track siblings, and a fixed
-   third track stood blank under the full-width top rule. Empty tracks
-   collapse, so 3 links give three equal columns and 2 give two. */
+/* Cross-links between services. Every service has three same-track siblings
+   today, so this is three equal columns. auto-fit, not a fixed three, so a
+   track that shrinks never leaves a blank column under the full-width top
+   rule: empty tracks collapse, and 2 links give two columns. */
 .mp-more {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
@@ -3130,20 +3193,6 @@ a.mp-menu__mail {
   .mp-more a {
     border-inline-end: 0;
   }
-
-  /* The band scrim is directional: opaque under the text column, clearing at
-     the far edge so the footage is visible. That geometry is only true
-     side-by-side. Below this width the copy runs the full width and would
-     cross into the clear end, so the stacked layout gets a flat scrim. */
-  .mp-band__media::after,
-  .mp-band--right .mp-band__media::after {
-    background: linear-gradient(
-      to bottom,
-      rgba(11, 12, 13, 0.82) 0%,
-      rgba(11, 12, 13, 0.88) 45%,
-      rgba(11, 12, 13, 0.93) 100%
-    );
-  }
 }
 
 @media (max-width: 900px) {
@@ -3274,30 +3323,60 @@ a.mp-menu__mail {
   }
 }
 
-/* The two client doors stay side by side down to 701px: two ~340px columns
-   fit at 768, and stacked they were two 698×480 photographs and double the
-   section's height. */
-@media (max-width: 700px) {
-  .mp-paths {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 640px) {
+  /* The hero strip on a phone: four links in one column, each a 44px row,
+     beside the motion toggle. One column because no two labels share a 290px
+     row anyway — a wrapping row only produced a ragged list — and 44px
+     because these are the links a thumb takes into the page. */
   .mp-hero__caps {
-    gap: var(--mp-2) var(--mp-6);
-    padding-block: var(--mp-4);
+    flex-direction: column;
+    gap: 0;
+    padding-block: var(--mp-2);
   }
-  /* The foot row also holds the motion toggle; a no-wrap Spanish label
-     ('Evaluación de edificios existentes') ran under it at 320–360px. */
+  /* The foot row also holds the motion toggle; a no-wrap label
+     ('MIAMI-DADE · RECERTIFICATION') ran under it at 320px. */
   .mp-hero__caps li {
     white-space: normal;
     align-items: flex-start;
   }
-  /* …and a wrapped label keeps its marker on the FIRST line, not centred
-     between the two (no lh support: it sits at the top, still right). */
+  /* The padding makes a one-line link exactly 44px tall with its text
+     centred, at any pointer type; a label that wraps simply grows by a line.
+     (No `lh` support: the fixed 0.775rem gives the same 44px at this size.) */
+  .mp-hero__caps a {
+    padding-block: 0.775rem;
+    padding-block: calc((44px - 1lh) / 2);
+  }
+  /* …and the marker sits level with the FIRST line of the label, wrapped or
+     not: half of the 44px row, less half its own 4px. */
   .mp-hero__caps li::before {
-    margin-block-start: calc((1lh - 4px) / 2);
+    margin-block-start: 20px;
+  }
+  /* The toggle stays level with the first link instead of floating at the
+     middle of a four-row list. */
+  .mp-hero__footrow {
+    align-items: flex-start;
+  }
+  .mp-hero__footrow .mp-motion-toggle {
+    margin-block-start: var(--mp-2);
+  }
+  /* The program headlines (07) drop from the h1 step to the h2 step: at 38px
+     'recertification.' is wider than a 320px screen's column. */
+  .mp-prog__title {
+    font-size: var(--mp-t-h2);
+  }
+  /* …and their four steps become four hairline rows, index beside label:
+     four 80px cells cannot hold 'Revisión de la notificación'. */
+  .mp-prog__steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-prog__steps li {
+    grid-template-columns: 2rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0;
+    padding-block: 0.7rem;
+    border-block-start-color: var(--mp-line);
   }
   .mp-typo {
     grid-template-columns: minmax(0, 1fr);
@@ -3349,11 +3428,16 @@ a.mp-menu__mail {
   .mp-header__lockup {
     --hdr-mark-h: 32px;
   }
+  /* 'Última verificación: 4 de octubre de 2026' is within a few px of a
+     320px screen's column: let it wrap there rather than risk a scrollbar. */
+  .mp-timing__checked {
+    white-space: normal;
+  }
 }
 
 /* ═══ 20 · V3 — CREDIBILITY & CONVERSION ══════════════════════════════════
-   Added 2026-09: the engineer, the two doors, services in the client's
-   terms, the five-step process, attachments on the proposal request, and
+   Added 2026-09: the engineer, services in the client's terms, the
+   five-step process, attachments on the proposal request, and
    one quiet drawing-sheet motif — a faint plan grid on dark surfaces. No
    drawn objects, no line-art. (The language switch that arrived with it
    lives in 04 · HEADER.) Its responsive rules are at the end of this
@@ -3390,53 +3474,8 @@ a.mp-menu__mail {
   );
 }
 
-/* ── Two paths: service lists inside each door ───────────────────────────── */
-.mp-path__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 var(--mp-3);
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-ink-3);
-  font-weight: 500;
-}
-.mp-path__services {
-  list-style: none;
-  margin: var(--mp-6) 0 0;
-  padding: 0;
-  border-block-start: 1px solid var(--mp-line);
-}
-.mp-path__services li {
-  border-block-end: 1px solid var(--mp-line);
-}
-.mp-path__services a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--mp-4);
-  min-height: 46px;
-  padding-block: 0.55rem;
-  color: var(--mp-ink);
-  font-size: var(--mp-t-body);
-  font-weight: 500;
-  text-decoration: none;
-  transition: color var(--mp-dur) var(--mp-ease);
-}
-.mp-path__services i {
-  font-style: normal;
-  color: var(--mp-gold);
-  transition: transform var(--mp-dur) var(--mp-ease);
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-path__services a:hover {
-    color: var(--mp-gold-ink);
-  }
-  .mp-path__services a:hover i {
-    transform: translateX(4px);
-  }
-}
+/* (The two client doors that lived here are gone; their service list became
+   .mp-linklist, in 10.) */
 
 /* ── The engineer ────────────────────────────────────────────────────────── */
 .mp-eng__grid {
@@ -3900,6 +3939,35 @@ a.mp-menu__mail {
   font-weight: 500;
   letter-spacing: -0.015em;
 }
+/* ONE jurisdiction — every regulated service today: Miami-Dade and Broward
+   have a page each, and the milestone page carries the State's row. Alone in
+   the auto-fit grid, the card stretched across the whole shell and its
+   250-character values ran as single 1,100px lines. So the card takes the
+   wider column and its own notes (the timing note, the date it was verified,
+   the link to the other county's page) stand beside it. */
+.mp-juris--single {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 5rem);
+  align-items: start;
+  margin-block-end: 0;
+}
+.mp-juris__aside > :first-child {
+  margin-block-start: 0;
+}
+/* "Building in Broward?" + the link to that county's page: the last thing in
+   the block, under its own hairline, so it reads as a way out rather than as
+   one more note. */
+.mp-timing__cross {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mp-2) var(--mp-4);
+  margin-block: var(--mp-6) 0;
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line);
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
 .mp-pillars--plain b {
   font-family: var(--mp-mono);
   font-weight: 500;
@@ -4135,6 +4203,11 @@ a.mp-menu__mail {
   .mp-cols2 {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* The single jurisdiction card and its notes stack: card, then notes. */
+  .mp-juris--single {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--mp-6);
+  }
 }
 @media (max-width: 860px) {
   .mp-steps {
@@ -4217,7 +4290,6 @@ a.mp-menu__mail {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
-  .mp-path:hover .mp-path__photo,
   .mp-typo__link:hover .mp-typo__img,
   .mp-typo__link:focus-visible .mp-typo__img,
   .mp-svc:hover .mp-svc__media img,
@@ -4266,13 +4338,11 @@ a.mp-menu__mail {
   .mp-motion-toggle,
   .mp-hero__photo,
   .mp-phero__photo,
-  .mp-band__media,
   .mp-grid-bg {
     display: none !important;
   }
   .mp,
   .mp-surface--graphite,
-  .mp-band,
   .mp-phero,
   .mp-footer {
     background: #fff !important;
@@ -4281,7 +4351,6 @@ a.mp-menu__mail {
   /* Text that was snow or gold on a dark surface would print white on
      white. */
   .mp-hero *,
-  .mp-band *,
   .mp-close *,
   .mp-phero *,
   .mp-surface--graphite *,
@@ -4299,10 +4368,13 @@ a.mp-menu__mail {
   .mp .mp-enter {
     animation: none !important;
   }
-  /* The first-screen heights mean nothing on paper once the footage is gone. */
-  .mp-hero,
-  .mp-band {
+  /* The first-screen height means nothing on paper once the footage is gone. */
+  .mp-hero {
     min-height: 0 !important;
+  }
+  /* A sticky plate (07) has nothing to travel with on a printed page. */
+  .mp-prog__media {
+    position: static !important;
   }
   /* The footer lockup is the white logo, for a dark footer: on white paper
      only its gold stroke would show. The same real file prints on a small
@@ -4396,13 +4468,9 @@ a.mp-menu__mail {
   .mp-tool__plate {
     --plate-h: clamp(46px, 3vw, 58px);
   }
-  .mp-paths__title {
-    font-size: clamp(4.6rem, 4.4vw, 6.4rem);
-  }
   .mp-close__title {
     font-size: clamp(4.6rem, 4.3vw, 6.2rem);
   }
-  .mp-paths__title,
   .mp-hero__title,
   .mp-close__title {
     letter-spacing: -0.036em;
@@ -4439,12 +4507,6 @@ a.mp-menu__mail {
   .mp-intro__title {
     max-width: 16em;
   }
-  .mp-paths__intro {
-    max-width: none;
-  }
-  .mp-paths__title {
-    max-width: 10em;
-  }
 }
 
 @media (min-width: 2000px) {
@@ -4455,9 +4517,6 @@ a.mp-menu__mail {
     --mp-t-h1: 6.25rem;
     --mp-section-y: 11rem;
     --mp-section-y-lg: 14rem;
-  }
-  .mp-paths__title {
-    font-size: 7.25rem;
   }
   .mp-close__title {
     font-size: 6.75rem;

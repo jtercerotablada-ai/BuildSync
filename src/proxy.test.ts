@@ -1066,14 +1066,46 @@ describe("next.config.ts — retired URL redirects", () => {
     ["/v2/services", "/services"],
     ["/v2/services/peer-review", "/services/peer-review"],
     ["/about.html", "/about"],
+    // The service renamed when Broward's BSIP got its own page. One rule per
+    // language: the Spanish URL must land on the Spanish page.
+    ["/services/building-safety-inspections", "/services/milestone-inspections"],
+    ["/es/services/building-safety-inspections", "/es/services/milestone-inspections"],
   ])("308s %s to %s", async (from, to) => {
     expect(await resolve(from)).toEqual({ to, permanent: true });
   });
 
   it("leaves the live pages alone", async () => {
-    for (const path of ["/", "/about", "/v2x", "/es/v2"]) {
+    for (const path of [
+      "/",
+      "/about",
+      "/v2x",
+      "/es/v2",
+      // Every real page, service pages included: a redirect whose source is a
+      // live page would take that page off the site.
+      ...EN_PUBLIC_PAGES,
+      ...ES_PUBLIC_PAGES,
+      // The renamed slug is an exact match, not a prefix.
+      "/services/building-safety-inspections-x",
+      "/services/building-safety-inspections/x",
+    ]) {
       expect(await resolve(path), path).toBeNull();
     }
+  });
+
+  it("sends the renamed service to pages that exist, in the same language", async () => {
+    // The destination is a literal in next.config.ts while the slug lives in
+    // site.ts: a later rename there would leave these pointing at a 404.
+    const en = await resolve("/services/building-safety-inspections");
+    const es = await resolve("/es/services/building-safety-inspections");
+    expect(EN_PUBLIC_PAGES).toContain(en?.to);
+    expect(ES_PUBLIC_PAGES).toContain(es?.to);
+    expect(services.map((s) => s.slug)).not.toContain("building-safety-inspections");
+    // And the old URLs are no longer pages, so only the redirect answers them
+    // (the proxy alone would rewrite them to the public 404).
+    expect(publicNotFoundTarget("/services/building-safety-inspections")).toBe(PUBLIC_NOT_FOUND);
+    expect(publicNotFoundTarget("/es/services/building-safety-inspections")).toBe(
+      PUBLIC_NOT_FOUND_ES,
+    );
   });
 
   it("the proxy no longer carries a /v2 rule of its own", () => {

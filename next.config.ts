@@ -133,7 +133,7 @@ const nextConfig: NextConfig = {
   // Retired public URLs → their current twins, instead of a 404. 308: these
   // moves are final. They run BEFORE the proxy, so they work on either host
   // and no proxy rule (the host split's fail-closed 404, the public 404) can
-  // shadow them. proxy.test.ts pins the /v2 pair.
+  // shadow them. proxy.test.ts pins the /v2 pair and the renamed service.
   //
   // - The retired static site (github.com/jtercerotablada-ai/tercero-tablada-
   //   website) published exactly the five .html pages; old bookmarks and any
@@ -145,6 +145,15 @@ const nextConfig: NextConfig = {
   //   instead of 308ing to /about. Bare /v2 has its own entry so it goes to
   //   the home page rather than depending on how `:path*` treats zero
   //   segments.
+  // - /services/building-safety-inspections was renamed to
+  //   /services/milestone-inspections when Broward's Building Safety
+  //   Inspection Program got its own page (/services/broward-bsip): the old
+  //   slug was one word away from the program's name and would have competed
+  //   with it. Exact paths, one per language — the Spanish page lives under
+  //   /es and a redirect must not change the visitor's language. Without
+  //   these the proxy would answer the old URL with the public 404 (it is no
+  //   longer a slug in site.ts). proxy.test.ts pins both, and that every
+  //   destination is a page that exists.
   async redirects() {
     return [
       { source: "/index.html", destination: "/", permanent: true },
@@ -154,6 +163,16 @@ const nextConfig: NextConfig = {
       { source: "/contact.html", destination: "/contact", permanent: true },
       { source: "/v2", destination: "/", permanent: true },
       { source: "/v2/:path*", destination: "/:path*", permanent: true },
+      {
+        source: "/services/building-safety-inspections",
+        destination: "/services/milestone-inspections",
+        permanent: true,
+      },
+      {
+        source: "/es/services/building-safety-inspections",
+        destination: "/es/services/milestone-inspections",
+        permanent: true,
+      },
     ];
   },
 };

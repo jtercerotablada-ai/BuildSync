@@ -9,9 +9,9 @@
  *
  * ⚠ RULES — keep these when adding assets:
  *
- *   • LICENSE. Every photograph and every clip except `bimAssembly` is
- *     Pexels-licensed: free for commercial use, no attribution required,
- *     modification allowed. `bimAssembly` comes from the firm's paid Artgrid
+ *   • LICENSE. Every photograph, and the hero clip, is Pexels-licensed: free
+ *     for commercial use, no attribution required, modification allowed. The
+ *     other clip, `bimAssembly`, comes from the firm's paid Artgrid
  *     subscription — also commercial use with no attribution, but a
  *     different license. Provenance of every file (source
  *     id, author, what it replaced) lives in `docs/IMAGE-CREDITS.md`, outside
@@ -23,12 +23,16 @@
  *     one entry at a time, without touching a component.
  *
  *   • ONE PLACEMENT PER ASSET. Repeating a photograph across the site reads as
- *     thin. `site.ts` allocates each of these exactly once; if you add a
+ *     thin. `site.ts` allocates each of these at most once; if you add a
  *     placement, add a photograph. (A service's card photo reappearing as the
- *     hero of that same service's page is one placement seen from two doors,
- *     not a reuse. So is a SHARED section component rendered on more than one
- *     page — SouthFloridaMap on Home and Contact, the EngineerSection plate on
- *     the Home teaser and About: one slot in site.ts, one placement.)
+ *     hero of that same service's page — and, for the two county programs, as
+ *     the plate of that program's home section — is one placement seen from
+ *     different doors, not a reuse. So is a SHARED section component rendered
+ *     on more than one page — SouthFloridaMap on Home and Contact, the
+ *     EngineerSection plate on the Home teaser and About: one slot in
+ *     site.ts, one placement.) Two entries are spares with no placement at
+ *     all, `frameCraneSky` and `midriseBalconies`; each says so where it is
+ *     declared.
  *
  *   • `alt` is written for the case where the image is CONTENT. Where a photo
  *     is purely atmospheric the component passes `alt=""` itself — an empty
@@ -149,10 +153,6 @@ const catalogue = {
     'bim-wireframe-model', 2000, 2500,
     'Wireframe model of a building’s structure and services',
   ),
-  recertBalconiesBw: p(
-    'recert-balconies-bw', 2000, 3557,
-    'Grid of concrete balcony openings up an existing building',
-  ),
   peerTowerBw: p(
     'peer-tower-bw', 2000, 1333,
     'Fluted concrete tower seen from its base against a flat sky',
@@ -195,7 +195,9 @@ const catalogue = {
   ),
 
   /* ── Frames under construction ──────────────────────────────────────── */
-  /* The home "I am building something new" door. It replaced
+  /* Was the home "I am building something new" door, and has had no placement
+     since the two doors left the home page (2026-10-04) — a spare, kept
+     because it is the cleanest new-build frame in the set. It replaced
      `frame-tower-sunlit`, which was byte-identical to the gallery's
      `frame-tower` (one photograph in two places) and read as a derelict frame
      on a dirt lot. This is the opposite: a clean cast-in-place frame, formwork
@@ -253,7 +255,44 @@ const catalogue = {
     'Miami skyline seen from the water under moving cloud',
   ),
 
+  /* ── The two county programs ────────────────────────────────────────────
+     Chosen AS A PAIR, one per program: the same height, the same midday
+     light, white concrete against water, so the two home sections mirror each
+     other. Both are wide views of MANY buildings, on purpose — most of them
+     the ordinary balconied concrete stock these programs reach.
+     One recognisable building beside the word "recertification" says that
+     building has a problem. The frame these replace said it outright:
+     `recert-balconies-bw` was a derelict facade with broken glass and razor
+     wire.
+
+     Keep it that way. By its Pexels page each was taken in the county whose
+     program it illustrates (docs/IMAGE-CREDITS.md), so the pairing in
+     `site.ts` is honest — but the alt text names no city, county or building,
+     and no caption may: nothing here shows a building that received a notice,
+     and nothing here is a Tercero Tablada project.
+
+     The first is retouched once: a faint wordmark on one white facade, too
+     small to read at this size, was filled from the wall around it. See
+     docs/IMAGE-CREDITS.md.
+
+     Its focal point matters only in boxes narrower than the 3:2 frame (the
+     4:5 plate, a phone hero). Centred, such a box cuts through a newer glass
+     tower at the left edge; 70% moves the window onto the group of white
+     balcony buildings, which is the subject. Wider boxes crop top and bottom
+     only and stay centred. */
+  recertMiamiDade: p(
+    'recert-miami-dade', 2000, 1334,
+    'Aerial view of a row of beachfront mid-rise and high-rise buildings in South Florida, with a bay and a city skyline in the distance',
+    '70% 50%',
+  ),
+  bsipBroward: p(
+    'bsip-broward', 2000, 1333,
+    'Aerial view along a South Florida waterway lined with mid-rise and high-rise residential buildings, the ocean beyond them',
+  ),
+
   /* ── Existing mid-rise stock ────────────────────────────────────────── */
+  /* `midriseBalconies` was the home "I own or manage an existing building"
+     door; like `frameCraneSky` it has had no placement since 2026-10-04. */
   midriseBalconies: p(
     'midrise-balconies', 2000, 1348,
     'Cantilevered balconies stacked up an existing residential building',
@@ -300,24 +339,29 @@ export type PhotoKey = keyof typeof catalogue;
 /* ═══════════════════════════════════════════════════════════════════════════
    VIDEO
    ═══════════════════════════════════════════════════════════════════════════
-   Short silent loops, H.264, 1920-wide, trimmed to 10–12 s and encoded to sit
-   under ~3 MB each. Every one ships with a poster frame: the poster is what a
-   reduced-motion visitor sees, what paints before the clip is buffered, and
-   what a data-saver connection is left with. A loop that only works when it
-   plays is not usable — treat the poster as the real asset.
+   Two short silent loops, H.264, 1920-wide, trimmed to 10–12 s and encoded to
+   sit under ~3 MB each. Every one ships with a poster frame: the poster is
+   what a reduced-motion visitor sees, what paints before the clip is
+   buffered, and what a data-saver connection is left with. A loop that only
+   works when it plays is not usable — treat the poster as the real asset.
+
+   There were three. The recertification band and its aerial clip
+   (`existing-midrise`) were retired on 2026-10-04: the county-program
+   sections that now follow the hero are photographs, so no second video
+   starts downloading right behind the hero's.
 
    PHONE RENDITIONS. A phone shows these through a dark scrim at a few hundred
    CSS px, so the 1080p file is weight it cannot see. Each placed clip also
    ships `<name>-mobile.mp4` (≤ 720 wide, H.264 High, CRF 27–31 with a
    maxrate cap, faststart, no audio track, same length and frame count as the
-   desktop file) and a matching `<name>-mobile-poster.jpg`. Full-bleed clips
-   (hero, band) get a 608×1080 PORTRAIT crop — the phone box is portrait, so a
-   landscape file would spend two thirds of its pixels off-screen. The hero
-   crop is centred on the phone framing its CSS already asked for
-   (`object-position: 56% 22%`), the band crop on the frame centre it
-   inherits; the BIM stage is 16:9 at every width, so its phone file is the
-   same frame at 720×406. `VideoLoop` offers the mobile file under
-   `(max-width: 700px)`.
+   desktop file) and a matching `<name>-mobile-poster.jpg`. A full-bleed clip
+   (today only the hero) gets a 608×1080 PORTRAIT crop — the phone box is
+   portrait, so a landscape file would spend two thirds of its pixels
+   off-screen. The hero crop is centred on the phone framing its CSS already
+   asked for (`object-position: 56% 22%`); a full-bleed clip with no such rule
+   is cropped on the frame centre. The model clip is not full-bleed — it was
+   cut for a 16:9 stage — so its phone file is the same frame at 720×406.
+   `VideoLoop` offers the mobile file under `(max-width: 700px)`.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type Clip = {
@@ -353,23 +397,12 @@ const clips = {
     'Aerial pass over the Miami waterfront and its concrete towers',
     { mobile: true },
   ),
-  /* The recertification band. The previous clip carried a legible hotel sign
-     in every frame — a named real building beside a recertification pitch
-     reads as a client, which the site must never imply. This one is a slow
-     pull-back over three coastal condominium towers on a barrier island, and
-     every frame was checked at full resolution for names and logos: there are
-     none. 11 s from the middle of the source move; the last 0.4 s cross-fades
-     into the first frame, so the loop point is a dissolve, not a jump. */
-  existingMidrise: v(
-    'existing-midrise',
-    'Aerial pull-back over three coastal condominium towers and the beach in front of them',
-    { mobile: true },
-  ),
   /* The only clip that is not photography, and the only one that earns the
      exception: it is a structural model assembling floor plate by floor plate,
      which is the one thing on this site a camera cannot be pointed at. It
-     replaced the inline SVG wireframe in the home BIM stage — a drawing of a
-     model, which is not a model.
+     replaced the inline SVG wireframe in what was the home BIM stage — a
+     drawing of a model, which is not a model. `site.ts` now allocates it to
+     the home new-buildings section that took that stage's place.
 
      The source runs 5.25 s one-way, so it ships as a palindrome — forward,
      then reversed with the duplicated frames dropped at both the turn and the

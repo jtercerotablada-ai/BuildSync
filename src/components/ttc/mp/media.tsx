@@ -132,9 +132,9 @@ export function Img({
 /* ── Motion switch (shared by every loop on the page) ────────────────────── */
 
 /**
- * One module-level store rather than React context: the hero, the video band
- * and the BIM stage are siblings with no common client parent, and the switch
- * has to hold across client-side navigations too.
+ * One module-level store rather than React context: the hero and the model
+ * stage in the new-buildings section are siblings with no common client
+ * parent, and the switch has to hold across client-side navigations too.
  *
  * The server snapshot is always "playing", so the markup is identical on the
  * server and the first client pass; a stored "paused" arrives in the render

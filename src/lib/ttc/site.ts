@@ -22,9 +22,20 @@
  *   • Photographs and video come from `media.ts` and illustrate TYPOLOGIES and
  *     SERVICES — never a specific job. Read that file's rules before adding a
  *     placement; the "one placement per asset" rule is enforced by hand.
- *   • Regulatory thresholds (recertification ages) are per JURISDICTION and
- *     they move. Every published number names its authority and the date it
- *     was last checked. Re-verify before amending.
+ *   • Regulatory thresholds (ages, deadlines) are per JURISDICTION and they
+ *     move. Each county's numbers live ONLY in that county's own timing row
+ *     — Miami-Dade's on `building-recertification`, Broward's on
+ *     `broward-bsip` — never merged into one sentence, and never repeated in
+ *     a headline, a lede or a meta description. Every row names its authority
+ *     and carries the one shared date, `regulatoryChecked`. Re-verify against
+ *     the primary source before amending, then move that date.
+ *   • Never on this site: fees, fine amounts, phase-in years, a computed due
+ *     year, "40-year" as if it were a current trigger, or any promise about
+ *     how a reviewing office will act.
+ *   • Both county programs ask for a structural report AND an electrical one.
+ *     The firm prepares the structural report. Never write that it delivers
+ *     "structural and electrical", and never imply it signs threshold
+ *     buildings (over three stories or 50 feet) — see the two program pages.
  */
 
 import { photo, video, type Photo, type Clip } from './media';
@@ -49,9 +60,13 @@ export const company = {
   shortName: 'Tercero Tablada',
   discipline: 'Civil & Structural Engineering',
   url: 'https://ttcivilstructural.com',
-  /** Used in <meta description> fallbacks and Organization schema. */
+  /**
+   * Used in <meta description> fallbacks, the footer tag and Organization
+   * schema. Existing buildings first, each county's program by its own name
+   * — the order the whole site now follows. No number belongs here.
+   */
   description:
-    'Structural engineering for South Florida — structural design for new buildings, evaluation of existing buildings, building recertification, milestone and safety inspections, and BIM coordination across Miami-Dade and Broward.',
+    'Structural engineering for South Florida — building recertification in Miami-Dade, the Building Safety Inspection Program (BSIP) in Broward, structural assessments and repair design, and the structural design of new buildings.',
   tagline: 'Structural Engineering for South Florida.',
   /**
    * Two real brand assets, both supplied by the client — never redraw either.
@@ -217,6 +232,8 @@ export const ui = {
   coverage: 'Coverage',
   verified: 'Verified',
   lastChecked: 'Last verified',
+  /** Prefix for a timing row's authority where a layout prints it inline. */
+  sourceLabel: 'Source',
   footer: {
     services: 'Services',
     contact: 'Contact',
@@ -360,14 +377,25 @@ export const hero = {
   /** Line breaks of the headline as rendered; the accent word is italic serif. */
   titleLines: ['Structural Engineering', 'for South Florida.'],
   accentWord: 'South Florida.',
-  sub: 'Structural design for new buildings, evaluation of existing ones, building recertification and BIM coordination — led by a Florida Professional Engineer who stays on your project from the first conversation to the final report.',
+  /* The headline and both buttons are the owner-approved ones and did not
+     change. The sub-line now names the two county programs first, by the
+     names printed on the letters people receive, and carries NO regulatory
+     number: every age and deadline lives in a timing row that names its
+     authority and its date. */
+  sub: 'Miami-Dade building recertification, Broward’s Building Safety Inspection Program (BSIP) and structural design for new buildings — led by a Florida Professional Engineer who stays on your project from the first conversation to the final report.',
   primary: { href: '/contact', label: 'Request a Proposal' },
   secondary: { href: '/services', label: 'Explore Our Services' },
+  /**
+   * The strip under the hero is four links, not four labels. A `#hash` href
+   * is an anchor on the home page itself (the ids come from
+   * `Service.program.id` and the new-buildings section) and is rendered
+   * as-is; a path href goes through the locale helper like any other link.
+   */
   caps: [
-    'Structural design',
-    'Existing-building evaluation',
-    'Building recertification',
-    'BIM coordination',
+    { label: 'Miami-Dade · Recertification', href: '#miami-dade' },
+    { label: 'Broward · BSIP', href: '#broward' },
+    { label: 'Assessments & repair design', href: '/services/structural-condition-assessments' },
+    { label: 'New-building design', href: '#new-buildings' },
   ],
 } as const;
 
@@ -376,6 +404,20 @@ export const hero = {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type ServiceTrack = 'new' | 'existing';
+
+/**
+ * The ONE date every regulatory row on the site was last checked against its
+ * primary source — the county codes, the Board of Rules and Appeals policy
+ * and the state statute. It feeds `timing.checked` of the three regulated
+ * services, and through them the two program sections on the home page, so
+ * there is a single value to move after a re-verification. `site.es.ts`
+ * carries the same date in Spanish.
+ *
+ * Move it only after re-reading the sources, never as a formality. Due again
+ * no later than January 2027: the 9th Edition Florida Building Code takes
+ * effect on December 31, 2026.
+ */
+export const regulatoryChecked = 'October 4, 2026';
 
 export type Service = {
   slug: string;
@@ -413,23 +455,540 @@ export type Service = {
   /**
    * When the obligation is triggered. Only the regulated existing-building
    * services carry one. Every row names its JURISDICTION, because Miami-Dade,
-   * Broward and the State each set a different clock.
+   * Broward and the State each set a different clock — and each row sits on
+   * its own page, so a number can never be read against the wrong county.
    *
    * THESE NUMBERS ARE REGULATORY AND THEY MOVE. `source` names the authority
-   * and `checked` the date the row was last verified. Re-verify before amending.
+   * and `checked` (always `regulatoryChecked`) the date the row was last
+   * verified. Re-verify before amending.
+   *
+   * On the two county programs, `rows[0]` is ALSO what the home page prints
+   * (ProgramSection): the same six labels, in the same order, on both, so
+   * the two counties compare line by line. Do not restate a number from a
+   * row anywhere else in the service — point at the row instead.
    */
   timing?: {
     checked: string;
     note: string;
     rows: { jurisdiction: string; source: string; facts: { k: string; v: string }[] }[];
   };
+  /**
+   * The service-hero "Coverage" fact, e.g. 'Miami-Dade County, Florida'.
+   * Only the two county programs set it; every other service falls back to
+   * `contact.serviceAreaLabel` (both counties).
+   */
+  coverage?: string;
+  /**
+   * JSON-LD `areaServed`. Default: both counties. A county program must not
+   * tell a search engine it is offered in the other county. Place names stay
+   * in English in both languages: they are identifiers, not copy.
+   */
+  areaServed?: string[];
+  /**
+   * The sibling county's page — "Building in Broward?" + "See the BSIP" →
+   * /services/<slug>. The two programs never share a page or a number, so
+   * each one points at the other instead.
+   */
+  crossLink?: { text: string; label: string; slug: string };
+  /**
+   * The home-page section of a county program. ONLY `building-recertification`
+   * and `broward-bsip` carry one. The section's numbers are NOT here: it
+   * prints `timing.rows[0]` and `timing.checked`. The one number a `program`
+   * holds is the filing deadline in its headline, which must always equal
+   * the row's "Time to file".
+   */
+  program?: {
+    /** Anchor id on the home page: 'miami-dade' | 'broward' (see `hero.caps`). */
+    id: string;
+    /** SectionHeading label. */
+    eyebrow: string;
+    /** Two lines; the two programs are deliberately parallel. */
+    titleLines: string[];
+    /** ONE accent, and it falls on the thing that differs between counties. */
+    accentWord: string;
+    /** One paragraph, 55 words at most, no number. */
+    lede: string;
+    /** Four short labels: the published six-step sequence, compressed. */
+    steps: string[];
+    /** What the firm signs and what it does not. Never cut for space. */
+    scopeNote: string;
+    /** Solid button → /contact?service=<slug>. */
+    cta: string;
+    /** One line under the button: what to send, with or without a notice. */
+    ctaNote: string;
+    /** Text link → /services/<slug>. */
+    detail: string;
+  };
   seo: { title: string; description: string; keywords: string[] };
 };
 
 export const services: Service[] = [
+  /* ── EXISTING BUILDINGS — listed first everywhere ───────────────────────
+     This array's order IS the order of the /services tracks, the footer
+     column and the contact-form dropdown: existing buildings first, and the
+     two county programs first among them.
+
+     Miami-Dade's recertification and Broward's BSIP are different programs,
+     under different authorities, with different clocks. Each has its own
+     page and its own numbers; neither page states the other county's, and
+     each ends in a cross-link to the other. A number read against the wrong
+     county is the most expensive mistake this site can make.
+
+     Both pages publish the sequence the counties themselves give owners: the
+     report is filed FIRST, even when it lists repairs; repairs follow under
+     permit; an amended report (in Broward, with a completion letter) closes
+     the file. The six process steps carry the same labels on both pages on
+     purpose. The site used to put "Submission" last, after the repairs.
+
+     Facts verified 2026-10-04 against the primary sources (county code,
+     Board of Rules and Appeals policy, state statute). Not published on
+     purpose, because the sources leave them open or they vary by city: fees
+     and fines, phase-in years for buildings that were already past the
+     trigger age, the base year of Broward's ten-year cycle, and whether a
+     Miami-Dade condominium may rely on the state's longer filing period. */
+  {
+    slug: 'building-recertification',
+    n: '01',
+    title: 'Miami-Dade Building Recertification',
+    shortTitle: 'Miami-Dade Recertification',
+    track: 'existing',
+    coverage: 'Miami-Dade County, Florida',
+    areaServed: ['Miami-Dade County, Florida'],
+    summary:
+      'A clear path from the Miami-Dade notice to a closed recertification — inspection, the structural report on the county’s form, repair scope, reinspection.',
+    problemTitle: 'A notice arrives with a deadline.',
+    problem:
+      'The Notice of Required Inspection comes with forms and very little explanation of what actually has to happen. Boards and owners need someone who knows the county’s sequence and can carry the structural side of it from the first site visit to the report that closes the recertification.',
+    audience: [
+      'Condominium, cooperative and homeowner associations',
+      'Property managers',
+      'Building owners and asset managers',
+    ],
+    when: [
+      'A Notice of Required Inspection has arrived from your city or from Miami-Dade County — or a courtesy notice says one is on its way.',
+      'A previous report listed repairs, and the building still needs its reinspection and the amended report that closes the recertification.',
+      'You are buying or managing a Miami-Dade building and want to know where it stands in the recertification cycle.',
+    ],
+    capabilities: ['Notice review', 'Structural inspection', 'Report on the county’s form', 'Repair scope', 'Reinspection'],
+    /* Scope = work the engineer does; deliverables = documents the client
+       keeps. Four of six scope lines used to restate a deliverable. */
+    scope: [
+      'Review of the notice, the building’s records and prior reports',
+      'Structural inspection on site — frame, slabs, balconies, facade, roof and foundations',
+      'Classification of observed conditions by structural significance',
+      'Repair scope defined so contractors bid the same work',
+      'Reinspection of completed repairs',
+      'Answers to the reviewing office’s questions on the structural report',
+    ],
+    /* The county's order, not the order the site used to publish: file the
+       report first (even if it lists repairs), repair under permit, close
+       with an amended report. Same six labels as the Broward page. */
+    process: [
+      { step: 'Notice review', detail: 'We read the notice and the building’s history, and confirm what the Building Official is asking for and by when.' },
+      { step: 'Inspection', detail: 'Structural inspection on site — frame, slabs, balconies, facade, roof and exposed foundations — documented with photographs tied to their locations.' },
+      { step: 'Report filed', detail: 'The structural report goes on the county’s own form, signed and sealed, and is filed even when it lists repairs. The county asks for the report first, not after the work.' },
+      { step: 'Repairs under permit', detail: 'Where repairs are needed, we define what has to be corrected so contractors bid the same work. Repairs that need a permit wait for it, then follow its schedule.' },
+      { step: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings.' },
+      { step: 'Close-out', detail: 'An amended report states that the repairs are complete. That is what closes the recertification, until the next cycle.' },
+    ],
+    deliverables: [
+      'Structural recertification report on the county’s own form, signed and sealed',
+      'Photographic record of observed conditions',
+      'Written repair scope where repairs are needed',
+      'Letter on whether the building can remain occupied during repairs, where required',
+      'Amended report after repairs',
+    ],
+    nextStep:
+      'Send the notice — a phone photo is enough — or the address and the year built. We confirm what your Building Official is asking for and reply with a proposal for the inspection and the structural report.',
+    timing: {
+      checked: regulatoryChecked,
+      /* This note used to say recertification and the state milestone
+         inspection were "separate obligations … in different reports". The
+         county code says the opposite: the recertification "shall serve as
+         compliance" with the milestone requirement (Sec. 8-11(f)(2)(A)), and
+         the county states that only the recertification reports are filed.
+         What state law still asks of the BOARD is the two duties to unit
+         owners below (F.S. 553.899(5) and (9)). */
+      note: 'The notice comes from the Building Official of your city, or from the county in unincorporated areas, and the report is filed with that same office. For condominium and cooperative buildings the recertification report serves as the state milestone inspection, but the board’s own duties to unit owners remain: tell them about the required inspection within 14 days of receiving the notice, and send every owner the engineer’s summary within 45 days of receiving the report.',
+      rows: [
+        {
+          jurisdiction: 'Miami-Dade County',
+          source: 'Code of Miami-Dade County, Section 8-11(f)',
+          /* Same six labels, same order, as the Broward row — the home page
+             prints the two side by side. Re-checked 2026-10-04 against the
+             code on Municode (through Ord. 26-59) and miamidade.gov.
+
+             "First due": the 25-year trigger is for "condominium and
+             cooperative association buildings that are three stories or
+             taller located within three miles of the coastline"; every other
+             building is 30. Never shorten it to "coastal buildings" or
+             "coastal condos". Age is the Property Appraiser's year built,
+             and a renovation does not reset it.
+
+             "Applies to": the small-building exemption needs BOTH conditions
+             (occupant load and area), hence "both".
+
+             "Time to file": the code says the Building Official "shall
+             provide" the courtesy notices and that not receiving them
+             excuses nothing — so "should arrive", never "arrive". */
+          facts: [
+            { k: 'Applies to', v: 'Almost every building type — condominiums, co-ops, apartments, offices, retail and industrial. Outside the program: single-family homes, duplexes, and buildings with both 10 occupants or fewer and 2,000 sq ft or less.' },
+            { k: 'First due', v: 'At 30 years — 25 for condominium and cooperative buildings of three or more stories within 3 miles of the coast. Age is counted from the year built on the Property Appraiser’s record.' },
+            { k: 'Then', v: 'Every 10 years, for the life of the structure.' },
+            { k: 'Time to file', v: '90 days from the Notice of Required Inspection. Courtesy notices should arrive two years and one year ahead; not receiving them does not move the deadline.' },
+            { k: 'If repairs are needed', v: '150 days from the Notice to finish repairs that need no permit and to obtain permits for the rest. Permitted work then follows its permit, and an amended report closes the recertification.' },
+            { k: 'Condominiums & co-ops', v: 'The recertification serves as compliance with the state milestone inspection — no separate milestone report is filed.' },
+          ],
+        },
+      ],
+    },
+    considerations: [
+      /* A naming note, not a deadline: owners still search for the program by
+         its old name, and a county notice template with the legacy title is
+         still online. It deliberately restates NO threshold — it points at
+         the verified row instead. This is the one place the page says
+         "40-year"; never write it as if it were a current trigger. */
+      'Still widely called the “40-year recertification” — the first one now falls due earlier, at the ages listed above.',
+      /* Scope honesty. This replaced "electrical recertification is a
+         separate discipline", which read as if the electrical part were
+         optional. It is part of the same filing; the firm does not sign it. */
+      'Miami-Dade’s program asks for a structural report and an electrical report. We prepare the structural report; the electrical report is signed by a professional qualified in electrical design.',
+      /* Threshold buildings: neutral on purpose. It states the county's rule
+         and what we do about it; it claims no credential either way. */
+      'Buildings over three stories or 50 feet are “threshold buildings”, and their structural report must come from an engineer with the additional qualifications Miami-Dade County requires. We confirm this for your building before we propose.',
+      'The structural and electrical reports go on the county’s own forms; a firm’s own form is not accepted. The county’s packet also includes certificates for parking-lot illumination and, where a lot is next to water, guardrails.',
+      'The building is judged against the code in force when it was built. Recertification does not require bringing it up to today’s code.',
+      'The Building Official may grant an extension of up to 60 days to file the report or to obtain permits, on a signed and sealed request from the engineer stating that the building can remain occupied.',
+      'A condition that puts life or property in danger is reported to the owner and to the Building Official; the engineer has a duty to do so.',
+      'Each city runs its own notices and filing, and some use their own forms. Questions about a notice go to the office that sent it, and we read your city’s letter first.',
+      'A report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
+    ],
+    crossLink: { text: 'Building in Broward?', label: 'See the BSIP', slug: 'broward-bsip' },
+    program: {
+      id: 'miami-dade',
+      eyebrow: 'Miami-Dade County · Building Recertification',
+      /* Parallel with the Broward headline: the accent falls on the filing
+         deadline, the one thing a reader must not carry across counties.
+         "90 days" must always equal the row's "Time to file". */
+      titleLines: ['Miami-Dade recertification.', '90 days from the notice.'],
+      accentWord: '90 days',
+      lede: 'Miami-Dade’s recertification reaches almost every building other than single-family homes and duplexes. Send us the notice from your city or the county: we inspect the building, prepare the structural report on the county’s own form, and stay through repairs to the amended report that closes it.',
+      steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
+      scopeNote:
+        'Miami-Dade’s program asks for a structural report and an electrical report. We prepare the structural report; the electrical report is signed by a professional qualified in electrical design.',
+      cta: 'Send the Miami-Dade Notice',
+      ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year built.',
+      detail: 'Recertification in Detail',
+    },
+    /* seo: no ages and no day counts. The numbers live in the timing row,
+       with their authority and date; a meta description is where a stale
+       number survives longest. "40 year" stays in the keywords only — it is
+       what people type, not something the page claims. */
+    seo: {
+      title: 'Miami-Dade Building Recertification — Structural Engineer',
+      description:
+        'Miami-Dade building recertification: notice review, structural inspection, the report on the county’s own form, repair scope and reinspection, by a Florida P.E.',
+      keywords: ['building recertification Miami-Dade', 'Miami-Dade recertification engineer', '40 year recertification Miami', '30 year recertification Miami', 'condo recertification Miami', 'structural recertification report'],
+    },
+  },
+  {
+    slug: 'broward-bsip',
+    n: '02',
+    title: 'Broward Building Safety Inspection Program (BSIP)',
+    shortTitle: 'Broward BSIP',
+    track: 'existing',
+    coverage: 'Broward County, Florida',
+    areaServed: ['Broward County, Florida'],
+    summary:
+      'From the Notice of Required Inspection to the completion letter that closes the file — inspection, the structural report on the program’s official form, repair scope, reinspection.',
+    /* Not "The letter says 180 days": what a given city's letter says was not
+       verified, and a city may set its own dates. The number is in the row. */
+    problemTitle: 'A certified letter with a deadline.',
+    /* The one place this page says "40-year": as the name people still use,
+       never as a trigger. */
+    problem:
+      'Broward’s Building Safety Inspection Program (BSIP) is a countywide safety inspection of older buildings, structural and electrical, written by the Broward County Board of Rules and Appeals and enforced by your city’s Building Official. Many owners still call it the 40-year recertification, and much of what is written about it describes rules that have since changed. Boards and owners need someone working from the current policy who can carry the structural side from the first site visit to the close-out.',
+    audience: [
+      'Condominium, cooperative and homeowner associations',
+      'Property managers',
+      'Owners of rental, commercial and mixed-use buildings',
+    ],
+    when: [
+      'A Notice of Required Inspection has arrived from your city’s Building Official — or the building is nearing the age at which one will.',
+      'A previous report listed repairs and the file is still open: permits, reinspection, the amended report and the completion letter.',
+      'You are buying or managing a Broward building and want to know where it stands in the inspection cycle.',
+    ],
+    capabilities: ['Notice review', 'Structural inspection', 'Report on the official form', 'Repair scope', 'Reinspection & close-out'],
+    scope: [
+      'Review of the notice, the building’s records and prior reports',
+      'Structural inspection on site — frame, slabs, balconies, stairs, guardrails, roof and foundations, and the parking garage where there is one',
+      'Classification of observed conditions by structural significance',
+      'Repair scope defined so contractors bid the same work',
+      'Reinspection of the repaired areas',
+      'Answers to the Building Official’s questions on the structural report',
+    ],
+    /* Same six labels as the Miami-Dade page; Broward's own content. */
+    process: [
+      { step: 'Notice review', detail: 'We read your city’s letter first: the date it was received, the date it sets, and what the Building Official asks to be filed.' },
+      { step: 'Inspection', detail: 'A systematic visual examination of the structure on site, with testing or opened finishes only where what we see calls for it.' },
+      { step: 'Report filed', detail: 'A written narrative report with color photographs, plus the official structural form of the Board of Rules and Appeals, signed and sealed. It is filed as soon as it is complete, even when it lists repairs.' },
+      { step: 'Repairs under permit', detail: 'Where repairs are needed, we define the work so contractors bid the same scope, and issue the signed and sealed letter on whether the building can stay occupied meanwhile. Repairs wait for their permits.' },
+      { step: 'Reinspection', detail: 'When the work is complete, the areas noted in the original report are reinspected.' },
+      { step: 'Close-out', detail: 'An amended report and a signed and sealed completion letter go to the owner and to the Building Official. That closes the file, until the next cycle.' },
+    ],
+    deliverables: [
+      'Structural report on the program’s official form, with a written narrative and color photographs, signed and sealed',
+      'Written repair scope where repairs are needed',
+      'Signed and sealed letter on whether the building can remain occupied during repairs',
+      'Amended report and completion letter after repairs',
+    ],
+    nextStep:
+      'Send the notice — a phone photo is enough — or the address and the year of the certificate of occupancy. We read what your city is asking for and reply with a proposal for the inspection and the structural report.',
+    timing: {
+      checked: regulatoryChecked,
+      /* Policy #05-05, Sec. I.E: the program "shall serve as compliance for
+         both phase one and phase two milestone inspection requirements". The
+         two duties to unit owners are the state's (F.S. 553.899(5) and (9))
+         and stay with the board. */
+      note: 'For condominium and cooperative buildings the BSIP report serves as phase one and phase two of the state milestone inspection, but the board’s own duties to unit owners remain: tell them about the required inspection within 14 days of receiving the notice, and send every owner the engineer’s summary within 45 days of receiving the report. Your city’s Building Official enforces the program, and your city’s letter states its own date — which is why we read it first.',
+      rows: [
+        {
+          jurisdiction: 'Broward County',
+          source: 'Broward County Board of Rules and Appeals, Policy #05-05 · Florida Building Code, Broward County Amendments, Section 110.15',
+          /* Same six labels, same order, as the Miami-Dade row. Checked
+             2026-10-04 against the Board's posted Policy #05-05 (effective
+             August 9, 2024) and Section 110.15 on Municode.
+
+             "Time to file" carries BOTH hedges and neither may be cut. The
+             superseded policy (May 11, 2023) gave 90 days and is still
+             hosted on city websites, so a board will have read 90 somewhere;
+             and a city may prescribe its own timeline, so its letter rules.
+             The 180 days run from RECEIVING the notice.
+
+             "Then": only "every 10 years". Two current official texts count
+             the interval from different years, and buildings first inspected
+             under the old program keep their cycle — never compute a year.
+
+             "Applies to" lists the exemptions an owner is likely to ask
+             about; the government, school, tribal and railroad ones are in
+             `considerations`. */
+          facts: [
+            { k: 'Applies to', v: 'Almost all building types, in every Broward city and the unincorporated area. Outside the program: one- to four-family dwellings of three or fewer habitable stories, fee-simple townhouses, and minor structures under 3,500 sq ft of building area.' },
+            { k: 'First due', v: 'At 25 years, counted from the certificate of occupancy.' },
+            { k: 'Then', v: 'Every 10 years.' },
+            { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. Your city’s letter states its own date.' },
+            { k: 'If repairs are needed', v: '180 days from the date of the report, under permit, unless the Building Official sets a different time. A reinspection, an amended report and a signed and sealed completion letter close the file.' },
+            { k: 'Condominiums & co-ops', v: 'The BSIP report serves as phase one and phase two of the state milestone inspection.' },
+          ],
+        },
+      ],
+    },
+    considerations: [
+      'The Board of Rules and Appeals sends each city its list of buildings by June, and the Building Official mails the notices by certified mail from June through August. Not receiving one is no defense: the inspection, the report and any repairs are still due on time.',
+      /* "An extension", never "one extension": the policy does not say
+         whether more than one can be granted. */
+      'The Building Official may grant an extension of up to 60 days to submit the report.',
+      /* Scope honesty — the same sentence as the Miami-Dade page. */
+      'Broward’s program asks for a structural report and an electrical report. We prepare the structural report; the electrical report is signed by a professional qualified in electrical design.',
+      /* Threshold buildings: neutral on purpose, claims no credential. */
+      'Buildings over three stories or 50 feet are “threshold buildings”, and their structural report must come from an engineer with the additional qualifications Broward County requires. We confirm this for your building before we propose.',
+      'Only the Board of Rules and Appeals’ own structural and electrical forms are accepted — a firm’s own form is not — and they come in addition to a written narrative report with color photographs, not instead of it.',
+      'The building is judged against the code in force when it was built. The program does not require bringing it up to today’s code.',
+      'While repairs are underway, the engineer issues a signed and sealed letter on whether the building can remain occupied.',
+      'Also outside the program: federal and State of Florida buildings, buildings on sovereign tribal lands, Broward County School Board schools, and railroads. Parking garages, guardrails, and the balconies, elevated decks, docks and seawalls attached to a building are part of the inspection.',
+      'A condition that puts life or property in danger is reported to the owner and to the Building Official; the engineer has a duty to do so.',
+      'Each city handles filing its own way. We read your city’s letter first, and work to the date it states.',
+      'A report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
+    ],
+    crossLink: { text: 'Building in Miami-Dade?', label: 'See Miami-Dade Recertification', slug: 'building-recertification' },
+    program: {
+      id: 'broward',
+      eyebrow: 'Broward County · Building Safety Inspection Program (BSIP)',
+      /* "180 days" must always equal the row's "Time to file". */
+      titleLines: ['Broward BSIP.', '180 days from the notice.'],
+      accentWord: '180 days',
+      lede: 'Broward’s Building Safety Inspection Program — many owners still call it the 40-year recertification — reaches almost every building type, in every city. Send us the notice from your Building Official: we inspect the building, prepare the structural report on the Board of Rules and Appeals’ own form, and stay through repairs and close-out.',
+      steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
+      scopeNote:
+        'Broward’s program asks for a structural report and an electrical report. We prepare the structural report; the electrical report is signed by a professional qualified in electrical design.',
+      cta: 'Send the Broward Notice',
+      ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
+      detail: 'BSIP in Detail',
+    },
+    /* seo.title leads with the words people type: the program's full name,
+       the county and the acronym. No ages and no day counts in the
+       description (see the Miami-Dade page); the legacy names live in the
+       keywords only. */
+    seo: {
+      title: 'Broward Building Safety Inspection Program (BSIP) — Structural Engineer',
+      description:
+        'Broward’s Building Safety Inspection Program (BSIP): notice review, structural inspection, report on the official form and close-out, by a Florida P.E.',
+      keywords: ['Broward BSIP engineer', 'building safety inspection program Broward', '25-year building inspection Broward', 'Broward BSIP', 'building safety inspection Broward', '40 year inspection Broward', 'BSIP structural report'],
+    },
+  },
+  {
+    /* Renamed from `building-safety-inspections`, which was one word away
+       from Broward's program name and would have competed with its page. The
+       old URLs redirect permanently, EN and /es (next.config.ts).
+
+       This page used to sell the milestone inspection as a separate job with
+       its own report. In Miami-Dade and Broward it is not: the county report
+       serves as the milestone inspection. So the page now does three things
+       the two county pages do not — it explains the state law to a board,
+       it covers the further (phase-two) investigation, and it covers
+       structural safety inspections nobody sent a notice for. */
+    slug: 'milestone-inspections',
+    n: '03',
+    title: 'Milestone & Structural Safety Inspections',
+    shortTitle: 'Milestone Inspections',
+    track: 'existing',
+    summary:
+      'Florida’s milestone inspection explained for your building, further investigation when a report calls for it, and structural safety inspections outside a program cycle.',
+    problemTitle: 'Which inspection does the building owe?',
+    problem:
+      'Florida’s milestone law overlaps with Miami-Dade’s recertification and with Broward’s Building Safety Inspection Program, and it is easy to conclude that a building owes two separate inspections — the state’s and the county’s. In Miami-Dade and Broward the milestone inspection is met through the county program. What a board needs is someone to say which rules reach the building, what was actually observed, and what has to happen next.',
+    audience: [
+      'Condominium and cooperative associations',
+      'Buyers, lenders and insurers',
+      'Owners and managers of aging or coastal buildings',
+    ],
+    when: [
+      /* Was "…is reaching 30 years — 25 near the coast": under state law 25
+         applies only where the local agency requires it. The ages are in the
+         row below and on each county's page. */
+      'Your board needs to know whether Florida’s milestone law reaches the building, and how it is met in your county.',
+      'A report found substantial structural deterioration, and the further (phase-two) investigation has to be scoped and carried out.',
+      'There is no notice, but there is a reason to look: a purchase, visible distress, or a lender’s or insurer’s request.',
+    ],
+    capabilities: ['Applicability review', 'Structural inspection', 'Phase-two investigation', 'Prioritized findings'],
+    scope: [
+      'Review of which rules reach the building — the state milestone law, the county program, or neither',
+      'Visual inspection of the primary structural system',
+      'Balcony, walkway and railing structural review',
+      'Concrete distress mapping — spalling, cracking, corrosion staining',
+      'Phase-two investigation where a report found substantial structural deterioration, with testing located where it disturbs least',
+      'Separating cosmetic from structural, and urgent from monitorable',
+    ],
+    process: [
+      { step: 'Applicability', detail: 'We confirm which rules reach the building and what any notice in hand is asking for. Where a county program applies, the work runs as that program.' },
+      { step: 'Records review', detail: 'Available drawings, prior reports and repair history reviewed before the site visit.' },
+      { step: 'Field inspection', detail: 'Systematic visual inspection with photographic documentation and location mapping.' },
+      { step: 'Evaluation', detail: 'Observations evaluated structurally — distinguishing cosmetic from structural, and urgent from monitorable. Where deterioration is substantial, the further investigation is scoped.' },
+      { step: 'Report', detail: 'Findings issued with clear priorities and, for condominiums and co-ops, a separate summary the board can send to unit owners.' },
+    ],
+    deliverables: [
+      'Inspection report with photographic record',
+      'Condition findings organized by priority',
+      'Summary of findings for unit owners, for condominiums and co-ops',
+      'Scope and report of the phase-two investigation, where one is required',
+      'Signed and sealed documents where the scope requires it',
+    ],
+    nextStep:
+      'Tell us the building’s county, age and number of stories, and what raised the question — a notice, a report, a sale. We reply with which rules apply and a proposal for the inspection.',
+    timing: {
+      checked: regulatoryChecked,
+      /* The statute number stays in the row's `source` (the authority every
+         regulatory number must name), not in the prose.
+
+         This note used to say the milestone inspection "is separate from
+         county recertification … on different deadlines". Both county rules
+         say the county report serves as it. "No separate milestone report"
+         is stated for Miami-Dade only, where the county says so; for Broward
+         the policy says the report serves as both phases and no more is
+         claimed. The state's own filing period is deliberately not printed:
+         the deadline a board answers to is the one on its county's page. */
+      note: 'In Miami-Dade and Broward the state milestone inspection is met through the county program. Miami-Dade’s recertification serves as compliance with it — no separate milestone report is filed there — and Broward’s BSIP report serves as its phase one and phase two. The deadline on your notice is the county program’s, and it is on that county’s page. The board’s duties to unit owners apply in either county.',
+      rows: [
+        {
+          jurisdiction: 'State of Florida — milestone inspection',
+          source: 'Florida Statute 553.899',
+          facts: [
+            { k: 'Applies to', v: 'Condominium and cooperative buildings of three habitable stories or more' },
+            { k: 'First due', v: 'By December 31 of the year the building reaches 30 years, counted from the certificate of occupancy — 25 years where the local enforcement agency requires it, for conditions such as proximity to salt water' },
+            { k: 'Then', v: 'Every 10 years' },
+            { k: 'Phase two', v: 'Only where phase one finds substantial structural deterioration' },
+            { k: 'Unit owners', v: 'The association tells unit owners about the required inspection within 14 days of receiving the notice, and sends every owner the engineer’s summary within 45 days of receiving the report' },
+          ],
+        },
+      ],
+    },
+    considerations: [
+      'The state law reaches only the condominium and cooperative buildings described above. Other buildings can still fall under a county program, which covers almost every building type.',
+      'A phase-two investigation is as limited or as extensive as the distress requires. Its scope is set after the first inspection, not before.',
+      'Visual inspection covers accessible, observable conditions. Concealed deterioration may require testing or selective demolition.',
+      /* Neutral on purpose: states the counties' rule, claims no credential. */
+      'For buildings over three stories or 50 feet, each county asks additional qualifications of the engineer who signs the structural report. We confirm this for your building before we propose.',
+      'An inspection reports condition at a point in time; it is not a warranty of future performance.',
+    ],
+    /* "building safety inspection Broward" moved to the BSIP page with the
+       slug rename: that query is about Broward's program, not this page. */
+    seo: {
+      title: 'Florida Milestone Inspections — Miami-Dade & Broward',
+      description:
+        'Florida milestone inspections for condos and co-ops in Miami-Dade and Broward: how the county program meets them, phase two, and structural safety inspections.',
+      keywords: ['milestone inspection Florida', 'milestone inspection Miami', 'condo milestone inspection', 'phase two milestone inspection', 'balcony inspection Miami', 'structural inspection South Florida'],
+    },
+  },
+  {
+    slug: 'structural-condition-assessments',
+    n: '04',
+    title: 'Structural Assessments & Repair Design',
+    shortTitle: 'Assessments & Repairs',
+    track: 'existing',
+    summary:
+      'What the building is actually doing today — deterioration assessed, capacity evaluated, repairs engineered so they can be bid and built.',
+    problemTitle: 'Not every crack is a structural problem.',
+    problem:
+      'Cracking, spalling and movement all look alarming and mean very different things. Before spending on repairs, an owner needs to know which conditions affect capacity and which do not — and then needs repairs specified precisely enough to price.',
+    audience: [
+      'Owners planning repairs or capital works',
+      'Buyers performing structural due diligence',
+      'Associations responding to inspection findings',
+    ],
+    when: [
+      'A recertification, BSIP or inspection report lists repairs and the contractors’ bids are not comparable because nobody defined the scope.',
+      'Visible distress has appeared and someone needs to say whether it affects the structure.',
+      'You are buying a building, adding a floor, changing its use or cutting an opening in a wall or slab.',
+    ],
+    capabilities: ['Field assessment', 'Deterioration mapping', 'Capacity evaluation', 'Repair specification'],
+    scope: [
+      'Field assessment of the structural system in its current state',
+      'Concrete deterioration and reinforcement corrosion evaluation',
+      'Capacity evaluation of existing members where required',
+      'Evaluation of alterations, overloads and change of use',
+      'Repair design — concept, details and specification',
+      'Prioritization and phasing guidance',
+    ],
+    process: [
+      { step: 'Understand the building', detail: 'Original drawings, alterations and repair history reviewed; where drawings are missing, the structure is field-verified.' },
+      { step: 'Assess condition', detail: 'Deterioration mapped and its structural significance evaluated element by element.' },
+      { step: 'Evaluate capacity', detail: 'Where condition or use has changed, remaining capacity is checked against current demand.' },
+      { step: 'Design the repair', detail: 'Repairs described in enough detail to be bid, executed and inspected — not left as a general recommendation.' },
+    ],
+    deliverables: [
+      'Condition assessment report',
+      'Deterioration mapping and photographic record',
+      'Capacity evaluation where performed',
+      'Repair drawings and specifications',
+    ],
+    nextStep:
+      'Send photographs of the conditions and any previous report. We tell you whether a site visit is needed and what the assessment will cover.',
+    considerations: [
+      'Assessments of existing structures carry uncertainty; where it matters, testing or exploratory openings are recommended rather than assumed away.',
+      'Missing original documentation increases the field verification required.',
+      'Repair design is scoped and quoted separately from the assessment that leads to it.',
+    ],
+    seo: {
+      title: 'Structural Assessments & Repair Design — Miami-Dade & Broward',
+      description:
+        'Structural condition assessments and concrete repair design for existing South Florida buildings: what the distress means, and repairs specified to bid.',
+      keywords: ['structural condition assessment Miami', 'concrete repair engineer Florida', 'balcony repair design', 'existing building evaluation', 'structural due diligence Miami'],
+    },
+  },
+  /* ── NEW PROJECTS ──────────────────────────────────────────────────────── */
   {
     slug: 'reinforced-concrete-design',
-    n: '01',
+    n: '05',
     title: 'Reinforced Concrete Design',
     shortTitle: 'Reinforced Concrete Design',
     track: 'new',
@@ -496,7 +1055,7 @@ export const services: Service[] = [
   },
   {
     slug: 'structural-analysis',
-    n: '02',
+    n: '06',
     title: 'Structural Analysis & Foundations',
     shortTitle: 'Structural Analysis & Foundations',
     track: 'new',
@@ -553,7 +1112,7 @@ export const services: Service[] = [
   },
   {
     slug: 'bim-coordination',
-    n: '03',
+    n: '07',
     title: 'BIM Modeling & Coordination',
     shortTitle: 'BIM Coordination',
     track: 'new',
@@ -610,7 +1169,7 @@ export const services: Service[] = [
   },
   {
     slug: 'peer-review',
-    n: '04',
+    n: '08',
     title: 'Peer Review & Compliance',
     shortTitle: 'Peer Review',
     track: 'new',
@@ -664,235 +1223,6 @@ export const services: Service[] = [
       keywords: ['structural peer review', 'independent structural review Florida', 'third party structural review Miami', 'structural due diligence'],
     },
   },
-  {
-    slug: 'building-recertification',
-    n: '05',
-    title: 'Building Recertification',
-    shortTitle: 'Building Recertification',
-    track: 'existing',
-    summary:
-      'A clear path from the county notice to a submitted structural recertification report — inspection, findings, repairs, reinspection.',
-    problemTitle: 'A notice arrives with a deadline.',
-    problem:
-      'The notice comes with a form and very little explanation of what actually has to happen. Boards and owners need someone who knows the sequence and can carry the structural side of it end to end.',
-    audience: [
-      'Condominium and homeowner associations',
-      'Property managers',
-      'Building owners and asset managers',
-    ],
-    when: [
-      'A recertification notice from Miami-Dade or Broward has arrived, or the building is approaching the age at which one will.',
-      'A previous report identified repairs and the building now has to be reinspected and closed out.',
-      'You are buying or managing a building and want to know where it stands in the recertification cycle.',
-    ],
-    capabilities: ['Notice review', 'Site inspection', 'Findings report', 'Repair scope', 'Reinspection'],
-    /* Scope = work the engineer does; deliverables = documents the client
-       keeps. Four of six scope lines used to restate a deliverable. */
-    scope: [
-      'Review of the notice, building records and prior reports',
-      'Visual structural inspection of accessible elements — frame, slabs, balconies, roof structure',
-      'Classification of observed conditions by structural significance',
-      'Repair scope defined so contractors bid the same work',
-      'Reinspection of completed repairs',
-      'Submission, and answers to the reviewing office’s questions',
-    ],
-    process: [
-      { step: 'Notice review', detail: 'We read the notice and the building’s history, then confirm what the jurisdiction is actually asking for and by when.' },
-      { step: 'Site inspection', detail: 'Visual structural inspection of accessible elements — frame, slabs, balconies, roof structure, foundations where exposed.' },
-      { step: 'Findings', detail: 'Observed conditions documented and classified, with the structural reasoning written in plain language for the board.' },
-      { step: 'Repairs', detail: 'Where repairs are required, we describe what has to be corrected and to what standard, so the work can be bid fairly.' },
-      { step: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings.' },
-      { step: 'Submission', detail: 'The report is finalized and submitted, and we respond to questions the reviewing office raises.' },
-    ],
-    deliverables: [
-      'Structural recertification report on the required form',
-      'Photographic documentation of observed conditions',
-      'Written repair recommendations where applicable',
-      'Reinspection documentation after repairs',
-    ],
-    nextStep:
-      'Attach the notice (or tell us the building’s age and address). We confirm which program applies and reply with a proposal for the inspection and report.',
-    timing: {
-      checked: 'September 2026',
-      note: 'County recertification and the state milestone inspection are separate obligations. A condominium in Miami-Dade or Broward can owe both, on different clocks and in different reports. Which programs reach your building is confirmed before we start.',
-      rows: [
-        {
-          jurisdiction: 'Miami-Dade County',
-          source: 'Code of Miami-Dade County §8-11(f)',
-          facts: [
-            // Re-checked 2026-09-22 against miamidade.gov: the 25-year trigger
-            // is for "condominium and cooperative association buildings that
-            // are three stories or taller located within three miles of the
-            // coastline"; every other building is 30. Not "coastal buildings".
-            { k: 'First due', v: '30 years — 25 years for condominium and cooperative buildings of three or more stories within 3 miles of the coast' },
-            { k: 'Then', v: 'Every 10 years, for the life of the structure' },
-            { k: 'Time to comply', v: '90 days from the county notice' },
-            { k: 'Outside the program', v: 'Single-family homes, duplexes, and buildings of 10 occupants or fewer and 2,000 sq ft or less' },
-          ],
-        },
-        {
-          jurisdiction: 'Broward County',
-          source: 'Building Safety Inspection Program (Board of Rules and Appeals)',
-          facts: [
-            { k: 'First due', v: '25 years' },
-            { k: 'Then', v: 'Every 10 years' },
-            { k: 'Scope', v: 'Structural and electrical, reported separately by licensed professionals' },
-          ],
-        },
-      ],
-    },
-    considerations: [
-      /* A naming note, not a deadline: Miami-Dade's own notice under §8-11(f)
-         was titled "Notice of Required Recertification of 40 Year Old
-         Building(s)" (checked 2026-09-22), and owners still search for it by
-         that name. It deliberately restates NO threshold: the county's 25-year
-         trigger is narrower than a one-line paraphrase (condo and co-op
-         buildings of 3+ stories near the coast), so the note points at the
-         verified rows instead of re-deriving them. */
-      'Still widely called the “40-year recertification” — the first one now falls due earlier, at the ages listed above.',
-      'Requirements differ between Miami-Dade and Broward and between municipalities — the sequence above is typical, not universal.',
-      'Recertification is not a one-time event. After the first report the building is due again every ten years, for the life of the structure.',
-      'Recertification covers the structural scope; electrical recertification is a separate discipline.',
-      'A report documents observed conditions. No engineer can guarantee how a reviewing office will act on it.',
-      'Concealed conditions may require additional investigation before conclusions can be drawn.',
-    ],
-    seo: {
-      title: 'Building Recertification — Miami-Dade & Broward',
-      description:
-        'Building recertification in Miami-Dade (30 or 25 years) and Broward (25 years): inspection, findings, repair scope, reinspection and report, by a Florida P.E.',
-      keywords: ['building recertification Miami-Dade', 'building recertification Broward', '40 year recertification Miami', '30 year recertification Miami', '25 year recertification Broward', 'structural recertification report'],
-    },
-  },
-  {
-    slug: 'building-safety-inspections',
-    n: '06',
-    title: 'Milestone & Building Safety Inspections',
-    shortTitle: 'Milestone & Safety Inspections',
-    track: 'existing',
-    summary:
-      'Milestone and structural safety inspections that document real condition — with findings written to be acted on, not filed.',
-    problemTitle: 'A vague inspection report helps nobody.',
-    problem:
-      'Owners and boards need to know what was actually observed, what it means for the structure, and what has to happen next.',
-    audience: [
-      'Condominium associations subject to milestone inspection',
-      'Owners of aging or coastal buildings',
-      'Managers preparing capital plans',
-    ],
-    when: [
-      'Your condominium or cooperative is three habitable stories or more and is reaching 30 years — 25 near the coast.',
-      'A phase-one report found deterioration and a phase-two investigation has been called for.',
-      'Balconies, walkways or railings show spalling, cracking or corrosion staining and the board needs an engineer’s read.',
-    ],
-    capabilities: ['Structural inspection', 'Balcony & railing review', 'Distress mapping', 'Prioritized findings'],
-    scope: [
-      'Visual inspection of the primary structural system',
-      'Balcony, walkway and railing structural review',
-      'Concrete distress mapping — spalling, cracking, corrosion staining',
-      'Waterproofing-related structural deterioration review',
-      'Separating cosmetic from structural, and urgent from monitorable',
-      'Phase-two investigation scoping where warranted',
-    ],
-    process: [
-      { step: 'Records review', detail: 'Available drawings, prior reports and repair history reviewed before the site visit.' },
-      { step: 'Field inspection', detail: 'Systematic visual inspection with photographic documentation and location mapping.' },
-      { step: 'Evaluation', detail: 'Observations evaluated structurally — distinguishing cosmetic from structural, and urgent from monitorable.' },
-      { step: 'Report', detail: 'Findings issued with clear priorities and, where required, a defined scope for further investigation.' },
-    ],
-    deliverables: [
-      'Inspection report with photographic record',
-      'Condition findings organized by priority',
-      'Recommended follow-up or further investigation scope',
-      'Signed and sealed documents where the scope requires it',
-    ],
-    nextStep:
-      'Tell us the building’s age, height and distance from the coast. We confirm whether the milestone inspection applies and propose the phase-one scope.',
-    timing: {
-      checked: 'September 2026',
-      /* The statute number stays in the row's `source` (the authority every
-         regulatory number must name), not in the prose. */
-      note: 'The milestone inspection is a state obligation under Florida law and is separate from county recertification. Both can apply to the same building, on different deadlines.',
-      rows: [
-        {
-          jurisdiction: 'State of Florida — milestone inspection',
-          source: 'Florida Statute 553.899',
-          facts: [
-            { k: 'Applies to', v: 'Condominium and cooperative buildings of three habitable stories or more' },
-            { k: 'First due', v: 'By December 31 of the year the building reaches 30 years — 25 years where the local authority requires it for proximity to salt water' },
-            { k: 'Then', v: 'Every 10 years' },
-            { k: 'Phase two', v: 'Only where phase one finds substantial structural deterioration' },
-          ],
-        },
-      ],
-    },
-    considerations: [
-      'Visual inspection covers accessible, observable conditions. Concealed deterioration may require testing or selective demolition.',
-      'Milestone inspection requirements depend on building age, height and location; applicability is confirmed case by case.',
-      'An inspection reports condition at a point in time; it is not a warranty of future performance.',
-    ],
-    seo: {
-      title: 'Milestone & Safety Inspections — Miami-Dade & Broward',
-      description:
-        'Florida milestone inspections and structural safety inspections for condos in Miami-Dade and Broward: balconies, concrete distress and prioritized findings.',
-      keywords: ['milestone inspection Florida', 'milestone inspection Miami', 'building safety inspection Broward', 'balcony inspection Miami', 'structural inspection South Florida'],
-    },
-  },
-  {
-    slug: 'structural-condition-assessments',
-    n: '07',
-    title: 'Structural Assessments & Repair Design',
-    shortTitle: 'Assessments & Repairs',
-    track: 'existing',
-    summary:
-      'What the building is actually doing today — deterioration assessed, capacity evaluated, repairs engineered so they can be bid and built.',
-    problemTitle: 'Not every crack is a structural problem.',
-    problem:
-      'Cracking, spalling and movement all look alarming and mean very different things. Before spending on repairs, an owner needs to know which conditions affect capacity and which do not — and then needs repairs specified precisely enough to price.',
-    audience: [
-      'Owners planning repairs or capital works',
-      'Buyers performing structural due diligence',
-      'Associations responding to inspection findings',
-    ],
-    when: [
-      'An inspection or recertification report lists repairs and the contractors’ bids are not comparable because nobody defined the scope.',
-      'Visible distress has appeared and someone needs to say whether it affects the structure.',
-      'You are buying a building, adding a floor, changing its use or cutting an opening in a wall or slab.',
-    ],
-    capabilities: ['Field assessment', 'Deterioration mapping', 'Capacity evaluation', 'Repair specification'],
-    scope: [
-      'Field assessment of the structural system in its current state',
-      'Concrete deterioration and reinforcement corrosion evaluation',
-      'Capacity evaluation of existing members where required',
-      'Evaluation of alterations, overloads and change of use',
-      'Repair design — concept, details and specification',
-      'Prioritization and phasing guidance',
-    ],
-    process: [
-      { step: 'Understand the building', detail: 'Original drawings, alterations and repair history reviewed; where drawings are missing, the structure is field-verified.' },
-      { step: 'Assess condition', detail: 'Deterioration mapped and its structural significance evaluated element by element.' },
-      { step: 'Evaluate capacity', detail: 'Where condition or use has changed, remaining capacity is checked against current demand.' },
-      { step: 'Design the repair', detail: 'Repairs described in enough detail to be bid, executed and inspected — not left as a general recommendation.' },
-    ],
-    deliverables: [
-      'Condition assessment report',
-      'Deterioration mapping and photographic record',
-      'Capacity evaluation where performed',
-      'Repair drawings and specifications',
-    ],
-    nextStep:
-      'Send photographs of the conditions and any previous report. We tell you whether a site visit is needed and what the assessment will cover.',
-    considerations: [
-      'Assessments of existing structures carry uncertainty; where it matters, testing or exploratory openings are recommended rather than assumed away.',
-      'Missing original documentation increases the field verification required.',
-      'Repair design is scoped and quoted separately from the assessment that leads to it.',
-    ],
-    seo: {
-      title: 'Structural Assessments & Repair Design — Miami-Dade & Broward',
-      description:
-        'Structural condition assessments and concrete repair design for existing South Florida buildings: what the distress means, and repairs specified to bid.',
-      keywords: ['structural condition assessment Miami', 'concrete repair engineer Florida', 'balcony repair design', 'existing building evaluation', 'structural due diligence Miami'],
-    },
-  },
 ];
 
 export const serviceBySlug = (slug: string) =>
@@ -920,13 +1250,23 @@ export const imagery = {
     about: photo.concreteStair,
     contact: photo.miamiBrickell,
   },
+  /* One photograph per service, keyed by slug. The card, the service-page
+     hero and — for the two county programs — the home-page section are one
+     placement seen from different doors (see media.ts).
+
+     The two program photographs were chosen as a pair, one per county. The
+     frame they replaced on recertification (`recertBalconiesBw`) showed a
+     derelict facade with broken glass and razor wire: a building with a
+     problem, beside a recertification pitch. Neither replacement may ever be
+     captioned with a county, a building name or a project. */
   services: {
+    'building-recertification': photo.recertMiamiDade,
+    'broward-bsip': photo.bsipBroward,
+    'milestone-inspections': photo.inspectBalconyPair,
+    'structural-condition-assessments': photo.inspectWall,
     'reinforced-concrete-design': photo.concreteFrameSlabs,
     'structural-analysis': photo.analysisTowersUp,
     'bim-coordination': photo.bimWireframeModel,
-    'building-recertification': photo.recertBalconiesBw,
-    'building-safety-inspections': photo.inspectBalconyPair,
-    'structural-condition-assessments': photo.inspectWall,
     'peer-review': photo.peerTowerBw,
   } as Record<string, Photo>,
   sections: {
@@ -941,8 +1281,11 @@ export const imagery = {
     '05': photo.frameSlabEdges,
     '06': photo.rebarCageTower,
   } as Record<string, Photo>,
+  /* The hero aside, the only clip left is the model in the new-buildings
+     section. The recertification band and its aerial clip are gone: the two
+     program sections under the hero are photographs, so a second video never
+     starts downloading right behind the hero's. */
   clips: {
-    existing: video.existingMidrise,
     bim: video.bimAssembly,
   } as Record<string, Clip>,
   gallery: [
@@ -963,6 +1306,10 @@ export const imagery = {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    WHAT WE DESIGN — building typologies (photos illustrate the KIND, never a job)
+   ═══════════════════════════════════════════════════════════════════════════
+   Rendered on /services, after the two tracks. It left the home page when
+   the county programs took its place; the home page keeps the headline, on
+   `newBuildings`.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type Typology = {
@@ -991,91 +1338,36 @@ export const typologies: Typology[] = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   THE TWO PATHS — new projects vs. existing buildings
+   NEW BUILDINGS (home) — the design side of the practice, in one section
+   ═══════════════════════════════════════════════════════════════════════════
+   The home page used to give new construction three sections: the "I am
+   building something new" door, the six-photo typology grid and the BIM
+   stage. Its first two sections are now the county programs, so this ONE
+   paragraph carries what the door and the BIM section said — what gets
+   designed, how it is coordinated, what is issued. The component lists the
+   four `track: 'new'` services itself, beside the model clip.
+
+   The headline is the owner-approved "What we design" line. The typology
+   grid that also carries it now lives on /services, so the two never share
+   a page. Owners and boards read the home page: no "federate", no "MEP", and
+   no promise about what gets built.
+
+   Gone with this change, in both languages: `pathsSection` / `paths` (the
+   two doors), `recertBand` (one band that merged both counties' ages into a
+   single sentence) and `bim` (replaced by this section).
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export type Path = {
-  n: string;
-  key: ServiceTrack;
-  eyebrow: string;
-  title: string;
-  accentWord: string;
-  lede: string;
-  /** Slugs of the services in this path, in display order. */
-  serviceSlugs: string[];
-  cta: { href: string; label: string };
-  photo: Photo;
-};
-
-export const pathsSection = {
-  eyebrow: 'What we solve',
-  titleLines: ['Two kinds of clients.', 'One engineer responsible for both.'],
-  accentWord: 'both',
-  lede: 'Some clients are building something new and need the structure designed and permitted. Others own a building that is already standing and need it evaluated, recertified or repaired. Both get the same engineer, the same documentation standard and the same direct line.',
-} as const;
-
-export const paths: Path[] = [
-  {
-    n: '01',
-    key: 'new',
-    eyebrow: 'New projects',
-    title: 'I am building something new.',
-    accentWord: 'new',
-    lede: 'Houses, townhouses, mid-rise concrete and commercial frames — engineered from the load path to the sealed permit set, and coordinated in BIM with the rest of the team.',
-    serviceSlugs: ['reinforced-concrete-design', 'structural-analysis', 'bim-coordination', 'peer-review'],
-    cta: { href: '/services#new', label: 'Services for New Projects' },
-    photo: photo.frameCraneSky,
-  },
-  {
-    n: '02',
-    key: 'existing',
-    eyebrow: 'Existing buildings',
-    title: 'I own or manage an existing building.',
-    accentWord: 'existing',
-    lede: 'Recertification notices, milestone inspections, visible distress and repair scopes — documented condition, engineered repairs, and a clear route through Miami-Dade and Broward compliance.',
-    serviceSlugs: ['building-recertification', 'building-safety-inspections', 'structural-condition-assessments'],
-    cta: { href: '/existing-buildings', label: 'Services for Existing Buildings' },
-    photo: photo.midriseBalconies,
-  },
-];
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   RECERTIFICATION BAND (home) — numbers per jurisdiction, verified 2026-09
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-export const recertBand = {
-  eyebrow: 'Existing buildings',
-  titleLines: ['Thousands of buildings.', 'One deadline each.'],
-  accentWord: 'deadline',
-  plainTitle: 'Thousands of buildings. One deadline each.',
-  /* "Most buildings" alone read as if it reached houses; by count most South
-     Florida buildings are single-family homes, outside the program. */
-  body: 'South Florida’s recertification programs reach most buildings other than single-family homes and duplexes at 25 or 30 years of age, and return every ten years for the life of the structure. We carry the structural side end to end: inspection, findings, repair scope, reinspection, submission.',
-  facts: [
-    { k: 'Miami-Dade', v: '30 years · 25 for coastal condos (3+ stories) · then every 10' },
-    { k: 'Broward', v: '25 years · then every 10' },
-    { k: 'State milestone', v: 'Condos 3+ stories · 30 years (25 by local rule) · then every 10' },
-  ],
-  cta: { href: '/existing-buildings', label: 'Existing-Building Services' },
+export const newBuildings = {
+  eyebrow: 'New buildings',
+  title: 'From a single house to a mid-rise concrete frame.',
+  accentWord: 'mid-rise',
+  body: 'Houses, townhouses, mid-rise concrete and commercial frames — foundations, frame and hurricane-wind design engineered as one structure and issued as a signed and sealed permit set. We build the structural model first and check it against the architect’s model and the mechanical, electrical and plumbing models, so conflicts are settled on screen before they can become a change order on site.',
+  cta: { href: '/services#new', label: 'Services for New Projects' },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   BIM — section copy
+   SOFTWARE — the band on the BIM service page
    ═══════════════════════════════════════════════════════════════════════════ */
-
-export const bim = {
-  eyebrow: 'BIM / Digital coordination',
-  title: 'Conflicts resolved in the model, not on your site.',
-  /* Home-page copy: owners and boards read it, so no "federate", "MEP" or
-     "drafting by-product", and no promise about what gets built. */
-  body: 'We build the structural model first, check it against the architect’s model and the mechanical, electrical and plumbing models, and settle every conflict on screen — before it can become a change order on site.',
-  notes: [
-    'The drawings come from the structural model, not a separate drafting pass.',
-    'Pipes, ducts and beams checked against each other before construction.',
-    'Drawings, schedules and quantities taken from the same model.',
-  ],
-  cta: { href: '/services/bim-coordination', label: 'BIM Coordination in Detail' },
-} as const;
 
 export const software = {
   eyebrow: 'Software & open standards',
@@ -1099,12 +1391,12 @@ export const software = {
 export const howWeWork = {
   eyebrow: 'How we work',
   title: 'Five steps. You always know which one you are on.',
-  lede: 'The sequence is the same whether you are permitting a new frame or answering a recertification notice. What changes is the depth of step three.',
+  lede: 'The sequence is the same whether you are answering a county notice or permitting a new frame. What changes is the depth of step three.',
   steps: [
     {
       n: '01',
       title: 'Initial consultation',
-      youDo: 'Describe the project or the building, share what you have — drawings, photos, the notice.',
+      youDo: 'Send the notice, or describe the building or the project, and share what you have — photos, drawings, prior reports.',
       youGet: 'A direct conversation with the engineer and a first read on what is needed.',
     },
     {
@@ -1131,7 +1423,9 @@ export const howWeWork = {
       n: '05',
       title: 'Follow-up',
       youDo: 'Forward the reviewer’s comments, the contractor’s RFIs or the reinspection request.',
-      youGet: 'Answers from the engineer who did the work — through permit comments, construction questions and, for existing buildings, reinspection and submission.',
+      /* Existing buildings end in reinspection and close-out, not in
+         "submission": both counties have the report filed before the repairs. */
+      youGet: 'Answers from the engineer who did the work — through permit comments, construction questions and, for existing buildings, reinspection and close-out.',
     },
   ],
 } as const;
@@ -1173,11 +1467,16 @@ export type Engagement = {
 };
 
 /* Typical profiles, not jobs: every `location` is the service area, never a
-   specific county, and every `status` carries the one Work label. */
+   specific county, and every `status` carries the one Work label.
+
+   02 names both county programs because its location is both counties:
+   "recertification" alone is Miami-Dade's word. 03 is no longer called a
+   "milestone" inspection — in both counties the milestone inspection is met
+   through the county program, which is profile 02. */
 export const engagements: Engagement[] = [
   { n: '01', title: 'Mid-rise residential frame', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes', status: 'Typical engagement' },
-  { n: '02', title: 'Coastal condominium recertification', projectType: 'Existing building — recertification', location: 'Miami-Dade or Broward', scope: 'Notice review, structural inspection, findings, repair recommendations, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'Recertification report · Photographic record · Repair scope', status: 'Typical engagement' },
-  { n: '03', title: 'Milestone structural inspection', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope', status: 'Typical engagement' },
+  { n: '02', title: 'Condominium recertification or BSIP inspection', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural inspection, structural report on the official form, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'Structural report on the official form · Photographic record · Repair scope', status: 'Typical engagement' },
+  { n: '03', title: 'Structural safety inspection', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope', status: 'Typical engagement' },
   { n: '04', title: 'Foundation system for a constrained site', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations', status: 'Typical engagement' },
   { n: '05', title: 'Multi-discipline BIM coordination', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings', status: 'Typical engagement' },
   { n: '06', title: 'Independent structural peer review', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record', status: 'Typical engagement' },
@@ -1239,8 +1538,8 @@ export const leadership = {
     'Licensed Professional Engineer (P.E.), State of Florida',
   ],
   focus: [
+    'Miami-Dade recertification, Broward BSIP inspections and condition assessments',
     'Reinforced-concrete design for houses, mid-rise and commercial frames',
-    'Recertification, milestone inspections and condition assessments',
     'Structural BIM modeling and multi-discipline coordination',
     'Wind and lateral design for the High-Velocity Hurricane Zone',
   ],
@@ -1301,24 +1600,27 @@ export const servicesPage = {
   eyebrow: 'Services',
   titleLines: ['Organized by what you need,', 'not by what we do.'],
   accentWord: 'need',
-  sub: 'Seven services in two tracks. If you are building something, start with new projects. If you own or manage a building that is already standing, start with existing buildings. Each service says when you need it, what is included, what you receive and what to do next.',
+  /* Existing buildings first — in the sub-line, the facts and the tracks —
+     because the page now opens with them. The counts follow the `services`
+     array (four and four); change them together. */
+  sub: 'Eight services in two tracks. If you own or manage a building that is already standing, start with existing buildings. If you are building something, start with new projects. Each service says when you need it, what is included, what you receive and what to do next.',
   facts: [
+    { k: 'Existing buildings', v: '4 services' },
     { k: 'New projects', v: '4 services' },
-    { k: 'Existing buildings', v: '3 services' },
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
   ],
   tracks: {
+    existing: {
+      id: 'existing',
+      eyebrow: 'Existing buildings',
+      title: 'You own or manage a building.',
+      lede: 'For associations, property managers and owners with a county notice, a deadline, visible distress or a repair to scope. Miami-Dade and Broward each run their own program, and each has its own page here.',
+    },
     new: {
       id: 'new',
       eyebrow: 'New projects',
       title: 'You are building something.',
       lede: 'For owners, developers, architects and contractors with a project in design or heading to permit.',
-    },
-    existing: {
-      id: 'existing',
-      eyebrow: 'Existing buildings',
-      title: 'You own or manage a building.',
-      lede: 'For associations, property managers and owners with a notice, a deadline, visible distress or a repair to scope.',
     },
   },
 } as const;
@@ -1327,7 +1629,7 @@ export const existingPage = {
   eyebrow: 'Existing buildings',
   titleLines: ['The building is', 'already standing.'],
   accentWord: 'standing.',
-  sub: 'Recertification, milestone inspection, structural assessment and repair design for buildings in service across Miami-Dade and Broward. We document what is actually there, explain what it means structurally, and define the work that follows.',
+  sub: 'Miami-Dade recertification, Broward’s Building Safety Inspection Program (BSIP), milestone inspections, structural assessments and repair design for buildings already in service. We document what is actually there, explain what it means structurally, and define the work that follows.',
   facts: [
     { k: 'For', v: 'Associations, owners, managers' },
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
@@ -1337,25 +1639,39 @@ export const existingPage = {
     eyebrow: 'When to call',
     title: 'Four moments that need an engineer.',
     items: [
-      { k: 'A notice arrived', v: 'A recertification or milestone-inspection notice has been issued and the board needs a structural engineer engaged before the deadline.' },
+      { k: 'A notice arrived', v: 'A Notice of Required Inspection has come from your city or county — recertification in Miami-Dade, the BSIP in Broward — and the board needs a structural engineer engaged before the deadline.' },
       { k: 'Visible distress', v: 'Cracking, spalling, corrosion staining or movement has appeared and someone needs to say whether it affects capacity.' },
       { k: 'Before you spend', v: 'Repairs are being priced and the scope has not been defined by an engineer, so the bids are not comparable.' },
       { k: 'Before you buy', v: 'Structural due diligence on an acquisition, including alterations and change-of-use questions.' },
     ],
   },
   servicesEyebrow: 'Services for existing buildings',
+  /* The one sequence both county programs share. It carries NO age and NO
+     deadline: this lede used to state Miami-Dade's, Broward's and the
+     state's in a single sentence, which is exactly how a number gets read
+     against the wrong county. The numbers are on each county's page.
+
+     Step order is the counties' own — report filed first, repairs under
+     permit, a final report to close — and the six titles match the
+     `process` of the two program pages. It used to end in "Submission",
+     after the repairs.
+
+     `cta` goes to Miami-Dade's page and `ctaSecondary` to Broward's: with
+     one program per county, a single "in detail" link would leave one
+     county without a door. */
   timeline: {
-    eyebrow: 'Building recertification',
-    title: 'A clear path from notice to compliance.',
-    lede: 'Miami-Dade calls the first recertification at 30 years — 25 for condominium and co-op buildings of three or more stories within three miles of the coast; Broward at 25; the state milestone inspection at 30 for condominiums of three habitable stories or more. All of them come back every ten years. We run the structural side end to end so the board knows what happens next at every stage.',
-    cta: { href: '/services/building-recertification', label: 'Recertification in Detail' },
+    eyebrow: 'Recertification & BSIP',
+    title: 'A clear path from the notice to close-out.',
+    lede: 'Miami-Dade calls it building recertification; Broward calls it the Building Safety Inspection Program. The ages and the deadlines are different, and each county’s are on its own page. The sequence is the same: the report is filed first, repairs follow under permit, and a final report closes the file. We run the structural side so the board knows what happens next at every stage.',
+    cta: { href: '/services/building-recertification', label: 'Miami-Dade Recertification in Detail' },
+    ctaSecondary: { href: '/services/broward-bsip', label: 'Broward BSIP in Detail' },
     steps: [
-      { n: '01', title: 'Notice review', detail: 'We read the notice and the building record, confirm what the jurisdiction is asking for, and set the schedule against the stated deadline.' },
-      { n: '02', title: 'Site inspection', detail: 'Visual structural inspection of accessible elements — frame, slabs, balconies, roof structure and exposed foundations — documented in the field.' },
-      { n: '03', title: 'Findings', detail: 'Observed conditions are classified and explained in language a board can act on, with photographs tied to locations.' },
-      { n: '04', title: 'Repairs', detail: 'Where repairs are required we define what must be corrected and to what standard, so the work can be bid and executed fairly.' },
-      { n: '05', title: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings before anything is certified.' },
-      { n: '06', title: 'Submission', detail: 'The report is finalized and submitted, and we answer any questions the reviewing office raises.' },
+      { n: '01', title: 'Notice review', detail: 'We read the notice and the building record, confirm what the Building Official is asking for, and set the schedule against the date on the letter.' },
+      { n: '02', title: 'Inspection', detail: 'Structural inspection on site — frame, slabs, balconies, roof and exposed foundations — documented in the field, with photographs tied to their locations.' },
+      { n: '03', title: 'Report filed', detail: 'The structural report goes on the official form the county requires, in language a board can act on, and is filed even when it lists repairs.' },
+      { n: '04', title: 'Repairs under permit', detail: 'Where repairs are required we define what must be corrected and to what standard, so the work can be bid fairly. Work that needs a permit waits for it.' },
+      { n: '05', title: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings.' },
+      { n: '06', title: 'Close-out', detail: 'An amended report — in Broward, with a signed and sealed completion letter — states that the repairs are complete. That closes the file until the next cycle.' },
     ],
   },
 } as const;
@@ -1433,7 +1749,10 @@ export const closingCta = {
   eyebrow: 'Next step',
   titleLines: ['Tell us about the building.', 'We reply with a scope.'],
   accentWord: 'scope.',
-  body: 'A new project, an existing building or a notice with a deadline — describe it and attach what you have. You hear back from the engineer, with questions or with a written proposal.',
+  /* Leads with the notice: it is the reader the page now opens for, and the
+     one with a deadline. The order mirrors the site — notice, existing
+     building, new project. */
+  body: 'A county notice in your hand, a building that worries you or a new project — describe it and attach what you have. A phone photo of the letter is enough. You hear back from the engineer, with questions or with a written proposal.',
   primary: { href: '/contact', label: 'Request a Proposal' },
   secondary: { href: '/about#engineer', label: 'Meet the Engineer' },
 } as const;
@@ -1497,10 +1816,7 @@ export const en = {
   contactServiceOptions,
   typologiesSection,
   typologies,
-  pathsSection,
-  paths,
-  recertBand,
-  bim,
+  newBuildings,
   software,
   howWeWork,
   caseStudies,

@@ -1,45 +1,50 @@
 import React from 'react';
 import type { Lang } from '@/lib/ttc/i18n';
 import { Hero } from '@/components/ttc/mp/Hero';
-import { TwoPaths } from '@/components/ttc/mp/TwoPaths';
-import { Typologies } from '@/components/ttc/mp/Typologies';
-import { RecertBand } from '@/components/ttc/mp/RecertBand';
+import { ProgramSection } from '@/components/ttc/mp/ProgramSection';
+import { NewBuildings } from '@/components/ttc/mp/NewBuildings';
 import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
-import { HowWeWork } from '@/components/ttc/mp/HowWeWork';
-import { BIMExperience } from '@/components/ttc/mp/BIMExperience';
 import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 
 /**
- * Home: nine sections, each with one job.
+ * Home: seven sections, each with one job. Existing buildings come first —
+ * the reader with a deadline is the one holding a county notice — and each
+ * county has its own section, because Miami-Dade and Broward run different
+ * programs on different clocks.
  *
- *   Hero            what · where · who · one action
- *   TwoPaths        which client am I, and which door do I take
- *   Typologies      do you do my kind of building
- *   RecertBand      the clocks on existing buildings, per jurisdiction
- *   EngineerSection who is responsible
- *   HowWeWork       what happens after I write
- *   BIMExperience   how the design side is coordinated
- *   SouthFloridaMap where, exactly
- *   ContactCTA      the action, again
+ *   Hero             what · where · one action · four links into the page
+ *   ProgramSection   Miami-Dade: building recertification      (#miami-dade)
+ *   ProgramSection   Broward: Building Safety Inspection Program  (#broward)
+ *   NewBuildings     the design side, and its four services (#new-buildings)
+ *   EngineerSection  who is responsible
+ *   SouthFloridaMap  where, exactly
+ *   ContactCTA       the action, again
  *
- * Rhythm: dark · light · concrete · dark video · light · concrete · dark ·
- * light · dark close. `lang` is read by every section from the URL; the prop
- * exists so the two route files are explicit about what they render.
+ * The two program sections are ONE component rendered twice, so their rows
+ * line up label for label; each prints only its own county's numbers, taken
+ * from that service's timing row in site.ts. The three anchor ids are the
+ * targets of the hero strip (`hero.caps`).
+ *
+ * Not here any more: the two client doors and the recertification video band
+ * (deleted), the typology grid and the five-step process (both on /services).
+ *
+ * Rhythm: dark · paper · concrete · graphite · paper · paper · dark close.
+ * The two paper sections in a row are told apart by the same-surface
+ * hairline in mp.css (01). `lang` is read by every section from the URL; the
+ * prop exists so the two route files are explicit about what they render.
  */
 export function HomeView({ lang }: { lang: Lang }) {
   void lang;
   return (
     <>
       <Hero />
-      <TwoPaths n="01" />
-      <Typologies n="02" />
-      <RecertBand />
-      <EngineerSection n="03" variant="teaser" />
-      <HowWeWork n="04" />
-      <BIMExperience n="05" />
-      <SouthFloridaMap n="06" />
-      <ContactCTA n="07" />
+      <ProgramSection slug="building-recertification" n="01" surface="paper" />
+      <ProgramSection slug="broward-bsip" n="02" surface="concrete" mirrored />
+      <NewBuildings n="03" />
+      <EngineerSection n="04" variant="teaser" />
+      <SouthFloridaMap n="05" />
+      <ContactCTA n="06" />
     </>
   );
 }

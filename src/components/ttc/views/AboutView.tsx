@@ -14,8 +14,8 @@ import { breadcrumbLd, JsonLd } from './meta';
  * About: the practice, then the engineer (anchored), then how the work is held.
  *
  * Four sections and a close — engineer (paper) → approach (concrete) →
- * principles (paper) → CTA (graphite). The five-step process lives on Home
- * and Services and the service-area band on Home and Contact; repeating them
+ * principles (paper) → CTA (graphite). The five-step process lives on
+ * Services and the service-area band on Home and Contact; repeating them
  * here made a Home → Services → About visit read the same blocks three times.
  * The code-standard grid that used to sit here is gone for good (client site,
  * client language); the sealing statement it carried now closes Principles.

@@ -4,19 +4,35 @@ import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ServiceCard } from '@/components/ttc/mp/ServiceCard';
+import { Typologies } from '@/components/ttc/mp/Typologies';
 import { HowWeWork } from '@/components/ttc/mp/HowWeWork';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
-/** Services organised by the client's situation: new projects, then existing buildings. */
+/**
+ * Services organised by the client's situation. Existing buildings first —
+ * the order of the whole site, the footer and the contact dropdown — then
+ * new projects:
+ *
+ *   01  Existing buildings   paper      #existing   four cards
+ *   02  New projects         concrete   #new        four cards
+ *   03  What we design       paper      the typology grid, moved here from
+ *                                       the home page
+ *   04  How we work          concrete   the five-step process (this page only)
+ *   05  Contact
+ *
+ * The track ids are link targets (`/services#new` from the home page's
+ * new-buildings section). Four and four: the two-column card grid closes on
+ * a straight edge in both tracks.
+ */
 export function ServicesView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.servicesPage;
   const tracks = [
-    { ...p.tracks.new, items: c.services.filter((s) => s.track === 'new') },
     { ...p.tracks.existing, items: c.services.filter((s) => s.track === 'existing') },
+    { ...p.tracks.new, items: c.services.filter((s) => s.track === 'new') },
   ];
 
   return (
@@ -60,8 +76,9 @@ export function ServicesView({ lang }: { lang: Lang }) {
         </section>
       ))}
 
-      <HowWeWork n="03" />
-      <ContactCTA n="04" />
+      <Typologies n="03" surface="paper" />
+      <HowWeWork n="04" />
+      <ContactCTA n="05" />
     </>
   );
 }

@@ -13,15 +13,29 @@ import { useContent, useL } from './lang';
  *
  * ⚠ These photographs illustrate a TYPOLOGY, never a job. The footnote saying
  * so is part of the section, not decoration.
+ *
+ * Rendered on /services, after the two tracks. It left the home page when the
+ * county programs took its place; the home page keeps the headline, on
+ * NewBuildings, so the two never share a page. `surface` exists because the
+ * section now sits between a concrete track and the concrete "How we work":
+ * the page passes `paper` to keep the surfaces alternating.
  */
-export function Typologies({ n = '02' }: { n?: string }) {
+export function Typologies({
+  n = '03',
+  surface = 'concrete',
+}: {
+  n?: string;
+  surface?: 'paper' | 'concrete';
+}) {
   const c = useContent();
   const l = useL();
   const s = c.typologiesSection;
 
   return (
     <section
-      className="mp-section mp-section--lg mp-surface--concrete"
+      className={`mp-section mp-section--lg ${
+        surface === 'paper' ? 'mp-surface--paper' : 'mp-surface--concrete'
+      }`}
       aria-labelledby="mp-typo-title"
     >
       <div className="mp-shell">

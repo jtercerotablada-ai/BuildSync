@@ -11,7 +11,7 @@ import { breadcrumbLd, JsonLd } from './meta';
 
 /**
  * Work: the engagements, the material, the close. The five-step process is
- * not repeated here — it lives on Home and Services.
+ * not repeated here — it lives on Services.
  *
  * Until real case studies exist the page shows TYPICAL ENGAGEMENTS, and says
  * so with one label everywhere (hero eyebrow and section label alike). There
