@@ -690,13 +690,7 @@ export const es: SiteContent = {
       lockupLight: '/ttc/img/logo-white-wide.png',
       lockupSize: { w: 2172, h: 501 },
       lockupDarkSm: '/ttc/img/logo-horizontal@640.png',
-      dark: '/ttc/img/logo-square.png',
-      light: '/ttc/img/logo-white.png',
-      markSize: { w: 1254, h: 1254 },
-      markDarkSm: '/ttc/img/logo-square@256.png',
-      markLightSm: '/ttc/img/logo-white@256.png',
       lockupLightSm: '/ttc/img/logo-white-wide@640.png',
-      markSmSize: { w: 256, h: 256 },
       lockupSmSize: { w: 640, h: 148 },
     },
     /**

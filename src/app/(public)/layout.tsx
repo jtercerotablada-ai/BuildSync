@@ -119,11 +119,14 @@ const structuredData = {
       name: company.legalName,
       alternateName: company.shortName,
       url: company.url,
+      /* The horizontal lockup, not a square mark: Terdax's mark alone is the
+         gold triangle inside the "A", which names nothing. Google accepts any
+         aspect ratio here and shows this logo next to the knowledge panel. */
       logo: {
         '@type': 'ImageObject',
-        url: `${company.url}${company.logo.dark}`,
-        width: company.logo.markSize.w,
-        height: company.logo.markSize.h,
+        url: `${company.url}${company.logo.lockupDark}`,
+        width: company.logo.lockupSize.w,
+        height: company.logo.lockupSize.h,
       },
       email: contact.email,
       description: company.description,

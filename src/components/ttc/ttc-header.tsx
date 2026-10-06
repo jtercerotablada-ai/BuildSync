@@ -54,7 +54,7 @@ export function TTCHeader() {
           <Link href="/" className="header__logo">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/ttc/img/logo-white.png"
+              src="/ttc/img/logo-white-wide@640.png"
               alt="Terdax Engineering"
               className="header__logo-img"
             />

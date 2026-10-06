@@ -198,7 +198,7 @@
 
 /* Header over the dark hero (top of home, before scroll) */
 .header:not(.scrolled):not(.header--solid) .header__logo-img {
-  content: url('/ttc/img/logo-white.png') !important;
+  content: url('/ttc/img/logo-white-wide.png') !important;
 }
 .header:not(.scrolled):not(.header--solid) .header__nav a {
   color: rgba(255, 255, 255, 0.88) !important;
@@ -950,7 +950,7 @@
   }
   /* Dark logo while the (cream) menu is open (beats the white-hero rule) */
   body.menu-open .header:not(.scrolled):not(.header--solid) .header__logo-img {
-    content: url('/ttc/img/logo-square.png') !important;
+    content: url('/ttc/img/logo-horizontal.png') !important;
   }
 
   /* ---- Mobile menu — full screen, nav centered, actions pinned bottom --- */

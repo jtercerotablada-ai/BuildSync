@@ -69,28 +69,25 @@ export const company = {
     'Structural engineering for South Florida — building recertification in Miami-Dade, the Building Safety Inspection Program (BSIP) in Broward, structural assessments and repair design, and the structural design of new buildings.',
   tagline: 'Structural Engineering for South Florida.',
   /**
-   * Two real brand assets, both supplied by the client — never redraw either.
-   *   lockup* = full horizontal signature (TT monogram + wordmark + tagline).
-   *   mark*   = monogram only, for tight spots.
-   * The `dark` variants are for LIGHT backgrounds and the `light` variants
-   * are white, for DARK backgrounds only.
+   * ONE brand asset: the horizontal lockup supplied by the client (TERDAX +
+   * ENGINEERING), never redrawn. `lockupDark` is the dark ink, for LIGHT
+   * backgrounds; `lockupLight` is white, for DARK backgrounds only.
    *
-   * The `*Sm` files are pure resizes of the same masters (no redraw) for the
-   * site chrome, where a 1254px or 2172px PNG was being shipped to draw a
-   * 40px mark. The masters stay for JSON-LD, the SaaS and email.
+   * There is deliberately no square mark. Terdax's only mark-like element is
+   * the gold triangle inside the "A", and on its own it names nothing — it
+   * was on the icons, the engineer plate and the e-mail headers, and read as
+   * a stray shape. Every slot shows the wordmark now, including the favicon.
+   *
+   * The `*Sm` files are pure resizes of the same master (no redraw) for the
+   * site chrome, where a 2172px PNG was being shipped to draw a 32px lockup.
+   * The master stays for JSON-LD and anywhere size is unknown.
    */
   logo: {
     lockupDark: '/ttc/img/logo-horizontal.png',
     lockupLight: '/ttc/img/logo-white-wide.png',
     lockupSize: { w: 2172, h: 501 },
     lockupDarkSm: '/ttc/img/logo-horizontal@640.png',
-    dark: '/ttc/img/logo-square.png',
-    light: '/ttc/img/logo-white.png',
-    markSize: { w: 1254, h: 1254 },
-    markDarkSm: '/ttc/img/logo-square@256.png',
-    markLightSm: '/ttc/img/logo-white@256.png',
     lockupLightSm: '/ttc/img/logo-white-wide@640.png',
-    markSmSize: { w: 256, h: 256 },
     lockupSmSize: { w: 640, h: 148 },
   },
   /**

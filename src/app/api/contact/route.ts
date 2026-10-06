@@ -111,8 +111,7 @@ function shell(inner: string, lang: "en" | "es" = "en") {
 <body style="margin:0;padding:0;background:#f6f4ef;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0b0c0d">
 <div style="max-width:560px;margin:32px auto;background:#fff;border:1px solid #e8e4dc">
   <div style="background:#0b0c0d;padding:22px 24px;border-bottom:2px solid #c99a38">
-    <img src="${SITE}/ttc/img/logo-white.png" width="36" height="36" alt="" style="vertical-align:middle;border:0" />
-    <span style="color:#f6f4ef;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-left:12px;vertical-align:middle">Terdax Engineering</span>
+    <img src="${SITE}/ttc/img/logo-white-wide@640.png" width="150" height="35" alt="Terdax Engineering" style="display:block;border:0" />
   </div>
   <div style="padding:28px 24px;font-size:15px;line-height:1.6">${inner}</div>
 </div></body></html>`;

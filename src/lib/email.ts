@@ -62,8 +62,7 @@ export async function sendVerificationEmail(email: string, token: string) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">Terdax Engineering</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white-wide@640.png" width="160" height="37" alt="Terdax Engineering" style="display:inline-block;border:0" />
     </div>
     <div style="padding:32px 24px">
       <h1 style="margin:0 0 8px;font-size:20px;color:#0f172a">Verify your email</h1>
@@ -102,8 +101,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">Terdax Engineering</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white-wide@640.png" width="160" height="37" alt="Terdax Engineering" style="display:inline-block;border:0" />
     </div>
     <div style="padding:32px 24px">
       <h1 style="margin:0 0 8px;font-size:20px;color:#0f172a">Reset your password</h1>
@@ -192,8 +190,8 @@ export async function sendInvitationEmail(params: InvitationEmailParams) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white-wide@640.png" width="110" height="25" alt="Terdax Engineering" style="vertical-align:middle;border:0" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:12px;vertical-align:middle">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
       <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">Workspace invitation</p>
@@ -337,8 +335,8 @@ export async function sendTaskAssignedEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white-wide@640.png" width="110" height="25" alt="Terdax Engineering" style="vertical-align:middle;border:0" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:12px;vertical-align:middle">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
       <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">New task assigned</p>
@@ -457,8 +455,8 @@ export async function sendFormSubmissionEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white-wide@640.png" width="110" height="25" alt="Terdax Engineering" style="vertical-align:middle;border:0" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:12px;vertical-align:middle">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
       <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">New form submission</p>
@@ -573,8 +571,8 @@ export async function sendFormSubmitterReceiptEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white-wide@640.png" width="110" height="25" alt="Terdax Engineering" style="vertical-align:middle;border:0" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:12px;vertical-align:middle">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
       <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">Submission received</p>
