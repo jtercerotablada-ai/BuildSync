@@ -631,7 +631,7 @@ describe("hostSplitAction", () => {
     });
 
     it("answers host-neutral paths in place", () => {
-      for (const path of ["/ttc/og/og-en.jpg", "/robots.txt", "/sitemap.xml", "/api/auth/session"]) {
+      for (const path of ["/ttc/og/og-en-terdax.jpg", "/robots.txt", "/sitemap.xml", "/api/auth/session"]) {
         expect(onPublic(path), path).toBeNull();
       }
     });
@@ -791,7 +791,7 @@ describe("publicNotFoundTarget", () => {
       "/api/load-gen",
       "/api/auth/session",
       "/_next/static/chunks/x.js",
-      "/ttc/og/og-en.jpg",
+      "/ttc/og/og-en-terdax.jpg",
       "/favicon.ico",
       "/robots.txt",
       "/sitemap.xml",

@@ -292,9 +292,9 @@ export function SiteHeader() {
           >
             {/* The horizontal signature, swapped by header state: dark over
                 the light header, white over a dark hero. The Terdax mark on
-                its own is a triangle and carries no name, so the header shows
-                the full lockup; the mark alone stays for the favicon and the
-                tight square slots. Both files are 640px resizes of the
+                its own is a triangle and carries no name, so every slot — this
+                header, the favicon, the tiles — shows the full lockup. Both
+                files are 640px resizes of the
                 masters for a ~30px slot, and both stay eager because the
                 hidden one is swapped in on scroll. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}

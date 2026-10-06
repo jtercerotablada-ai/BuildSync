@@ -11,19 +11,24 @@ import { hreflangFor, localePath, ogLocale, type Lang } from '@/lib/ttc/i18n';
  * The card carries the tagline and the counties over the real logo — never the
  * engineer's name or license number. The relative url is made absolute by the
  * (public) layout's metadataBase.
+ *
+ * The `-terdax` in the file names is deliberate. WhatsApp, Facebook and X all
+ * cache a scraped card by its image URL, so re-cutting the old file in place
+ * would have left the retired logo in circulation for weeks; a new path is
+ * fetched fresh, and the old one is gone from the site.
  */
 export const OG_IMAGE: Record<
   Lang,
   { url: string; width: number; height: number; alt: string }
 > = {
   en: {
-    url: '/ttc/og/og-en.jpg',
+    url: '/ttc/og/og-en-terdax.jpg',
     width: 1200,
     height: 630,
     alt: `Structural Engineering for South Florida — ${company.name}`,
   },
   es: {
-    url: '/ttc/og/og-es.jpg',
+    url: '/ttc/og/og-es-terdax.jpg',
     width: 1200,
     height: 630,
     alt: `Ingeniería estructural para el Sur de Florida — ${company.name}`,
