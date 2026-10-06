@@ -185,7 +185,7 @@ export function SteelMemberCalculator() {
       <div className="stl-sheethead">
         <div>
           <div className="stl-brand">TERDAX ENGINEERING</div>
-          <div className="stl-brand-sub">Civil &amp; Structural Engineering Inc.</div>
+          <div className="stl-brand-sub">Civil &amp; Structural Engineering</div>
         </div>
         <div className="stl-sheettitle">
           <strong>STEEL MEMBER DESIGN</strong>

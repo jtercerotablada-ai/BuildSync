@@ -252,7 +252,7 @@ export const dictionaries = {
     'footer.postTension': 'Post-Tension',
     'footer.digitalConstruction': 'Digital Construction',
     'footer.clashDetection': 'Clash Detection',
-    'footer.copyright': 'ALL RIGHTS RESERVED \u2014 Terdax Engineering Inc., 2026',
+    'footer.copyright': 'ALL RIGHTS RESERVED \u2014 Terdax Engineering, 2026',
   },
   es: {
     // Nav
@@ -505,7 +505,7 @@ export const dictionaries = {
     'footer.postTension': 'Postensado',
     'footer.digitalConstruction': 'Construccion Digital',
     'footer.clashDetection': 'Deteccion de Interferencias',
-    'footer.copyright': 'TODOS LOS DERECHOS RESERVADOS \u2014 Terdax Engineering Inc., 2026',
+    'footer.copyright': 'TODOS LOS DERECHOS RESERVADOS \u2014 Terdax Engineering, 2026',
   },
 } as const;
 

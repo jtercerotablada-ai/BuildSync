@@ -116,7 +116,7 @@ export function RcPrintReport({ input, result, cover3dDataUrl }: Props) {
           </p>
           <p>
             The user assumes full responsibility for verification.
-            <strong>Terdax Engineering Inc.</strong>, its principals, employees, and
+            <strong>Terdax Engineering</strong>, its principals, employees, and
             contributors expressly disclaim any liability for damages arising from the use
             of these calculations.
           </p>

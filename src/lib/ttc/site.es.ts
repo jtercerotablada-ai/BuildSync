@@ -675,7 +675,7 @@ const caseStudies: SiteContent['caseStudies'] = [];
 
 export const es: SiteContent = {
   company: {
-    legalName: 'Terdax Engineering Inc.',
+    legalName: 'Terdax Engineering',
     name: 'Terdax Engineering',
     shortName: 'Terdax',
     discipline: 'Ingeniería Civil y Estructural',

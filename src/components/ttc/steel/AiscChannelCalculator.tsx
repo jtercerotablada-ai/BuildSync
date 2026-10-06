@@ -161,7 +161,7 @@ export function AiscChannelCalculator() {
       <div className="stl-sheethead">
         <div>
           <div className="stl-brand">TERDAX ENGINEERING</div>
-          <div className="stl-brand-sub">Civil &amp; Structural Engineering Inc.</div>
+          <div className="stl-brand-sub">Civil &amp; Structural Engineering</div>
         </div>
         <div className="stl-sheettitle">
           <strong>STEEL CHANNEL DESIGN</strong>
