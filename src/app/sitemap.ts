@@ -16,6 +16,12 @@ import { hreflangFor, LANGS, localePath } from '@/lib/ttc/i18n';
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = company.url;
+  /* Next resolves a page's relative canonical against metadataBase, and for
+     the home page that prints the bare origin — no trailing slash. Same rule
+     here so the <loc>, the hreflang hrefs and the canonical the page declares
+     are byte-identical. (`/` and the bare origin are the same URL to a
+     crawler; this just stops the two signals from looking different.) */
+  const abs = (path: string) => `${base}${path === '/' ? '' : path}`;
 
   const pages: { path: string; freq: 'monthly' | 'yearly'; priority: number }[] = [
     { path: '/', freq: 'monthly', priority: 1 },
@@ -31,7 +37,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return pages.flatMap((p) =>
     LANGS.map((lang) => ({
-      url: `${base}${localePath(p.path, lang)}`,
+      url: abs(localePath(p.path, lang)),
       changeFrequency: p.freq,
       // Rounded: 0.8 - 0.1 prints as 0.7000000000000001 in the XML.
       priority:
@@ -40,7 +46,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       // <head> — x-default included — so the two signals cannot disagree.
       alternates: {
         languages: Object.fromEntries(
-          Object.entries(hreflangFor(p.path)).map(([hreflang, path]) => [hreflang, `${base}${path}`]),
+          Object.entries(hreflangFor(p.path)).map(([hreflang, path]) => [hreflang, abs(path)]),
         ),
       },
     })),
