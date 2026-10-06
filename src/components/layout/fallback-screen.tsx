@@ -15,7 +15,7 @@ body{margin:0}
 .ttc-fb__box{width:100%;max-width:448px;text-align:center}
 .ttc-fb__box>*{margin:0}
 .ttc-fb__box>*+*{margin-top:16px}
-.ttc-fb__logo{display:block;height:40px;width:auto;max-width:240px;object-fit:contain;margin-inline:auto}
+.ttc-fb__logo{display:block;width:64px;height:64px;object-fit:contain;margin-inline:auto}
 .ttc-fb__title{font-size:18px;line-height:28px;font-weight:600;color:oklch(0.21 0.034 264.665)}
 .ttc-fb__text{font-size:14px;line-height:20px;color:oklch(0.556 0 0)}
 .ttc-fb__ref{font-size:12px;line-height:16px;color:oklch(0.556 0 0 / 0.7)}
@@ -46,14 +46,14 @@ export function FallbackScreen({
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <div className="ttc-fb__box">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {/* The 640px rendition of the full lockup, not the 2172px master:
-            this boundary sits in every page's RSC payload, and React preloads
-            the image it names. */}
+        {/* The 256px rendition of the real mark, not the 1254px master: this
+            boundary sits in every page's RSC payload, and React preloads the
+            image it names — 377 KB on every public page for a 64px logo. */}
         <img
-          src="/ttc/img/logo-horizontal@640.png"
-          alt="Terdax Engineering"
-          width={240}
-          height={55}
+          src="/ttc/img/logo-square@256.png"
+          alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
+          width={64}
+          height={64}
           className="ttc-fb__logo"
         />
         <h1 className="ttc-fb__title">{title}</h1>

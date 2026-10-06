@@ -128,8 +128,8 @@ export function BasePlatePrintReport({ input, result, cover3dDataUrl }: Props) {
           </p>
           <p>
             The user assumes full responsibility for verification of every input, every
-            assumption, and every output. <strong>Terdax Engineering Inc.</strong>, its
-            principals, employees, and contributors expressly
+            assumption, and every output. <strong>TERCERO TABLADA CIVIL AND STRUCTURAL
+            ENGINEERING INC.</strong>, its principals, employees, and contributors expressly
             disclaim any and all liability for direct, indirect, incidental, consequential,
             or punitive damages arising from the use or inability to use these calculations.
           </p>
@@ -673,7 +673,7 @@ export function BasePlatePrintReport({ input, result, cover3dDataUrl }: Props) {
 
         <div className="pr-footer">
           End of report · Generated on {dateStr} by{' '}
-          <strong>terdaxengineering.com</strong> · <strong>For verification —
+          <strong>ttcivilstructural.com</strong> · <strong>For verification —
           must be reviewed and signed by a licensed P.E. / S.E.</strong>
         </div>
       </section>

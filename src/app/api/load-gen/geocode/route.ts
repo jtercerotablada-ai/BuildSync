@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   try {
     const r = await fetch(url.toString(), {
       headers: {
-        'User-Agent': 'terdaxengineering.com Load Generator (contact: https://terdaxengineering.com)',
+        'User-Agent': 'ttcivilstructural.com Load Generator (contact: info@ttcivilstructural.com)',
         'Accept-Language': 'en',
       },
       cache: 'no-store',

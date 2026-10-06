@@ -1,5 +1,5 @@
 // Simple flexure (singly-reinforced rectangular section) per ACI 318-25.
-// Faithful port of the firm's "Diseño/Análisis a Flexión" spreadsheet.
+// Faithful port of the Tercero Tablada "Diseño/Análisis a Flexión" spreadsheet.
 //
 // Unit convention (matches the spreadsheet's "DATOS DE INICIO"):
 //   b, h : metres (m)        — section base & total height

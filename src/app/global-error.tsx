@@ -34,10 +34,10 @@ export default function GlobalError({
         <div style={{ width: "100%", maxWidth: 420, textAlign: "center" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/ttc/img/logo-horizontal@640.png"
-            alt="Terdax Engineering"
-            width={320}
-            height={74}
+            src="/ttc/img/logo-square.png"
+            alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
+            width={64}
+            height={64}
             style={{ objectFit: "contain", display: "block", margin: "0 auto 16px" }}
           />
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 8px" }}>

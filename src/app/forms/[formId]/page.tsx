@@ -652,7 +652,7 @@ export default function PublicFormPage() {
 
         {!isEmbed && (
           <p className="text-[11px] text-slate-400 text-center mt-4">
-            Powered by Terdax Engineering
+            Powered by Tercero Tablada
           </p>
         )}
       </div>

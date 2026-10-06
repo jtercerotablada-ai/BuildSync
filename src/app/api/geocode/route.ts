@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
     const res = await fetch(url.toString(), {
       headers: {
-        "User-Agent": "BuildSync/1.0 (https://terdaxengineering.com)",
+        "User-Agent": "BuildSync/1.0 (https://ttcivilstructural.com)",
         Accept: "application/json",
       },
       // Cap the wait so a slow/hung upstream can't tie up the function.

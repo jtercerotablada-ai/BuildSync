@@ -91,7 +91,7 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
 
                 <div className="mp-info__block">
                   <span className="mp-info__label">{c.ui.engineer.eyebrow}</span>
-                  <span className="mp-info__value">{c.company.name}</span>
+                  <span className="mp-info__value">{c.leadership.name}</span>
                   <span className="mp-info__meta">
                     {c.leadership.role} · {c.leadership.credential}
                   </span>

@@ -28,7 +28,7 @@ export function TTCFooter() {
           <div className="footer__brand">
             <Image
               src="/ttc/img/logo-white-wide.png"
-              alt="Terdax Engineering"
+              alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
               className="footer__logo-img"
               width={360}
               height={137}
@@ -106,8 +106,8 @@ export function TTCFooter() {
                 </a>
               </div>
             )}
-            <a href="mailto:info@terdaxengineering.com" className="footer__email">
-              info@terdaxengineering.com
+            <a href="mailto:info@ttcivilstructural.com" className="footer__email">
+              info@ttcivilstructural.com
             </a>
           </div>
         </div>

@@ -10,7 +10,7 @@ import type { RiskCategory, SiteClass } from '@/lib/load-gen/types';
 // an http:// URL that resets — call the new canonical endpoint directly.
 // CloudFront also resets bare clients: send a browser-like User-Agent and retry.
 const USGS_URL = 'https://earthquake.usgs.gov/ws/building-codes/asce7-22/calculate';
-const UA = 'Mozilla/5.0 (compatible; Terdax-LoadGen/1.0; +https://terdaxengineering.com)';
+const UA = 'Mozilla/5.0 (compatible; TTC-LoadGen/1.0; +https://ttcivilstructural.com)';
 
 const VALID_SITE: Record<string, string> = {
   A: 'A', B: 'B', BC: 'BC', C: 'C', CD: 'CD', D: 'D', DE: 'DE', E: 'E', Default: 'DEFAULT',
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     );
   }
   const usgsSite = VALID_SITE[siteClass] ?? 'DEFAULT';
-  const url = `${USGS_URL}?latitude=${lat}&longitude=${lng}&riskCategory=${risk}&siteClass=${usgsSite}&title=Terdax-LoadGen`;
+  const url = `${USGS_URL}?latitude=${lat}&longitude=${lng}&riskCategory=${risk}&siteClass=${usgsSite}&title=TTC-LoadGen`;
 
   let json: unknown = null;
   let lastErr = '';

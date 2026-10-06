@@ -1,6 +1,6 @@
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * TERDAX ENGINEERING — public site content (SPANISH)
+ * TERCERO TABLADA — public site content (SPANISH)
  * ─────────────────────────────────────────────────────────────────────────────
  * Mirror of `site.ts` in Spanish. Same object shape, same routes, slugs,
  * photos and counts — only the words differ. The English file is the source
@@ -675,11 +675,11 @@ const caseStudies: SiteContent['caseStudies'] = [];
 
 export const es: SiteContent = {
   company: {
-    legalName: 'Terdax Engineering Inc.',
-    name: 'Terdax Engineering',
-    shortName: 'Terdax',
+    legalName: 'Tercero Tablada Civil & Structural Engineering Inc.',
+    name: 'Tercero Tablada Civil & Structural Engineering Inc.',
+    shortName: 'Tercero Tablada',
     discipline: 'Ingeniería Civil y Estructural',
-    url: 'https://terdaxengineering.com',
+    url: 'https://ttcivilstructural.com',
     /* Existing buildings first, each county's program by its own name — the
        order the whole site follows. No number belongs here. */
     description:
@@ -688,10 +688,15 @@ export const es: SiteContent = {
     logo: {
       lockupDark: '/ttc/img/logo-horizontal.png',
       lockupLight: '/ttc/img/logo-white-wide.png',
-      lockupSize: { w: 2172, h: 501 },
-      lockupDarkSm: '/ttc/img/logo-horizontal@640.png',
+      lockupSize: { w: 2172, h: 827 },
+      dark: '/ttc/img/logo-square.png',
+      light: '/ttc/img/logo-white.png',
+      markSize: { w: 1254, h: 1254 },
+      markDarkSm: '/ttc/img/logo-square@256.png',
+      markLightSm: '/ttc/img/logo-white@256.png',
       lockupLightSm: '/ttc/img/logo-white-wide@640.png',
-      lockupSmSize: { w: 640, h: 148 },
+      markSmSize: { w: 256, h: 256 },
+      lockupSmSize: { w: 640, h: 244 },
     },
     /**
      * Florida Engineering Business Registry number (DBPR).
@@ -707,20 +712,20 @@ export const es: SiteContent = {
      * would type into myfloridalicense.com to verify it. `null` removes the line
      * from the footer entirely.
      */
-    /* OCULTO hasta resolver si Terdax es la misma sociedad renombrada: el
-       #40285 es el registro DBPR del nombre anterior. Ver site.ts. */
-    registry: null,
+    registry: 'FL Engineering Business No. 40285' as string | null,
   },
 
   contact: {
   /**
-     * NULL A PROPÓSITO hasta que info@terdaxengineering.com reciba de verdad.
-     * El buzón anterior vive en el dominio retirado y publicarlo devolvería
-     * la marca anterior a la página; el dominio nuevo todavía no tiene MX.
-     * Publicar una dirección que rebota es peor que no publicar ninguna: el
-     * formulario de contacto llega igual.
+     * The firm's mailbox. Google Workspace on ttcivilstructural.com — MX
+     * verified live 2026-09-12 (smtp.google.com), single root SPF
+     * (include:_spf.google.com), so this address genuinely receives.
+     *
+     * It replaced info@tercerotablada.com, which was published here for months
+     * on a domain with NO MX at all: anyone who wrote to it got a bounce and
+     * assumed they had reached us. Before changing this, dig the MX.
      */
-    email: null,
+    email: 'info@ttcivilstructural.com',
     phone: null,
     address: null,
     serviceAreaLabel: 'Condados de Miami-Dade y Broward, Florida',
@@ -816,7 +821,7 @@ export const es: SiteContent = {
       verify: 'Verificar en el DBPR de Florida',
       education: 'Formación',
       focus: 'Áreas de especialidad',
-      approach: 'Cómo trabajamos',
+      approach: 'Cómo trabajo',
       forYou: 'Qué significa eso para usted',
       readMore: 'Conozca al ingeniero',
       plateNote: 'Retrato profesional próximamente',
@@ -835,7 +840,7 @@ export const es: SiteContent = {
       firmProjects: 'Proyectos de la firma',
       priorExperience: 'Experiencia profesional previa',
       priorNote:
-        'Trabajo realizado en otras empresas antes de fundar la firma. Se lista solo como experiencia — no son proyectos de Terdax Engineering',
+        'Trabajo realizado en otras empresas antes de fundar la firma. Se lista solo como experiencia — no son proyectos de Tercero Tablada Civil & Structural Engineering Inc.',
     },
     form: {
       heading: 'Solicitar propuesta',
@@ -904,11 +909,11 @@ export const es: SiteContent = {
         'Las descripciones de este sitio son generales. El alcance, la secuencia y los entregables para cualquier edificio específico se confirman por escrito antes de comenzar el trabajo, y los requisitos varían según la jurisdicción.',
     },
     typologiesNote:
-      'Las fotografías ilustran el tipo de estructura descrito; ninguna muestra un proyecto de Terdax Engineering Los encargos típicos se describen en',
+      'Las fotografías ilustran el tipo de estructura descrito; ninguna muestra un proyecto de Tercero Tablada Civil & Structural Engineering Inc. Los encargos típicos se describen en',
     typologiesNoteLink: 'Proyectos',
     typologiesNoteEnd: '.',
     galleryNote:
-      'Fotografía arquitectónica con licencia, mostrada como material y no como portafolio. Ninguna imagen de esta página muestra un proyecto de Terdax Engineering',
+      'Fotografía arquitectónica con licencia, mostrada como material y no como portafolio. Ninguna imagen de esta página muestra un proyecto de Tercero Tablada Civil & Structural Engineering Inc.',
     processDisclaimer:
       'Los requisitos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Esto describe una secuencia típica, no un procedimiento ni un resultado garantizado.',
     legalPages: { privacy: 'Política de privacidad', terms: 'Términos de uso', legal: 'Legal' },
@@ -1064,27 +1069,31 @@ export const es: SiteContent = {
   credentials: {
     sealedDeliverables: true,
     sealingStatement:
-      'Un Ingeniero Profesional (P.E.) con licencia en Florida firma y sella los entregables cuando el alcance del trabajo lo requiere.',
+      'Juan Tercero, PE., M.Sc., Ingeniero Profesional (P.E.) con licencia en Florida, firma y sella los entregables cuando el alcance del trabajo lo requiere.',
   },
 
   leadership: {
-    name: 'Terdax Engineering',
-    /** Firma la cita destacada: habla la firma, no una persona. */
-    firstName: 'Terdax Engineering',
-    role: 'Ingeniero Principal',
+    name: 'Juan Tercero, PE., M.Sc.',
+    firstName: 'Juan',
+    role: 'Ingeniero Principal · Fundador',
     credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
     portrait: null,
     license: null,
     linkedin: null,
     teaserTitle: 'Un solo ingeniero responsable de todo el proyecto.',
     teaser:
-      'En Terdax Engineering, cada proyecto lo diseña, revisa y firma el mismo ingeniero licenciado. Usted trata directamente con el ingeniero que hace el trabajo desde su primer mensaje, y el alcance que aprueba en la propuesta es el alcance que entregamos.',
+      'En Tercero Tablada Civil & Structural Engineering Inc., cada proyecto lo diseña, revisa y firma la misma persona. Usted trata directamente con el ingeniero desde su primer mensaje, y el alcance que aprueba en la propuesta es el alcance que entregamos.',
     bio: [
-      'Terdax Engineering es una firma de ingeniería estructural registrada para ofrecer servicios de ingeniería en Florida. Un Ingeniero Profesional licenciado dirige cada encargo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado: el mismo ingeniero de principio a fin, no una cadena de ejecutivos de cuentas.',
+      /* The Master's keeps the program's own name ("…en Construction Project
+         Management", Universidad de Barcelona), the same in bio and education. */
+      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada encargo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
       'La firma cubre las dos mitades del trabajo estructural en el Sur de Florida: el diseño de edificios nuevos de concreto reforzado, y la evaluación, recertificación y reparación de edificios que ya están en pie. Ambas se hacen con la misma disciplina — el razonamiento detrás de cada conclusión queda escrito, y nada sale de la oficina sin haberse revisado línea por línea.',
     ],
-    /** Vacío a propósito: los títulos identifican al principal. */
-    education: [],
+    education: [
+      'Máster en Construction Project Management — Universidad de Barcelona',
+      'Ingeniero Civil — Universidad Nacional de Ingeniería',
+      'Ingeniero Profesional (P.E.) con licencia del Estado de Florida',
+    ],
     focus: [
       'Recertificación en Miami-Dade, inspecciones del BSIP en Broward y evaluaciones de condición',
       'Diseño en concreto reforzado para casas, edificios de mediana altura y estructuras comerciales',
@@ -1092,16 +1101,17 @@ export const es: SiteContent = {
       'Diseño por viento y lateral para la Zona de Huracanes de Alta Velocidad (HVHZ)',
     ],
     approach:
-      'Preferimos explicar una decisión estructural en lenguaje claro antes que esconderla detrás de una referencia de código. Una junta directiva debe poder leer un informe de hallazgos y saber qué hacer a continuación; un contratista debe poder construir desde el plano sin llamar; y un revisor debe poder seguir el cálculo desde la carga hasta el detalle.',
+      'Prefiero explicar una decisión estructural en lenguaje claro antes que esconderla detrás de una referencia de código. Una junta directiva debe poder leer un informe de hallazgos y saber qué hacer a continuación; un contratista debe poder construir desde el plano sin llamar; y un revisor debe poder seguir el cálculo desde la carga hasta el detalle.',
     forYou: [
       { k: 'Comunicación directa', v: 'Usted habla con el ingeniero que está haciendo el trabajo — no con un ejecutivo de cuentas que transmite preguntas.' },
       { k: 'Un alcance que se puede leer', v: 'Cada propuesta establece qué se incluye, qué no, qué recibe y cuánto cuesta, antes de que empiece cualquier cosa.' },
-      { k: 'El criterio de un solo ingeniero', v: 'Quien inspecciona el edificio o fija la base de diseño es el mismo ingeniero que firma el informe y responde al revisor.' },
+      { k: 'El criterio de un solo ingeniero', v: 'La persona que inspecciona el edificio o fija la base de diseño es la persona que firma el informe y responde al revisor.' },
     ],
     plate: [
-      { k: 'Firma', v: 'Terdax Engineering' },
+      { k: 'Nombre', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Licencia', v: 'Ingeniero Profesional, Florida' },
-      { k: 'Cargo', v: 'Ingeniero Principal' },
+      { k: 'Cargo', v: 'Ingeniero Principal · Fundador' },
+      { k: 'Firma', v: 'Tercero Tablada Civil & Structural Engineering Inc.' },
       { k: 'Región', v: 'Miami-Dade y Broward' },
     ],
   },
@@ -1110,9 +1120,9 @@ export const es: SiteContent = {
     eyebrow: 'Sobre la firma',
     titleLines: ['Una firma de ingeniería estructural', 'con un solo ingeniero responsable.'],
     accentWord: 'responsable',
-    sub: 'Terdax Engineering diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
+    sub: 'Tercero Tablada Civil & Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
     facts: [
-      { k: 'Licencia', v: 'Ingeniero Profesional de Florida' },
+      { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Enfoque', v: 'Concreto · Edificios existentes · BIM' },
       { k: 'Región', v: 'Sur de Florida' },
     ],
@@ -1284,7 +1294,7 @@ export const es: SiteContent = {
         { h: 'Resultados regulatorios', p: 'Los requisitos de inspección, recertificación y permisos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Las edades y los plazos publicados aquí fueron verificados en la fecha indicada junto a ellos y pueden cambiar. Las descripciones de cualquier proceso en este sitio son secuencias típicas, no garantías. No prometemos la aprobación de ningún departamento de construcción ni autoridad revisora.' },
         { h: 'Documentos sellados', p: 'Donde se requiera un documento firmado y sellado, se emite como entregable formal bajo un alcance de trabajo acordado. El contenido de este sitio web nunca es un entregable sellado.' },
         { h: 'Exactitud y disponibilidad', p: 'Mantenemos este sitio actualizado, pero no garantizamos que cada afirmación sea completa o esté libre de errores, ni que el sitio esté siempre disponible.' },
-        { h: 'Propiedad intelectual', p: 'Los textos, el nombre y el logotipo de la firma que aparecen en este sitio pertenecen a Terdax Engineering y no pueden reproducirse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
+        { h: 'Propiedad intelectual', p: 'Los textos, el nombre y el logotipo de la firma que aparecen en este sitio pertenecen a Tercero Tablada Civil & Structural Engineering Inc. y no pueden reproducirse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
       ],
     },
     contactHeading: 'Contacto',

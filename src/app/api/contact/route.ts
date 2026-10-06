@@ -69,15 +69,11 @@ function getResend() {
   if (!key) throw new Error("RESEND_API_KEY not configured");
   return new Resend(key);
 }
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@terdaxengineering.com";
-// New brand in the display name, but the fallback ADDRESS stays on
-// ttcivilstructural.com: that is the domain verified with Resend today. It
-// moves to @terdaxengineering.com via EMAIL_FROM once the new domain is
-// verified there.
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@ttcivilstructural.com";
 const FROM =
   process.env.EMAIL_FROM ||
-  "Terdax Engineering <noreply@ttcivilstructural.com>";
-const SITE = "https://terdaxengineering.com";
+  "Tercero Tablada Civil & Structural Engineering Inc. <noreply@ttcivilstructural.com>";
+const SITE = "https://ttcivilstructural.com";
 const INBOX = `${SITE}/portal/admin/submissions`;
 
 const COPY = {
@@ -85,7 +81,7 @@ const COPY = {
     subject: "We received your proposal request",
     title: "Your request is with the engineer.",
     body: (service: string, ref: string) =>
-      `Thank you. Your proposal request (${escapeHtml(service)}) has been received and will be read by a Florida-licensed Professional Engineer. You will hear back by email with questions or with a written proposal. Reference: ${ref}.`,
+      `Thank you. Your proposal request (${escapeHtml(service)}) has been received and will be read by Juan Tercero, PE., M.Sc. You will hear back by email with questions or with a written proposal. Reference: ${ref}.`,
     files: (n: number) => `${n} file${n === 1 ? "" : "s"} attached.`,
     footer: "This is an automatic confirmation. Replying to it reaches the office.",
   },
@@ -93,7 +89,7 @@ const COPY = {
     subject: "Recibimos su solicitud de propuesta",
     title: "Su solicitud ya está en manos del ingeniero.",
     body: (service: string, ref: string) =>
-      `Gracias. Su solicitud de propuesta (${escapeHtml(service)}) fue recibida y será leída por un Ingeniero Profesional licenciado en Florida. Recibirá respuesta por correo con preguntas o con una propuesta escrita. Referencia: ${ref}.`,
+      `Gracias. Su solicitud de propuesta (${escapeHtml(service)}) fue recibida y será leída por Juan Tercero, PE., M.Sc. Recibirá respuesta por correo con preguntas o con una propuesta escrita. Referencia: ${ref}.`,
     files: (n: number) => `${n} archivo${n === 1 ? "" : "s"} adjunto${n === 1 ? "" : "s"}.`,
     footer: "Esta es una confirmación automática. Si responde a este correo, su mensaje llegará a la oficina.",
   },
@@ -111,7 +107,8 @@ function shell(inner: string, lang: "en" | "es" = "en") {
 <body style="margin:0;padding:0;background:#f6f4ef;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0b0c0d">
 <div style="max-width:560px;margin:32px auto;background:#fff;border:1px solid #e8e4dc">
   <div style="background:#0b0c0d;padding:22px 24px;border-bottom:2px solid #c99a38">
-    <img src="${SITE}/ttc/img/logo-white-wide@640.png" width="150" height="35" alt="Terdax Engineering" style="display:block;border:0" />
+    <img src="${SITE}/ttc/img/logo-white.png" width="36" height="36" alt="" style="vertical-align:middle;border:0" />
+    <span style="color:#f6f4ef;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-left:12px;vertical-align:middle">Tercero Tablada Civil &amp; Structural Engineering Inc.</span>
   </div>
   <div style="padding:28px 24px;font-size:15px;line-height:1.6">${inner}</div>
 </div></body></html>`;

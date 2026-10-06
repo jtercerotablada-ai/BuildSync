@@ -1,7 +1,7 @@
 import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import { company, imagery } from '@/lib/ttc/site';
-import { type Lang } from '@/lib/ttc/i18n';
+import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
 import { SealStatement } from '@/components/ttc/mp/CredentialsBar';
@@ -26,14 +26,29 @@ export function AboutView({ lang }: { lang: Lang }) {
   const e = c.leadership;
   const navLabel = c.primaryNav[3].label;
 
-  /* No Person schema. The site names no individual (owner's decision,
-     2026-10-05), and structured data is exactly where a name would travel
-     furthest: Google would index it and show it in results. The practice is
-     described by the Organization schema in the root layout. */
+  const personLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    '@id': `${company.url}/about#engineer`,
+    name: 'Juan Tercero',
+    honorificSuffix: 'PE., M.Sc.',
+    jobTitle: e.role,
+    description: e.bio[0],
+    url: `${company.url}${localePath('/about#engineer', lang)}`,
+    worksFor: { '@id': `${company.url}/#organization` },
+    hasCredential: [
+      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'license', name: 'Professional Engineer (P.E.), State of Florida', ...(e.license ? { identifier: e.license.number, url: e.license.url } : {}) },
+      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Master in Construction Project Management, Universidad de Barcelona' },
+      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Civil Engineer, National University of Engineering' },
+    ],
+    knowsAbout: e.focus,
+    ...(e.linkedin ? { sameAs: [e.linkedin] } : {}),
+  };
 
   return (
     <>
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabel, path: '/about' }])} />
+      <JsonLd data={personLd} />
 
       <PageHero
         eyebrow={p.eyebrow}

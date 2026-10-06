@@ -63,7 +63,7 @@ export const metadata: Metadata = {
      merges metadata shallowly — which is why pageMeta carries its own
      siteName and image too.
      No `url` here on purpose: a fallback url is the home page's, and /credits
-     used to announce itself as https://terdaxengineering.com. Without one a
+     used to announce itself as https://ttcivilstructural.com. Without one a
      scraper keeps the URL it actually fetched. */
   openGraph: {
     siteName: company.name,
@@ -119,14 +119,11 @@ const structuredData = {
       name: company.legalName,
       alternateName: company.shortName,
       url: company.url,
-      /* The horizontal lockup, not a square mark: Terdax's mark alone is the
-         gold triangle inside the "A", which names nothing. Google accepts any
-         aspect ratio here and shows this logo next to the knowledge panel. */
       logo: {
         '@type': 'ImageObject',
-        url: `${company.url}${company.logo.lockupDark}`,
-        width: company.logo.lockupSize.w,
-        height: company.logo.lockupSize.h,
+        url: `${company.url}${company.logo.dark}`,
+        width: company.logo.markSize.w,
+        height: company.logo.markSize.h,
       },
       email: contact.email,
       description: company.description,

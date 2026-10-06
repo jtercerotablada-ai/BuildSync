@@ -50,7 +50,7 @@ export function WhyUs() {
   const { language } = useTranslation();
   const es = language === 'es';
   const items = es ? ES : EN;
-  const label = es ? 'Por qué Terdax' : 'Why Terdax';
+  const label = es ? 'Por qué Tercero Tablada' : 'Why Tercero Tablada';
   const title = es ? 'Por qué confían en nosotros' : 'Why owners and associations trust us';
   const sub = es
     ? 'El diseño estructural y el cumplimiento de seguridad son de alto riesgo y con plazos estrictos. Esto es lo que obtienes al trabajar con nosotros.'

@@ -342,7 +342,7 @@
   border-bottom-color: rgba(20, 20, 15, 0.08) !important;
 }
 .header__logo-img {
-  content: url('/ttc/img/logo-horizontal.png') !important;
+  content: url('/ttc/img/logo-square.png') !important;
 }
 .header__nav a {
   color: #14140f !important;

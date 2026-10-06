@@ -7,14 +7,11 @@ import type { Metadata } from "next";
    each SaaS layout wraps its tree in; the public layout brings its own. */
 
 export const metadata: Metadata = {
-  title: "Terdax Engineering | Project Management",
-  description: "Terdax Engineering — Project Management Platform",
-  // One icon set for BOTH hosts, every slot carrying the FULL Terdax lockup on
-  // the brand tile (never redrawn). The gold triangle these used to show is the
-  // counter of the "A" in TERDAX: alone it names nothing, so a tab, a bookmark
-  // and a home-screen tile now read the wordmark instead. Everything lives
-  // under /ttc/ or at /favicon.ico, which the host split serves in place on
-  // either host.
+  title: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. | Project Management",
+  description: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Project Management Platform",
+  // One icon set for BOTH hosts, all cut from the real TT monogram (never
+  // redrawn). Everything lives under /ttc/ or at /favicon.ico, which the host
+  // split serves in place on either host.
   //   - SVG first for modern browsers, a 48px PNG (Google's search favicon
   //     minimum) and a 192px PNG for Android home-screen shortcuts.
   //   - /favicon.ico (16/32/48) for legacy agents that request it blindly.
@@ -25,7 +22,6 @@ export const metadata: Metadata = {
       { url: "/ttc/img/logo-icon-favicon.svg", type: "image/svg+xml" },
       { url: "/ttc/icons/icon-48.png", sizes: "48x48", type: "image/png" },
       { url: "/ttc/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/ttc/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     shortcut: "/favicon.ico",
     apple: { url: "/ttc/icons/apple-touch-icon.png", sizes: "180x180" },

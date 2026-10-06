@@ -39,12 +39,12 @@ export function EngineerSection({
   const u = c.ui.engineer;
   const full = variant === 'full';
   /**
-   * NOBODY IS NAMED, on any variant (owner's decision, 2026-10-05): the site
-   * carries the brand and the licence. `full` now only means "the long form
-   * with bio, focus and quote", never "the variant that prints a name".
+   * Only the full variant names anyone. The home teaser makes the same
+   * promise — one accountable engineer — without the name, because the name
+   * appears on About and Contact and nowhere else.
    */
   const named = full;
-  const plateRows = e.plate.filter((r) => r.v !== e.name);
+  const plateRows = named ? e.plate : e.plate.filter((r) => r.v !== e.name);
 
   return (
     <section
@@ -76,11 +76,19 @@ export function EngineerSection({
                     sizes="(max-width: 900px) 100vw, 40vw"
                   />
                   <div className="mp-grid-bg" aria-hidden="true" />
-                  {/* No mark on the plate. The square slot only fits the gold
-                      triangle, which is the counter of the "A" in TERDAX and
-                      names nothing on its own; the wordmark is already in the
-                      header two scrolls up. The plate carries the licence
-                      rows, which is what it is for. */}
+                  {/* The 256 px resize of the real white monogram (never a
+                      redraw): the plate shows it at up to ~84 px, so the
+                      1254 px master was ~230 KB for nothing. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    className="mp-eng__plate-mark"
+                    src={c.company.logo.markLightSm}
+                    alt=""
+                    width={c.company.logo.markSmSize.w}
+                    height={c.company.logo.markSmSize.h}
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <dl className="mp-eng__plate-list">
                     {plateRows.map((r) => (
                       <div key={r.k}>
@@ -93,7 +101,7 @@ export function EngineerSection({
               )}
               {e.portrait ? (
                 <figcaption className="mp-eng__caption">
-                  <span>{e.role}</span>
+                  <span>{named ? e.name : e.role}</span>
                   <span>{e.credential}</span>
                 </figcaption>
               ) : null}
@@ -106,7 +114,7 @@ export function EngineerSection({
                 {e.role} · {e.credential}
               </p>
               <h2 id="mp-eng-title" className="mp-eng__title">
-                {e.teaserTitle}
+                {named ? e.name : e.teaserTitle}
               </h2>
             </Reveal>
 
@@ -128,19 +136,14 @@ export function EngineerSection({
                 </Reveal>
 
                 <Reveal delay={0.14} className="mp-eng__meta">
-                  {/* Degrees identify the principal, so the list is empty
-                      and the whole block stands down rather than printing a
-                      heading over nothing. */}
-                  {e.education.length ? (
-                    <div>
-                      <h3>{u.education}</h3>
-                      <ul>
-                        {e.education.map((x) => (
-                          <li key={x}>{x}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                  <div>
+                    <h3>{u.education}</h3>
+                    <ul>
+                      {e.education.map((x) => (
+                        <li key={x}>{x}</li>
+                      ))}
+                    </ul>
+                  </div>
                   <div>
                     <h3>{u.focus}</h3>
                     <ul>

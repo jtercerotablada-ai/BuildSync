@@ -57,7 +57,7 @@ const publicPrefixes = [
   "/api/invite/",
 ];
 
-// Public marketing / informational pages - no auth required.
+// TTC public pages (marketing / informational) - no auth required.
 //
 // Derived from the site config so that adding a page to the marketing nav or
 // footer can never leave it stranded behind the login redirect. Anything not
@@ -374,8 +374,8 @@ const MAINTENANCE_MODE = false;
    dashboard without a code change. (The one exception is www, below: it needs
    PUBLIC_HOST only.)
 
-     APP_HOST=app.terdaxengineering.com
-     PUBLIC_HOST=terdaxengineering.com
+     APP_HOST=app.ttcivilstructural.com
+     PUBLIC_HOST=ttcivilstructural.com
 
    Three deliberate safety properties:
 

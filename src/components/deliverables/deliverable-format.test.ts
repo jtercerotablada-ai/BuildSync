@@ -153,7 +153,7 @@ describe("small helpers", () => {
   it("formats bytes and initials", () => {
     expect(formatBytes(0)).toBe("0 B");
     expect(formatBytes(1536)).toBe("1.5 KB");
-    expect(initialsOf("Dana Ruiz")).toBe("DR");
+    expect(initialsOf("Juan Tercero")).toBe("JT");
     expect(initialsOf(null)).toBe("?");
   });
 });

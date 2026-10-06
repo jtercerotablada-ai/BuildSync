@@ -126,7 +126,7 @@ export type DeliverableEventType =
   | "REVISION_ADDED"
   | "REVISION_DELETED";
 
-/** Past-tense verb for the History list ("<actor> · Sealed Rev 0"). */
+/** Past-tense verb for the History list ("Juan Tercero · Sealed Rev 0"). */
 export const EVENT_LABELS: Readonly<Record<DeliverableEventType, string>> = {
   CREATED: "Created",
   STATUS: "Changed status",

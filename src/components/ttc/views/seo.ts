@@ -27,10 +27,10 @@ type Pages = 'home' | 'services' | 'existing' | 'work' | 'about' | 'contact' | '
 export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   en: {
     home: {
-      title: 'Structural Engineering for South Florida | Terdax Engineering',
+      title: 'Structural Engineering for South Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       description:
         'Miami-Dade building recertification, Broward BSIP inspections and structural design for new buildings in South Florida, led by a Florida Professional Engineer.',
-      ogTitle: 'Structural Engineering for South Florida | Terdax Engineering',
+      ogTitle: 'Structural Engineering for South Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       keywords: ['structural engineer Miami', 'structural engineer Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'building safety inspection program Broward', '40 year recertification Miami', 'structural engineering South Florida'],
     },
     services: {
@@ -53,25 +53,25 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
         'Typical structural engagements in South Florida: building type, structural system, scope and deliverables for new and existing buildings.',
     },
     about: {
-      title: 'About — Terdax Engineering',
+      title: 'About — Juan Tercero, PE., M.Sc.',
       description:
-        'Terdax Engineering: one Florida Professional Engineer responsible from the proposal to the sealed report, across Miami-Dade and Broward.',
-      keywords: ['structural engineer Miami', 'Florida professional engineer structural', 'structural engineering firm South Florida'],
+        'Tercero Tablada Civil & Structural Engineering Inc. is led by Juan Tercero, PE., M.Sc.: one Florida P.E. responsible from the proposal to the sealed report.',
+      keywords: ['Juan Tercero PE', 'structural engineer Miami', 'Florida professional engineer structural'],
     },
     contact: {
       title: 'Request a Structural Engineering Proposal',
       description:
         'Request a structural engineering proposal in Miami-Dade or Broward. Attach the notice, photos or drawings; the engineer replies with questions or a scope.',
     },
-    privacy: { title: 'Privacy Policy', description: 'How Terdax Engineering handles information submitted through this website.' },
-    terms: { title: 'Terms of Use', description: 'Terms governing use of the Terdax Engineering website.' },
+    privacy: { title: 'Privacy Policy', description: 'How Tercero Tablada Civil & Structural Engineering Inc. handles information submitted through this website.' },
+    terms: { title: 'Terms of Use', description: 'Terms governing use of the Tercero Tablada Civil & Structural Engineering Inc. website.' },
   },
   es: {
     home: {
-      title: 'Ingeniería estructural para el Sur de Florida | Terdax Engineering',
+      title: 'Ingeniería estructural para el Sur de Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       description:
         'Recertificación de edificios en Miami-Dade, BSIP en Broward y diseño estructural de edificios nuevos, a cargo de un Ingeniero Profesional (P.E.) de Florida.',
-      ogTitle: 'Ingeniería estructural para el Sur de Florida | Terdax Engineering',
+      ogTitle: 'Ingeniería estructural para el Sur de Florida | Tercero Tablada Civil & Structural Engineering Inc.',
       // "BSIP" and "recertificación 40 años" are what people type; the page
       // says "Programa de Inspección de Seguridad de Edificios (BSIP)".
       keywords: ['ingeniero estructural Miami', 'ingeniero estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'recertificación 40 años Miami', 'ingeniería estructural Sur de Florida'],
@@ -95,17 +95,17 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
         'Encargos estructurales típicos en el Sur de Florida: tipo de edificio, sistema estructural, alcance y entregables para edificios nuevos y existentes.',
     },
     about: {
-      title: 'Nosotros — Terdax Engineering',
+      title: 'Nosotros — Juan Tercero, PE., M.Sc.',
       description:
-        'Terdax Engineering: un solo ingeniero profesional licenciado en Florida, de la propuesta al informe sellado, en Miami-Dade y Broward.',
-      keywords: ['ingeniero estructural Miami', 'ingeniero profesional Florida estructural', 'empresa ingeniería estructural Sur de Florida'],
+        'Tercero Tablada Civil & Structural Engineering Inc. está dirigida por Juan Tercero, PE., M.Sc.: un solo P.E. de Florida, de la propuesta al informe sellado.',
+      keywords: ['Juan Tercero PE', 'ingeniero estructural Miami', 'ingeniero profesional Florida estructural'],
     },
     contact: {
       title: 'Solicitar una propuesta de ingeniería estructural',
       description:
         'Solicite una propuesta de ingeniería estructural en Miami-Dade o Broward: adjunte la notificación, fotos o planos, y el ingeniero le responde por escrito.',
     },
-    privacy: { title: 'Política de privacidad', description: 'Cómo Terdax Engineering maneja la información enviada a través de este sitio web.' },
-    terms: { title: 'Términos de uso', description: 'Términos que rigen el uso del sitio web de Terdax Engineering' },
+    privacy: { title: 'Política de privacidad', description: 'Cómo Tercero Tablada Civil & Structural Engineering Inc. maneja la información enviada a través de este sitio web.' },
+    terms: { title: 'Términos de uso', description: 'Términos que rigen el uso del sitio web de Tercero Tablada Civil & Structural Engineering Inc.' },
   },
 };

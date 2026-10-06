@@ -1,6 +1,6 @@
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * TERDAX ENGINEERING — public site content & configuration (ENGLISH)
+ * TERCERO TABLADA — public site content & configuration (ENGLISH)
  * ─────────────────────────────────────────────────────────────────────────────
  * SINGLE SOURCE OF TRUTH for the marketing site in English. `site.es.ts`
  * mirrors every text object in Spanish and `content.ts` hands components the
@@ -46,20 +46,20 @@ import { photo, video, type Photo, type Clip } from './media';
 
 export const company = {
   /**
-   * The brand is "Terdax Engineering" and that is what belongs in page
-   * titles, metadata, schema.org, alt text and any sentence that names the
-   * practice. `legalName` carries the corporate suffix and is for the
-   * footer, the legal pages and schema.org `legalName` only.
+   * The firm is named "Tercero Tablada Civil & Structural Engineering Inc."
+   * — that is the name, not a legal long-form of a shorter brand. `name` is
+   * therefore the full name and is what belongs in page titles, metadata,
+   * schema.org, alt text and any sentence that names the practice.
    *
    * `shortName` exists ONLY for places where the full name genuinely cannot
    * fit (a drawing title block, a compact chip). Never reach for it just to
    * make a line shorter.
    */
-  legalName: 'Terdax Engineering Inc.',
-  name: 'Terdax Engineering',
-  shortName: 'Terdax',
+  legalName: 'Tercero Tablada Civil & Structural Engineering Inc.',
+  name: 'Tercero Tablada Civil & Structural Engineering Inc.',
+  shortName: 'Tercero Tablada',
   discipline: 'Civil & Structural Engineering',
-  url: 'https://terdaxengineering.com',
+  url: 'https://ttcivilstructural.com',
   /**
    * Used in <meta description> fallbacks, the footer tag and Organization
    * schema. Existing buildings first, each county's program by its own name
@@ -69,26 +69,28 @@ export const company = {
     'Structural engineering for South Florida — building recertification in Miami-Dade, the Building Safety Inspection Program (BSIP) in Broward, structural assessments and repair design, and the structural design of new buildings.',
   tagline: 'Structural Engineering for South Florida.',
   /**
-   * ONE brand asset: the horizontal lockup supplied by the client (TERDAX +
-   * ENGINEERING), never redrawn. `lockupDark` is the dark ink, for LIGHT
-   * backgrounds; `lockupLight` is white, for DARK backgrounds only.
+   * Two real brand assets, both supplied by the client — never redraw either.
+   *   lockup* = full horizontal signature (TT monogram + wordmark + tagline).
+   *   mark*   = monogram only, for tight spots.
+   * The `dark` variants are for LIGHT backgrounds and the `light` variants
+   * are white, for DARK backgrounds only.
    *
-   * There is deliberately no square mark. Terdax's only mark-like element is
-   * the gold triangle inside the "A", and on its own it names nothing — it
-   * was on the icons, the engineer plate and the e-mail headers, and read as
-   * a stray shape. Every slot shows the wordmark now, including the favicon.
-   *
-   * The `*Sm` files are pure resizes of the same master (no redraw) for the
-   * site chrome, where a 2172px PNG was being shipped to draw a 32px lockup.
-   * The master stays for JSON-LD and anywhere size is unknown.
+   * The `*Sm` files are pure resizes of the same masters (no redraw) for the
+   * site chrome, where a 1254px or 2172px PNG was being shipped to draw a
+   * 40px mark. The masters stay for JSON-LD, the SaaS and email.
    */
   logo: {
     lockupDark: '/ttc/img/logo-horizontal.png',
     lockupLight: '/ttc/img/logo-white-wide.png',
-    lockupSize: { w: 2172, h: 501 },
-    lockupDarkSm: '/ttc/img/logo-horizontal@640.png',
+    lockupSize: { w: 2172, h: 827 },
+    dark: '/ttc/img/logo-square.png',
+    light: '/ttc/img/logo-white.png',
+    markSize: { w: 1254, h: 1254 },
+    markDarkSm: '/ttc/img/logo-square@256.png',
+    markLightSm: '/ttc/img/logo-white@256.png',
     lockupLightSm: '/ttc/img/logo-white-wide@640.png',
-    lockupSmSize: { w: 640, h: 148 },
+    markSmSize: { w: 256, h: 256 },
+    lockupSmSize: { w: 640, h: 244 },
   },
   /**
    * Florida Engineering Business Registry number (DBPR).
@@ -104,13 +106,7 @@ export const company = {
    * would type into myfloridalicense.com to verify it. `null` removes the line
    * from the footer entirely.
    */
-  /* HIDDEN until the entity question is settled. #40285 is the DBPR
-     registration of the previous corporate name; publishing it under
-     "Terdax Engineering Inc." is only truthful if this is the SAME company
-     renamed (Sunbiz amendment + DBPR update). If Terdax is a new entity it
-     needs its own registration. Put the verified number back the day that is
-     confirmed — the footer line disappears while this is null. */
-  registry: null as string | null,
+  registry: 'FL Engineering Business No. 40285' as string | null,
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -122,16 +118,15 @@ export const company = {
 
 export const contact = {
   /**
-   * NULL ON PURPOSE until info@terdaxengineering.com genuinely receives.
+   * The firm's mailbox. Google Workspace on ttcivilstructural.com — MX
+   * verified live 2026-09-12 (smtp.google.com), single root SPF
+   * (include:_spf.google.com), so this address genuinely receives.
    *
-   * The old mailbox (info@ttcivilstructural.com) is Google Workspace on the
-   * retired domain, and publishing it would put the previous brand back on
-   * the page. The new domain has no MX yet: adding it to Google Workspace is
-   * an owner action. Publishing an address that bounces is worse than
-   * publishing none — the contact form reaches us either way — so this stays
-   * null until the MX for terdaxengineering.com is dug and confirmed.
+   * It replaced info@tercerotablada.com, which was published here for months
+   * on a domain with NO MX at all: anyone who wrote to it got a bounce and
+   * assumed they had reached us. Before changing this, dig the MX.
    */
-  email: null as string | null,
+  email: 'info@ttcivilstructural.com',
   /** e.g. { display: '(305) 555-0100', href: 'tel:+13055550100' } */
   phone: null as { display: string; href: string } | null,
   /** e.g. { line1: '…', city: 'Miami', state: 'FL', zip: '33131' } */
@@ -256,7 +251,7 @@ export const ui = {
     verify: 'Verify with the Florida DBPR',
     education: 'Education',
     focus: 'Practice focus',
-    approach: 'How we work',
+    approach: 'How I work',
     forYou: 'What that means for you',
     readMore: 'Meet the Engineer',
     plateNote: 'Professional portrait to follow',
@@ -278,7 +273,7 @@ export const ui = {
     firmProjects: 'Firm projects',
     priorExperience: 'Prior professional experience',
     priorNote:
-      'Work performed at other firms before the practice was founded. Listed for experience only — not projects of Terdax Engineering.',
+      'Work performed at other firms before the practice was founded. Listed for experience only — not projects of Tercero Tablada Civil & Structural Engineering Inc.',
   },
   form: {
     heading: 'Request a proposal',
@@ -352,11 +347,11 @@ export const ui = {
      note points at what IS there (the typical engagements), not at
      "published case studies" that do not exist. */
   typologiesNote:
-    'Photographs illustrate the kind of structure described; none shows a project by Terdax Engineering. Typical engagements are listed under',
+    'Photographs illustrate the kind of structure described; none shows a project by Tercero Tablada Civil & Structural Engineering Inc. Typical engagements are listed under',
   typologiesNoteLink: 'Work',
   typologiesNoteEnd: '.',
   galleryNote:
-    'Licensed architectural photography, shown as material rather than as a portfolio. No image on this page depicts a project by Terdax Engineering.',
+    'Licensed architectural photography, shown as material rather than as a portfolio. No image on this page depicts a project by Tercero Tablada Civil & Structural Engineering Inc.',
   processDisclaimer:
     'Requirements vary by jurisdiction, building age, construction type and scope. This describes a typical sequence, not a guaranteed procedure or outcome.',
   legalPages: { privacy: 'Privacy Policy', terms: 'Terms of Use', legal: 'Legal' },
@@ -1456,7 +1451,7 @@ export type CaseStudy = {
   /** The firm's role, or Juan's role at a prior employer. */
   role: string;
   result: string;
-  /** 'firm' = Terdax Engineering project; 'prior' = experience elsewhere. */
+  /** 'firm' = Tercero Tablada project; 'prior' = Juan's experience elsewhere. */
   attribution: 'firm' | 'prior';
   /** Real project photography, or an illustrative stock photo flagged as such. */
   photo?: Photo;
@@ -1510,25 +1505,22 @@ export const credentials = {
      here was the "Codes & Standards" band Juan rejected — do not bring it back. */
   sealedDeliverables: true,
   sealingStatement:
-    'Deliverables are signed and sealed by a Florida-licensed Professional Engineer, where the scope of work requires it.',
+    'Deliverables are signed and sealed by Juan Tercero, PE., M.Sc., Florida-licensed Professional Engineer, where the scope of work requires it.',
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   THE ENGINEER — the practice, not the person
+   THE ENGINEER — Juan Tercero, PE., M.Sc.
    ═══════════════════════════════════════════════════════════════════════════
-   DELIBERATELY UNNAMED (owner's decision, 2026-10-05): the site carries the
-   brand and the licence, never the principal's name, portrait, degrees or
-   previous employers. The promise — one licensed engineer is accountable for
-   the whole project — survives without identifying anyone, so keep it that
-   way. `portrait` and `license` stay null; the UI renders a finished
-   composition without them. Only confirmed facts belong here.
+   Only confirmed facts. `portrait` and `license` are null until supplied and
+   the UI renders a finished composition without them. Do not add a
+   university, a year count, a prior employer or an award that has not been
+   confirmed in writing.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const leadership = {
-  name: 'Terdax Engineering',
-  /** Used to sign the pull quote; the firm speaks, not a person. */
-  firstName: 'Terdax Engineering',
-  role: 'Principal Engineer',
+  name: 'Juan Tercero, PE., M.Sc.',
+  firstName: 'Juan',
+  role: 'Principal Engineer · Founder',
   credential: 'Florida Professional Engineer',
   /** Path under /public, e.g. '/ttc/img/leadership/juan-tercero.jpg' — null until a real portrait exists. */
   portrait: null as { src: string; alt: string; w: number; h: number } | null,
@@ -1541,13 +1533,16 @@ export const leadership = {
   /* No phone is published, so "first message", not "first call"; and the
      promise is the scope we deliver, not what gets built. */
   teaser:
-    'Every project at Terdax Engineering is engineered, checked and signed by the same licensed engineer. You deal directly with the engineer doing the work from your first message, and the scope you approve in the proposal is the scope we deliver.',
+    'Every project at Tercero Tablada Civil & Structural Engineering Inc. is engineered, checked and signed by the same person. You deal directly with the engineer from your first message, and the scope you approve in the proposal is the scope we deliver.',
   bio: [
-    'Terdax Engineering is a structural practice registered to offer engineering services in Florida. One licensed Professional Engineer leads every engagement from the first conversation with an owner, board or architect through to the sealed drawing set or the submitted report — the same engineer throughout, not a relay of account managers.',
+    'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil & Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
     'The practice covers both halves of structural work in South Florida: the design of new reinforced-concrete buildings, and the evaluation, recertification and repair of buildings already standing. Both are done with the same discipline — the reasoning behind every conclusion is written down, and nothing leaves the office that has not been checked line by line.',
   ],
-  /** Empty on purpose: degrees identify the principal. The section hides. */
-  education: [] as string[],
+  education: [
+    'Master in Construction Project Management — Universidad de Barcelona',
+    'Civil Engineer — National University of Engineering',
+    'Licensed Professional Engineer (P.E.), State of Florida',
+  ],
   focus: [
     'Miami-Dade recertification, Broward BSIP inspections and condition assessments',
     'Reinforced-concrete design for houses, mid-rise and commercial frames',
@@ -1555,17 +1550,18 @@ export const leadership = {
     'Wind and lateral design for the High-Velocity Hurricane Zone',
   ],
   approach:
-    'We would rather explain a structural decision in plain language than hide it behind a code reference. A board should be able to read a findings report and know what to do next; a contractor should be able to build from the drawing without calling; and a reviewer should be able to follow the calculation from load to detail.',
+    'I would rather explain a structural decision in plain language than hide it behind a code reference. A board should be able to read a findings report and know what to do next; a contractor should be able to build from the drawing without calling; and a reviewer should be able to follow the calculation from load to detail.',
   forYou: [
     { k: 'Direct communication', v: 'You talk to the engineer who is doing the work — not to an account manager relaying questions.' },
     { k: 'A scope you can read', v: 'Every proposal states what is included, what is not, what you receive and what it costs, before anything starts.' },
-    { k: 'One engineer’s judgment', v: 'Whoever inspects the building or sets the design basis is the same engineer who signs the report and answers the reviewer.' },
+    { k: 'One engineer’s judgment', v: 'The person who inspects the building or sets the design basis is the person who signs the report and answers the reviewer.' },
   ],
   /** Rendered as facts on the typographic plate while there is no portrait. */
   plate: [
-    { k: 'Practice', v: 'Terdax Engineering' },
+    { k: 'Name', v: 'Juan Tercero, PE., M.Sc.' },
     { k: 'Licensure', v: 'Professional Engineer, Florida' },
-    { k: 'Role', v: 'Principal Engineer' },
+    { k: 'Role', v: 'Principal Engineer · Founder' },
+    { k: 'Practice', v: 'Tercero Tablada Civil & Structural Engineering Inc.' },
     { k: 'Region', v: 'Miami-Dade & Broward' },
   ],
 } as const;
@@ -1574,9 +1570,9 @@ export const aboutPage = {
   eyebrow: 'About the practice',
   titleLines: ['A structural practice built', 'around one accountable engineer.'],
   accentWord: 'accountable',
-  sub: 'Terdax Engineering designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
+  sub: 'Tercero Tablada Civil & Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
   facts: [
-    { k: 'Licensure', v: 'Florida Professional Engineer' },
+    { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
     { k: 'Focus', v: 'Concrete · Existing buildings · BIM' },
     { k: 'Region', v: 'South Florida' },
   ],
@@ -1804,7 +1800,7 @@ export const legal = {
       { h: 'Sealed documents', p: 'Where a signed and sealed document is required, it is issued as a formal deliverable under an agreed scope of work. Content on this website is never a sealed deliverable.' },
       { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
-      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Terdax Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
+      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil & Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],
   },
   contactHeading: 'Contact',

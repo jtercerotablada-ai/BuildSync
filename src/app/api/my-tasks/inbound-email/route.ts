@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 /**
  * "Add tasks by email" is not available.
  *
- * This route used to hand out `<user-id>@mail.terdaxengineering.com`, but
+ * This route used to hand out `<user-id>@mail.ttcivilstructural.com`, but
  * nothing receives mail at that domain (no MX record, no inbound provider,
  * no webhook that turns a message into a task). Every email forwarded to the
  * address bounced or vanished while the user believed it had been captured.

@@ -317,7 +317,7 @@ function InputsTab({
           <Field label="Company name">
             <input type="text"
               value={model.branding?.companyName ?? ''}
-              placeholder="e.g. Terdax Engineering Inc."
+              placeholder="e.g. Tercero Tablada Civil & Structural Eng. Inc"
               onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
           </Field>
           <Field label="Tagline / project ref">
