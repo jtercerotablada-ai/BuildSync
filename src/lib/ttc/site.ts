@@ -48,15 +48,14 @@ export const company = {
   /**
    * The brand is "Terdax Engineering" and that is what belongs in page
    * titles, metadata, schema.org, alt text and any sentence that names the
-   * practice. `legalName` is the SAME string on purpose (owner's decision,
-   * 2026-10-05): no corporate suffix appears anywhere on the site, not even
-   * in the footer or the legal pages.
+   * practice. `legalName` carries the corporate suffix and is for the
+   * footer, the legal pages and schema.org `legalName` only.
    *
    * `shortName` exists ONLY for places where the full name genuinely cannot
    * fit (a drawing title block, a compact chip). Never reach for it just to
    * make a line shorter.
    */
-  legalName: 'Terdax Engineering',
+  legalName: 'Terdax Engineering Inc.',
   name: 'Terdax Engineering',
   shortName: 'Terdax',
   discipline: 'Civil & Structural Engineering',
@@ -110,7 +109,7 @@ export const company = {
    */
   /* HIDDEN until the entity question is settled. #40285 is the DBPR
      registration of the previous corporate name; publishing it under
-     "Terdax Engineering" is only truthful if this is the SAME company
+     "Terdax Engineering Inc." is only truthful if this is the SAME company
      renamed (Sunbiz amendment + DBPR update). If Terdax is a new entity it
      needs its own registration. Put the verified number back the day that is
      confirmed — the footer line disappears while this is null. */
@@ -1808,7 +1807,7 @@ export const legal = {
       { h: 'Sealed documents', p: 'Where a signed and sealed document is required, it is issued as a formal deliverable under an agreed scope of work. Content on this website is never a sealed deliverable.' },
       { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
-      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Terdax Engineering and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
+      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Terdax Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],
   },
   contactHeading: 'Contact',
