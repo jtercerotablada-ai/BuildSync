@@ -115,7 +115,7 @@ function CompanyText({
   return (
     <>
       <text x={x} y={20} fontFamily="'Inter', Arial, sans-serif" fontWeight={700} fontSize={13} fill={mainColor} letterSpacing="2.5">
-        TERCERO TABLADA
+        TERDAX ENGINEERING
       </text>
       <text x={x} y={36} fontFamily="'Inter', Arial, sans-serif" fontWeight={400} fontSize={6.5} fill={subColor} letterSpacing="1.2">
         CIVIL &amp; STRUCTURAL ENGINEERING INC.

@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`,
       {
         headers: {
-          'User-Agent': 'ttcivilstructural.com Load Generator',
+          'User-Agent': 'terdaxengineering.com Load Generator',
         },
         cache: 'no-store',
         // open-elevation can be slow/flaky — cap the wait; on failure the

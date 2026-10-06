@@ -39,7 +39,7 @@ interface Props {
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Palette — matched to the TTC dark theme (same look as Section Builder)
+// Palette — matched to the Terdax dark theme (same look as Section Builder)
 const C = {
   grid: 'rgba(201,168,76,0.05)', // gold-tinted gridline, very subtle
   soilTop: '#a57846',             // lighter brown (top of backfill)
@@ -66,7 +66,7 @@ const C = {
   water: '#5dc4d4',
   bearing: '#ef6565',             // red = bearing reaction (upward)
   bearingLight: 'rgba(239,101,101,0.22)',
-  dim: 'var(--color-accent, #c9a84c)', // TTC gold for dimensions
+  dim: 'var(--color-accent, #c9a84c)', // Terdax gold for dimensions
   dimHex: '#c9a84c',
   pillFill: 'rgba(20,20,24,0.92)',     // dark pill on dark canvas
   pillStroke: 'rgba(201,168,76,0.55)', // gold border

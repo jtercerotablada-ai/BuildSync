@@ -45,7 +45,7 @@ export default function ForgotPasswordPage() {
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ttc/img/logo-square.png" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20 object-contain" />
+            <img src="/ttc/img/logo-horizontal@640.png" alt="Terdax Engineering" className="h-10 w-auto max-w-[220px] object-contain" />
           </div>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4 py-8">
@@ -74,7 +74,7 @@ export default function ForgotPasswordPage() {
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/ttc/img/logo-square.png" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20 object-contain" />
+          <img src="/ttc/img/logo-horizontal@640.png" alt="Terdax Engineering" className="h-10 w-auto max-w-[220px] object-contain" />
         </div>
         <CardDescription className="text-center">
           Enter your email and we&apos;ll send you a reset link

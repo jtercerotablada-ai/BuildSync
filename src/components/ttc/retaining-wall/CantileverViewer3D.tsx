@@ -7,11 +7,11 @@
 //
 // Visual language (matches CYPE Architecture / Reinforcement views):
 //   • Concrete: translucent white-gray (opacity ~0.22), with bold gold edges
-//     in the TTC brand accent (#c9a84c).
+//     in the Terdax brand accent (#c9a84c).
 //   • Rebar: solid, thick, two colors so the cages read at a glance:
 //       – Stem rebar  → green  (#7fb691)
 //       – Footing rebar → orange (#e89478)
-//   • Background: TTC dark (#0e0e10) — the brand fond.
+//   • Background: Terdax dark (#0e0e10) — the brand fond.
 //   • Spanish callouts on the structure (Fuste, Punta, Talón).
 //
 // All bar layouts are derived from the calculated As (mm²/m) using a
@@ -31,11 +31,11 @@ import type { WallInput, WallResults, CantileverGeometry } from '@/lib/retaining
 
 const MM_TO_M = 0.001;
 
-// TTC brand palette
+// Terdax brand palette
 const C = {
   fond:        '#0e0e10',
   concrete:    '#e8e6df',  // light bone — concrete fantasma
-  edge:        '#c9a84c',  // TTC gold — edges of the concrete elements
+  edge:        '#c9a84c',  // Terdax gold — edges of the concrete elements
   stemRebar:   '#7fb691',  // green — stem rebar
   footRebar:   '#e89478',  // orange — footing rebar
   longitRebar: '#ffd166',  // amber — longitudinal distribution bars
@@ -222,7 +222,7 @@ export function CantileverViewer3D({ input, result }: Props) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONCRETE — ghost (translucent) with bold gold edges (TTC accent)
+// CONCRETE — ghost (translucent) with bold gold edges (Terdax accent)
 
 function ConcreteMaterial() {
   return (

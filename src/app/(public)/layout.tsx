@@ -63,7 +63,7 @@ export const metadata: Metadata = {
      merges metadata shallowly — which is why pageMeta carries its own
      siteName and image too.
      No `url` here on purpose: a fallback url is the home page's, and /credits
-     used to announce itself as https://ttcivilstructural.com. Without one a
+     used to announce itself as https://terdaxengineering.com. Without one a
      scraper keeps the URL it actually fetched. */
   openGraph: {
     siteName: company.name,

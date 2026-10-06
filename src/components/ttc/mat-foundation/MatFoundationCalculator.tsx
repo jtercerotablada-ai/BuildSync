@@ -339,7 +339,7 @@ function InputsTab({ model, dispatch }: { model: MatFoundationInput; dispatch: R
           <Field label="Company name">
             <input type="text"
               value={model.branding?.companyName ?? ''}
-              placeholder="e.g. Tercero Tablada Civil & Structural Eng. Inc"
+              placeholder="e.g. Terdax Engineering Inc."
               onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
           </Field>
           <Field label="Tagline / project ref">

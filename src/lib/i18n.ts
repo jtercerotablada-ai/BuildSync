@@ -141,7 +141,7 @@ export const dictionaries = {
     'about.title': 'About Us',
     'about.subtitle': 'A structural engineering firm — we design reinforced-concrete buildings and keep existing ones safe and compliant.',
     'about.heading': 'Engineered for Safety, Built to Last',
-    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. is a structural engineering firm focused on reinforced-concrete buildings — foundations, columns, beams, slabs, and shear walls. Every drawing is engineered and stamped by a Registered P.E.',
+    'about.p1': 'Terdax Engineering is a structural engineering firm focused on reinforced-concrete buildings — foundations, columns, beams, slabs, and shear walls. Every drawing is engineered and stamped by a Registered P.E.',
     'about.p2': 'Our team brings combined experience of more than 30 years across high-rise, commercial, and residential structures. We know ACI 318 and the Florida Building Code inside out — and we guide owners, architects, and developers through them with clarity.',
     'about.p3': 'We give building owners, developers, condominium associations, and property managers straight answers, permit-ready designs, and defensible reports that protect both the asset and the people inside it.',
 
@@ -252,7 +252,7 @@ export const dictionaries = {
     'footer.postTension': 'Post-Tension',
     'footer.digitalConstruction': 'Digital Construction',
     'footer.clashDetection': 'Clash Detection',
-    'footer.copyright': 'ALL RIGHTS RESERVED \u2014 TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC., 2026',
+    'footer.copyright': 'ALL RIGHTS RESERVED \u2014 Terdax Engineering Inc., 2026',
   },
   es: {
     // Nav
@@ -394,7 +394,7 @@ export const dictionaries = {
     'about.title': 'Sobre Nosotros',
     'about.subtitle': 'Una firma de ingenieria estructural — diseñamos edificios de concreto armado y mantenemos los existentes seguros y en cumplimiento.',
     'about.heading': 'Diseñado para la Seguridad, Construido para Durar',
-    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es una firma de ingenieria estructural enfocada en edificios de concreto armado — cimentaciones, columnas, vigas, losas y muros de cortante. Cada plano es diseñado y sellado por un P.E. registrado.',
+    'about.p1': 'Terdax Engineering es una firma de ingenieria estructural enfocada en edificios de concreto armado — cimentaciones, columnas, vigas, losas y muros de cortante. Cada plano es diseñado y sellado por un P.E. registrado.',
     'about.p2': 'Nuestro equipo cuenta con mas de 30 años de experiencia combinada en estructuras de gran altura, comerciales y residenciales. Conocemos a fondo ACI 318 y el Codigo de Construccion de Florida — y guiamos a propietarios, arquitectos y desarrolladores a traves de ellos con claridad.',
     'about.p3': 'Damos a propietarios, desarrolladores, asociaciones de condominios y administradores respuestas claras, diseños listos para permiso e informes defendibles que protegen tanto el activo como a las personas que lo habitan.',
 
@@ -505,7 +505,7 @@ export const dictionaries = {
     'footer.postTension': 'Postensado',
     'footer.digitalConstruction': 'Construccion Digital',
     'footer.clashDetection': 'Deteccion de Interferencias',
-    'footer.copyright': 'TODOS LOS DERECHOS RESERVADOS \u2014 TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC., 2026',
+    'footer.copyright': 'TODOS LOS DERECHOS RESERVADOS \u2014 Terdax Engineering Inc., 2026',
   },
 } as const;
 

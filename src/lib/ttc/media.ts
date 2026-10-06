@@ -1,6 +1,6 @@
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * TERCERO TABLADA — media catalogue
+ * TERDAX ENGINEERING — media catalogue
  * ─────────────────────────────────────────────────────────────────────────────
  * The raw asset table: every photograph and video clip the public site can
  * draw on, with its real intrinsic size so nothing shifts while it loads.
@@ -17,7 +17,7 @@
  *     id, author, what it replaced) lives in `docs/IMAGE-CREDITS.md`, outside
  *     the served tree. Record anything you add there.
  *
- *   • NEVER caption a stock photograph as a Tercero Tablada project. These
+ *   • NEVER caption a stock photograph as a Terdax Engineering project. These
  *     illustrate TYPOLOGIES and SERVICES — the kind of structure the practice
  *     engineers — not completed work. Real project photography replaces them
  *     one entry at a time, without touching a component.
@@ -268,7 +268,7 @@ const catalogue = {
      illustrates (docs/IMAGE-CREDITS.md), so the pairing in `site.ts` is
      honest — but the alt text names no city, county or building, and no
      caption may: nothing here shows a building that received a notice, and
-     nothing here is a Tercero Tablada project.
+     nothing here is a Terdax Engineering project.
 
      The Miami-Dade frame is the SECOND one tried. The first (an aerial,
      Pexels 4366059) was a soft video-quality still centred on one hotel

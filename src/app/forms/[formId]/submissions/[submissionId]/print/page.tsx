@@ -191,7 +191,7 @@ export default async function PrintSubmissionPage({ params }: PageProps) {
         </section>
 
         <footer className="print-footer">
-          <p>BuildSync · Tercero Tablada Civil &amp; Structural Eng Inc.</p>
+          <p>BuildSync · Terdax Engineering Inc.</p>
           <p>Printed {new Date().toLocaleDateString("en-US", {
             year: "numeric",
             month: "long",

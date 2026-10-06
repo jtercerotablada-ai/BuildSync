@@ -180,8 +180,8 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
           <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none">Search</span>
         </button>
-        {/* Mobile: TT logo centered */}
-        <img src="/ttc/img/logo-icon-dark.svg" alt="TT" className="h-7 w-7 md:hidden" />
+        {/* Mobile: Terdax logo centered */}
+        <img src="/ttc/img/logo-horizontal@640.png" alt="Terdax Engineering" className="h-5 w-auto max-w-[140px] object-contain md:hidden" />
       </div>
 
       {/* ─── RIGHT cluster: icon buttons + avatar ─── */}

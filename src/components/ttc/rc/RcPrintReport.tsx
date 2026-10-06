@@ -115,8 +115,8 @@ export function RcPrintReport({ input, result, cover3dDataUrl }: Props) {
             design, construction, or permitting.
           </p>
           <p>
-            The user assumes full responsibility for verification. <strong>TERCERO TABLADA
-            CIVIL AND STRUCTURAL ENGINEERING INC.</strong>, its principals, employees, and
+            The user assumes full responsibility for verification.
+            <strong>Terdax Engineering Inc.</strong>, its principals, employees, and
             contributors expressly disclaim any liability for damages arising from the use
             of these calculations.
           </p>
@@ -346,7 +346,7 @@ export function RcPrintReport({ input, result, cover3dDataUrl }: Props) {
 
         <div className="pr-footer">
           End of report · Generated on {dateStr} by{' '}
-          <strong>ttcivilstructural.com</strong> · <strong>For verification —
+          <strong>terdaxengineering.com</strong> · <strong>For verification —
           must be reviewed and signed by a licensed P.E. / S.E.</strong>
         </div>
       </section>

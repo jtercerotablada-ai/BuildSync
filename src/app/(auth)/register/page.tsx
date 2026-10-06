@@ -11,7 +11,7 @@ export default function RegisterPage() {
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/ttc/img/logo-square.png" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20 object-contain" />
+          <img src="/ttc/img/logo-horizontal@640.png" alt="Terdax Engineering" className="h-10 w-auto max-w-[220px] object-contain" />
         </div>
         <CardDescription className="text-center">
           Accounts are by invitation only
@@ -19,9 +19,8 @@ export default function RegisterPage() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-muted-foreground">
         <p>
-          BuildSync is the internal workspace of Tercero Tablada Civil &amp;
-          Structural Engineering. To get an account, ask a workspace admin to
-          send you an invitation.
+          BuildSync is the internal workspace of Terdax Engineering. To get an
+          account, ask a workspace admin to send you an invitation.
         </p>
         <p>
           Then open the link in the invitation email: it lets you choose your

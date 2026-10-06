@@ -34,7 +34,11 @@ async function sendResendEmail(payload: CreateEmailOptions) {
   return data;
 }
 
-const FROM = process.env.EMAIL_FROM || "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. <noreply@ttcivilstructural.com>";
+// The display name is the new brand, but the fallback ADDRESS stays on
+// ttcivilstructural.com on purpose: that is the domain currently verified with
+// Resend. Switch it to @terdaxengineering.com via the EMAIL_FROM env var once
+// the new domain is verified there.
+const FROM = process.env.EMAIL_FROM || "Terdax Engineering <noreply@ttcivilstructural.com>";
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 
 export async function sendVerificationEmail(email: string, token: string) {
@@ -50,7 +54,7 @@ export async function sendVerificationEmail(email: string, token: string) {
     await sendResendEmail({
       from: FROM,
       to: email,
-      subject: "Verify your TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. email",
+      subject: "Verify your Terdax Engineering email",
       html: `
 <!DOCTYPE html>
 <html>
@@ -58,8 +62,8 @@ export async function sendVerificationEmail(email: string, token: string) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
+      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">Terdax Engineering</span>
     </div>
     <div style="padding:32px 24px">
       <h1 style="margin:0 0 8px;font-size:20px;color:#0f172a">Verify your email</h1>
@@ -70,7 +74,7 @@ export async function sendVerificationEmail(email: string, token: string) {
         Verify email
       </a>
       <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.5">
-        If you didn't create a TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. account, you can safely ignore this email. This link expires in 1 hour.
+        If you didn't create a Terdax Engineering account, you can safely ignore this email. This link expires in 1 hour.
       </p>
     </div>
   </div>
@@ -90,7 +94,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
     await sendResendEmail({
       from: FROM,
       to: email,
-      subject: "Reset your TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. password",
+      subject: "Reset your Terdax Engineering password",
       html: `
 <!DOCTYPE html>
 <html>
@@ -98,8 +102,8 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</span>
+      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
+      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">Terdax Engineering</span>
     </div>
     <div style="padding:32px 24px">
       <h1 style="margin:0 0 8px;font-size:20px;color:#0f172a">Reset your password</h1>
@@ -188,7 +192,7 @@ export async function sendInvitationEmail(params: InvitationEmailParams) {
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
@@ -333,7 +337,7 @@ export async function sendTaskAssignedEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
@@ -453,7 +457,7 @@ export async function sendFormSubmissionEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">
@@ -569,7 +573,7 @@ export async function sendFormSubmitterReceiptEmail(
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
-      <img src="https://ttcivilstructural.com/ttc/img/logo-white.png" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <img src="https://terdaxengineering.com/ttc/img/logo-white.png" width="32" height="32" alt="Terdax" style="vertical-align:middle" />
       <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
     </div>
     <div style="padding:32px 28px">

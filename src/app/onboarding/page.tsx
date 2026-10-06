@@ -10,7 +10,7 @@ import { User, Camera, Eye, EyeOff } from "lucide-react";
 import { validatePassword } from "@/lib/password-policy";
 import { fileToAvatarDataUrl, AvatarError } from "@/lib/avatar-image";
 
-const COMPANY_NAME = "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.";
+const COMPANY_NAME = "Terdax Engineering";
 
 // Scores exactly the four rules validatePassword enforces (same meter as
 // /reset-password), so the meter can never call a password "Strong" that the
@@ -326,7 +326,7 @@ function OnboardingForm() {
           {/* Logo */}
           <div className="flex items-center mb-8">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ttc/img/logo-square.png" alt={COMPANY_NAME} className="w-16 h-16 object-contain" />
+            <img src="/ttc/img/logo-horizontal@640.png" alt={COMPANY_NAME} className="h-9 w-auto max-w-[200px] object-contain" />
           </div>
 
           {/* Welcome text */}
@@ -477,7 +477,7 @@ function OnboardingForm() {
           {/* Info box */}
           <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-900">
             <p className="text-sm text-slate-600">
-              BuildSync is the internal workspace of {COMPANY_NAME} Once
+              BuildSync is the internal workspace of {COMPANY_NAME}. Once
               you&apos;re a member of the firm&apos;s workspace you&apos;ll
               manage projects and tasks with the rest of the team.
             </p>

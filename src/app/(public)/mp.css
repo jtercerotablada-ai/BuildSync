@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   QUIET PRECISION — Tercero Tablada public site design system
+   QUIET PRECISION — Terdax Engineering public site design system
    ──────────────────────────────────────────────────────────────────────────
    Everything is scoped under `.mp`. This is the only stylesheet the public
    site loads (next/font adds its @font-face rules); it is imported once from
@@ -992,19 +992,17 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open):has(:
   flex: none;
 }
 
-/* The mark is a square monogram; height drives it and width follows. The
-   PNG carries 13.3% transparent margin on each side, so the image is pulled
-   left by that much: the visible TT, not its transparent box, sits on the
-   content edge. --hdr-mark-h is the one number the breakpoints change. */
+/* The lockup is the horizontal signature (4.34:1): height drives it and
+   width follows. It is trimmed tight to the ink, so it sits flush on the
+   content edge with no negative margin. --hdr-mark-h is the one number the
+   breakpoints change. */
 .mp-header__lockup {
-  --hdr-mark-h: clamp(36px, 4vw, 44px);
+  --hdr-mark-h: clamp(26px, 2.6vw, 32px);
   height: var(--hdr-mark-h);
   width: auto;
-  /* The base img rule's max-width:100% would trim the mark by exactly the
-     negative margin below (the link shrink-wraps to width − margin), so the
-     large-display 54px step rendered 46.8px wide. */
+  /* The base img rule's max-width:100% would squeeze the wide lockup inside
+     the shrink-wrapped link. */
   max-width: none;
-  margin-inline-start: calc(var(--hdr-mark-h) * -0.133);
   object-fit: contain;
   flex: none;
 }
@@ -3426,7 +3424,9 @@ a.mp-menu__mail {
     --mp-pad: 1rem;
   }
   .mp-header__lockup {
-    --hdr-mark-h: 32px;
+    /* The wordmark is 4.34:1, so a phone's 320px column sets the ceiling:
+       24px tall is ~104px wide and still leaves room for the burger. */
+    --hdr-mark-h: 24px;
   }
   /* 'Última verificación: 4 de octubre de 2026' is within a few px of a
      320px screen's column: let it wrap there rather than risk a scrollbar. */
@@ -4463,7 +4463,7 @@ a.mp-menu__mail {
     scroll-padding-top: 108px;
   }
   .mp-header__lockup {
-    --hdr-mark-h: clamp(46px, 3.2vw, 54px);
+    --hdr-mark-h: clamp(34px, 2.1vw, 40px);
   }
   .mp-tool__plate {
     --plate-h: clamp(46px, 3vw, 58px);

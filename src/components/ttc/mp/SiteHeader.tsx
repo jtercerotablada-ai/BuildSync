@@ -290,26 +290,28 @@ export function SiteHeader() {
             className="mp-header__logo"
             aria-label={`${c.company.name} — ${c.ui.home}`}
           >
-            {/* The real square monogram, swapped by header state: dark mark on
-                the light header, white mark over a dark hero. Both are the
-                256px straight resizes of the masters (a 36–54px slot, so ≥4x);
-                both stay eager, because the hidden one is swapped in on
-                scroll. The 1254px masters stay for JSON-LD, the app and email. */}
+            {/* The horizontal signature, swapped by header state: dark over
+                the light header, white over a dark hero. The Terdax mark on
+                its own is a triangle and carries no name, so the header shows
+                the full lockup; the mark alone stays for the favicon and the
+                tight square slots. Both files are 640px resizes of the
+                masters for a ~30px slot, and both stay eager because the
+                hidden one is swapped in on scroll. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={logo.markDarkSm}
+              src={logo.lockupDarkSm}
               alt=""
-              width={logo.markSmSize.w}
-              height={logo.markSmSize.h}
+              width={logo.lockupSmSize.w}
+              height={logo.lockupSmSize.h}
               className="mp-header__lockup mp-header__lockup--dark"
               aria-hidden="true"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={logo.markLightSm}
+              src={logo.lockupLightSm}
               alt=""
-              width={logo.markSmSize.w}
-              height={logo.markSmSize.h}
+              width={logo.lockupSmSize.w}
+              height={logo.lockupSmSize.h}
               className="mp-header__lockup mp-header__lockup--light"
               aria-hidden="true"
             />

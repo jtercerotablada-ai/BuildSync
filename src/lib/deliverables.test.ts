@@ -337,7 +337,7 @@ function state(over: Partial<ActionState> = {}): ActionState {
 function perms(over: Partial<ActionPerms> = {}): ActionPerms {
   return {
     userId: "u1",
-    actorName: "Juan Tercero",
+    actorName: "Dana Ruiz",
     canWrite: true,
     canSeal: true,
     isWorkspaceOwner: true,
@@ -448,7 +448,7 @@ describe("SEAL", () => {
     expect(r.revisionPatch).toMatchObject({
       sealedAt: NOW,
       sealedById: "u1",
-      sealedByName: "Juan Tercero",
+      sealedByName: "Dana Ruiz",
       sealLicenseNo: "PE 12345",
     });
     expect(r.revisionGuard).toEqual({ sealedAt: null, issuedAt: null });
@@ -476,14 +476,14 @@ describe("SEAL", () => {
 describe("REVOKE_SEAL", () => {
   const sealed = state({
     status: "SEALED",
-    currentRevision: rev({ sealedAt: NOW, sealedById: "u1", sealedByName: "Juan Tercero" }),
+    currentRevision: rev({ sealedAt: NOW, sealedById: "u1", sealedByName: "Dana Ruiz" }),
   });
   it("revokes back to IN_PROGRESS and keeps the reason + who sealed", () => {
     const r = expectOk(decide(sealed, { action: "REVOKE_SEAL", revisionId: "r1", reason: "wrong sheet set" }));
     expect(r.toStatus).toBe("IN_PROGRESS");
     expect(r.event.type).toBe("SEAL_REVOKED");
     expect(r.event.note).toContain("wrong sheet set");
-    expect(r.event.note).toContain("Juan Tercero");
+    expect(r.event.note).toContain("Dana Ruiz");
     expect(r.revisionPatch).toMatchObject({ sealedAt: null, sealedByName: null });
   });
   it("refuses a non-sealer non-owner", () => {

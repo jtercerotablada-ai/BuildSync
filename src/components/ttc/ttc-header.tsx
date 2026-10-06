@@ -55,7 +55,7 @@ export function TTCHeader() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/ttc/img/logo-white.png"
-              alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
+              alt="Terdax Engineering"
               className="header__logo-img"
             />
           </Link>
@@ -129,8 +129,8 @@ export function TTCHeader() {
             <span className={language === 'es' ? 'lang-active' : 'lang-inactive'}>ES</span>
           </button>
 
-          <a href="mailto:info@ttcivilstructural.com" className="mobile-menu__email">
-            info@ttcivilstructural.com
+          <a href="mailto:info@terdaxengineering.com" className="mobile-menu__email">
+            info@terdaxengineering.com
           </a>
         </div>
       </div>

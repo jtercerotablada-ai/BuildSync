@@ -7,9 +7,9 @@ import type { Metadata } from "next";
    each SaaS layout wraps its tree in; the public layout brings its own. */
 
 export const metadata: Metadata = {
-  title: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. | Project Management",
-  description: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Project Management Platform",
-  // One icon set for BOTH hosts, all cut from the real TT monogram (never
+  title: "Terdax Engineering | Project Management",
+  description: "Terdax Engineering — Project Management Platform",
+  // One icon set for BOTH hosts, all cut from the real Terdax mark (never
   // redrawn). Everything lives under /ttc/ or at /favicon.ico, which the host
   // split serves in place on either host.
   //   - SVG first for modern browsers, a 48px PNG (Google's search favicon
