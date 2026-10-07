@@ -117,11 +117,11 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // The root layout's <html lang> is "en" for every page (making it
-      // per-language would turn the whole site dynamic); the Spanish pages fix
-      // it only after hydration. Engines that read the unrendered HTML — Bing,
-      // mostly — get the language from this header instead. English pages
-      // need nothing: lang="en" is already right for them.
+      // Says the same as the Spanish pages' own <html lang="es">, which
+      // their root layout (src/app/(public-es)/layout.tsx) prints in the
+      // server HTML. The header came first, from when one root layout said
+      // "en" for every page and the Spanish ones corrected it only after
+      // hydration; it stays so the response and the document keep agreeing.
       {
         source: "/es/:path*",
         headers: [{ key: "Content-Language", value: "es" }],

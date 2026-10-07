@@ -87,14 +87,19 @@ export function useSearch(): string {
 }
 
 /**
- * The root layout stamps `<html lang="en">` for the whole app. The Spanish
- * pages correct it on the client so screen readers and translation tools get
- * the right language; the `hreflang` metadata carries it for crawlers.
+ * Sets `<html lang>` from the URL on the client.
  *
- * Before this runs (and without JavaScript) the server HTML is still scoped
- * correctly element by element: es/layout.tsx wraps the page body in
- * `<div lang="es">`, and the skip link, header, menu and footer each carry
- * `lang={htmlLang[lang]}` themselves.
+ * It used to be the ONLY thing that made a Spanish page say "es": one root
+ * layout stamped `<html lang="en">` for the whole app, and this corrected it
+ * after hydration — too late for anything that reads the server HTML. The
+ * English and Spanish sites now have a root layout each
+ * (src/app/(public)/layout.tsx, src/app/(public-es)/layout.tsx), so the
+ * attribute is already right when the page arrives and this effect writes
+ * the value that is there. Left in place as a backstop.
+ *
+ * The server HTML is also scoped element by element: es/layout.tsx wraps the
+ * page body in `<div lang="es">`, and the skip link, header, menu and footer
+ * each carry `lang={htmlLang[lang]}` themselves.
  */
 export function LangHtml() {
   const lang = useLang();
