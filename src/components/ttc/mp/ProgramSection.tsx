@@ -34,8 +34,10 @@ import { Dated, Source } from './Outbound';
  * The button carries the SLUG, not a label: ContactForm maps it to this
  * language's dropdown option, so it survives the language switch.
  *
- * The photograph is decorative (empty alt) and is never captioned: it
- * illustrates the kind of building the program reaches, not a client's.
+ * The photograph is decorative (hidden from screen readers; its alt only
+ * says what is in the frame, and names no city, county or building) and is
+ * never captioned: it illustrates the kind of building the program reaches,
+ * not a client's.
  */
 export function ProgramSection({
   slug,

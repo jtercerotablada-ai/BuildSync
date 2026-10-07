@@ -318,11 +318,18 @@ export function SiteHeader() {
                 preloads any eager image that is not `fetchPriority="low"`:
                 the two used to share the connection with the hero photo. Low
                 priority drops that preload and lets it load behind the page.
-                The PNG masters stay for JSON-LD, the app and email. */}
+                The PNG masters stay for JSON-LD, the app and email.
+
+                Both carry the firm's name as their alt: a crawler reads an
+                image link by its alt, and with two empty ones the link home
+                had no text at all. Both stay `aria-hidden` — the link is
+                already named by its `aria-label`, and one of the two marks is
+                always the hidden copy — so a screen reader still hears the
+                name once. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={logo.markDarkXs}
-              alt=""
+              alt={c.company.name}
               width={logo.markXsSize.w}
               height={logo.markXsSize.h}
               fetchPriority="low"
@@ -332,7 +339,7 @@ export function SiteHeader() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={logo.markLightXs}
-              alt=""
+              alt={c.company.name}
               width={logo.markXsSize.w}
               height={logo.markXsSize.h}
               className="mp-header__lockup mp-header__lockup--light"

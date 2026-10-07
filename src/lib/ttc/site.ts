@@ -153,8 +153,15 @@ export const contact = {
     | null,
   /** WhatsApp on the same line. The owner confirmed on October 6, 2026 that
    *  people may send the photo of their notice there. `null` hides every
-   *  WhatsApp link on the site. */
-  whatsapp: { href: 'https://wa.me/17722658506' } as { href: string } | null,
+   *  WhatsApp link on the site.
+   *
+   *  The address WhatsApp itself serves, not the short `wa.me/<number>`:
+   *  that one only answers with a redirect to this one, so every page linked
+   *  to a redirect. `whatsappHref` (ReachRow.tsx) appends the first line of
+   *  the message as `&text=`, which is why this already ends in a query. */
+  whatsapp: { href: 'https://api.whatsapp.com/send?phone=17722658506' } as
+    | { href: string }
+    | null,
   /** e.g. { line1: '…', city: 'Miami', state: 'FL', zip: '33131' } */
   address: null as {
     line1: string;

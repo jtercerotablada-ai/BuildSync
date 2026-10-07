@@ -55,10 +55,11 @@ export function SoftwareBand({
             {s.items.map((t) => (
               <li className="mp-tool" key={t.name}>
                 <span className="mp-tool__plate">
-                  {/* Decorative: the name is printed right below, so an alt
-                      would announce it twice (and in English on /es). */}
+                  {/* The alt is the product's own name — the same word in both
+                      languages. `aria-hidden`, because that name is printed
+                      right below and a screen reader would say it twice. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={t.logo} alt="" loading="lazy" decoding="async" />
+                  <img src={t.logo} alt={t.name} aria-hidden="true" loading="lazy" decoding="async" />
                 </span>
                 <span className="mp-tool__name">{t.name}</span>
                 <span className="mp-tool__role">{t.role}</span>

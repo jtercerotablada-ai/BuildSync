@@ -1057,7 +1057,7 @@ export const es: SiteContent = {
      */
     email: 'info@ttcivilstructural.com',
     phone: { display: '(772) 265-8506', href: 'tel:+17722658506' },
-    whatsapp: { href: 'https://wa.me/17722658506' },
+    whatsapp: { href: 'https://api.whatsapp.com/send?phone=17722658506' },
     address: null,
     serviceAreaLabel: 'Condados de Miami-Dade y Broward, Florida',
     social: {

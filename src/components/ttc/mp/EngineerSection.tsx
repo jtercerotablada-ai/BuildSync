@@ -79,12 +79,15 @@ export function EngineerSection({
                   <div className="mp-grid-bg" aria-hidden="true" />
                   {/* The 256 px resize of the real white monogram (never a
                       redraw): the plate shows it at up to ~84 px, so the
-                      1254 px master was ~230 KB for nothing. */}
+                      1254 px master was ~230 KB for nothing. Named by its
+                      alt and `aria-hidden`: the plate's own rows, right
+                      under it, are what a screen reader should read. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     className="mp-eng__plate-mark"
                     src={c.company.logo.markLightSm}
-                    alt=""
+                    alt={c.company.name}
+                    aria-hidden="true"
                     width={c.company.logo.markSmSize.w}
                     height={c.company.logo.markSmSize.h}
                     loading="lazy"

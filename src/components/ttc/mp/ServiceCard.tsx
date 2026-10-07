@@ -19,6 +19,14 @@ type Svc = SiteContent['services'][number] | Service;
  * "Next step" ends in the step itself: a link to the proposal form with this
  * service preselected. The row used to tell the reader to "send the notice"
  * with nothing to tap, and the card's only link went to more reading.
+ *
+ * THE PHOTOGRAPH IS NOT A LINK OF ITS OWN. It used to be wrapped in a second
+ * <a> to the service page, hidden from screen readers and out of the Tab
+ * order — an image link with no text at all, which is how a crawler read it.
+ * The title's link now reaches over the photograph instead (its `::after`,
+ * mp.css `.mp-svc__title a::after`): a click on the picture still opens the
+ * page, and the page is linked by its name. Only the photograph is covered —
+ * the text and the two links under it stay selectable and tappable.
  */
 export function ServiceCard({
   service,
@@ -38,12 +46,12 @@ export function ServiceCard({
 
   return (
     <Reveal as="div" delay={((index ?? 0) % 3) * 0.05} className="mp-svc">
-      <Link href={href} className="mp-svc__media" tabIndex={-1} aria-hidden="true">
+      <div className="mp-svc__media">
         <Img
           photo={imagery.services[service.slug]}
           sizes="(max-width: 900px) 100vw, 50vw"
         />
-      </Link>
+      </div>
       <div className="mp-svc__body">
         <p className="mp-svc__track">
           <span className="mp-secnum">{service.n}</span>

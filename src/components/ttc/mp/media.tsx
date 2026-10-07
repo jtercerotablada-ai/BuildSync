@@ -49,7 +49,8 @@
 import React from 'react';
 import { useReducedMotion } from 'motion/react';
 import type { Clip, Photo } from '@/lib/ttc/media';
-import { useContent } from './lang';
+import type { Lang } from '@/lib/ttc/i18n';
+import { useContent, useLang } from './lang';
 
 /**
  * `<picture>` is only a source picker, never a box. Every photo slot styles
@@ -64,6 +65,10 @@ const PICK: React.CSSProperties = { display: 'contents' };
 
 /** The phone breakpoint shared by the clip renditions and their posters. */
 const PHONE = '(max-width: 700px)';
+
+/** A photograph's or a clip's written description, in the page's language. */
+const describe = (media: { alt: string; altEs: string }, lang: Lang) =>
+  lang === 'es' ? media.altEs : media.alt;
 
 /* ── Photo ───────────────────────────────────────────────────────────────── */
 
@@ -87,6 +92,14 @@ function widths(sm: string | undefined, md: string | undefined, src: string, w: 
  * `photo.pos` is the photograph's focal point. It is inline so that it beats
  * every slot's default `object-position` — a portrait frame's subject stays
  * in the crop whatever box it lands in.
+ *
+ * THE ALT IS ALWAYS PRINTED: the description written beside the photograph in
+ * media.ts, in the language of the page. `decorative` no longer blanks it —
+ * with `alt=""` on every photograph, no image on the site told a search
+ * engine what it shows. What `decorative` still decides is whether a screen
+ * reader hears it: a backdrop behind a headline, or a card's photograph
+ * beside the title that already names it, stays out of the way with
+ * `aria-hidden`, exactly as silent as the empty alt was.
  */
 export function Img({
   photo,
@@ -102,6 +115,7 @@ export function Img({
   priority?: boolean;
   decorative?: boolean;
 }) {
+  const lang = useLang();
   const s = sizes ?? '(max-width: 900px) 100vw, 50vw';
   return (
     <picture style={PICK}>
@@ -117,7 +131,8 @@ export function Img({
         src={photo.src}
         srcSet={widths(photo.sm, photo.md, photo.src, photo.w)}
         sizes={s}
-        alt={decorative ? '' : photo.alt}
+        alt={describe(photo, lang)}
+        aria-hidden={decorative ? true : undefined}
         width={photo.w}
         height={photo.h}
         loading={priority ? 'eager' : 'lazy'}
@@ -255,6 +270,7 @@ export function VideoLoop({
    *  follows once the page has finished loading instead of waiting for scroll. */
   priority?: boolean;
 }) {
+  const lang = useLang();
   const reduce = useReducedMotion();
   const paused = useMotionPaused();
   const posterRef = React.useRef<HTMLImageElement | null>(null);
@@ -404,6 +420,11 @@ export function VideoLoop({
 
   // Server render, first client paint, every reduced-motion or Save-Data
   // visitor, and every clip that has not yet come near the viewport.
+  //
+  // The poster says what the clip shows (this is the frame a crawler gets:
+  // the <video> never exists in the server HTML), and is `aria-hidden` like
+  // the <video> that takes its place — a screen reader hears the same
+  // nothing before and after the swap.
   return (
     <picture style={PICK}>
       {clip.mobilePoster ? <source media={PHONE} srcSet={clip.mobilePoster} /> : null}
@@ -411,7 +432,8 @@ export function VideoLoop({
         ref={posterRef}
         className={className}
         src={clip.poster}
-        alt=""
+        alt={describe(clip, lang)}
+        aria-hidden="true"
         width={clip.w}
         height={clip.h}
         loading={priority ? 'eager' : 'lazy'}
