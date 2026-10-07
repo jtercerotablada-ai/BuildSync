@@ -4294,6 +4294,24 @@ a.mp-menu__mail {
   margin: 0 0 var(--mp-8);
   max-width: 60ch;
 }
+/* The form opened for a county program: the visitor pressed "Send the …
+   Notice" and ContactForm marked itself `data-mp-notice-first`. Its first
+   control is then the upload, and on a 1440×900 screen that began at y=912 —
+   under the first screen. The section label and the intro repeat the hero's
+   eyebrow and lede (the phone layout below already drops them for that
+   reason) and the --lg padding is air above the one thing this visitor came
+   for; without the three, "Add files" ends above y=900 in both languages.
+   The visually hidden h2#mp-contact-title stays. `:has()` because only the
+   form knows how it was opened: every other service, and a browser without
+   `:has()`, keeps the page as it was. Three classes on the padding rule so
+   it beats `.mp-section--lg` and the phone rule on `.mp-section.mp-contact`. */
+.mp-section.mp-contact:has([data-mp-notice-first]) {
+  padding-block-start: var(--mp-16);
+}
+.mp-contact:has([data-mp-notice-first]) .mp-sechead,
+.mp-contact:has([data-mp-notice-first]) .mp-contact__intro {
+  display: none;
+}
 .mp-files {
   gap: 0.6rem;
 }
@@ -4563,6 +4581,25 @@ a.mp-menu__mail {
   .mp-files__hint,
   .mp-form__note {
     font-size: var(--mp-t-small);
+  }
+  /* Opened for a county program (see `data-mp-notice-first` above): the
+     button promised "a phone photo of the letter is enough" and the form
+     began at y=712 of an 844px screen, which on a real phone is behind the
+     browser's own bars. The photo band above the copy is given up — the
+     header then sits on flat graphite — and the air between the lede and
+     the form is halved, so "Add files" is on the first screen at 390×844.
+     Hiding the band is not enough: --phero-top is also the hero's top
+     padding. `.mp:has(…) .mp-phero` so it outranks the short-phone rule
+     (max-height: 720px), which sets the same variable. */
+  .mp:has([data-mp-notice-first]) .mp-phero {
+    --phero-top: calc(var(--mp-header-h) + var(--mp-6));
+    padding-block-end: var(--mp-8);
+  }
+  .mp:has([data-mp-notice-first]) .mp-phero__photo {
+    display: none;
+  }
+  .mp-section.mp-contact:has([data-mp-notice-first]) {
+    padding-block-start: var(--mp-8);
   }
 }
 

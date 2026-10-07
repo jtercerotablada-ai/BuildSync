@@ -332,6 +332,29 @@ export const ui = {
       'Work starts once the scope is agreed in writing — nothing is assumed on your behalf.',
     ],
     directEmail: 'Prefer email? Write to',
+    /* The two county programs (a service that carries `program`). Every
+       button that opens the form with one of them selected says "a phone
+       photo of the letter is enough", so the form has to agree: the photo
+       comes first, the building is a building and not a "project", and the
+       description stops being required once a file has uploaded (the rule is
+       descriptionRequired in contact-request.ts; the route applies it too).
+       The date and the number of stories are what the engineer needs first
+       and are both optional. Design services keep the labels above.
+       No age, day count or deadline here — those live in each county's
+       timing row and nowhere else. */
+    program: {
+      attachments: 'Photo of the notice (photo or PDF)',
+      attachmentsHint:
+        'A phone photo of the letter is enough; a PDF works too. Up to five files, 25 MB each.',
+      location: 'Building address',
+      locationPlaceholder: 'Street address and city',
+      noticeDate: 'Date on the notice',
+      noticeDatePlaceholder: 'Month, day and year',
+      stories: 'Number of stories',
+      message: 'Tell us about the building',
+      messagePlaceholder:
+        'What kind of building it is and what the city or the county has asked for. No notice yet? Tell us how old the building is.',
+    },
     errors: {
       name: 'Please enter your name',
       email: 'Please enter an email address',
@@ -340,6 +363,9 @@ export const ui = {
       location: 'Tell us where the project or building is',
       /* States the rule the form enforces (12+ characters), WCAG 3.3.3. */
       message: 'Tell us a little more about the project — at least a sentence (12+ characters)',
+      /* A county program with nothing attached yet. Names both ways out, in
+         the order the buttons promise them. */
+      messageOrNotice: 'Attach the notice, or tell us about the building in at least a sentence (12+ characters)',
       generic: 'Something went wrong. Please email us instead.',
       /** A fetch that never reached the server; replaces the browser's raw "Failed to fetch". */
       network: "We couldn't reach the server. Check your connection and try again, or email us directly.",
@@ -1815,7 +1841,7 @@ export const legal = {
     title: 'Privacy Policy',
     sub: 'What we collect through this website, why we collect it, and what we do with it.',
     sections: [
-      { h: 'What we collect', p: 'The only personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the project location, the description you write and any files you attach.' },
+      { h: 'What we collect', p: 'The only personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.' },
       { h: 'Why we collect it', p: 'We use it to respond to your request and to understand the engineering scope you are asking about. We do not sell it, rent it, or share it for advertising.' },
       { h: 'How it is stored', p: 'Submissions are stored in our project database and attachments in cloud file storage at an address that is never published or linked; a notification is emailed to the office through a transactional email provider so that we see your message, and a confirmation is emailed to you. Access is limited to the people who need it to reply to you.' },
       { h: 'How long we keep it', p: 'Requests are retained while they are commercially relevant and for as long as any resulting engagement requires. You may ask us to delete your request and its attachments at any time.' },

@@ -11,6 +11,13 @@ import {
   isContactBlobUrl,
   isContactFileAllowed,
 } from "@/lib/contact-attachments";
+import {
+  NOTICE_DATE_MAX,
+  SOURCE_MAX,
+  STORIES_MAX,
+  descriptionRequired,
+  oneLine,
+} from "@/lib/contact-request";
 import { contactServiceOptions as EN_SERVICES } from "@/lib/ttc/site";
 import { es as ES_BUNDLE } from "@/lib/ttc/site.es";
 
@@ -38,6 +45,11 @@ const ALLOWED_SERVICES = new Set<string>([
  *   • Attachments are accepted only as blobs of OUR store, at the configured
  *     access level, under `contact/` (see contact-attachments.ts); anything
  *     else on the payload is rejected.
+ *
+ * Every rule of the form is repeated here, and one of them depends on the
+ * service: for a county program an attached file stands in for the
+ * description (contact-request.ts). Email stays required for every request —
+ * the confirmation and the engineer's reply both go to it.
  */
 
 const attachmentSchema = z.object({
@@ -47,7 +59,20 @@ const attachmentSchema = z.object({
   type: z.string().trim().max(120).optional().default(""),
 });
 
-const contactSchema = z.object({
+/**
+ * Where the visit started and which page linked to the site (requestSource
+ * in contact-request.ts). The browser volunteers both, so neither is ever a
+ * reason to refuse a request: anything that is not a string is dropped, and
+ * what is kept is one bounded line.
+ */
+const sourceLine = z
+  .string()
+  .transform((s) => oneLine(s, SOURCE_MAX) || null)
+  .nullable()
+  .optional()
+  .catch(null);
+
+const contactFields = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   email: z
     .string()
@@ -59,10 +84,31 @@ const contactSchema = z.object({
   company: z.string().trim().max(160).nullable().optional(),
   location: z.string().trim().min(1, "Location is required").max(160),
   service: z.string().trim().min(1, "Service is required").max(120),
-  message: z.string().trim().min(1, "Message is required").max(5000),
+  // May arrive empty — whether that is acceptable is decided below.
+  message: z.string().trim().max(5000),
+  // County programs only, both optional: what the letter says and how tall
+  // the building is.
+  noticeDate: z.string().trim().max(NOTICE_DATE_MAX).nullable().optional(),
+  stories: z.string().trim().max(STORIES_MAX).nullable().optional(),
   lang: z.enum(["en", "es"]).optional().default("en"),
   files: z.array(attachmentSchema).max(CONTACT_MAX_FILES).nullable().optional(),
+  landing: sourceLine,
+  referrer: sourceLine,
 });
+
+// On the object, not on the field: it depends on the service and on the
+// files. The form applies the same function before it sends.
+const contactSchema = contactFields.refine(
+  (v) => Boolean(v.message) || !descriptionRequired(v.service, v.files?.length ?? 0),
+  { path: ["message"], message: "Message is required" }
+);
+
+/**
+ * What the inbox shows for a request sent with a file and no words. The
+ * message column is the first thing the office reads in the list; an empty
+ * cell there looks like a failed submission.
+ */
+const NO_DESCRIPTION = "(No description written. See the attachments.)";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -133,8 +179,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const { name, email, phone, company, location, service, message, lang } =
+    const { name, email, phone, company, location, service, lang, landing, referrer } =
       parsed.data;
+    const message = parsed.data.message || NO_DESCRIPTION;
+    const noticeDate = oneLine(parsed.data.noticeDate ?? "", NOTICE_DATE_MAX);
+    const stories = oneLine(parsed.data.stories ?? "", STORIES_MAX);
 
     if (!ALLOWED_SERVICES.has(service)) {
       return NextResponse.json(
@@ -159,12 +208,17 @@ export async function POST(request: Request) {
       }
     }
 
-    // The schema has no column for company/location/language; they ride in
-    // the message body under a divider so the inbox shows everything.
+    // The schema has no column for company/location/language, the two notice
+    // fields or the request's source; they ride in the message body under a
+    // divider so the inbox shows everything.
     const extras = [
       `Project location: ${location}`,
       company ? `Company / association: ${company}` : null,
+      noticeDate ? `Date on the notice: ${noticeDate}` : null,
+      stories ? `Number of stories: ${stories}` : null,
       `Language: ${lang}`,
+      landing ? `Arrived on: ${landing}` : null,
+      referrer ? `Referred by: ${referrer}` : null,
     ].filter(Boolean);
     const stored = `${message}\n\n---\n${extras.join("\n")}`;
 
@@ -205,7 +259,11 @@ export async function POST(request: Request) {
             ${company ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Company</td><td style="padding:6px 0">${escapeHtml(company)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#62655f;font-weight:600">Service</td><td style="padding:6px 0">${escapeHtml(service)}</td></tr>
             <tr><td style="padding:6px 0;color:#62655f;font-weight:600">Location</td><td style="padding:6px 0">${escapeHtml(location)}</td></tr>
+            ${noticeDate ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Notice date</td><td style="padding:6px 0">${escapeHtml(noticeDate)}</td></tr>` : ""}
+            ${stories ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Stories</td><td style="padding:6px 0">${escapeHtml(stories)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#62655f;font-weight:600">Language</td><td style="padding:6px 0">${lang}</td></tr>
+            ${landing ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Arrived on</td><td style="padding:6px 0">${escapeHtml(landing)}</td></tr>` : ""}
+            ${referrer ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Referred by</td><td style="padding:6px 0">${escapeHtml(referrer)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#62655f;font-weight:600">Reference</td><td style="padding:6px 0">${ref}</td></tr>
           </table>
           <div style="margin-top:16px;padding:16px;background:#f6f4ef">

@@ -18,6 +18,11 @@ import { breadcrumbLd, JsonLd } from './meta';
  * on the site lands here, so on a phone the first field must be on the first
  * screen. mp.css trims this section's top padding there and hides the label
  * and intro, which only repeat the hero's eyebrow and lede.
+ *
+ * A form opened for a county program marks itself `data-mp-notice-first`
+ * (ContactForm), and mp.css then does the same at every width and drops the
+ * hero's photo band on a phone: the upload that visitor was promised has to
+ * be the first thing under the lede.
  */
 export function ContactView({ lang, presetService }: { lang: Lang; presetService?: string }) {
   const c = getContent(lang);

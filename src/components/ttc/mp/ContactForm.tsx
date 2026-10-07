@@ -10,6 +10,14 @@ import {
   isContactFileAllowed,
   type ContactAttachment,
 } from '@/lib/contact-attachments';
+import {
+  NOTICE_DATE_MAX,
+  STORIES_MAX,
+  descriptionRequired,
+  isProgramOption,
+  requestSource,
+  type RequestSource,
+} from '@/lib/contact-request';
 import { getContent, type SiteContent } from '@/lib/ttc/content';
 import { useContent, useLang } from './lang';
 
@@ -21,6 +29,9 @@ type Fields = {
   location: string;
   service: string;
   message: string;
+  /** County programs only (see `program` below); both optional. */
+  noticeDate: string;
+  stories: string;
 };
 
 const EMPTY: Fields = {
@@ -31,6 +42,8 @@ const EMPTY: Fields = {
   location: '',
   service: '',
   message: '',
+  noticeDate: '',
+  stories: '',
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,6 +125,24 @@ function presetOption(preset: unknown, c: SiteContent): string {
   return '';
 }
 
+/* ── where the request came from ───────────────────────────────────────────── */
+
+/**
+ * The page this visit started on and the page that linked to the site, read
+ * when the form is sent from what the browser already holds for this
+ * document (requestSource says why that still describes the arrival).
+ * No cookie, no storage, no script from anyone else — and never a reason for
+ * a send to fail, hence the catch.
+ */
+function arrival(): RequestSource {
+  try {
+    const entry = performance.getEntriesByType('navigation')[0]?.name;
+    return requestSource(entry, document.referrer, window.location.origin);
+  } catch {
+    return { landing: null, referrer: null };
+  }
+}
+
 /* ── scroll + focus ────────────────────────────────────────────────────────── */
 
 type LenisLike = {
@@ -166,6 +197,20 @@ function reveal(block: HTMLElement | null, focusTarget: HTMLElement | null = blo
  * Proposal request. Required: name, email, service, location, description.
  * Optional: phone, company, up to five attachments.
  *
+ * The two county programs differ, because every button that opens the form
+ * for one of them says "a phone photo of the letter is enough":
+ *   • `program` — a county program is SELECTED. The labels speak of a notice
+ *     and a building, two optional fields appear (date on the notice, number
+ *     of stories), and the description is optional once a file has finished
+ *     uploading. It follows the dropdown, so a visitor who came in through
+ *     the menu and picks a program gets the same rules.
+ *   • `noticeFirst` — the form was OPENED with a program preselected. The
+ *     upload is then the first control, and mp.css shortens the page above
+ *     it (the `data-mp-notice-first` mark). Fixed for the life of the form:
+ *     moving a block the visitor has already scrolled past, because they
+ *     touched the dropdown, would move everything under their thumb.
+ * Every other service keeps the layout and the rules it had.
+ *
  * Attachments go browser → blob storage through /api/contact/upload (a route
  * handler cannot carry a scanned notice); see CONTACT_BLOB_ACCESS for why the
  * blobs are public-but-unguessable today. The form only sends the resulting
@@ -180,6 +225,12 @@ export function ContactForm({ presetService }: { presetService?: string }) {
   const lang = useLang();
   const t = c.ui.form;
   const [f, setF] = useState<Fields>(() => ({ ...EMPTY, service: presetOption(presetService, c) }));
+  // Read once, on the first render, when `f.service` is still the preset.
+  const [noticeFirst] = useState(() => isProgramOption(f.service));
+  // What mp.css reads (`:has([data-mp-notice-first])`) to shorten the page
+  // above the form. On the form AND on the success block that replaces it,
+  // so the hero does not change height at the moment the request is sent.
+  const noticeMark = noticeFirst ? '' : undefined;
   const [errors, setErrors] = useState<Errors>({});
   const [status, setStatus] = useState<'idle' | 'busy' | 'ok' | 'error'>('idle');
   const [serverError, setServerError] = useState<string | null>(null);
@@ -227,7 +278,13 @@ export function ContactForm({ presetService }: { presetService?: string }) {
     // value the <select> cannot show would otherwise pass as "chosen".
     if (!c.contactServiceOptions.includes(v.service)) e.service = t.errors.service;
     if (!v.location.trim()) e.location = t.errors.location;
-    if (v.message.trim().length < 12) e.message = t.errors.message;
+    // A county notice that finished uploading stands in for the description;
+    // the route applies the same function. Counted from the ref: uploads
+    // settle outside the render that started them.
+    const attached = pendingRef.current.filter((p) => p.state === 'done' && p.result).length;
+    if (descriptionRequired(v.service, attached) && v.message.trim().length < 12) {
+      e.message = isProgramOption(v.service) ? t.errors.messageOrNotice : t.errors.message;
+    }
     return e;
   }
 
@@ -468,8 +525,13 @@ export function ContactForm({ presetService }: { presetService?: string }) {
           location: f.location.trim(),
           service: f.service,
           message: f.message.trim(),
+          // The two notice fields exist only while a county program is
+          // selected; what was typed before switching away is not sent.
+          noticeDate: (isProgramOption(f.service) && f.noticeDate.trim()) || null,
+          stories: (isProgramOption(f.service) && f.stories.trim()) || null,
           lang,
           files: files.length ? files : null,
+          ...arrival(),
         }),
       });
       if (!res.ok) {
@@ -521,7 +583,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
     return (
       <>
         {liveRegion}
-        <div ref={successRef} className="mp-form__success">
+        <div ref={successRef} className="mp-form__success" data-mp-notice-first={noticeMark}>
           <span className="mp-form__success-mark" aria-hidden="true">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="1.6" />
@@ -567,17 +629,110 @@ export function ContactForm({ presetService }: { presetService?: string }) {
   const busy = status === 'busy';
   const uploading = pending.some((p) => p.state === 'uploading');
   const failed = status === 'error' && serverError ? serverError : null;
+  const program = isProgramOption(f.service);
+  const needsDescription = descriptionRequired(
+    f.service,
+    pending.filter((p) => p.state === 'done' && p.result).length,
+  );
+  // An error raised while the description was required is void the moment a
+  // notice finishes uploading; nobody has to touch the field to clear it.
+  const messageError = needsDescription ? errors.message : undefined;
+
+  /* Rendered first when the form was opened for a county program, in its
+     usual place otherwise — one block, so the two cannot drift. */
+  const attachments = (
+    <div className="mp-field mp-files">
+      <span className="mp-field__label" id="mp-files-label">
+        {program ? t.program.attachments : t.attachments} <span className="mp-field__opt">{t.optional}</span>
+      </span>
+      <p className="mp-files__hint" id="mp-files-hint">
+        {program ? t.program.attachmentsHint : t.attachmentsHint}
+      </p>
+      <input
+        ref={fileInput}
+        id="mp-files"
+        type="file"
+        className="mp-sr-only"
+        multiple
+        accept={CONTACT_ACCEPT}
+        aria-labelledby="mp-files-label"
+        aria-describedby={fileError ? 'mp-files-hint mp-files-err' : 'mp-files-hint'}
+        onChange={(e) => addFiles(e.target.files)}
+        disabled={busy}
+      />
+      <div className="mp-files__row">
+        <label htmlFor="mp-files" className="mp-btn mp-btn--line mp-files__add">
+          <span>{t.addFiles}</span>
+          <span aria-hidden="true">+</span>
+        </label>
+        {fileError ? (
+          <span className="mp-field__error" id="mp-files-err" role="alert">
+            {fileError}
+          </span>
+        ) : null}
+      </div>
+      {/* Always mounted (collapsed while empty) so additions are announced.
+          Each item is read whole when it changes; the running percentage
+          is hidden from assistive tech so a transfer is not read out
+          several times a second — "Uploading", then the size or the
+          error, is what a listener needs. */}
+      <ul className="mp-files__list" aria-live="polite">
+        {pending.map((p) => (
+          <li key={p.id} className="mp-files__item" data-state={p.state} aria-atomic="true">
+            <span className="mp-files__name">{p.file.name}</span>
+            <span className="mp-files__meta">
+              {p.state === 'uploading' ? (
+                <>
+                  {t.uploading}
+                  <span aria-hidden="true"> {Math.round(p.progress)}%</span>
+                </>
+              ) : p.state === 'error' ? (
+                <>
+                  {p.error}
+                  <button
+                    type="button"
+                    className="mp-files__retry"
+                    onClick={() => retryFile(p.id)}
+                    aria-label={`${t.retry} ${p.file.name}`}
+                    disabled={busy}
+                  >
+                    {t.retry}
+                  </button>
+                </>
+              ) : (
+                `${Math.max(1, Math.round(p.file.size / 1024))} KB`
+              )}
+            </span>
+            <span className="mp-files__bar" aria-hidden="true">
+              <span style={{ width: `${p.state === 'done' ? 100 : p.progress}%` }} />
+            </span>
+            <button
+              type="button"
+              className="mp-files__remove"
+              onClick={() => removeFile(p.id)}
+              aria-label={`${t.removeFile} ${p.file.name}`}
+              disabled={busy}
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
   return (
     <>
       {liveRegion}
-      <form ref={formRef} className="mp-form" onSubmit={onSubmit} noValidate>
+      <form ref={formRef} className="mp-form" data-mp-notice-first={noticeMark} onSubmit={onSubmit} noValidate>
         {failed ? (
           <div ref={alertRef} className="mp-form__alert" role="alert" tabIndex={-1}>
             <span aria-hidden="true">!</span>
             <span>{failed}</span>
           </div>
         ) : null}
+
+        {noticeFirst ? attachments : null}
 
         <div className="mp-form__row">
           <Field id="mp-name" name="name" label={t.name} value={f.name} onChange={set('name')} error={errors.name} autoComplete="name" autoCapitalize="words" spellCheck={false} maxLength={120} required />
@@ -612,12 +767,20 @@ export function ContactForm({ presetService }: { presetService?: string }) {
               </span>
             ) : null}
           </div>
-          <Field id="mp-location" name="location" label={t.location} value={f.location} onChange={set('location')} error={errors.location} placeholder={t.locationPlaceholder} autoComplete="address-level2" autoCapitalize="words" maxLength={160} required />
+          <Field id="mp-location" name="location" label={program ? t.program.location : t.location} value={f.location} onChange={set('location')} error={errors.location} placeholder={program ? t.program.locationPlaceholder : t.locationPlaceholder} autoComplete={program ? 'street-address' : 'address-level2'} autoCapitalize="words" maxLength={160} required />
         </div>
 
-        <div className="mp-field" data-invalid={errors.message ? 'true' : undefined}>
+        {program ? (
+          <div className="mp-form__row">
+            <Field id="mp-notice-date" name="noticeDate" label={t.program.noticeDate} optional optionalLabel={t.optional} value={f.noticeDate} onChange={set('noticeDate')} placeholder={t.program.noticeDatePlaceholder} autoComplete="off" maxLength={NOTICE_DATE_MAX} />
+            <Field id="mp-stories" name="stories" label={t.program.stories} optional optionalLabel={t.optional} inputMode="numeric" value={f.stories} onChange={set('stories')} autoComplete="off" maxLength={STORIES_MAX} />
+          </div>
+        ) : null}
+
+        <div className="mp-field" data-invalid={messageError ? 'true' : undefined}>
           <label className="mp-field__label" htmlFor="mp-message">
-            {t.message}
+            {program ? t.program.message : t.message}
+            {needsDescription ? null : <span className="mp-field__opt"> {t.optional}</span>}
           </label>
           <textarea
             id="mp-message"
@@ -627,98 +790,20 @@ export function ContactForm({ presetService }: { presetService?: string }) {
             maxLength={5000}
             value={f.message}
             onChange={set('message')}
-            placeholder={t.messagePlaceholder}
+            placeholder={program ? t.program.messagePlaceholder : t.messagePlaceholder}
             autoCapitalize="sentences"
-            aria-describedby={errors.message ? 'mp-message-err' : undefined}
-            aria-invalid={errors.message ? true : undefined}
-            required
+            aria-describedby={messageError ? 'mp-message-err' : undefined}
+            aria-invalid={messageError ? true : undefined}
+            required={needsDescription}
           />
-          {errors.message ? (
+          {messageError ? (
             <span className="mp-field__error" id="mp-message-err">
-              {errors.message}
+              {messageError}
             </span>
           ) : null}
         </div>
 
-        {/* Attachments */}
-        <div className="mp-field mp-files">
-          <span className="mp-field__label" id="mp-files-label">
-            {t.attachments} <span className="mp-field__opt">{t.optional}</span>
-          </span>
-          <p className="mp-files__hint" id="mp-files-hint">
-            {t.attachmentsHint}
-          </p>
-          <input
-            ref={fileInput}
-            id="mp-files"
-            type="file"
-            className="mp-sr-only"
-            multiple
-            accept={CONTACT_ACCEPT}
-            aria-labelledby="mp-files-label"
-            aria-describedby={fileError ? 'mp-files-hint mp-files-err' : 'mp-files-hint'}
-            onChange={(e) => addFiles(e.target.files)}
-            disabled={busy}
-          />
-          <div className="mp-files__row">
-            <label htmlFor="mp-files" className="mp-btn mp-btn--line mp-files__add">
-              <span>{t.addFiles}</span>
-              <span aria-hidden="true">+</span>
-            </label>
-            {fileError ? (
-              <span className="mp-field__error" id="mp-files-err" role="alert">
-                {fileError}
-              </span>
-            ) : null}
-          </div>
-          {/* Always mounted (collapsed while empty) so additions are announced.
-              Each item is read whole when it changes; the running percentage
-              is hidden from assistive tech so a transfer is not read out
-              several times a second — "Uploading", then the size or the
-              error, is what a listener needs. */}
-          <ul className="mp-files__list" aria-live="polite">
-            {pending.map((p) => (
-              <li key={p.id} className="mp-files__item" data-state={p.state} aria-atomic="true">
-                <span className="mp-files__name">{p.file.name}</span>
-                <span className="mp-files__meta">
-                  {p.state === 'uploading' ? (
-                    <>
-                      {t.uploading}
-                      <span aria-hidden="true"> {Math.round(p.progress)}%</span>
-                    </>
-                  ) : p.state === 'error' ? (
-                    <>
-                      {p.error}
-                      <button
-                        type="button"
-                        className="mp-files__retry"
-                        onClick={() => retryFile(p.id)}
-                        aria-label={`${t.retry} ${p.file.name}`}
-                        disabled={busy}
-                      >
-                        {t.retry}
-                      </button>
-                    </>
-                  ) : (
-                    `${Math.max(1, Math.round(p.file.size / 1024))} KB`
-                  )}
-                </span>
-                <span className="mp-files__bar" aria-hidden="true">
-                  <span style={{ width: `${p.state === 'done' ? 100 : p.progress}%` }} />
-                </span>
-                <button
-                  type="button"
-                  className="mp-files__remove"
-                  onClick={() => removeFile(p.id)}
-                  aria-label={`${t.removeFile} ${p.file.name}`}
-                  disabled={busy}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {noticeFirst ? null : attachments}
 
         <div className="mp-form__row">
           <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" inputMode="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" maxLength={40} />
