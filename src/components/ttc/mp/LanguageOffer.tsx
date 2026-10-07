@@ -23,7 +23,9 @@ import { refreshSearch, useContent, useLang } from './lang';
  *     HTML: the server and the hydration pass render nothing, and the
  *     browser's language is read after that. On screen it is out of the
  *     flow (mp.css: under the header, at the top of the page, scrolling
- *     away with it), so no layout shifts when it appears either.
+ *     away with it), so no layout shifts when it appears either. Where a
+ *     short screen leaves it no empty band to lie on, mp.css does not show
+ *     it — the header's own "Español" is all there is room for.
  *   • Come back once it has had its answer — closed, or the visitor has
  *     been on a Spanish page, which means they found it. That is remembered
  *     for the session only: sessionStorage, this tab, gone when it closes.
@@ -79,7 +81,8 @@ const notOnServer = () => false;
 
 export function LanguageOffer({ href }: { href: string }) {
   const lang = useLang();
-  const offer = useContent().ui.language.offer;
+  const language = useContent().ui.language;
+  const offer = language.offer;
   const wanted = useSyncExternalStore(subscribe, prefersSpanish, notOnServer);
 
   useEffect(() => {
@@ -89,8 +92,10 @@ export function LanguageOffer({ href }: { href: string }) {
   if (lang !== 'en' || !wanted) return null;
 
   return (
-    // Spanish inside an English page, so it says so itself.
-    <div className="mp-langoffer" lang="es">
+    // Spanish inside an English page, so it says so itself. An <aside>
+    // because it sits outside the header and <main>: a landmark of its own,
+    // named for the language, instead of loose content between the two.
+    <aside className="mp-langoffer" lang="es" aria-label={language.es}>
       <Link
         href={href}
         hrefLang="es"
@@ -102,6 +107,6 @@ export function LanguageOffer({ href }: { href: string }) {
       </Link>
       {/* The mark is drawn in CSS; the name is the label. */}
       <button type="button" aria-label={offer.dismiss} onClick={settle} />
-    </div>
+    </aside>
   );
 }

@@ -180,10 +180,10 @@ export type NavItem = { href: string; label: string; description?: string; inHea
    /projects is hidden that way. It holds typical engagement profiles, not
    past jobs, and says so; as "Work", third in the main menu, it sent every
    curious visitor to a page explaining there was nothing to show. It is now
-   named for what it is, stays linked from the footer and from the home
-   page's typologies note, and stays in the sitemap. When `caseStudies` has
-   real entries it can be "Work" again and go back in the header
-   (site.test.ts holds the two together). */
+   named for what it is, stays linked from the footer and from the
+   typologies note on the Services page, and stays in the sitemap. When
+   `caseStudies` has real entries it can be "Work" again and go back in the
+   header (site.test.ts holds the two together). */
 export const primaryNav: NavItem[] = [
   { href: '/services', label: 'Services' },
   { href: '/existing-buildings', label: 'Existing Buildings' },

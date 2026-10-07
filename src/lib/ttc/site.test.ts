@@ -197,6 +197,36 @@ describe('navigation: what the header leaves out', () => {
   });
 });
 
+/**
+ * Spanish that reads as Spanish (the style notes at the top of site.es.ts).
+ * A mirror drifts back one string at a time — the next headline translated
+ * from "We reply with a scope" hands the reader "un alcance" again — and
+ * nothing but a reader notices. These tests are that reader, for the two
+ * words the Spanish pages were built on.
+ */
+describe('Spanish copy: the words a building owner uses', () => {
+  // Every string of a bundle, wherever it sits.
+  const strings = (value: unknown): string[] =>
+    typeof value === 'string'
+      ? [value]
+      : value && typeof value === 'object'
+        ? Object.values(value).flatMap(strings)
+        : [];
+
+  // "Un alcance de trabajo acordado" (the terms) is the extent of the work,
+  // named as such. "Un alcance" alone is a thing nobody receives.
+  it('never hands the reader "un alcance"', () => {
+    expect(strings(es).filter((s) => /\bun alcance\b(?! de trabajo)/i.test(s))).toEqual([]);
+  });
+
+  // "Encargo" stays where it is the legal word for an engagement: the
+  // notice, the privacy policy and the terms, all under `legal`.
+  it('says "trabajos", and keeps "encargo" for the legal pages', () => {
+    const pages = { ...es, legal: null };
+    expect(strings(pages).filter((s) => /\bencargos?\b/i.test(s))).toEqual([]);
+  });
+});
+
 describe('language switch', () => {
   // The switch shows the OTHER language, so an English page prints
   // `language.es` and a Spanish page `language.en`: a name translated into

@@ -515,7 +515,7 @@ const services: SiteContent['services'] = [
     ],
     process: [
       { step: 'Aplicabilidad', detail: 'Confirmamos qué reglas alcanzan al edificio y qué pide la notificación, si la hay. Donde aplica el programa de un condado, el trabajo se hace bajo ese programa.' },
-      { step: 'Revisión de registros', detail: 'Planos disponibles, informes previos e historial de reparaciones revisados antes de la visita al sitio.' },
+      { step: 'Revisión de registros', detail: 'Planos disponibles, informes previos e historial de reparaciones revisados antes de la visita al edificio.' },
       { step: 'Inspección en campo', detail: 'Inspección visual sistemática con documentación fotográfica y mapeo de ubicaciones.' },
       { step: 'Evaluación', detail: 'Observaciones evaluadas estructuralmente — distinguiendo lo cosmético de lo estructural, y lo urgente de lo que puede monitorearse. Donde el deterioro es sustancial, se define la investigación adicional.' },
       { step: 'Informe', detail: 'Hallazgos emitidos con prioridades claras y, para condominios y cooperativas, un resumen aparte que la junta directiva puede enviar a los propietarios de las unidades.' },
@@ -676,7 +676,7 @@ const services: SiteContent['services'] = [
       'Planos y especificaciones de reparación',
     ],
     nextStep:
-      'Envíe fotografías de las condiciones y cualquier informe previo. Le decimos si hace falta una visita al sitio y qué cubrirá la evaluación.',
+      'Envíe fotografías de las condiciones y cualquier informe previo. Le decimos si hace falta una visita al edificio y qué cubrirá la evaluación.',
     considerations: [
       'Las evaluaciones de estructuras existentes conllevan incertidumbre; donde importa, se recomiendan ensayos o aperturas exploratorias en lugar de dar la incertidumbre por resuelta.',
       'La falta de documentación original aumenta la verificación en campo requerida.',
@@ -1391,12 +1391,14 @@ export const es: SiteContent = {
     },
     linkedin: null,
     teaserTitle: 'Un solo ingeniero responsable de todo el proyecto.',
+    /* "El alcance que entregamos" was "the scope we deliver", word for word
+       (see the style notes at the top: nobody is handed "un alcance"). */
     teaser:
-      'En Tercero Tablada Civil & Structural Engineering Inc., cada proyecto lo diseña, revisa y firma la misma persona. Usted trata directamente con el ingeniero desde su primer mensaje, y el alcance que aprueba en la propuesta es el alcance que entregamos.',
+      'En Tercero Tablada Civil & Structural Engineering Inc., cada proyecto lo diseña, revisa y firma la misma persona. Usted trata directamente con el ingeniero desde su primer mensaje, y lo que aprueba en la propuesta es lo que entregamos.',
     bio: [
       /* The Master's keeps the program's own name ("…en Construction Project
          Management", Universidad de Barcelona), the same in bio and education. */
-      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada encargo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
+      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada trabajo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
       'La firma cubre las dos mitades del trabajo estructural en el Sur de Florida: el diseño de edificios nuevos de concreto reforzado, y la evaluación, recertificación y reparación de edificios que ya están en pie. Ambas se hacen con la misma disciplina — el razonamiento detrás de cada conclusión queda escrito, y nada sale de la oficina sin haberse revisado línea por línea.',
     ],
     education: [
@@ -1590,13 +1592,14 @@ export const es: SiteContent = {
      every page. It was "Respondemos con un alcance.", "we reply with a
      scope" word for word: no building owner asks for "un alcance". What he
      gets is a proposal, and the page under this headline already says so.
-     Kept as short as the line it replaces — no "Le" in front, no adjective
-     after "propuesta". Measured: each added a line to the H1 at several
-     widths, and on the form opened for a notice a taller H1 pushes the
-     upload down the first screen. */
+     "Le enviamos", not "(Le) respondemos con": measured in the H1, the
+     longer verb takes a fifth line on a 320px screen and "…una propuesta
+     clara" a fifth up to 390px, where the old headline took four — and on
+     the form opened for a notice a taller H1 pushes the upload further down
+     the first screen. This one is four lines at every phone width. */
   contactPage: {
     eyebrow: 'Solicitar propuesta',
-    titleLines: ['Cuéntenos de su edificio.', 'Respondemos con una propuesta.'],
+    titleLines: ['Cuéntenos de su edificio.', 'Le enviamos una propuesta.'],
     accentWord: 'propuesta.',
     sub: 'Describa el proyecto, el edificio o la notificación que recibió — y adjunte lo que ya tenga. El ingeniero lee cada solicitud y responde con preguntas o con una propuesta escrita.',
   },
@@ -1616,7 +1619,7 @@ export const es: SiteContent = {
 
   closingCta: {
     eyebrow: 'Siguiente paso',
-    titleLines: ['Cuéntenos de su edificio.', 'Respondemos con una propuesta.'],
+    titleLines: ['Cuéntenos de su edificio.', 'Le enviamos una propuesta.'],
     accentWord: 'propuesta.',
     /* Leads with the notice, as in English: notice, existing building, new
        project. */
