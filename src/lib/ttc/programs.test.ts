@@ -155,6 +155,8 @@ describe('the home page’s summary of a county program', () => {
           const kept = firstSentence(f.v);
           expect(kept.endsWith('.'), f.v).toBe(true);
           expect(kept.split(/\s+/).length, f.v).toBeGreaterThanOrEqual(3);
+          // …and not one cut short at an abbreviation's full stop.
+          expect(kept, f.v).not.toMatch(/\b(?:U\.S|EE|UU|St|No|Inc|Sec|Art|Fla|Dr|Núm|p\. ej)\.$/);
         }
       }
     }

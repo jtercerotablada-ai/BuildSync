@@ -123,7 +123,7 @@ describe('home page and county program pages: no block of text on two of them', 
            wherever it is shown, and it is on both program pages on purpose;
          · the heading of the board's duties, six words in Spanish — a label,
            cited by name from the answers; its tag is another package's;
-         · the day the outbound links were last opened — one date, one line,
+         · the day the office names were last checked — one date, one line,
            under "Who sent your notice?" on both pages. */
     const left = (t: string) =>
       t.includes(e.name) ||
@@ -172,14 +172,16 @@ describe('home page: each program section is a summary of its page', () => {
         const items = [...section.matchAll(/<ul class="mp-prog__facts">([\s\S]*?)<\/ul>/g)].flatMap((m) =>
           [...m[1].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((li) => text(li[1])),
         );
-        const want = row.facts.filter((f) => f.home).map((f) => text(esc(`${f.k}: ${firstSentence(f.v)}`)));
+        const want = row.facts
+          .filter((f) => f.home)
+          .map((f) => text(esc(`${f.k}: ${f.homeWhole ? f.v : firstSentence(f.v)}`)));
         expect(items).toEqual(want);
         expect(items.length).toBeLessThan(row.facts.length);
       });
 
       // The whole value of a row is the program page's to print.
       it(`${slug} (${lang}): prints no row whole that has more to say`, () => {
-        for (const f of row.facts.filter((x) => firstSentence(x.v) !== x.v)) {
+        for (const f of row.facts.filter((x) => !x.homeWhole && firstSentence(x.v) !== x.v)) {
           expect(section, f.k).not.toContain(esc(f.v));
           expect(page, f.k).toContain(esc(f.v));
         }
@@ -187,7 +189,7 @@ describe('home page: each program section is a summary of its page', () => {
 
       it(`${slug} (${lang}): under its button, the half of the line the program page does not open with`, () => {
         const note = section.match(/<p class="mp-prog__ctanote">([\s\S]*?)<\/p>/)![1];
-        expect(note).toBe(esc(afterFirstSentence(program.ctaNote)));
+        expect(note).toBe(esc(`${c.ui.photoTheLetter} ${afterFirstSentence(program.ctaNote)}`));
         expect(section).not.toContain(esc(program.ctaNote));
         // …and the program page still prints the line whole, once.
         expect(page.split(esc(program.ctaNote)).length - 1).toBe(1);

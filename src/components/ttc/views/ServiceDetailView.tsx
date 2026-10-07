@@ -485,6 +485,14 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
             </ul>
             <div className="mp-offices__foot">
               <p>{service.offices.note}</p>
+              {/* The note ends "Send us the letter": the way to do it, right
+                  there. The list above stopped being links, so without this
+                  the section had nothing to act on. */}
+              {service.program ? (
+                <p>
+                  <TextLink href={l(contactHref)}>{service.program.cta}</TextLink>
+                </p>
+              ) : null}
               <p>
                 {service.offices.forms.text}{' '}
                 <Outbound href={service.offices.forms.url}>{service.offices.forms.label}</Outbound>

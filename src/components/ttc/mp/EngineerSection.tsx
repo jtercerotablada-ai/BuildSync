@@ -205,14 +205,17 @@ export function EngineerSection({
                   ))}
                 </ul>
               ) : (
-                /* The teaser prints the three NAMES only. Its paragraph, two
-                   lines up, already says all three in a sentence; the rows
-                   that explain each one are About's, one tap away. Printed
-                   in full here they were the same three sentences on two
-                   pages. */
-                <ul className="mp-eng__keys">
+                /* The teaser explains each row in a line of ITS OWN
+                   (`teaser`). About's sentences printed here were the same
+                   three sentences on two pages; the three bare names that
+                   replaced them left a phone visitor with a label and
+                   nothing under it. */
+                <ul className="mp-pillars mp-eng__for">
                   {e.forYou.map((p) => (
-                    <li key={p.k}>{p.k}</li>
+                    <li key={p.k}>
+                      <b>{p.k}</b>
+                      <span>{p.teaser}</span>
+                    </li>
                   ))}
                 </ul>
               )}

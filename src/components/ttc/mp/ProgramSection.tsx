@@ -119,7 +119,7 @@ export function ProgramSection({
               <ButtonLink href={l(`/contact?service=${service.slug}`)} variant="solid">
                 {p.cta}
               </ButtonLink>
-              {noNotice ? <p className="mp-prog__ctanote">{noNotice}</p> : null}
+              {noNotice ? <p className="mp-prog__ctanote">{`${u.photoTheLetter} ${noNotice}`}</p> : null}
               <ReachRow c={c} className="mp-reach--row" />
             </Reveal>
 
@@ -136,7 +136,7 @@ export function ProgramSection({
                       {f.k}
                       <span className="mp-sr-only">:</span>
                     </span>{' '}
-                    <span className="mp-prog__v">{firstSentence(f.v)}</span>
+                    <span className="mp-prog__v">{f.homeWhole ? f.v : firstSentence(f.v)}</span>
                   </li>
                 ))}
               </ul>

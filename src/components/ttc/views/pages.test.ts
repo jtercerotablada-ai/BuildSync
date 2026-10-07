@@ -300,11 +300,20 @@ describe('links out: the hosts the site may link', () => {
         expect(list).not.toMatch(/href=/);
       });
 
-      // What is left to tap under the list: the county-level page the forms
-      // are published on, named by the authority and what is on it.
-      it(`${slug} (${lang}): the one link under the list is the forms page`, () => {
+      // What is left to tap under the list: the way to send the letter the
+      // note asks for (this site's own form, the program preselected), and
+      // ONE page outside the site — the county-level page the forms are
+      // published on, named by the authority and what is on it.
+      it(`${slug} (${lang}): under the list, the way to send the letter and one outside link, the forms page`, () => {
         const foot = html.match(/<div class="mp-offices__foot">([\s\S]*?)<\/div>/)?.[1] ?? '';
-        expect(links(foot).map((a) => [a.href, a.text])).toEqual([[esc(o.forms.url), text(esc(o.forms.label))]]);
+        const found = links(foot);
+        const outside = found.filter((a) => /^https?:/.test(a.href));
+        expect(outside.map((a) => [a.href, a.text])).toEqual([[esc(o.forms.url), text(esc(o.forms.label))]]);
+        const inside = found.filter((a) => !/^https?:/.test(a.href));
+        const program = getContent(lang).services.find((s) => s.slug === slug)!.program!;
+        expect(inside).toHaveLength(1);
+        expect(inside[0].href).toBe(esc(localePath(`/contact?service=${slug}`, lang)));
+        expect(inside[0].text).toContain(text(esc(program.cta)));
       });
     }
   }

@@ -331,6 +331,10 @@ export const ui = {
   /** Label of the "Who sent your notice?" section of a county program
       (`Service.offices`). The section's h2 is the service's own. */
   yourCity: 'Your city',
+  /* Opens the line under the home page's two county buttons. The rest of
+     that line is cut in code from the program's own `ctaNote`, so this is
+     the one sentence of it the home page writes for itself. */
+  photoTheLetter: 'Photograph the letter with your phone and send it.',
   /** In front of `offices.checked`, under the list of offices: the day each
       name was last read on its city's own page. The rows stopped being links
       (see `Service.offices`), so the line stopped saying "Links". Not "Last
@@ -720,8 +724,8 @@ export type Service = {
    * (see `offices`), and pages.test.ts lists the hosts the site may link.
    *
    * On the two county programs, `rows[0]` is ALSO what the home page reads
-   * (ProgramSection): the same six labels, in the same order, on both, so
-   * the two counties compare line by line. Do not restate a number from a
+   * (ProgramSection): the rows flagged `home`, the same labels in the same
+   * order on both, so the two counties compare line by line. Do not restate a number from a
    * row anywhere else in the service — point at the row instead.
    *
    * `home: true` marks the facts the home page's section prints, and it
@@ -729,8 +733,14 @@ export type Service = {
    * in code like the hero's. The home page is the summary and this page is
    * the reference; the six rows printed whole on both were the same
    * paragraphs on two pages. So a flagged value must also OPEN with a
-   * sentence that is true by itself. Both programs flag the same four
-   * labels, and so does the Spanish row (programs.test.ts).
+   * sentence that is true by itself. Both programs flag the same labels,
+   * and so does the Spanish row (programs.test.ts).
+   *
+   * `homeWhole: true` is the exception: the home page prints that value
+   * WHOLE. It is for a row whose hedges may not be cut — Broward's filing
+   * deadline, where the superseded 90 days is still on city websites and
+   * the city's letter rules. Cut to its first sentence the home page said
+   * "180 days" twice and nowhere that the letter governs.
    *
    * `filing: true` marks the ONE fact that is the filing deadline. The
    * service page's hero prints that fact — its label and the FIRST SENTENCE
@@ -758,7 +768,7 @@ export type Service = {
       jurisdiction: string;
       source: string;
       sourceUrl?: string;
-      facts: { k: string; v: string; filing?: boolean; home?: boolean }[];
+      facts: { k: string; v: string; filing?: boolean; home?: boolean; homeWhole?: boolean }[];
     }[];
   };
   /**
@@ -933,7 +943,7 @@ export const services: Service[] = [
     card: {
       when: 'The notice has arrived, a courtesy notice says it is coming, or an earlier recertification is still open.',
       receive: 'The structural report on Miami-Dade’s form, a photographic record and, where repairs are needed, the repair scope in writing.',
-      next: 'Start with the notice — or, if there is none yet, with the address and the year built.',
+      next: 'Start with the notice — a photo from your phone will do — or, if there is none yet, with the address and the year built.',
     },
     /* The first words under the H1 are the name most owners still use, so a
        visitor who searched "40-year recertification" knows this is the page.
@@ -1068,7 +1078,7 @@ export const services: Service[] = [
             { k: 'Then', v: 'Every 10 years, for the life of the structure.', home: true },
             { k: 'Time to file', v: '90 days from the Notice of Required Inspection. Courtesy notices should arrive two years and one year ahead; not receiving them does not move the deadline.', filing: true, home: true },
             { k: 'If repairs are needed', v: '150 days from the Notice to finish repairs that need no permit and to obtain permits for the rest. Permitted work then follows its permit, and an amended report closes the recertification.', home: true },
-            { k: 'Condominiums & co-ops', v: 'The recertification serves as compliance with the state milestone inspection — no separate milestone report is filed.' },
+            { k: 'Condominiums & co-ops', v: 'The recertification serves as compliance with the state milestone inspection — no separate milestone report is filed.', home: true },
           ],
         },
       ],
@@ -1275,7 +1285,7 @@ export const services: Service[] = [
     card: {
       when: 'The certified letter has arrived, the building is close to its first inspection, or an earlier file is still open.',
       receive: 'The structural report on the program’s official form, with its narrative and photographs, and the repair scope where one is needed.',
-      next: 'Start with your city’s letter — or, if there is none yet, with the address and the year of the certificate of occupancy.',
+      next: 'Start with your city’s letter — a photo from your phone will do — or, if there is none yet, with the address and the year of the certificate of occupancy.',
     },
     /* The line under the H1 is the first two sentences of the home section's
        lede (`program.lede`): the name owners still use, as a name, and no
@@ -1390,9 +1400,9 @@ export const services: Service[] = [
             { k: 'Applies to', v: 'Almost all building types, in every Broward city and the unincorporated area. Outside the program: one- to four-family dwellings of three or fewer habitable stories, fee-simple townhouses, and minor structures under 3,500 sq ft of building area.' },
             { k: 'First due', v: 'At 25 years, counted from the certificate of occupancy.', home: true },
             { k: 'Then', v: 'Every 10 years.', home: true },
-            { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. Your city’s letter states its own date.', filing: true, home: true },
+            { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. Your city’s letter states its own date.', filing: true, home: true, homeWhole: true },
             { k: 'If repairs are needed', v: '180 days from the date of the report, under permit, unless the Building Official sets a different time. A reinspection, an amended report and a signed and sealed completion letter close the file.', home: true },
-            { k: 'Condominiums & co-ops', v: 'The BSIP report serves as phase one and phase two of the state milestone inspection.' },
+            { k: 'Condominiums & co-ops', v: 'The BSIP report serves as phase one and phase two of the state milestone inspection.', home: true },
           ],
         },
       ],
@@ -2465,9 +2475,9 @@ export const leadership = {
   approach:
     'I would rather explain a structural decision in plain language than hide it behind a code reference. A board should be able to read a findings report and know what to do next; a contractor should be able to build from the drawing without calling; and a reviewer should be able to follow the calculation from load to detail.',
   forYou: [
-    { k: 'Direct communication', v: 'You talk to the engineer who is doing the work — not to an account manager relaying questions.' },
-    { k: 'A scope you can read', v: 'Every proposal states what is included, what is not, what you receive and what it costs, before anything starts.' },
-    { k: 'One engineer’s judgment', v: 'The person who inspects the building or sets the design basis is the person who signs the report and answers the reviewer.' },
+    { k: 'Direct communication', v: 'You talk to the engineer who is doing the work — not to an account manager relaying questions.', teaser: 'Your questions go straight to the engineer on your building.' },
+    { k: 'A scope you can read', v: 'Every proposal states what is included, what is not, what you receive and what it costs, before anything starts.', teaser: 'What is included, what is not and what it costs, in writing before work starts.' },
+    { k: 'One engineer’s judgment', v: 'The person who inspects the building or sets the design basis is the person who signs the report and answers the reviewer.', teaser: 'The engineer who studies your building is the one who answers for the result.' },
   ],
   /** Rendered as facts on the typographic plate while there is no portrait. */
   plate: [
@@ -2677,15 +2687,15 @@ export const contactPage = {
      it from `contact.phone`), no office hours, no price. "Usually" is the
      owner's word for the reply time — see `reach`. */
   before: {
-    eyebrow: 'Before you write',
+    eyebrow: 'How it works',
     title: 'What to send, and what happens next.',
     items: [
       { k: 'If you have the notice', v: 'A photo of the letter taken with your phone is enough to start. Attach it to the form above or send it by WhatsApp; there is no need to scan it or to type out what it says. What we look for first is which office sent it and the dates it gives.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
       { k: 'For any other building or project', v: 'Say what the building is, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required.' },
-      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal that says what the work includes, what it leaves out, what you will receive and what it costs. Nothing begins until you have agreed to it. Asking for a proposal is free, and we usually reply within two hours.' },
+      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal that says what the work includes, what it leaves out, what you will receive and what it costs. Nothing begins until you have agreed to it.' },
       { k: 'By phone, WhatsApp or email', v: 'The form is not the only way in. Call the number on this page, write to it on WhatsApp and send the photo of the notice there, or put the same details in an email.' },
-      { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. We work in English and in Spanish; write in whichever is easier for you.' },
+      { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],
   },
 } as const;
@@ -2797,7 +2807,7 @@ export const legal = {
     sections: [
       { h: 'What we collect', p: [
         'The only personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.',
-        'The form does not ask for payment details, identification numbers or passwords, and a proposal does not need them. Please leave them out of your description and of the files you attach.',
+        'The form does not ask for payment details, personal identification numbers (a Social Security or driver’s license number, for example) or passwords, and a proposal does not need them. Please leave them out of your description and of the files you attach.',
       ] },
       { h: 'Why we collect it', p: 'We use it to respond to your request and to understand the engineering scope you are asking about. We do not sell it, rent it, or share it for advertising.' },
       { h: 'How it is stored', p: [
@@ -2808,14 +2818,14 @@ export const legal = {
       /* Accurate to CONTACT_BLOB_ACCESS = 'public' (contact-attachments.ts):
          the address is secret, not locked. Say "private" here only on the
          day the store is. */
-      { h: 'Files you attach', p: 'A file is uploaded when you add it to the form, before you send the request. It is kept at a long, random address that is not published or linked anywhere. That address is not protected by a password, so we do not give it out: the office opens attachments from its own signed-in inbox. If you remove a file, or leave the page without sending, the copy already uploaded is attached to no request; write to us if you want it deleted.' },
+      { h: 'Files you attach', p: 'A file is uploaded when you add it to the form, before you send the request, and goes directly from your browser to the storage provider. It is kept at a long, random address that is not published or linked anywhere. Anyone who has that address can open the file, so we do not give it out: the office opens attachments from its own signed-in inbox. If you remove a file, or leave the page without sending, the copy already uploaded is attached to no request; write to us if you want it deleted.' },
       { h: 'How long we keep it', p: 'Requests are retained while they are commercially relevant and for as long as any resulting engagement requires. You may ask us to delete your request and its attachments at any time. When a request is deleted, the files attached to it are deleted from storage with it.' },
       { h: 'Cookies and analytics', p: [
         'The public pages of this site set no cookies and run no analytics, advertising or social-media scripts. Their scripts, fonts, photographs and video are served from this site’s own address, and the form uses no outside verification service (CAPTCHA).',
         'One preference is kept in your browser and is never sent to us: if you pause the background video, the site remembers it so that the video stays paused on the next page.',
         'Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.',
       ] },
-      { h: 'Links that leave this site', p: 'Calling us, writing by WhatsApp and following a link to a county or city office, to the state license search or to another official source all happen outside this website. What you send or do there is handled by that service under its own privacy terms, which we do not control. The WhatsApp link opens a chat with a first line already written; nothing is sent until you send it.' },
+      { h: 'Links that leave this site', p: 'Calling us, writing by WhatsApp and following a link to a county office, to the state license search or to another official source all happen outside this website. What you send or do there is handled by that service under its own privacy terms, which we do not control. The WhatsApp link opens a chat with a first line already written; nothing is sent until you send it.' },
       { h: 'Your choices', p: 'You can ask us what we hold about you, ask for it to be corrected, or ask for it to be deleted. Write to the address below and we will respond. Tell us the email address you used on the form and, if you kept it, the reference from the confirmation: that is how we find your request.' },
       { h: 'Changes', p: 'If this policy changes we will update it on this page.' },
     ],
@@ -2834,12 +2844,12 @@ export const legal = {
       /* That only the issuing office grants time is what both programs' own
          pages say ("it is the Building Official who grants it"). No day count
          here: those live in the timing rows. */
-      { h: 'Notices and deadlines', p: 'Sending us a notice does not pause or extend the deadline it states. Only the office that issued it can grant more time. If anything on this site differs from the letter you received, go by the letter and by the office that sent it.' },
+      { h: 'Notices and deadlines', p: 'Sending us a notice does not pause or extend the deadline it states. An extension is for the Building Official who issued the notice to grant, not for us. If anything on this site differs from the letter you received, go by the letter and by the office that sent it.' },
       { h: 'Regulatory outcomes', p: 'Requirements for inspection, recertification and permitting vary by jurisdiction, building age, construction type and scope. Ages and deadlines published here were verified on the date stated next to them and can change. Each table names the office or the code its figures come from, so you can read the source yourself. Descriptions of any process on this site are typical sequences, not guarantees. We do not promise approval by any building department or reviewing authority.' },
       { h: 'Sealed documents', p: 'Where a signed and sealed document is required, it is issued as a formal deliverable under an agreed scope of work. Content on this website is never a sealed deliverable.' },
       { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available. The reply time mentioned on this site is what is usual, not a commitment.' },
-      { h: 'Links to other sites', p: 'This site links to county and city building departments, to the Florida DBPR’s license search, to statutes and codes, and to WhatsApp. Those pages belong to whoever publishes them and are outside our control: they can change or move, and what they say and how they handle your information is theirs to answer for. Under each list of offices we print the date the links were last opened.' },
-      { h: 'Photographs and examples', p: 'The photographs and video on this site are licensed images that show kinds of buildings and of work. None of them shows a project of the firm or a building that received a notice. The profiles under Typical Engagements describe the work the firm takes on; they are not past projects.' },
+      { h: 'Links to other sites', p: 'This site links to county offices, to the Florida DBPR’s license search, to statutes and codes, and to WhatsApp. Those pages belong to whoever publishes them and are outside our control: they can change or move, and what they say and how they handle your information is theirs to answer for. City building offices are named, not linked; under each list of them we print the date the names were last checked.' },
+      { h: 'Photographs and examples', p: 'The photographs and video on this site are licensed images that show kinds of buildings and of work. None of them shows a project of the firm, and none was chosen because a building in it received a notice. The profiles under Typical Engagements describe the work the firm takes on; they are not past projects.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
       { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],
@@ -2944,10 +2954,10 @@ export const partner = {
      sentence the owner approved stays on the home page, in `lede`. */
   about: {
     title: 'Two firms, each under its own license.',
-    body: 'Precision Source Inc. is a separate company: a Florida-certified general and electrical contractor based in Miami. On Miami-Dade recertifications and Broward BSIP inspections the two firms work as one team. The three license numbers below open the state’s license search, where you can check them yourself.',
+    body: 'On Miami-Dade recertifications and Broward BSIP inspections we work as one team with Precision Source Inc., a separate company: a Florida-certified general and electrical contractor based in Miami. Together the two firms have more than 30 years of combined experience. The three license numbers below open the state’s license search, where you can check them yourself.',
   },
   brief: {
-    title: 'The same team at every step.',
+    title: 'Two licensed firms, one team.',
     body: 'From the notice to close-out you deal with one team: this practice and Precision Source Inc., a Florida-certified general and electrical contractor in Miami that works with us on recertifications and BSIP inspections. Between the two firms: more than 30 years of combined experience.',
     link: { href: '/about#contractor', label: 'Both firms and their licenses' },
   },

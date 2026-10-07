@@ -557,7 +557,7 @@ html:has(.mp) {
 }
 
 /* Two sections of the same surface in a row (/services "Existing buildings"
-   → "How we work", /contact form → "Where we work", …) would stack both
+   → "How we work", …) would stack both
    paddings into one ~245px field of flat colour with nothing marking the
    seam. The second one drops its top padding and opens with a hairline on
    the content edge instead. The rule is sized like .mp-shell's content box
@@ -2764,7 +2764,8 @@ a.mp-menu__mail {
 
 /* Regulatory trigger table — the "when it applies" block on the three
    regulated existing-building services, inside a jurisdiction card (20), and
-   the same rows, bare, in the home page's two program sections (07). */
+   service pages only: the home page's two program sections print their
+   summary rows as `.mp-prog__facts`. */
 .mp-timing {
   margin: 0;
   border-block-start: 1px solid var(--mp-line);
@@ -4009,34 +4010,6 @@ a.mp-menu__mail {
 .mp-eng__for {
   margin: 0;
 }
-/* The home teaser prints the three rows above as their names alone, on one
-   line that wraps: a gold square, then the name. The rows themselves are
-   About's (EngineerSection). */
-.mp-eng__keys {
-  list-style: none;
-  margin: 0;
-  padding: var(--mp-4) 0 0;
-  border-block-start: 1px solid var(--mp-line);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem clamp(1.25rem, 2.5vw, 2.25rem);
-}
-.mp-eng__keys li {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  font-size: var(--mp-t-body);
-  font-weight: 500;
-  color: var(--mp-ink);
-}
-.mp-eng__keys li::before {
-  content: '';
-  flex: none;
-  width: 6px;
-  height: 6px;
-  background: var(--mp-gold);
-}
-
 /* ── Footer: signature line ──────────────────────────────────────────────── */
 .mp-footer__pe {
   display: flex;
@@ -4508,8 +4481,12 @@ a.mp-menu__mail {
   transform: scale(1.03);
   filter: grayscale(0.2) contrast(1.05);
 }
+/* The situation card of /existing-buildings is left out: its photograph is
+   not a link (SituationCard.tsx), so it must not light up under a mouse as
+   if it were. :where() adds no weight, so the reduced-motion override in
+   section 21 still wins. */
 @media (hover: hover) and (pointer: fine) {
-  .mp-svc:hover .mp-svc__media img {
+  .mp-svc:where(:not(.mp-svc--sit)):hover .mp-svc__media img {
     transform: scale(1.03);
     filter: grayscale(0.2) contrast(1.05);
   }
