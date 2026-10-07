@@ -2746,12 +2746,18 @@ a.mp-menu__mail {
 .mp-callout--spaced {
   margin-block-start: var(--mp-12);
 }
-.mp-callout h2,
-.mp-callout h3 {
+/* The box's label ("Next step"). It was an <h3> and is a <p>: a label is not
+   a section of the page, and the two county programs carried more headings
+   than text to hang them on. Leading and wrap are the base heading rule's
+   (01), which the tag no longer brings; two classes, so the rule also beats
+   `.mp-callout--next p` (20), which sets the box's paragraphs. */
+.mp-callout .mp-callout__label {
   font-size: var(--mp-t-label);
   letter-spacing: var(--mp-track-label);
   text-transform: uppercase;
   font-weight: 500;
+  line-height: 1.04;
+  text-wrap: balance;
   margin: 0 0 var(--mp-4);
   color: var(--mp-ink);
 }
@@ -3071,8 +3077,17 @@ a.mp-menu__mail {
   letter-spacing: 0.06em;
   color: var(--mp-ink-3);
 }
+/* The step's name. An <h3> on the Existing Buildings timeline
+   (ProcessTimeline) and a <p> on a service page, where six of them were six
+   headings on pages flagged for having too many — so the class carries the
+   base heading rule (01) itself: weight, tracking, leading and wrap. Same
+   values, either tag. */
 .mp-step__title {
   font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: var(--mp-track-tight);
+  line-height: 1.04;
+  text-wrap: balance;
   margin: 0;
   padding-block-start: 0.05rem;
 }
@@ -4570,10 +4585,16 @@ a.mp-menu__mail {
   padding: var(--mp-6);
   background: var(--mp-card);
 }
+/* The name on a card: an <h3> on the milestone page's comparison (four
+   things compared, under their own h2) and a <p> on a timing card, where it
+   only labels whose rows these are. Leading and wrap are the base heading
+   rule's (01), stated here so the class draws the same line on either tag. */
 .mp-juris__title {
   margin: 0 0 var(--mp-4);
   font-size: var(--mp-t-h4);
   font-weight: 500;
+  line-height: 1.04;
+  text-wrap: balance;
   letter-spacing: -0.015em;
 }
 /* ONE jurisdiction — every regulated service today: Miami-Dade and Broward
@@ -4698,12 +4719,15 @@ a.mp-menu__mail {
 
 /* "Who sent your notice?" (`service.offices`): one hairline row per city, two
    columns wide and one from 1180px down, like the questions above it. The
-   city is what the eye scans for, in ink; the office, under the name its own
-   page gives it, is what reads as the link. The whole row is the target —
-   0.8rem of padding over and under one line of small type is 47px. A row
-   whose page could not be confirmed is a <div> with the same two cells and
-   no underline. These rules come after .mp-out, whose class a linked row
-   also carries, so the row's own padding and colours win. */
+   city is what the eye scans for, in ink and medium; the office, under the
+   name its own page gives it, in the second ink.
+
+   A row is TEXT — the <li> itself, with the two cells. Each one used to be a
+   link to its city's page, in the link's bronze and underlined, with a hover
+   on the city; the rows stopped being links (site.ts, `Service.offices`) and
+   those rules went with them, so nothing here looks tappable. The row keeps
+   the 0.8rem over and under that made it a 47px target: it is the rhythm of
+   the list, and the same as before. */
 .mp-offices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4712,40 +4736,26 @@ a.mp-menu__mail {
   padding: 0;
   border-block-end: 1px solid var(--mp-line);
 }
-.mp-offices li {
-  border-block-start: 1px solid var(--mp-line);
-}
 .mp-offices__row {
   display: grid;
   grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
   gap: var(--mp-1) var(--mp-4);
   align-items: baseline;
   padding-block: 0.8rem;
+  border-block-start: 1px solid var(--mp-line);
   font-size: var(--mp-t-small);
   line-height: 1.5;
   color: var(--mp-ink);
-  text-decoration: none;
 }
 .mp-offices__city {
   font-weight: 500;
-  transition: color var(--mp-dur) var(--mp-ease);
 }
 .mp-offices__office {
   color: var(--mp-ink-2);
 }
-a.mp-offices__row .mp-offices__office {
-  color: var(--mp-gold-ink);
-  text-decoration: underline;
-  text-decoration-color: var(--mp-gold);
-  text-underline-offset: 0.2em;
-}
-@media (hover: hover) and (pointer: fine) {
-  a.mp-offices__row:hover .mp-offices__city {
-    color: var(--mp-gold-ink);
-  }
-}
 /* Under the list: what to do when the city is not on it, the page the forms
-   are published on, and the day the links were last opened. */
+   are published on — the one link of the block — and the day the names were
+   last read. */
 .mp-offices__foot {
   display: grid;
   gap: var(--mp-3);
@@ -5147,8 +5157,7 @@ a.mp-offices__row .mp-offices__office {
     font-size: var(--mp-t-small);
   }
   /* "Who sent your notice?" on a phone: the city over its office, as the
-     timing table stacks its label over its value. The row keeps its padding,
-     so two lines are a taller target, not a smaller one. */
+     timing table stacks its label over its value. The row keeps its padding. */
   .mp-offices__row {
     grid-template-columns: minmax(0, 1fr);
   }

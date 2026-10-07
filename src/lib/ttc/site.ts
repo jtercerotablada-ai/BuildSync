@@ -331,9 +331,12 @@ export const ui = {
   /** Label of the "Who sent your notice?" section of a county program
       (`Service.offices`). The section's h2 is the service's own. */
   yourCity: 'Your city',
-  /** In front of `offices.checked`, the day those links were last opened.
-      Not "Last verified": that one is about the rules, this one about links. */
-  linksChecked: 'Links last checked',
+  /** In front of `offices.checked`, under the list of offices: the day each
+      name was last read on its city's own page. The rows stopped being links
+      (see `Service.offices`), so the line stopped saying "Links". Not "Last
+      verified": that one is about the rules, this one about the names. The
+      key keeps its old name. */
+  linksChecked: 'Office names last checked',
   footer: {
     services: 'Services',
     contact: 'Contact',
@@ -583,16 +586,21 @@ export const regulatoryChecked = 'October 4, 2026';
 export const regulatoryCheckedISO = '2026-10-04';
 
 /**
- * The day the links under "Who sent your notice?" (`Service.offices`) and
- * the `sourceUrl` of every timing row were last opened, one by one. A
- * different check from `regulatoryChecked`, so a different date: this one
- * says each LINK still lands on the right official page, not that a rule
- * was re-read.
+ * The day the offices under "Who sent your notice?" (`Service.offices`) were
+ * last read on their cities' own pages, one by one, and the links that leave
+ * the site — the `sourceUrl` of every timing row, the two `forms` pages —
+ * were last opened. A different check from `regulatoryChecked`, so a
+ * different date: this one says each office is still called what the page
+ * prints and each LINK still lands on the right official page, not that a
+ * rule was re-read. The page prints it under the list of offices ("Office
+ * names last checked").
  *
- * City websites move pages without redirecting them (two of the addresses
- * search engines still list for these pages returned "page not found" on
- * the day of the check), and several refuse scripts, so a status code
- * proves nothing: open each one in a browser. Do it whenever
+ * The cities' pages are no longer linked, and their addresses are no longer
+ * in this file: they are in `office-pages.ts`, a record that no page reads,
+ * with the reason. City websites move pages without redirecting them (two
+ * of the addresses search engines still list for these pages returned "page
+ * not found" on the day of the check), and several refuse scripts, so a
+ * status code proves nothing: open each one in a browser. Do it whenever
  * `regulatoryChecked` moves, then move this date. `site.es.ts` carries it
  * in Spanish.
  */
@@ -687,7 +695,9 @@ export type Service = {
    * itself links to — never a third party's copy. Optional on purpose: a
    * source that cannot be opened today prints as plain text, and a guessed
    * address is worse than none. The same URL in both languages
-   * (site.test.ts), re-opened with `officeLinksChecked`.
+   * (site.test.ts), re-opened with `officeLinksChecked`. County, State and
+   * code-publisher pages only: a city's or a town's website is never linked
+   * (see `offices`), and pages.test.ts lists the hosts the site may link.
    *
    * On the two county programs, `rows[0]` is ALSO what the home page reads
    * (ProgramSection): the same six labels, in the same order, on both, so
@@ -734,31 +744,41 @@ export type Service = {
   /**
    * "Who sent your notice?" — the two county programs only. The notice has
    * a city's name on it, and these two pages named no city at all: one row
-   * per city, with the building office as that city's own page names it and
-   * a link to that page.
+   * per city, with the building office as that city's own page names it.
+   *
+   * A ROW IS TEXT, NOT A LINK, and it carries no address. Each row used to
+   * open its city's page. City and town websites answer crawlers unevenly —
+   * 403 to one, no answer to the next — and the on-page check the owner
+   * runs counted six of these links as broken on one crawl and thirteen on
+   * the next, while every one of them opened in a browser. Which ones fail
+   * depends on where the crawler connects from, so it can be neither
+   * reproduced nor fixed from here. Decided on October 7, 2026: the names
+   * stay, the links to city and town websites go. Do not link a row again,
+   * and do not put a city's address back in this file — the content bundle
+   * travels to the browser with every page that hands a service to a client
+   * component. The addresses each name was read from are a record, in
+   * `office-pages.ts`, which no page imports.
    *
    * What a row may and may not say:
-   *   • The office and the link, nothing else. No fee, no deadline, no day
-   *     count, no portal: a city's own numbers are the city's to state, and
-   *     the link is how the reader gets them.
+   *   • The city and its office, nothing else. No fee, no deadline, no day
+   *     count, no portal: a city's own numbers are the city's to state.
    *   • Nothing here says the firm has filed in a city. It is a list of
    *     offices, not of places worked.
-   *   • `url` is the city's OWN page (.gov or the city's domain) about the
-   *     program; where a city has no such page, its building department's.
-   *     A row whose page cannot be confirmed keeps its office and loses its
-   *     `url` (it then prints as text). Never guess one.
-   *   • Office names stay in English in both languages: they are what the
-   *     letterhead says, and the pages they open are in English.
+   *   • The office is named as the city's OWN page names it (.gov or the
+   *     city's domain; `office-pages.ts` says which page). Never guess one.
+   *   • Office names stay in English in both languages: they are the
+   *     offices' own names. The Spanish lede says so.
    *
-   * `forms` is the authority's own forms page, so a reader can see the
-   * document the report goes on. `checked` is always `officeLinksChecked`.
+   * `forms` is the ONE link of the block: the county-level authority's own
+   * page, where a reader can see the document the report goes on. `checked`
+   * is always `officeLinksChecked`.
    */
   offices?: {
     /** The section's h2. */
     title: string;
-    /** One short paragraph. Says the links open in a new tab. */
+    /** One short paragraph. Promises no link: the rows are text. */
     lede: string;
-    rows: { city: string; office: string; url?: string }[];
+    rows: { city: string; office: string }[];
     /** Under the list: what to do when the city is not on it. */
     note: string;
     forms: { text: string; label: string; url: string };
@@ -1136,45 +1156,45 @@ export const services: Service[] = [
       'A condition that puts life or property in danger is reported to the owner and to the Building Official of your city, or of the county in unincorporated areas; the engineer has a duty to do so.',
       'A recertification report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
     ],
-    /* WHO SENT YOUR NOTICE. Every link was opened on 2026-10-07 and read:
-       each lands on the city's own page (the county's, for the
-       unincorporated area), and each office is named as that page names it.
-       miamidade.gov says it in one line: each municipality's building
-       official has jurisdiction over its recertifications.
+    /* WHO SENT YOUR NOTICE. Each office is named as its city's own page
+       names it (the county's, for the unincorporated area); every one of
+       those pages was opened and read on 2026-10-07. miamidade.gov says it
+       in one line: each municipality's building official has jurisdiction
+       over its recertifications.
 
-       Two rows open the building department's page because the city has no
-       page for the program alone: Aventura (its Building Division page
-       carries the recertification guidelines and forms) and Miami Gardens
-       (Building Services lists recertifications among its services).
-       miami.gov, cityofdoral.com and sibfl.gov refuse scripts (403) and
-       load normally in a browser.
+       The rows are TEXT. They were links to those pages until the on-page
+       check counted thirteen of them as broken (see `offices` in the type
+       above); the addresses are in `office-pages.ts`, with what was found
+       at each. The one link left in the block is `forms`: the county's own
+       page.
 
        Order: the cities first, the unincorporated area last. Not a ranking,
        and not every municipality: `note` says what to do for the others.
-       No fees and no dates here, although several of these pages print
-       their own. */
+       No fees and no dates here, although several of the cities' pages
+       print their own. */
     offices: {
       title: 'Who sent your notice?',
-      lede: 'The notice comes from the building office of your own city, or from the county in unincorporated areas, and the report goes back to that same office. Find yours below: each row opens that office’s own page, in a new tab.',
+      lede: 'The notice comes from the building office of your own city, or from the county in unincorporated areas, and the report goes back to that same office. Find yours below.',
       rows: [
-        { city: 'City of Miami', office: 'City of Miami Building Department, Unsafe Structures Section', url: 'https://www.miami.gov/Permits-Construction/Unsafe-Structures-Services/Get-a-Building-Recertification' },
-        { city: 'Miami Beach', office: 'City of Miami Beach Building Department', url: 'https://www.miamibeachfl.gov/city-hall/building/building-recert/' },
-        { city: 'Hialeah', office: 'City of Hialeah Building Division', url: 'https://www.hialeahfl.gov/201/Building-Recertification-Forms' },
-        { city: 'Coral Gables', office: 'City of Coral Gables Building Division', url: 'https://www.coralgables.com/department/development-services/building-division/services/building-recertification' },
-        { city: 'Doral', office: 'City of Doral Building Department', url: 'https://www.cityofdoral.com/Departments/Building-Department/Building-Recertification-Program' },
-        { city: 'North Miami', office: 'City of North Miami Building Department', url: 'https://www.northmiamifl.gov/1713/Milestone-Recertification-3010-year' },
-        { city: 'North Miami Beach', office: 'City of North Miami Beach Building Department', url: 'https://www.citynmb.com/1581/Recertification' },
-        { city: 'Aventura', office: 'City of Aventura Building Division', url: 'https://www.cityofaventura.com/169/Building-Permits' },
-        { city: 'Sunny Isles Beach', office: 'City of Sunny Isles Beach Building Department', url: 'https://www.sibfl.gov/Building-Code/Building-Department/Building-Recertification-Program' },
-        { city: 'Miami Gardens', office: 'City of Miami Gardens Building Services', url: 'https://www.miamigardens-fl.gov/190/Building-Services' },
-        { city: 'Homestead', office: 'City of Homestead Development Services, Building Safety', url: 'https://www.homesteadfl.gov/565/Building-Recertification' },
-        { city: 'Surfside', office: 'Town of Surfside Building Department', url: 'https://www.townofsurfsidefl.gov/departments-services/building/40-year-recertification-program' },
-        { city: 'Key Biscayne', office: 'Village of Key Biscayne Building, Zoning and Planning Department', url: 'https://keybiscayne.fl.gov/services/building_zoning_and_planning/resources/building_recertification.php' },
-        { city: 'Unincorporated Miami-Dade', office: 'Miami-Dade County Regulatory and Economic Resources', url: 'https://www.miamidade.gov/global/economy/building/recertification.page' },
+        { city: 'City of Miami', office: 'City of Miami Building Department, Unsafe Structures Section' },
+        { city: 'Miami Beach', office: 'City of Miami Beach Building Department' },
+        { city: 'Hialeah', office: 'City of Hialeah Building Division' },
+        { city: 'Coral Gables', office: 'City of Coral Gables Building Division' },
+        { city: 'Doral', office: 'City of Doral Building Department' },
+        { city: 'North Miami', office: 'City of North Miami Building Department' },
+        { city: 'North Miami Beach', office: 'City of North Miami Beach Building Department' },
+        { city: 'Aventura', office: 'City of Aventura Building Division' },
+        { city: 'Sunny Isles Beach', office: 'City of Sunny Isles Beach Building Department' },
+        { city: 'Miami Gardens', office: 'City of Miami Gardens Building Services' },
+        { city: 'Homestead', office: 'City of Homestead Development Services, Building Safety' },
+        { city: 'Surfside', office: 'Town of Surfside Building Department' },
+        { city: 'Key Biscayne', office: 'Village of Key Biscayne Building, Zoning and Planning Department' },
+        { city: 'Unincorporated Miami-Dade', office: 'Miami-Dade County Regulatory and Economic Resources' },
       ],
       note: 'Your city is not on the list? Each Miami-Dade municipality handles its own recertifications, and the letter names the office that sent it. Questions about a notice go to that office. Send us the letter: we read it before we propose.',
       /* The county's recertification page: its guidelines and the report
-         templates are under "General Guidelines and Form Templates". */
+         templates are under "General Guidelines and Form Templates". The
+         one page this block links, and the county's own. */
       forms: {
         text: 'These are the forms the report goes on:',
         label: 'Miami-Dade County: recertification guidelines and report templates',
@@ -1442,36 +1462,31 @@ export const services: Service[] = [
       'A BSIP report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how the Building Official will act on it.',
     ],
     /* WHO SENT YOUR NOTICE — the same block, and the same rules, as the
-       Miami-Dade page. Every link was opened on 2026-10-07 and read; each
-       office is named as its own page names it.
+       Miami-Dade page: each office named as its city's own page names it
+       (read on 2026-10-07), the rows as text, the cities' addresses in
+       `office-pages.ts` and not here.
 
-       Two rows open the building department's page because the city has no
-       page for the program alone: Deerfield Beach and Sunrise. Plantation's
-       page moved: the address search engines list returns "Page Not Found",
-       and the one below is where its Department of Building Safety links
-       today. Pembroke Pines' moved too (page 1616 is gone; 1484 is live).
-       fortlauderdale.gov, miramarfl.gov, plantation.org, sunrisefl.gov and
-       davie-fl.gov refuse scripts (403) and load normally in a browser.
-
-       No fees and no dates, although several of these pages print theirs. */
+       No fees and no dates, although several of the cities' pages print
+       theirs. */
     offices: {
       title: 'Who sent your notice?',
-      lede: 'The program is written for the whole county, and each city’s Building Official sends the notices and receives the reports. Find your city below: each row opens that office’s own page, in a new tab.',
+      lede: 'The program is written for the whole county, and each city’s Building Official sends the notices and receives the reports. Find your city below, next to its building office.',
       rows: [
-        { city: 'Fort Lauderdale', office: 'City of Fort Lauderdale Development Services Department', url: 'https://www.fortlauderdale.gov/Government/Departments/Development-Services/Permitting-Services/Building-Safety-Inspection-Program' },
-        { city: 'Hollywood', office: 'City of Hollywood Building Division', url: 'https://www.hollywoodfl.org/1312/Building-Safety-Program' },
-        { city: 'Pompano Beach', office: 'City of Pompano Beach Building Department', url: 'https://www.pompanobeachfl.gov/government/building-inspections/building-safety-inspection-program' },
-        { city: 'Hallandale Beach', office: 'City of Hallandale Beach Building Division', url: 'https://www.hallandalebeachfl.gov/1479/Building-Safety-Inspection-Program' },
-        { city: 'Deerfield Beach', office: 'City of Deerfield Beach Building Division', url: 'https://www.deerfield-beach.com/294/Building-Services' },
-        { city: 'Pembroke Pines', office: 'City of Pembroke Pines Building Department', url: 'https://www.ppines.com/1484/BSIP-Building-Safety-Inspection-Program' },
-        { city: 'Miramar', office: 'City of Miramar Building, Planning & Zoning Department', url: 'https://www.miramarfl.gov/Departments/Building-Planning-Zoning/Building-Permits-Inspections/BSIP' },
-        { city: 'Plantation', office: 'City of Plantation Department of Building Safety', url: 'https://www.plantation.org/government/departments/building-safety/building-safety-inspection-program' },
-        { city: 'Sunrise', office: 'City of Sunrise Building Division', url: 'https://www.sunrisefl.gov/departments-services/community-development/building' },
-        { city: 'Davie', office: 'Town of Davie Building Division', url: 'https://www.davie-fl.gov/1840/Building-Safety-Inspection-Program' },
+        { city: 'Fort Lauderdale', office: 'City of Fort Lauderdale Development Services Department' },
+        { city: 'Hollywood', office: 'City of Hollywood Building Division' },
+        { city: 'Pompano Beach', office: 'City of Pompano Beach Building Department' },
+        { city: 'Hallandale Beach', office: 'City of Hallandale Beach Building Division' },
+        { city: 'Deerfield Beach', office: 'City of Deerfield Beach Building Division' },
+        { city: 'Pembroke Pines', office: 'City of Pembroke Pines Building Department' },
+        { city: 'Miramar', office: 'City of Miramar Building, Planning & Zoning Department' },
+        { city: 'Plantation', office: 'City of Plantation Department of Building Safety' },
+        { city: 'Sunrise', office: 'City of Sunrise Building Division' },
+        { city: 'Davie', office: 'Town of Davie Building Division' },
       ],
       note: 'Your city is not on the list? The program reaches every Broward city, and the letter names the office that sent it. Questions about a notice go to that office. Send us the letter: we read it before we propose.',
       /* The same page as the row's source: the Board's structural and
-         electrical forms are listed there, next to the policy. */
+         electrical forms are listed there, next to the policy. The one page
+         this block links, and a county-level one. */
       forms: {
         text: 'These are the forms the report goes on:',
         label: 'Broward County Board of Rules and Appeals: Building Safety Inspection Program forms',

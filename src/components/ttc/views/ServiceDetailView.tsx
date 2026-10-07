@@ -50,8 +50,24 @@ import { breadcrumbLd, JsonLd } from './meta';
  * HEADING OUTLINE. Every section owns its h2, so a screen reader's heading
  * list (and a crawler's outline) files each h3 under the right section. The
  * sections that show only a SectionHeading label (when it applies, how it
- * runs, related) carry a visually hidden h2 with that same label, and the
- * visible label is hidden from assistive tech so it is not announced twice.
+ * runs) carry a visually hidden h2 with that same label, and the visible
+ * label is hidden from assistive tech so it is not announced twice.
+ *
+ * A HEADING IS A SECTION OF THE PAGE, NOT A LABEL. The two county programs
+ * carried 32 headings each and the on-page check flagged all four pages
+ * ("too many headings"); nine of the 32 were labels set in a heading tag.
+ * Those are plain elements now, each with the class that draws it, so
+ * nothing looks different (mp.css gives each class the heading rule's
+ * weight, tracking and leading, which the tag no longer brings):
+ *   • the six step titles (`mp-step__title`) and the jurisdiction on its
+ *     card (`mp-juris__title`) are <p>;
+ *   • the "Next step" box label is <p class="mp-callout__label">;
+ *   • "Related services" has no h2 at all: the three links are a <nav>
+ *     named by that label.
+ * What stays a heading: every section's h2, every QUESTION (h3 — they are
+ * what people search), "What the board must do" (h3, a list the answers
+ * point at by name) and the four names compared on the milestone page (h3
+ * under their own h2). Count before adding one: 23 on a program page today.
  *
  * A service may word its own headings (`service.headings` in site.ts: "Who
  * has to recertify in Miami-Dade, and when"). Such a heading is always
@@ -108,7 +124,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
     <>
       <p className="mp-timing__note">{service.timing.note}</p>
       {/* The board's duties to unit owners, as a list a board can act on.
-          An h3 like the jurisdiction's: both sit under the section's h2. */}
+          An h3 under the section's h2: the answers below point at this list
+          by its name, so it is a part of the page a reader looks for. */}
       {service.timing.duties?.length ? (
         <>
           <h3 className="mp-duties__title">{u.boardDuties}</h3>
@@ -266,7 +283,9 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                 ))}
               </ol>
               <div className="mp-callout mp-callout--spaced mp-callout--next">
-                <h3>{u.nextStep}</h3>
+                {/* A label over the sentence, not a section of the page: a <p>
+                    with the look the h3 had (mp.css, .mp-callout__label). */}
+                <p className="mp-callout__label">{u.nextStep}</p>
                 <p>{service.nextStep}</p>
                 <div className="mp-cta-row" style={{ marginTop: 'var(--mp-4)' }}>
                   <ButtonLink href={l(contactHref)} variant="solid">
@@ -292,7 +311,9 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
             <div className={singleRow ? 'mp-juris mp-juris--single' : 'mp-juris'}>
               {service.timing.rows.map((row) => (
                 <Reveal as="div" key={row.jurisdiction} className="mp-juris__card">
-                  <h3 className="mp-juris__title">{row.jurisdiction}</h3>
+                  {/* Whose rows these are: a label on the card, under the
+                      section's h2 — a <p>, drawn by its class. */}
+                  <p className="mp-juris__title">{row.jurisdiction}</p>
                   <dl className="mp-timing">
                     {row.facts.map((f) => (
                       <div key={f.k}>
@@ -430,12 +451,15 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
       {/* Who sent your notice? — the two county programs. The letter has a
           city's name on it, and these pages named none. One row per city:
           its name, and the building office as that city's own page calls
-          it. The whole row is the link, so on a phone the target is the full
-          width and well over 44px; a row without a confirmed page prints
-          the same two lines as text. Right under the questions, whose last
-          word on filing is "the office that sent the notice". Then the page
-          the county publishes its forms on, and the day the links were last
-          opened — a date of its own, not the rules' "Last verified". */}
+          it. A ROW IS TEXT. Each one used to be a link to that page; city
+          websites answer crawlers with a 403 or not at all, the on-page
+          check counted thirteen of them as broken, and the rows stopped
+          being links (site.ts, `Service.offices` — do not link one again).
+          Right under the questions, whose last word on filing is "the
+          office that sent the notice". Then the one link of the block —
+          the page the county-level authority publishes its forms on — and
+          the day the names were last read: a date of its own, not the
+          rules' "Last verified". */}
       {service.offices ? (
         <section className="mp-section mp-surface--paper">
           <div className="mp-shell">
@@ -449,28 +473,15 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               </Reveal>
             </div>
             <ul className="mp-offices">
-              {service.offices.rows.map((row) => {
+              {service.offices.rows.map((row) => (
                 // The space between the two cells draws nothing in the row's
-                // grid; it keeps the link's name, and the page's plain text,
-                // from running "Hialeah" into "City of Hialeah…".
-                const cells = (
-                  <>
-                    <span className="mp-offices__city">{row.city}</span>{' '}
-                    <span className="mp-offices__office">{row.office}</span>
-                  </>
-                );
-                return (
-                  <li key={row.city}>
-                    {row.url ? (
-                      <Outbound href={row.url} className="mp-offices__row">
-                        {cells}
-                      </Outbound>
-                    ) : (
-                      <div className="mp-offices__row">{cells}</div>
-                    )}
-                  </li>
-                );
-              })}
+                // grid; it keeps the page's plain text from running
+                // "Hialeah" into "City of Hialeah…".
+                <li key={row.city} className="mp-offices__row">
+                  <span className="mp-offices__city">{row.city}</span>{' '}
+                  <span className="mp-offices__office">{row.office}</span>
+                </li>
+              ))}
             </ul>
             <div className="mp-offices__foot">
               <p>{service.offices.note}</p>
@@ -498,7 +509,10 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                   <span className="mp-step__dot" aria-hidden="true" />
                   <span className="mp-step__n">{String(i + 1).padStart(2, '0')}</span>
                 </div>
-                <h3 className="mp-step__title">{p.step}</h3>
+                {/* The step's name: a label beside its number, not a section
+                    — six of them were six headings. A <p>, drawn by its
+                    class. */}
+                <p className="mp-step__title">{p.step}</p>
                 <p className="mp-step__detail">{p.detail}</p>
               </Reveal>
             ))}
@@ -530,11 +544,17 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
 
       {isBim ? <SoftwareBand n={next()} variant="full" /> : null}
 
-      {/* Related */}
+      {/* Related. Three links to the sibling services: navigation, not a
+          section of this page's content, so it has no heading. The <nav>
+          takes the label as its name; the printed label is hidden from
+          assistive tech, as it was beside the hidden h2, so it is not
+          announced twice. */}
       <section className="mp-section mp-surface--concrete">
         <div className="mp-shell">
-          <SectionOpen n={next()} label={u.relatedServices} />
-          <div className="mp-more">
+          <div aria-hidden="true">
+            <SectionHeading n={next()} label={u.relatedServices} />
+          </div>
+          <nav className="mp-more" aria-label={u.relatedServices}>
             {related.map((r) => (
               <Link key={r.slug} href={l(`/services/${r.slug}`)}>
                 <span className="mp-secnum">{r.n}</span>
@@ -544,7 +564,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                 </span>
               </Link>
             ))}
-          </div>
+          </nav>
         </div>
       </section>
 
