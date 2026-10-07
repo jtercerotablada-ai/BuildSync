@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { SiteContent } from './content';
-import { en } from './site';
-import { es } from './site.es';
+import {
+  company,
+  en,
+  officeLinksChecked,
+  officeLinksCheckedISO,
+  regulatoryChecked,
+  regulatoryCheckedISO,
+} from './site';
+import {
+  es,
+  officeLinksChecked as officeLinksCheckedEs,
+  regulatoryChecked as regulatoryCheckedEs,
+} from './site.es';
 
 /**
  * The two county-program pages print their filing deadline on the first
@@ -85,6 +96,8 @@ describe('service pages: the Spanish mirror carries the same blocks', () => {
       expect(t?.faq?.length ?? 0).toBe(s.faq?.length ?? 0);
       expect(t?.timing?.duties?.length ?? 0).toBe(s.timing?.duties?.length ?? 0);
       expect((t?.countyPages ?? []).map((p) => p.slug)).toEqual((s.countyPages ?? []).map((p) => p.slug));
+      expect(Boolean(t?.offices)).toBe(Boolean(s.offices));
+      expect(Boolean(t?.alsoCalled?.length)).toBe(Boolean(s.alsoCalled?.length));
       expect(t?.comparison?.rows.length ?? 0).toBe(s.comparison?.rows.length ?? 0);
     });
   }
@@ -108,7 +121,10 @@ describe('county rules stay in the timing rows', () => {
   const LEGACY_NAME = /^40[\s-]*(?:year|años)$/i;
 
   // Everything a page says outside its timing block and its "Good to know"
-  // list: titles, headings, the first line, the questions, the comparison.
+  // list: titles, headings, the first line, the questions, the comparison,
+  // and the offices under "Who sent your notice?" — several of the city
+  // pages that block links to print their own deadlines, and none of them
+  // may be copied into a row.
   const copy = (c: SiteContent, slug: string): string[] => {
     const s = svc(c, slug);
     if (!s) return [];
@@ -121,6 +137,12 @@ describe('county rules stay in the timing rows', () => {
       ...(s.countyPages ?? []).flatMap((p) => [p.title, p.text]),
       s.comparison?.title,
       ...(s.comparison?.rows ?? []).flatMap((r) => [r.name, ...r.values]),
+      s.offices?.title,
+      s.offices?.lede,
+      s.offices?.note,
+      s.offices?.forms.text,
+      s.offices?.forms.label,
+      ...(s.offices?.rows ?? []).flatMap((r) => [r.city, r.office]),
     ].filter((x): x is string => typeof x === 'string');
   };
 
@@ -148,6 +170,102 @@ describe('county rules stay in the timing rows', () => {
         expect(quoted.length).toBeGreaterThan(0);
         // “40-year recertification” is the name, not a label.
         expect(quoted.filter((q) => !printed.has(q) && !q.includes('40'))).toEqual([]);
+      });
+    }
+  }
+});
+
+/**
+ * Each date on the site is written three times: in English, in Spanish, and
+ * once more for machines (the <time> element and the WebPage markup). The
+ * written ones are what a reader sees and the ISO one is what a crawler
+ * reads, so a re-verification that moves two of the three would publish two
+ * different days. The ISO value is the reference; the other two must spell
+ * that same day.
+ */
+describe('dates: the written dates and the machine date are the same day', () => {
+  const spell = (iso: string, locale: string) =>
+    new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
+
+  it('the day the regulatory rows were last verified', () => {
+    expect(regulatoryChecked).toBe(spell(regulatoryCheckedISO, 'en-US'));
+    expect(regulatoryCheckedEs).toBe(spell(regulatoryCheckedISO, 'es'));
+  });
+
+  it('the day the outbound links were last opened', () => {
+    expect(officeLinksChecked).toBe(spell(officeLinksCheckedISO, 'en-US'));
+    expect(officeLinksCheckedEs).toBe(spell(officeLinksCheckedISO, 'es'));
+  });
+
+  it('every regulated service prints the shared date, in its language', () => {
+    for (const [lang, c] of bundles) {
+      const want = lang === 'es' ? regulatoryCheckedEs : regulatoryChecked;
+      const dates = c.services.flatMap((s) => (s.timing ? [s.timing.checked] : []));
+      expect(dates.length).toBeGreaterThan(0);
+      expect(dates.filter((d) => d !== want)).toEqual([]);
+    }
+  });
+});
+
+/**
+ * The links that leave the site: a timing row's source and, on the two
+ * county programs, the offices under "Who sent your notice?" and the forms
+ * page. A link is structure, not copy, so it is the same in both languages —
+ * but it is typed in both files, and a re-check that fixes a moved page in
+ * one of them would leave the other pointing at a dead address.
+ */
+describe('outbound links: sources and offices', () => {
+  const official = (url: string) => {
+    const u = new URL(url);
+    // https, and never this site: these are other people's pages.
+    return u.protocol === 'https:' && !company.url.includes(u.hostname);
+  };
+
+  it('every timing row links its source, the same link in both languages', () => {
+    for (const s of en.services) {
+      const rows = s.timing?.rows ?? [];
+      const mirror = svc(es, s.slug)?.timing?.rows ?? [];
+      expect(mirror.map((r) => r.sourceUrl)).toEqual(rows.map((r) => r.sourceUrl));
+      for (const r of rows) expect(r.sourceUrl && official(r.sourceUrl)).toBe(true);
+    }
+  });
+
+  it('only the two county programs list offices', () => {
+    for (const [, c] of bundles) {
+      expect(c.services.filter((s) => s.offices).map((s) => s.slug)).toEqual(PROGRAMS);
+    }
+  });
+
+  for (const slug of PROGRAMS) {
+    it(`${slug}: the Spanish rows are the English rows — same order, office and link`, () => {
+      const a = svc(en, slug)?.offices;
+      const b = svc(es, slug)?.offices;
+      expect(b?.rows.map((r) => [r.office, r.url])).toEqual(a?.rows.map((r) => [r.office, r.url]));
+      expect(b?.forms.url).toBe(a?.forms.url);
+    });
+
+    for (const [lang, c] of bundles) {
+      it(`${slug} (${lang}) names each city once, and every link is an outside https page`, () => {
+        const o = svc(c, slug)?.offices;
+        const cities = o?.rows.map((r) => r.city) ?? [];
+        expect(cities.length).toBeGreaterThan(0);
+        expect(new Set(cities).size).toBe(cities.length);
+        // A row may lose its link (it then prints as text), never its office.
+        for (const r of o?.rows ?? []) {
+          expect(r.office.length).toBeGreaterThan(0);
+          if (r.url) expect(official(r.url)).toBe(true);
+        }
+        expect(o && official(o.forms.url)).toBe(true);
+        expect(o?.checked).toBe(lang === 'es' ? officeLinksCheckedEs : officeLinksChecked);
+      });
+
+      // The owner's decision: nowhere does the site say who signs which
+      // report, and a list of offices is not a list of places worked.
+      it(`${slug} (${lang}) the block claims no signature and no filing history`, () => {
+        const o = svc(c, slug)?.offices;
+        const text = [o?.title, o?.lede, o?.note, o?.forms.text, o?.forms.label].join(' ');
+        // Verb forms only: "la firma" is simply "the firm" in Spanish.
+        expect(text).not.toMatch(/\bsign|\bseal|firmad[oa]|sellad[oa]|we (?:have )?filed|hemos presentado/i);
       });
     }
   }

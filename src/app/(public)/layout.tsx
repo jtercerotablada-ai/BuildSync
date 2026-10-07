@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
+import { SiteGraph } from '@/components/ttc/mp/SiteGraph';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
 import { OG_IMAGE } from '@/components/ttc/views/meta';
-import { company, contact, municipalities, services } from '@/lib/ttc/site';
+import { company } from '@/lib/ttc/site';
 import './mp.css';
 
 /* ── Type system ──────────────────────────────────────────────────────────
@@ -94,98 +95,15 @@ export const viewport: Viewport = {
 };
 
 /* ── Structured data ──────────────────────────────────────────────────────
-   One Organization + the WebSite. `address` is intentionally omitted until a
-   real office address exists — an invented or partial address is worse than
-   none. Add it in `site.ts` and it flows through here.
+   One Organization + the WebSite, emitted by <SiteGraph /> below and built in
+   src/lib/ttc/structured-data.ts — read the comment there for what the graph
+   carries and what it deliberately leaves out (no address, no LocalBusiness
+   node, no Person node).
 
-   There is deliberately NO ProfessionalService / LocalBusiness node. Those are
-   LocalBusiness subtypes, Google requires `address` on them, and the Rich
-   Results Test flagged the old #practice node as an invalid local-business
-   item on every page. Re-introduce one (with the address) only when site.ts
-   has a real address. What it carried — the offer catalogue, the area
-   served — is valid on Organization, so it lives there now, and each service
-   page's Service names #organization as its `provider`.
-
-   The engineer is referenced by @id only (the Person node lives on /about),
-   so his name never enters the site-wide graph.
+   It is a component, not a constant in this file, because this layout serves
+   /about and /es/about alike and cannot know which: the graph was English on
+   every Spanish page. SiteGraph reads the language from the URL.
    ────────────────────────────────────────────────────────────────────────── */
-
-const structuredData = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'Organization',
-      '@id': `${company.url}/#organization`,
-      name: company.legalName,
-      alternateName: company.shortName,
-      url: company.url,
-      logo: {
-        '@type': 'ImageObject',
-        url: `${company.url}${company.logo.dark}`,
-        width: company.logo.markSize.w,
-        height: company.logo.markSize.h,
-      },
-      email: contact.email,
-      description: company.description,
-      founder: { '@id': `${company.url}/about#engineer` },
-      employee: { '@id': `${company.url}/about#engineer` },
-      // The mailbox is the one real channel (no phone, no address yet), and
-      // the practice answers in both languages.
-      contactPoint: {
-        '@type': 'ContactPoint',
-        contactType: 'customer service',
-        email: contact.email,
-        areaServed: 'US-FL',
-        availableLanguage: ['English', 'Spanish'],
-      },
-      // Plain text is valid here. The state is appended because a bare
-      // 'Hollywood', 'Plantation' or 'Weston' also names places elsewhere.
-      areaServed: [
-        'Miami-Dade County, Florida',
-        'Broward County, Florida',
-        ...municipalities.map((city) => `${city}, FL`),
-      ],
-      knowsAbout: [
-        'Structural Engineering',
-        'Reinforced Concrete Design',
-        'Structural Analysis',
-        'Foundation Design',
-        'Building Recertification',
-        'Building Safety Inspection Program (BSIP)',
-        'Milestone Inspection',
-        'Structural Condition Assessment',
-        'Repair Recommendations',
-        'BIM Coordination',
-        'Structural Peer Review',
-        'Engineering Compliance',
-      ],
-      hasOfferCatalog: {
-        '@type': 'OfferCatalog',
-        name: 'Structural engineering services',
-        itemListElement: services.map((s) => ({
-          '@type': 'Offer',
-          itemOffered: {
-            '@type': 'Service',
-            // The same @id the (English) service page gives its own Service
-            // node, so the catalogue entry and the page describe ONE thing.
-            '@id': `${company.url}/services/${s.slug}#service`,
-            name: s.title,
-            description: s.summary,
-            url: `${company.url}/services/${s.slug}`,
-          },
-        })),
-      },
-    },
-    {
-      '@type': 'WebSite',
-      '@id': `${company.url}/#website`,
-      url: company.url,
-      name: company.name,
-      publisher: { '@id': `${company.url}/#organization` },
-      inLanguage: ['en-US', 'es-US'],
-    },
-  ],
-};
 
 export default function PublicLayout({
   children,
@@ -196,10 +114,7 @@ export default function PublicLayout({
     <div
       className={`mp ${mpSans.variable} ${mpMono.variable} ${mpSerif.variable}`}
     >
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
+      <SiteGraph />
       {/* Motion serialises its `initial` state (opacity: 0) into the server
           HTML. Without JavaScript nothing would ever reveal it, so reset every
           animated element to its final state. */}
