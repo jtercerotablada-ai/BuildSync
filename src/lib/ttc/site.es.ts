@@ -726,7 +726,7 @@ export const es: SiteContent = {
      * assumed they had reached us. Before changing this, dig the MX.
      */
     email: 'info@ttcivilstructural.com',
-    phone: null,
+    phone: { display: '(772) 265-8506', href: 'tel:+17722658506' },
     address: null,
     serviceAreaLabel: 'Condados de Miami-Dade y Broward, Florida',
     social: {
@@ -940,8 +940,8 @@ export const es: SiteContent = {
        this line is no longer than the one it replaced. No regulatory number
        in the hero, as in English. */
     sub: 'Recertificación de edificios en Miami-Dade, el BSIP de Broward y diseño estructural de edificios nuevos — a cargo de un Ingeniero Profesional (P.E.) con licencia en Florida, desde el primer contacto hasta el informe final.',
-    primary: { href: '/contact', label: 'Solicitar propuesta' },
-    secondary: { href: '/services', label: 'Ver nuestros servicios' },
+    primary: { href: '/contact?service=building-recertification', label: 'Tengo una notificación de Miami-Dade' },
+    secondary: { href: '/contact?service=broward-bsip', label: 'Tengo una notificación de Broward' },
     /* Four links — same hrefs as English; the hash ones are anchors on the
        home page and are not localized. The third label is the service's own
        short title: the literal "Evaluaciones y diseño de reparaciones" was
