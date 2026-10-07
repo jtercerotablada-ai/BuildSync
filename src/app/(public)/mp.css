@@ -1966,15 +1966,6 @@ a.mp-menu__mail {
   padding-block-start: var(--mp-3);
   border-block-start: 1px solid var(--mp-line-strong);
 }
-/* What the firm signs and what it does not: the caveat callout (.mp-callout,
-   14) supplies the gold rule and the inset. */
-.mp-prog__scope {
-  max-width: 62ch;
-  margin: var(--mp-6) 0 0;
-  font-size: var(--mp-t-small);
-  line-height: 1.65;
-  color: var(--mp-ink-2);
-}
 .mp-prog__more {
   margin-block-start: var(--mp-6);
 }

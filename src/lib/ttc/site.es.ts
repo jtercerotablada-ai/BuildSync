@@ -247,9 +247,6 @@ const services: SiteContent['services'] = [
     /* What is left under "Conviene saber" once the questions took their
        share — see the EN block. The sentences are unchanged. */
     considerations: [
-      /* Scope honesty: replaced "la recertificación eléctrica es una
-         disciplina separada". */
-      'El programa de Miami-Dade pide un informe estructural y un informe eléctrico.',
       /* Threshold buildings: neutral on purpose, claims no credential. */
       'Los edificios de más de tres pisos o 50 pies se consideran “threshold buildings” (edificios de umbral), y su informe estructural debe prepararlo un ingeniero con las calificaciones adicionales que exige el Condado de Miami-Dade. Lo confirmamos para su edificio antes de presentar una propuesta.',
       'Los informes estructural y eléctrico se presentan en los formularios del propio condado; no se acepta el formulario de una firma. El paquete del condado también incluye certificados de la iluminación del estacionamiento y, donde el estacionamiento colinda con agua, de las barreras de protección.',
@@ -304,8 +301,6 @@ const services: SiteContent['services'] = [
       accentWord: '90 días',
       lede: 'La recertificación de Miami-Dade alcanza a casi todos los edificios, salvo las viviendas unifamiliares y los dúplex. Envíenos la notificación de su ciudad o del condado: inspeccionamos el edificio, preparamos el informe estructural en el formulario del propio condado y lo acompañamos durante las reparaciones hasta el informe enmendado que la cierra.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
-      scopeNote:
-        'El programa de Miami-Dade pide un informe estructural y un informe eléctrico.',
       cta: 'Enviar la notificación de Miami-Dade',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
       detail: 'La recertificación en detalle',
@@ -483,8 +478,6 @@ const services: SiteContent['services'] = [
       /* "Una prórroga", never "una sola": the policy does not say whether
          more than one can be granted. */
       'El Building Official puede conceder una prórroga de hasta 60 días para presentar el informe.',
-      /* Scope honesty — the same sentence as the Miami-Dade page. */
-      'El programa de Broward pide un informe estructural y un informe eléctrico.',
       /* Threshold buildings: neutral on purpose, claims no credential. */
       'Los edificios de más de tres pisos o 50 pies se consideran “threshold buildings” (edificios de umbral), y su informe estructural debe prepararlo un ingeniero con las calificaciones adicionales que exige el Condado de Broward. Lo confirmamos para su edificio antes de presentar una propuesta.',
       'Solo se aceptan los formularios estructural y eléctrico de la propia Junta de Reglas y Apelaciones — no el formulario de una firma — y se presentan además de un informe narrativo escrito con fotografías a color, no en su lugar.',
@@ -530,8 +523,6 @@ const services: SiteContent['services'] = [
          the full program name is already in the label above it. */
       lede: 'El BSIP de Broward — muchos propietarios todavía lo llaman la recertificación de 40 años — alcanza a casi todos los tipos de edificio, en todas las ciudades. Envíenos la notificación de su ciudad: inspeccionamos el edificio, preparamos el informe estructural en el formulario oficial del programa y lo acompañamos durante las reparaciones y el cierre.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
-      scopeNote:
-        'El programa de Broward pide un informe estructural y un informe eléctrico.',
       cta: 'Enviar la notificación de Broward',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
       detail: 'El BSIP en detalle',

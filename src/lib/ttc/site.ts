@@ -36,14 +36,17 @@
  *   • "40-year" as the NAME owners still give both programs ("formerly",
  *     "still called") is the opposite case: it is what people type, so it is
  *     in the two program titles, descriptions and first lines on purpose.
- *   • Both county programs ask for a structural report AND an electrical one,
- *     and the site says so. It does NOT say who signs which report — the
- *     owner's decision (October 6-7, 2026): the sentence "we prepare the
- *     structural report; the electrical report is signed by a professional
- *     qualified in electrical design" and the sealing statement on /about
- *     were both removed at his request. Do not write either back, do not
- *     write "both reports, one engineer", and never imply the firm signs
- *     threshold buildings (over three stories or 50 feet).
+ *   • The site does NOT say who signs which report — the owner's decision
+ *     (October 6-7, 2026). Removed at his request, in this order: the
+ *     sentence "we prepare the structural report; the electrical report is
+ *     signed by a professional qualified in electrical design", the sealing
+ *     statement on /about, and then the scope note itself ("<County>'s
+ *     program asks for a structural report and an electrical report"), with
+ *     its `scopeNote` field and callout. Do not write any of them back, do
+ *     not write "both reports, one engineer", and never imply the firm signs
+ *     threshold buildings (over three stories or 50 feet). That both programs
+ *     cover structural and electrical is still said where the programs are
+ *     described (the ledes, the timing rows and the questions).
  */
 
 import { photo, video, type Photo, type Clip } from './media';
@@ -793,9 +796,6 @@ export type Service = {
     lede: string;
     /** Four short labels: the published six-step sequence, compressed. */
     steps: string[];
-    /** What the program asks for: a structural report and an electrical one.
-     *  It no longer says who signs either — see the editorial rule above. */
-    scopeNote: string;
     /** Solid button → /contact?service=<slug>. */
     cta: string;
     /** One line under the button: what to send, with or without a notice. */
@@ -1056,10 +1056,6 @@ export const services: Service[] = [
        states the length of an extension, who closes a file, and the limits
        of any report. The sentences are unchanged. */
     considerations: [
-      /* The electrical report is part of the same filing, not an optional
-         extra — that much stays. Who signs it is no longer stated (owner's
-         decision, October 7, 2026). */
-      'Miami-Dade’s program asks for a structural report and an electrical report.',
       /* Threshold buildings: neutral on purpose. It states the county's rule
          and what we do about it; it claims no credential either way. */
       'Buildings over three stories or 50 feet are “threshold buildings”, and their structural report must come from an engineer with the additional qualifications Miami-Dade County requires. We confirm this for your building before we propose.',
@@ -1127,8 +1123,6 @@ export const services: Service[] = [
       accentWord: '90 days',
       lede: 'Miami-Dade’s recertification reaches almost every building other than single-family homes and duplexes. Send us the notice from your city or the county: we inspect the building, prepare the structural report on the county’s own form, and stay through repairs to the amended report that closes it.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
-      scopeNote:
-        'Miami-Dade’s program asks for a structural report and an electrical report.',
       cta: 'Send the Miami-Dade Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year built.',
       detail: 'Recertification in Detail',
@@ -1357,8 +1351,6 @@ export const services: Service[] = [
       /* "An extension", never "one extension": the policy does not say
          whether more than one can be granted. */
       'The Building Official may grant an extension of up to 60 days to submit the report.',
-      /* Scope honesty — the same sentence as the Miami-Dade page. */
-      'Broward’s program asks for a structural report and an electrical report.',
       /* Threshold buildings: neutral on purpose, claims no credential. */
       'Buildings over three stories or 50 feet are “threshold buildings”, and their structural report must come from an engineer with the additional qualifications Broward County requires. We confirm this for your building before we propose.',
       'Only the Board of Rules and Appeals’ own structural and electrical forms are accepted — a firm’s own form is not — and they come in addition to a written narrative report with color photographs, not instead of it.',
@@ -1415,8 +1407,6 @@ export const services: Service[] = [
       accentWord: '180 days',
       lede: 'Broward’s Building Safety Inspection Program — many owners still call it the 40-year recertification — reaches almost every building type, in every city. Send us the notice from your Building Official: we inspect the building, prepare the structural report on the Board of Rules and Appeals’ own form, and stay through repairs and close-out.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
-      scopeNote:
-        'Broward’s program asks for a structural report and an electrical report.',
       cta: 'Send the Broward Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
       detail: 'BSIP in Detail',

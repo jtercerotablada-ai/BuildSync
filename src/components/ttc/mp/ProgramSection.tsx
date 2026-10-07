@@ -27,7 +27,7 @@ import { Dated, Source } from './Outbound';
  *
  * ORDER. The markup is in reading order for a phone — headline, lede, the
  * button and what to send, the six rows, the photograph, the steps, the
- * scope note, the link — so the action sits above the facts on a small
+ * link — so the action sits above the facts on a small
  * screen. From 901px the photograph is placed in the other column by CSS
  * (`.mp-prog__grid`) and travels with the reader while the rows scroll by.
  *
@@ -148,9 +148,6 @@ export function ProgramSection({
                   </li>
                 ))}
               </ol>
-            </Reveal>
-            <Reveal delay={0.04}>
-              <p className="mp-callout mp-prog__scope">{p.scopeNote}</p>
             </Reveal>
             <Reveal delay={0.08} className="mp-prog__more">
               <TextLink href={l(`/services/${service.slug}`)}>{p.detail}</TextLink>
