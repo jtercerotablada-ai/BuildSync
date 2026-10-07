@@ -3,7 +3,7 @@ import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { SiteGraph } from '@/components/ttc/mp/SiteGraph';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
-import { OG_IMAGE } from '@/components/ttc/views/meta';
+import { OG_IMAGE, brandedTitle } from '@/components/ttc/views/meta';
 import { company } from '@/lib/ttc/site';
 import './mp.css';
 
@@ -52,9 +52,14 @@ const mpSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   metadataBase: new URL(company.url),
+  /* The template appends the SHORT name: the full one is 469 px of the 580 a
+     search result shows, so it pushed every page's own words out of sight.
+     It serves only the routes that do not go through pageMeta (/credits, the
+     404s) — pageMeta sets its titles whole. `default` is a page with no
+     title at all, and is the one title that is the full name. */
   title: {
     default: company.name,
-    template: `%s · ${company.name}`,
+    template: brandedTitle('%s'),
   },
   description: company.description,
   applicationName: company.name,

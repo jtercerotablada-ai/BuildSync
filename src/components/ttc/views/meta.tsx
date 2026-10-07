@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { company } from '@/lib/ttc/site';
 import { hreflangFor, localePath, ogLocale, type Lang } from '@/lib/ttc/i18n';
+import { TITLE_BUDGET_PX, repeatedWords, titlePx } from '@/lib/ttc/serp';
 
 /**
  * The share card, one per language (1200×630, public/ttc/og/). A static file
@@ -31,6 +32,28 @@ export const OG_IMAGE: Record<
 };
 
 /**
+ * A title followed by the firm's SHORT name. Titles are the one place the
+ * full name does not go (see `company` in site.ts): it measures 469 px of
+ * the 580 a search result shows. The (public) layout's title template is
+ * this same function, for the few routes that do not go through pageMeta.
+ */
+export const brandedTitle = (title: string) => `${title} · ${company.shortName}`;
+
+/**
+ * The <title> of a page. What the page is about and where come first and
+ * are never cut to make room: the brand follows only when the whole line
+ * still fits a search result and repeats no word — a title that names the
+ * engineer already says "Tercero". Where it does not fit, the title goes
+ * out alone, and the brand is still on the result as the site name.
+ */
+export function pageTitle(title: string): string {
+  const branded = brandedTitle(title);
+  return titlePx(branded) <= TITLE_BUDGET_PX && repeatedWords(branded).length === 0
+    ? branded
+    : title;
+}
+
+/**
  * Page metadata for one language: localized title/description, the canonical
  * for THIS language's URL, hreflang twins for both, and the right OG locale.
  *
@@ -46,17 +69,19 @@ export function pageMeta(
   m: { title: string; description: string; ogTitle?: string; keywords?: string[] },
 ): Metadata {
   const here = localePath(canonicalPath, lang);
-  // A title that already carries the firm name (the home page) must not go
-  // through the layout's "%s · firm" template, or the name prints twice.
-  const title = m.title.includes(company.name) ? { absolute: m.title } : m.title;
   return {
-    title,
+    // Absolute: pageTitle has already added the brand, or left it out. Through
+    // the layout's template it would print twice, or come back where it does
+    // not fit.
+    title: { absolute: pageTitle(m.title) },
     description: m.description,
     keywords: m.keywords,
     alternates: { canonical: here, languages: hreflangFor(canonicalPath) },
     openGraph: {
       // The firm name stays in og:title too: WhatsApp, iMessage and LinkedIn
       // never display og:site_name, so it is the only place the brand shows.
+      // The FULL name, on every page: a share card is not cut at the width
+      // of a search result, so it does not need the title's short one.
       title: m.ogTitle ?? `${m.title} · ${company.name}`,
       description: m.description,
       url: here,

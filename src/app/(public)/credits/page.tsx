@@ -8,8 +8,8 @@ const TITLE = ui.footer.imageCredits;
 const DESCRIPTION = 'How the photography and video on this site are licensed.';
 
 export const metadata: Metadata = {
-  // Not the full firm name: the (public) layout's title template appends it,
-  // and a title carrying it twice is what search results actually render.
+  // No firm name here: the (public) layout's title template appends the
+  // short one, and a title carrying it twice is what search results render.
   title: TITLE,
   description: DESCRIPTION,
   // One page, English only — there is no /es/credits — so it declares only

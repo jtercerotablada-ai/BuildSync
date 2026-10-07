@@ -308,10 +308,11 @@ const services: SiteContent['services'] = [
     /* No ages and no day counts — see the EN block. "De 40 años" is in the
        title and the description as the name the program used to have
        ("antes", "aún llaman"), never as a rule: it is what people type, and
-       it used to sit in the keywords only. Keep "Ingeniero estructural" in
-       the title; do not move the name back. */
+       it used to sit in the keywords only; do not move the name back. The
+       title ends there, as in English: with "— Ingeniero estructural" after
+       it, it was 771 px of the 580 a search result shows (seo.ts). */
     seo: {
-      title: 'Recertificación de edificios en Miami-Dade, antes “de 40 años” — Ingeniero estructural',
+      title: 'Recertificación de edificios en Miami-Dade, antes “de 40 años”',
       description:
         'Recertificación de edificios en Miami-Dade, la que muchos aún llaman “de 40 años”. Envíe la notificación: un P.E. de Florida inspecciona y presenta el informe.',
       keywords: ['recertificación de edificios Miami-Dade', 'ingeniero recertificación Miami-Dade', 'recertificación 40 años Miami', 'recertificación 30 años Miami', 'recertificación de condominios Miami', 'informe de recertificación estructural'],
@@ -532,9 +533,10 @@ const services: SiteContent['services'] = [
        force (see the EN block; do not move it back to the keywords). The
        program's full name opens the description and is the H1. The English
        queries stay in the keywords — the letter is in English and so is
-       most of what people search for. No ages and no day counts. */
+       most of what people search for. No ages and no day counts. The title
+       ends at the former name: "— Ingeniero estructural" did not fit. */
     seo: {
-      title: 'BSIP de Broward (antes recertificación de 40 años) — Ingeniero estructural',
+      title: 'BSIP de Broward (antes recertificación de 40 años)',
       description:
         'Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, aún llamado recertificación de 40 años. Un P.E. de Florida presenta el informe estructural.',
       keywords: ['ingeniero BSIP Broward', 'programa de inspección de seguridad de edificios Broward', 'inspección de edificios de 25 años Broward', 'BSIP Broward', 'Broward BSIP engineer', 'building safety inspection program Broward', 'recertificación 40 años Broward'],
@@ -692,11 +694,12 @@ const services: SiteContent['services'] = [
       source:
         'Código del Condado de Miami-Dade, Sección 8-11(f) · Junta de Reglas y Apelaciones del Condado de Broward, Política n.º 05-05 · Estatutos de Florida, Secciones 553.899, 718.112 y 719.106',
     },
-    /* The title leads with what a board types — "inspección de hito
-       (milestone)", "condominios" and the two counties — and ends in the
-       trade, like the two program titles. */
+    /* The title is what a board types — "inspección de hito (milestone)" —
+       and the two counties. "Para condominios" and the trade used to be in
+       it too, and it was 902 px of the 580 a search result shows; the
+       condominiums open the description and are in the H1. */
     seo: {
-      title: 'Inspecciones de hito (milestone) para condominios en Miami-Dade y Broward — Ingeniero estructural',
+      title: 'Inspecciones de hito (milestone) en Miami-Dade y Broward',
       description:
         'Inspecciones de hito (milestone) para condominios y cooperativas en Miami-Dade y Broward: cómo las cumple el programa del condado, y la fase dos.',
       // "Milestone" stays in the keywords: people search it in English.
@@ -752,8 +755,10 @@ const services: SiteContent['services'] = [
       'La falta de documentación original aumenta la verificación en campo requerida.',
       'El diseño de reparaciones se define y cotiza por separado de la evaluación que lo origina.',
     ],
+    /* "Sur de Florida", as in English: with the two counties this title
+       is 610 px, and a result shows 580. */
     seo: {
-      title: 'Evaluaciones estructurales y reparaciones — Miami-Dade y Broward',
+      title: 'Evaluaciones estructurales y reparaciones — Sur de Florida',
       description:
         'Evaluaciones de condición estructural y diseño de reparaciones de concreto para edificios existentes del Sur de Florida: qué significa el daño y cómo repararlo.',
       keywords: ['evaluación de condición estructural Miami', 'ingeniero de reparación de concreto Florida', 'diseño de reparación de balcones', 'evaluación de edificios existentes', 'due diligence estructural Miami'],
@@ -1544,11 +1549,15 @@ export const es: SiteContent = {
     reply: 'Normalmente respondemos en menos de dos horas.',
   },
 
+  /* The H1 of these four pages names what the page is about and where, and
+     the line each one used to open with now opens `sub`, word for word —
+     see the EN comment on `aboutPage` in site.ts. `accentWord` stays one
+     short phrase (it does not wrap), and is never the two counties. */
   aboutPage: {
     eyebrow: 'Sobre la firma',
-    titleLines: ['Una firma de ingeniería estructural', 'con un solo ingeniero responsable.'],
-    accentWord: 'responsable',
-    sub: 'Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
+    titleLines: ['Una firma de ingeniería estructural', 'del Sur de Florida.'],
+    accentWord: 'Sur de Florida.',
+    sub: 'Una firma de ingeniería estructural con un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
     facts: [
       { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Enfoque', v: 'Concreto · Edificios existentes · BIM' },
@@ -1578,11 +1587,11 @@ export const es: SiteContent = {
 
   servicesPage: {
     eyebrow: 'Servicios',
-    titleLines: ['Organizados por lo que usted necesita,', 'no por lo que hacemos.'],
-    accentWord: 'necesita',
+    titleLines: ['Servicios de ingeniería estructural', 'en Miami-Dade y Broward.'],
+    accentWord: 'Servicios',
     /* Existing buildings first, as in English: the page opens with them.
        The counts follow the `services` array (four and four). */
-    sub: 'Ocho servicios en dos líneas. Si es dueño de un edificio que ya está en pie, o lo administra, empiece por edificios existentes. Si está construyendo algo, empiece por proyectos nuevos. Cada servicio dice cuándo lo necesita, qué incluye, qué recibe y qué hacer a continuación.',
+    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Ocho servicios de ingeniería estructural en dos líneas. Si es dueño de un edificio que ya está en pie, o lo administra, empiece por edificios existentes. Si está construyendo algo, empiece por proyectos nuevos. Cada servicio dice cuándo lo necesita, qué incluye, qué recibe y qué hacer a continuación.',
     facts: [
       { k: 'Edificios existentes', v: '4 servicios' },
       { k: 'Proyectos nuevos', v: '4 servicios' },
@@ -1607,9 +1616,11 @@ export const es: SiteContent = {
 
   existingPage: {
     eyebrow: 'Edificios existentes',
-    titleLines: ['El edificio', 'ya está en pie.'],
-    accentWord: 'en pie.',
-    sub: 'Recertificación en Miami-Dade, el Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, inspecciones de hito (milestone), evaluaciones estructurales y diseño de reparaciones para edificios ya en servicio. Documentamos lo que realmente hay, explicamos qué significa estructuralmente y definimos el trabajo que sigue.',
+    /* The old H1 took the place of "…para edificios ya en servicio" in
+       `sub`, as in English: the lede is no longer than it was. */
+    titleLines: ['Edificios existentes', 'en Miami-Dade y Broward.'],
+    accentWord: 'existentes',
+    sub: 'El edificio ya está en pie. Recertificación en Miami-Dade, el Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, inspecciones de hito (milestone), evaluaciones estructurales y diseño de reparaciones. Documentamos lo que realmente hay, explicamos qué significa estructuralmente y definimos el trabajo que sigue.',
     facts: [
       { k: 'Para', v: 'Asociaciones, propietarios, administradores' },
       { k: 'Cobertura', v: 'Miami-Dade y Broward' },
@@ -1649,11 +1660,13 @@ export const es: SiteContent = {
 
   workPage: {
     eyebrowReal: 'Trabajos seleccionados',
-    titleLines: ['La estructura detrás', 'del proyecto.'],
-    accentWord: 'proyecto.',
-    subReal: 'Trabajos de ingeniería estructural en el Sur de Florida — el edificio, el problema, el alcance, nuestro rol y el resultado documentado.',
+    /* "Típicos" in the H1 as in the nav label and the title; "Sur de
+       Florida", never a county. See the EN comment in site.ts. */
+    titleLines: ['Trabajos típicos de ingeniería estructural', 'en el Sur de Florida.'],
+    accentWord: 'Sur de Florida.',
+    subReal: 'La estructura detrás del proyecto. Trabajos de ingeniería estructural en el Sur de Florida — el edificio, el problema, el alcance, nuestro rol y el resultado documentado.',
     subRepresentative:
-      'Perfiles de trabajos típicos: el sistema estructural, el alcance y los documentos que produce cada tipo de trabajo. Describen lo que realiza la firma, no proyectos anteriores concretos. Los casos de estudio con nombre se publican solo con autorización del cliente.',
+      'La estructura detrás del proyecto. Perfiles de trabajos típicos: el sistema estructural, el alcance y los documentos que produce cada tipo de trabajo. Describen la ingeniería estructural que realiza la firma en el Sur de Florida, no proyectos anteriores concretos. Los casos de estudio con nombre se publican solo con autorización del cliente.',
     facts: [
       { k: 'Cobertura', v: 'Miami-Dade y Broward' },
       { k: 'Sistemas', v: 'Concreto reforzado, acero' },

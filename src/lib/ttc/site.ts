@@ -59,12 +59,20 @@ export const company = {
   /**
    * The firm is named "Tercero Tablada Civil and Structural Engineering Inc."
    * — that is the name, not a legal long-form of a shorter brand. `name` is
-   * therefore the full name and is what belongs in page titles, metadata,
-   * schema.org, alt text and any sentence that names the practice.
+   * therefore the full name and is what belongs in metadata (og:site_name,
+   * og:title), schema.org, alt text, the footer, the legal pages and any
+   * sentence that names the practice.
    *
    * `shortName` exists ONLY for places where the full name genuinely cannot
    * fit (a drawing title block, a compact chip). Never reach for it just to
    * make a line shorter.
+   *
+   * Page titles (<title>) are the one such place on the site. A search
+   * result shows about 580 px of a title and the full name alone is 469, so
+   * with it every title was cut off before it said what the page is about.
+   * A title carries `shortName`, and only where it still fits after the
+   * page's own words — `pageTitle` in views/meta.tsx decides, seo.ts has
+   * the rule.
    */
   legalName: 'Tercero Tablada Civil and Structural Engineering Inc.',
   name: 'Tercero Tablada Civil and Structural Engineering Inc.',
@@ -1128,9 +1136,10 @@ export const services: Service[] = [
        used to have ("formerly", "still called") — never as a rule. It used
        to sit in the keywords only, which no search engine reads, while most
        owners still type it. Do not move it back, and do not drop "formerly".
-       The firm name the layout appends is the part a result cuts off. */
+       The title ends there. "— Structural Engineer" used to follow, and made
+       it 687 px of the 580 a search result shows (seo.ts has the rule). */
     seo: {
-      title: 'Miami-Dade Building Recertification (formerly 40-Year) — Structural Engineer',
+      title: 'Miami-Dade Building Recertification (formerly 40-Year)',
       description:
         'Miami-Dade building recertification, still called the 40-year recertification. Send your notice: a Florida P.E. inspects and files on the county’s form.',
       keywords: ['building recertification Miami-Dade', 'Miami-Dade recertification engineer', '40 year recertification Miami', '30 year recertification Miami', 'condo recertification Miami', 'structural recertification report'],
@@ -1409,9 +1418,11 @@ export const services: Service[] = [
        program — "formerly", never as a rule (see the Miami-Dade page; do not
        move it back to the keywords). The program's full name is the H1 and
        opens the description; the 71 characters it took in the title pushed
-       everything else out of a search result. No ages and no day counts. */
+       everything else out of a search result. No ages and no day counts.
+       The title ends at the former name, as Miami-Dade's does: with
+       "— Structural Engineer" after it, it was 630 px of the 580 shown. */
     seo: {
-      title: 'Broward BSIP (formerly 40-Year Recertification) — Structural Engineer',
+      title: 'Broward BSIP (formerly 40-Year Recertification)',
       description:
         'Broward’s Building Safety Inspection Program (BSIP), still called the 40-year recertification. A Florida P.E. inspects and files the structural report.',
       keywords: ['Broward BSIP engineer', 'building safety inspection program Broward', '25-year building inspection Broward', 'Broward BSIP', 'building safety inspection Broward', '40 year inspection Broward', 'BSIP structural report'],
@@ -1600,13 +1611,16 @@ export const services: Service[] = [
     },
     /* "building safety inspection Broward" moved to the BSIP page with the
        slug rename: that query is about Broward's program, not this page.
-       The title leads with "condo" and the two counties, which is how a
-       board searches for it, and ends in the trade, like the two program
-       titles. */
+       The title is "condo" and the two counties, which is how a board
+       searches for it. Like the two program titles it used to end in the
+       trade ("— Structural Engineer"), which no search result had room to
+       show. The description was the one on the site over the 1000 px a
+       result shows; "condo and co-op milestone inspections" says the same
+       in fewer. */
     seo: {
-      title: 'Condo Milestone Inspections in Miami-Dade & Broward — Structural Engineer',
+      title: 'Condo Milestone Inspections in Miami-Dade & Broward',
       description:
-        'Florida milestone inspections for condos and co-ops in Miami-Dade and Broward: how the county program meets them, phase two, and structural safety inspections.',
+        'Florida condo and co-op milestone inspections in Miami-Dade and Broward: how the county program meets them, phase two, and structural safety inspections.',
       keywords: ['milestone inspection Florida', 'milestone inspection Miami', 'condo milestone inspection', 'phase two milestone inspection', 'balcony inspection Miami', 'structural inspection South Florida'],
     },
   },
@@ -1659,8 +1673,10 @@ export const services: Service[] = [
       'Missing original documentation increases the field verification required.',
       'Repair design is scoped and quoted separately from the assessment that leads to it.',
     ],
+    /* "South Florida", where the other service titles name the two
+       counties: with them this one is 599 px, and a result shows 580. */
     seo: {
-      title: 'Structural Assessments & Repair Design — Miami-Dade & Broward',
+      title: 'Structural Assessments & Repair Design — South Florida',
       description:
         'Structural condition assessments and concrete repair design for existing South Florida buildings: what the distress means, and repairs specified to bid.',
       keywords: ['structural condition assessment Miami', 'concrete repair engineer Florida', 'balcony repair design', 'existing building evaluation', 'structural due diligence Miami'],
@@ -1724,9 +1740,9 @@ export const services: Service[] = [
       'Scope and fee change with irregularity — transfers, cantilevers, post-tensioning and unusual geometry are priced honestly, not absorbed silently.',
       'Permit review comments are part of the process; we respond to them, but no engineer can guarantee a jurisdiction’s decision.',
     ],
-    /* seo.title: keyword + place inside the ~55 characters a result shows
-       before the layout's firm-name suffix. seo.description: 110–160
-       characters, no code names. */
+    /* seo.title: keyword + place, inside the 580 px a search result shows
+       (seo.ts has the rule; the brand does not fit after any service
+       title). seo.description: under 1000 px, no code names. */
     seo: {
       title: 'Reinforced Concrete Design — Miami-Dade & Broward',
       description:
@@ -1897,8 +1913,10 @@ export const services: Service[] = [
       'Review depth and fee scale with the size and complexity of the set.',
       'Comments are written to be resolved, not to assign blame.',
     ],
+    /* "in", where the other service titles have a dash: this is the widest
+       title on the site, and the dash put it within 9 px of the limit. */
     seo: {
-      title: 'Structural Peer Review & Compliance — Miami-Dade & Broward',
+      title: 'Structural Peer Review & Compliance in Miami-Dade & Broward',
       description:
         'Independent structural peer review — code compliance, load path, constructability and documentation review for projects in Miami-Dade and Broward.',
       keywords: ['structural peer review', 'independent structural review Florida', 'third party structural review Miami', 'structural due diligence'],
@@ -2250,11 +2268,24 @@ export const leadership = {
   ],
 } as const;
 
+/* THE H1 OF A PAGE NAMES WHAT THE PAGE IS ABOUT, AND WHERE, in plain words —
+   here and on Services, Existing buildings and Typical engagements below. It
+   is what a search engine, a link preview and a screen-reader user listing
+   the headings take the page to be, and the line each of these four pages
+   used to open with was a slogan that named neither ("A structural practice
+   built around one accountable engineer.").
+
+   The slogan is not gone: it opens `sub`, word for word, right under the
+   H1, so the voice is still the first sentence read. Keep it there.
+
+   `accentWord` stays one short phrase — it is set not to wrap (mp.css), so
+   a long one runs off a phone screen. The two counties are never the
+   accent: it would have to pick one of them. */
 export const aboutPage = {
   eyebrow: 'About the practice',
-  titleLines: ['A structural practice built', 'around one accountable engineer.'],
-  accentWord: 'accountable',
-  sub: 'Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
+  titleLines: ['A South Florida', 'structural engineering practice.'],
+  accentWord: 'South Florida',
+  sub: 'A structural practice built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
   facts: [
     { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
     { k: 'Focus', v: 'Concrete · Existing buildings · BIM' },
@@ -2288,12 +2319,13 @@ export const aboutPage = {
 
 export const servicesPage = {
   eyebrow: 'Services',
-  titleLines: ['Organized by what you need,', 'not by what we do.'],
-  accentWord: 'need',
+  /* The subject and the place; the old H1 opens `sub` (see `aboutPage`). */
+  titleLines: ['Structural engineering services', 'in Miami-Dade and Broward.'],
+  accentWord: 'services',
   /* Existing buildings first — in the sub-line, the facts and the tracks —
      because the page now opens with them. The counts follow the `services`
      array (four and four); change them together. */
-  sub: 'Eight services in two tracks. If you own or manage a building that is already standing, start with existing buildings. If you are building something, start with new projects. Each service says when you need it, what is included, what you receive and what to do next.',
+  sub: 'Organized by what you need, not by what we do. Eight services in two tracks. If you own or manage a building that is already standing, start with existing buildings. If you are building something, start with new projects. Each service says when you need it, what is included, what you receive and what to do next.',
   facts: [
     { k: 'Existing buildings', v: '4 services' },
     { k: 'New projects', v: '4 services' },
@@ -2317,9 +2349,14 @@ export const servicesPage = {
 
 export const existingPage = {
   eyebrow: 'Existing buildings',
-  titleLines: ['The building is', 'already standing.'],
-  accentWord: 'standing.',
-  sub: 'Miami-Dade recertification, Broward’s Building Safety Inspection Program (BSIP), milestone inspections, structural assessments and repair design for buildings already in service. We document what is actually there, explain what it means structurally, and define the work that follows.',
+  /* The subject and the place; the old H1 opens `sub` (see `aboutPage`).
+     There it took the place of "…for buildings already in service", which
+     said the same thing at the end of the list — so the lede is no longer
+     than it was, and this page's two buttons stay where they were on a
+     phone. */
+  titleLines: ['Existing buildings', 'in Miami-Dade and Broward.'],
+  accentWord: 'Existing',
+  sub: 'The building is already standing. Miami-Dade recertification, Broward’s Building Safety Inspection Program (BSIP), milestone inspections, structural assessments and repair design. We document what is actually there, explain what it means structurally, and define the work that follows.',
   facts: [
     { k: 'For', v: 'Associations, owners, managers' },
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
@@ -2370,11 +2407,16 @@ export const workPage = {
   eyebrowReal: 'Selected work',
   /* One label for the profiles everywhere (hero, section, status): they are
      typical engagements, not past jobs, and nothing here says "anonymized". */
-  titleLines: ['The frame behind', 'the project.'],
-  accentWord: 'project.',
-  subReal: 'Structural engagements across South Florida — the building, the problem, the scope, our role and the documented result.',
+  /* The subject and the place; the old H1 opens both subs (see
+     `aboutPage`). "Typical" is in the H1 for the reason it is in the nav
+     label and the page title: rewrite the three together on the day there
+     are real case studies. "South Florida", never a county — the profiles
+     must not read as jobs done in one. */
+  titleLines: ['Typical structural engineering work', 'in South Florida.'],
+  accentWord: 'South Florida.',
+  subReal: 'The frame behind the project. Structural engagements across South Florida — the building, the problem, the scope, our role and the documented result.',
   subRepresentative:
-    'Typical engagement profiles: the structural system, the scope and the documents each kind of work produces. They describe what the firm takes on, not specific past projects. Named case studies are published only with client permission.',
+    'The frame behind the project. Typical engagement profiles: the structural system, the scope and the documents each kind of work produces. They describe what the firm takes on in South Florida, not specific past projects. Named case studies are published only with client permission.',
   facts: [
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
     { k: 'Systems', v: 'Reinforced concrete, steel' },

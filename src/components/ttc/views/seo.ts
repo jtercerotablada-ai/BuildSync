@@ -5,13 +5,22 @@ type Pages = 'home' | 'services' | 'existing' | 'work' | 'about' | 'contact' | '
 
 /**
  * Titles and descriptions per page and language. Titles are what the browser
- * tab and the search result show; the layout appends the firm name through
- * its title template, so the home title is set in full here.
+ * tab and the search result show.
  *
- * The appended firm name is ~53 characters, so a result shows only the first
- * ~55 characters of each title: the service keyword and the place go there.
- * Descriptions stay between 110 and 160 characters (longer ones are cut off
- * mid-sentence), each one unique, with no code names (ACI, ASCE, F.S.…).
+ * A TITLE HERE IS WRITTEN WITHOUT THE FIRM. It says what the page is about
+ * and where, in that order, and `pageTitle` (meta.tsx) adds "· Tercero
+ * Tablada" only when the whole line still fits the 580 px a search result
+ * shows. Most do not: the short name costs 165 px, so it rides on the home
+ * page and the legal pages and the rest go out alone. Never shorten the
+ * subject or the place to make room for it, and never type the firm into a
+ * title — the full name is 469 px by itself, which is why all 32 titles were
+ * over the limit on October 7, 2026. seo.test.ts measures every title and
+ * every description the way the owner's SEO check does (serp.ts), and fails
+ * on one that is too long, repeats a word or says what another page says.
+ *
+ * Descriptions stay under 1000 px on the same ruler — about 150 characters;
+ * longer ones are cut off mid-sentence — each one unique, with no code names
+ * (ACI, ASCE, F.S.…).
  *
  * The descriptions lead with the two county programs, each by its own name —
  * Miami-Dade's is "recertification", Broward's is the "Building Safety
@@ -29,10 +38,9 @@ type Pages = 'home' | 'services' | 'existing' | 'work' | 'about' | 'contact' | '
 export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   en: {
     home: {
-      title: 'Structural Engineering for South Florida | Tercero Tablada Civil and Structural Engineering Inc.',
+      title: 'Structural Engineering for South Florida',
       description:
         'Miami-Dade building recertification, Broward BSIP inspections and structural design for new buildings in South Florida, led by a Florida Professional Engineer.',
-      ogTitle: 'Structural Engineering for South Florida | Tercero Tablada Civil and Structural Engineering Inc.',
       keywords: ['structural engineer Miami', 'structural engineer Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'building safety inspection program Broward', '40 year recertification Miami', 'structural engineering South Florida'],
     },
     services: {
@@ -42,7 +50,9 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       keywords: ['structural engineering services Miami', 'structural design Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'milestone inspection', 'BIM coordination'],
     },
     existing: {
-      title: 'Existing Buildings — Recertification, BSIP & Repairs',
+      // The place came in and "& Repairs" went out to pay for it: the two
+      // programs are what an owner with a notice types.
+      title: 'Existing Buildings in South Florida — Recertification & BSIP',
       description:
         'Miami-Dade recertification, Broward BSIP, milestone inspections, condition assessments and repair design for existing buildings, by a Florida P.E.',
       keywords: ['building recertification Miami-Dade', 'Broward BSIP', 'building safety inspection program Broward', 'milestone inspection', 'condo structural inspection', 'balcony repair engineer'],
@@ -57,13 +67,16 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
         'Typical structural engagements in South Florida: building type, structural system, scope and deliverables for new and existing buildings.',
     },
     about: {
-      title: 'About — Juan Tercero, PE., M.Sc.',
+      // The engineer by name, then the trade and the place. No brand after
+      // it, whatever the width: "Tercero" twice in one title is what the
+      // check reports as word repetition.
+      title: 'Juan Tercero, PE., M.Sc. — Structural Engineer, South Florida',
       description:
         'Tercero Tablada Civil and Structural Engineering Inc. is led by Juan Tercero, PE., M.Sc.: one Florida P.E. responsible from the proposal to the sealed report.',
       keywords: ['Juan Tercero PE', 'structural engineer Miami', 'Florida professional engineer structural'],
     },
     contact: {
-      title: 'Request a Structural Engineering Proposal',
+      title: 'Request a Structural Engineering Proposal in South Florida',
       description:
         'Request a structural engineering proposal in Miami-Dade or Broward. Attach the notice, photos or drawings; the engineer replies with questions or a scope.',
     },
@@ -72,10 +85,9 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   },
   es: {
     home: {
-      title: 'Ingeniería estructural para el Sur de Florida | Tercero Tablada Civil and Structural Engineering Inc.',
+      title: 'Ingeniería estructural para el Sur de Florida',
       description:
         'Recertificación de edificios en Miami-Dade, BSIP en Broward y diseño estructural de edificios nuevos, a cargo de un Ingeniero Profesional (P.E.) de Florida.',
-      ogTitle: 'Ingeniería estructural para el Sur de Florida | Tercero Tablada Civil and Structural Engineering Inc.',
       // "BSIP" and "recertificación 40 años" are what people type; the page
       // says "Programa de Inspección de Seguridad de Edificios (BSIP)".
       keywords: ['ingeniero estructural Miami', 'ingeniero estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'recertificación 40 años Miami', 'ingeniería estructural Sur de Florida'],
@@ -88,7 +100,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       keywords: ['servicios ingeniería estructural Miami', 'diseño estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección milestone', 'inspección de hito', 'coordinación BIM'],
     },
     existing: {
-      title: 'Edificios existentes — Recertificación, BSIP y reparaciones',
+      title: 'Edificios existentes del Sur de Florida — Recertificación y BSIP',
       description:
         'Recertificación en Miami-Dade, BSIP en Broward, inspecciones de hito (milestone), evaluaciones de condición y diseño de reparaciones para edificios existentes.',
       keywords: ['recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'inspección milestone condominio', 'inspección de hitos condominio', 'ingeniero reparación de balcones'],
@@ -101,13 +113,15 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
         'Trabajos típicos de ingeniería estructural en el Sur de Florida: tipo de edificio, sistema estructural, alcance y entregables en edificios nuevos y existentes.',
     },
     about: {
-      title: 'Nosotros — Juan Tercero, PE., M.Sc.',
+      // "en Florida", where English says "South Florida": with "Sur de
+      // Florida" this title is 578 px, and a result shows 580.
+      title: 'Juan Tercero, PE., M.Sc. — Ingeniero estructural en Florida',
       description:
         'Tercero Tablada Civil and Structural Engineering Inc. está dirigida por Juan Tercero, PE., M.Sc.: un solo P.E. de Florida, de la propuesta al informe sellado.',
       keywords: ['Juan Tercero PE', 'ingeniero estructural Miami', 'ingeniero profesional Florida estructural'],
     },
     contact: {
-      title: 'Solicitar una propuesta de ingeniería estructural',
+      title: 'Solicitar propuesta de ingeniería estructural — Sur de Florida',
       description:
         'Solicite una propuesta de ingeniería estructural en Miami-Dade o Broward: adjunte la notificación, fotos o planos, y el ingeniero le responde por escrito.',
     },
