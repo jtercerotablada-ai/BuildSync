@@ -5,9 +5,11 @@
  *
  * Motion rule for the whole system: every animation here is a no-op when the
  * user prefers reduced motion — the element renders in its final state, never
- * hidden. Nothing on this site depends on an animation to become readable.
+ * hidden. Nothing on this site depends on an animation to become readable,
+ * and nothing depends on JavaScript to become VISIBLE: no component in this
+ * file writes a hidden state into the server HTML.
  *
- * Two mechanisms, split at the fold:
+ * Two mechanisms, split at the fold, and neither is Motion:
  *
  *   • ABOVE THE FOLD — the hero and page-hero photo, eyebrow, headline, sub,
  *     CTA row and facts — entrances are CSS keyframes (`mp-enter` classes in
@@ -17,95 +19,102 @@
  *     keyframe starts at first paint, JavaScript or not, and the
  *     reduced-motion media query switches it off.
  *
- *   • BELOW THE FOLD — `Reveal`, scroll-triggered `RevealText`, the stagger
- *     lists — Motion's `whileInView`. Hidden-until-hydrated is harmless there:
- *     by the time anyone scrolls to them, React has long since arrived.
+ *   • BELOW THE FOLD — `Reveal`, scroll-triggered `RevealText`,
+ *     `AnimatedLine`, the stagger lists. They were Motion's `whileInView`,
+ *     on the theory that hidden-until-hydrated is harmless down there. It
+ *     was not: on a slow connection a visitor scrolls before React arrives
+ *     and met an empty page, and a failed script left it empty for good.
+ *     Now the markup is plain and visible. After hydration `useReveal` hands
+ *     each block to reveal.ts, which hides (`data-rv="wait"`) only the ones
+ *     still below the screen and plays them (`data-rv="in"`) as they scroll
+ *     into view. The two states and their keyframes are in mp.css, under the
+ *     `mp-enter` ones. Read reveal.ts before changing any of it — the order
+ *     in which things are hidden is the failsafe.
  *
- * Why `animate` is set explicitly in the reduced-motion branch below: the
- * server cannot know the visitor's motion preference, so it always serialises
- * the animating `initial` state (opacity: 0) into the HTML. Passing
- * `initial={false}` on the client only stops Motion from *setting* a value —
- * it does not clear what the server already wrote. Without an explicit
- * `animate` target, every scroll-revealed element would stay invisible
- * forever for exactly the users who asked for less motion.
+ * Timing travels as inline custom properties (`--rv-delay`, `--rv-dur`,
+ * `--rv-y`), written only when they differ from the CSS default: identical
+ * on the server and the client, and most blocks carry no style at all.
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { motion, useReducedMotion, type Variants } from 'motion/react';
+import { watchReveal } from './reveal';
 
+/** Still what the header menu's Motion transitions use; mp.css has the same
+ *  curve as --mp-ease. */
 export const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
- * Marker class on every Motion-animated element. Motion serialises its
- * `initial` state into the SSR markup (opacity: 0), so if JavaScript never
- * arrives the content would stay invisible. The <noscript> block in
- * (public)/layout.tsx resets anything carrying this class to its final state.
- * The CSS `mp-enter` entrances need no such reset — a keyframe runs without
- * JavaScript.
+ * Marker class on every element a reveal animates. It carries no declaration
+ * of its own: the print rule in mp.css and the <noscript> rule in
+ * (public)/layout.tsx use it to force the final state — on paper for a block
+ * that was still parked below the fold, and as a backstop should a Motion
+ * `initial` ever be put on one of these again.
  */
 const REVEAL = 'mp-reveal';
 const cx = (...parts: (string | undefined | false)[]) =>
   parts.filter(Boolean).join(' ');
+
+/**
+ * Register an element with the reveal engine once it is in the document.
+ * `margin` is how many px inside the viewport's edge it must be to count as
+ * on screen (40 for blocks, 50 for lists, 60 for headlines — Motion's old
+ * `viewport.margin` values).
+ */
+function useReveal<T extends HTMLElement>(margin: number) {
+  const ref = useRef<T>(null);
+  useEffect(
+    () => (ref.current ? watchReveal(ref.current, margin) : undefined),
+    [margin],
+  );
+  return ref;
+}
+
+/** Seconds → the whole-millisecond string CSS reads (0.1 + 2 × 0.07 is
+ *  0.24000000000000002). */
+const ms = (seconds: number) => `${Math.round(seconds * 1000)}ms`;
+
+/** Inline custom properties for mp.css; `undefined` entries are left out and
+ *  an empty set yields no style attribute. */
+function vars(
+  set: Record<`--rv-${string}`, string | undefined>,
+  base?: React.CSSProperties,
+): React.CSSProperties | undefined {
+  const out: Record<string, unknown> = { ...base };
+  for (const [k, v] of Object.entries(set)) if (v !== undefined) out[k] = v;
+  return Object.keys(out).length ? (out as React.CSSProperties) : undefined;
+}
 
 /* ── Reveal ─────────────────────────────────────────────────────────────── */
 
 type RevealProps = {
   children: React.ReactNode;
   delay?: number;
+  /** Rise distance in px; mp.css defaults to 14. */
   y?: number;
   className?: string;
   as?: 'div' | 'span' | 'li' | 'p';
-  once?: boolean;
 };
 
-export function Reveal({
-  children,
-  delay = 0,
-  y = 14,
-  className,
-  as = 'div',
-  once = true,
-}: RevealProps) {
-  const reduce = useReducedMotion();
-  const Comp =
-    as === 'span'
-      ? motion.span
-      : as === 'li'
-        ? motion.li
-        : as === 'p'
-          ? motion.p
-          : motion.div;
-
+export function Reveal({ children, delay = 0, y, className, as = 'div' }: RevealProps) {
+  const ref = useReveal<HTMLDivElement>(40);
+  // One element type for the checker; the node is whatever `as` says.
+  const Tag = as as 'div';
   return (
-    <Comp
+    <Tag
+      ref={ref}
       className={cx(REVEAL, className)}
-      initial={reduce ? false : { opacity: 0, y }}
-      animate={reduce ? { opacity: 1, y: 0 } : undefined}
-      whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once, margin: '-40px' }}
-      transition={reduce ? { duration: 0 } : { duration: 0.5, ease: EASE, delay }}
+      style={vars({
+        '--rv-delay': delay ? ms(delay) : undefined,
+        '--rv-y': y === undefined ? undefined : `${y}px`,
+      })}
     >
       {children}
-    </Comp>
+    </Tag>
   );
 }
 
 /* ── RevealText — headline lines rise out of a clipping mask ─────────────── */
-
-/**
- * The mask wrapper carries the viewport trigger, NOT the translated line.
- *
- * IntersectionObserver clips against every `overflow: hidden` ancestor. A line
- * sitting at `y: 108%` is translated entirely outside its own mask, so its
- * intersection area is exactly zero — the observer would never fire and the
- * headline would stay hidden forever. Observing the (untranslated) mask and
- * propagating the state down through variants avoids that deadlock.
- */
-const LINE_VARIANTS: Variants = {
-  hidden: { y: '108%' },
-  show: { y: '0%' },
-};
 
 /**
  * The mask clips at the line box, but glyph ink (descenders, and ascenders at
@@ -149,8 +158,6 @@ export function RevealText({
   as?: 'h1' | 'h2' | 'h3' | 'p';
   id?: string;
 }) {
-  const reduce = useReducedMotion();
-
   // Above the fold: the same mask-rise, as a CSS keyframe (`mp-enter--line`)
   // that starts at first paint — no `initial` state in the server HTML, no
   // wait for hydration. The per-line stagger is an inline animation-delay,
@@ -164,11 +171,7 @@ export function RevealText({
             <span className={lineClassName} style={LINE_MASK}>
               <span
                 className="mp-enter mp-enter--line"
-                style={{
-                  display: 'block',
-                  // Whole milliseconds: 0.1 + 2 × 0.07 is 0.24000000000000002.
-                  animationDelay: `${Math.round((delay + i * 0.07) * 1000)}ms`,
-                }}
+                style={{ display: 'block', animationDelay: ms(delay + i * 0.07) }}
               >
                 {line}
               </span>
@@ -184,33 +187,45 @@ export function RevealText({
       {lines.map((line, i) => (
         <React.Fragment key={i}>
           {i > 0 ? ' ' : null}
-          <motion.span
-            className={lineClassName}
-            style={LINE_MASK}
-            initial={reduce ? false : 'hidden'}
-            {...(reduce
-              ? { animate: 'show' as const }
-              : {
-                  whileInView: 'show' as const,
-                  viewport: { once: true, margin: '-60px' },
-                })}
-          >
-            <motion.span
-              className={REVEAL}
-              style={{ display: 'block' }}
-              variants={LINE_VARIANTS}
-              transition={
-                reduce
-                  ? { duration: 0 }
-                  : { duration: 0.7, ease: EASE, delay: delay + i * 0.07 }
-              }
-            >
-              {line}
-            </motion.span>
-          </motion.span>
+          <RevealLine className={lineClassName} delay={delay + i * 0.07}>
+            {line}
+          </RevealLine>
         </React.Fragment>
       ))}
     </Tag>
+  );
+}
+
+/**
+ * One scroll-triggered headline line. The mask wrapper carries the viewport
+ * trigger, NOT the translated line.
+ *
+ * IntersectionObserver clips against every `overflow: hidden` ancestor. A line
+ * sitting at `translateY(108%)` is entirely outside its own mask, so its
+ * intersection area is exactly zero — the observer would never fire and the
+ * headline would stay hidden forever. So the (untranslated) mask is what is
+ * watched and what takes `data-rv`, and mp.css moves the line inside it
+ * (`[data-rv] > .mp-reveal--line`).
+ */
+function RevealLine({
+  children,
+  className,
+  delay,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay: number;
+}) {
+  const ref = useReveal<HTMLSpanElement>(60);
+  return (
+    <span ref={ref} className={className} style={LINE_MASK}>
+      <span
+        className={`${REVEAL} mp-reveal--line`}
+        style={vars({ '--rv-delay': delay ? ms(delay) : undefined }, { display: 'block' })}
+      >
+        {children}
+      </span>
+    </span>
   );
 }
 
@@ -219,21 +234,22 @@ export function RevealText({
 export function AnimatedLine({
   className = 'mp-rule',
   delay = 0,
-  duration = 0.9,
+  duration,
 }: {
   className?: string;
   delay?: number;
+  /** Seconds; mp.css defaults to 0.9. */
   duration?: number;
 }) {
-  const reduce = useReducedMotion();
+  const ref = useReveal<HTMLDivElement>(40);
   return (
-    <motion.div
-      className={cx(REVEAL, className)}
-      initial={reduce ? false : { scaleX: 0 }}
-      animate={reduce ? { scaleX: 1 } : undefined}
-      whileInView={reduce ? undefined : { scaleX: 1 }}
-      viewport={{ once: true, margin: '-40px' }}
-      transition={reduce ? { duration: 0 } : { duration, ease: EASE, delay }}
+    <div
+      ref={ref}
+      className={cx(REVEAL, 'mp-reveal--rule', className)}
+      style={vars({
+        '--rv-delay': delay ? ms(delay) : undefined,
+        '--rv-dur': duration === undefined ? undefined : ms(duration),
+      })}
     />
   );
 }
@@ -340,16 +356,12 @@ export function TextLink({
 
 /* ── Stagger helpers for lists ───────────────────────────────────────────── */
 
-export const staggerParent: Variants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.045 } },
-};
-
-export const staggerChild: Variants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE } },
-};
-
+/**
+ * The LIST is what the engine watches and what takes `data-rv`; its items
+ * are plain elements that mp.css hides and plays through the parent
+ * (`[data-rv] > .mp-reveal--item`), each a beat after the one before
+ * (`:nth-child`, 45 ms apart). So an item must be a direct child of its list.
+ */
 export function StaggerList({
   children,
   className,
@@ -366,46 +378,25 @@ export function StaggerList({
   role?: string;
   ariaLabel?: string;
 }) {
-  const reduce = useReducedMotion();
-  const Comp = as === 'ul' ? motion.ul : motion.div;
+  const ref = useReveal<HTMLUListElement>(50);
+  const Tag = as as 'ul';
   return (
-    <Comp
-      className={className}
-      tabIndex={tabIndex}
-      role={role}
-      aria-label={ariaLabel}
-      variants={staggerParent}
-      initial={reduce ? false : 'hidden'}
-      animate={reduce ? 'show' : undefined}
-      whileInView={reduce ? undefined : 'show'}
-      viewport={{ once: true, margin: '-50px' }}
-      transition={reduce ? { duration: 0 } : undefined}
-    >
+    <Tag ref={ref} className={className} tabIndex={tabIndex} role={role} aria-label={ariaLabel}>
       {children}
-    </Comp>
+    </Tag>
   );
 }
 
 export function StaggerItem({
   children,
   className,
-  as = 'li',
+  as: Tag = 'li',
 }: {
   children: React.ReactNode;
   className?: string;
   as?: 'li' | 'div';
 }) {
-  const reduce = useReducedMotion();
-  const Comp = as === 'li' ? motion.li : motion.div;
-  return (
-    <Comp
-      className={cx(REVEAL, className)}
-      variants={staggerChild}
-      transition={reduce ? { duration: 0 } : undefined}
-    >
-      {children}
-    </Comp>
-  );
+  return <Tag className={cx(REVEAL, 'mp-reveal--item', className)}>{children}</Tag>;
 }
 
 /* ── Dark-hero sentinel ──────────────────────────────────────────────────── */

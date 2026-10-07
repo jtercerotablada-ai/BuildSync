@@ -145,8 +145,10 @@ straight resizes of the same files.
 | logo-white-wide.png | 2172×827 | Master for the footer lockup |
 | logo-horizontal.png | 2172×827 | `company.logo.lockupDark` (unused on the public site) |
 | logo-icon.svg / -dark.svg / -favicon.svg | — | SaaS header, favicon, **old emails** (keep `logo-icon.svg`) |
-| **logo-square@256.png** | 256×256 | Public header mark on light |
-| **logo-white@256.png** | 256×256 | Public header mark on dark, engineer plate |
+| **logo-square@256.png** | 256×256 | Partner block, SaaS fallback screen |
+| **logo-white@256.png** | 256×256 | Engineer plate |
+| **logo-square@144.webp** | 144×144 | Public header mark on light (lossless WebP, `scripts/encode-header-logos.mjs`) |
+| **logo-white@144.webp** | 144×144 | Public header mark on dark (same) |
 | **logo-white-wide@640.png** | 640×244 | Public footer lockup |
 
 `docs/brand/logo-stacked.png` is the stacked lockup master. It has no

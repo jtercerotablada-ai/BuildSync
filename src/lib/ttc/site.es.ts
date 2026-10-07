@@ -1033,6 +1033,9 @@ export const es: SiteContent = {
       lockupLightSm: '/ttc/img/logo-white-wide@640.png',
       markSmSize: { w: 256, h: 256 },
       lockupSmSize: { w: 640, h: 244 },
+      markDarkXs: '/ttc/img/logo-square@144.webp',
+      markLightXs: '/ttc/img/logo-white@144.webp',
+      markXsSize: { w: 144, h: 144 },
     },
     /**
      * Florida Engineering Business Registry number (DBPR).
@@ -1122,6 +1125,7 @@ export const es: SiteContent = {
       },
     },
     breadcrumb: 'Ruta de navegación',
+    onThisPage: 'En esta página',
     explore: 'Explorar',
     exploreService: 'Ver este servicio',
     learnMore: 'Más información',

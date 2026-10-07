@@ -115,9 +115,11 @@ export default function PublicLayout({
       className={`mp ${mpSans.variable} ${mpMono.variable} ${mpSerif.variable}`}
     >
       <SiteGraph />
-      {/* Motion serialises its `initial` state (opacity: 0) into the server
-          HTML. Without JavaScript nothing would ever reveal it, so reset every
-          animated element to its final state. */}
+      {/* Backstop. The scroll reveals no longer write a hidden state into the
+          server HTML (primitives.tsx, reveal.ts), so without JavaScript there
+          is nothing to undo today. This stays for the day a Motion `initial`
+          (which IS serialised, as opacity: 0) lands on an .mp-reveal element
+          again: without JavaScript nothing would ever lift it. */}
       <noscript>
         <style>{`.mp .mp-reveal{opacity:1!important;transform:none!important}`}</style>
       </noscript>
