@@ -3719,6 +3719,138 @@ a.mp-menu__mail {
   flex: none;
 }
 
+/* ── Who we work with: two licensed firms, side by side ──────────────────── */
+/* Two cards of the same shape — the engineering practice and the firm it
+   works with — so neither reads as the other's subcontractor. Both
+   logos are dark ink, so the cards are always white, whatever the surface. */
+.mp-partner__kicker {
+  margin: 0 0 var(--mp-3);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-gold-ink);
+  font-weight: 500;
+}
+.mp-partner__lede {
+  margin: 0;
+  max-width: 62ch;
+}
+.mp-partner__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 2vw, 1.75rem);
+  margin-block-start: clamp(2.5rem, 5vw, 4.5rem);
+}
+.mp-partner__card {
+  display: flex;
+  flex-direction: column;
+  background: var(--mp-card);
+  border: 1px solid var(--mp-line);
+  padding: clamp(1.5rem, 3vw, 2.75rem);
+}
+/* One height for both marks: the square monogram and the tall PS plate are
+   different shapes, and a shared height is what makes them read as a pair. */
+.mp-partner__logo {
+  height: clamp(76px, 7vw, 104px);
+  margin-block-end: var(--mp-8);
+}
+.mp-partner__logo img {
+  display: block;
+  height: 100%;
+  width: auto;
+  /* The base img rule's max-width:100% is harmless here, but an explicit
+     auto width keeps the intrinsic ratio when the card is narrow. */
+  object-fit: contain;
+}
+.mp-partner__role {
+  margin: 0 0 var(--mp-3);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-gold-ink);
+  font-weight: 500;
+}
+.mp-partner__name {
+  margin: 0;
+  font-size: var(--mp-t-h3);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.mp-partner__who {
+  margin: var(--mp-2) 0 var(--mp-8);
+  font-size: var(--mp-t-body);
+  color: var(--mp-ink-2);
+}
+/* Licences sit at the foot of each card so the two lists line up even when
+   one firm's name wraps to a second line. */
+.mp-partner__lic {
+  margin-block-start: auto;
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-partner__lic-label {
+  margin: 0 0 var(--mp-3);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+  font-weight: 500;
+}
+.mp-partner__lic dl {
+  margin: 0;
+  display: grid;
+  gap: var(--mp-2);
+}
+.mp-partner__lic dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.15rem var(--mp-4);
+}
+.mp-partner__lic dt {
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-partner__lic dd,
+.mp-partner__reg {
+  margin: 0;
+  font-family: var(--mp-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: var(--mp-ink);
+}
+.mp-partner__reg {
+  margin-block-start: var(--mp-2);
+  color: var(--mp-ink-3);
+}
+.mp-partner__note {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.2fr) minmax(0, 1fr);
+  gap: var(--mp-4);
+  align-items: baseline;
+  margin: clamp(1.5rem, 3vw, 2.5rem) 0 0;
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-partner__note b {
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+.mp-partner__note span {
+  max-width: 68ch;
+  color: var(--mp-ink-2);
+}
+@media (max-width: 900px) {
+  .mp-partner__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-partner__note {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+}
+
 /* ── How we work: five step cards ────────────────────────────────────────── */
 .mp-steps {
   display: grid;

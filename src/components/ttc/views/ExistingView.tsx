@@ -5,6 +5,7 @@ import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ServiceCard } from '@/components/ttc/mp/ServiceCard';
 import { ProcessTimeline } from '@/components/ttc/mp/ProcessTimeline';
+import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
@@ -63,7 +64,10 @@ export function ExistingView({ lang }: { lang: Lang }) {
       </section>
 
       <ProcessTimeline n="03" />
-      <ContactCTA n="04" />
+      {/* Right after the process: who the reader will be dealing with while
+          it runs. */}
+      <PartnerSection n="04" lang={lang} surface="paper" />
+      <ContactCTA n="05" />
     </>
   );
 }

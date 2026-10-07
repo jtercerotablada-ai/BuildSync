@@ -1524,8 +1524,13 @@ export const leadership = {
   credential: 'Florida Professional Engineer',
   /** Path under /public, e.g. '/ttc/img/leadership/juan-tercero.jpg' — null until a real portrait exists. */
   portrait: null as { src: string; alt: string; w: number; h: number } | null,
-  /** { number: 'PE 00000', url: 'https://www.myfloridalicense.com/…' } — null until confirmed. */
-  license: null as { number: string; url: string } | null,
+    /* Verified in the Florida DBPR registry on October 6, 2026: Professional
+     Engineer 105256, "Current, Active", expires 02/28/2027. The registry has
+     no stable per-licence URL, so the link opens its search page. */
+  license: {
+    number: 'PE 105256',
+    url: 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=',
+  } as { number: string; url: string } | null,
   linkedin: null as string | null,
   /** Home teaser: two sentences. */
   /** Home-teaser headline. Carries the promise without naming anyone. */
@@ -1810,6 +1815,55 @@ export const legal = {
    BUNDLE — everything a page needs, typed once and mirrored in site.es.ts
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * The firm Tercero Tablada works with on recertifications: Precision Source,
+ * a Florida-certified general and electrical contractor in Miami.
+ *
+ * What this block must keep true, whatever the wording becomes:
+ *   - It is a SEPARATE company working as one team with the practice — never
+ *     "our construction arm", and never a co-owner: on a licensed engineer's
+ *     site "partner" can read as either.
+ *   - No split of tasks is printed. The owner's call (2026-10-06): "somos un
+ *     equipo" — and an earlier draft that had Precision Source doing the
+ *     repair work was simply wrong. Each card says what the firm IS (its
+ *     licences), not what it does on a job.
+ *   - The closing line says who signs. A contractor on a recertification team
+ *     could be read as the one inspecting, so the engineer's seal is stated.
+ *
+ * Licences verified against the Florida DBPR registry on October 6, 2026:
+ * both "Current, Active", expiring 08/31/2028, and the only "Precision
+ * Source" the registry holds. Re-check before that date.
+ */
+export const partner = {
+  eyebrow: 'Who we work with',
+  kicker: 'Two licensed firms',
+  title: 'One team on your building.',
+  lede:
+    'We carry out Miami-Dade recertifications and Broward BSIP inspections together with Precision Source Inc., a Florida-certified general and electrical contractor based in Miami. Two licensed firms working as one team, from the notice to the final report.',
+  licensesLabel: 'Florida licenses',
+  /* The engineering card takes its name, engineer, P.E. number and business
+     registry from `company` and `leadership` — one source for each fact. */
+  engineering: {
+    role: 'Structural engineering',
+    licenseLabel: 'Professional Engineer',
+    registryLabel: 'Engineering Business',
+  },
+  construction: {
+    role: 'General and electrical contractor',
+    name: 'Precision Source Inc.',
+    place: 'Miami, Florida',
+    logo: { src: '/ttc/img/partners/precision-source.png', w: 640, h: 935 },
+    licenses: [
+      { label: 'Certified General Contractor', number: 'CGC061867' },
+      { label: 'Certified Electrical Contractor', number: 'EC13010175' },
+    ],
+  },
+  seal: {
+    k: 'Signed and sealed',
+    v: 'Every report is signed and sealed by Juan Tercero, PE., M.Sc., Florida Professional Engineer.',
+  },
+};
+
 export const en = {
   company,
   contact,
@@ -1830,6 +1884,7 @@ export const en = {
   workSection,
   credentials,
   leadership,
+  partner,
   aboutPage,
   servicesPage,
   existingPage,

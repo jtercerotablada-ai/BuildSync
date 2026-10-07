@@ -4,6 +4,7 @@ import { company, imagery } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
+import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
 import { SealStatement } from '@/components/ttc/mp/CredentialsBar';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
@@ -14,7 +15,7 @@ import { breadcrumbLd, JsonLd } from './meta';
  * About: the practice, then the engineer (anchored), then how the work is held.
  *
  * Four sections and a close — engineer (paper) → approach (concrete) →
- * principles (paper) → CTA (graphite). The five-step process lives on
+ * principles (paper) → who we work with (concrete) → CTA (graphite). The five-step process lives on
  * Services and the service-area band on Home and Contact; repeating them
  * here made a Home → Services → About visit read the same blocks three times.
  * The code-standard grid that used to sit here is gone for good (client site,
@@ -103,9 +104,11 @@ export function AboutView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
+      <PartnerSection n="04" lang={lang} />
+
       {/* The default secondary ("Meet the engineer" → /about#engineer) would
           point back up this same page. */}
-      <ContactCTA n="04" secondary={{ href: '/services', label: c.ui.seeAllServices }} />
+      <ContactCTA n="05" secondary={{ href: '/services', label: c.ui.seeAllServices }} />
     </>
   );
 }

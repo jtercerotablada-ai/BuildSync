@@ -4,11 +4,12 @@ import { Hero } from '@/components/ttc/mp/Hero';
 import { ProgramSection } from '@/components/ttc/mp/ProgramSection';
 import { NewBuildings } from '@/components/ttc/mp/NewBuildings';
 import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
+import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
 import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 
 /**
- * Home: seven sections, each with one job. Existing buildings come first —
+ * Home: eight sections, each with one job. Existing buildings come first —
  * the reader with a deadline is the one holding a county notice — and each
  * county has its own section, because Miami-Dade and Broward run different
  * programs on different clocks.
@@ -18,6 +19,7 @@ import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
  *   ProgramSection   Broward: Building Safety Inspection Program  (#broward)
  *   NewBuildings     the design side, and its four services (#new-buildings)
  *   EngineerSection  who is responsible
+ *   PartnerSection   who we work with — two licensed firms, one team
  *   SouthFloridaMap  where, exactly
  *   ContactCTA       the action, again
  *
@@ -29,13 +31,11 @@ import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
  * Not here any more: the two client doors and the recertification video band
  * (deleted), the typology grid and the five-step process (both on /services).
  *
- * Rhythm: dark · paper · concrete · graphite · paper · paper · dark close.
- * The two paper sections in a row are told apart by the same-surface
- * hairline in mp.css (01). `lang` is read by every section from the URL; the
- * prop exists so the two route files are explicit about what they render.
+ * Rhythm: dark · paper · concrete · graphite · paper · concrete · paper ·
+ * dark close. Every section but one reads `lang` from the URL; PartnerSection
+ * is a server component and takes it as a prop.
  */
 export function HomeView({ lang }: { lang: Lang }) {
-  void lang;
   return (
     <>
       <Hero />
@@ -43,8 +43,9 @@ export function HomeView({ lang }: { lang: Lang }) {
       <ProgramSection slug="broward-bsip" n="02" surface="concrete" mirrored />
       <NewBuildings n="03" />
       <EngineerSection n="04" variant="teaser" />
-      <SouthFloridaMap n="05" />
-      <ContactCTA n="06" />
+      <PartnerSection n="05" lang={lang} />
+      <SouthFloridaMap n="06" />
+      <ContactCTA n="07" />
     </>
   );
 }

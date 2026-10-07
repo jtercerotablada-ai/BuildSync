@@ -1078,7 +1078,10 @@ export const es: SiteContent = {
     role: 'Ingeniero Principal · Fundador',
     credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
     portrait: null,
-    license: null,
+    license: {
+      number: 'PE 105256',
+      url: 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=',
+    },
     linkedin: null,
     teaserTitle: 'Un solo ingeniero responsable de todo el proyecto.',
     teaser:
@@ -1116,6 +1119,36 @@ export const es: SiteContent = {
     ],
   },
 
+  /* La empresa con la que se hacen las recertificaciones. Mismas reglas que
+     en site.ts: empresa APARTE, un solo equipo, sin reparto de tareas
+     impreso, y la última línea dice quién firma. */
+  partner: {
+    eyebrow: 'Con quién trabajamos',
+    kicker: 'Dos empresas con licencia',
+    title: 'Un solo equipo en su edificio.',
+    lede:
+      'Realizamos las recertificaciones de Miami-Dade y las inspecciones BSIP de Broward junto a Precision Source Inc., contratista general y eléctrico certificado en Florida, con sede en Miami. Dos empresas con licencia que trabajan como un solo equipo, desde el aviso hasta el informe final.',
+    licensesLabel: 'Licencias de Florida',
+    engineering: {
+      role: 'Ingeniería estructural',
+      licenseLabel: 'Ingeniero Profesional',
+      registryLabel: 'Empresa de Ingeniería',
+    },
+    construction: {
+      role: 'Contratista general y eléctrico',
+      name: 'Precision Source Inc.',
+      place: 'Miami, Florida',
+      logo: { src: '/ttc/img/partners/precision-source.png', w: 640, h: 935 },
+      licenses: [
+        { label: 'Contratista General Certificado', number: 'CGC061867' },
+        { label: 'Contratista Eléctrico Certificado', number: 'EC13010175' },
+      ],
+    },
+    seal: {
+      k: 'Firmado y sellado',
+      v: 'Cada informe lleva la firma y el sello de Juan Tercero, PE., M.Sc., Ingeniero Profesional de Florida.',
+    },
+  },
   aboutPage: {
     eyebrow: 'Sobre la firma',
     titleLines: ['Una firma de ingeniería estructural', 'con un solo ingeniero responsable.'],
