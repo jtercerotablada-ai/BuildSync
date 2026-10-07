@@ -13,6 +13,7 @@ import {
   officeLinksChecked as officeLinksCheckedEs,
   regulatoryChecked as regulatoryCheckedEs,
 } from './site.es';
+import { officePages, officePagesRead } from './office-pages';
 
 /**
  * The two county-program pages print their filing deadline on the first
@@ -209,10 +210,11 @@ describe('dates: the written dates and the machine date are the same day', () =>
 
 /**
  * The links that leave the site: a timing row's source and, on the two
- * county programs, the offices under "Who sent your notice?" and the forms
- * page. A link is structure, not copy, so it is the same in both languages —
- * but it is typed in both files, and a re-check that fixes a moved page in
- * one of them would leave the other pointing at a dead address.
+ * county programs, the forms page under "Who sent your notice?". (The
+ * offices listed there are text — see the next block.) A link is structure,
+ * not copy, so it is the same in both languages — but it is typed in both
+ * files, and a re-check that fixes a moved page in one of them would leave
+ * the other pointing at a dead address.
  */
 describe('outbound links: sources and offices', () => {
   const official = (url: string) => {
@@ -237,26 +239,38 @@ describe('outbound links: sources and offices', () => {
   });
 
   for (const slug of PROGRAMS) {
-    it(`${slug}: the Spanish rows are the English rows — same order, office and link`, () => {
+    it(`${slug}: the Spanish rows are the English rows — same order, same office`, () => {
       const a = svc(en, slug)?.offices;
       const b = svc(es, slug)?.offices;
-      expect(b?.rows.map((r) => [r.office, r.url])).toEqual(a?.rows.map((r) => [r.office, r.url]));
+      expect(b?.rows.map((r) => r.office)).toEqual(a?.rows.map((r) => r.office));
       expect(b?.forms.url).toBe(a?.forms.url);
     });
 
     for (const [lang, c] of bundles) {
-      it(`${slug} (${lang}) names each city once, and every link is an outside https page`, () => {
+      it(`${slug} (${lang}) names each city once, and links one outside https page: the forms`, () => {
         const o = svc(c, slug)?.offices;
         const cities = o?.rows.map((r) => r.city) ?? [];
         expect(cities.length).toBeGreaterThan(0);
         expect(new Set(cities).size).toBe(cities.length);
-        // A row may lose its link (it then prints as text), never its office.
+        // A ROW IS TEXT: a city, its office, and nothing else. No address in
+        // any form — not a `url` put back, not one typed into a name.
         for (const r of o?.rows ?? []) {
+          expect(Object.keys(r).sort()).toEqual(['city', 'office']);
           expect(r.office.length).toBeGreaterThan(0);
-          if (r.url) expect(official(r.url)).toBe(true);
+          expect(`${r.city} ${r.office}`).not.toMatch(/https?:|www\.|\.(?:gov|com|org)\b/i);
         }
         expect(o && official(o.forms.url)).toBe(true);
         expect(o?.checked).toBe(lang === 'es' ? officeLinksCheckedEs : officeLinksChecked);
+      });
+
+      // The rows were links, and the lede said so ("each row opens that
+      // office's own page, in a new tab"). A sentence that promises a link
+      // the page does not have is worse than no sentence.
+      it(`${slug} (${lang}) the block promises no link from a row`, () => {
+        const o = svc(c, slug)?.offices;
+        const text = [o?.title, o?.lede, o?.note].join(' ');
+        expect(text).not.toMatch(/\blinks?\b|\btab\b|\bopens?\b|\bclick|enlace|pestaña|\babre\b|\bclic\b/i);
+        expect(c.ui.linksChecked).not.toMatch(/\blinks?\b|enlace/i);
       });
 
       // The owner's decision: nowhere does the site say who signs which
@@ -269,6 +283,67 @@ describe('outbound links: sources and offices', () => {
       });
     }
   }
+});
+
+/**
+ * The offices under "Who sent your notice?" are text: the rows were links to
+ * each city's page until the on-page check counted thirteen of them as
+ * broken (city websites turn crawlers away), and the decision was to keep
+ * the names and drop the links. The addresses each name was read on are a
+ * RECORD, in office-pages.ts — the pages somebody opens to check a name
+ * again. Two things can go wrong from here, and neither would show:
+ *   • the record drifts from the list (a city added to one and not to the
+ *     other), so a name has no page to be checked against;
+ *   • an address finds its way back into the content. The content bundle is
+ *     sent to the browser with every page that hands a service to a client
+ *     component, so an address in it travels with the page, linked or not.
+ */
+describe('office names: where each was read is a record, not content', () => {
+  for (const slug of PROGRAMS) {
+    it(`${slug}: one recorded page per office, in the order of the list`, () => {
+      const cities = svc(en, slug)?.offices?.rows.map((r) => r.city);
+      expect(officePages[slug].map((p) => p.city)).toEqual(cities);
+    });
+
+    it(`${slug}: every recorded page is an outside https page, and none is listed twice`, () => {
+      const pages = officePages[slug].map((p) => p.page);
+      expect(new Set(pages).size).toBe(pages.length);
+      for (const page of pages) {
+        const u = new URL(page);
+        expect(u.protocol).toBe('https:');
+        expect(company.url).not.toContain(u.hostname);
+      }
+    });
+  }
+
+  it('the record covers the two county programs and nothing else', () => {
+    expect(Object.keys(officePages)).toEqual(PROGRAMS);
+  });
+
+  // The date the page prints under the list is the day the record was read.
+  it('the record was read on the day the page says the names were checked', () => {
+    expect(officePagesRead).toBe(officeLinksCheckedISO);
+  });
+
+  it('no city or town website is anywhere in the content, in either language', () => {
+    // What the site does link: the county-level `forms` page of each program
+    // (Miami-Dade's is also where the unincorporated area's office was read).
+    const linked = new Set(
+      PROGRAMS.flatMap((slug) => [svc(en, slug)?.offices?.forms.url, svc(es, slug)?.offices?.forms.url]).map(
+        (url) => new URL(url ?? '').hostname,
+      ),
+    );
+    const hosts = [
+      ...new Set(
+        Object.values(officePages)
+          .flat()
+          .map((p) => new URL(p.page).hostname),
+      ),
+    ].filter((host) => !linked.has(host));
+    expect(hosts.length).toBeGreaterThan(20);
+    const content = JSON.stringify([en, es]);
+    expect(hosts.filter((host) => content.includes(host.replace(/^www\./, '')))).toEqual([]);
+  });
 });
 
 

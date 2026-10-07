@@ -244,6 +244,150 @@ describe('links: the text of a link is the name of where it goes', () => {
   }
 });
 
+/**
+ * WHERE THE SITE LINKS OUT, as a list of hosts.
+ *
+ * The two county-program pages linked each city's building office under "Who
+ * sent your notice?" — twenty-four city and town websites. Those sites turn
+ * crawlers away (a 403, or no answer), differently on every crawl: the
+ * on-page check reported six of the links as broken, then thirteen, while
+ * all of them opened in a browser. The rows are text now, and the site
+ * links only what answers every visitor the same way: the two counties, the
+ * State, the publisher of the county code, and WhatsApp.
+ *
+ * Adding a host here is a decision, not a fix for a red test: a new
+ * outbound link is a new page somebody has to keep opening, and a city's or
+ * a town's website is never one of them.
+ */
+describe('links out: the hosts the site may link', () => {
+  const MAY_LINK = [
+    'api.whatsapp.com', // "Send the notice by WhatsApp" (ReachRow)
+    'library.municode.com', // Miami-Dade's timing row: the county code
+    'www.broward.org', // Broward's timing row and forms: the Board of Rules and Appeals
+    'www.leg.state.fl.us', // the milestone page's timing row: the statute
+    'www.miamidade.gov', // Miami-Dade's forms: the county's recertification page
+    'www.myfloridalicense.com', // "Verify with the Florida DBPR"
+  ];
+  const out = (html: string) =>
+    links(html)
+      .map((a) => a.href.replace(/&amp;/g, '&'))
+      .filter((href) => /^https?:/.test(href))
+      .map((href) => new URL(href))
+      .filter((u) => !getContent('en').company.url.includes(u.hostname));
+
+  it('every outbound link on every page, in both languages, goes to one of six hosts', () => {
+    const hosts = new Set<string>();
+    for (const { html } of pages.values()) for (const u of out(html)) hosts.add(u.hostname);
+    expect([...hosts].sort()).toEqual(MAY_LINK);
+  });
+
+  it('every one of them is https', () => {
+    for (const { lang, path, html } of pages.values()) {
+      for (const u of out(html)) expect(u.protocol, `${lang} ${path}: ${u.href}`).toBe('https:');
+    }
+  });
+
+  for (const lang of LANGS) {
+    for (const slug of PROGRAMS) {
+      const { html } = pages.get(`${lang} /services/${slug}`)!;
+      const o = getContent(lang).services.find((s) => s.slug === slug)!.offices!;
+      const list = html.match(/<ul class="mp-offices">([\s\S]*?)<\/ul>/)?.[1] ?? '';
+
+      it(`${slug} (${lang}): each office is a row of text — the city, then its office — and none is a link`, () => {
+        const rows = [...list.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
+        expect(rows).toEqual(o.rows.map((r) => text(esc(`${r.city} ${r.office}`))));
+        expect(list).not.toMatch(/<a\b/);
+        expect(list).not.toMatch(/href=/);
+      });
+
+      // What is left to tap under the list: the county-level page the forms
+      // are published on, named by the authority and what is on it.
+      it(`${slug} (${lang}): the one link under the list is the forms page`, () => {
+        const foot = html.match(/<div class="mp-offices__foot">([\s\S]*?)<\/div>/)?.[1] ?? '';
+        expect(links(foot).map((a) => [a.href, a.text])).toEqual([[esc(o.forms.url), text(esc(o.forms.label))]]);
+      });
+    }
+  }
+});
+
+/**
+ * HOW MANY HEADINGS, AND IN WHAT ORDER.
+ *
+ * The same on-page check flagged the two county-program pages, in both
+ * languages, for "too many headings": 32 each. Nine of the 32 were labels
+ * set in a heading tag — six step names, the "Next step" box, the
+ * jurisdiction on its card, a hidden h2 over three links. They are plain
+ * elements now (ServiceDetailView says which), and every service page went
+ * down with them, since the template is shared.
+ *
+ * The page that passed the check carried 23, so that is the ceiling here. A
+ * new question is a new h3: when this fails, fold a question into another
+ * or take a label out of a heading tag — do not raise the number.
+ */
+describe('service pages: headings are sections, and there are few enough of them', () => {
+  const MOST = 23;
+  const heads = (html: string) =>
+    [...html.matchAll(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/g)].map((m) => ({
+      level: Number(m[1]),
+      cls: attr(m[2], 'class') ?? '',
+      text: text(m[3]),
+    }));
+
+  for (const lang of LANGS) {
+    for (const s of getContent(lang).services) {
+      const { html } = pages.get(`${lang} /services/${s.slug}`)!;
+      const main = html.match(/<main\b[\s\S]*<\/main>/)![0];
+      const all = heads(html);
+
+      it(`${s.slug} (${lang}): no more than ${MOST} headings on the whole page`, () => {
+        expect(all.length, all.map((x) => `h${x.level} ${x.text}`).join('\n')).toBeLessThanOrEqual(MOST);
+      });
+
+      // One h1; an h2 opens every section; an h3 only ever follows an h2 or
+      // another h3. No level is skipped and nothing deeper is used.
+      it(`${s.slug} (${lang}): one h1, then h2 sections, with h3 only inside one`, () => {
+        const levels = heads(main).map((x) => x.level);
+        expect(levels.filter((n) => n === 1)).toHaveLength(1);
+        expect(levels[0]).toBe(1);
+        expect(Math.max(...levels)).toBeLessThanOrEqual(3);
+        levels.forEach((n, i) => {
+          if (i > 0) expect(n - levels[i - 1], `heading ${i + 1} of ${levels.join(' ')}`).toBeLessThanOrEqual(1);
+        });
+        for (const x of heads(main)) expect(x.text, `empty h${x.level}`).not.toBe('');
+      });
+
+      it(`${s.slug} (${lang}): a label is not a heading — steps, "Next step", the jurisdiction, related services`, () => {
+        const u = getContent(lang).ui;
+        // Each is still printed, in the element its class draws…
+        for (const p of s.process) expect(main).toContain(`<p class="mp-step__title">${esc(p.step)}</p>`);
+        expect(main).toContain(`<p class="mp-callout__label">${esc(u.nextStep)}</p>`);
+        for (const row of s.timing?.rows ?? []) {
+          expect(main).toContain(`<p class="mp-juris__title">${esc(row.jurisdiction)}</p>`);
+        }
+        expect(main).toContain(`<nav class="mp-more" aria-label="${esc(u.relatedServices)}">`);
+        // …and none of them is in the outline.
+        const outline = heads(main).map((x) => x.text);
+        for (const label of [
+          ...s.process.map((p) => p.step),
+          u.nextStep,
+          u.relatedServices,
+          ...(s.timing?.rows ?? []).map((r) => r.jurisdiction),
+        ]) {
+          expect(outline, label).not.toContain(text(esc(label)));
+        }
+      });
+
+      // The questions are what people type into a search box: each one
+      // stays a heading, under the section's own h2.
+      it(`${s.slug} (${lang}): every question is still an h3`, () => {
+        const questions = all.filter((x) => x.cls === 'mp-faq__q');
+        expect(questions.map((x) => x.text)).toEqual((s.faq ?? []).map((f) => text(esc(f.q))));
+        for (const q of questions) expect(q.level).toBe(3);
+      });
+    }
+  }
+});
+
 describe('county program pages: no paragraph is printed twice', () => {
   for (const lang of LANGS) {
     for (const slug of PROGRAMS) {

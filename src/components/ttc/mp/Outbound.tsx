@@ -2,10 +2,16 @@ import React from 'react';
 
 /**
  * The links that leave the site for an authority's own page: the source of a
- * timing row, a city's building office under "Who sent your notice?", the
- * page a county publishes its forms on. Until these, the two program pages
- * had no outbound link at all: every number named its authority and gave the
- * reader no way to open it.
+ * timing row, and the page a county-level authority publishes its forms on.
+ * Until these, the two program pages had no outbound link at all: every
+ * number named its authority and gave the reader no way to open it.
+ *
+ * COUNTY, STATE AND CODE-PUBLISHER PAGES ONLY. The city and town building
+ * offices under "Who sent your notice?" were links too, and are text now:
+ * those websites answer crawlers with a 403 or not at all, and the on-page
+ * check counted thirteen of them as broken. Never hand this component a
+ * city's or a town's address — pages.test.ts lists the hosts the site may
+ * link, and fails on any other.
  *
  * Always a new tab, so the page with the deadline stays open behind it, and
  * always `noopener noreferrer`. THE LINK TEXT NAMES WHERE IT GOES — the
