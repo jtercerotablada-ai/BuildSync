@@ -1693,6 +1693,22 @@ export const es: SiteContent = {
     titleLines: ['Cuéntenos de su edificio.', 'Le enviamos una propuesta.'],
     accentWord: 'propuesta.',
     sub: 'Describa el proyecto, el edificio o la notificación que recibió — y adjunte lo que ya tenga. El ingeniero lee cada solicitud y responde con preguntas o con una propuesta escrita.',
+    /* Mirror of `before` in site.ts: the section under the form, written for
+       someone about to write. "Carta", the word the buttons and the form use
+       for the notice. No number, no phone number, no price — see the EN
+       comment. */
+    before: {
+      eyebrow: 'Antes de escribirnos',
+      title: 'Qué enviar y qué pasa después.',
+      items: [
+        { k: 'Si ya tiene la carta', v: 'Para empezar basta una foto de la carta tomada con el teléfono. Adjúntela en el formulario de arriba o envíela por WhatsApp; no hace falta escanearla ni copiar lo que dice. Lo primero que buscamos es qué oficina la envió y qué fechas indica.' },
+        { k: 'Si todavía no le ha llegado', v: 'Envíe la dirección del edificio y un dato: en Miami-Dade, el año de construcción; en Broward, el año del certificado de ocupación. Cada condado cuenta la antigüedad del edificio a partir de ese registro, y con él podemos decirle qué le corresponde al suyo antes de que llegue la carta.' },
+        { k: 'Para cualquier otro edificio o proyecto', v: 'Díganos qué edificio es, dónde está y qué necesita: una evaluación, el diseño de una reparación, la estructura de un edificio nuevo o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio.' },
+        { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official (el funcionario de construcción). Después le responde con preguntas o con una propuesta escrita, que dice qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta. Nada comienza hasta que usted la acepte. Pedir la propuesta es gratis, y normalmente respondemos en menos de dos horas.' },
+        { k: 'Por teléfono, WhatsApp o correo', v: 'El formulario no es la única vía. Llame al número que aparece en esta página, escriba a ese mismo número por WhatsApp y envíe por ahí la foto de la carta, o ponga los mismos datos en un correo electrónico.' },
+        { k: 'Dónde y en qué idioma', v: 'Trabajamos en Miami-Dade y Broward, en todas las ciudades de ambos condados: de Miami, Hialeah y Coral Gables a Fort Lauderdale, Hollywood y Pompano Beach. Indíquenos la ciudad, o si el edificio está fuera de los límites de una ciudad: de eso depende qué oficina envía la carta y recibe el informe. Trabajamos en español y en inglés; escríbanos en el idioma que le resulte más cómodo.' },
+      ],
+    },
   },
 
   serviceArea: {
@@ -1730,20 +1746,40 @@ export const es: SiteContent = {
       { href: '/credits', label: 'Créditos de imágenes' },
     ],
     /* `title` is the short name (breadcrumb, section label, footer); `h1`
-       says what the policy covers. See the EN comment in site.ts. */
+       says what the policy covers. A section's `p` is one paragraph or a
+       list of them, and `contact` leads to the e-mail address under
+       "Contacto". See the EN comment in site.ts — above all what may be
+       written here (only what the code does) and what may not (anything
+       that is the owner's legal decision). */
     privacy: {
       title: 'Política de privacidad',
       h1: 'Política de privacidad de este sitio web',
       sub: 'Qué recopilamos a través de este sitio web, por qué lo recopilamos y qué hacemos con ello.',
       sections: [
-        { h: 'Qué recopilamos', p: 'La única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta — y, cuando envía una notificación, su fecha y el número de pisos si usted los indica. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.' },
+        { h: 'Qué recopilamos', p: [
+          'La única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta — y, cuando envía una notificación, su fecha y el número de pisos si usted los indica. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.',
+          'El formulario no pide datos de pago, números de identificación ni contraseñas, y una propuesta no los necesita. Le pedimos que no los incluya en la descripción ni en los archivos que adjunte.',
+        ] },
         { h: 'Por qué la recopilamos', p: 'La usamos para responder a su solicitud y para entender el alcance de ingeniería sobre el que pregunta. No la vendemos, alquilamos ni compartimos con fines publicitarios.' },
-        { h: 'Cómo se almacena', p: 'Las solicitudes se guardan en nuestra base de datos de proyectos y los adjuntos en almacenamiento de archivos en la nube, en una dirección que nunca se publica ni se enlaza; se envía una notificación por correo electrónico a la oficina a través de un proveedor de correo transaccional para que veamos su mensaje, y se le envía una confirmación a usted. El acceso se limita a las personas que lo necesitan para responderle.' },
-        { h: 'Cuánto tiempo la conservamos', p: 'Las solicitudes se conservan mientras sean comercialmente relevantes y durante el tiempo que requiera cualquier encargo resultante. Puede pedirnos que eliminemos su solicitud y sus adjuntos en cualquier momento.' },
-        { h: 'Cookies y analítica', p: 'Este sitio no instala cookies publicitarias ni de seguimiento. El área autenticada de gestión de proyectos de este dominio puede usar cookies para el inicio de sesión; esas son estrictamente necesarias para mantener una sesión activa y no se usan para perfilar a los visitantes del sitio público.' },
-        { h: 'Sus opciones', p: 'Puede preguntarnos qué información tenemos sobre usted, pedir que se corrija o pedir que se elimine. Escriba a la dirección indicada abajo y le responderemos.' },
+        { h: 'Cómo se almacena', p: [
+          'Las solicitudes se guardan en nuestra base de datos de proyectos y los adjuntos en almacenamiento de archivos en la nube, en una dirección que nunca se publica ni se enlaza; se envía una notificación por correo electrónico a la oficina a través de un proveedor de correo transaccional para que veamos su mensaje, y se le envía una confirmación a usted. El acceso se limita a las personas que lo necesitan para responderle.',
+          'La notificación que llega a la oficina contiene el texto de su solicitud y un enlace a cada archivo, no los archivos mismos. La confirmación que usted recibe indica una referencia y el servicio que eligió; nunca repite lo que usted escribió.',
+          'Para evitar el abuso del formulario, el servidor cuenta cuántas solicitudes llegan desde una misma dirección de internet (IP) en un periodo corto. Ese conteo se mantiene en memoria y no se guarda con su solicitud. El sitio se entrega a través de una conexión cifrada (HTTPS).',
+        ] },
+        /* Accurate to CONTACT_BLOB_ACCESS = 'public': the address is secret,
+           not locked. See the EN comment. */
+        { h: 'Los archivos que adjunta', p: 'Un archivo se sube en el momento en que usted lo agrega al formulario, antes de enviar la solicitud. Se guarda en una dirección larga y aleatoria que no se publica ni se enlaza en ninguna parte. Esa dirección no está protegida con contraseña, por lo que no la damos a conocer: la oficina abre los adjuntos desde su propia bandeja, con sesión iniciada. Si usted quita un archivo, o sale de la página sin enviar, la copia ya subida no queda unida a ninguna solicitud; escríbanos si desea que la eliminemos.' },
+        { h: 'Cuánto tiempo la conservamos', p: 'Las solicitudes se conservan mientras sean comercialmente relevantes y durante el tiempo que requiera cualquier encargo resultante. Puede pedirnos que eliminemos su solicitud y sus adjuntos en cualquier momento. Cuando se elimina una solicitud, sus archivos adjuntos se eliminan del almacenamiento junto con ella.' },
+        { h: 'Cookies y analítica', p: [
+          'Las páginas públicas de este sitio no instalan cookies ni ejecutan scripts de analítica, de publicidad o de redes sociales. Sus scripts, tipografías, fotografías y videos se sirven desde la propia dirección de este sitio, y el formulario no usa ningún servicio externo de verificación (CAPTCHA).',
+          'Una sola preferencia se guarda en su navegador y nunca se nos envía: si usted pausa el video de fondo, el sitio lo recuerda para que siga en pausa en la página siguiente.',
+          'El área autenticada de gestión de proyectos de este dominio puede usar cookies para el inicio de sesión; esas son estrictamente necesarias para mantener una sesión activa y no se usan para perfilar a los visitantes del sitio público.',
+        ] },
+        { h: 'Enlaces que salen de este sitio', p: 'Llamarnos, escribirnos por WhatsApp y seguir un enlace a una oficina del condado o de la ciudad, a la búsqueda de licencias del estado o a otra fuente oficial son cosas que ocurren fuera de este sitio web. Lo que usted envíe o haga allí lo gestiona ese servicio conforme a sus propias condiciones de privacidad, que no controlamos. El enlace de WhatsApp abre un chat con una primera línea ya escrita; nada se envía hasta que usted lo envíe.' },
+        { h: 'Sus opciones', p: 'Puede preguntarnos qué información tenemos sobre usted, pedir que se corrija o pedir que se elimine. Escriba a la dirección indicada abajo y le responderemos. Indíquenos el correo electrónico que usó en el formulario y, si la conserva, la referencia de la confirmación: así encontramos su solicitud.' },
         { h: 'Cambios', p: 'Si esta política cambia, la actualizaremos en esta página.' },
       ],
+      contact: 'Las preguntas sobre esta política, o una solicitud sobre su propia información, se dirigen a',
     },
     terms: {
       title: 'Términos de uso',
@@ -1751,12 +1787,19 @@ export const es: SiteContent = {
       sub: 'La base sobre la que se ofrece la información publicada aquí.',
       sections: [
         { h: 'Información general únicamente', p: 'El contenido de este sitio web describe servicios en términos generales. No es una opinión de ingeniería, una recomendación para un edificio específico ni un sustituto de una evaluación en sitio. Nada de lo aquí publicado debe usarse como base para una decisión de construcción, reparación o cumplimiento.' },
-        { h: 'Sin relación profesional', p: 'Visitar este sitio, leerlo o enviar el formulario de solicitud de propuesta no crea una relación profesional de ingeniería. Un encargo comienza solo cuando el alcance, los honorarios y los términos se acuerdan por escrito.' },
-        { h: 'Resultados regulatorios', p: 'Los requisitos de inspección, recertificación y permisos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Las edades y los plazos publicados aquí fueron verificados en la fecha indicada junto a ellos y pueden cambiar. Las descripciones de cualquier proceso en este sitio son secuencias típicas, no garantías. No prometemos la aprobación de ningún departamento de construcción ni autoridad revisora.' },
+        { h: 'Sin relación profesional', p: [
+          'Visitar este sitio, leerlo o enviar el formulario de solicitud de propuesta no crea una relación profesional de ingeniería. Un encargo comienza solo cuando el alcance, los honorarios y los términos se acuerdan por escrito.',
+          'Lo mismo vale para una llamada, un correo electrónico o un mensaje de WhatsApp, y para una notificación enviada por cualquiera de esos medios: la leemos y respondemos, y nada está en marcha hasta que usted haya aceptado una propuesta escrita. Pedir una propuesta es gratis y no le compromete a nada.',
+        ] },
+        { h: 'Notificaciones y plazos', p: 'Enviarnos una notificación no detiene ni amplía el plazo que indica. Solo la oficina que la emitió puede conceder más tiempo. Si algo de este sitio difiere de la carta que usted recibió, guíese por la carta y por la oficina que la envió.' },
+        { h: 'Resultados regulatorios', p: 'Los requisitos de inspección, recertificación y permisos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Las edades y los plazos publicados aquí fueron verificados en la fecha indicada junto a ellos y pueden cambiar. Cada tabla nombra la oficina o el código de donde provienen sus cifras, para que usted pueda leer la fuente directamente. Las descripciones de cualquier proceso en este sitio son secuencias típicas, no garantías. No prometemos la aprobación de ningún departamento de construcción ni autoridad revisora.' },
         { h: 'Documentos sellados', p: 'Donde se requiera un documento firmado y sellado, se emite como entregable formal bajo un alcance de trabajo acordado. El contenido de este sitio web nunca es un entregable sellado.' },
-        { h: 'Exactitud y disponibilidad', p: 'Mantenemos este sitio actualizado, pero no garantizamos que cada afirmación sea completa o esté libre de errores, ni que el sitio esté siempre disponible.' },
+        { h: 'Exactitud y disponibilidad', p: 'Mantenemos este sitio actualizado, pero no garantizamos que cada afirmación sea completa o esté libre de errores, ni que el sitio esté siempre disponible. El tiempo de respuesta que se menciona en este sitio es el habitual, no un compromiso.' },
+        { h: 'Enlaces a otros sitios', p: 'Este sitio enlaza a los departamentos de construcción de los condados y las ciudades, a la búsqueda de licencias del DBPR de Florida, a leyes y códigos, y a WhatsApp. Esas páginas pertenecen a quien las publica y están fuera de nuestro control: pueden cambiar o trasladarse a otra dirección, y de lo que dicen y de cómo tratan su información responde quien las publica. Debajo de cada lista de oficinas indicamos la fecha en que se abrieron los enlaces por última vez.' },
+        { h: 'Fotografías y ejemplos', p: 'Las fotografías y los videos de este sitio son imágenes con licencia que muestran tipos de edificios y de trabajos. Ninguna muestra un proyecto de la firma ni un edificio que haya recibido una notificación. Los perfiles de Trabajos típicos describen el trabajo que la firma realiza; no son proyectos pasados.' },
         { h: 'Propiedad intelectual', p: 'Los textos, el nombre y el logotipo de la firma que aparecen en este sitio pertenecen a Tercero Tablada Civil and Structural Engineering Inc. y no pueden reproducirse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
       ],
+      contact: 'Las preguntas sobre estos términos se dirigen a',
     },
     contactHeading: 'Contacto',
   },

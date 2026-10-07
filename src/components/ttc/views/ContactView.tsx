@@ -4,7 +4,6 @@ import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactForm } from '@/components/ttc/mp/ContactForm';
-import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -24,12 +23,21 @@ import { whatsappHref } from '@/components/ttc/mp/ReachRow';
  * (ContactForm), and mp.css then does the same at every width and drops the
  * hero's photo band on a phone: the upload that visitor was promised has to
  * be the first thing under the lede.
+ *
+ * Under the form: "Before you write" (`contactPage.before`) — what to send,
+ * what comes back and the other ways in, for someone who has not pressed
+ * Send yet. It is AFTER the form on purpose: nothing may push the first
+ * field down a phone screen. The home page's service-area band used to sit
+ * here, word for word; it stays on the home page, and this page keeps the
+ * two counties and their cities in a sentence of its own. The layout is the
+ * About page's "Principles" (`mp-split` + `mp-pillars`), so it adds no CSS.
  */
 export function ContactView({ lang, presetService }: { lang: Lang; presetService?: string }) {
   const c = getContent(lang);
   const waHref = whatsappHref(c);
   const p = c.contactPage;
   const u = c.ui.contactPage;
+  const b = p.before;
   const navLabel = c.primaryNav[4].label;
 
   return (
@@ -136,7 +144,28 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
         </div>
       </section>
 
-      <SouthFloridaMap n="02" />
+      <section className="mp-section mp-surface--concrete" aria-labelledby="mp-before-title">
+        <div className="mp-shell">
+          <SectionHeading n="02" label={b.eyebrow} />
+          <div className="mp-split">
+            <Reveal>
+              <h2 id="mp-before-title" className="mp-split__title">
+                {b.title}
+              </h2>
+            </Reveal>
+            <Reveal delay={0.05}>
+              <ul className="mp-pillars">
+                {b.items.map((it) => (
+                  <li key={it.k}>
+                    <b>{it.k}</b>
+                    <span>{it.v}</span>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </div>
+        </div>
+      </section>
     </>
   );
 }
