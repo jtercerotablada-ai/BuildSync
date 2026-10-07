@@ -7,6 +7,7 @@ import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
 import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { HomeAddress } from './meta';
 
 /**
  * Home: eight sections, each with one job. Existing buildings come first —
@@ -34,10 +35,15 @@ import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
  * Rhythm: dark · paper · concrete · graphite · paper · concrete · paper ·
  * dark close. Every section but one reads `lang` from the URL; PartnerSection
  * is a server component and takes it as a prop.
+ *
+ * Before the sections: HomeAddress, which draws nothing. It is the page's
+ * canonical, hreflang and og:url, printed here because Next's metadata
+ * cannot print the home page's address with its trailing slash (meta.tsx).
  */
 export function HomeView({ lang }: { lang: Lang }) {
   return (
     <>
+      <HomeAddress lang={lang} />
       <Hero />
       <ProgramSection slug="building-recertification" n="01" surface="paper" />
       <ProgramSection slug="broward-bsip" n="02" surface="concrete" mirrored />

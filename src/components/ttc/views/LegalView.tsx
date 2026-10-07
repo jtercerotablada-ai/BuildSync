@@ -4,6 +4,15 @@ import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { SectionHeading } from '@/components/ttc/mp/primitives';
 
+/**
+ * The privacy policy and the terms of use.
+ *
+ * Two names for each page, on purpose (`legal` in site.ts): `doc.h1` is the
+ * headline, which says what the policy covers ("Privacy Policy for This
+ * Website"), and `doc.title` is the short name the breadcrumb, the section
+ * label and the footer link use. The short name was the H1 too, and at 12 to
+ * 15 characters the on-page check listed it as too short to describe a page.
+ */
 export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms' }) {
   const c = getContent(lang);
   const doc = c.legal[kind];
@@ -12,7 +21,7 @@ export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms
       <PageHero
         eyebrow={c.ui.legalPages.legal}
         crumbs={[{ href: '/', label: c.ui.home }, { label: doc.title }]}
-        titleLines={[doc.title]}
+        titleLines={[doc.h1]}
         sub={doc.sub}
       />
       {/* Standard shell, so the body starts on the same left edge as the

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import sitemap from '@/app/sitemap';
 import { getContent } from '@/lib/ttc/content';
-import { LANGS, localePath, type Lang } from '@/lib/ttc/i18n';
+import { LANGS, hreflangFor, localePath, type Lang } from '@/lib/ttc/i18n';
 import {
   DESCRIPTION_LIMIT_PX,
   TITLE_BUDGET_PX,
@@ -13,12 +13,16 @@ import {
   titlePx,
   unmeasured,
 } from '@/lib/ttc/serp';
-import { company } from '@/lib/ttc/site';
+import { absoluteUrl, company } from '@/lib/ttc/site';
 import { AboutView } from './AboutView';
+import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
+import { HomeView } from './HomeView';
+import { LegalView } from './LegalView';
+import { ServiceDetailView } from './ServiceDetailView';
 import { ServicesView } from './ServicesView';
 import { WorkView } from './WorkView';
-import { brandedTitle, pageMeta } from './meta';
+import { HomeAddress, brandedTitle, pageMeta } from './meta';
 import { SEO } from './seo';
 
 /**
@@ -50,6 +54,9 @@ const STATIC = [
 ] as const;
 
 type Page = {
+  /** The page's canonical (English) path and its language. */
+  path: string;
+  lang: Lang;
   /** The address, as the sitemap prints it. */
   url: string;
   /** The title as written in seo.ts / site.ts — no firm in it. */
@@ -69,9 +76,10 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     ),
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
-    const here = localePath(path, lang);
     return {
-      url: `${company.url}${here === '/' ? '' : here}`,
+      path,
+      lang,
+      url: absoluteUrl(localePath(path, lang)),
       written: seo.title,
       title: (meta.title as { absolute: string }).absolute,
       ogTitle: String(meta.openGraph?.title),
@@ -206,21 +214,212 @@ describe('titles and descriptions: every page in the sitemap', () => {
 });
 
 /**
- * The four pages whose H1 was a slogan. The H1 now names the subject and the
- * place, and the slogan opens the line under it.
+ * How each address is declared: the canonical, the hreflang set, og:url and
+ * the sitemap must print one string per page.
+ *
+ * The second run of the owner's check (October 7, 2026) listed one internal
+ * redirect: `https://ttcivilstructural.com` → `https://ttcivilstructural.com/`,
+ * "linked via canonical link, alternate link". Next's metadata prints the
+ * root path as the bare origin whatever it is handed, so the two home pages
+ * print their own address (HomeAddress, meta.tsx) and `pageMeta` leaves it
+ * out for them — and only for them.
+ */
+describe('addresses: one string per page, and the home page keeps its slash', () => {
+  const HOME = `${company.url}/`;
+  const attr = (tag: string, name: string) => tag.match(new RegExp(` ${name}="([^"]*)"`))?.[1];
+  const tags = (html: string, re: RegExp) => html.match(re) ?? [];
+
+  it('the bare origin is never an address: the home page is the origin and a slash', () => {
+    expect(absoluteUrl('/')).toBe(HOME);
+    expect(absoluteUrl('/es')).toBe(`${company.url}/es`);
+    for (const e of sitemap()) {
+      expect(e.url).not.toBe(company.url);
+      for (const href of Object.values(e.alternates?.languages ?? {})) {
+        expect(href).not.toBe(company.url);
+      }
+    }
+  });
+
+  it('the sitemap lists the home page with its slash, and points en and x-default at it', () => {
+    const entries = sitemap().filter((e) => e.url === HOME || e.url === `${company.url}/es`);
+    expect(entries.map((e) => e.url)).toEqual([HOME, `${company.url}/es`]);
+    for (const e of entries) {
+      expect(e.alternates?.languages).toEqual({
+        en: HOME,
+        es: `${company.url}/es`,
+        'x-default': HOME,
+      });
+    }
+  });
+
+  for (const lang of LANGS) {
+    const here = absoluteUrl(localePath('/', lang));
+    const html = renderToStaticMarkup(h(HomeAddress, { lang }));
+
+    it(`${here}: one canonical, its own address`, () => {
+      const canonical = tags(html, /<link\b[^>]*rel="canonical"[^>]*>/g);
+      expect(canonical.map((t) => attr(t, 'href'))).toEqual([here]);
+    });
+
+    // The same three, in the same order, as every other page (hreflangFor)
+    // and as this page's sitemap entry.
+    it(`${here}: one set of alternates, the ones the sitemap lists for it`, () => {
+      const alternates = tags(html, /<link\b[^>]*rel="alternate"[^>]*>/g);
+      const printed = Object.fromEntries(
+        alternates.map((t) => [attr(t, 'hrefLang'), attr(t, 'href')]),
+      );
+      expect(alternates).toHaveLength(Object.keys(hreflangFor('/')).length);
+      expect(printed).toEqual(sitemap().find((e) => e.url === here)?.alternates?.languages);
+    });
+
+    it(`${here}: og:url is the canonical`, () => {
+      const og = tags(html, /<meta\b[^>]*property="og:url"[^>]*>/g);
+      expect(og.map((t) => attr(t, 'content'))).toEqual([here]);
+    });
+
+    // Both at once would be two canonicals in one <head>.
+    it(`${here}: the metadata declares none of the three`, () => {
+      const meta = pageMeta(lang, '/', SEO[lang].home);
+      expect(meta.alternates).toBeUndefined();
+      expect(meta.openGraph).not.toHaveProperty('url');
+    });
+  }
+
+  // HomeView is the only view that prints HomeAddress, and prints it once:
+  // on any other page the metadata's own canonical would be there too.
+  it('only the two home pages print a canonical themselves, and they print one', () => {
+    for (const r of rendered) {
+      const printed = r.html.match(/<link\b[^>]*rel="canonical"/g) ?? [];
+      expect(printed, localePath(r.path, r.lang)).toHaveLength(r.path === '/' ? 1 : 0);
+    }
+  });
+
+  it('every other page declares its address through the metadata', () => {
+    for (const p of pages.filter((x) => x.path !== '/')) {
+      const seo = { title: p.written, description: p.description };
+      const meta = pageMeta(p.lang, p.path, seo);
+      const here = localePath(p.path, p.lang);
+      expect(meta.alternates, p.url).toEqual({ canonical: here, languages: hreflangFor(p.path) });
+      expect(meta.openGraph, p.url).toHaveProperty('url', here);
+      // What Next makes of the path — the sitemap's string.
+      expect(new URL(here, company.url).href, p.url).toBe(p.url);
+    }
+  });
+
+  // <link rel="author">. Next prints its url as written, and the (public)
+  // layout writes the bare origin; every page that goes through pageMeta
+  // replaces it.
+  it('the author link on every page is the home page, with its slash', () => {
+    for (const p of pages) {
+      const meta = pageMeta(p.lang, p.path, { title: p.written, description: p.description });
+      expect(meta.authors, p.url).toEqual([{ name: company.legalName, url: HOME }]);
+    }
+  });
+});
+
+/** A page's text, the way the check reads it: no tags, no scripts. */
+const text = (html: string) =>
+  html
+    .replace(/<(script|style)\b.*?<\/\1>/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+const words = (s: string) =>
+  (s.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{4,}/g) ?? []).map((w) => w.toLowerCase());
+
+/** Every page of the sitemap, as its route renders it (no header, no footer). */
+function views(lang: Lang): [path: string, view: ReactElement][] {
+  return [
+    ['/', h(HomeView, { lang })],
+    ['/services', h(ServicesView, { lang })],
+    ['/existing-buildings', h(ExistingView, { lang })],
+    ['/projects', h(WorkView, { lang })],
+    ['/about', h(AboutView, { lang })],
+    ['/contact', h(ContactView, { lang })],
+    ['/privacy', h(LegalView, { lang, kind: 'privacy' })],
+    ['/terms', h(LegalView, { lang, kind: 'terms' })],
+    ...getContent(lang).services.map(
+      (s): [string, ReactElement] => [
+        `/services/${s.slug}`,
+        h(ServiceDetailView, { lang, slug: s.slug }),
+      ],
+    ),
+  ];
+}
+
+type Rendered = { lang: Lang; path: string; html: string; h1s: string[]; h1Html: string; h1: string; rest: string };
+const rendered: Rendered[] = LANGS.flatMap((lang) =>
+  views(lang).map(([path, view]) => {
+    route.pathname = localePath(path, lang);
+    const html = renderToStaticMarkup(view);
+    const h1s: string[] = html.match(/<h1\b.*?<\/h1>/g) ?? [];
+    const h1Html = h1s[0] ?? '';
+    return {
+      lang,
+      path,
+      html,
+      h1s,
+      h1Html,
+      h1: text(h1Html),
+      rest: text(html.replace(/<h1\b.*?<\/h1>/g, ' ')),
+    };
+  }),
+);
+
+/**
+ * The H1 of EVERY page in the sitemap, in both languages.
  *
  * The check's own test for an H1 is literal: a word of the H1 that appears
  * nowhere else on the page is a word the page is not about ("accountable",
- * "Organized"). It knows no synonyms and no plurals, and neither does this.
- * The page is rendered without the header and the footer, so the test is a
- * little stricter than the check.
+ * "Organized"). It knows no synonyms and no plurals, and neither does this:
+ * "Condos" in an H1 is not answered by "condominiums" under it, nor
+ * "enviamos" by "responde". This ran on four pages until the second report
+ * (October 7, 2026) named two it did not cover — the milestone page and
+ * /es/contact — so it now runs on all of them. The page is rendered without
+ * the header and the footer, so the test is a little stricter than the
+ * check: "About" in the menu does not excuse an H1 that says "about".
  */
-describe('H1: the subject and the place, in words the page uses', () => {
-  const VIEWS: [path: string, key: (typeof STATIC)[number][1], view: (lang: Lang) => ReactElement][] = [
-    ['/services', 'services', (lang) => h(ServicesView, { lang })],
-    ['/existing-buildings', 'existing', (lang) => h(ExistingView, { lang })],
-    ['/about', 'about', (lang) => h(AboutView, { lang })],
-    ['/projects', 'work', (lang) => h(WorkView, { lang })],
+describe('H1: every page, in words the page uses', () => {
+  /* The shortest H1 the check let pass was 22 characters ("Política de
+     privacidad"); it reported 12, 14 and 15 ("Terms of Use", "Privacy
+     Policy", "Términos de uso") as too short to describe a page. Its limit
+     is somewhere in between, so 22 is the floor known to pass. */
+  const H1_MIN = 22;
+
+  it('reads the pages the sitemap lists, and no others', () => {
+    expect(rendered.map((r) => absoluteUrl(localePath(r.path, r.lang))).sort()).toEqual(
+      sitemap().map((e) => e.url).sort(),
+    );
+  });
+
+  for (const r of rendered) {
+    const name = localePath(r.path, r.lang);
+
+    it(`${name}: one H1, long enough to say what the page is — ${r.h1}`, () => {
+      expect(r.h1s).toHaveLength(1);
+      expect(r.h1.length).toBeGreaterThanOrEqual(H1_MIN);
+    });
+
+    it(`${name}: every word of the H1 is a word of the page`, () => {
+      const body = new Set(words(r.rest));
+      expect(words(r.h1).filter((w) => !body.has(w))).toEqual([]);
+    });
+  }
+});
+
+/**
+ * The four pages whose H1 was a slogan. The H1 now names the subject — and,
+ * on three of them, the place — and the slogan opens the line under it.
+ */
+describe('H1: the subject and the place, where a slogan used to be', () => {
+  const VIEWS: [path: string, key: (typeof STATIC)[number][1]][] = [
+    ['/services', 'services'],
+    ['/existing-buildings', 'existing'],
+    ['/about', 'about'],
+    ['/projects', 'work'],
   ];
   // What each page opened with before, word for word: it must still be read.
   const SLOGAN: Record<Lang, Record<string, string>> = {
@@ -238,41 +437,32 @@ describe('H1: the subject and the place, in words the page uses', () => {
     },
   };
   const PLACE = /Miami-Dade (and|y) Broward|South Florida|Sur de Florida/;
-
-  const text = (html: string) =>
-    html
-      .replace(/<(script|style)\b.*?<\/\1>/g, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&#x27;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/\s+/g, ' ')
-      .trim();
-  const words = (s: string) =>
-    (s.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{4,}/g) ?? []).map((w) => w.toLowerCase());
+  /* /projects names NO place, in its H1 or in its title. For half a day both
+     said "…in South Florida", and the second report listed /projects and the
+     home page as competing for those two words: the home page is the one
+     that should be found for them. /projects says what it holds — typical
+     engagements, by type of project — and keeps the place in its lede and
+     its Coverage fact. So this test asks the opposite of that page. */
+  const NO_PLACE = ['/projects'];
   // Capitals, dashes and the full stop are not a difference; "in" and "and"
   // are — a title is a label and an H1 is a sentence about the same thing.
   const letters = (s: string) => s.toLowerCase().replace(/[^a-z0-9áéíóúüñ]/g, '');
 
   for (const lang of LANGS) {
-    for (const [path, key, view] of VIEWS) {
-      route.pathname = localePath(path, lang);
-      const html = renderToStaticMarkup(view(lang));
-      const h1s: string[] = html.match(/<h1\b.*?<\/h1>/g) ?? [];
-      const h1Html = h1s[0] ?? '';
-      const h1 = text(h1Html);
-      const rest = text(html.replace(/<h1\b.*?<\/h1>/g, ' '));
+    for (const [path, key] of VIEWS) {
+      const { html, h1Html, h1 } = rendered.find((r) => r.lang === lang && r.path === path)!;
       const name = localePath(path, lang);
 
-      it(`${name}: one H1, and it names the place — ${h1}`, () => {
-        expect(h1s).toHaveLength(1);
-        expect(h1).toMatch(PLACE);
-      });
-
-      it(`${name}: every word of the H1 is a word of the page`, () => {
-        const body = new Set(words(rest));
-        expect(words(h1).filter((w) => !body.has(w))).toEqual([]);
-      });
+      if (NO_PLACE.includes(path)) {
+        it(`${name}: neither the H1 nor the title names the place — ${h1}`, () => {
+          expect(h1).not.toMatch(PLACE);
+          expect(SEO[lang][key].title).not.toMatch(PLACE);
+        });
+      } else {
+        it(`${name}: the H1 names the place — ${h1}`, () => {
+          expect(h1).toMatch(PLACE);
+        });
+      }
 
       it(`${name}: the H1 is not the page title over again`, () => {
         expect(letters(h1)).not.toBe(letters(SEO[lang][key].title));

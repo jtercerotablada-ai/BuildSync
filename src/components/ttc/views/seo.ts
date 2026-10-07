@@ -62,7 +62,12 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       // are not past jobs (see `engagements` in site.ts). No "Work —" in
       // front either: the page is named for what it holds, in its title as
       // in its nav label, until there are real case studies to show.
-      title: 'Typical Structural Engagements in South Florida',
+      // And NO PLACE, here or in the H1 (`workPage`): "…in South Florida" in
+      // both made the on-page check list this page and the home page as
+      // competing for those two words, and the home page is the one that
+      // should be found for them. What follows the colon are rows every
+      // profile on the page has. The description keeps the place.
+      title: 'Typical Structural Engagements: Scope, System, Deliverables',
       description:
         'Typical structural engagements in South Florida: building type, structural system, scope and deliverables for new and existing buildings.',
     },
@@ -107,8 +112,9 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     },
     work: {
       // "Trabajos típicos", the page's name in Spanish (site.es.ts). It used
-      // to open with "Proyectos", which the page does not show.
-      title: 'Trabajos típicos de ingeniería estructural — Sur de Florida',
+      // to open with "Proyectos", which the page does not show. No place,
+      // as in English: it is the home page's.
+      title: 'Trabajos típicos: alcance, sistema estructural y entregables',
       description:
         'Trabajos típicos de ingeniería estructural en el Sur de Florida: tipo de edificio, sistema estructural, alcance y entregables en edificios nuevos y existentes.',
     },

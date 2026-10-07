@@ -136,6 +136,19 @@ export const company = {
   registry: 'FL Engineering Business No. 40285' as string | null,
 } as const;
 
+/**
+ * The absolute address of a page of the public site, from its path ('/',
+ * '/es', '/services/broward-bsip'): the one string its canonical, its
+ * hreflang links, its og:url and the sitemap all print.
+ *
+ * For the English home page that is the origin WITH its slash,
+ * `https://ttcivilstructural.com/` — the address a browser and a crawler
+ * actually request. The bare origin (`company.url`) is the same page, but an
+ * on-page check reads it as a second address that redirects to the first, so
+ * it is a base to build on and never an address to declare.
+ */
+export const absoluteUrl = (path: string) => `${company.url}${path}`;
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CONTACT
    ═══════════════════════════════════════════════════════════════════════════
@@ -382,8 +395,11 @@ export const ui = {
   },
   form: {
     heading: 'Request a proposal',
+    /* "Tell us about…", as the H1 over it does ("Tell us about the
+       building."): every word of an H1 has to be a word of its page
+       (seo.test.ts), and "about" was nowhere under this one. */
     intro:
-      'Tell us what you own, what you are planning or what you received. The more specific the description, the more precise the proposal.',
+      'Tell us about what you own, what you are planning or what you received. The more specific the description, the more precise the proposal.',
     name: 'Name',
     email: 'Email',
     phone: 'Phone',
@@ -679,10 +695,15 @@ export type Service = {
    * row anywhere else in the service — point at the row instead.
    *
    * `filing: true` marks the ONE fact that is the filing deadline. The
-   * service page's hero prints that fact — its label and its whole value,
-   * hedges included — so the first screen answers "by when?" without the
+   * service page's hero prints that fact — its label and the FIRST SENTENCE
+   * of its value — so the first screen answers "by when?" without the
    * number being typed a second time. Only the two county programs flag
    * one, and the Spanish row flags the same one (site.test.ts checks both).
+   *
+   * So that value must OPEN with the deadline, as one whole sentence that
+   * is true by itself, and carry what qualifies it in the sentences after:
+   * the hero cuts at the first full stop (`firstSentence`, mp/text.tsx).
+   * The whole value, hedges included, is printed once, in the row.
    */
   timing?: {
     checked: string;
@@ -1459,7 +1480,13 @@ export const services: Service[] = [
        milestone inspection Broward", and the old H1 (the service's name,
        still `title` on cards and in the nav) had neither a place nor
        "condo". "Structural safety inspections" stays in the line under it,
-       which is `summary`. */
+       which is `summary`.
+
+       The page has to say "condos" too: an H1 word found nowhere under it
+       is what the on-page check reports, and this page said only
+       "condominium(s)". The report step and the summary deliverable now
+       say "condos and co-ops", the short form of both. The rows that state
+       the law keep the statute's words, "condominium and cooperative". */
     headings: {
       h1: 'Florida Milestone Inspections for Condos in Miami-Dade & Broward',
     },
@@ -1493,12 +1520,12 @@ export const services: Service[] = [
       { step: 'Records review', detail: 'Available drawings, prior reports and repair history reviewed before the site visit.' },
       { step: 'Field inspection', detail: 'Systematic visual inspection with photographic documentation and location mapping.' },
       { step: 'Evaluation', detail: 'Observations evaluated structurally — distinguishing cosmetic from structural, and urgent from monitorable. Where deterioration is substantial, the further investigation is scoped.' },
-      { step: 'Report', detail: 'Findings issued with clear priorities and, for condominiums and co-ops, a separate summary the board can send to unit owners.' },
+      { step: 'Report', detail: 'Findings issued with clear priorities and, for condos and co-ops, a separate summary the board can send to unit owners.' },
     ],
     deliverables: [
       'Inspection report with photographic record',
       'Condition findings organized by priority',
-      'Summary of findings for unit owners, for condominiums and co-ops',
+      'Summary of findings for unit owners, for condos and co-ops',
       'Scope and findings of any further investigation the inspection calls for',
       'Signed and sealed documents where the scope requires it',
     ],
@@ -2418,13 +2445,20 @@ export const workPage = {
   eyebrowReal: 'Selected work',
   /* One label for the profiles everywhere (hero, section, status): they are
      typical engagements, not past jobs, and nothing here says "anonymized". */
-  /* The subject and the place; the old H1 opens both subs (see
+  /* The subject, and NO place; the old H1 opens both subs (see
      `aboutPage`). "Typical" is in the H1 for the reason it is in the nav
      label and the page title: rewrite the three together on the day there
-     are real case studies. "South Florida", never a county — the profiles
-     must not read as jobs done in one. */
-  titleLines: ['Typical structural engineering work', 'in South Florida.'],
-  accentWord: 'South Florida.',
+     are real case studies.
+
+     It read "…in South Florida." for half a day. With the place in this H1
+     and in the page title, the on-page check listed /projects and the home
+     page as competing for "South Florida" — and the home page is the one
+     that should be found for it. So the H1 says what the page holds: the
+     profiles, one per type of project ("Project type" is the first row of
+     each). The place is still in the sub and in the Coverage fact; never a
+     single county — the profiles must not read as jobs done in one. */
+  titleLines: ['Typical structural engagements', 'by project type.'],
+  accentWord: 'Typical',
   subReal: 'The frame behind the project. Structural engagements across South Florida — the building, the problem, the scope, our role and the documented result.',
   subRepresentative:
     'The frame behind the project. Typical engagement profiles: the structural system, the scope and the documents each kind of work produces. They describe what the firm takes on in South Florida, not specific past projects. Named case studies are published only with client permission.',
@@ -2514,8 +2548,14 @@ export const legal = {
     { href: '/terms', label: 'Terms of Use' },
     { href: '/credits', label: 'Image Credits' },
   ],
+  /* `title` is the page's short name: the breadcrumb, the section label and
+     (in `links`, above) the footer. `h1` is the page's headline, which says
+     what the policy covers. "Privacy Policy" and "Terms of Use" alone were
+     14 and 12 characters, which the on-page check reports as too short to
+     describe a page. */
   privacy: {
     title: 'Privacy Policy',
+    h1: 'Privacy Policy for This Website',
     sub: 'What we collect through this website, why we collect it, and what we do with it.',
     sections: [
       { h: 'What we collect', p: 'The only personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.' },
@@ -2529,6 +2569,7 @@ export const legal = {
   },
   terms: {
     title: 'Terms of Use',
+    h1: 'Terms of Use for This Website',
     sub: 'The basis on which the information published here is provided.',
     sections: [
       { h: 'General information only', p: 'The content on this website describes services in general terms. It is not an engineering opinion, a recommendation for a specific building, or a substitute for a site-specific evaluation. Nothing here should be relied on as the basis for a construction, repair or compliance decision.' },

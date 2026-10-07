@@ -751,7 +751,9 @@ const services: SiteContent['services'] = [
     nextStep:
       'Envíe fotografías de las condiciones y cualquier informe previo. Le decimos si hace falta una visita al edificio y qué cubrirá la evaluación.',
     considerations: [
-      'Las evaluaciones de estructuras existentes conllevan incertidumbre; donde importa, se recomiendan ensayos o aperturas exploratorias en lugar de dar la incertidumbre por resuelta.',
+      /* "Evaluaciones estructurales", the words of the H1: the page under
+         it said "estructural" and "estructuras", never the plural. */
+      'Las evaluaciones estructurales de edificios existentes conllevan incertidumbre; donde importa, se recomiendan ensayos o aperturas exploratorias en lugar de dar la incertidumbre por resuelta.',
       'La falta de documentación original aumenta la verificación en campo requerida.',
       'El diseño de reparaciones se define y cotiza por separado de la evaluación que lo origina.',
     ],
@@ -1203,8 +1205,11 @@ export const es: SiteContent = {
     },
     form: {
       heading: 'Solicitar propuesta',
+      /* "…la propuesta que le enviamos": the H1 over it promises "Le
+         enviamos una propuesta." and the verb was nowhere under it — the
+         page said only "responde". See the EN comment on `intro`. */
       intro:
-        'Cuéntenos de su edificio, lo que está planificando o la notificación que recibió. Cuanto más específica sea la descripción, más precisa será la propuesta.',
+        'Cuéntenos de su edificio, lo que está planificando o la notificación que recibió. Cuanto más específica sea la descripción, más precisa será la propuesta que le enviamos.',
       name: 'Nombre',
       email: 'Correo electrónico',
       phone: 'Teléfono',
@@ -1660,10 +1665,11 @@ export const es: SiteContent = {
 
   workPage: {
     eyebrowReal: 'Trabajos seleccionados',
-    /* "Típicos" in the H1 as in the nav label and the title; "Sur de
-       Florida", never a county. See the EN comment in site.ts. */
-    titleLines: ['Trabajos típicos de ingeniería estructural', 'en el Sur de Florida.'],
-    accentWord: 'Sur de Florida.',
+    /* "Típicos" in the H1 as in the nav label and the title, and no place:
+       with "Sur de Florida" here and in the title, this page competed with
+       the home page for it. See the EN comment in site.ts. */
+    titleLines: ['Trabajos típicos de ingeniería estructural', 'por tipo de proyecto.'],
+    accentWord: 'típicos',
     subReal: 'La estructura detrás del proyecto. Trabajos de ingeniería estructural en el Sur de Florida — el edificio, el problema, el alcance, nuestro rol y el resultado documentado.',
     subRepresentative:
       'La estructura detrás del proyecto. Perfiles de trabajos típicos: el sistema estructural, el alcance y los documentos que produce cada tipo de trabajo. Describen la ingeniería estructural que realiza la firma en el Sur de Florida, no proyectos anteriores concretos. Los casos de estudio con nombre se publican solo con autorización del cliente.',
@@ -1723,8 +1729,11 @@ export const es: SiteContent = {
       { href: '/terms', label: 'Términos de uso' },
       { href: '/credits', label: 'Créditos de imágenes' },
     ],
+    /* `title` is the short name (breadcrumb, section label, footer); `h1`
+       says what the policy covers. See the EN comment in site.ts. */
     privacy: {
       title: 'Política de privacidad',
+      h1: 'Política de privacidad de este sitio web',
       sub: 'Qué recopilamos a través de este sitio web, por qué lo recopilamos y qué hacemos con ello.',
       sections: [
         { h: 'Qué recopilamos', p: 'La única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta — y, cuando envía una notificación, su fecha y el número de pisos si usted los indica. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.' },
@@ -1738,6 +1747,7 @@ export const es: SiteContent = {
     },
     terms: {
       title: 'Términos de uso',
+      h1: 'Términos de uso de este sitio web',
       sub: 'La base sobre la que se ofrece la información publicada aquí.',
       sections: [
         { h: 'Información general únicamente', p: 'El contenido de este sitio web describe servicios en términos generales. No es una opinión de ingeniería, una recomendación para un edificio específico ni un sustituto de una evaluación en sitio. Nada de lo aquí publicado debe usarse como base para una decisión de construcción, reparación o cumplimiento.' },

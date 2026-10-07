@@ -22,8 +22,25 @@ import type { Lang } from '@/lib/ttc/i18n';
  * renders inside the page hero (a client component, snow on graphite) and in
  * the "Next step" box (paper). Its colours are the --mp-ink-* tokens, which
  * each surface remaps.
+ *
+ * `brief` is the second time a page prints it: the name and the license
+ * number, without the link to the registry and without the firm's
+ * registration line. The hero prints the block whole; "Next step", a few
+ * screens down, used to print it whole again — the same two lines twice, on
+ * pages the owner's on-page check kept listing for duplicate paragraphs
+ * (it does not say which ones it counts). What the box needs to say is who
+ * reads the notice; how to check him is said once, at the top of the page.
  */
-export function EngineerCredential({ lang, className }: { lang: Lang; className?: string }) {
+export function EngineerCredential({
+  lang,
+  className,
+  brief = false,
+}: {
+  lang: Lang;
+  className?: string;
+  /** Name and license number only: for a page that already printed the block whole. */
+  brief?: boolean;
+}) {
   const c = getContent(lang);
   const e = c.leadership;
   const u = c.ui.engineer;
@@ -35,7 +52,14 @@ export function EngineerCredential({ lang, className }: { lang: Lang; className?
           END, so a narrow column breaks between parts and no line starts
           with a dot. */}
       <dd>
-        {e.license ? (
+        {e.license && brief ? (
+          <>
+            <span>{e.name} ·</span>{' '}
+            <span>
+              {u.licensePrefix} {e.license.number}
+            </span>
+          </>
+        ) : e.license ? (
           <>
             <span>{e.name} ·</span>{' '}
             <span>
@@ -49,7 +73,9 @@ export function EngineerCredential({ lang, className }: { lang: Lang; className?
           <span>{e.name}</span>
         )}
       </dd>
-      {c.company.registry ? <dd className="mp-cred__reg">{c.company.registry}</dd> : null}
+      {c.company.registry && !brief ? (
+        <dd className="mp-cred__reg">{c.company.registry}</dd>
+      ) : null}
     </dl>
   );
 }

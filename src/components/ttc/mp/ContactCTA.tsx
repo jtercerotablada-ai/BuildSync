@@ -26,6 +26,13 @@ import { ReachRow } from './ReachRow';
  * button then opens the form with that service already selected, like every
  * other button on that page — it used to drop the preset on the last screen.
  *
+ * `assure` is the line beside the Call and WhatsApp links: the proposal is
+ * free, and a reply usually comes within two hours. This band says it on
+ * every page — except a page that has said it already. The two county
+ * programs print it under their deadline, beside the button there, and pass
+ * `assure={false}`: said again here it was one paragraph twice on a page.
+ * The links themselves stay.
+ *
  * The section is named by its real headline (RevealText's `id`), not by a
  * visually hidden copy of it, so screen readers hear the title once.
  */
@@ -34,9 +41,12 @@ export function ContactCTA({
   asHero = false,
   secondary,
   service,
+  assure = true,
 }: {
   n?: string;
   asHero?: boolean;
+  /** False where the page above already printed the free-proposal line. */
+  assure?: boolean;
   /** A service slug: the primary button keeps `?service=<slug>`. */
   service?: string;
   /** Canonical (English) href; localised here like the defaults. */
@@ -77,9 +87,10 @@ export function ContactCTA({
         </Reveal>
 
         {/* The other two ways in, and the two facts next to them: the proposal
-            is free and a reply usually comes within two hours. */}
+            is free and a reply usually comes within two hours — unless the
+            page has printed those two facts already (`assure`). */}
         <Reveal delay={0.13}>
-          <ReachRow c={c} assure className="mp-reach--close" />
+          <ReachRow c={c} assure={assure} className="mp-reach--close" />
         </Reveal>
 
         <AnimatedLine className="mp-rule mp-close__rule" delay={0.14} />

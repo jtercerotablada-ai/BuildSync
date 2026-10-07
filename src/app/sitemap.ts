@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { company, services } from '@/lib/ttc/site';
+import { absoluteUrl, services } from '@/lib/ttc/site';
 import { hreflangFor, LANGS, localePath } from '@/lib/ttc/i18n';
 
 /**
@@ -15,13 +15,15 @@ import { hreflangFor, LANGS, localePath } from '@/lib/ttc/i18n';
  * searches for, so it is noindex and simply stays reachable from the footer.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = company.url;
-  /* Next resolves a page's relative canonical against metadataBase, and for
-     the home page that prints the bare origin — no trailing slash. Same rule
-     here so the <loc>, the hreflang hrefs and the canonical the page declares
-     are byte-identical. (`/` and the bare origin are the same URL to a
-     crawler; this just stops the two signals from looking different.) */
-  const abs = (path: string) => `${base}${path === '/' ? '' : path}`;
+  /* The <loc>, the hreflang hrefs and the canonical each page declares are
+     byte-identical, the home page's included: `https://ttcivilstructural.com/`
+     WITH its slash. For two days this printed the bare origin instead, to
+     match what Next's metadata prints for the root path, and the owner's
+     on-page check listed that address as an internal redirect to the one
+     with the slash. The home pages now print their own canonical and
+     alternates (HomeAddress in views/meta.tsx) from this same function;
+     seo.test.ts compares the two. */
+  const abs = absoluteUrl;
 
   const pages: { path: string; freq: 'monthly' | 'yearly'; priority: number }[] = [
     { path: '/', freq: 'monthly', priority: 1 },

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { company } from '@/lib/ttc/site';
+import { absoluteUrl, company } from '@/lib/ttc/site';
 import { hreflangFor, localePath, ogLocale, type Lang } from '@/lib/ttc/i18n';
 import { TITLE_BUDGET_PX, repeatedWords, titlePx } from '@/lib/ttc/serp';
 
@@ -54,6 +54,46 @@ export function pageTitle(title: string): string {
 }
 
 /**
+ * THE HOME PAGE'S ADDRESS IS NOT DECLARED THROUGH THE METADATA API.
+ *
+ * Next resolves every canonical, hreflang and og:url through one function
+ * that prints the root path as the bare origin (`pathname === '/' ? origin :
+ * href`, resolve-url.js) — whatever it is given: '/', the full address with
+ * its slash, a URL object. So the English home page declared
+ * `https://ttcivilstructural.com` as its canonical, its `en` and `x-default`
+ * alternates and its og:url, the Spanish home page pointed its `en` and
+ * `x-default` alternates at the same, and the owner's on-page check listed
+ * it as an internal redirect "linked via canonical link, alternate link".
+ *
+ * So for the root path — both languages — `pageMeta` leaves the canonical,
+ * the alternates and og:url OUT, and HomeView prints them with this
+ * component: plain <link> and <meta> elements, which React 19 lifts into
+ * <head> on the server and keeps there on the client. One canonical and one
+ * set of alternates per page, as before; only the string differs. The
+ * sitemap prints the same strings (sitemap.ts), and seo.test.ts holds the
+ * three together.
+ *
+ * Checked in a production build, not only here: `curl` of / and /es from
+ * `next start` shows each element once, inside <head>, and a browser still
+ * holds one of each after hydration and after navigating away and back. If
+ * Next ever stops stripping the slash, delete this component and the
+ * `isHome` branches below together — both at once, or the page declares two
+ * canonicals.
+ */
+export function HomeAddress({ lang }: { lang: Lang }) {
+  const here = absoluteUrl(localePath('/', lang));
+  return (
+    <>
+      <link rel="canonical" href={here} />
+      {Object.entries(hreflangFor('/')).map(([hrefLang, path]) => (
+        <link key={hrefLang} rel="alternate" hrefLang={hrefLang} href={absoluteUrl(path)} />
+      ))}
+      <meta property="og:url" content={here} />
+    </>
+  );
+}
+
+/**
  * Page metadata for one language: localized title/description, the canonical
  * for THIS language's URL, hreflang twins for both, and the right OG locale.
  *
@@ -69,6 +109,8 @@ export function pageMeta(
   m: { title: string; description: string; ogTitle?: string; keywords?: string[] },
 ): Metadata {
   const here = localePath(canonicalPath, lang);
+  // The two home pages print their own address (HomeAddress, above).
+  const isHome = canonicalPath === '/';
   return {
     // Absolute: pageTitle has already added the brand, or left it out. Through
     // the layout's template it would print twice, or come back where it does
@@ -76,7 +118,16 @@ export function pageMeta(
     title: { absolute: pageTitle(m.title) },
     description: m.description,
     keywords: m.keywords,
-    alternates: { canonical: here, languages: hreflangFor(canonicalPath) },
+    // <link rel="author">, on every page. The (public) layout sets the same
+    // author with `company.url`, the bare origin, and Next prints an author's
+    // url as written — the one link left on all 32 pages to the address the
+    // check reports as a redirect. Same firm, the home page's real address.
+    // (The layout's own line still serves /credits and the 404s, which do
+    // not come through here: it wants `absoluteUrl('/')` too.)
+    authors: [{ name: company.legalName, url: absoluteUrl('/') }],
+    ...(isHome
+      ? {}
+      : { alternates: { canonical: here, languages: hreflangFor(canonicalPath) } }),
     openGraph: {
       // The firm name stays in og:title too: WhatsApp, iMessage and LinkedIn
       // never display og:site_name, so it is the only place the brand shows.
@@ -84,7 +135,7 @@ export function pageMeta(
       // of a search result, so it does not need the title's short one.
       title: m.ogTitle ?? `${m.title} · ${company.name}`,
       description: m.description,
-      url: here,
+      ...(isHome ? {} : { url: here }),
       siteName: company.name,
       type: 'website',
       locale: ogLocale[lang],

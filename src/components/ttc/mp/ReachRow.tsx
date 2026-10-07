@@ -28,6 +28,14 @@ export function whatsappHref(c: SiteContent): string | null {
  * `assure` prints the two facts that sit next to the links — the proposal is
  * free, and a reply usually comes within two hours — for the places that do
  * not already say them.
+ *
+ * THE LINKS ARE NOT A PARAGRAPH. The pair sits beside every button — three
+ * times on a county program's page — and as a <p> that was one paragraph
+ * printed three times, on pages the owner's on-page check kept listing for
+ * duplicate paragraphs. It is a pair of links, so it is a <div>:
+ * `.mp-reach__links` styles it by class, and nothing changes on screen. The
+ * `assure` line IS a sentence and stays a <p>; a page prints it once (see
+ * ContactCTA's `assure`).
  */
 export function ReachRow({
   c,
@@ -49,7 +57,7 @@ export function ReachRow({
           {r.free} {r.reply}
         </p>
       ) : null}
-      <p className="mp-reach__links">
+      <div className="mp-reach__links">
         <a className="mp-reach__link" href={phone.href}>
           {r.call} {phone.display}
         </a>
@@ -58,7 +66,7 @@ export function ReachRow({
             {r.whatsappNotice}
           </a>
         ) : null}
-      </p>
+      </div>
     </div>
   );
 }

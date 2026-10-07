@@ -5,6 +5,7 @@ import { getContent } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { photo, video } from '@/lib/ttc/media';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
+import { firstSentence } from '@/components/ttc/mp/text';
 import { AboutView } from './AboutView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -85,8 +86,13 @@ const links = (html: string) =>
     inner: m[2],
     text: text(m[2]),
   }));
+/* A paragraph, for the purpose of "printed twice": every <p>, and every <dd>
+   and <li> — on these pages the timing rows, the scope lists and the board's
+   duties are sentences that happen to sit in a list. */
 const paragraphs = (html: string) =>
-  [...html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)].map((m) => text(m[1])).filter(Boolean);
+  [...html.matchAll(/<(p|dd|li)\b[^>]*>([\s\S]*?)<\/\1>/g)]
+    .map((m) => text(m[2]))
+    .filter(Boolean);
 
 /* The description written beside each photograph and each clip in media.ts,
    by the file an <img> actually points at. */
@@ -238,7 +244,7 @@ describe('links: the text of a link is the name of where it goes', () => {
   }
 });
 
-describe('county program pages: nothing is printed twice without a reason', () => {
+describe('county program pages: no paragraph is printed twice', () => {
   for (const lang of LANGS) {
     for (const slug of PROGRAMS) {
       const { html } = pages.get(`${lang} /services/${slug}`)!;
@@ -246,6 +252,8 @@ describe('county program pages: nothing is printed twice without a reason', () =
       const service = c.services.find((s) => s.slug === slug)!;
       const main = html.match(/<main\b[\s\S]*<\/main>/)![0];
       const count = (needle: string) => main.split(esc(needle)).length - 1;
+      const filing = service.timing!.rows[0].facts.find((f) => f.filing)!;
+      const r = c.reach;
 
       // The hero prints it under the button. The row under "When it applies"
       // used to print it again, a section below "Next step" saying the same.
@@ -259,25 +267,106 @@ describe('county program pages: nothing is printed twice without a reason', () =
         expect(count(service.timing!.rows[0].source)).toBe(1);
       });
 
-      /* What IS repeated, and why it stays:
-           • Call + WhatsApp: links, not prose — one pair beside each of the
-             three buttons, so the phone is never more than a screen away.
-           • "The proposal is free…": beside the button under the deadline,
-             and again in the closing band several screens down, which is
-             the same band on every page of the site.
-         Anything else that turns up twice is a paragraph somebody pasted. */
-      it(`${slug} (${lang}): no other paragraph repeats`, () => {
+      /* The second report (October 7, 2026) still counted two duplicate
+         paragraphs on each of these four pages, without saying which. Four
+         texts were printed more than once; each now has one place. */
+
+      // 1. The filing deadline. The row under "When it applies" holds the
+      //    whole value, and the hero printed all of it again. The hero now
+      //    prints its first sentence — the deadline — cut from the row in
+      //    code, so the number is still typed once (site.ts).
+      it(`${slug} (${lang}): the deadline's row is printed whole once; the hero prints its first sentence`, () => {
+        const hero = main.match(/<dl class="mp-phero__facts[^"]*">([\s\S]*?)<\/dl>/)![1];
+        const [, k, v] = hero.match(/<dt>([\s\S]*?)<\/dt><dd>([\s\S]*?)<\/dd>/)!;
+        expect(k).toBe(esc(filing.k));
+        expect(v).toBe(esc(firstSentence(filing.v)));
+        expect(count(filing.v)).toBe(1);
+      });
+
+      //    …and that sentence is the deadline: it carries the program's day
+      //    count, ends where a sentence ends, and leaves the rest behind.
+      it(`${slug} (${lang}): the sentence the hero keeps is the deadline itself`, () => {
+        const kept = firstSentence(filing.v);
+        const left = filing.v.slice(kept.length);
+        expect(kept).toContain(service.program!.accentWord);
+        expect(kept.endsWith('.')).toBe(true);
+        expect(left).toMatch(/^ [A-ZÁÉÍÓÚÜÑ]/);
+      });
+
+      // 2. "The proposal is free…": beside the button under the deadline.
+      //    The closing band says it on every other page of the site, and
+      //    said it here a second time.
+      it(`${slug} (${lang}): the free-proposal line is said once, under the deadline`, () => {
+        expect(count(`${r.free} ${r.reply}`)).toBe(1);
+        const close = main.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)![0];
+        expect(close).not.toContain(esc(r.free));
+      });
+
+      // 3. Call + WhatsApp: one pair beside each of the three buttons, so
+      //    the phone is never more than a screen away. They stay — as a
+      //    pair of links, which is what they are, not as a <p> (ReachRow).
+      it(`${slug} (${lang}): Call and WhatsApp are beside each button, as links and not as a paragraph`, () => {
+        const pairs = [...main.matchAll(/<(\w+) class="mp-reach__links">([\s\S]*?)<\/\1>/g)];
+        expect(pairs).toHaveLength(3);
+        for (const [, tag, inner] of pairs) {
+          expect(tag).toBe('div');
+          expect(links(inner).map((a) => a.text)).toEqual([
+            text(esc(`${r.call} ${c.contact.phone!.display}`)),
+            text(esc(r.whatsappNotice)),
+          ]);
+        }
+      });
+
+      // 4. The engineer's credential. Whole under the hero: name, license
+      //    number, the link that verifies it, the firm's registration.
+      //    "Next step" printed the same two lines again; it now prints who
+      //    reads the notice — the name and the number — and nothing else.
+      it(`${slug} (${lang}): the engineer's credential is whole under the hero and brief in "Next step"`, () => {
+        const e = c.leadership;
+        const number = esc(`${c.ui.engineer.licensePrefix} ${e.license!.number}`);
+        const blocks = main.match(/<dl class="mp-cred[^"]*">[\s\S]*?<\/dl>/g) ?? [];
+        expect(blocks).toHaveLength(2);
+        const whole = blocks[0] ?? '';
+        const brief = blocks[1] ?? '';
+        for (const block of blocks) {
+          expect(block).toContain(esc(e.name));
+          expect(block).toContain(number);
+        }
+        expect(links(whole).map((a) => a.href)).toEqual([esc(e.license!.url)]);
+        expect(whole).toContain(esc(c.company.registry!));
+        expect(links(brief)).toEqual([]);
+        expect(brief).not.toContain(esc(c.company.registry!));
+        // The brief one is the one in the box, after the hero's.
+        expect(main.indexOf(brief)).toBeGreaterThan(main.indexOf('mp-callout--next'));
+        expect(main.indexOf(whole)).toBeLessThan(main.indexOf('mp-callout--next'));
+      });
+
+      /* ZERO, with nothing set aside: counted over every <p>, <dd> and <li>
+         of the page. Anything that turns up here is a paragraph somebody
+         pasted, or a block that needs a `brief` form of its own. */
+      it(`${slug} (${lang}): no paragraph repeats`, () => {
         const seen = new Map<string, number>();
         for (const p of paragraphs(main)) seen.set(p, (seen.get(p) ?? 0) + 1);
-        const repeated = [...seen].filter(([, n]) => n > 1).map(([p]) => p);
-        const r = c.reach;
-        expect(repeated.sort()).toEqual(
-          [
-            text(esc(`${r.call} ${c.contact.phone!.display} ${r.whatsappNotice}`)),
-            text(esc(`${r.free} ${r.reply}`)),
-          ].sort(),
-        );
+        expect([...seen].filter(([, n]) => n > 1).map(([p]) => p)).toEqual([]);
       });
     }
   }
+
+  // The band that closes every OTHER page still says it: there it is the
+  // only place the page does.
+  it('the closing band keeps the free-proposal line where the page has not said it', () => {
+    const closed: string[] = [];
+    for (const { lang, path, html } of pages.values()) {
+      if (PROGRAMS.some((slug) => path === `/services/${slug}`)) continue;
+      const close = html.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)?.[0];
+      // /contact, the legal pages and the 404 have no closing band.
+      if (!close) continue;
+      closed.push(`${lang} ${path}`);
+      const r = getContent(lang).reach;
+      expect(close, `${lang} ${path}`).toContain(esc(`${r.free} ${r.reply}`));
+    }
+    // Home, Services, Existing Buildings, About, Typical Engagements and the
+    // six other services, in each language.
+    expect(closed).toHaveLength(22);
+  });
 });

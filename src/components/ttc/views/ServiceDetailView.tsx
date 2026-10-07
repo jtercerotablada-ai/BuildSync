@@ -12,6 +12,7 @@ import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Outbound, Source } from '@/components/ttc/mp/Outbound';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { ButtonLink, SectionHeading, Reveal, TextLink } from '@/components/ttc/mp/primitives';
+import { firstSentence } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
@@ -36,6 +37,15 @@ import { breadcrumbLd, JsonLd } from './meta';
  * The two county programs also say WHO: the hero's facts give way to the
  * filing deadline, read from the verified timing row (never typed here), and
  * the engineer's name and license follow — there and in "Next step".
+ *
+ * NO PARAGRAPH IS PRINTED TWICE on those two pages (pages.test.ts). Four
+ * were, and each now has one place: the deadline's whole row is under "When
+ * it applies" and the hero prints its first sentence; "The proposal is
+ * free…" is beside the button under that row and not in the closing band;
+ * and Call + WhatsApp, beside each of the three buttons, are a pair of links
+ * and not a paragraph (ReachRow). The engineer's credential is whole under
+ * the hero — with the link that verifies it and the firm's registration —
+ * and "Next step" prints the name and the license number only (`brief`).
  *
  * HEADING OUTLINE. Every section owns its h2, so a screen reader's heading
  * list (and a crawler's outline) files each h3 under the right section. The
@@ -76,6 +86,9 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   // label and value as verified. Reading it here is what keeps the first
   // screen and the "When it applies" table from ever disagreeing.
   const filing = program ? service.timing?.rows[0]?.facts.find((f) => f.filing) : undefined;
+  // Where "The proposal is free…" is printed: beside the button under the
+  // timing rows, on a county program. The closing band leaves it out there.
+  const assuredUnderRows = Boolean(program && service.timing);
   // Each regulated service now carries ONE jurisdiction: Miami-Dade and
   // Broward have a page each, and the milestone page has the State's row. A
   // single card in the old auto-fit grid stretched across the whole shell,
@@ -172,11 +185,16 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         // A county program prints its filing deadline instead: there the two
         // facts only repeated the title above them ("Existing buildings",
         // the county), while the answer a notice-holder came for was four
-        // screens down. The whole row is printed — its hedges are part of
-        // the fact, and a shortened deadline is how a wrong one gets read.
+        // screens down. The label and the FIRST SENTENCE of the row — the
+        // deadline itself, still read from the row. The whole value was
+        // printed here until it was found to be one paragraph twice on the
+        // page; what qualifies the deadline is in the row under "When it
+        // applies", which is the first of the links under this hero on a
+        // phone. site.ts keeps each value opening with a sentence that is
+        // true by itself.
         facts={
           filing
-            ? [{ k: filing.k, v: filing.v }]
+            ? [{ k: filing.k, v: firstSentence(filing.v) }]
             : [
                 { k: u.appliesTo, v: service.track === 'new' ? u.newConstruction : u.existingBuildings },
                 { k: u.coverage, v: service.coverage ?? c.contact.serviceAreaLabel },
@@ -250,8 +268,10 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                   </ButtonLink>
                 </div>
                 {/* Who answers: the box used to say what to send and nothing
-                    about who reads it. */}
-                {program ? <EngineerCredential lang={lang} /> : null}
+                    about who reads it. The name and the license number; how
+                    to verify them is in the hero's copy of this block, and
+                    the same two lines twice were a repeated paragraph. */}
+                {program ? <EngineerCredential lang={lang} brief /> : null}
               </div>
             </Reveal>
           </div>
@@ -299,7 +319,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               <ButtonLink href={l(contactHref)} variant="solid">
                 {cta}
               </ButtonLink>
-              {program ? <ReachRow c={c} assure className="mp-reach--row" /> : null}
+              {assuredUnderRows ? <ReachRow c={c} assure className="mp-reach--row" /> : null}
             </Reveal>
           </div>
         </section>
@@ -516,7 +536,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         </div>
       </section>
 
-      <ContactCTA n={next()} service={service.slug} />
+      <ContactCTA n={next()} service={service.slug} assure={!assuredUnderRows} />
     </>
   );
 }
