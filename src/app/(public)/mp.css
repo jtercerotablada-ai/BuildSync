@@ -2645,8 +2645,8 @@ a.mp-menu__mail {
   min-width: 1.75rem;
 }
 
-/* Key · value rows (About principles, Existing Buildings triggers, the
-   practice-record pillars) */
+/* Key · value rows (About principles, the engineer's three rows on About,
+   the practice-record pillars) */
 .mp-pillars {
   list-style: none;
   margin: 0;
@@ -2672,9 +2672,9 @@ a.mp-menu__mail {
   color: var(--mp-ink-3);
 }
 
-/* Service cards (Services index, Existing Buildings index). Two columns at
-   every desktop width — both tracks hold 4 cards, so three columns would
-   orphan one card in each. */
+/* Service cards (Services index) and the situation cards of the Existing
+   Buildings hub. Two columns at every desktop width — both tracks hold 4
+   cards, and the hub 4 situations, so three columns would orphan one. */
 .mp-svcgrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3966,6 +3966,33 @@ a.mp-menu__mail {
 .mp-eng__for {
   margin: 0;
 }
+/* The home teaser prints the three rows above as their names alone, on one
+   line that wraps: a gold square, then the name. The rows themselves are
+   About's (EngineerSection). */
+.mp-eng__keys {
+  list-style: none;
+  margin: 0;
+  padding: var(--mp-4) 0 0;
+  border-block-start: 1px solid var(--mp-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem clamp(1.25rem, 2.5vw, 2.25rem);
+}
+.mp-eng__keys li {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: var(--mp-t-body);
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+.mp-eng__keys li::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--mp-gold);
+}
 
 /* ── Footer: signature line ──────────────────────────────────────────────── */
 .mp-footer__pe {
@@ -4137,6 +4164,82 @@ a.mp-menu__mail {
 @media (max-width: 900px) {
   .mp-partner__cards {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The two short forms (PartnerSection: /about and /existing-buildings). A
+   headline beside two or three sentences; /about then lists the four
+   registrations as one register on a white card, a row each — firm,
+   license, number. The number is the link, with the cards' underline and
+   the same grown tap target; a row is 52px so that target never reaches
+   the row under it. */
+.mp-partner__register {
+  list-style: none;
+  margin: var(--mp-8) 0 0;
+  padding: 0 clamp(1.1rem, 2.4vw, 2rem);
+  max-width: 62rem;
+  background: var(--mp-card);
+  border: 1px solid var(--mp-line);
+}
+.mp-partner__register li {
+  display: grid;
+  /* A fixed last column: each row is its own grid, and with `auto` the
+     middle column started a few pixels apart from row to row. */
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr) 7.5rem;
+  gap: 0.2rem var(--mp-4);
+  align-items: baseline;
+  align-content: center;
+  min-height: 52px;
+  padding-block: 0.7rem;
+  border-block-end: 1px solid var(--mp-line-soft);
+}
+.mp-partner__register li:last-child {
+  border-block-end: 0;
+}
+.mp-partner__register-who {
+  font-size: var(--mp-t-body);
+  font-weight: 500;
+  color: var(--mp-ink);
+  text-wrap: balance;
+}
+.mp-partner__register-label {
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-partner__register-no {
+  justify-self: end;
+  font-family: var(--mp-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: var(--mp-ink);
+  white-space: nowrap;
+}
+.mp-partner__register-no a {
+  position: relative;
+  display: inline-block;
+  text-decoration: underline;
+  text-decoration-color: var(--mp-gold);
+  text-underline-offset: 0.25em;
+}
+.mp-partner__register-no a::before {
+  content: '';
+  position: absolute;
+  inset: -13px -4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-partner__register-no a:hover {
+    color: var(--mp-gold-ink);
+  }
+}
+.mp-partner__more {
+  margin: var(--mp-6) 0 0;
+}
+/* Narrow: the firm on a line of its own, then license and number. */
+@media (max-width: 720px) {
+  .mp-partner__register li {
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+  }
+  .mp-partner__register-who {
+    grid-column: 1 / -1;
   }
 }
 
@@ -4452,6 +4555,17 @@ a.mp-menu__mail {
 .mp-svc__go {
   margin-block-start: var(--mp-3);
   justify-self: start;
+}
+/* The situation card of /existing-buildings (SituationCard): the service
+   card's frame, with a sentence for a heading. Its number stands alone where
+   the service card prints a track label, and the heading is not a link, so
+   it carries no layer over the photograph. */
+.mp-svc--sit .mp-svc__title {
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.mp-svc--sit .mp-svc__summary {
+  max-width: 60ch;
 }
 
 /* ── Service detail: two columns, jurisdiction cards, plain pillars ─────── */
@@ -5007,9 +5121,11 @@ a.mp-offices__row .mp-offices__office {
   .mp-eng__figure {
     max-width: 520px;
   }
-  /* Stacked, the home teaser's role eyebrow sits right under the plate that
-     already lists LICENSURE and ROLE — the same facts twice in a row. Only
-     the teaser: on /about the eyebrow is the kicker of the engineer's name. */
+  /* Stacked, the home teaser's eyebrow — his licensure and license number —
+     sits right under the plate that already lists LICENSURE: the same fact
+     twice in a row (the number itself is on the partner block, one section
+     down). Only the teaser: on /about the eyebrow is the kicker of the
+     engineer's name. */
   .mp-eng--teaser .mp-eng__role {
     display: none;
   }

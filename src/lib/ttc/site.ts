@@ -609,11 +609,31 @@ export type Service = {
   /** One or two lines. Used on cards and list rows. */
   summary: string;
   /**
+   * The service's card on /services, in words of its own: one line each for
+   * "When you need it", "What you receive" and "Next step". The card used
+   * to print `when[0]`, `deliverables[0]` and `nextStep` — the very
+   * sentences the service's own page prints — so every service was said
+   * twice, once on the index and once on its page, and the on-page check
+   * listed each of them as a text block on several pages.
+   *
+   * A card line is a SHORTER telling of what the page says in full, never a
+   * new fact: `when` gathers the page's three situations into one line,
+   * `receive` the documents of `deliverables`, `next` what to send first
+   * (the page's `nextStep` then says what happens with it). No age, no day
+   * count, nothing about who signs. `summary` and `capabilities` are the
+   * card's other two lines and are printed nowhere else.
+   */
+  card: { when: string; receive: string; next: string };
+  /**
    * The line under the H1 of the service's own page, where it has to say
    * something `summary` does not (cards, list rows and the schema keep
    * `summary`). The two county programs open with the name owners still
    * search for — "the 40-year recertification" — as a NAME, never as a
    * trigger, and with no number.
+   *
+   * All eight services set one, so a card and the page it opens never print
+   * the same sentence. A service without it falls back to `summary`, and is
+   * then one text block on two pages again.
    */
   heroSub?: string;
   /**
@@ -765,7 +785,8 @@ export type Service = {
   /**
    * The service-hero "Coverage" fact, e.g. 'Miami-Dade County, Florida'.
    * Only the two county programs set it; every other service falls back to
-   * `contact.serviceAreaLabel` (both counties).
+   * `contact.serviceAreaLabel` (both counties). In Spanish the other six
+   * set a shorter form of that label — see `coverage` in site.es.ts.
    */
   coverage?: string;
   /**
@@ -869,6 +890,11 @@ export const services: Service[] = [
     areaServed: ['Miami-Dade County, Florida'],
     summary:
       'A clear path from the Miami-Dade notice to a closed recertification — inspection, the structural report on the county’s form, repair scope, reinspection.',
+    card: {
+      when: 'The notice has arrived, a courtesy notice says it is coming, or an earlier recertification is still open.',
+      receive: 'The structural report on Miami-Dade’s form, a photographic record and, where repairs are needed, the repair scope in writing.',
+      next: 'Start with the notice — or, if there is none yet, with the address and the year built.',
+    },
     /* The first words under the H1 are the name most owners still use, so a
        visitor who searched "40-year recertification" knows this is the page.
        A name, never a trigger, and no number. The second sentence is the
@@ -1183,6 +1209,11 @@ export const services: Service[] = [
     areaServed: ['Broward County, Florida'],
     summary:
       'From the Notice of Required Inspection to the completion letter that closes the file — inspection, the structural report on the program’s official form, repair scope, reinspection.',
+    card: {
+      when: 'The certified letter has arrived, the building is close to its first inspection, or an earlier file is still open.',
+      receive: 'The structural report on the program’s official form, with its narrative and photographs, and the repair scope where one is needed.',
+      next: 'Start with your city’s letter — or, if there is none yet, with the address and the year of the certificate of occupancy.',
+    },
     /* The line under the H1 is the first two sentences of the home section's
        lede (`program.lede`): the name owners still use, as a name, and no
        number. One change — "Broward’s BSIP" for the program's full name,
@@ -1476,11 +1507,28 @@ export const services: Service[] = [
     track: 'existing',
     summary:
       'Florida’s milestone inspection explained for your building, further investigation when a report calls for it, and structural safety inspections outside a program cycle.',
+    card: {
+      when: 'The board is unsure which inspection the building owes, a report calls for further investigation, or there is a reason to look and no notice.',
+      receive: 'An inspection report with findings in order of priority and, for condos and co-ops, a summary the board can send to unit owners.',
+      next: 'Tell us where the building is, how old and how tall it is, and what prompted the question.',
+    },
+    /* The page's own first line: `summary` is the card's, on /services. It
+       keeps "structural safety inspections", the half of the service's name
+       the H1 leaves out.
+
+       LENGTH MATTERS HERE, on this service and the five below: the line sits
+       between the H1 and the page's one button, so every extra line of it
+       pushes that button down a phone's first screen. Each of the six was
+       measured at 320, 360 and 390 px against the `summary` it replaced and
+       is no taller, bar one line at one width. Measure before lengthening
+       one. */
+    heroSub:
+      'Which rules reach your building, how Florida’s milestone inspection is met in your county, and structural safety inspections when no notice has come.',
     /* The H1 names who it is for and where: a board searches "condo
        milestone inspection Broward", and the old H1 (the service's name,
        still `title` on cards and in the nav) had neither a place nor
        "condo". "Structural safety inspections" stays in the line under it,
-       which is `summary`.
+       which is `heroSub`.
 
        The page has to say "condos" too: an H1 word found nowhere under it
        is what the on-page check reports, and this page said only
@@ -1489,6 +1537,9 @@ export const services: Service[] = [
        the law keep the statute's words, "condominium and cooperative". */
     headings: {
       h1: 'Florida Milestone Inspections for Condos in Miami-Dade & Broward',
+      /* Each service names what its own "Good to know" list is about. The
+         six of them used to open that list with one shared headline. */
+      considerations: 'Which buildings the law reaches, and what an inspection can see.',
     },
     problemTitle: 'Which inspection does the building owe?',
     problem:
@@ -1666,6 +1717,16 @@ export const services: Service[] = [
     track: 'existing',
     summary:
       'What the building is actually doing today — deterioration assessed, capacity evaluated, repairs engineered so they can be bid and built.',
+    card: {
+      when: 'A report lists repairs, cracks or spalling have appeared, or you are buying or altering a building.',
+      receive: 'An assessment report with the deterioration mapped and, when repairs are designed, drawings and specifications a contractor can price.',
+      next: 'Start with photographs and any earlier report; we tell you whether a visit is needed.',
+    },
+    heroSub:
+      'What the cracks, the spalling or the report in your hands actually mean — and repairs specified so every contractor prices the same work.',
+    headings: {
+      considerations: 'What an assessment settles, and what it leaves open.',
+    },
     problemTitle: 'Not every crack is a structural problem.',
     problem:
       'Cracking, spalling and movement all look alarming and mean very different things. Before spending on repairs, an owner needs to know which conditions affect capacity and which do not — and then needs repairs specified precisely enough to price.',
@@ -1725,6 +1786,16 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'Foundations, columns, beams, slabs and shear walls designed as one load path — detailed for the field and issued permit-ready.',
+    card: {
+      when: 'A new building needs its structural set for permit, an architect needs the structure behind a design, or a contractor needs details that can be built.',
+      receive: 'Permit-ready structural drawings with their calculations, general notes and typical details.',
+      next: 'Start with the architectural drawings, at whatever stage they are, and the site location.',
+    },
+    heroSub:
+      'Reinforced concrete for houses, mid-rises and commercial buildings — sized for hurricane wind and detailed so it can be built.',
+    headings: {
+      considerations: 'The soil report, the geometry and the permit review.',
+    },
     problemTitle: 'Concrete has to be right on paper first.',
     problem:
       'Concrete is unforgiving: reinforcement that cannot be placed, a transfer condition resolved late, or a slab thickness set before the loads are known all become field problems that cost far more than they saved.',
@@ -1765,7 +1836,9 @@ export const services: Service[] = [
       'Structural drawing set, permit-ready',
       'Structural calculations package',
       'General notes and typical details',
-      'Signed and sealed documents where the scope requires it',
+      /* "For permit submittal", as the last process step says: with the
+         milestone page's wording this line was one sentence on two pages. */
+      'Signed and sealed documents for permit submittal, where the scope requires it',
     ],
     nextStep:
       'Send the architectural drawings (any stage) and the site location. You receive a proposal with scope, deliverables and fee.',
@@ -1792,6 +1865,16 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'Gravity and lateral analysis, wind and seismic demand, and the foundation system that carries all of it into the ground.',
+    card: {
+      when: 'Before you commit to a site or a concept, on a difficult lot, or when hurricane wind and lateral loads have to be resolved.',
+      receive: 'The analysis results in a summary, the foundation design with its reactions, and the calculations behind both.',
+      next: 'Start with the site and the concept; add the geotechnical report if there is one.',
+    },
+    heroSub:
+      'The whole building in one model, roof to foundations — so you know whether a site or a concept works before you commit.',
+    headings: {
+      considerations: 'An analysis is only as good as its inputs.',
+    },
     problemTitle: 'One load path, from roof to soil.',
     problem:
       'When the gravity design, the wind design and the foundations are handled as separate exercises, the seams between them are where failures and change orders start.',
@@ -1849,6 +1932,16 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'Coordinated digital models that resolve conflicts before they reach the field and produce clearer structural deliverables.',
+    card: {
+      when: 'The team models in Revit, the owner or the contractor asks for a federated model and clash reports, or services and structure keep clashing on the drawings.',
+      receive: 'The structural model, the clash and issue reports, and drawings and schedules taken from the model.',
+      next: 'Tell us the software, the level of detail and the coordination calendar.',
+    },
+    heroSub:
+      'The structure modeled in Revit and checked against the other disciplines, so clashes are closed in design, not on site.',
+    headings: {
+      considerations: 'What a model can do, and what it cannot.',
+    },
     problemTitle: 'Find the conflicts before the site does.',
     problem:
       'Most conflicts between the structure, the architecture and the mechanical, electrical and plumbing systems are discovered on site, where they cost the most to fix. A coordinated model moves that discovery back into design, where it costs a conversation instead of a change order.',
@@ -1906,6 +1999,16 @@ export const services: Service[] = [
     track: 'new',
     summary:
       'An independent second read of the structural design — code compliance, load path, constructability and documentation quality.',
+    card: {
+      when: 'A lender or an insurer asks for an independent review, a set is about to be issued, or something in the structure worries you.',
+      receive: 'A review report and a prioritized comment log, followed until every comment is closed.',
+      next: 'Send the drawings and the calculations, and tell us what the review has to answer.',
+    },
+    heroSub:
+      'An independent engineer reads your drawings and calculations against the governing code before they are issued, and stays until every comment is closed.',
+    headings: {
+      considerations: 'What a peer review is, and what it is not.',
+    },
     problemTitle: 'A second read before the drawings go out.',
     problem:
       'By the time a structural problem is found in construction, it is a schedule event. An independent review before the set is issued is the cheapest risk reduction available on a project.',
@@ -2054,10 +2157,15 @@ export type Typology = {
   photo: Photo;
 };
 
+/* The grid's own headline: the question its cards answer, and the one the
+   lede under it picks up ("If your project is not on this list…"). It used
+   to carry "From a single house to a mid-rise concrete frame.", which is
+   the home page's headline (`newBuildings`, below) — the same h2 on two
+   pages. The home page keeps the approved line; this section asks. */
 export const typologiesSection = {
   eyebrow: 'What we design',
-  title: 'From a single house to a mid-rise concrete frame.',
-  accentWord: 'mid-rise',
+  title: 'Do we design your kind of building?',
+  accentWord: 'your kind',
   lede: 'The same engineer and the same detailing standard, scaled to the building in front of us. If your project is not on this list, it is worth a conversation rather than an assumption.',
 } as const;
 
@@ -2080,10 +2188,11 @@ export const typologies: Typology[] = [
    designed, how it is coordinated, what is issued. The component lists the
    four `track: 'new'` services itself, beside the model clip.
 
-   The headline is the owner-approved "What we design" line. The typology
-   grid that also carries it now lives on /services, so the two never share
-   a page. Owners and boards read the home page: no "federate", no "MEP", and
-   no promise about what gets built.
+   The headline is the owner-approved "What we design" line, and this is now
+   the only place it is printed: the typology grid on /services, which also
+   carried it, has a headline of its own (`typologiesSection`). Owners and
+   boards read the home page: no "federate", no "MEP", and no promise about
+   what gets built.
 
    Gone with this change, in both languages: `pathsSection` / `paths` (the
    two doors), `recertBand` (one band that merged both counties' ages into a
@@ -2400,17 +2509,30 @@ export const existingPage = {
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
     { k: 'Output', v: 'Reports, repair scopes, reinspections' },
   ],
+  /* THE HUB: four situations, each with the service that answers it.
+     This page used to print the four existing-building services as the very
+     cards /services prints — same summary, same four rows — under a list of
+     four "moments" that led nowhere. The two are now one section: a card per
+     situation, in the reader's words, with a line written for THIS page and
+     one door, the service named by its `shortTitle`. The full cards live on
+     /services only.
+
+     One item per existing-building service, in the `services` order, so the
+     grid closes on a straight edge (`slug` picks the photograph and the
+     link). What a line may say: what the service's own page already says,
+     shorter. No age, no day count and no deadline — "the program's page
+     gives the ages and the deadline" is how a line points at them. */
   triggers: {
     eyebrow: 'When to call',
     title: 'Four moments that need an engineer.',
+    lede: 'Find the one that is yours. Each leads to the service that answers it.',
     items: [
-      { k: 'A notice arrived', v: 'A Notice of Required Inspection has come from your city or county — recertification in Miami-Dade, the BSIP in Broward — and the board needs a structural engineer engaged before the deadline.' },
-      { k: 'Visible distress', v: 'Cracking, spalling, corrosion staining or movement has appeared and someone needs to say whether it affects capacity.' },
-      { k: 'Before you spend', v: 'Repairs are being priced and the scope has not been defined by an engineer, so the bids are not comparable.' },
-      { k: 'Before you buy', v: 'Structural due diligence on an acquisition, including alterations and change-of-use questions.' },
+      { slug: 'building-recertification', k: 'A notice arrived in Miami-Dade.', v: 'That is Miami-Dade’s building recertification. Send us the letter: we take the structural side from the first visit to the report that closes it, and the program’s page gives the ages and the deadline that apply.' },
+      { slug: 'broward-bsip', k: 'A notice arrived in Broward.', v: 'That is the Building Safety Inspection Program, the BSIP, and your city’s letter sets its own date. We start from that letter, inspect the building and prepare the structural report on the program’s official form, through to close-out.' },
+      { slug: 'milestone-inspections', k: 'The board asks whether the milestone law reaches the building.', v: 'The state law and the county programs overlap. We tell you which rules reach your building and how they are met in your county — and we inspect when no notice has come but a purchase, a lender or visible distress gives a reason to look.' },
+      { slug: 'structural-condition-assessments', k: 'A report lists repairs, or something worries you.', v: 'Before contractors price anything, an engineer says which conditions affect the structure and defines the repair, so every bid answers the same scope. The same assessment serves before you buy a building or alter one.' },
     ],
   },
-  servicesEyebrow: 'Services for existing buildings',
   /* The one sequence both county programs share. It carries NO age and NO
      deadline: this lede used to state Miami-Dade's, Broward's and the
      state's in a single sentence, which is exactly how a number gets read
@@ -2435,8 +2557,10 @@ export const existingPage = {
       { n: '02', title: 'Inspection', detail: 'Structural inspection on site — frame, slabs, balconies, roof and exposed foundations — documented in the field, with photographs tied to their locations.' },
       { n: '03', title: 'Report filed', detail: 'The structural report goes on the official form the county requires, in language a board can act on, and is filed even when it lists repairs.' },
       { n: '04', title: 'Repairs under permit', detail: 'Where repairs are required we define what must be corrected and to what standard, so the work can be bid fairly. Work that needs a permit waits for it.' },
-      { n: '05', title: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings.' },
-      { n: '06', title: 'Close-out', detail: 'An amended report — in Broward, with a signed and sealed completion letter — states that the repairs are complete. That closes the file until the next cycle.' },
+      /* Its own sentence: this step used to be, word for word, the
+         Miami-Dade page's step five. */
+      { n: '05', title: 'Reinspection', detail: 'When the work is finished we return to the repaired areas and record them against what the first report found.' },
+      { n: '06', title: 'Close-out', detail: 'An amended report — in Broward, with a signed and sealed completion letter — states that the repairs are complete. The file then stays closed until the next cycle.' },
     ],
   },
 } as const;
@@ -2660,6 +2784,32 @@ export const partner = {
       { label: 'Certified General Contractor', number: 'CGC061867' },
       { label: 'Certified Electrical Contractor', number: 'EC13010175' },
     ],
+  },
+  /* THE BLOCK IS PRINTED WHOLE ON THE HOME PAGE ONLY (`title`, `lede`, the
+     two cards, `verifyLead`). It used to be printed whole on /about and on
+     /existing-buildings too — the same lede, cards and note on three pages,
+     and the first two entries of the on-page check's list of repeated text.
+     Each of the other two pages now has a shorter block with a job of its
+     own, in its own words, and every rule above still holds in both.
+
+     `about` — /about, the page a board opens to check who the firms are:
+     what each company IS, and the four registrations as one list. The three
+     license numbers are still links to the DBPR search, as on the home page
+     (the owner asked that both pages keep them); how to use that search is
+     already printed on /about, under the engineer's own license.
+
+     `brief` — /existing-buildings, right after the six steps: who the
+     reader deals with while they run, and a link to the list on /about.
+     It restates the one verified figure in a sentence of its own; the
+     sentence the owner approved stays on the home page, in `lede`. */
+  about: {
+    title: 'Two firms, each under its own license.',
+    body: 'Precision Source Inc. is a separate company: a Florida-certified general and electrical contractor based in Miami. On Miami-Dade recertifications and Broward BSIP inspections the two firms work as one team. The three license numbers below open the state’s license search, where you can check them yourself.',
+  },
+  brief: {
+    title: 'The same team at every step.',
+    body: 'From the notice to close-out you deal with one team: this practice and Precision Source Inc., a Florida-certified general and electrical contractor in Miami that works with us on recertifications and BSIP inspections. Between the two firms: more than 30 years of combined experience.',
+    link: { href: '/about#contractor', label: 'Both firms and their licenses' },
   },
 };
 
