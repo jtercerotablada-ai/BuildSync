@@ -482,9 +482,13 @@ html:has(.mp) {
    to #miami-dade, #broward and #new-buildings. smooth-scroll.tsx gives the
    target tabindex="-1" and focuses it, so the next Tab continues from inside
    the section; after a keyboard activation the global rule would then draw
-   the ring around the whole section. A place, not a control. */
+   the ring around the whole section. A place, not a control.
+   The h2 is the one target that is not a section: a program page's jump
+   links (JumpLinks) land on its "What you receive" column heading. */
 .mp section[tabindex='-1']:focus,
-.mp section[tabindex='-1']:focus-visible {
+.mp section[tabindex='-1']:focus-visible,
+.mp h2[tabindex='-1']:focus,
+.mp h2[tabindex='-1']:focus-visible {
   outline: none;
 }
 
@@ -892,8 +896,9 @@ html:has(.mp) {
 /*
   Two states, expressed through custom properties so there is one override:
 
-    solid   — paper + blur, dark text. The DEFAULT, so it is also what renders
-              before any JavaScript runs and in browsers without :has().
+    solid   — opaque paper, dark text. The DEFAULT, so it is also what
+              renders before any JavaScript runs and in browsers without
+              :has().
     overlay — transparent, light text, sitting on a dark hero.
 
   Which applies is a pure CSS question: does this page contain a dark hero
@@ -907,10 +912,19 @@ html:has(.mp) {
   reload mid-page, End, a #hash, focus scrolling to a field — a half-faded
   bar with the page showing through it: the "thin grey strip". Only the
   hairline keeps its fade.
+
+  Both backings — paper here, graphite in the third state below — are fully
+  OPAQUE. They were 96% and 94% over a backdrop blur, and that was enough for
+  the page to read through the bar: the text sliding under it showed as a
+  faint ghost behind the logo and the button — dark on the paper bar, light
+  on the graphite one — and the owner saw it. A fixed bar that carries the
+  navigation is a surface, not a pane of glass. With nothing left behind it
+  to blur, the backdrop-filter went too (one less full-width filter to
+  composite on every scrolled frame). The bar over the hero at the top of a
+  page is the overlay state: transparent, and untouched by this.
 */
 .mp-header {
-  --hdr-bg: rgba(246, 244, 239, 0.96);
-  --hdr-blur: saturate(1.4) blur(14px);
+  --hdr-bg: var(--mp-paper);
   --hdr-fg: var(--mp-ink);
   --hdr-line: var(--mp-line);
   --hdr-border: var(--mp-line-strong);
@@ -929,8 +943,6 @@ html:has(.mp) {
   align-items: center;
   color: var(--hdr-fg);
   background: var(--hdr-bg);
-  backdrop-filter: var(--hdr-blur);
-  -webkit-backdrop-filter: var(--hdr-blur);
   border-block-end: 1px solid var(--hdr-line);
   transition: border-color var(--mp-dur) var(--mp-ease);
 }
@@ -942,7 +954,6 @@ html:has(.mp) {
 body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
 .mp-header.is-menu-open {
   --hdr-bg: transparent;
-  --hdr-blur: none;
   --hdr-fg: var(--mp-snow);
   --hdr-line: transparent;
   --hdr-border: rgba(246, 244, 239, 0.34);
@@ -956,15 +967,14 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
 
 /* Third state: once the page has moved but the dark hero is still behind the
    header, take a graphite backing so hero copy never slides under the logo.
-   Transparent → dark → paper. Both backings are near-opaque on purpose: the
-   blur is a bonus, not the thing keeping the logo legible.
+   Transparent → dark → paper. Opaque, like the paper one (see above): the
+   hero headline is snow on graphite, the strongest ghost of all at 94%.
    A keyboard user inside the transparent bar gets the same backing, so a
    gold ring never sits over the lighter pixels of the photo (it dipped to
    ~2.6:1 behind the CTA). */
 body:has([data-mp-dark-hero]) .mp-header.is-floating:not(.is-stuck):not(.is-menu-open),
 body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open):has(:focus-visible) {
-  --hdr-bg: rgba(11, 12, 13, 0.94);
-  --hdr-blur: saturate(1.2) blur(16px);
+  --hdr-bg: var(--mp-graphite);
   --hdr-line: rgba(246, 244, 239, 0.12);
 }
 /* Same content width and gutter as .mp-shell: the monogram and the CTA line
@@ -1522,6 +1532,16 @@ a.mp-menu__mail {
     padding-block: calc((44px - 1lh) / 2);
   }
 }
+/* The same list under the page hero of the two county programs (JumpLinks):
+   in-page links to the timing table, what the client receives, the steps
+   and the questions. A graphite band with a hairline over it, so it reads as
+   the foot of the hero, like the strip above. Phones only — at 390px those
+   two pages run twelve to thirteen screens — so it is switched on in 19
+   (≤640px), where the list also becomes one column of 44px rows. */
+.mp-jump {
+  display: none;
+  border-block-start: 1px solid var(--mp-line);
+}
 /* The capability list and the motion toggle share the foot row. */
 .mp-hero__footrow {
   display: flex;
@@ -1628,6 +1648,111 @@ a.mp-menu__mail {
 }
 .mp-enter--d6 {
   animation-delay: 0.6s;
+}
+
+/* ── Below-the-fold reveals ──────────────────────────────────────────────
+   `Reveal`, scroll-triggered `RevealText`, `AnimatedLine` and the stagger
+   lists (primitives.tsx). Their markup is plain and VISIBLE: nothing below
+   applies until reveal.ts puts `data-rv` on an element, and it only does
+   that after hydration, from its observer, to a block still below the
+   screen:
+
+     data-rv="wait"   parked out of sight, where the animation will start
+     data-rv="in"     on screen: the keyframe plays once and lets go
+
+   Without JavaScript, before hydration and after a failed script these
+   selectors match nothing, so every block is simply there — it used to be
+   an inline opacity:0 from Motion that only React could lift. The attribute
+   sits on the element the observer watches: the block itself, the mask of a
+   headline line, or a stagger list. Hence the two selector shapes.
+
+   Same numbers as the Motion versions these replace (14px / 0.5s; 108% /
+   0.7s; scaleX / 0.9s; 10px / 0.45s, 45ms apart), and the `backwards` fill
+   of the entrances above, for the same reason. The two keyframes here have
+   no `to`: they end on whatever the element's own rules say, so a block
+   with its own opacity or transform does not jump when the fill lets go.
+   Delay, duration and distance arrive as inline custom properties where a
+   block sets its own.
+
+   Inside `no-preference`: with reduced motion there is then no hidden state
+   to undo. reveal.ts arms nothing for those visitors; this also covers a
+   preference switched on mid-visit. Print forces the final state (21). */
+@keyframes mp-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rv-y, 14px));
+  }
+}
+@keyframes mp-reveal-rule {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mp-reveal[data-rv='wait'] {
+    opacity: 0;
+    transform: translateY(var(--rv-y, 14px));
+  }
+  .mp-reveal[data-rv='in'] {
+    animation: mp-reveal 0.5s var(--mp-ease) var(--rv-delay, 0s) backwards;
+  }
+
+  /* AnimatedLine: the hairline draws itself from the left (.mp-rule sets the
+     transform-origin). Parked, it is only transparent and keeps its box:
+     at scaleX(0) it would be a zero-width rectangle on the gutter's edge,
+     a poor thing to ask an observer about (reveal.ts: parked that way, it
+     never drew on a phone). The keyframe supplies the zero width. */
+  .mp-reveal--rule[data-rv='wait'] {
+    transform: none;
+  }
+  .mp-reveal--rule[data-rv='in'] {
+    animation-name: mp-reveal-rule;
+    animation-duration: var(--rv-dur, 0.9s);
+  }
+
+  /* Headline lines: the hero headlines' mask-rise, keyframe included. The
+     attribute is on the mask (RevealLine says why); the line moves. */
+  [data-rv='wait'] > .mp-reveal--line {
+    opacity: 0;
+    transform: translateY(108%);
+  }
+  [data-rv='in'] > .mp-reveal--line {
+    animation: mp-enter-line 0.7s var(--mp-ease) var(--rv-delay, 0s) backwards;
+  }
+
+  /* Stagger lists: the attribute is on the list, the items follow it one
+     beat apart. Seven steps are written out (the one list today, the five
+     "How we work" cards, uses four); anything longer joins the last beat
+     rather than starting ahead of the items before it. */
+  [data-rv='wait'] > .mp-reveal--item {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  [data-rv='in'] > .mp-reveal--item {
+    animation: mp-enter 0.45s var(--mp-ease) backwards;
+  }
+  [data-rv='in'] > .mp-reveal--item:nth-child(2) {
+    animation-delay: 45ms;
+  }
+  [data-rv='in'] > .mp-reveal--item:nth-child(3) {
+    animation-delay: 90ms;
+  }
+  [data-rv='in'] > .mp-reveal--item:nth-child(4) {
+    animation-delay: 135ms;
+  }
+  [data-rv='in'] > .mp-reveal--item:nth-child(5) {
+    animation-delay: 180ms;
+  }
+  [data-rv='in'] > .mp-reveal--item:nth-child(6) {
+    animation-delay: 225ms;
+  }
+  [data-rv='in'] > .mp-reveal--item:nth-child(7) {
+    animation-delay: 270ms;
+  }
+  [data-rv='in'] > .mp-reveal--item:nth-child(n + 8) {
+    animation-delay: 315ms;
+  }
 }
 
 /* ═══ 07 · COUNTY PROGRAMS ════════════════════════════════════════════════ */
@@ -3346,6 +3471,56 @@ a.mp-menu__mail {
 }
 
 @media (max-width: 640px) {
+  /* Reading size. On a phone the "small" step IS body size, 16px. It was
+     14.4px, and more than a third of the recertification page's text was
+     set in it: the values of the timing table, the notes beside it, the
+     steps — the very parts a board member came to read, often an older
+     reader on a phone. One token, so every block that uses it follows; the
+     footer's links grow with it. The 12px uppercase labels are not running
+     text and stay. */
+  .mp {
+    --mp-t-small: 1rem;
+  }
+  /* …and the sentences that were smaller still without using the token. */
+  .mp-disclaimer,
+  .mp-tools__note,
+  .mp-field__error,
+  .mp-info__meta,
+  .mp-footer__notice {
+    font-size: var(--mp-t-small);
+  }
+  /* The jump links under a county program's hero (06). */
+  .mp-jump {
+    display: block;
+  }
+  /* Thumb-sized links: 44px where they were 24–33. The footer's rows were
+     33px tall with no gap between them — the easiest place on the site to
+     open the wrong service. */
+  .mp-footer__col a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .mp-footer__legal {
+    gap: 0 var(--mp-6);
+  }
+  .mp-footer__legal a,
+  .mp-close__meta a {
+    min-height: 44px;
+  }
+  /* The breadcrumb grows by an invisible ::before, like .mp-link, not by
+     its box: 24 + 2×10 = 44px tall and at least 44 wide ('Home' is 31–34px,
+     depending on the font that loaded), and the headline is not pushed 20px
+     further down a first screen with none to spare. The crumbs sit about
+     20px apart, so 7px a side never reaches the next one. */
+  .mp-breadcrumbs a {
+    position: relative;
+  }
+  .mp-breadcrumbs a::before {
+    content: '';
+    position: absolute;
+    inset: -10px -7px;
+  }
   /* The hero strip on a phone: four links in one column, each a 44px row,
      beside the motion toggle. One column because no two labels share a 290px
      row anyway — a wrapping row only produced a ragged list — and 44px
@@ -4907,10 +5082,11 @@ a.mp-menu__mail {
   .mp-footer * {
     color: #000 !important;
   }
-  /* Every block the visitor had not scrolled to still carried Motion's
-     inline opacity:0 — 21 of 31 on the recertification page, the Miami-Dade
-     and Broward timing cards among them. Same rule as the <noscript> one in
-     (public)/layout.tsx; !important beats the inline style. */
+  /* Every block the visitor had not scrolled to is still parked by
+     `data-rv="wait"` (06, below-the-fold reveals) — most of the
+     recertification page for someone who prints from the top, the timing
+     card among them. Same rule as the <noscript> one in (public)/layout.tsx;
+     !important because it must also beat an inline style. */
   .mp .mp-reveal {
     opacity: 1 !important;
     transform: none !important;

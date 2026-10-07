@@ -82,6 +82,11 @@ export const company = {
    * The `*Sm` files are pure resizes of the same masters (no redraw) for the
    * site chrome, where a 1254px or 2172px PNG was being shipped to draw a
    * 40px mark. The masters stay for JSON-LD, the SaaS and email.
+   *
+   * The `*Xs` files are the header's own: the same masters resized to 144px
+   * and stored as LOSSLESS WebP (scripts/encode-header-logos.mjs), for a slot
+   * 32–54px tall. The partner block and the engineer plate draw the mark
+   * larger and keep the `*Sm` PNGs.
    */
   logo: {
     lockupDark: '/ttc/img/logo-horizontal.png',
@@ -95,6 +100,9 @@ export const company = {
     lockupLightSm: '/ttc/img/logo-white-wide@640.png',
     markSmSize: { w: 256, h: 256 },
     lockupSmSize: { w: 640, h: 244 },
+    markDarkXs: '/ttc/img/logo-square@144.webp',
+    markLightXs: '/ttc/img/logo-white@144.webp',
+    markXsSize: { w: 144, h: 144 },
   },
   /**
    * Florida Engineering Business Registry number (DBPR).
@@ -211,6 +219,10 @@ export const ui = {
     unavailable: 'Spanish version not available',
   },
   breadcrumb: 'Breadcrumb',
+  /** Accessible name of the jump links under a county program's hero on a
+      phone (JumpLinks). The links themselves reuse the section labels below,
+      so a link and the section it lands on always say the same thing. */
+  onThisPage: 'On this page',
   explore: 'Explore',
   /* Button and link CTAs are Title Case in English, matching the header's
      "Request a Proposal"; headings stay in sentence case. */

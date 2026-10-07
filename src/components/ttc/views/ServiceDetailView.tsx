@@ -6,6 +6,7 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
+import { JUMP_ID, JumpLinks } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { ButtonLink, SectionHeading, Reveal, TextLink } from '@/components/ttc/mp/primitives';
@@ -197,6 +198,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         {program ? <EngineerCredential lang={lang} /> : null}
         {program ? <ReachRow c={c} /> : null}
       </PageHero>
+      {program ? <JumpLinks c={c} service={service} /> : null}
 
       {/* Why it matters + when you need it.
           The h2 is the short `problemTitle`; the `problem` paragraph is its
@@ -244,7 +246,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               </ol>
             </Reveal>
             <Reveal delay={0.05}>
-              <h2 className="mp-h3 mp-cols2__title">{u.whatYouReceive}</h2>
+              <h2 id={JUMP_ID.receive} className="mp-h3 mp-cols2__title">{u.whatYouReceive}</h2>
               <ol className="mp-speclist">
                 {service.deliverables.map((d) => (
                   <li key={d}>{d}</li>
@@ -269,7 +271,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
 
       {/* When it applies — regulated services only */}
       {service.timing ? (
-        <section className="mp-section mp-surface--paper">
+        <section id={JUMP_ID.applies} className="mp-section mp-surface--paper">
           <div className="mp-shell">
             <SectionOpen n={next()} label={u.whenItApplies} title={h.whenItApplies} />
             <div className={singleRow ? 'mp-juris mp-juris--single' : 'mp-juris'}>
@@ -381,7 +383,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           is the one every number on the page answers to: the row's
           authority and the shared date. */}
       {service.faq?.length ? (
-        <section className="mp-section mp-surface--paper">
+        <section id={JUMP_ID.questions} className="mp-section mp-surface--paper">
           <div className="mp-shell">
             <SectionOpen n={next()} label={u.faqLabel} title={h.faq ?? u.faqTitle} />
             <div className="mp-faq">
@@ -405,7 +407,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
       ) : null}
 
       {/* How it runs */}
-      <section className={`mp-section ${service.timing ? 'mp-surface--concrete' : 'mp-surface--paper'}`}>
+      <section id={JUMP_ID.steps} className={`mp-section ${service.timing ? 'mp-surface--concrete' : 'mp-surface--paper'}`}>
         <div className="mp-shell">
           <SectionOpen n={next()} label={u.howItRuns} title={h.howItRuns} />
           <div className="mp-timeline">

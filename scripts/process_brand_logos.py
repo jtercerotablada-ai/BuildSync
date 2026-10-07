@@ -12,7 +12,7 @@ writes every variant the live site references into ../public/ttc/img/:
   logo-icon-favicon.svg  white mark on black tile (browser tab)
   logo-horizontal.png / logo-white-wide.png   (lockup masters; source of the @640
                                                rendition, not loaded by the site)
-  logo-square@256.png / logo-white@256.png    (display renditions: public header,
+  logo-square@256.png / logo-white@256.png    (display renditions: partner block,
                                                engineer plate, SaaS fallback screen)
   logo-white-wide@640.png                     (display rendition: public footer)
 
@@ -21,9 +21,12 @@ actually load (company.logo.*Sm in src/lib/ttc/site.ts + site.es.ts). If the
 lockup's aspect changes, update company.logo.lockupSmSize in BOTH files — the
 script prints the new size.
 
-NOT generated here, but cut from logo-white.png on the graphite tile and to be
-regenerated whenever the mark changes: public/ttc/icons/{apple-touch-icon,
-icon-48,icon-192}.png and public/favicon.ico (16/32/48).
+NOT generated here, and to be regenerated whenever the mark changes:
+  - logo-square@144.webp / logo-white@144.webp, the public header's marks
+    (company.logo.*Xs): run `node scripts/encode-header-logos.mjs` after this.
+  - public/ttc/icons/{apple-touch-icon,icon-48,icon-192}.png and
+    public/favicon.ico (16/32/48), cut from logo-white.png on the graphite
+    tile.
 """
 import sys, os, io, base64
 import numpy as np

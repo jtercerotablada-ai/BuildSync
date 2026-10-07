@@ -292,24 +292,31 @@ export function SiteHeader() {
           >
             {/* The real square monogram, swapped by header state: dark mark on
                 the light header, white mark over a dark hero. Both are the
-                256px straight resizes of the masters (a 36–54px slot, so ≥4x);
-                both stay eager, because the hidden one is swapped in on
-                scroll. The 1254px masters stay for JSON-LD, the app and email. */}
+                masters resized to 144px and stored as lossless WebP (a
+                32–54px slot, so ≥2.6x) — 10 + 7 kB where the 256px PNGs were
+                32 + 21 kB. Both stay eager, because the hidden one is swapped
+                in on scroll; but the dark mark is the hidden one at the top
+                of every page (they all open on a dark hero), and React
+                preloads any eager image that is not `fetchPriority="low"`:
+                the two used to share the connection with the hero photo. Low
+                priority drops that preload and lets it load behind the page.
+                The PNG masters stay for JSON-LD, the app and email. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={logo.markDarkSm}
+              src={logo.markDarkXs}
               alt=""
-              width={logo.markSmSize.w}
-              height={logo.markSmSize.h}
+              width={logo.markXsSize.w}
+              height={logo.markXsSize.h}
+              fetchPriority="low"
               className="mp-header__lockup mp-header__lockup--dark"
               aria-hidden="true"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={logo.markLightSm}
+              src={logo.markLightXs}
               alt=""
-              width={logo.markSmSize.w}
-              height={logo.markSmSize.h}
+              width={logo.markXsSize.w}
+              height={logo.markXsSize.h}
               className="mp-header__lockup mp-header__lockup--light"
               aria-hidden="true"
             />
