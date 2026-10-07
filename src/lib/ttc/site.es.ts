@@ -1555,9 +1555,9 @@ export const es: SiteContent = {
      short phrase (it does not wrap), and is never the two counties. */
   aboutPage: {
     eyebrow: 'Sobre la firma',
-    titleLines: ['Una firma de ingeniería estructural', 'del Sur de Florida.'],
-    accentWord: 'Sur de Florida.',
-    sub: 'Una firma de ingeniería estructural con un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
+    titleLines: ['Tercero Tablada: una firma de', 'ingeniería estructural del Sur de Florida.'],
+    accentWord: 'Tercero Tablada',
+    sub: 'Construida alrededor de un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
     facts: [
       { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Enfoque', v: 'Concreto · Edificios existentes · BIM' },

@@ -227,13 +227,13 @@ describe('H1: the subject and the place, in words the page uses', () => {
     en: {
       '/services': 'Organized by what you need, not by what we do.',
       '/existing-buildings': 'The building is already standing.',
-      '/about': 'A structural practice built around one accountable engineer.',
+      '/about': 'Built around one accountable engineer.',
       '/projects': 'The frame behind the project.',
     },
     es: {
       '/services': 'Organizados por lo que usted necesita, no por lo que hacemos.',
       '/existing-buildings': 'El edificio ya está en pie.',
-      '/about': 'Una firma de ingeniería estructural con un solo ingeniero responsable.',
+      '/about': 'Construida alrededor de un solo ingeniero responsable.',
       '/projects': 'La estructura detrás del proyecto.',
     },
   };

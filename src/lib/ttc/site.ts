@@ -2290,9 +2290,13 @@ export const leadership = {
    accent: it would have to pick one of them. */
 export const aboutPage = {
   eyebrow: 'About the practice',
-  titleLines: ['A South Florida', 'structural engineering practice.'],
-  accentWord: 'South Florida',
-  sub: 'A structural practice built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
+  /* The H1 names the firm: "A South Florida structural engineering practice"
+     said the same three words as the home page's headline and named neither
+     the firm nor the engineer this page is about. The line under it opens
+     with what is particular to the practice instead of repeating the H1. */
+  titleLines: ['Tercero Tablada: a structural', 'engineering practice in South Florida.'],
+  accentWord: 'Tercero Tablada',
+  sub: 'Built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
   facts: [
     { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
     { k: 'Focus', v: 'Concrete · Existing buildings · BIM' },
