@@ -26,12 +26,16 @@
  *     move. Each county's numbers live ONLY in that county's own timing row
  *     — Miami-Dade's on `building-recertification`, Broward's on
  *     `broward-bsip` — never merged into one sentence, and never repeated in
- *     a headline, a lede or a meta description. Every row names its authority
+ *     a headline, a lede, a meta description or an FAQ answer: an answer
+ *     points at the row by its label instead. Every row names its authority
  *     and carries the one shared date, `regulatoryChecked`. Re-verify against
  *     the primary source before amending, then move that date.
  *   • Never on this site: fees, fine amounts, phase-in years, a computed due
  *     year, "40-year" as if it were a current trigger, or any promise about
  *     how a reviewing office will act.
+ *   • "40-year" as the NAME owners still give both programs ("formerly",
+ *     "still called") is the opposite case: it is what people type, so it is
+ *     in the two program titles, descriptions and first lines on purpose.
  *   • Both county programs ask for a structural report AND an electrical one.
  *     The firm prepares the structural report. Never write that it delivers
  *     "structural and electrical", and never imply it signs threshold
@@ -218,6 +222,16 @@ export const ui = {
   considerations: 'Good to know',
   /** The heading under the "Good to know" label, so the label is not repeated as the H2. */
   considerationsTitle: 'What changes the scope — and what no engineer can promise.',
+  /** The questions block of a service page (`Service.faq`): its label, and
+      the h2 of a service that sets no `headings.faq`. */
+  faqLabel: 'Questions & answers',
+  faqTitle: 'Questions owners and boards ask',
+  /** Heading of `timing.duties`, beside a county program's timing table. The
+      FAQ answers point at the list by this name. */
+  boardDuties: 'What the board must do',
+  /** Milestone page: label of the section that sends each county's reader
+      to that county's page (`Service.countyPages`, `Service.comparison`). */
+  inBothCounties: 'In Miami-Dade & Broward',
   /** Labels over the two halves of each How-we-work card. */
   stepYourPart: 'Your part',
   stepYouGet: 'You get',
@@ -473,6 +487,34 @@ export type Service = {
   /** One or two lines. Used on cards and list rows. */
   summary: string;
   /**
+   * The line under the H1 of the service's own page, where it has to say
+   * something `summary` does not (cards, list rows and the schema keep
+   * `summary`). The two county programs open with the name owners still
+   * search for — "the 40-year recertification" — as a NAME, never as a
+   * trigger, and with no number.
+   */
+  heroSub?: string;
+  /**
+   * Headings of the service's own page, in the words people search with.
+   * Every key is optional and falls back to the shared label in `ui`
+   * (ServiceDetailView), so the other services keep "What's included",
+   * "When it applies"… and only a page that has something more exact to say
+   * says it. `h1` falls back to `title`, which stays the name on cards, in
+   * the nav and in the schema.
+   *
+   * Whatever is set here is the VISIBLE h2 — never a search phrase in a
+   * hidden heading beside a different visible label. No age and no day
+   * count in any of them (site.test.ts checks the regulated pages).
+   */
+  headings?: {
+    h1?: string;
+    whatsIncluded?: string;
+    whenItApplies?: string;
+    howItRuns?: string;
+    faq?: string;
+    considerations?: string;
+  };
+  /**
    * The H2 of the "When you need it" section: 3–9 words, client language, no
    * promise. It used to be the whole `problem` paragraph set at display size,
    * which ran 13–23 lines beside an empty column.
@@ -497,6 +539,18 @@ export type Service = {
   /** Honest caveats — what changes the scope, what we do not promise. */
   considerations: string[];
   /**
+   * Questions a board asks, each with a two- or three-sentence answer:
+   * rendered above the process steps as an h2 with one h3 per question, and
+   * emitted as FAQPage markup from this same array, so the markup cannot
+   * drift from the page. Only the two county programs carry one today.
+   *
+   * An answer NEVER types an age, a day count or a deadline. It points at
+   * the timing row printed just above it, by the row's label in curly quotes
+   * (“Time to file”); site.test.ts fails if a quoted label is not one of the
+   * row's, or if a number slips in.
+   */
+  faq?: { q: string; a: string }[];
+  /**
    * When the obligation is triggered. Only the regulated existing-building
    * services carry one. Every row names its JURISDICTION, because Miami-Dade,
    * Broward and the State each set a different clock — and each row sits on
@@ -520,6 +574,14 @@ export type Service = {
   timing?: {
     checked: string;
     note: string;
+    /**
+     * What state law asks of a condominium or cooperative BOARD, as a short
+     * list under `note` ("What the board must do"). It used to be the second
+     * half of the note: one sentence of about a hundred words that no one
+     * could act on. Its day counts are the statute's and stay in this block,
+     * next to `checked`.
+     */
+    duties?: string[];
     rows: {
       jurisdiction: string;
       source: string;
@@ -544,6 +606,31 @@ export type Service = {
    * each one points at the other instead.
    */
   crossLink?: { text: string; label: string; slug: string };
+  /**
+   * The milestone page only. One heading per county that IS the link to that
+   * county's page, with the sentence that says how the state inspection is
+   * met there. This was a plain-text note that told the reader the deadline
+   * "is on that county's page" and gave nothing to tap.
+   */
+  countyPages?: { slug: string; title: string; text: string }[];
+  /**
+   * The milestone page only: the four things a condominium board hears about
+   * — the two county programs, the state milestone inspection and the
+   * reserve study — answered under the same four labels. Text, not a
+   * drawing, and NO age or deadline: those stay in each program's own row.
+   * Every row has one value per label, in the labels' order.
+   *
+   * The reserve study (SIRS) is described here as what the law says it is.
+   * Whether the firm prepares one is the owner's to state, and until he does
+   * this site does not say.
+   */
+  comparison?: {
+    title: string;
+    labels: string[];
+    rows: { name: string; values: string[] }[];
+    /** The authorities, printed under the cards with `timing.checked`. */
+    source: string;
+  };
   /**
    * The home-page section of a county program. ONLY `building-recertification`
    * and `broward-bsip` carry one. The section's numbers are NOT here: it
@@ -610,9 +697,32 @@ export const services: Service[] = [
     areaServed: ['Miami-Dade County, Florida'],
     summary:
       'A clear path from the Miami-Dade notice to a closed recertification — inspection, the structural report on the county’s form, repair scope, reinspection.',
+    /* The first words under the H1 are the name most owners still use, so a
+       visitor who searched "40-year recertification" knows this is the page.
+       A name, never a trigger, and no number. The second sentence is the
+       opening of the home section's own lede (`program.lede`), and leads
+       into the button under it. Two short sentences on purpose: this line
+       is SHORTER than `summary`, which it replaces here, so the button sits
+       higher on a phone's first screen, not lower. */
+    heroSub:
+      'The inspection most owners still call the 40-year recertification. Send us the notice from your city or the county.',
+    /* The page's own h2s, in the words a board searches with ("who has to
+       recertify in Miami-Dade"). The ages and the day counts they lead to
+       are in the row, never in the heading. */
+    headings: {
+      whatsIncluded: 'What a Miami-Dade recertification inspection includes',
+      whenItApplies: 'Who has to recertify in Miami-Dade, and when',
+      howItRuns: 'How a recertification runs, step by step',
+      faq: 'Questions boards ask about Miami-Dade recertification',
+      considerations: 'Reports, forms and the limits of an inspection.',
+    },
     problemTitle: 'A notice arrives with a deadline.',
+    /* Opens by saying what a recertification IS — the page assumed the
+       reader knew (the Broward page always had this sentence). And "a
+       structural engineer", once: it is the trade a board searches for, and
+       the body of the page never said it. */
     problem:
-      'The Notice of Required Inspection comes with forms and very little explanation of what actually has to happen. Boards and owners need someone who knows the county’s sequence and can carry the structural side of it from the first site visit to the report that closes the recertification.',
+      'Building recertification is Miami-Dade County’s periodic safety inspection of older buildings, structural and electrical, reported in writing to your Building Official. The Notice of Required Inspection comes with forms and very little explanation of what actually has to happen. Boards and owners need a structural engineer who knows the county’s sequence and can carry the structural side of it from the first site visit to the report that closes the recertification.',
     audience: [
       'Condominium, cooperative and homeowner associations',
       'Property managers',
@@ -664,8 +774,16 @@ export const services: Service[] = [
          What state law still asks of the BOARD is the unit-owner duties of
          F.S. 553.899(5) and (9), which reach only buildings of three habitable
          stories or more. The statute is named in the prose because this
-         block's row source is the county's. */
-      note: 'The notice comes from the Building Official of your city, or from the county in unincorporated areas, and the report is filed with that same office. For condominium and cooperative buildings of three habitable stories or more, the recertification report serves as the state milestone inspection, and the board’s duties to unit owners under state law (Florida Statute 553.899) remain: within 14 days of receiving the notice, tell them about the required inspection and the date it must be completed; within 45 days of receiving the report, send every owner the engineer’s summary, post it in a conspicuous place on the property, and publish the report and the summary on the association’s website where the association is required to have one.',
+         block's row source is the county's.
+
+         The duties themselves are `duties` below: the same words, as three
+         lines a board can tick off, instead of one 95-word sentence. */
+      note: 'The notice comes from the Building Official of your city, or from the county in unincorporated areas, and the report is filed with that same office. For condominium and cooperative buildings of three habitable stories or more, the recertification report serves as the state milestone inspection, and the board’s duties to unit owners under state law (Florida Statute 553.899) remain.',
+      duties: [
+        'Within 14 days of receiving the notice, tell unit owners about the required inspection and the date it must be completed.',
+        'Within 45 days of receiving the report, send every owner the engineer’s summary and post it in a conspicuous place on the property.',
+        'In those same 45 days, publish the report and the summary on the association’s website, where the association is required to have one.',
+      ],
       rows: [
         {
           jurisdiction: 'Miami-Dade County',
@@ -698,13 +816,98 @@ export const services: Service[] = [
         },
       ],
     },
+    /* QUESTIONS BOARDS ASK. Most of these answers are the caveats that sat
+       under "Good to know" as statements: the same verified sentences, now
+       under the question an owner actually types, and above the six steps
+       instead of seven phone screens down. What moved here is no longer in
+       `considerations`, so nothing is said twice.
+
+       Every answer keeps the site's rules:
+         • No age, day count or deadline is typed here. An answer points at
+           the row of the table printed just above it, by the row's label in
+           curly quotes; site.test.ts checks each quoted label exists.
+         • "40-year" only as the name people still use.
+         • A missed deadline: the mechanism the COUNTY publishes, attributed
+           to it, with no amounts — cities set their own — and no promise
+           about what an office will do.
+         • An older building never recertified: the county's phase-in years
+           and its catch-up date are NOT printed (phase-in years stay off
+           this site). The answer says only that the date has passed.
+       Held until the owner answers: cost, how long the work takes, who signs
+       the electrical report, buildings of four or more stories, access to
+       units, Spanish.
+       Read on 2026-10-06 against miamidade.gov "Building Recertification"
+       (its Common Questions), the text of Sec. 8-11(f) and F.S. 553.899.
+       `regulatoryChecked` was left alone: that date stands for a full
+       re-read of the rows, which this was not. */
+    faq: [
+      {
+        q: 'Is this the 40-year recertification?',
+        a: 'Yes. “40-year recertification” is the name most owners still use for Miami-Dade’s building recertification, from the years when the first inspection fell due at that age. The program is the same; the first inspection now falls due earlier, at the ages under “First due” in the table above.',
+      },
+      {
+        q: 'We received the notice. What do we do first?',
+        a: 'Send it to us — a phone photo of the letter is enough. We read the notice and the building’s history, confirm what your Building Official is asking for and by when, and reply with a proposal for the inspection and the structural report. In a condominium or cooperative of three habitable stories or more, the board also has duties to unit owners: see “What the board must do” above.',
+      },
+      {
+        q: 'How long do we have?',
+        a: 'The “Time to file” row in the table above gives the time for the report, and “If repairs are needed” the time for what follows; both are counted from the Notice of Required Inspection. Send us the letter first: we confirm from it what your Building Official is asking for, and by when.',
+      },
+      {
+        q: 'Does our building have to recertify, and which buildings are exempt?',
+        a: 'Almost every building does. The “Applies to” row above lists the building types and the few that are outside the program, and “First due” gives the age at which the first recertification falls due, counted from the year built on the Property Appraiser’s record.',
+      },
+      {
+        /* The code obliges the Building Official to send the courtesy
+           notices and says that not receiving them excuses nothing; the
+           duty itself comes from the building's age. */
+        q: 'We never received a notice. Are we exempt?',
+        a: 'No. A building comes under the program because of its type and its age — the “Applies to” and “First due” rows above — not because a letter arrived. Courtesy notices should arrive ahead of time, and not receiving them does not move the deadline. No notice yet? Send the address and the year built.',
+      },
+      {
+        /* The length of an extension is the one number this answer would
+           need, and it is not in the row: it stays in the single sentence
+           that states it, under "Good to know". */
+        q: 'Can we get an extension?',
+        a: 'One can be requested, to file the report or to obtain permits, and it is the Building Official who grants it. The request comes from the engineer, signed and sealed, and states that the building can remain occupied. How long an extension may run is under “Good to know”, further down this page.',
+      },
+      {
+        q: 'Do we have to bring the building up to today’s code?',
+        a: 'No. The building is judged against the code in force when it was built. Recertification does not require bringing it up to today’s code.',
+      },
+      {
+        q: 'Is this the same as the state milestone inspection?',
+        a: 'For condominium and cooperative buildings of three habitable stories or more, the recertification report serves as the state milestone inspection, and no separate milestone report is filed. What state law adds for those buildings is the board’s duties to unit owners, listed under “What the board must do” above. Other buildings are outside the milestone law and answer only to the county’s program.',
+      },
+      {
+        q: 'Who do we file the report with?',
+        a: 'With the office that sent the notice: the Building Official of your city, or the county in unincorporated areas. Each city runs its own notices and filing, and may have its own forms. Questions about a notice go to the office that sent it, and we read your city’s letter first.',
+      },
+      {
+        q: 'What if the report lists repairs?',
+        a: 'The report is filed anyway: the county asks for it first, not after the work. Where repairs are needed, we define what has to be corrected so contractors bid the same work; repairs that need a permit wait for it, and an amended report stating that the repairs are complete closes the recertification. The time allowed is in the “If repairs are needed” row above.',
+      },
+      {
+        /* The county's own published answer (miamidade.gov, Common
+           Questions), named as the county's. No amounts: the county prints
+           its own, and a city's are its own. The last two sentences are for
+           the owner who is already late — they say what we do first and
+           nothing about what the office will do. */
+        q: 'What happens if we miss the deadline?',
+        a: 'Miami-Dade County’s recertification page says that when a recertification is not obtained in time, a citation is issued without further notice and the case is referred for enforcement; penalties can then accumulate, and a lien can follow. Each city handles its own cases, so the office that sent your notice sets the steps and the amounts. Past the date on your notice? Send the notice and any citation; the first step is getting the inspection done and the report filed.',
+      },
+      {
+        /* No age in the question and no year in the answer, on purpose —
+           see the note above this array. */
+        q: 'Our older building was never recertified. Are we late?',
+        a: 'It may be. When the county shortened the schedule, it set a single catch-up date for the buildings that were already past the new ages, and that date has passed; buildings already recertified under the earlier schedule keep the one they were on. Send the address and the year built, and we confirm what applies to the building before we propose.',
+      },
+    ],
+    /* What is left under "Good to know" once the questions above took their
+       share: who prepares which report, the forms, the one sentence that
+       states the length of an extension, who closes a file, and the limits
+       of any report. The sentences are unchanged. */
     considerations: [
-      /* A naming note, not a deadline: owners still search for the program by
-         its old name, and a county notice template with the legacy title is
-         still online. It deliberately restates NO threshold — it points at
-         the verified row instead. This is the one place the page says
-         "40-year"; never write it as if it were a current trigger. */
-      'Still widely called the “40-year recertification” — the first one now falls due earlier, at the ages listed above.',
       /* Scope honesty. This replaced "electrical recertification is a
          separate discipline", which read as if the electrical part were
          optional. It is part of the same filing; the firm does not sign it. */
@@ -713,11 +916,9 @@ export const services: Service[] = [
          and what we do about it; it claims no credential either way. */
       'Buildings over three stories or 50 feet are “threshold buildings”, and their structural report must come from an engineer with the additional qualifications Miami-Dade County requires. We confirm this for your building before we propose.',
       'The structural and electrical reports go on the county’s own forms; a firm’s own form is not accepted. The county’s packet also includes certificates for parking-lot illumination and, where a lot is next to water, guardrails.',
-      'The building is judged against the code in force when it was built. Recertification does not require bringing it up to today’s code.',
       'The Building Official may grant an extension of up to 60 days to file the report or to obtain permits, on a signed and sealed request from the engineer stating that the building can remain occupied.',
       'The amended report that closes a recertification comes from the engineer or architect who filed the original report. If another firm filed yours, say so when you write — we confirm what closing it will take before we propose.',
       'A condition that puts life or property in danger is reported to the owner and to the Building Official; the engineer has a duty to do so.',
-      'Each city runs its own notices and filing, and may have its own forms. Questions about a notice go to the office that sent it, and we read your city’s letter first.',
       'A report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
     ],
     crossLink: { text: 'Building in Broward?', label: 'See the BSIP', slug: 'broward-bsip' },
@@ -739,12 +940,17 @@ export const services: Service[] = [
     },
     /* seo: no ages and no day counts. The numbers live in the timing row,
        with their authority and date; a meta description is where a stale
-       number survives longest. "40 year" stays in the keywords only — it is
-       what people type, not something the page claims. */
+       number survives longest.
+
+       "40-Year" IS in the title and the description, as the name the program
+       used to have ("formerly", "still called") — never as a rule. It used
+       to sit in the keywords only, which no search engine reads, while most
+       owners still type it. Do not move it back, and do not drop "formerly".
+       The firm name the layout appends is the part a result cuts off. */
     seo: {
-      title: 'Miami-Dade Building Recertification — Structural Engineer',
+      title: 'Miami-Dade Building Recertification (formerly 40-Year) — Structural Engineer',
       description:
-        'Miami-Dade building recertification: notice review, structural inspection and report on the county’s own form, repair scope and reinspection, by a Florida P.E.',
+        'Miami-Dade building recertification, still called the 40-year recertification. Send your notice: a Florida P.E. inspects and files on the county’s form.',
       keywords: ['building recertification Miami-Dade', 'Miami-Dade recertification engineer', '40 year recertification Miami', '30 year recertification Miami', 'condo recertification Miami', 'structural recertification report'],
     },
   },
@@ -758,13 +964,31 @@ export const services: Service[] = [
     areaServed: ['Broward County, Florida'],
     summary:
       'From the Notice of Required Inspection to the completion letter that closes the file — inspection, the structural report on the program’s official form, repair scope, reinspection.',
+    /* The line under the H1 is the first two sentences of the home section's
+       lede (`program.lede`): the name owners still use, as a name, and no
+       number. One change — "Broward’s BSIP" for the program's full name,
+       which the H1 right above spells out (the Spanish lede has always said
+       "El BSIP de Broward"). With the full name this line ran a line longer
+       than `summary` on a 320px phone and pushed the button down. */
+    heroSub:
+      'Broward’s BSIP — many owners still call it the 40-year recertification — reaches almost every building type, in every city. Send us the notice from your Building Official.',
+    /* The page's own h2s — see the Miami-Dade block. No age and no day count
+       in any of them. */
+    headings: {
+      whatsIncluded: 'What the structural engineer inspects',
+      whenItApplies: 'Which buildings the Broward BSIP reaches',
+      howItRuns: 'From the notice to the filed report',
+      faq: 'Questions boards ask about the Broward BSIP',
+      considerations: 'Reports, forms and the limits of an inspection.',
+    },
     /* Not "The letter says 180 days": what a given city's letter says was not
        verified, and a city may set its own dates. The number is in the row. */
     problemTitle: 'A certified letter with a deadline.',
-    /* The one place this page says "40-year": as the name people still use,
-       never as a trigger. */
+    /* "40-year" here, in the line under the H1, in the first question and in
+       the title: always as the name people still use, never as a trigger.
+       "A structural engineer", once — see the Miami-Dade block. */
     problem:
-      'Broward’s Building Safety Inspection Program (BSIP) is a countywide safety inspection of older buildings, structural and electrical, written by the Broward County Board of Rules and Appeals and enforced by your city’s Building Official. Many owners still call it the 40-year recertification, and much of what is written about it describes rules that have since changed. Boards and owners need someone working from the current policy who can carry the structural side from the first site visit to the close-out.',
+      'Broward’s Building Safety Inspection Program (BSIP) is a countywide safety inspection of older buildings, structural and electrical, written by the Broward County Board of Rules and Appeals and enforced by your city’s Building Official. Many owners still call it the 40-year recertification, and much of what is written about it describes rules that have since changed. Boards and owners need a structural engineer working from the current policy who can carry the structural side from the first site visit to the close-out.',
     audience: [
       'Condominium, cooperative and homeowner associations',
       'Property managers',
@@ -806,8 +1030,15 @@ export const services: Service[] = [
       /* Policy #05-05, Sec. I.E: the program "shall serve as compliance for
          both phase one and phase two milestone inspection requirements". The
          two duties to unit owners are the state's (F.S. 553.899(5) and (9))
-         and stay with the board. */
-      note: 'For condominium and cooperative buildings of three habitable stories or more, the BSIP report serves as phase one and phase two of the state milestone inspection, and the board’s duties to unit owners under state law (Florida Statute 553.899) remain: within 14 days of receiving the notice, tell them about the required inspection and the date it must be completed; within 45 days of receiving the report, send every owner the engineer’s summary, post it in a conspicuous place on the property, and publish the report and the summary on the association’s website where the association is required to have one. Your city’s Building Official enforces the program, and your city’s letter states its own date — which is why we read it first.',
+         and stay with the board. They are `duties` below, as on the
+         Miami-Dade page; the sentence about the city's letter moved to the
+         front so the list follows the sentence that introduces it. */
+      note: 'Your city’s Building Official enforces the program, and your city’s letter states its own date — which is why we read it first. For condominium and cooperative buildings of three habitable stories or more, the BSIP report serves as phase one and phase two of the state milestone inspection, and the board’s duties to unit owners under state law (Florida Statute 553.899) remain.',
+      duties: [
+        'Within 14 days of receiving the notice, tell unit owners about the required inspection and the date it must be completed.',
+        'Within 45 days of receiving the report, send every owner the engineer’s summary and post it in a conspicuous place on the property.',
+        'In those same 45 days, publish the report and the summary on the association’s website, where the association is required to have one.',
+      ],
       rows: [
         {
           jurisdiction: 'Broward County',
@@ -840,8 +1071,87 @@ export const services: Service[] = [
         },
       ],
     },
+    /* QUESTIONS BOARDS ASK — the same device, and the same rules, as the
+       Miami-Dade page: the caveats that sat under "Good to know", under the
+       question an owner types; no age, day count or deadline typed in an
+       answer (it points at the row by its label); "40-year" as a name only;
+       no amounts and no promise about what an office will do.
+
+       Two answers are Broward's own:
+         • A missed deadline: what Policy #05-05 itself says (III.H.2, and
+           III.E.5 for the city's own timelines and penalties), named as the
+           Board's policy.
+         • A building inspected under the old program: the policy treats it
+           as compliant (I.D). The answer gives the interval by pointing at
+           the row and deliberately does NOT say which year it is counted
+           from — two current official texts differ (see "Then" below) — and
+           it never computes a year.
+       Held until the owner answers: cost, how long the work takes, who signs
+       the electrical report, buildings of four or more stories, access to
+       units, Spanish.
+       Read on 2026-10-06 against Policy #05-05 (effective August 9, 2024)
+       and F.S. 553.899; `regulatoryChecked` was left alone, as on the
+       Miami-Dade page. */
+    faq: [
+      {
+        q: 'Is the BSIP the same as the 40-year recertification?',
+        a: 'Yes. “40-year recertification” is the name many owners still use for Broward’s Building Safety Inspection Program, from the earlier version of the program. Much of what is written about it describes rules that have since changed; the ages and deadlines in force are in the table above.',
+      },
+      {
+        q: 'We received the notice. What do we do first?',
+        a: 'Send it to us — a phone photo of the letter is enough. We read your city’s letter first: the date it was received, the date it sets, and what the Building Official asks to be filed; then we reply with a proposal for the inspection and the structural report. In a condominium or cooperative of three habitable stories or more, the board also has duties to unit owners: see “What the board must do” above.',
+      },
+      {
+        q: 'How long do we have?',
+        a: 'The “Time to file” row in the table above gives the time for the report, counted from the day the notice is received, and “If repairs are needed” the time for the work that follows. Your city’s letter states its own date, and that is the date we work to.',
+      },
+      {
+        q: 'Does our building have to file, and which buildings are exempt?',
+        a: 'Almost all building types do, in every Broward city and the unincorporated area. The “Applies to” row above lists the homes and minor structures outside the program, and “First due” gives the age at which the first inspection falls due. Also outside the program: federal and State of Florida buildings, buildings on sovereign tribal lands, Broward County School Board schools, and railroads.',
+      },
+      {
+        q: 'We never received a notice. Are we exempt?',
+        a: 'No. The Board of Rules and Appeals sends each city its list of buildings by June, and the Building Official mails the notices by certified mail from June through August. Not receiving one is no defense: the inspection, the report and any repairs are still due on time.',
+      },
+      {
+        /* The length of an extension stays in the one sentence that states
+           it, under "Good to know" — see the Miami-Dade block. */
+        q: 'Can we get an extension?',
+        a: 'One can be requested to submit the report, and it is the Building Official who grants it. Ask before the date in your city’s letter. How long an extension may run is under “Good to know”, further down this page.',
+      },
+      {
+        q: 'Do we have to bring the building up to today’s code?',
+        a: 'No. The building is judged against the code in force when it was built. The program does not require bringing it up to today’s code.',
+      },
+      {
+        /* "Serves as phase one and phase two", and no more: unlike
+           Miami-Dade, nothing here says "no separate report" (see the note
+           on the milestone page). */
+        q: 'Is this the same as the state milestone inspection?',
+        a: 'For condominium and cooperative buildings of three habitable stories or more, the BSIP report serves as phase one and phase two of the state milestone inspection. What state law adds for those buildings is the board’s duties to unit owners, listed under “What the board must do” above. Other buildings are outside the milestone law and answer only to the BSIP.',
+      },
+      {
+        q: 'Who do we file the report with?',
+        a: 'With your city’s Building Official — the office that sent the notice. The program is written by the Broward County Board of Rules and Appeals and enforced by each city, and each city handles filing its own way. We read your city’s letter first, and work to the date it states.',
+      },
+      {
+        q: 'What if the report lists repairs?',
+        a: 'The report is filed as soon as it is complete, even when it lists repairs. The repairs then follow under permit, and while they are underway the engineer issues a signed and sealed letter on whether the building can remain occupied. A reinspection, an amended report and a completion letter close the file; the time allowed is in the “If repairs are needed” row above.',
+      },
+      {
+        q: 'What happens if we miss the deadline?',
+        a: 'Policy #05-05 of the Board of Rules and Appeals says that when the report is not filed on time and no extension was requested, the Building Official takes the case to a hearing before a Special Magistrate or the Code Enforcement Board; where required repairs are not made, the building can be deemed unsafe and unfit for occupation. A city may set its own timelines and penalties, so the office that sent your notice sets the steps. Past the date on your notice? Send the notice and any citation; the first step is getting the inspection done and the report filed.',
+      },
+      {
+        q: 'We filed under the old 40-year program. When is the next one?',
+        a: 'A building inspected under the earlier 40-year program is treated as compliant, and its later inspections follow at the interval in the “Then” row above. The year yours falls due is not something to work out from a general rule: your city’s Building Official sends the Notice of Required Inspection, and its letter states the date. Send us the last report or the notice, and we read it first.',
+      },
+    ],
+    /* What is left under "Good to know" once the questions above took their
+       share. The sentences are unchanged; the list of buildings outside the
+       program went to its question, and the sentence on what IS inspected
+       stays here on its own. */
     considerations: [
-      'The Board of Rules and Appeals sends each city its list of buildings by June, and the Building Official mails the notices by certified mail from June through August. Not receiving one is no defense: the inspection, the report and any repairs are still due on time.',
       /* "An extension", never "one extension": the policy does not say
          whether more than one can be granted. */
       'The Building Official may grant an extension of up to 60 days to submit the report.',
@@ -850,12 +1160,9 @@ export const services: Service[] = [
       /* Threshold buildings: neutral on purpose, claims no credential. */
       'Buildings over three stories or 50 feet are “threshold buildings”, and their structural report must come from an engineer with the additional qualifications Broward County requires. We confirm this for your building before we propose.',
       'Only the Board of Rules and Appeals’ own structural and electrical forms are accepted — a firm’s own form is not — and they come in addition to a written narrative report with color photographs, not instead of it.',
-      'The building is judged against the code in force when it was built. The program does not require bringing it up to today’s code.',
-      'While repairs are underway, the engineer issues a signed and sealed letter on whether the building can remain occupied.',
       'The amended report and the completion letter come from the professional who inspected the building and issued the original report. If another firm issued yours, say so when you write — we confirm what closing the file will take before we propose.',
-      'Also outside the program: federal and State of Florida buildings, buildings on sovereign tribal lands, Broward County School Board schools, and railroads. Parking garages, guardrails, and the balconies, elevated decks, docks and seawalls attached to or supporting a structure are part of the inspection.',
+      'Parking garages, guardrails, and the balconies, elevated decks, docks and seawalls attached to or supporting a structure are part of the inspection.',
       'A condition that puts life or property in danger is reported to the owner and to the Building Official; the engineer has a duty to do so.',
-      'Each city handles filing its own way. We read your city’s letter first, and work to the date it states.',
       'A report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
     ],
     crossLink: { text: 'Building in Miami-Dade?', label: 'See Miami-Dade Recertification', slug: 'building-recertification' },
@@ -873,14 +1180,16 @@ export const services: Service[] = [
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
       detail: 'BSIP in Detail',
     },
-    /* seo.title leads with the words people type: the program's full name,
-       the county and the acronym. No ages and no day counts in the
-       description (see the Miami-Dade page); the legacy names live in the
-       keywords only. */
+    /* seo.title leads with the words people type: the county, the acronym
+       printed on the letter, and the name most owners still give the
+       program — "formerly", never as a rule (see the Miami-Dade page; do not
+       move it back to the keywords). The program's full name is the H1 and
+       opens the description; the 71 characters it took in the title pushed
+       everything else out of a search result. No ages and no day counts. */
     seo: {
-      title: 'Broward Building Safety Inspection Program (BSIP) — Structural Engineer',
+      title: 'Broward BSIP (formerly 40-Year Recertification) — Structural Engineer',
       description:
-        'Broward’s Building Safety Inspection Program (BSIP): notice review, structural inspection and report on the official form, and close-out, by a Florida P.E.',
+        'Broward’s Building Safety Inspection Program (BSIP), still called the 40-year recertification. A Florida P.E. inspects and files the structural report.',
       keywords: ['Broward BSIP engineer', 'building safety inspection program Broward', '25-year building inspection Broward', 'Broward BSIP', 'building safety inspection Broward', '40 year inspection Broward', 'BSIP structural report'],
     },
   },
@@ -904,6 +1213,14 @@ export const services: Service[] = [
     track: 'existing',
     summary:
       'Florida’s milestone inspection explained for your building, further investigation when a report calls for it, and structural safety inspections outside a program cycle.',
+    /* The H1 names who it is for and where: a board searches "condo
+       milestone inspection Broward", and the old H1 (the service's name,
+       still `title` on cards and in the nav) had neither a place nor
+       "condo". "Structural safety inspections" stays in the line under it,
+       which is `summary`. */
+    headings: {
+      h1: 'Florida Milestone Inspections for Condos in Miami-Dade & Broward',
+    },
     problemTitle: 'Which inspection does the building owe?',
     problem:
       'Florida’s milestone law overlaps with Miami-Dade’s recertification and with Broward’s Building Safety Inspection Program, and it is easy to conclude that a building owes two separate inspections — the state’s and the county’s. In Miami-Dade and Broward the milestone inspection is met through the county program. What a board needs is someone to say which rules reach the building, what was actually observed, and what has to happen next.',
@@ -956,8 +1273,12 @@ export const services: Service[] = [
          is stated for Miami-Dade only, where the county says so; for Broward
          the policy says the report serves as both phases and no more is
          claimed. The state's own filing period is deliberately not printed:
-         the deadline a board answers to is the one on its county's page. */
-      note: 'In Miami-Dade and Broward the state milestone inspection is met through the county program. Miami-Dade’s recertification serves as compliance with it — no separate milestone report is filed there — and Broward’s BSIP report serves as its phase one and phase two. The deadline on your notice is the county program’s, and it is on that county’s page. The board’s duties to unit owners apply in either county.',
+         the deadline a board answers to is the one on its county's page.
+
+         The two county sentences are `countyPages` below, each under a
+         heading that links to that county's page; this note keeps what is
+         true of both. */
+      note: 'In Miami-Dade and Broward the state milestone inspection is met through the county program — your county’s is just below. The board’s duties to unit owners apply in either county.',
       rows: [
         {
           jurisdiction: 'State of Florida — milestone inspection',
@@ -980,10 +1301,83 @@ export const services: Service[] = [
       'For buildings over three stories or 50 feet, each county asks additional qualifications of the engineer who signs the structural report. We confirm this for your building before we propose.',
       'An inspection reports condition at a point in time; it is not a warranty of future performance.',
     ],
+    /* One heading per county, and the heading is the link. Miami-Dade first,
+       as everywhere on the site. Each sentence is the county's own rule as
+       the two program pages state it: "no separate milestone report" is said
+       for Miami-Dade only (see the note above `timing.note`). No deadline
+       here — it is on the page the heading opens. */
+    countyPages: [
+      {
+        slug: 'building-recertification',
+        title: 'In Miami-Dade, the recertification report is your milestone inspection',
+        text: 'Miami-Dade’s recertification serves as compliance with the state milestone inspection — no separate milestone report is filed there. The deadline on your notice is the county program’s, and it is on that page.',
+      },
+      {
+        slug: 'broward-bsip',
+        title: 'In Broward, the BSIP report is your milestone inspection',
+        text: 'Broward’s BSIP report serves as phase one and phase two of the state milestone inspection. The deadline on your notice is the county program’s, and it is on that page.',
+      },
+    ],
+    /* The four names a condominium board hears, under the same four labels.
+       No age and no deadline in any cell. The two county rows restate
+       nothing they could get wrong: for which buildings, they send the
+       reader to the county's own page.
+
+       The reserve study row is the statute's description (F.S. 718.112(2)(g)
+       for condominiums, 719.106(1)(k) for cooperatives, read 2026-10-06). It
+       says what the study is and where it goes — NOT whether this firm
+       prepares one. That sentence waits for the owner. */
+    comparison: {
+      title: 'Recertification, BSIP, milestone inspection and SIRS, side by side',
+      labels: ['Who requires it', 'Which buildings', 'What it produces', 'Where it is filed'],
+      rows: [
+        {
+          name: 'Miami-Dade recertification',
+          values: [
+            'Miami-Dade County. The notice comes from the Building Official of your city, or from the county in unincorporated areas.',
+            'Almost every building other than single-family homes and duplexes; the full list is on the Miami-Dade page.',
+            'A structural report and an electrical report, each on the county’s own form.',
+            'With the Building Official who sent the notice.',
+          ],
+        },
+        {
+          name: 'Broward BSIP',
+          values: [
+            'Broward County, through its Board of Rules and Appeals. Your city’s Building Official enforces it.',
+            'Almost all building types, in every Broward city; the homes and minor structures outside it are listed on the BSIP page.',
+            'A structural report and an electrical report on the Board’s own forms, with a written narrative and color photographs.',
+            'With your city’s Building Official.',
+          ],
+        },
+        {
+          name: 'State milestone inspection',
+          values: [
+            'The State of Florida.',
+            'Condominium and cooperative buildings of three habitable stories or more.',
+            'A phase one inspection report and, only where phase one finds substantial structural deterioration, a phase two. In Miami-Dade and Broward the county report serves as it.',
+            'With the association and the Building Official — in Miami-Dade and Broward, as the county program’s report.',
+          ],
+        },
+        {
+          name: 'Structural integrity reserve study (SIRS)',
+          values: [
+            'The State of Florida, under its condominium and cooperative laws.',
+            'Residential condominium and cooperative buildings of three habitable stories or more.',
+            'A reserve study, not an inspection report: what the roof, the structure and the other parts of the building the law lists will cost to repair or replace, and what the association should set aside each year.',
+            'The association shares it with unit owners and tells the state’s condominium division that it was completed.',
+          ],
+        },
+      ],
+      source:
+        'Code of Miami-Dade County, Section 8-11(f) · Broward County Board of Rules and Appeals, Policy #05-05 · Florida Statutes 553.899, 718.112 and 719.106',
+    },
     /* "building safety inspection Broward" moved to the BSIP page with the
-       slug rename: that query is about Broward's program, not this page. */
+       slug rename: that query is about Broward's program, not this page.
+       The title leads with "condo" and the two counties, which is how a
+       board searches for it, and ends in the trade, like the two program
+       titles. */
     seo: {
-      title: 'Florida Milestone Inspections — Miami-Dade & Broward',
+      title: 'Condo Milestone Inspections in Miami-Dade & Broward — Structural Engineer',
       description:
         'Florida milestone inspections for condos and co-ops in Miami-Dade and Broward: how the county program meets them, phase two, and structural safety inspections.',
       keywords: ['milestone inspection Florida', 'milestone inspection Miami', 'condo milestone inspection', 'phase two milestone inspection', 'balcony inspection Miami', 'structural inspection South Florida'],

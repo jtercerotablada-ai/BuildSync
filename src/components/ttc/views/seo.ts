@@ -22,7 +22,9 @@ type Pages = 'home' | 'services' | 'existing' | 'work' | 'about' | 'contact' | '
  * stale number survives longest. The titles keep their structure on purpose:
  * the home title is the approved tagline, and the two program pages (their
  * `seo` lives with each service in site.ts) are the ones that target the
- * program queries — the home page must not compete with them.
+ * program queries — the home page must not compete with them. That includes
+ * the name owners still type, "40-year recertification": it is in the two
+ * program titles, as a former name, and in no title in this file.
  */
 export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   en: {
