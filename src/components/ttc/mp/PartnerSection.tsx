@@ -85,10 +85,15 @@ export function PartnerSection({
         <div className="mp-partner__cards">
           <Reveal className="mp-partner__card">
             <div className="mp-partner__logo">
+              {/* Each mark is named by its alt, for whoever reads the image
+                  and not the page (a search engine, a saved picture). It is
+                  `aria-hidden` because the same name is the card's heading
+                  two lines down: a screen reader would say it twice. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={firm.logo.markDarkSm}
-                alt=""
+                alt={firm.name}
+                aria-hidden="true"
                 width={firm.logo.markSmSize.w}
                 height={firm.logo.markSmSize.h}
                 loading="lazy"
@@ -125,7 +130,8 @@ export function PartnerSection({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={build.logo.src}
-                alt=""
+                alt={build.name}
+                aria-hidden="true"
                 width={build.logo.w}
                 height={build.logo.h}
                 loading="lazy"

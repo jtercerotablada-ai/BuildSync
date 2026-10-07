@@ -288,13 +288,17 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
             </div>
             {singleRow ? null : <Reveal delay={0.06}>{timingNotes}</Reveal>}
             {/* The deadline has just been read, so the button is here again —
-                the same row as the home page's program sections (mp.css 07):
-                the button, and beside it the line that says what to send. */}
+                the same row as the home page's program sections (mp.css 07),
+                without their line about what to send: on this page the hero
+                prints that line under this same button, and "Next step",
+                one section up, says it again in its own words. Printed here
+                too, it was the same paragraph twice on one page. What IS
+                said here and not above: the proposal is free, and how soon
+                a reply usually comes. */}
             <Reveal delay={0.08} className="mp-prog__action">
               <ButtonLink href={l(contactHref)} variant="solid">
                 {cta}
               </ButtonLink>
-              {program ? <p className="mp-prog__ctanote">{program.ctaNote}</p> : null}
               {program ? <ReachRow c={c} assure className="mp-reach--row" /> : null}
             </Reveal>
           </div>
@@ -370,9 +374,11 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           work runs. Each question is an h3 and each answer is plain text in
           the HTML (nothing to open, nothing that needs JavaScript). The
           answers point at the timing table by row label, so this section
-          comes right under it, on the same surface. The line that closes it
-          is the one every number on the page answers to: the row's
-          authority and the shared date. */}
+          comes right under it, on the same surface. It no longer closes
+          with the row's authority and the shared date: both are printed
+          once, with the table the answers point at (the authority under the
+          rows, the date beside them), and the second copy was the same
+          line twice on one page. */}
       {service.faq?.length ? (
         <section id={JUMP_ID.questions} className="mp-section mp-surface--paper">
           <div className="mp-shell">
@@ -385,14 +391,6 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                 </Reveal>
               ))}
             </div>
-            {service.timing?.rows[0] ? (
-              <p className="mp-timing__src">
-                {u.sourceLabel}: <Source row={service.timing.rows[0]} /> ·{' '}
-                <span className="mp-timing__checked">
-                  <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
-                </span>
-              </p>
-            ) : null}
           </div>
         </section>
       ) : null}

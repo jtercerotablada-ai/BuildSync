@@ -454,6 +454,14 @@ html:has(.mp) {
 .mp :where(img, svg, video) {
   max-width: 100%;
 }
+/* Every photograph now carries a written alt, the backdrops included
+   (media.tsx: those are `aria-hidden`). If one of them fails to load, the
+   browser paints that sentence where the picture was — across a hero, under
+   the headline. With the empty alt they used to have, it painted nothing,
+   and it still must not: the alt is for whoever reads the markup. */
+.mp img[aria-hidden='true'] {
+  color: transparent;
+}
 .mp ::selection {
   background: var(--mp-gold);
   color: var(--mp-graphite);
@@ -526,7 +534,7 @@ html:has(.mp) {
 /* Hook classes — names the markup carries so a section or a column can be
    targeted, which need no rule of their own today:
      .mp-eng  .mp-eng__copy  .mp-geo__copy  .mp-sechead__label
-     .mp-tools-sec  .mp-typo__card
+     .mp-tools-sec
    Listed here so a "class with no rule" audit can tell a hook from a class
    whose styles were lost. */
 
@@ -1954,16 +1962,40 @@ a.mp-menu__mail {
   margin: 0;
   padding: 0;
 }
-.mp-typo__link {
+/* The link is the card's title and nothing else (Typologies.tsx), so its
+   text is the name of the page it opens. Its ::after is stretched over the
+   card — the box every corner of which used to be the <a> — so the whole
+   card is still one target for a click or a thumb, and still shows the
+   pointer. The pseudo-element comes after the photograph in the tree, so it
+   lies on top of it without a z-index. */
+.mp-typo__card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
+}
+.mp-typo__link {
   color: inherit;
   text-decoration: none;
 }
+.mp-typo__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+/* The focus ring goes round the card, where it was while the card was the
+   link: the global ring, moved from the title's own box to the layer above.
+   On the pseudo-element rather than on `.mp-typo__card:has(…)`, so it does
+   not depend on :has() — without it the title would lose its ring and the
+   card would not gain one. */
+.mp-typo__link:focus-visible {
+  outline: none;
+}
+.mp-typo__link:focus-visible::after {
+  outline: 2px solid var(--mp-gold-ink);
+  outline-offset: 3px;
+}
 .mp-typo__media {
   position: relative;
-  display: block;
   aspect-ratio: 5 / 4;
   overflow: hidden;
   background: var(--mp-concrete);
@@ -1977,12 +2009,12 @@ a.mp-menu__mail {
   transition: transform 1000ms var(--mp-ease),
     filter var(--mp-dur-slow) var(--mp-ease);
 }
-.mp-typo__link:focus-visible .mp-typo__img {
+.mp-typo__card:has(:focus-visible) .mp-typo__img {
   transform: scale(1.035);
   filter: saturate(1) contrast(1.05);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-typo__link:hover .mp-typo__img {
+  .mp-typo__card:hover .mp-typo__img {
     transform: scale(1.035);
     filter: saturate(1) contrast(1.05);
   }
@@ -2007,13 +2039,17 @@ a.mp-menu__mail {
   font-style: normal;
   color: var(--mp-gold-ink);
   flex: none;
+  /* The arrow sits outside the link, so the link's text stays the title.
+     While it slides it is a layer of its own, above the link's ::after:
+     without this a click on the arrow itself would land on nothing. */
+  pointer-events: none;
   transition: transform var(--mp-dur) var(--mp-ease);
 }
-.mp-typo__link:focus-visible .mp-typo__title i {
+.mp-typo__card:has(:focus-visible) .mp-typo__title i {
   transform: translateX(4px);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-typo__link:hover .mp-typo__title i {
+  .mp-typo__card:hover .mp-typo__title i {
     transform: translateX(4px);
   }
 }
@@ -2665,6 +2701,12 @@ a.mp-menu__mail {
   .mp-svcgrid > .mp-svc:last-child:nth-child(odd) .mp-svc__media img {
     position: absolute;
     inset: 0;
+  }
+  /* The title link's layer over the photograph (20, service cards) follows
+     it: the photograph is the left half here, at the card's full height. */
+  .mp-svcgrid > .mp-svc:last-child:nth-child(odd) .mp-svc__title a::after {
+    inset: 0 50% 0 0;
+    aspect-ratio: auto;
   }
 }
 
@@ -4291,13 +4333,14 @@ a.mp-menu__mail {
 
 /* ── Service cards, in the client's terms ────────────────────────────────── */
 .mp-svc {
+  /* The box the title link's ::after is laid out in — see below. */
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr;
   background: var(--mp-card);
   border: 1px solid var(--mp-line);
 }
 .mp-svc__media {
-  display: block;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--mp-concrete);
@@ -4350,6 +4393,16 @@ a.mp-menu__mail {
 .mp-svc__title a {
   color: inherit;
   text-decoration: none;
+}
+/* The photograph opens the service page too, without being a second link
+   (ServiceCard.tsx): the title's link is stretched over it. Same box as
+   .mp-svc__media — the top of the card, full width, 16:9 — and only that:
+   the text below stays selectable and its two other links stay on top. */
+.mp-svc__title a::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  aspect-ratio: 16 / 9;
 }
 @media (hover: hover) and (pointer: fine) {
   .mp-svc__title a:hover {
@@ -4587,14 +4640,6 @@ a.mp-menu__mail {
   line-height: 1.7;
   color: var(--mp-ink-3);
 }
-/* The authority and the date the answers rest on close the block, under the
-   rule the last row never drew. */
-.mp-faq + .mp-timing__src {
-  margin-block-start: 0;
-  padding-block-start: var(--mp-4);
-  border-block-start: 1px solid var(--mp-line);
-}
-
 /* A link out to an authority's own page (Outbound.tsx): the source of a
    timing row, the page a county publishes its forms on. Bronze and
    underlined in gold, like .mp-note a, so it reads as a link without relying
@@ -5105,8 +5150,8 @@ a.mp-offices__row .mp-offices__office {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
-  .mp-typo__link:hover .mp-typo__img,
-  .mp-typo__link:focus-visible .mp-typo__img,
+  .mp-typo__card:hover .mp-typo__img,
+  .mp-typo__card:has(:focus-visible) .mp-typo__img,
   .mp-svc:hover .mp-svc__media img,
   .mp-svc:has(:focus-visible) .mp-svc__media img,
   .mp-work__item:hover .mp-work__photo img,

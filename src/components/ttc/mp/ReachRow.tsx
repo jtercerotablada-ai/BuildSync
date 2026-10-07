@@ -4,10 +4,15 @@ import type { SiteContent } from '@/lib/ttc/content';
 /**
  * The WhatsApp link, opening the chat with a first line already written so
  * the message that arrives says why. `null` when no WhatsApp line is set.
+ *
+ * `contact.whatsapp.href` is WhatsApp's own `…/send?phone=<number>`, which
+ * already carries a query, so the message is joined with `&`. (It was the
+ * short `wa.me/<number>?text=…`, which answers every click with a redirect
+ * to this address.)
  */
 export function whatsappHref(c: SiteContent): string | null {
   const wa = c.contact.whatsapp;
-  return wa ? `${wa.href}?text=${encodeURIComponent(c.reach.whatsappText)}` : null;
+  return wa ? `${wa.href}&text=${encodeURIComponent(c.reach.whatsappText)}` : null;
 }
 
 /**
