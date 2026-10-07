@@ -10,10 +10,11 @@ import { useContent, useL } from './lang';
 
 /**
  * The first screen answers two questions before a word of body copy is read:
- * what we do (the headline) and where (the eyebrow). One primary action, one
- * secondary. WHO is deliberately absent — the engineer is named further down
- * the page (the teaser and the partner block) and on About and Contact, so
- * the hero stays about the practice.
+ * what we do (the headline) and where (the eyebrow). Two actions, one per
+ * county notice: each opens the form with that program selected. WHO is
+ * deliberately absent — the engineer is named further down the page (the
+ * teaser and the partner block) and on About and Contact, so the hero stays
+ * about the practice.
  *
  * The footage is a slow aerial pass over the South Florida waterfront. The
  * scrim is a fixed gradient so legibility never depends on where the bright

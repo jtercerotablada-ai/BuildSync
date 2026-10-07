@@ -131,8 +131,11 @@ export const contact = {
    * assumed they had reached us. Before changing this, dig the MX.
    */
   email: 'info@ttcivilstructural.com',
-  /** e.g. { display: '(305) 555-0100', href: 'tel:+13055550100' } */
-  phone: null as { display: string; href: string } | null,
+  /** The owner's own line, supplied by him on October 6, 2026. `href` is
+   *  E.164 so the link dials from any country; `display` is the US form. */
+  phone: { display: '(772) 265-8506', href: 'tel:+17722658506' } as
+    | { display: string; href: string }
+    | null,
   /** e.g. { line1: '…', city: 'Miami', state: 'FL', zip: '33131' } */
   address: null as {
     line1: string;
@@ -435,14 +438,19 @@ export const hero = {
   /** Line breaks of the headline as rendered; the accent word is italic serif. */
   titleLines: ['Structural Engineering', 'for South Florida.'],
   accentWord: 'South Florida.',
-  /* The headline and both buttons are the owner-approved ones and did not
-     change. The sub-line now names the two county programs first, by the
-     names printed on the letters people receive, and carries NO regulatory
-     number: every age and deadline lives in a timing row that names its
-     authority and its date. */
+  /* The headline is the owner-approved one and did not change. The sub-line
+     names the two county programs first, by the names printed on the letters
+     people receive, and carries NO regulatory number: every age and deadline
+     lives in a timing row that names its authority and its date.
+
+     The two buttons changed on 2026-10-06, with the owner's approval. The
+     visitor this page is for is holding a county notice with a deadline, so
+     each button names one notice and opens the form with that program
+     already selected. "Request a Proposal" is still one tap away in the
+     header, and Services stays in the menu and in the strip below. */
   sub: 'Miami-Dade building recertification, Broward’s Building Safety Inspection Program (BSIP) and structural design for new buildings — led by a Florida Professional Engineer who stays on your project from the first conversation to the final report.',
-  primary: { href: '/contact', label: 'Request a Proposal' },
-  secondary: { href: '/services', label: 'Explore Our Services' },
+  primary: { href: '/contact?service=building-recertification', label: 'I Have a Miami-Dade Notice' },
+  secondary: { href: '/contact?service=broward-bsip', label: 'I Have a Broward Notice' },
   /**
    * The strip under the hero is four links, not four labels. A `#hash` href
    * is an anchor on the home page itself (the ids come from
