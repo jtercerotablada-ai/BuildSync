@@ -2541,6 +2541,29 @@ export const contactPage = {
   titleLines: ['Tell us about the building.', 'We reply with a scope.'],
   accentWord: 'scope.',
   sub: 'Describe the project, the building or the notice you received — and attach whatever you already have. The engineer reads every request and replies with questions or with a written proposal.',
+  /* The section under the form. /contact used to close with the home page's
+     "Engineered for this coast" block, word for word — five blocks of text on
+     two pages, and nothing in them for someone about to write. This is that
+     reader's block: what to send, what comes back, the other ways in.
+
+     Every sentence restates something the site already says elsewhere (the
+     two programs' `ctaNote` and steps, `reach`, the principle "A scope you
+     can read") in words of its own, so no block is shared with another page.
+     NO number here: no age, no day count, no phone number (the page prints
+     it from `contact.phone`), no office hours, no price. "Usually" is the
+     owner's word for the reply time — see `reach`. */
+  before: {
+    eyebrow: 'Before you write',
+    title: 'What to send, and what happens next.',
+    items: [
+      { k: 'If you have the notice', v: 'A photo of the letter taken with your phone is enough to start. Attach it to the form above or send it by WhatsApp; there is no need to scan it or to type out what it says. What we look for first is which office sent it and the dates it gives.' },
+      { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
+      { k: 'For any other building or project', v: 'Say what the building is, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required.' },
+      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal that says what the work includes, what it leaves out, what you will receive and what it costs. Nothing begins until you have agreed to it. Asking for a proposal is free, and we usually reply within two hours.' },
+      { k: 'By phone, WhatsApp or email', v: 'The form is not the only way in. Call the number on this page, write to it on WhatsApp and send the photo of the notice there, or put the same details in an email.' },
+      { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. We work in English and in Spanish; write in whichever is easier for you.' },
+    ],
+  },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2620,20 +2643,59 @@ export const legal = {
      (in `links`, above) the footer. `h1` is the page's headline, which says
      what the policy covers. "Privacy Policy" and "Terms of Use" alone were
      14 and 12 characters, which the on-page check reports as too short to
-     describe a page. */
+     describe a page.
+
+     A section's `p` is one paragraph, or a list of them (LegalView prints
+     either). `contact` is the sentence that leads to the e-mail address
+     under "Contact": each document has its own, because the two pages used
+     to end in the same block of text.
+
+     WHAT MAY BE WRITTEN HERE. Each statement about data describes what the
+     code does, and was read against it on October 7, 2026: the fields the
+     form sends (ContactForm.tsx), what the route stores and e-mails
+     (api/contact/route.ts), where a file goes and when (ContactForm.tsx,
+     api/contact/upload/route.ts, contact-attachments.ts), what a deletion
+     removes (api/admin/submissions/route.ts), the request counter
+     (rate-limit.ts), and that the public pages set no cookie and load
+     nothing from another address (PublicShell.tsx, proxy.ts, package.json —
+     and media.tsx for the one item kept in the browser). Change the code
+     and these sentences have to follow; add analytics and "Cookies and
+     analytics" is no longer true.
+
+     What is NOT here, because only the owner can decide it: a governing law
+     or venue, arbitration, a retention period in days, a deadline to answer
+     or delete, a named privacy officer, a claim of compliance with any
+     statute, a cap on liability, and which language version prevails. */
   privacy: {
     title: 'Privacy Policy',
     h1: 'Privacy Policy for This Website',
     sub: 'What we collect through this website, why we collect it, and what we do with it.',
     sections: [
-      { h: 'What we collect', p: 'The only personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.' },
+      { h: 'What we collect', p: [
+        'The only personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.',
+        'The form does not ask for payment details, identification numbers or passwords, and a proposal does not need them. Please leave them out of your description and of the files you attach.',
+      ] },
       { h: 'Why we collect it', p: 'We use it to respond to your request and to understand the engineering scope you are asking about. We do not sell it, rent it, or share it for advertising.' },
-      { h: 'How it is stored', p: 'Submissions are stored in our project database and attachments in cloud file storage at an address that is never published or linked; a notification is emailed to the office through a transactional email provider so that we see your message, and a confirmation is emailed to you. Access is limited to the people who need it to reply to you.' },
-      { h: 'How long we keep it', p: 'Requests are retained while they are commercially relevant and for as long as any resulting engagement requires. You may ask us to delete your request and its attachments at any time.' },
-      { h: 'Cookies and analytics', p: 'This site does not set advertising or tracking cookies. Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.' },
-      { h: 'Your choices', p: 'You can ask us what we hold about you, ask for it to be corrected, or ask for it to be deleted. Write to the address below and we will respond.' },
+      { h: 'How it is stored', p: [
+        'Submissions are stored in our project database and attachments in cloud file storage at an address that is never published or linked; a notification is emailed to the office through a transactional email provider so that we see your message, and a confirmation is emailed to you. Access is limited to the people who need it to reply to you.',
+        'The notification that reaches the office carries the text of your request and a link to each file, not the files themselves. The confirmation sent to you gives a reference and names the service you chose; it never repeats what you wrote.',
+        'To keep the form from being abused, the server counts how many requests arrive from one internet address (IP) over a short time. That count is held in memory and is not saved with your request. The site is delivered over an encrypted connection (HTTPS).',
+      ] },
+      /* Accurate to CONTACT_BLOB_ACCESS = 'public' (contact-attachments.ts):
+         the address is secret, not locked. Say "private" here only on the
+         day the store is. */
+      { h: 'Files you attach', p: 'A file is uploaded when you add it to the form, before you send the request. It is kept at a long, random address that is not published or linked anywhere. That address is not protected by a password, so we do not give it out: the office opens attachments from its own signed-in inbox. If you remove a file, or leave the page without sending, the copy already uploaded is attached to no request; write to us if you want it deleted.' },
+      { h: 'How long we keep it', p: 'Requests are retained while they are commercially relevant and for as long as any resulting engagement requires. You may ask us to delete your request and its attachments at any time. When a request is deleted, the files attached to it are deleted from storage with it.' },
+      { h: 'Cookies and analytics', p: [
+        'The public pages of this site set no cookies and run no analytics, advertising or social-media scripts. Their scripts, fonts, photographs and video are served from this site’s own address, and the form uses no outside verification service (CAPTCHA).',
+        'One preference is kept in your browser and is never sent to us: if you pause the background video, the site remembers it so that the video stays paused on the next page.',
+        'Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.',
+      ] },
+      { h: 'Links that leave this site', p: 'Calling us, writing by WhatsApp and following a link to a county or city office, to the state license search or to another official source all happen outside this website. What you send or do there is handled by that service under its own privacy terms, which we do not control. The WhatsApp link opens a chat with a first line already written; nothing is sent until you send it.' },
+      { h: 'Your choices', p: 'You can ask us what we hold about you, ask for it to be corrected, or ask for it to be deleted. Write to the address below and we will respond. Tell us the email address you used on the form and, if you kept it, the reference from the confirmation: that is how we find your request.' },
       { h: 'Changes', p: 'If this policy changes we will update it on this page.' },
     ],
+    contact: 'Questions about this policy, or a request about your own information, go to',
   },
   terms: {
     title: 'Terms of Use',
@@ -2641,13 +2703,23 @@ export const legal = {
     sub: 'The basis on which the information published here is provided.',
     sections: [
       { h: 'General information only', p: 'The content on this website describes services in general terms. It is not an engineering opinion, a recommendation for a specific building, or a substitute for a site-specific evaluation. Nothing here should be relied on as the basis for a construction, repair or compliance decision.' },
-      { h: 'No professional relationship', p: 'Visiting this site, reading it, or submitting the proposal request form does not create a professional engineering relationship. An engagement begins only when scope, fee and terms are agreed in writing.' },
-      { h: 'Regulatory outcomes', p: 'Requirements for inspection, recertification and permitting vary by jurisdiction, building age, construction type and scope. Ages and deadlines published here were verified on the date stated next to them and can change. Descriptions of any process on this site are typical sequences, not guarantees. We do not promise approval by any building department or reviewing authority.' },
+      { h: 'No professional relationship', p: [
+        'Visiting this site, reading it, or submitting the proposal request form does not create a professional engineering relationship. An engagement begins only when scope, fee and terms are agreed in writing.',
+        'The same is true of a call, an email or a WhatsApp message, and of a notice sent by any of them: we read it and reply, and nothing is under way until you have accepted a written proposal. Asking for a proposal is free and commits you to nothing.',
+      ] },
+      /* That only the issuing office grants time is what both programs' own
+         pages say ("it is the Building Official who grants it"). No day count
+         here: those live in the timing rows. */
+      { h: 'Notices and deadlines', p: 'Sending us a notice does not pause or extend the deadline it states. Only the office that issued it can grant more time. If anything on this site differs from the letter you received, go by the letter and by the office that sent it.' },
+      { h: 'Regulatory outcomes', p: 'Requirements for inspection, recertification and permitting vary by jurisdiction, building age, construction type and scope. Ages and deadlines published here were verified on the date stated next to them and can change. Each table names the office or the code its figures come from, so you can read the source yourself. Descriptions of any process on this site are typical sequences, not guarantees. We do not promise approval by any building department or reviewing authority.' },
       { h: 'Sealed documents', p: 'Where a signed and sealed document is required, it is issued as a formal deliverable under an agreed scope of work. Content on this website is never a sealed deliverable.' },
-      { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available.' },
+      { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available. The reply time mentioned on this site is what is usual, not a commitment.' },
+      { h: 'Links to other sites', p: 'This site links to county and city building departments, to the Florida DBPR’s license search, to statutes and codes, and to WhatsApp. Those pages belong to whoever publishes them and are outside our control: they can change or move, and what they say and how they handle your information is theirs to answer for. Under each list of offices we print the date the links were last opened.' },
+      { h: 'Photographs and examples', p: 'The photographs and video on this site are licensed images that show kinds of buildings and of work. None of them shows a project of the firm or a building that received a notice. The profiles under Typical Engagements describe the work the firm takes on; they are not past projects.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
       { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],
+    contact: 'Questions about these terms go to',
   },
   contactHeading: 'Contact',
 } as const;

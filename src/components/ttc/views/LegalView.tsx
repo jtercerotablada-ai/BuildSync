@@ -12,6 +12,11 @@ import { SectionHeading } from '@/components/ttc/mp/primitives';
  * Website"), and `doc.title` is the short name the breadcrumb, the section
  * label and the footer link use. The short name was the H1 too, and at 12 to
  * 15 characters the on-page check listed it as too short to describe a page.
+ *
+ * A section is a heading and one paragraph, or several (`p` is a string or a
+ * list). The page closes with its OWN line under "Contact" (`doc.contact`):
+ * the two documents used to end in the same block — the firm, its counties,
+ * the address — and the on-page check counted it as text shared by two pages.
  */
 export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms' }) {
   const c = getContent(lang);
@@ -34,13 +39,15 @@ export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms
             {doc.sections.map((s) => (
               <React.Fragment key={s.h}>
                 <h2>{s.h}</h2>
-                <p>{s.p}</p>
+                {(typeof s.p === 'string' ? [s.p] : s.p).map((par) => (
+                  <p key={par}>{par}</p>
+                ))}
               </React.Fragment>
             ))}
             <h2>{c.legal.contactHeading}</h2>
             <p>
-              {c.company.legalName} — {c.contact.serviceAreaLabel}.{' '}
-              <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>
+              {doc.contact} <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>.{' '}
+              {c.company.legalName} — {c.contact.serviceAreaLabel}.
             </p>
           </div>
         </div>
