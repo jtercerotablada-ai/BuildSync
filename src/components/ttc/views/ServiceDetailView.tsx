@@ -96,6 +96,14 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   // beside its own notes (`.mp-juris--single`); several rows keep the grid,
   // with the notes underneath.
   const singleRow = service.timing?.rows.length === 1;
+  // "Last verified: …", the one date every regulatory row shares. With one
+  // row it closes the line that names the row's authority, under the rows
+  // themselves; alone in the notes it was the same seven-word paragraph on
+  // all three regulated pages. Several rows share it, so there it stays a
+  // line of its own, after them.
+  const verified = service.timing ? (
+    <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
+  ) : null;
   const timingNotes = service.timing ? (
     <>
       <p className="mp-timing__note">{service.timing.note}</p>
@@ -111,9 +119,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           </ul>
         </>
       ) : null}
-      <p className="mp-timing__src">
-        <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
-      </p>
+      {singleRow ? null : <p className="mp-timing__src">{verified}</p>}
       {/* The other county's page. The two programs never share a page or a
           number, so each one ends by pointing at the other. */}
       {service.crossLink ? (
@@ -297,6 +303,12 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                   </dl>
                   <p className="mp-timing__src">
                     <Source row={row} />
+                    {singleRow ? (
+                      <>
+                        {' · '}
+                        <span className="mp-timing__checked">{verified}</span>
+                      </>
+                    ) : null}
                   </p>
                 </Reveal>
               ))}

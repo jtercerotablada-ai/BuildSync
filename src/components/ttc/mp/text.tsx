@@ -41,6 +41,23 @@ export function firstSentence(text: string): string {
   return stop === -1 ? text : text.slice(0, stop + 1);
 }
 
+/**
+ * What a paragraph says after its first sentence — the other half of
+ * `firstSentence`. Empty when the paragraph is one sentence.
+ *
+ *   afterFirstSentence('A phone photo is enough. No notice yet? Send the address.')
+ *   → 'No notice yet? Send the address.'
+ *
+ * For the line under a county program's button. The program page prints the
+ * whole line under its hero button; the home page's section prints this half
+ * (what to send when there is no notice yet), because the first half is
+ * already said in the home page's closing band and the whole line, printed
+ * on both pages, was the same paragraph on two pages.
+ */
+export function afterFirstSentence(text: string): string {
+  return text.slice(firstSentence(text).length).trim();
+}
+
 /** Apply `accent` to every line of a headline. */
 export function accentLines(
   lines: readonly string[],

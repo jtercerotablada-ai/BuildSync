@@ -106,7 +106,7 @@ const services: SiteContent['services'] = [
       whenItApplies: 'Quién debe recertificar en Miami-Dade, y cuándo',
       howItRuns: 'Cómo se hace una recertificación, paso a paso',
       faq: 'Preguntas frecuentes sobre la recertificación en Miami-Dade',
-      considerations: 'Informes, formularios y los límites de una inspección.',
+      considerations: 'Informes de recertificación, formularios del condado y los límites de una inspección.',
     },
     problemTitle: 'Llega una notificación con un plazo.',
     /* One sentence on what a recertification is, and "un ingeniero
@@ -128,10 +128,10 @@ const services: SiteContent['services'] = [
     ],
     capabilities: ['Revisión de la notificación', 'Inspección estructural', 'Informe en el formulario del condado', 'Alcance de reparaciones', 'Reinspección'],
     scope: [
-      'Revisión de la notificación, los registros del edificio y los informes previos',
+      'Revisión de la notificación de su ciudad o del condado, los registros del edificio y los informes previos',
       'Inspección estructural en sitio — estructura, losas, balcones, fachada, techo y cimentaciones',
-      'Clasificación de las condiciones observadas según su importancia estructural',
-      'Alcance de reparaciones definido para que los contratistas coticen el mismo trabajo',
+      'Clasificación de las condiciones observadas según su importancia estructural, para el informe de recertificación',
+      'Alcance de reparaciones que indica qué debe corregirse, para que los contratistas coticen el mismo trabajo',
       'Reinspección de las reparaciones terminadas',
       'Respuesta a las preguntas de la oficina revisora sobre el informe estructural',
     ],
@@ -147,7 +147,7 @@ const services: SiteContent['services'] = [
     deliverables: [
       'Informe estructural de recertificación en el formulario del propio condado, firmado y sellado',
       'Registro fotográfico de las condiciones observadas',
-      'Alcance de reparaciones por escrito, cuando se requieran',
+      'Alcance de reparaciones por escrito, cuando el informe las enumere',
       'Carta sobre si el edificio puede seguir ocupado durante las reparaciones, cuando se requiera',
       'Informe enmendado tras las reparaciones',
     ],
@@ -157,12 +157,15 @@ const services: SiteContent['services'] = [
       checked: regulatoryChecked,
       /* Corrected with the EN note: the county report SERVES AS the state
          milestone inspection; it is not a separate obligation. The board's
-         duties are `duties`, three lines instead of one long sentence. */
+         duties are `duties`, three lines instead of one long sentence. They
+         name the two documents the statute counts from as this page names
+         them — the notice from the city or the county, the recertification
+         report — and nothing else about them may change (see the EN note). */
       note: 'La notificación la envía el Building Official de su ciudad, o el condado en las áreas no incorporadas, y el informe se presenta ante esa misma oficina. En edificios de condominio y cooperativa de tres pisos habitables o más, el informe de recertificación sirve como la inspección de hito (milestone) del estado, y los deberes de la junta directiva con los propietarios de las unidades conforme a la ley estatal (Florida Statute 553.899) se mantienen.',
       duties: [
-        'Dentro de los 14 días de recibir la notificación, avisar a los propietarios de las unidades de la inspección requerida y de la fecha en que debe quedar completada.',
-        'Dentro de los 45 días de recibir el informe, enviar a cada propietario el resumen del ingeniero y colocarlo en un lugar visible de la propiedad.',
-        'En esos mismos 45 días, publicar el informe y el resumen en el sitio web de la asociación, cuando la asociación esté obligada a tener uno.',
+        'Dentro de los 14 días de recibir la notificación de su ciudad o del condado, avisar a los propietarios de las unidades de la inspección requerida y de la fecha en que debe quedar completada.',
+        'Dentro de los 45 días de recibir el informe de recertificación, enviar a cada propietario el resumen del ingeniero y colocarlo en un lugar visible de la propiedad.',
+        'En esos mismos 45 días, publicar el informe de recertificación y el resumen en el sitio web de la asociación, cuando la asociación esté obligada a tener uno.',
       ],
       rows: [
         {
@@ -175,10 +178,10 @@ const services: SiteContent['services'] = [
              identical to the EN row — amend both or neither. */
           facts: [
             { k: 'Aplica a', v: 'Casi todos los tipos de edificio — condominios, cooperativas, apartamentos, oficinas, comercios e industrias. Fuera del programa: viviendas unifamiliares, dúplex y edificios que tengan a la vez una carga de ocupantes de 10 o menos según el Código de Construcción de Florida y un área bruta de 2,000 pies cuadrados o menos.' },
-            { k: 'Primer vencimiento', v: 'A los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa. La edad se cuenta desde el año de construcción que figura en el registro del Property Appraiser (el tasador de propiedades del condado).' },
-            { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura.' },
-            { k: 'Plazo para presentar', v: '90 días desde la Notificación de Inspección Requerida (Notice of Required Inspection). Los avisos de cortesía deberían llegar dos años y un año antes; no recibirlos no mueve el plazo.', filing: true },
-            { k: 'Si hay reparaciones', v: '150 días desde la notificación para terminar las reparaciones que no requieren permiso y obtener los permisos de las demás. La obra con permiso sigue luego el calendario de su permiso, y un informe enmendado cierra la recertificación.' },
+            { k: 'Primer vencimiento', v: 'A los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa. La edad se cuenta desde el año de construcción que figura en el registro del Property Appraiser (el tasador de propiedades del condado).', home: true },
+            { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura.', home: true },
+            { k: 'Plazo para presentar', v: '90 días desde la Notificación de Inspección Requerida (Notice of Required Inspection). Los avisos de cortesía deberían llegar dos años y un año antes; no recibirlos no mueve el plazo.', filing: true, home: true },
+            { k: 'Si hay reparaciones', v: '150 días desde la notificación para terminar las reparaciones que no requieren permiso y obtener los permisos de las demás. La obra con permiso sigue luego el calendario de su permiso, y un informe enmendado cierra la recertificación.', home: true },
             { k: 'Condominios y cooperativas', v: 'La recertificación sirve como cumplimiento de la inspección de hito (milestone) del estado — no se presenta un informe de hito aparte.' },
           ],
         },
@@ -191,18 +194,19 @@ const services: SiteContent['services'] = [
        no amounts, no promise about what an office will do. The sentences
        that came from "Conviene saber" are the ones that were already there.
        "Multas" for the county's "penalties": the plain word, with no
-       amount. */
+       amount. Each question names the recertification, as in English: none
+       is worded like the Broward page's (programs.test.ts). */
     faq: [
       {
         q: '¿Es esta la recertificación de 40 años?',
         a: 'Sí. “Recertificación de 40 años” es el nombre que muchos propietarios todavía le dan a la recertificación de edificios de Miami-Dade, de la época en que la primera inspección vencía a esa edad. El programa es el mismo; la primera inspección ahora vence antes, a las edades indicadas en “Primer vencimiento”, en la tabla de arriba.',
       },
       {
-        q: 'Nos llegó la notificación. ¿Qué hacemos primero?',
+        q: 'Nos llegó la notificación de recertificación de Miami-Dade. ¿Qué hacemos primero?',
         a: 'Envíenosla — basta una foto de la carta tomada con el teléfono. Leemos la notificación y el historial del edificio, confirmamos qué está pidiendo el Building Official (el funcionario de construcción) y para cuándo, y respondemos con una propuesta para la inspección y el informe estructural. En un condominio o una cooperativa de tres pisos habitables o más, la junta directiva tiene además deberes con los propietarios de las unidades: vea “Qué debe hacer la junta directiva”, arriba.',
       },
       {
-        q: '¿Cuánto tiempo tenemos?',
+        q: '¿Cuánto tiempo tenemos para recertificar en Miami-Dade?',
         a: 'La fila “Plazo para presentar” de la tabla de arriba indica el plazo para el informe, y “Si hay reparaciones”, el de lo que sigue; ambos se cuentan desde la Notificación de Inspección Requerida. Envíenos primero la carta: con ella confirmamos qué está pidiendo el Building Official y para cuándo.',
       },
       {
@@ -210,33 +214,33 @@ const services: SiteContent['services'] = [
         a: 'Casi todos los edificios tienen que hacerlo. La fila “Aplica a” de la tabla de arriba enumera los tipos de edificio y los pocos que quedan fuera del programa, y “Primer vencimiento” indica la edad a la que vence la primera recertificación, contada desde el año de construcción que figura en el registro del Property Appraiser (el tasador de propiedades del condado).',
       },
       {
-        q: 'Nunca recibimos una notificación. ¿Estamos exentos?',
+        q: 'Nunca recibimos una notificación de recertificación. ¿Estamos exentos?',
         a: 'No. Un edificio entra en el programa por su tipo y por su edad — las filas “Aplica a” y “Primer vencimiento” de arriba —, no porque haya llegado una carta. Los avisos de cortesía deberían llegar con antelación, y no recibirlos no mueve el plazo. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
       },
       {
         /* The length of a prórroga stays in the one sentence that states
            it, under "Conviene saber" — see the EN block. */
-        q: '¿Podemos pedir una prórroga?',
+        q: '¿Podemos pedir una prórroga para la recertificación?',
         a: 'Se puede solicitar, para presentar el informe o para obtener los permisos, y quien la concede es el Building Official. La solicitud la presenta el ingeniero, firmada y sellada, y en ella declara que el edificio puede seguir ocupado. Cuánto puede durar una prórroga está en “Conviene saber”, más abajo en esta página.',
       },
       {
-        q: '¿Hay que llevar el edificio al código actual?',
+        q: '¿La recertificación obliga a llevar el edificio al código actual?',
         a: 'No. El edificio se evalúa según el código vigente cuando se construyó. La recertificación no exige llevarlo al código actual.',
       },
       {
-        q: '¿Es lo mismo que la inspección de hito (milestone) del estado?',
+        q: '¿La recertificación es lo mismo que la inspección de hito (milestone) del estado?',
         a: 'En edificios de condominio y cooperativa de tres pisos habitables o más, el informe de recertificación sirve como la inspección de hito (milestone) del estado, y no se presenta un informe de hito aparte. Lo que la ley estatal añade para esos edificios son los deberes de la junta directiva con los propietarios de las unidades, que aparecen en “Qué debe hacer la junta directiva”, arriba. Los demás edificios quedan fuera de la ley de inspecciones de hito y responden solo al programa del condado.',
       },
       {
-        q: '¿Ante quién se presenta el informe?',
+        q: '¿Ante quién se presenta el informe de recertificación?',
         a: 'Ante la oficina que envió la notificación: el Building Official de su ciudad, o el condado en las áreas no incorporadas. Cada ciudad maneja sus propias notificaciones y su propia presentación, y puede tener formularios propios. Las preguntas sobre una notificación se dirigen a la oficina que la envió, y nosotros leemos primero la carta de su ciudad.',
       },
       {
-        q: '¿Qué pasa si el informe enumera reparaciones?',
+        q: '¿Qué pasa si el informe de recertificación enumera reparaciones?',
         a: 'El informe se presenta igual: el condado lo pide primero, no después de la obra. Donde se requieran reparaciones, definimos qué debe corregirse para que los contratistas coticen el mismo trabajo; las que requieren permiso esperan a tenerlo, y un informe enmendado que indica que las reparaciones están completas cierra la recertificación. El plazo está en la fila “Si hay reparaciones” de la tabla de arriba.',
       },
       {
-        q: '¿Qué pasa si no presentamos el informe a tiempo?',
+        q: '¿Qué pasa si no recertificamos a tiempo?',
         a: 'La página de recertificación del Condado de Miami-Dade indica que, cuando la recertificación no se obtiene a tiempo, se emite una citación sin más aviso y el caso pasa a la división del condado que hace cumplir el código; después pueden acumularse multas, y puede seguir un gravamen (lien). Cada ciudad maneja sus propios casos, así que los pasos y los montos los fija la oficina que envió su notificación. ¿Ya pasó la fecha de su notificación? Envíe la notificación y cualquier citación; el primer paso es hacer la inspección y presentar el informe.',
       },
       {
@@ -245,15 +249,17 @@ const services: SiteContent['services'] = [
       },
     ],
     /* What is left under "Conviene saber" once the questions took their
-       share — see the EN block. The sentences are unchanged. */
+       share — see the EN block. The sentences are unchanged, but for the
+       last two: each names this page's own Building Official and report,
+       where it used to be word for word the Broward page's. */
     considerations: [
       /* Threshold buildings: neutral on purpose, claims no credential. */
       'Los edificios de más de tres pisos o 50 pies se consideran “threshold buildings” (edificios de umbral), y su informe estructural debe prepararlo un ingeniero con las calificaciones adicionales que exige el Condado de Miami-Dade. Lo confirmamos para su edificio antes de presentar una propuesta.',
       'Los informes estructural y eléctrico se presentan en los formularios del propio condado; no se acepta el formulario de una firma. El paquete del condado también incluye certificados de la iluminación del estacionamiento y, donde el estacionamiento colinda con agua, de las barreras de protección.',
       'El Building Official puede conceder una prórroga de hasta 60 días para presentar el informe o para obtener los permisos, a solicitud firmada y sellada del ingeniero en la que declare que el edificio puede seguir ocupado.',
       'El informe enmendado que cierra una recertificación lo emite el ingeniero o arquitecto que presentó el informe original. Si el suyo lo presentó otra firma, indíquelo al escribirnos — confirmamos qué hará falta para cerrarla antes de presentar una propuesta.',
-      'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official; el ingeniero tiene el deber de hacerlo.',
-      'Un informe documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
+      'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad, o del condado en las áreas no incorporadas; el ingeniero tiene el deber de hacerlo.',
+      'Un informe de recertificación documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
     ],
     /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`: the same
        rows, in the same order, with the same links (opened 2026-10-07; the
@@ -303,6 +309,7 @@ const services: SiteContent['services'] = [
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Miami-Dade',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
+      timingLink: 'Todos los plazos y exenciones de Miami-Dade',
       detail: 'La recertificación en detalle',
     },
     /* No ages and no day counts — see the EN block. "De 40 años" is in the
@@ -338,7 +345,7 @@ const services: SiteContent['services'] = [
       whenItApplies: 'A qué edificios alcanza el BSIP de Broward',
       howItRuns: 'De la notificación al informe presentado',
       faq: 'Preguntas frecuentes sobre el BSIP de Broward',
-      considerations: 'Informes, formularios y los límites de una inspección.',
+      considerations: 'Informes del BSIP, formularios oficiales y los límites de una inspección.',
     },
     problemTitle: 'Una carta certificada con un plazo.',
     /* "40 años" here, under the H1, in the first question and in the title:
@@ -359,10 +366,10 @@ const services: SiteContent['services'] = [
     ],
     capabilities: ['Revisión de la notificación', 'Inspección estructural', 'Informe en el formulario oficial', 'Alcance de reparaciones', 'Reinspección y cierre'],
     scope: [
-      'Revisión de la notificación, los registros del edificio y los informes previos',
+      'Revisión de la carta de su ciudad, los registros del edificio y los informes previos',
       'Inspección estructural en sitio — estructura, losas, balcones, escaleras, barandas, techo y cimentaciones, y el garaje de estacionamiento donde lo haya',
-      'Clasificación de las condiciones observadas según su importancia estructural',
-      'Alcance de reparaciones definido para que los contratistas coticen el mismo trabajo',
+      'Condiciones observadas, clasificadas según su importancia estructural, para el informe del BSIP',
+      'Trabajo de reparación definido para que los contratistas coticen lo mismo',
       'Reinspección de las áreas reparadas',
       'Respuesta a las preguntas del Building Official sobre el informe estructural',
     ],
@@ -386,12 +393,15 @@ const services: SiteContent['services'] = [
     timing: {
       checked: regulatoryChecked,
       /* The sentence about the city's letter moved to the front, and the
-         board's duties to `duties` — see the EN block. */
+         board's duties to `duties` — see the EN block. The duties name the
+         notice as the Building Official's and the report as the BSIP report,
+         and are otherwise the Miami-Dade page's: the statute's, word for
+         word in what they ask. */
       note: 'El Building Official de su ciudad hace cumplir el programa, y la carta de su ciudad indica su propia fecha — por eso la leemos primero. En edificios de condominio y cooperativa de tres pisos habitables o más, el informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado, y los deberes de la junta directiva con los propietarios de las unidades conforme a la ley estatal (Florida Statute 553.899) se mantienen.',
       duties: [
-        'Dentro de los 14 días de recibir la notificación, avisar a los propietarios de las unidades de la inspección requerida y de la fecha en que debe quedar completada.',
-        'Dentro de los 45 días de recibir el informe, enviar a cada propietario el resumen del ingeniero y colocarlo en un lugar visible de la propiedad.',
-        'En esos mismos 45 días, publicar el informe y el resumen en el sitio web de la asociación, cuando la asociación esté obligada a tener uno.',
+        'Dentro de los 14 días de recibir la notificación del Building Official, avisar a los propietarios de las unidades de la inspección requerida y de la fecha en que debe quedar completada.',
+        'Dentro de los 45 días de recibir el informe del BSIP, enviar a cada propietario el resumen del ingeniero y colocarlo en un lugar visible de la propiedad.',
+        'En esos mismos 45 días, publicar el informe del BSIP y el resumen en el sitio web de la asociación, cuando la asociación esté obligada a tener uno.',
       ],
       rows: [
         {
@@ -406,10 +416,10 @@ const services: SiteContent['services'] = [
              180 days run from RECEIVING the notice: "desde que se recibe". */
           facts: [
             { k: 'Aplica a', v: 'Casi todos los tipos de edificio, en todas las ciudades de Broward y en el área no incorporada. Fuera del programa: viviendas de una a cuatro familias de tres pisos habitables o menos, townhouses en dominio pleno (fee simple) y estructuras menores con un área de edificio inferior a 3,500 pies cuadrados.' },
-            { k: 'Primer vencimiento', v: 'A los 25 años, contados desde el certificado de ocupación.' },
-            { k: 'Después', v: 'Cada 10 años.' },
-            { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta de su ciudad indica su propia fecha.', filing: true },
-            { k: 'Si hay reparaciones', v: '180 días desde la fecha del informe, con permiso, salvo que el Building Official (el funcionario de construcción) de su ciudad fije otro plazo. Una reinspección, un informe enmendado y una carta de finalización firmada y sellada cierran el expediente.' },
+            { k: 'Primer vencimiento', v: 'A los 25 años, contados desde el certificado de ocupación.', home: true },
+            { k: 'Después', v: 'Cada 10 años.', home: true },
+            { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta de su ciudad indica su propia fecha.', filing: true, home: true },
+            { k: 'Si hay reparaciones', v: '180 días desde la fecha del informe, con permiso, salvo que el Building Official (el funcionario de construcción) de su ciudad fije otro plazo. Una reinspección, un informe enmendado y una carta de finalización firmada y sellada cierran el expediente.', home: true },
             { k: 'Condominios y cooperativas', v: 'El informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado.' },
           ],
         },
@@ -426,11 +436,11 @@ const services: SiteContent['services'] = [
         a: 'Sí. “Recertificación de 40 años” es el nombre que muchos propietarios todavía le dan al Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, por la versión anterior del programa. Buena parte de lo que se ha escrito sobre él describe reglas que ya cambiaron; las edades y los plazos vigentes están en la tabla de arriba.',
       },
       {
-        q: 'Nos llegó la notificación. ¿Qué hacemos primero?',
+        q: 'Nos llegó la notificación del BSIP de Broward. ¿Qué hacemos primero?',
         a: 'Envíenosla — basta una foto de la carta tomada con el teléfono. Leemos primero la carta de su ciudad: la fecha en que se recibió, la fecha que fija y lo que el Building Official (el funcionario de construcción) pide que se presente; luego respondemos con una propuesta para la inspección y el informe estructural. En un condominio o una cooperativa de tres pisos habitables o más, la junta directiva tiene además deberes con los propietarios de las unidades: vea “Qué debe hacer la junta directiva”, arriba.',
       },
       {
-        q: '¿Cuánto tiempo tenemos?',
+        q: '¿Cuánto tiempo tenemos para presentar el informe del BSIP?',
         a: 'La fila “Plazo para presentar” de la tabla de arriba indica el plazo para el informe, contado desde el día en que se recibe la notificación, y “Si hay reparaciones”, el de la obra que sigue. La carta de su ciudad indica su propia fecha, y esa es la fecha con la que trabajamos.',
       },
       {
@@ -438,33 +448,33 @@ const services: SiteContent['services'] = [
         a: 'Casi todos los tipos de edificio tienen que hacerlo, en todas las ciudades de Broward y en el área no incorporada. La fila “Aplica a” de la tabla de arriba enumera las viviendas y las estructuras menores que quedan fuera del programa, y “Primer vencimiento” indica la edad a la que vence la primera inspección. También quedan fuera del programa los edificios federales y del Estado de Florida, los edificios en tierras tribales soberanas, las escuelas de la Junta Escolar del Condado de Broward y los ferrocarriles.',
       },
       {
-        q: 'Nunca recibimos una notificación. ¿Estamos exentos?',
+        q: 'Nunca recibimos una notificación del BSIP. ¿Estamos exentos?',
         a: 'No. La Junta de Reglas y Apelaciones envía a cada ciudad su lista de edificios a más tardar en junio, y el Building Official envía las notificaciones por correo certificado de junio a agosto. No recibir la notificación no es excusa: la inspección, el informe y las reparaciones que correspondan se deben igual, y a tiempo.',
       },
       {
         /* The length of a prórroga stays in the one sentence that states
            it, under "Conviene saber" — see the EN block. */
-        q: '¿Podemos pedir una prórroga?',
+        q: '¿Podemos pedir una prórroga para el informe del BSIP?',
         a: 'Se puede solicitar para presentar el informe, y quien la concede es el Building Official. Pídala antes de la fecha que indica la carta de su ciudad. Cuánto puede durar una prórroga está en “Conviene saber”, más abajo en esta página.',
       },
       {
-        q: '¿Hay que llevar el edificio al código actual?',
+        q: '¿El BSIP obliga a llevar el edificio al código actual?',
         a: 'No. El edificio se evalúa según el código vigente cuando se construyó. El programa no exige llevarlo al código actual.',
       },
       {
-        q: '¿Es lo mismo que la inspección de hito (milestone) del estado?',
+        q: '¿El BSIP es lo mismo que la inspección de hito (milestone) del estado?',
         a: 'En edificios de condominio y cooperativa de tres pisos habitables o más, el informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado. Lo que la ley estatal añade para esos edificios son los deberes de la junta directiva con los propietarios de las unidades, que aparecen en “Qué debe hacer la junta directiva”, arriba. Los demás edificios quedan fuera de la ley de inspecciones de hito y responden solo al BSIP.',
       },
       {
-        q: '¿Ante quién se presenta el informe?',
+        q: '¿Ante quién se presenta el informe del BSIP?',
         a: 'Ante el Building Official de su ciudad, la oficina que envió la notificación. El programa lo redacta la Junta de Reglas y Apelaciones del Condado de Broward y lo hace cumplir cada ciudad, y cada ciudad maneja la presentación a su manera. Leemos primero la carta de su ciudad y trabajamos con la fecha que indica.',
       },
       {
-        q: '¿Qué pasa si el informe enumera reparaciones?',
+        q: '¿Qué pasa si el informe del BSIP enumera reparaciones?',
         a: 'El informe se presenta en cuanto está completo, aunque enumere reparaciones. Las reparaciones siguen después, con permiso, y mientras duran el ingeniero emite una carta firmada y sellada sobre si el edificio puede seguir ocupado. Una reinspección, un informe enmendado y una carta de finalización cierran el expediente; el plazo está en la fila “Si hay reparaciones” de la tabla de arriba.',
       },
       {
-        q: '¿Qué pasa si no presentamos el informe a tiempo?',
+        q: '¿Qué pasa si no presentamos el informe del BSIP a tiempo?',
         a: 'La Política n.º 05-05 de la Junta de Reglas y Apelaciones establece que, cuando el informe no se presenta a tiempo y no se pidió una prórroga, el Building Official lleva el caso a una audiencia ante un magistrado especial (Special Magistrate) o ante la Junta de Cumplimiento de Códigos (Code Enforcement Board); y que, si no se hacen las reparaciones exigidas, el edificio puede declararse inseguro y no apto para ser ocupado. Cada ciudad puede fijar sus propios plazos y sanciones, así que los pasos los fija la oficina que envió su notificación. ¿Ya pasó la fecha de su notificación? Envíe la notificación y cualquier citación; el primer paso es hacer la inspección y presentar el informe.',
       },
       {
@@ -484,8 +494,9 @@ const services: SiteContent['services'] = [
       'Solo se aceptan los formularios estructural y eléctrico de la propia Junta de Reglas y Apelaciones — no el formulario de una firma — y se presentan además de un informe narrativo escrito con fotografías a color, no en su lugar.',
       'El informe enmendado y la carta de finalización los emite el profesional que inspeccionó el edificio y emitió el informe original. Si el suyo lo emitió otra firma, indíquelo al escribirnos — confirmamos qué hará falta para cerrar el expediente antes de presentar una propuesta.',
       'Los garajes de estacionamiento, las barandas de protección y los balcones, terrazas elevadas, muelles y muros de contención costeros (seawalls) que estén unidos a una estructura o la sostengan forman parte de la inspección.',
-      'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official; el ingeniero tiene el deber de hacerlo.',
-      'Un informe documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
+      /* The last two, in this page's terms — see the EN block. */
+      'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad; el ingeniero tiene el deber de hacerlo.',
+      'Un informe del BSIP documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará el Building Official a partir de él.',
     ],
     /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`; see the
        Miami-Dade block above for what is specific to the Spanish. */
@@ -526,6 +537,7 @@ const services: SiteContent['services'] = [
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Broward',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
+      timingLink: 'Todos los plazos y exenciones de Broward',
       detail: 'El BSIP en detalle',
     },
     /* The title leads with the words people type: "BSIP", "Broward" and the

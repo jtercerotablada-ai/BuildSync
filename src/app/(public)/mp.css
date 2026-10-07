@@ -1773,13 +1773,15 @@ a.mp-menu__mail {
 /* ProgramSection.tsx, rendered twice under the home hero: Miami-Dade's
    recertification (paper) and Broward's BSIP (concrete, mirrored). One
    two-line headline across the shell, then a reading column — lede, the
-   button and what to send, six hairline rows, their source, the steps, the
-   scope note, a link — beside one photograph.
+   button and what to send, four hairline rows, their source and the link to
+   the whole table, the steps, a link — beside one photograph.
 
-   No card. The rows are the same dl.mp-timing the service pages set inside
-   .mp-juris__card; here they sit on the bare surface, hairlines only. Rules
-   that restyle that list are written `.mp-prog .mp-timing…` so they outweigh
-   the base .mp-timing rules, which come later in the file (14).
+   No card. The rows LOOK like the dl.mp-timing the service pages set inside
+   .mp-juris__card — label column, value, hairlines — but they are a list of
+   their own (.mp-prog__facts): each item is a label and the first sentence
+   of its row, in one <li>, so the home page prints a summary and no line of
+   it is a paragraph of the program's page. Only the source line under them
+   is still .mp-timing__src.
 
    The markup is in phone order, and that IS the layout up to 900px: one
    column, the photograph between the rows and the steps. The two-column
@@ -1818,22 +1820,41 @@ a.mp-menu__mail {
   line-height: 1.55;
   color: var(--mp-ink-3);
 }
-/* The six rows. On a service page this list is a reference table inside a
-   card; here it is the section's main content, so the values are set at body
-   size with a little more air between the hairlines. */
-.mp-prog .mp-timing {
-  margin-block-start: clamp(2.5rem, 5vw, 3.5rem);
+/* The four rows. On a service page the table is a reference inside a card;
+   here the rows are the section's main content, so the values are set at
+   body size with a little more air between the hairlines. The label column
+   is 12rem for the reason given at .mp-timing (14). */
+.mp-prog__facts {
+  list-style: none;
+  margin: clamp(2.5rem, 5vw, 3.5rem) 0 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
 }
-.mp-prog .mp-timing > div {
+.mp-prog__facts li {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+  gap: var(--mp-4);
   align-items: baseline;
   padding-block: 0.95rem;
+  border-block-end: 1px solid var(--mp-line);
 }
-.mp-prog .mp-timing dd {
+.mp-prog__k {
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-prog__v {
   font-size: var(--mp-t-body);
   line-height: 1.6;
+  color: var(--mp-ink);
 }
 .mp-prog .mp-timing__src {
   line-height: 1.6;
+}
+/* The link to the whole table, on the program's own page. */
+.mp-prog__full {
+  margin: var(--mp-4) 0 0;
 }
 /* One photograph, in a plain plate. Landscape while the section is a single
    column; a 4:5 portrait once it stands beside the reading column. The
@@ -1943,12 +1964,19 @@ a.mp-menu__mail {
    would leave the values a ragged 30 characters wide: label over value, as
    on a phone. And four step cells would be under 120px each: two by two. */
 @media (min-width: 901px) and (max-width: 1180px) {
-  .mp-prog .mp-timing > div {
+  .mp-prog__facts li {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.25rem;
   }
   .mp-prog__steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* …and on a phone, where .mp-timing does the same (19). */
+@media (max-width: 640px) {
+  .mp-prog__facts li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
   }
 }
 
@@ -4576,6 +4604,13 @@ a.mp-menu__mail {
   border-block-start: 1px solid var(--mp-line);
   font-size: var(--mp-t-small);
   color: var(--mp-ink-2);
+}
+/* Right under the board's duties, the list's last hairline is that line:
+   the date used to stand between the two, and now closes the source line
+   under the rows. A second hairline 24px below the first read as a mistake. */
+.mp-duties + .mp-timing__cross {
+  padding-block-start: 0;
+  border-block-start: 0;
 }
 .mp-pillars--plain b {
   font-family: var(--mp-mono);

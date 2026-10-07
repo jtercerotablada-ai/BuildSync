@@ -4,10 +4,11 @@ import React from 'react';
 import { imagery, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { Img } from './media';
 import { ButtonLink, Reveal, RevealText, SectionHeading, TextLink } from './primitives';
-import { accentLines } from './text';
+import { accentLines, afterFirstSentence, firstSentence } from './text';
 import { useContent, useL } from './lang';
 import { ReachRow } from './ReachRow';
 import { Dated, Source } from './Outbound';
+import { JUMP_ID } from './JumpLinks';
 
 /**
  * One county's program, on the home page: Miami-Dade's recertification, then
@@ -15,21 +16,37 @@ import { Dated, Source } from './Outbound';
  * deadline is the one holding a Notice of Required Inspection.
  *
  * THE NUMBERS ARE NOT IN THIS FILE, and not in `service.program` either. The
- * six rows are `service.timing.rows[0]` — the same row the service page
- * prints — with its authority and the one shared date beside it. So the home
- * page and the service page cannot drift apart, and a county's numbers only
- * ever appear under that county's own name. Never merge the two sections
- * into one, and never lift a number out of a row into the copy.
+ * rows are read from `service.timing.rows[0]` — the row the service page
+ * prints — with its authority and the one shared date beside them. So the
+ * home page and the service page cannot drift apart, and a county's numbers
+ * only ever appear under that county's own name. Never merge the two
+ * sections into one, and never lift a number out of a row into the copy.
+ *
+ * THE HOME PAGE IS THE SUMMARY; THE PROGRAM'S PAGE IS THE REFERENCE. This
+ * section used to print all six rows whole, word for word what the program's
+ * page prints: the same paragraphs on two pages, which is what the owner's
+ * on-page check counts. It now prints
+ *   · only the facts the row flags `home` (site.ts) — the ages and the day
+ *     counts a first-time visitor came for;
+ *   · of each, its label and its FIRST SENTENCE (`firstSentence`), as one
+ *     line of one list item — still cut from the row in code, never retyped;
+ *   · one link to the table itself, on the program's page
+ *     (`#when-it-applies`), where every row is whole, with its exemptions
+ *     and its hedges.
+ * The line under the button follows the same rule: the program's page prints
+ * `ctaNote` whole under its hero button, and this section prints its second
+ * half — what to send when there is no notice yet.
  *
  * Both sections are the same component on purpose: identical row labels in
  * the same order, so the two counties compare line by line. `mirrored` swaps
  * the photograph to the other side so the pair reads as one spread.
  *
  * ORDER. The markup is in reading order for a phone — headline, lede, the
- * button and what to send, the six rows, the photograph, the steps, the
- * link — so the action sits above the facts on a small
- * screen. From 901px the photograph is placed in the other column by CSS
- * (`.mp-prog__grid`) and travels with the reader while the rows scroll by.
+ * button and what to send, the rows and the link to the full table, the
+ * photograph, the steps, the link to the page — so the action sits above the
+ * facts on a small screen. From 901px the photograph is placed in the other
+ * column by CSS (`.mp-prog__grid`) and travels with the reader while the
+ * rows scroll by.
  *
  * The button carries the SLUG, not a label: ContactForm maps it to this
  * language's dropdown option, so it survives the language switch.
@@ -64,6 +81,10 @@ export function ProgramSection({
   if (!service || !p || !timing || !row) return null;
 
   const titleId = `mp-prog-${p.id}-title`;
+  // The summary: the facts the row flags for this page, and of the line
+  // under the button, the half the program's own page does not open with.
+  const facts = row.facts.filter((f) => f.home);
+  const noNotice = afterFirstSentence(p.ctaNote);
 
   return (
     <section
@@ -98,21 +119,27 @@ export function ProgramSection({
               <ButtonLink href={l(`/contact?service=${service.slug}`)} variant="solid">
                 {p.cta}
               </ButtonLink>
-              <p className="mp-prog__ctanote">{p.ctaNote}</p>
+              {noNotice ? <p className="mp-prog__ctanote">{noNotice}</p> : null}
               <ReachRow c={c} className="mp-reach--row" />
             </Reveal>
 
-            {/* The same list the service page prints, without its card: the
-                bare rows are restyled by `.mp-prog .mp-timing` in mp.css. */}
+            {/* A list, not the service page's dl: label and sentence are ONE
+                item, so no line here is a paragraph of the program's page.
+                The colon is for whoever reads the item as text (a screen
+                reader, a crawler); on screen the label has its own column
+                (`.mp-prog__facts` in mp.css). */}
             <Reveal delay={0.06}>
-              <dl className="mp-timing">
-                {row.facts.map((f) => (
-                  <div key={f.k}>
-                    <dt>{f.k}</dt>
-                    <dd>{f.v}</dd>
-                  </div>
+              <ul className="mp-prog__facts">
+                {facts.map((f) => (
+                  <li key={f.k}>
+                    <span className="mp-prog__k">
+                      {f.k}
+                      <span className="mp-sr-only">:</span>
+                    </span>{' '}
+                    <span className="mp-prog__v">{firstSentence(f.v)}</span>
+                  </li>
                 ))}
-              </dl>
+              </ul>
               {/* Every number above answers to this line: the authority, and
                   the one date the whole site's regulatory rows share. The
                   authority is a link to its own text; the date is a <time>. */}
@@ -121,6 +148,13 @@ export function ProgramSection({
                 <span className="mp-timing__checked">
                   <Dated label={u.lastChecked} date={timing.checked} iso={regulatoryCheckedISO} />
                 </span>
+              </p>
+              {/* Every row whole — exemptions, hedges, the board's duties —
+                  is one tap away, on the program's own page. */}
+              <p className="mp-prog__full">
+                <TextLink href={l(`/services/${service.slug}#${JUMP_ID.applies}`)}>
+                  {p.timingLink}
+                </TextLink>
               </p>
             </Reveal>
           </div>
