@@ -152,3 +152,66 @@ describe('county rules stay in the timing rows', () => {
     }
   }
 });
+
+/**
+ * The header leaves out any page flagged `inHeader: false`, and every view
+ * reads `primaryNav` BY POSITION for its breadcrumb label. The compiler sees
+ * neither: the flag is optional, so a translation can drop it, and an index
+ * into a shorter list is simply `undefined` at run time — /contact would stop
+ * rendering. These tests are what notices.
+ */
+describe('navigation: what the header leaves out', () => {
+  // [0] ServicesView and ServiceDetailView, [1] ExistingView, [2] WorkView,
+  // [3] AboutView, [4] ContactView.
+  const ORDER = ['/services', '/existing-buildings', '/projects', '/about', '/contact'];
+
+  for (const [lang, c] of bundles) {
+    it(`${lang} keeps the five entries the views read by position`, () => {
+      expect(c.primaryNav.map((item) => item.href)).toEqual(ORDER);
+    });
+
+    it(`${lang} keeps a page it hides linked from the footer`, () => {
+      const footer = c.footerNav.flatMap((group) => group.items.map((item) => item.href));
+      for (const item of c.primaryNav.filter((i) => i.inHeader === false)) {
+        expect(footer).toContain(item.href);
+      }
+    });
+
+    // With no case study to show, the page holds typical profiles: it is out
+    // of the header and carries that name wherever it is linked. Publishing
+    // real work is what lets it be "Work" in the header again.
+    it(`${lang} names /projects for what it holds while there are no case studies`, () => {
+      const page = c.primaryNav[2];
+      if (c.caseStudies.length > 0) return;
+      expect(page.inHeader).toBe(false);
+      expect(page.label.toLowerCase()).toBe(c.ui.typicalEngagements.toLowerCase());
+      const inFooter = c.footerNav.flatMap((group) => group.items).find((i) => i.href === page.href);
+      expect(inFooter?.label).toBe(page.label);
+      expect(c.ui.typologiesNoteLink).toBe(page.label);
+    });
+  }
+
+  it('the two languages hide the same pages', () => {
+    const hidden = (c: SiteContent) => c.primaryNav.filter((i) => i.inHeader === false).map((i) => i.href);
+    expect(hidden(es)).toEqual(hidden(en));
+  });
+});
+
+describe('language switch', () => {
+  // The switch shows the OTHER language, so an English page prints
+  // `language.es` and a Spanish page `language.en`: a name translated into
+  // the page's own language ("Spanish", "Inglés") would be the one word the
+  // reader it is for cannot be counted on to recognise.
+  it('names each language in that language, in both files', () => {
+    for (const [, c] of bundles) {
+      expect(c.ui.language.en).toBe('English');
+      expect(c.ui.language.es).toBe('Español');
+    }
+  });
+
+  // Shown on English pages only, to a browser set to Spanish.
+  it('offers Spanish in Spanish, the same line in both files', () => {
+    expect(es.ui.language.offer).toEqual(en.ui.language.offer);
+    expect(en.ui.language.offer.text).toMatch(/español/);
+  });
+});

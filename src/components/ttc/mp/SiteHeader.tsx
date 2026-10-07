@@ -12,7 +12,8 @@ import {
   stripLang,
 } from '@/lib/ttc/i18n';
 import { EASE } from './primitives';
-import { useContent, useLang } from './lang';
+import { LanguageOffer } from './LanguageOffer';
+import { refreshSearch, useContent, useLang, useSearch } from './lang';
 
 /** The burger shows at ≤1180px (mp.css); the menu has no reason to exist past it. */
 const MENU_MQ = '(max-width: 1180px)';
@@ -47,6 +48,7 @@ export function SiteHeader() {
   const pathname = usePathname() ?? '/';
   const lang = useLang();
   const c = useContent();
+  const search = useSearch();
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
@@ -155,8 +157,10 @@ export function SiteHeader() {
     // Only elements this effect inerted are released again, so an element
     // that was already inert for some other reason stays that way.
     const inerted: HTMLElement[] = [];
+    // The Spanish offer (LanguageOffer) lies under the menu like the page
+    // does: covered, so blocked with it.
     document
-      .querySelectorAll<HTMLElement>('#main, .mp-footer')
+      .querySelectorAll<HTMLElement>('#main, .mp-footer, .mp-langoffer')
       .forEach((el) => {
         if (el.hasAttribute('inert')) return;
         el.setAttribute('inert', '');
@@ -229,17 +233,33 @@ export function SiteHeader() {
   );
 
   const l = (href: string) => localePath(href, lang);
-  const other = altPath(pathname);
+  // The twin page WITH the query string of the page on screen: the pathname
+  // alone dropped `?service=`, so a form opened for a county's notice came
+  // back empty after the switch. `search` is '' on the server and while
+  // hydrating, so the static HTML carries the plain twin path (see
+  // useSearch).
+  const other = altPath(pathname, search);
   const otherLang = lang === 'en' ? 'es' : 'en';
   const langAttr = htmlLang[lang];
   const logo = c.company.logo;
 
+  // The header and the phone menu list the pages a visitor is looking for.
+  // An item flagged `inHeader: false` in site.ts stays in `primaryNav` (the
+  // views read that list by position) and in the footer, and is left out
+  // here.
+  const headerNav = c.primaryNav.filter((item) => item.inHeader !== false);
+
+  // The switch is the NAME of the other language, in that language
+  // ("Español" on an English page), not a two-letter code: "ES" at 12px was
+  // the only way to the Spanish site from an English page, and a reader who
+  // did not take it for a language switch had none. The visible word is the
+  // whole accessible name, so "click Español" works for voice control (WCAG
+  // 2.5.3) and no tooltip has to explain it; `lang` makes a screen reader
+  // pronounce it in its own language.
   // On an English-only page there is nothing to switch TO, so the other label
-  // is rendered inert rather than as a link to a route that does not exist.
-  // Its accessible name STARTS with the visible code ("ES — Ver en español"),
-  // so a voice-control user who says "click ES" hits it (WCAG 2.5.3); the
-  // inert variant says why it is inert instead of a no-op aria-disabled on a
-  // span.
+  // is rendered inert rather than as a link to a route that does not exist;
+  // the inert variant says why it is inert instead of a no-op aria-disabled
+  // on a span.
   const translated = hasTranslation(pathname);
   const otherLabel = c.ui.language[otherLang];
   const otherLink = translated ? (
@@ -247,8 +267,9 @@ export function SiteHeader() {
       href={other}
       hrefLang={otherLang}
       lang={otherLang}
-      title={c.ui.language.switchTo}
-      aria-label={`${otherLabel} — ${c.ui.language.switchTo}`}
+      // The query may have changed without the pathname (see refreshSearch).
+      onPointerDown={refreshSearch}
+      onFocus={refreshSearch}
     >
       {otherLabel}
     </Link>
@@ -278,6 +299,11 @@ export function SiteHeader() {
       >
         {c.ui.skipToContent}
       </a>
+      {/* Right after the skip link in the document, so a keyboard or screen
+          reader user whose browser is set to Spanish meets the offer first,
+          not after the whole English page. On screen it sits under the
+          header; nothing is rendered for anyone else. */}
+      {translated ? <LanguageOffer href={other} /> : null}
       <header
         className="mp-header"
         ref={headerRef}
@@ -316,7 +342,7 @@ export function SiteHeader() {
           </Link>
 
           <nav className="mp-header__nav" aria-label={c.ui.primaryNavLabel}>
-            {c.primaryNav.map((item) => (
+            {headerNav.map((item) => (
               <Link
                 key={item.href}
                 href={l(item.href)}
@@ -330,10 +356,11 @@ export function SiteHeader() {
           <div className="mp-header__actions">
             <div className="mp-header__lang">{langSwitch}</div>
             {/* ≤1180px, where the full switch above is hidden: just the other
-                language, one tap from any page, for the Spanish-speaking owner
-                who lands on an English page from search. CSS shows it only at
-                that width, with a 44px hit area, and hides it while the menu
-                (which has its own switch) is open. */}
+                language by name, one tap from any page, for the
+                Spanish-speaking owner who lands on an English page from
+                search. CSS shows it only at that width, with a 44px hit area,
+                and hides it while the menu (which has its own switch) is
+                open. */}
             <div className="mp-lang mp-header__lang-compact">{otherLink}</div>
             <Link
               href={l(c.primaryCta.href)}
@@ -378,7 +405,7 @@ export function SiteHeader() {
             transition={{ duration: 0.28, ease: EASE }}
           >
             <nav className="mp-menu__nav" aria-label={c.ui.primaryNavLabel}>
-              {c.primaryNav.map((item, i) => (
+              {headerNav.map((item, i) => (
                 <motion.span
                   key={item.href}
                   initial={reduce ? false : { opacity: 0, y: 12 }}

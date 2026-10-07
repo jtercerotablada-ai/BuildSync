@@ -14,10 +14,13 @@ import { breadcrumbLd, JsonLd } from './meta';
  * not repeated here — it lives on Services.
  *
  * Until real case studies exist the page shows TYPICAL ENGAGEMENTS, and says
- * so with one label everywhere (hero eyebrow and section label alike). There
- * is deliberately no count fact in that state: "06" beside a heading reads as
- * six past jobs, which is exactly the fabricated social proof the site must
- * not imply. A count of real, published case studies is fine.
+ * so with one label everywhere (hero eyebrow and section label alike) — and,
+ * for as long as that lasts, in its own name: the breadcrumb reads the nav
+ * label, which is "Typical Engagements", and the page is out of the header
+ * (`inHeader: false` on that nav item in site.ts). There is deliberately no
+ * count fact in that state: "06" beside a heading reads as six past jobs,
+ * which is exactly the fabricated social proof the site must not imply. A
+ * count of real, published case studies is fine.
  */
 export function WorkView({ lang }: { lang: Lang }) {
   const c = getContent(lang);

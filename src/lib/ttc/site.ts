@@ -165,12 +165,29 @@ export const contact = {
    NAVIGATION
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export type NavItem = { href: string; label: string; description?: string };
+/**
+ * `inHeader: false` keeps a page out of the header bar and the phone menu —
+ * SiteHeader filters on it — WITHOUT taking it out of `primaryNav`.
+ */
+export type NavItem = { href: string; label: string; description?: string; inHeader?: boolean };
 
+/* The ORDER and the LENGTH of this list are read elsewhere: each view takes
+   its breadcrumb label by position ([0] Services, [1] Existing Buildings,
+   [2] this page, [3] About, [4] Contact) and the proxy derives its public
+   routes from the hrefs. Removing an entry leaves /contact with no label to
+   read and renames two breadcrumbs — hide it with `inHeader` instead.
+
+   /projects is hidden that way. It holds typical engagement profiles, not
+   past jobs, and says so; as "Work", third in the main menu, it sent every
+   curious visitor to a page explaining there was nothing to show. It is now
+   named for what it is, stays linked from the footer and from the home
+   page's typologies note, and stays in the sitemap. When `caseStudies` has
+   real entries it can be "Work" again and go back in the header
+   (site.test.ts holds the two together). */
 export const primaryNav: NavItem[] = [
   { href: '/services', label: 'Services' },
   { href: '/existing-buildings', label: 'Existing Buildings' },
-  { href: '/projects', label: 'Work' },
+  { href: '/projects', label: 'Typical Engagements', inHeader: false },
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
 ];
@@ -183,7 +200,7 @@ export const footerNav: { title: string; items: NavItem[] }[] = [
     items: [
       { href: '/services', label: 'Services' },
       { href: '/existing-buildings', label: 'Existing Buildings' },
-      { href: '/projects', label: 'Work' },
+      { href: '/projects', label: 'Typical Engagements' },
       { href: '/about', label: 'About' },
       { href: '/about#engineer', label: 'Meet the Engineer' },
       { href: '/contact', label: 'Request a Proposal' },
@@ -204,11 +221,24 @@ export const ui = {
   primaryNavLabel: 'Primary',
   language: {
     label: 'Language',
-    en: 'EN',
-    es: 'ES',
-    switchTo: 'Ver en español',
+    /* Each language by its own name, the same in both files: the switch
+       shows the OTHER one, so an English page says "Español". It used to say
+       "ES", which a reader has to know is a language. */
+    en: 'English',
+    es: 'Español',
     /** Visually hidden note on the inert switch of an English-only page (/credits). */
     unavailable: 'Spanish version not available',
+    /**
+     * The one line of Spanish on an English page (LanguageOffer): shown only
+     * to a browser set to Spanish, as a link to the same page under /es,
+     * with a button to close it. Spanish in BOTH files — it is never shown
+     * in any other language, and English is not offered the same way on
+     * Spanish pages.
+     */
+    offer: {
+      text: '¿Prefiere leer esto en español?',
+      dismiss: 'Cerrar este aviso',
+    },
   },
   breadcrumb: 'Breadcrumb',
   explore: 'Explore',
@@ -411,12 +441,14 @@ export const ui = {
     disclaimer:
       'Descriptions on this site are general. The scope, sequence and deliverables for any specific building are confirmed in writing before work begins, and requirements vary by jurisdiction.',
   },
-  /* Rendered as note + link + end. Work has no case studies yet, so the
+  /* Rendered as note + link + end. There are no case studies yet, so the
      note points at what IS there (the typical engagements), not at
-     "published case studies" that do not exist. */
+     "published case studies" that do not exist. The link is the page's name
+     — the same words as its nav label — so the sentence leads up to it
+     without saying "typical engagements" twice. */
   typologiesNote:
-    'Photographs illustrate the kind of structure described; none shows a project by Tercero Tablada Civil & Structural Engineering Inc. Typical engagements are listed under',
-  typologiesNoteLink: 'Work',
+    'Photographs illustrate the kind of structure described; none shows a project by Tercero Tablada Civil & Structural Engineering Inc. What the firm takes on is described under',
+  typologiesNoteLink: 'Typical Engagements',
   typologiesNoteEnd: '.',
   galleryNote:
     'Licensed architectural photography, shown as material rather than as a portfolio. No image on this page depicts a project by Tercero Tablada Civil & Structural Engineering Inc.',

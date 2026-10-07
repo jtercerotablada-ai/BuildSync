@@ -49,8 +49,10 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     },
     work: {
       // "Typical", never "representative work" or "anonymized": the profiles
-      // are not past jobs (see `engagements` in site.ts).
-      title: 'Work — Typical Structural Engagements in South Florida',
+      // are not past jobs (see `engagements` in site.ts). No "Work —" in
+      // front either: the page is named for what it holds, in its title as
+      // in its nav label, until there are real case studies to show.
+      title: 'Typical Structural Engagements in South Florida',
       description:
         'Typical structural engagements in South Florida: building type, structural system, scope and deliverables for new and existing buildings.',
     },
@@ -92,9 +94,11 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       keywords: ['recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'inspección milestone condominio', 'inspección de hitos condominio', 'ingeniero reparación de balcones'],
     },
     work: {
-      title: 'Proyectos — Encargos estructurales típicos',
+      // "Trabajos típicos", the page's name in Spanish (site.es.ts). It used
+      // to open with "Proyectos", which the page does not show.
+      title: 'Trabajos típicos de ingeniería estructural — Sur de Florida',
       description:
-        'Encargos estructurales típicos en el Sur de Florida: tipo de edificio, sistema estructural, alcance y entregables para edificios nuevos y existentes.',
+        'Trabajos típicos de ingeniería estructural en el Sur de Florida: tipo de edificio, sistema estructural, alcance y entregables en edificios nuevos y existentes.',
     },
     about: {
       title: 'Nosotros — Juan Tercero, PE., M.Sc.',

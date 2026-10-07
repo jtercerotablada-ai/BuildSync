@@ -48,9 +48,17 @@ export function localePath(path: string, lang: Lang): string {
   return base === '/' ? `${ES_PREFIX}${rest}` : `${ES_PREFIX}${base}${rest}`;
 }
 
-/** The same page in the other language. */
-export function altPath(pathname: string): string {
-  return localePath(pathname, langFromPathname(pathname) === 'es' ? 'en' : 'es');
+/**
+ * The same page in the other language. `search` is the page's query string
+ * as the browser gives it (`?service=broward-bsip`, or empty) and rides
+ * along: a form opened for one service is still opened for that service
+ * after the switch. The slugs are the same in both languages.
+ */
+export function altPath(pathname: string, search = ''): string {
+  return localePath(
+    `${pathname}${search}`,
+    langFromPathname(pathname) === 'es' ? 'en' : 'es',
+  );
 }
 
 /** hreflang map for a canonical (English) path, ready for `alternates.languages`. */

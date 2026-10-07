@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getContent, type SiteContent } from '@/lib/ttc/content';
@@ -33,6 +33,57 @@ export function L({
 }: React.ComponentProps<typeof Link> & { href: string }) {
   const l = useL();
   return <Link href={l(href)} {...rest} />;
+}
+
+/* ── The query string of the page on screen ──────────────────────────────
+   For the one link that has to keep it: the language switch (and the line
+   that offers Spanish). `usePathname()` carries no query, so the switch on
+   /es/contact?service=broward-bsip used to lead to a bare /contact and the
+   form opened for the Broward notice came back empty.
+
+   Not `useSearchParams()`: the header is shared by every statically
+   rendered page, where that hook needs a Suspense boundary and leaves
+   whatever is inside it out of the server HTML — the language link is the
+   last thing that should be missing there. This reads the address bar
+   instead, as an external store: the server and the hydration pass get ''
+   (so the static HTML and the first client render agree), and React then
+   re-renders with the real value.
+
+   The address bar tells nobody when the app router rewrites it, so the
+   store is re-read at the three moments that matter: after a route change
+   (the effect below — the router writes the URL after the render that
+   changed the pathname, so a read DURING that render is one page behind),
+   on Back/Forward, and when the link itself is about to be used (see
+   `refreshSearch`). */
+const searchListeners = new Set<() => void>();
+
+function subscribeSearch(notify: () => void) {
+  searchListeners.add(notify);
+  window.addEventListener('popstate', notify);
+  return () => {
+    searchListeners.delete(notify);
+    window.removeEventListener('popstate', notify);
+  };
+}
+
+const readSearch = () => window.location.search;
+const noSearch = () => '';
+
+/**
+ * Re-read the address bar. For the pointer-down and focus of a link built
+ * from `useSearch()`: a navigation that changes only the query (the header
+ * button on /contact?service=…) changes no pathname and fires no event, so
+ * this is what keeps the link from carrying the query of the page before.
+ */
+export function refreshSearch() {
+  searchListeners.forEach((notify) => notify());
+}
+
+/** `?service=…` of the page on screen, or '' — and '' on the server. */
+export function useSearch(): string {
+  const pathname = usePathname();
+  useEffect(refreshSearch, [pathname]);
+  return useSyncExternalStore(subscribeSearch, readSearch, noSearch);
 }
 
 /**

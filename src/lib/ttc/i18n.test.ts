@@ -36,6 +36,20 @@ describe('stripLang / localePath', () => {
     expect(altPath('/es')).toBe('/');
   });
 
+  // The switch used to be built from the pathname alone, so a form opened
+  // for one service came back empty in the other language.
+  it('altPath carries the query string to the twin page', () => {
+    expect(altPath('/es/contact', '?service=building-recertification')).toBe(
+      '/contact?service=building-recertification',
+    );
+    expect(altPath('/contact', '?service=broward-bsip')).toBe(
+      '/es/contact?service=broward-bsip',
+    );
+    expect(altPath('/', '?a=1&b=2')).toBe('/es?a=1&b=2');
+    expect(altPath('/es', '?a=1')).toBe('/?a=1');
+    expect(altPath('/about', '')).toBe('/es/about');
+  });
+
   it('hreflangFor lists en, es and x-default', () => {
     expect(hreflangFor('/about')).toEqual({
       en: '/about',
