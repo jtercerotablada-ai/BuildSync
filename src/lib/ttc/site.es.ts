@@ -58,6 +58,13 @@ import type { SiteContent } from './site';
  */
 export const regulatoryChecked = '4 de octubre de 2026';
 
+/**
+ * The same date as `officeLinksChecked` in site.ts, in Spanish: the day the
+ * links under "¿Quién le envió la notificación?" were last opened. Move both
+ * together (site.test.ts compares them with the ISO date in site.ts).
+ */
+export const officeLinksChecked = '7 de octubre de 2026';
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SERVICES — built first so the contact-form options can reference them
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -161,6 +168,9 @@ const services: SiteContent['services'] = [
         {
           jurisdiction: 'Condado de Miami-Dade',
           source: 'Código del Condado de Miami-Dade, Sección 8-11(f)',
+          /* Same link as the EN row; the code is published in English. */
+          sourceUrl:
+            'https://library.municode.com/fl/miami_-_dade_county/codes/code_of_ordinances?nodeId=PTIIICOOR_CH8BUCO_ARTIAD_S8-11EXBU',
           /* Same six labels, same order, as the Broward row. Numbers are
              identical to the EN row — amend both or neither. */
           facts: [
@@ -248,6 +258,43 @@ const services: SiteContent['services'] = [
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official; el ingeniero tiene el deber de hacerlo.',
       'Un informe documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
     ],
+    /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`: the same
+       rows, in the same order, with the same links (opened 2026-10-07; the
+       reasoning is in the comment there). Specific to the Spanish:
+         • The office names stay in English. They are what the letterhead
+           says and what the reader will see on the page the row opens.
+         • The lede says the pages are in English, because they are: none of
+           the linked pages is served in Spanish.
+         • "Municipio" for the county's "municipality"; "las áreas no
+           incorporadas", as in the timing note above. */
+    offices: {
+      title: '¿Quién le envió la notificación?',
+      lede: 'La notificación la envía la oficina de construcción de su propia ciudad, o el condado en las áreas no incorporadas, y el informe se presenta ante esa misma oficina. Busque la suya abajo: cada fila abre la página de esa oficina, en una pestaña nueva. Son páginas oficiales, en inglés.',
+      rows: [
+        { city: 'Ciudad de Miami', office: 'City of Miami Building Department, Unsafe Structures Section', url: 'https://www.miami.gov/Permits-Construction/Unsafe-Structures-Services/Get-a-Building-Recertification' },
+        { city: 'Miami Beach', office: 'City of Miami Beach Building Department', url: 'https://www.miamibeachfl.gov/city-hall/building/building-recert/' },
+        { city: 'Hialeah', office: 'City of Hialeah Building Division', url: 'https://www.hialeahfl.gov/201/Building-Recertification-Forms' },
+        { city: 'Coral Gables', office: 'City of Coral Gables Building Division', url: 'https://www.coralgables.com/department/development-services/building-division/services/building-recertification' },
+        { city: 'Doral', office: 'City of Doral Building Department', url: 'https://www.cityofdoral.com/Departments/Building-Department/Building-Recertification-Program' },
+        { city: 'North Miami', office: 'City of North Miami Building Department', url: 'https://www.northmiamifl.gov/1713/Milestone-Recertification-3010-year' },
+        { city: 'North Miami Beach', office: 'City of North Miami Beach Building Department', url: 'https://www.citynmb.com/1581/Recertification' },
+        { city: 'Aventura', office: 'City of Aventura Building Division', url: 'https://www.cityofaventura.com/169/Building-Permits' },
+        { city: 'Sunny Isles Beach', office: 'City of Sunny Isles Beach Building Department', url: 'https://www.sibfl.gov/Building-Code/Building-Department/Building-Recertification-Program' },
+        { city: 'Miami Gardens', office: 'City of Miami Gardens Building Services', url: 'https://www.miamigardens-fl.gov/190/Building-Services' },
+        { city: 'Homestead', office: 'City of Homestead Development Services, Building Safety', url: 'https://www.homesteadfl.gov/565/Building-Recertification' },
+        { city: 'Surfside', office: 'Town of Surfside Building Department', url: 'https://www.townofsurfsidefl.gov/departments-services/building/40-year-recertification-program' },
+        { city: 'Key Biscayne', office: 'Village of Key Biscayne Building, Zoning and Planning Department', url: 'https://keybiscayne.fl.gov/services/building_zoning_and_planning/resources/building_recertification.php' },
+        { city: 'Áreas no incorporadas de Miami-Dade', office: 'Miami-Dade County Regulatory and Economic Resources', url: 'https://www.miamidade.gov/global/economy/building/recertification.page' },
+      ],
+      note: '¿Su ciudad no está en la lista? Cada municipio de Miami-Dade maneja sus propias recertificaciones, y la carta indica la oficina que la envió. Las preguntas sobre una notificación se dirigen a esa oficina. Envíenos la carta: la leemos antes de presentar una propuesta.',
+      forms: {
+        text: 'Estos son los formularios en los que se presenta el informe:',
+        label: 'Condado de Miami-Dade: guías y plantillas de informe de la recertificación',
+        url: 'https://www.miamidade.gov/global/economy/building/recertification.page',
+      },
+      checked: officeLinksChecked,
+    },
+    alsoCalled: ['Recertificación de 40 años', 'Recertificación de edificios'],
     crossLink: { text: '¿Su edificio está en Broward?', label: 'Vea el BSIP', slug: 'broward-bsip' },
     program: {
       id: 'miami-dade',
@@ -354,6 +401,9 @@ const services: SiteContent['services'] = [
         {
           jurisdiction: 'Condado de Broward',
           source: 'Junta de Reglas y Apelaciones del Condado de Broward, Política n.º 05-05 · Código de Construcción de Florida, Enmiendas del Condado de Broward, Sección 110.15',
+          /* Same link as the EN row: the Board's own page, which lists both
+             texts. */
+          sourceUrl: 'https://www.broward.org/codeappeals/FormsandContacts',
           /* Same six labels, same order, as the Miami-Dade row. "Plazo para
              presentar" keeps BOTH hedges of the EN row (older guides say 90;
              the city's letter states its own date) — neither may be cut. The
@@ -443,6 +493,32 @@ const services: SiteContent['services'] = [
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official; el ingeniero tiene el deber de hacerlo.',
       'Un informe documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
     ],
+    /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`; see the
+       Miami-Dade block above for what is specific to the Spanish. */
+    offices: {
+      title: '¿Quién le envió la notificación?',
+      lede: 'El programa es uno solo para todo el condado, y el Building Official (el funcionario de construcción) de cada ciudad envía las notificaciones y recibe los informes. Busque su ciudad abajo: cada fila abre la página de esa oficina, en una pestaña nueva. Son páginas oficiales, en inglés.',
+      rows: [
+        { city: 'Fort Lauderdale', office: 'City of Fort Lauderdale Development Services Department', url: 'https://www.fortlauderdale.gov/Government/Departments/Development-Services/Permitting-Services/Building-Safety-Inspection-Program' },
+        { city: 'Hollywood', office: 'City of Hollywood Building Division', url: 'https://www.hollywoodfl.org/1312/Building-Safety-Program' },
+        { city: 'Pompano Beach', office: 'City of Pompano Beach Building Department', url: 'https://www.pompanobeachfl.gov/government/building-inspections/building-safety-inspection-program' },
+        { city: 'Hallandale Beach', office: 'City of Hallandale Beach Building Division', url: 'https://www.hallandalebeachfl.gov/1479/Building-Safety-Inspection-Program' },
+        { city: 'Deerfield Beach', office: 'City of Deerfield Beach Building Division', url: 'https://www.deerfield-beach.com/294/Building-Services' },
+        { city: 'Pembroke Pines', office: 'City of Pembroke Pines Building Department', url: 'https://www.ppines.com/1484/BSIP-Building-Safety-Inspection-Program' },
+        { city: 'Miramar', office: 'City of Miramar Building, Planning & Zoning Department', url: 'https://www.miramarfl.gov/Departments/Building-Planning-Zoning/Building-Permits-Inspections/BSIP' },
+        { city: 'Plantation', office: 'City of Plantation Department of Building Safety', url: 'https://www.plantation.org/government/departments/building-safety/building-safety-inspection-program' },
+        { city: 'Sunrise', office: 'City of Sunrise Building Division', url: 'https://www.sunrisefl.gov/departments-services/community-development/building' },
+        { city: 'Davie', office: 'Town of Davie Building Division', url: 'https://www.davie-fl.gov/1840/Building-Safety-Inspection-Program' },
+      ],
+      note: '¿Su ciudad no está en la lista? El programa alcanza a todas las ciudades de Broward, y la carta indica la oficina que la envió. Las preguntas sobre una notificación se dirigen a esa oficina. Envíenos la carta: la leemos antes de presentar una propuesta.',
+      forms: {
+        text: 'Estos son los formularios en los que se presenta el informe:',
+        label: 'Junta de Reglas y Apelaciones del Condado de Broward: formularios del Programa de Inspección de Seguridad de Edificios (BSIP)',
+        url: 'https://www.broward.org/codeappeals/FormsandContacts',
+      },
+      checked: officeLinksChecked,
+    },
+    alsoCalled: ['BSIP', 'Building Safety Inspection Program', 'Programa de Inspección de Seguridad de Edificios de Broward', 'Recertificación de 40 años'],
     crossLink: { text: '¿Su edificio está en Miami-Dade?', label: 'Vea la recertificación de Miami-Dade', slug: 'building-recertification' },
     program: {
       id: 'broward',
@@ -541,6 +617,9 @@ const services: SiteContent['services'] = [
         {
           jurisdiction: 'Estado de Florida — inspección de hito',
           source: 'Estatutos de Florida, Sección 553.899',
+          /* Same link as the EN row. */
+          sourceUrl:
+            'https://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0500-0599/0553/Sections/0553.899.html',
           facts: [
             { k: 'Aplica a', v: 'Edificios de condominio y cooperativa de tres pisos habitables o más' },
             { k: 'Primer vencimiento', v: 'A más tardar el 31 de diciembre del año en que el edificio cumple 30 años, contados desde el certificado de ocupación — 25 años donde la autoridad local lo exija, por condiciones como la proximidad al agua salada' },
@@ -1081,6 +1160,10 @@ export const es: SiteContent = {
     verified: 'Verificado',
     lastChecked: 'Última verificación',
     sourceLabel: 'Fuente',
+    yourCity: 'Su ciudad',
+    /* "Revisión de los enlaces", not "verificación": that word is the
+       rules' ("Última verificación"), and this date is about the links. */
+    linksChecked: 'Última revisión de los enlaces',
     footer: {
       services: 'Servicios',
       contact: 'Contacto',

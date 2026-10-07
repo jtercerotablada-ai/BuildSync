@@ -1,12 +1,13 @@
 'use client';
 
 import React from 'react';
-import { imagery } from '@/lib/ttc/site';
+import { imagery, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { Img } from './media';
 import { ButtonLink, Reveal, RevealText, SectionHeading, TextLink } from './primitives';
 import { accentLines } from './text';
 import { useContent, useL } from './lang';
 import { ReachRow } from './ReachRow';
+import { Dated, Source } from './Outbound';
 
 /**
  * One county's program, on the home page: Miami-Dade's recertification, then
@@ -111,11 +112,12 @@ export function ProgramSection({
                 ))}
               </dl>
               {/* Every number above answers to this line: the authority, and
-                  the one date the whole site's regulatory rows share. */}
+                  the one date the whole site's regulatory rows share. The
+                  authority is a link to its own text; the date is a <time>. */}
               <p className="mp-timing__src">
-                {u.sourceLabel}: {row.source} ·{' '}
+                {u.sourceLabel}: <Source row={row} /> ·{' '}
                 <span className="mp-timing__checked">
-                  {u.lastChecked}: {timing.checked}
+                  <Dated label={u.lastChecked} date={timing.checked} iso={regulatoryCheckedISO} />
                 </span>
               </p>
             </Reveal>

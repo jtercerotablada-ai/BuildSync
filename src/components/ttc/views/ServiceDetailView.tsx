@@ -1,12 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { getContent } from '@/lib/ttc/content';
-import { company, imagery } from '@/lib/ttc/site';
+import { company, imagery, officeLinksCheckedISO, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
+import { serviceLd, webPageLd } from '@/lib/ttc/structured-data';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
+import { Dated, Outbound, Source } from '@/components/ttc/mp/Outbound';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { ButtonLink, SectionHeading, Reveal, TextLink } from '@/components/ttc/mp/primitives';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -14,8 +16,8 @@ import { breadcrumbLd, JsonLd } from './meta';
 /**
  * One service, in the order a client asks the questions: when you need it →
  * what is included and what you receive → when it applies (regulated
- * services) → the questions boards ask (the two county programs) → how it
- * runs → good to know → next step.
+ * services) → the questions boards ask, then who sent the notice (the two
+ * county programs) → how it runs → good to know → next step.
  *
  * No code-standard names are rendered here (`service.standards` is not read
  * at all any more): a client reads "the Florida Building Code" in the process
@@ -96,7 +98,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         </>
       ) : null}
       <p className="mp-timing__src">
-        {u.lastChecked}: {service.timing.checked}
+        <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
       </p>
       {/* The other county's page. The two programs never share a page or a
           number, so each one ends by pointing at the other. */}
@@ -111,25 +113,11 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
     </>
   ) : null;
 
-  // The provider is the ONE Organization node the (public) layout emits, by
-  // @id — a second, unnamed ProfessionalService here read as a different
-  // company. The EN page's @id is the same one the layout's offer catalogue
-  // points at, so the two graphs join up.
+  // The Service node and, on the regulated pages, the WebPage node that
+  // carries the date the rows were last checked: both built in
+  // structured-data.ts, next to the site-wide graph they point into.
   const pageUrl = `${company.url}${l(`/services/${service.slug}`)}`;
-  const serviceLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Service',
-    '@id': `${pageUrl}#service`,
-    name: service.title,
-    description: service.seo.description,
-    serviceType: service.title,
-    provider: { '@id': `${company.url}/#organization` },
-    // A county program is offered in its own county only: the Broward page
-    // must not tell a search engine it serves Miami-Dade, or the reverse.
-    // Every other service is offered in both.
-    areaServed: service.areaServed ?? ['Miami-Dade County, Florida', 'Broward County, Florida'],
-    url: pageUrl,
-  };
+  const pageLd = webPageLd(lang, service);
   // The questions, as markup — built from the SAME array the page prints, so
   // the two cannot drift apart. No rich result is expected from it; it only
   // says, in a form a machine reads, what is already visible below.
@@ -153,7 +141,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
 
   return (
     <>
-      <JsonLd data={serviceLd} />
+      <JsonLd data={serviceLd(lang, service)} />
+      {pageLd ? <JsonLd data={pageLd} /> : null}
       {faqLd ? <JsonLd data={faqLd} /> : null}
       <JsonLd
         data={breadcrumbLd(lang, [
@@ -284,7 +273,9 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                       </div>
                     ))}
                   </dl>
-                  <p className="mp-timing__src">{row.source}</p>
+                  <p className="mp-timing__src">
+                    <Source row={row} />
+                  </p>
                 </Reveal>
               ))}
               {singleRow ? (
@@ -361,7 +352,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                     <>
                       {' · '}
                       <span className="mp-timing__checked">
-                        {u.lastChecked}: {service.timing.checked}
+                        <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
                       </span>
                     </>
                   ) : null}
@@ -394,12 +385,71 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
             </div>
             {service.timing?.rows[0] ? (
               <p className="mp-timing__src">
-                {u.sourceLabel}: {service.timing.rows[0].source} ·{' '}
+                {u.sourceLabel}: <Source row={service.timing.rows[0]} /> ·{' '}
                 <span className="mp-timing__checked">
-                  {u.lastChecked}: {service.timing.checked}
+                  <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
                 </span>
               </p>
             ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Who sent your notice? — the two county programs. The letter has a
+          city's name on it, and these pages named none. One row per city:
+          its name, and the building office as that city's own page calls
+          it. The whole row is the link, so on a phone the target is the full
+          width and well over 44px; a row without a confirmed page prints
+          the same two lines as text. Right under the questions, whose last
+          word on filing is "the office that sent the notice". Then the page
+          the county publishes its forms on, and the day the links were last
+          opened — a date of its own, not the rules' "Last verified". */}
+      {service.offices ? (
+        <section className="mp-section mp-surface--paper">
+          <div className="mp-shell">
+            <SectionHeading n={next()} label={u.yourCity} />
+            <div className="mp-intro">
+              <Reveal>
+                <h2 className="mp-intro__title">{service.offices.title}</h2>
+              </Reveal>
+              <Reveal delay={0.05}>
+                <p className="mp-intro__lede">{service.offices.lede}</p>
+              </Reveal>
+            </div>
+            <ul className="mp-offices">
+              {service.offices.rows.map((row) => {
+                // The space between the two cells draws nothing in the row's
+                // grid; it keeps the link's name, and the page's plain text,
+                // from running "Hialeah" into "City of Hialeah…".
+                const cells = (
+                  <>
+                    <span className="mp-offices__city">{row.city}</span>{' '}
+                    <span className="mp-offices__office">{row.office}</span>
+                  </>
+                );
+                return (
+                  <li key={row.city}>
+                    {row.url ? (
+                      <Outbound href={row.url} className="mp-offices__row">
+                        {cells}
+                      </Outbound>
+                    ) : (
+                      <div className="mp-offices__row">{cells}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mp-offices__foot">
+              <p>{service.offices.note}</p>
+              <p>
+                {service.offices.forms.text}{' '}
+                <Outbound href={service.offices.forms.url}>{service.offices.forms.label}</Outbound>
+              </p>
+              <p className="mp-timing__src">
+                <Dated label={u.linksChecked} date={service.offices.checked} iso={officeLinksCheckedISO} />
+              </p>
+            </div>
           </div>
         </section>
       ) : null}
