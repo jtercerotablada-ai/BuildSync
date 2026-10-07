@@ -4,7 +4,7 @@ import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { SiteGraph } from '@/components/ttc/mp/SiteGraph';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
 import { OG_IMAGE, brandedTitle } from '@/components/ttc/views/meta';
-import { company } from '@/lib/ttc/site';
+import { absoluteUrl, company } from '@/lib/ttc/site';
 import '@/app/(public)/mp.css';
 
 /* ── The public site's shell ──────────────────────────────────────────────
@@ -72,7 +72,10 @@ export const publicMetadata: Metadata = {
   },
   description: company.description,
   applicationName: company.name,
-  authors: [{ name: company.legalName, url: company.url }],
+  /* The home page's address as it is served, with its slash: Next prints an
+     author's url as written, and the bare origin is a redirect. pageMeta sets
+     the same line; this one serves /credits and the 404s. */
+  authors: [{ name: company.legalName, url: absoluteUrl('/') }],
   /* The FALLBACK card, for the few routes that do not go through pageMeta
      (/credits, the 404s). Pages that do replace this object wholesale — Next
      merges metadata shallowly — which is why pageMeta carries its own

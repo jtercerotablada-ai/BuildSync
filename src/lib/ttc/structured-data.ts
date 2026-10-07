@@ -1,6 +1,6 @@
 import { getContent, type SiteContent } from './content';
 import { localePath, type Lang } from './i18n';
-import { company, contact, municipalities, regulatoryCheckedISO } from './site';
+import { absoluteUrl, company, contact, municipalities, regulatoryCheckedISO } from './site';
 
 /**
  * The site's structured data (JSON-LD), as plain objects: the site-wide graph
@@ -72,7 +72,7 @@ export function siteGraph(lang: Lang, image: { url: string; width: number; heigh
         '@id': ORGANIZATION,
         name: company.legalName,
         alternateName: company.shortName,
-        url: company.url,
+        url: absoluteUrl('/'),
         logo: {
           '@type': 'ImageObject',
           url: `${company.url}${company.logo.dark}`,
@@ -156,7 +156,7 @@ export function siteGraph(lang: Lang, image: { url: string; width: number; heigh
       {
         '@type': 'WebSite',
         '@id': WEBSITE,
-        url: company.url,
+        url: absoluteUrl('/'),
         name: company.name,
         publisher: { '@id': ORGANIZATION },
         inLanguage: [LD_LANG.en, LD_LANG.es],

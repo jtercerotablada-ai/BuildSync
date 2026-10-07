@@ -18,13 +18,14 @@ import { OG_IMAGE } from '@/components/ttc/views/meta';
  * engineer's name belongs to About and Contact only.
  *
  * HOW IT IS SERVED. The normal path is a page that renders this view
- * directly — `(public)/public-not-found` (EN) and `(public)/es/public-not-found`
- * (ES) — reached through a proxy rewrite that carries the 404 status (see
+ * directly — `(public)/(site)/public-not-found` (EN) and
+ * `(public-es)/(site)/es/public-not-found` (ES) — reached through a proxy rewrite that carries the 404 status (see
  * `publicNotFoundTarget` in src/proxy.ts). The server completes that render,
  * so the HTML arrives with the header, hero, copy and stylesheet, and paints
  * with JavaScript off.
  *
- * The `not-found.tsx` boundaries (`(public)/` and `(public)/es/`) mount it too,
+ * The `not-found.tsx` boundaries (`(public)/(site)/` and
+ * `(public-es)/(site)/es/`) mount it too,
  * but only as a fallback for a `notFound()` the proxy did not pre-empt. That
  * path is worse: Next 16 answers a `notFound()` thrown during SSR with its
  * error shell — an empty <body> the client fills in after the JS bundle
@@ -72,7 +73,7 @@ export function NotFoundView({ lang }: { lang: Lang }) {
  * `noindex` Next adds.
  *
  * Why it is complete per language: Next merges metadata SHALLOWLY, and the
- * (public) layout's fallbacks are English — the firm description, `en_US`,
+ * public shell's fallbacks are English — the firm description, `en_US`,
  * the English share card. The Spanish 404 inherited all three. So this sets
  * its own description and a whole `openGraph` (siteName and type included,
  * because the object replaces the layout's). `robots` likewise replaces the

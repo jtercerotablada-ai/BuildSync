@@ -11,7 +11,7 @@ import { TITLE_BUDGET_PX, repeatedWords, titlePx } from '@/lib/ttc/serp';
  *
  * The card carries the tagline and the counties over the real logo — never the
  * engineer's name or license number. The relative url is made absolute by the
- * (public) layout's metadataBase.
+ * public shell's metadataBase (mp/PublicShell.tsx).
  */
 export const OG_IMAGE: Record<
   Lang,
@@ -34,7 +34,7 @@ export const OG_IMAGE: Record<
 /**
  * A title followed by the firm's SHORT name. Titles are the one place the
  * full name does not go (see `company` in site.ts): it measures 469 px of
- * the 580 a search result shows. The (public) layout's title template is
+ * the 580 a search result shows. The public shell's title template is
  * this same function, for the few routes that do not go through pageMeta.
  */
 export const brandedTitle = (title: string) => `${title} · ${company.shortName}`;
@@ -118,12 +118,11 @@ export function pageMeta(
     title: { absolute: pageTitle(m.title) },
     description: m.description,
     keywords: m.keywords,
-    // <link rel="author">, on every page. The (public) layout sets the same
-    // author with `company.url`, the bare origin, and Next prints an author's
-    // url as written — the one link left on all 32 pages to the address the
-    // check reports as a redirect. Same firm, the home page's real address.
-    // (The layout's own line still serves /credits and the 404s, which do
-    // not come through here: it wants `absoluteUrl('/')` too.)
+    // <link rel="author">, on every page. Next prints an author's url as
+    // written, and the bare origin is the one address the on-page check
+    // reports as a redirect — so it is the home page's real address, with
+    // its slash. The public shell (mp/PublicShell.tsx) sets the same line
+    // for /credits and the 404s, which do not come through here.
     authors: [{ name: company.legalName, url: absoluteUrl('/') }],
     ...(isHome
       ? {}
