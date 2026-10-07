@@ -19,6 +19,14 @@ import { SectionHeading, Reveal } from './primitives';
  * Both logos are the files each company supplied (never redrawn), dark ink on
  * the white card. Every fact on the engineering card comes from `company` and
  * `leadership`, so the P.E. number printed here is the one /about prints.
+ *
+ * EVERY LICENSE NUMBER IS A LINK to the state registry, so a board can check
+ * it instead of taking the card's word. The registry (DBPR) has no stable
+ * per-license URL — `leadership.license.url` is its search page — so all
+ * three numbers open the same form, and one line under the cards says what
+ * to do there. The business registry number stays plain text for now: it
+ * has no letter prefix (PE, CGC, EC), and nobody has checked that a bare
+ * number finds one record on that form. Link it once that is confirmed.
  */
 export function PartnerSection({
   n,
@@ -38,6 +46,19 @@ export function PartnerSection({
      40285"); the card wants the number on its own, in the same two-column
      row as the P.E. licence, so the two cards' lists line up. */
   const registryNo = firm.registry?.match(/No\.\s*\d+/)?.[0] ?? null;
+  const dbprUrl = e.license?.url ?? null;
+  /* The visible text is the number alone; the hidden suffix says where the
+     link goes, so three links to one page are told apart in a screen
+     reader's link list and each still starts with what is on screen. */
+  const licenseNo = (number: string) =>
+    dbprUrl ? (
+      <a href={dbprUrl} rel="noopener noreferrer" target="_blank">
+        {number}
+        <span className="mp-sr-only"> — {c.ui.engineer.verify}</span>
+      </a>
+    ) : (
+      number
+    );
 
   return (
     <section
@@ -82,7 +103,7 @@ export function PartnerSection({
                 {e.license ? (
                   <div>
                     <dt>{p.engineering.licenseLabel}</dt>
-                    <dd>{e.license.number}</dd>
+                    <dd>{licenseNo(e.license.number)}</dd>
                   </div>
                 ) : null}
                 {registryNo ? (
@@ -119,13 +140,21 @@ export function PartnerSection({
                 {build.licenses.map((l) => (
                   <div key={l.number}>
                     <dt>{l.label}</dt>
-                    <dd>{l.number}</dd>
+                    <dd>{licenseNo(l.number)}</dd>
                   </div>
                 ))}
               </dl>
             </div>
           </Reveal>
         </div>
+
+        {dbprUrl ? (
+          <Reveal delay={0.06}>
+            <p className="mp-partner__verify">
+              {p.verifyLead} {c.ui.engineer.verifyHow}
+            </p>
+          </Reveal>
+        ) : null}
 
         <Reveal delay={0.08}>
           <p className="mp-partner__note">

@@ -823,8 +823,7 @@ html:has(.mp) {
 }
 
 /* On a dark surface the solid button inverts to a snow face. The mobile menu
-   is graphite too: without it here, its "Request a Proposal" — the only
-   proposal CTA on a phone, since the header CTA is hidden ≤640 — rendered
+   is graphite too: without it here, its "Request a Proposal" rendered
    graphite-on-graphite, a label with no button. */
 .mp-surface--graphite .mp-btn--solid,
 .mp-phero .mp-btn--solid,
@@ -1609,8 +1608,8 @@ a.mp-menu__mail {
 }
 
 /* Stagger steps — the same beats the Motion versions used:
-   d1 hero eyebrow · d2 page-hero sub · d3 page-hero facts ·
-   d4 hero sub · d5 hero CTA row · d6 hero foot row.
+   d1 hero eyebrow · d2 page-hero sub · d3 page-hero action and facts ·
+   d4 hero sub, page-hero credential · d5 hero CTA row · d6 hero foot row.
    Headline lines carry their own inline delay (delay + i × 0.07 s). */
 .mp-enter--d1 {
   animation-delay: 0.05s;
@@ -2298,6 +2297,24 @@ a.mp-menu__mail {
   line-height: 1.6;
   color: var(--mp-snow-2);
 }
+/* The page's own action, right under the lede and ABOVE the facts so it is
+   on the first phone screen: one button on a service page (two on
+   /existing-buildings, one per county) and, under it, the line that says
+   what to send. .mp-cta-row lays the buttons out; this wrapper owns the
+   distance from the lede, so the note stays tied to its button. */
+.mp-phero__action {
+  margin-block-start: var(--mp-8);
+}
+.mp-phero__action .mp-cta-row {
+  margin-block-start: 0;
+}
+.mp-phero__note {
+  margin: var(--mp-3) 0 0;
+  max-width: 46ch;
+  font-size: var(--mp-t-small);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+}
 .mp-phero__facts {
   display: flex;
   flex-wrap: wrap;
@@ -2316,8 +2333,12 @@ a.mp-menu__mail {
   text-transform: uppercase;
   color: var(--mp-snow-3);
 }
+/* The measure is for a county program's one fact: its whole filing-deadline
+   row, two or three sentences. On large displays the hero column has no
+   max-width (22), and the value ran as a single line across the shell. */
 .mp-phero__fact dd {
   margin: 0;
+  max-width: 62ch;
   font-size: var(--mp-t-small);
   color: var(--mp-snow);
 }
@@ -3276,7 +3297,8 @@ a.mp-menu__mail {
   .mp-hero__sub {
     margin-block-start: var(--mp-4);
   }
-  .mp-cta-row {
+  .mp-cta-row,
+  .mp-phero__action {
     margin-block-start: var(--mp-6);
   }
   .mp-work,
@@ -3412,8 +3434,49 @@ a.mp-menu__mail {
     text-align: center;
     line-height: 1.25;
   }
+  /* The header button STAYS on a phone. The bar is the one thing always on
+     screen, and with the button hidden a reader in the middle of a page was
+     a menu and a second tap — or up to seven screens of scrolling — away
+     from the form. It was hidden because the rule above stretched it across
+     the bar, so it takes its own width back and a compact size, 44px high.
+     One line from 360px: the gaps beside it tighten (the nav is gone, so
+     the 2rem gap only held the logo off the buttons). Narrower than that,
+     the button is the only item allowed to shrink, and its label wraps to
+     two lines inside the same 44px instead of pushing the bar wider than
+     the screen. */
+  .mp-header__inner {
+    gap: var(--mp-4);
+  }
+  .mp-header__actions {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: var(--mp-2);
+  }
+  .mp-header__lang-compact,
+  .mp-burger {
+    flex: none;
+  }
   .mp-header__cta {
-    display: none;
+    flex: 0 1 auto;
+    width: auto;
+    min-height: 44px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+  /* Over the page-top photo the transparent button's label gets the halo the
+     language link beside it has (≤1180 above), for the same reason. */
+  body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open) .mp-header__cta {
+    text-shadow:
+      0 0 8px rgba(11, 12, 13, 0.85),
+      0 0 3px rgba(11, 12, 13, 0.7);
+  }
+  /* The open menu carries the same button at its foot, so the bar goes back
+     to logo + close. visibility, like the language link: it also leaves the
+     Tab order. */
+  .mp-header.is-menu-open .mp-header__cta {
+    visibility: hidden;
   }
   .mp-timing > div {
     grid-template-columns: minmax(0, 1fr);
@@ -3796,17 +3859,24 @@ a.mp-menu__mail {
   color: var(--mp-ink-3);
   font-weight: 500;
 }
+/* Each number is a link to the state registry (PartnerSection). The rows are
+   44px — label and number still share a baseline, centred in the row — so
+   the link's tap target, grown by ::before like .mp-link's, is a full row
+   high and never reaches the number under it. (inline-block: an inline box
+   is only as tall as the font's own ascent and descent, 17px here, and the
+   ::before insets are measured from it.) */
 .mp-partner__lic dl {
   margin: 0;
   display: grid;
-  gap: var(--mp-2);
 }
 .mp-partner__lic dl > div {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
+  align-content: center;
   gap: 0.15rem var(--mp-4);
+  min-height: 44px;
 }
 .mp-partner__lic dt {
   font-size: var(--mp-t-small);
@@ -3822,6 +3892,32 @@ a.mp-menu__mail {
 }
 .mp-partner__reg {
   margin-block-start: var(--mp-2);
+  color: var(--mp-ink-3);
+}
+.mp-partner__lic dd a {
+  position: relative;
+  display: inline-block;
+  text-decoration: underline;
+  text-decoration-color: var(--mp-gold);
+  text-underline-offset: 0.25em;
+}
+.mp-partner__lic dd a::before {
+  content: '';
+  position: absolute;
+  inset: -11.5px -4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-partner__lic dd a:hover {
+    color: var(--mp-gold-ink);
+  }
+}
+/* Where the numbers lead and what to do there: one small line under the
+   cards. */
+.mp-partner__verify {
+  margin: var(--mp-4) 0 0;
+  max-width: 72ch;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
   color: var(--mp-ink-3);
 }
 .mp-partner__note {
@@ -4023,6 +4119,15 @@ a.mp-menu__mail {
   line-height: 1.55;
   color: var(--mp-ink-2);
 }
+/* "Next step" ends in a link to the form. .mp-link is inline-flex; here it
+   takes its own line under the sentence, as wide as its own text, and the
+   body leading (the row's is tighter) so its tap target stays 44px. */
+.mp-svc__next {
+  display: flex;
+  width: fit-content;
+  margin-block-start: var(--mp-2);
+  line-height: 1.6;
+}
 .mp-svc__go {
   margin-block-start: var(--mp-3);
   justify-self: start;
@@ -4052,6 +4157,57 @@ a.mp-menu__mail {
   margin: 0;
   line-height: 1.65;
   color: var(--mp-ink-2);
+}
+/* The engineer's credential (EngineerCredential.tsx): name, P.E. number, the
+   registry link and the business registry line, on the two county-program
+   pages — under the hero facts (snow on graphite) and inside "Next step"
+   (ink on paper). It reads the ink tokens, which every dark surface remaps
+   (01), so it is right on both without knowing which one it is on. */
+.mp-cred {
+  margin: var(--mp-4) 0 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink);
+}
+.mp-cred dt {
+  margin-block-end: 0.2rem;
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-faint);
+}
+.mp-cred dd {
+  margin: 0;
+}
+/* Name · license · link: each part breaks as a unit (see the component). */
+.mp-cred dd > span,
+.mp-cred a {
+  display: inline-block;
+}
+/* One line of small type: the ::before grows the tap target to 44px without
+   moving the text, the same device as .mp-link. */
+.mp-cred a {
+  position: relative;
+  color: var(--mp-gold-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.mp-cred a::before {
+  content: '';
+  position: absolute;
+  inset: -11px 0;
+}
+.mp-cred__reg {
+  font-family: var(--mp-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--mp-ink-3);
+}
+/* In "Next step" it sits under the button, behind its own hairline. */
+.mp-callout--next .mp-cred {
+  margin-block-start: var(--mp-6);
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line);
 }
 .mp-juris {
   display: grid;

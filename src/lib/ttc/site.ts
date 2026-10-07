@@ -243,12 +243,30 @@ export const ui = {
   },
   engineer: {
     eyebrow: 'Meet the engineer',
-    /** Home teaser label. The name belongs to About and Contact only. */
+    /** Home teaser label. The teaser keeps this label and its own headline;
+        the engineer's name is on its plate (see EngineerSection). */
     eyebrowTeaser: 'Who is responsible',
     role: 'Principal Engineer',
     credential: 'Florida Professional Engineer',
     license: 'Florida P.E. license',
     verify: 'Verify with the Florida DBPR',
+    /**
+     * What to do on the page that link opens. The registry has no stable
+     * per-license URL (see `leadership.license`), so every link lands on a
+     * search form with four modes and no hint. Printed under the link on
+     * About, and under the license cards of the partner block.
+     */
+    verifyHow: 'On the DBPR page, choose “Search by License Number” and type the number.',
+    /**
+     * The credential block on the two county-program pages
+     * (EngineerCredential): "<label> — <name> · <licensePrefix> <P.E. number>
+     * · <verify>", then the business registry line. Every fact in it is read
+     * from `leadership` and `company`; these two strings only frame them.
+     * "Engineer", never "signed by": which report the firm signs is said by
+     * the scope note on the same page, and nowhere else.
+     */
+    label: 'Engineer',
+    licensePrefix: 'Florida',
     education: 'Education',
     focus: 'Practice focus',
     approach: 'How I work',
@@ -466,11 +484,21 @@ export type Service = {
    * (ProgramSection): the same six labels, in the same order, on both, so
    * the two counties compare line by line. Do not restate a number from a
    * row anywhere else in the service — point at the row instead.
+   *
+   * `filing: true` marks the ONE fact that is the filing deadline. The
+   * service page's hero prints that fact — its label and its whole value,
+   * hedges included — so the first screen answers "by when?" without the
+   * number being typed a second time. Only the two county programs flag
+   * one, and the Spanish row flags the same one (site.test.ts checks both).
    */
   timing?: {
     checked: string;
     note: string;
-    rows: { jurisdiction: string; source: string; facts: { k: string; v: string }[] }[];
+    rows: {
+      jurisdiction: string;
+      source: string;
+      facts: { k: string; v: string; filing?: boolean }[];
+    }[];
   };
   /**
    * The service-hero "Coverage" fact, e.g. 'Miami-Dade County, Florida'.
@@ -637,7 +665,7 @@ export const services: Service[] = [
             { k: 'Applies to', v: 'Almost every building type — condominiums, co-ops, apartments, offices, retail and industrial. Outside the program: single-family homes, duplexes, and buildings with both an occupant load of 10 or less under the Florida Building Code and a gross area of 2,000 sq ft or less.' },
             { k: 'First due', v: 'At 30 years — 25 for condominium and cooperative buildings of three or more stories within 3 miles of the coast. Age is counted from the year built on the Property Appraiser’s record.' },
             { k: 'Then', v: 'Every 10 years, for the life of the structure.' },
-            { k: 'Time to file', v: '90 days from the Notice of Required Inspection. Courtesy notices should arrive two years and one year ahead; not receiving them does not move the deadline.' },
+            { k: 'Time to file', v: '90 days from the Notice of Required Inspection. Courtesy notices should arrive two years and one year ahead; not receiving them does not move the deadline.', filing: true },
             { k: 'If repairs are needed', v: '150 days from the Notice to finish repairs that need no permit and to obtain permits for the rest. Permitted work then follows its permit, and an amended report closes the recertification.' },
             { k: 'Condominiums & co-ops', v: 'The recertification serves as compliance with the state milestone inspection — no separate milestone report is filed.' },
           ],
@@ -779,7 +807,7 @@ export const services: Service[] = [
             { k: 'Applies to', v: 'Almost all building types, in every Broward city and the unincorporated area. Outside the program: one- to four-family dwellings of three or fewer habitable stories, fee-simple townhouses, and minor structures under 3,500 sq ft of building area.' },
             { k: 'First due', v: 'At 25 years, counted from the certificate of occupancy.' },
             { k: 'Then', v: 'Every 10 years.' },
-            { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. Your city’s letter states its own date.' },
+            { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. Your city’s letter states its own date.', filing: true },
             { k: 'If repairs are needed', v: '180 days from the date of the report, under permit, unless the Building Official sets a different time. A reinspection, an amended report and a signed and sealed completion letter close the file.' },
             { k: 'Condominiums & co-ops', v: 'The BSIP report serves as phase one and phase two of the state milestone inspection.' },
           ],
@@ -1533,7 +1561,8 @@ export const leadership = {
   } as { number: string; url: string } | null,
   linkedin: null as string | null,
   /** Home teaser: two sentences. */
-  /** Home-teaser headline. Carries the promise without naming anyone. */
+  /** Home-teaser headline: the promise. The teaser names the engineer on its
+      plate, beside this line — the headline itself still names no one. */
   teaserTitle: 'One engineer is responsible for the whole project.',
   /* No phone is published, so "first message", not "first call"; and the
      promise is the scope we deliver, not what gets built. */
@@ -1827,8 +1856,16 @@ export const legal = {
  *     equipo" — and an earlier draft that had Precision Source doing the
  *     repair work was simply wrong. Each card says what the firm IS (its
  *     licences), not what it does on a job.
- *   - The closing line says who signs. A contractor on a recertification team
- *     could be read as the one inspecting, so the engineer's seal is stated.
+ *   - The closing line says who signs, and of WHAT: the structural report. A
+ *     contractor on a recertification team could be read as the one
+ *     inspecting, so the engineer's seal is stated. It used to say "every
+ *     report", which put that seal on the electrical report too — on the same
+ *     pages whose scope notes say "the electrical report is signed by a
+ *     professional qualified in electrical design". Keep the word
+ *     "structural" until the owner settles who signs the electrical one; then
+ *     this line and the four scope notes change together.
+ *   - Every license number is a link to the DBPR search (PartnerSection), and
+ *     `verifyLead` says so in words, right under the cards.
  *
  * Licences verified against the Florida DBPR registry on October 6, 2026:
  * both "Current, Active", expiring 08/31/2028, and the only "Precision
@@ -1841,6 +1878,10 @@ export const partner = {
   lede:
     'We carry out Miami-Dade recertifications and Broward BSIP inspections together with Precision Source Inc., a Florida-certified general and electrical contractor based in Miami. Two licensed firms working as one team, from the notice to the final report.',
   licensesLabel: 'Florida licenses',
+  /* Printed under the two cards, followed by `ui.engineer.verifyHow` (what
+     to do on that page). The registry has no per-license URL, so all three
+     numbers open the same search form. */
+  verifyLead: 'Each license number opens the Florida DBPR’s license search.',
   /* The engineering card takes its name, engineer, P.E. number and business
      registry from `company` and `leadership` — one source for each fact. */
   engineering: {
@@ -1860,7 +1901,7 @@ export const partner = {
   },
   seal: {
     k: 'Signed and sealed',
-    v: 'Every report is signed and sealed by Juan Tercero, PE., M.Sc., Florida Professional Engineer.',
+    v: 'Every structural report is signed and sealed by Juan Tercero, PE., M.Sc., Florida Professional Engineer.',
   },
 };
 

@@ -17,6 +17,16 @@ export function ExistingView({ lang }: { lang: Lang }) {
   const p = c.existingPage;
   const existing = c.services.filter((s) => s.track === 'existing');
   const navLabel = c.primaryNav[1].label;
+  // One button per county program, in the site's order (Miami-Dade, then
+  // Broward), each with that program's own label and its service preselected
+  // on the form. Both solid: neither county is the secondary choice. This
+  // page tells the reader to "send the notice" and, on a phone, used to
+  // offer its one contact link twelve screens down.
+  const noticeActions = existing.flatMap((s) =>
+    s.program
+      ? [{ href: `/contact?service=${s.slug}`, label: s.program.cta, variant: 'solid' as const }]
+      : [],
+  );
 
   return (
     <>
@@ -27,6 +37,7 @@ export function ExistingView({ lang }: { lang: Lang }) {
         crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
         sub={p.sub}
+        actions={noticeActions}
         facts={p.facts}
         photo={imagery.pages.existingBuildings}
       />

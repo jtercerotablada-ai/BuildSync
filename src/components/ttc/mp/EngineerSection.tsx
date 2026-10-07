@@ -15,6 +15,14 @@ import { useContent, useL } from './lang';
  * (biography, education, focus, approach, what it means for the client,
  * license verification when supplied).
  *
+ * BOTH VARIANTS NAME THE ENGINEER. The home teaser used to make its promise —
+ * one accountable engineer — without saying who, and dropped the name row
+ * from the plate. The owner asked to be named (2026-10-06), and the partner
+ * block right under the teaser prints his name and P.E. number anyway. What
+ * still differs is the headline: About leads with the name; the teaser keeps
+ * its own label and the promise as its h2, and names him on the plate (on
+ * the portrait's caption, once there is one).
+ *
  * THE PORTRAIT SLOT IS HONEST. When `leadership.portrait` is null the figure
  * renders a typographic plate — the firm's real monogram over a darkened
  * photograph of structure, with the engineer's name and licensure as type.
@@ -38,13 +46,6 @@ export function EngineerSection({
   const e = c.leadership;
   const u = c.ui.engineer;
   const full = variant === 'full';
-  /**
-   * Only the full variant names anyone. The home teaser makes the same
-   * promise — one accountable engineer — without the name, because the name
-   * appears on About and Contact and nowhere else.
-   */
-  const named = full;
-  const plateRows = named ? e.plate : e.plate.filter((r) => r.v !== e.name);
 
   return (
     <section
@@ -53,7 +54,7 @@ export function EngineerSection({
       aria-labelledby="mp-eng-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={named ? u.eyebrow : u.eyebrowTeaser} />
+        <SectionHeading n={n} label={full ? u.eyebrow : u.eyebrowTeaser} />
 
         <div className="mp-eng__grid">
           <Reveal>
@@ -90,7 +91,7 @@ export function EngineerSection({
                     decoding="async"
                   />
                   <dl className="mp-eng__plate-list">
-                    {plateRows.map((r) => (
+                    {e.plate.map((r) => (
                       <div key={r.k}>
                         <dt>{r.k}</dt>
                         <dd>{r.v}</dd>
@@ -101,7 +102,7 @@ export function EngineerSection({
               )}
               {e.portrait ? (
                 <figcaption className="mp-eng__caption">
-                  <span>{named ? e.name : e.role}</span>
+                  <span>{e.name}</span>
                   <span>{e.credential}</span>
                 </figcaption>
               ) : null}
@@ -114,7 +115,7 @@ export function EngineerSection({
                 {e.role} · {e.credential}
               </p>
               <h2 id="mp-eng-title" className="mp-eng__title">
-                {named ? e.name : e.teaserTitle}
+                {full ? e.name : e.teaserTitle}
               </h2>
             </Reveal>
 
@@ -162,6 +163,9 @@ export function EngineerSection({
                             {u.verify}
                           </a>
                         </li>
+                        {/* The link opens the registry's search form, not the
+                            license: say what to do there. */}
+                        <li>{u.verifyHow}</li>
                       </ul>
                     </div>
                   ) : null}

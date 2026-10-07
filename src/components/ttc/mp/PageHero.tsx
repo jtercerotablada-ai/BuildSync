@@ -4,15 +4,26 @@ import React from 'react';
 import Link from 'next/link';
 import type { Photo } from '@/lib/ttc/media';
 import { Img } from './media';
-import { DarkHeroSentinel, RevealText, TechnicalEyebrow } from './primitives';
+import { ButtonLink, DarkHeroSentinel, RevealText, TechnicalEyebrow } from './primitives';
 import { useContent, useL } from './lang';
 
 export type Crumb = { href?: string; label: string };
 
+/** A hero button. `variant` defaults to solid for the first and line for the rest. */
+export type HeroAction = { href: string; label: string; variant?: 'solid' | 'line' };
+
 /**
  * Shared opening band for every internal page — same surface, rhythm and
- * photographic treatment as the home hero. Crumb hrefs are canonical (English)
- * paths; they are localised here.
+ * photographic treatment as the home hero. Crumb and action hrefs are
+ * canonical (English) paths; they are localised here.
+ *
+ * `actions` puts the page's own button on the first screen. A visitor who
+ * arrives from a search lands on an inner page, not on Home, and on a phone
+ * the first link to the form used to be three to twelve screens down. So the
+ * buttons come right under the lede and ABOVE the facts: on a small screen
+ * the action must not wait behind a list. `actionNote` is the one line under
+ * them that says what to send. `children` render last, under the facts (the
+ * engineer's credential on the two county-program pages).
  *
  * Everything in this band is above the fold, so its entrances are CSS
  * keyframes (`mp-enter`) that run from the server HTML — the photo is the
@@ -22,16 +33,22 @@ export function PageHero({
   eyebrow,
   titleLines,
   sub,
+  actions,
+  actionNote,
   facts,
   photo,
   crumbs,
+  children,
 }: {
   eyebrow: string;
   titleLines: React.ReactNode[];
   sub?: string;
+  actions?: readonly HeroAction[];
+  actionNote?: string;
   facts?: readonly { k: string; v: string }[];
   photo?: Photo;
   crumbs?: Crumb[];
+  children?: React.ReactNode;
 }) {
   const c = useContent();
   const l = useL();
@@ -76,6 +93,23 @@ export function PageHero({
 
             {sub ? <p className="mp-phero__sub mp-enter mp-enter--d2">{sub}</p> : null}
 
+            {actions?.length ? (
+              <div className="mp-phero__action mp-enter mp-enter--d3">
+                <div className="mp-cta-row">
+                  {actions.map((a, i) => (
+                    <ButtonLink
+                      key={a.href}
+                      href={l(a.href)}
+                      variant={a.variant ?? (i === 0 ? 'solid' : 'line')}
+                    >
+                      {a.label}
+                    </ButtonLink>
+                  ))}
+                </div>
+                {actionNote ? <p className="mp-phero__note">{actionNote}</p> : null}
+              </div>
+            ) : null}
+
             {facts?.length ? (
               <dl className="mp-phero__facts mp-enter mp-enter--d3">
                 {facts.map((f) => (
@@ -86,6 +120,8 @@ export function PageHero({
                 ))}
               </dl>
             ) : null}
+
+            {children ? <div className="mp-enter mp-enter--d4">{children}</div> : null}
           </div>
         </div>
       </div>

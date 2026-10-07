@@ -21,6 +21,10 @@ import { useContent, useL } from './lang';
  * target is the page itself — /about must not close with "Meet the engineer"
  * pointing back up to its own #engineer section.
  *
+ * `service` is the slug of the service page this band closes. The primary
+ * button then opens the form with that service already selected, like every
+ * other button on that page — it used to drop the preset on the last screen.
+ *
  * The section is named by its real headline (RevealText's `id`), not by a
  * visually hidden copy of it, so screen readers hear the title once.
  */
@@ -28,9 +32,12 @@ export function ContactCTA({
   n = '07',
   asHero = false,
   secondary,
+  service,
 }: {
   n?: string;
   asHero?: boolean;
+  /** A service slug: the primary button keeps `?service=<slug>`. */
+  service?: string;
   /** Canonical (English) href; localised here like the defaults. */
   secondary?: { href: string; label: string };
 }) {
@@ -38,6 +45,7 @@ export function ContactCTA({
   const l = useL();
   const k = c.closingCta;
   const second = secondary ?? k.secondary;
+  const primaryHref = service ? `${k.primary.href}?service=${service}` : k.primary.href;
   return (
     <section
       className="mp-section mp-section--lg mp-surface--graphite mp-close"
@@ -59,7 +67,7 @@ export function ContactCTA({
         </Reveal>
 
         <Reveal delay={0.12} className="mp-cta-row">
-          <ButtonLink href={l(k.primary.href)} variant="solid">
+          <ButtonLink href={l(primaryHref)} variant="solid">
             {k.primary.label}
           </ButtonLink>
           <ButtonLink href={l(second.href)} variant="line">

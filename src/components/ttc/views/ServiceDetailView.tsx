@@ -5,6 +5,7 @@ import { company, imagery } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { ButtonLink, SectionHeading, Reveal, TextLink } from '@/components/ttc/mp/primitives';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -17,6 +18,19 @@ import { breadcrumbLd, JsonLd } from './meta';
  * No code-standard names are rendered here (`service.standards` is not read
  * at all any more): a client reads "the Florida Building Code" in the process
  * copy where it matters, never a list of ACI/ASCE numbers.
+ *
+ * THE ACTION IS ON THE FIRST SCREEN, AND IT IS ONE BUTTON. A visitor from a
+ * search lands here, not on Home; on a phone the first link to the form used
+ * to sit three and a half screens down. The same button — the same label,
+ * the same `/contact?service=<slug>` — is in the hero, in "Next step" and
+ * under "When it applies", and the closing band keeps the preset too. On the
+ * two county programs the label is the program's own (`program.cta`, "Send
+ * the Miami-Dade Notice") with its line about what to send; every other
+ * service says "Request a Proposal".
+ *
+ * The two county programs also say WHO: the hero's facts give way to the
+ * filing deadline, read from the verified timing row (never typed here), and
+ * the engineer's name and license follow — there and in "Next step".
  *
  * HEADING OUTLINE. Every section owns one h2, so a screen reader's heading
  * list (and a crawler's outline) files each h3 under the right section. The
@@ -37,6 +51,16 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   const related = c.services.filter((s) => s.slug !== slug && s.track === service.track).slice(0, 3);
   const isBim = service.slug === 'bim-coordination';
   const trackLabel = service.track === 'new' ? u.newProjects : u.existingBuildings;
+  // The SLUG, not the localized label: it survives the language switch and
+  // any rename of a shortTitle. ContactForm maps it to this language's
+  // option. Canonical here; localised where it is rendered.
+  const contactHref = `/contact?service=${service.slug}`;
+  const program = service.program;
+  const cta = program?.cta ?? u.requestProposal;
+  // The filing deadline of a county program: the fact its timing row flags,
+  // label and value as verified. Reading it here is what keeps the first
+  // screen and the "When it applies" table from ever disagreeing.
+  const filing = program ? service.timing?.rows[0]?.facts.find((f) => f.filing) : undefined;
   // Each regulated service now carries ONE jurisdiction: Miami-Dade and
   // Broward have a page each, and the milestone page has the State's row. A
   // single card in the old auto-fit grid stretched across the whole shell,
@@ -106,16 +130,28 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         ]}
         titleLines={[service.title]}
         sub={service.summary}
+        actions={[{ href: contactHref, label: cta }]}
+        actionNote={program?.ctaNote}
         // Client terms only: what kind of building, and where. The old
         // "Service 01" index meant nothing to a client, and "Basis" put a
-        // code list in the first screen. "Coverage" is the service's own
-        // county on the two program pages, and both counties everywhere else.
-        facts={[
-          { k: u.appliesTo, v: service.track === 'new' ? u.newConstruction : u.existingBuildings },
-          { k: u.coverage, v: service.coverage ?? c.contact.serviceAreaLabel },
-        ]}
+        // code list in the first screen.
+        // A county program prints its filing deadline instead: there the two
+        // facts only repeated the title above them ("Existing buildings",
+        // the county), while the answer a notice-holder came for was four
+        // screens down. The whole row is printed — its hedges are part of
+        // the fact, and a shortened deadline is how a wrong one gets read.
+        facts={
+          filing
+            ? [{ k: filing.k, v: filing.v }]
+            : [
+                { k: u.appliesTo, v: service.track === 'new' ? u.newConstruction : u.existingBuildings },
+                { k: u.coverage, v: service.coverage ?? c.contact.serviceAreaLabel },
+              ]
+        }
         photo={imagery.services[service.slug]}
-      />
+      >
+        {program ? <EngineerCredential lang={lang} /> : null}
+      </PageHero>
 
       {/* Why it matters + when you need it.
           The h2 is the short `problemTitle`; the `problem` paragraph is its
@@ -173,13 +209,13 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                 <h3>{u.nextStep}</h3>
                 <p>{service.nextStep}</p>
                 <div className="mp-cta-row" style={{ marginTop: 'var(--mp-4)' }}>
-                  {/* The SLUG, not the localized label: it survives the
-                      language switch and any rename of a shortTitle.
-                      ContactForm maps it to this language's option. */}
-                  <ButtonLink href={l(`/contact?service=${service.slug}`)} variant="solid">
-                    {u.requestProposal}
+                  <ButtonLink href={l(contactHref)} variant="solid">
+                    {cta}
                   </ButtonLink>
                 </div>
+                {/* Who answers: the box used to say what to send and nothing
+                    about who reads it. */}
+                {program ? <EngineerCredential lang={lang} /> : null}
               </div>
             </Reveal>
           </div>
@@ -216,6 +252,15 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               ) : null}
             </div>
             {singleRow ? null : <Reveal delay={0.06}>{timingNotes}</Reveal>}
+            {/* The deadline has just been read, so the button is here again —
+                the same row as the home page's program sections (mp.css 07):
+                the button, and beside it the line that says what to send. */}
+            <Reveal delay={0.08} className="mp-prog__action">
+              <ButtonLink href={l(contactHref)} variant="solid">
+                {cta}
+              </ButtonLink>
+              {program ? <p className="mp-prog__ctanote">{program.ctaNote}</p> : null}
+            </Reveal>
           </div>
         </section>
       ) : null}
@@ -286,7 +331,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         </div>
       </section>
 
-      <ContactCTA n={next()} />
+      <ContactCTA n={next()} service={service.slug} />
     </>
   );
 }

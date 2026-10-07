@@ -124,7 +124,7 @@ const services: SiteContent['services'] = [
             { k: 'Aplica a', v: 'Casi todos los tipos de edificio — condominios, cooperativas, apartamentos, oficinas, comercios e industrias. Fuera del programa: viviendas unifamiliares, dúplex y edificios que tengan a la vez una carga de ocupantes de 10 o menos según el Código de Construcción de Florida y un área bruta de 2,000 pies cuadrados o menos.' },
             { k: 'Primer vencimiento', v: 'A los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa. La edad se cuenta desde el año de construcción que figura en el registro del Property Appraiser (el tasador de propiedades del condado).' },
             { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura.' },
-            { k: 'Plazo para presentar', v: '90 días desde la Notificación de Inspección Requerida (Notice of Required Inspection). Los avisos de cortesía deberían llegar dos años y un año antes; no recibirlos no mueve el plazo.' },
+            { k: 'Plazo para presentar', v: '90 días desde la Notificación de Inspección Requerida (Notice of Required Inspection). Los avisos de cortesía deberían llegar dos años y un año antes; no recibirlos no mueve el plazo.', filing: true },
             { k: 'Si hay reparaciones', v: '150 días desde la notificación para terminar las reparaciones que no requieren permiso y obtener los permisos de las demás. La obra con permiso sigue luego el calendario de su permiso, y un informe enmendado cierra la recertificación.' },
             { k: 'Condominios y cooperativas', v: 'La recertificación sirve como cumplimiento de la inspección de hito (milestone) del estado — no se presenta un informe de hito aparte.' },
           ],
@@ -238,7 +238,7 @@ const services: SiteContent['services'] = [
             { k: 'Aplica a', v: 'Casi todos los tipos de edificio, en todas las ciudades de Broward y en el área no incorporada. Fuera del programa: viviendas de una a cuatro familias de tres pisos habitables o menos, townhouses en dominio pleno (fee simple) y estructuras menores con un área de edificio inferior a 3,500 pies cuadrados.' },
             { k: 'Primer vencimiento', v: 'A los 25 años, contados desde el certificado de ocupación.' },
             { k: 'Después', v: 'Cada 10 años.' },
-            { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta de su ciudad indica su propia fecha.' },
+            { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta de su ciudad indica su propia fecha.', filing: true },
             { k: 'Si hay reparaciones', v: '180 días desde la fecha del informe, con permiso, salvo que el Building Official (el funcionario de construcción) de su ciudad fije otro plazo. Una reinspección, un informe enmendado y una carta de finalización firmada y sellada cierran el expediente.' },
             { k: 'Condominios y cooperativas', v: 'El informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado.' },
           ],
@@ -819,6 +819,12 @@ export const es: SiteContent = {
       credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
       license: 'Licencia P.E. de Florida',
       verify: 'Verificar en el DBPR de Florida',
+      /* The DBPR page is in English only, so the option keeps its English
+         name, glossed. */
+      verifyHow: 'En la página del DBPR, elija “Search by License Number” (búsqueda por número de licencia) y escriba el número.',
+      /* "Ingeniero", never "firmado por" — see the EN comment in site.ts. */
+      label: 'Ingeniero',
+      licensePrefix: 'Licencia de Florida',
       education: 'Formación',
       focus: 'Áreas de especialidad',
       approach: 'Cómo trabajo',
@@ -1121,7 +1127,10 @@ export const es: SiteContent = {
 
   /* La empresa con la que se hacen las recertificaciones. Mismas reglas que
      en site.ts: empresa APARTE, un solo equipo, sin reparto de tareas
-     impreso, y la última línea dice quién firma. */
+     impreso, y la última línea dice quién firma y QUÉ firma: el informe
+     estructural. "Cada informe" contradecía las notas de alcance ("el
+     informe eléctrico lo firma un profesional calificado en diseño
+     eléctrico"); no quitar "estructural" hasta que el dueño lo defina. */
   partner: {
     eyebrow: 'Con quién trabajamos',
     kicker: 'Dos empresas con licencia',
@@ -1129,6 +1138,7 @@ export const es: SiteContent = {
     lede:
       'Realizamos las recertificaciones de Miami-Dade y las inspecciones BSIP de Broward junto a Precision Source Inc., contratista general y eléctrico certificado en Florida, con sede en Miami. Dos empresas con licencia que trabajan como un solo equipo, desde el aviso hasta el informe final.',
     licensesLabel: 'Licencias de Florida',
+    verifyLead: 'Cada número de licencia abre la búsqueda de licencias del DBPR de Florida.',
     engineering: {
       role: 'Ingeniería estructural',
       licenseLabel: 'Ingeniero Profesional',
@@ -1146,7 +1156,7 @@ export const es: SiteContent = {
     },
     seal: {
       k: 'Firmado y sellado',
-      v: 'Cada informe lleva la firma y el sello de Juan Tercero, PE., M.Sc., Ingeniero Profesional de Florida.',
+      v: 'Cada informe estructural lleva la firma y el sello de Juan Tercero, PE., M.Sc., Ingeniero Profesional de Florida.',
     },
   },
   aboutPage: {
