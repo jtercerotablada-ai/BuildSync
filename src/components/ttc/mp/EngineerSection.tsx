@@ -15,6 +15,11 @@ import { useContent, useL } from './lang';
  * (biography, education, focus, approach, what it means for the client,
  * license verification when supplied).
  *
+ * THE TWO PRINT NO SENTENCE IN COMMON. They used to share the line over the
+ * headline and the three "What that means for you" rows, word for word. The
+ * teaser now carries the license number over its promise and the three rows
+ * as their names alone; About keeps the role line and the rows in full.
+ *
  * BOTH VARIANTS NAME THE ENGINEER. The home teaser used to make its promise —
  * one accountable engineer — without saying who, and dropped the name row
  * from the plate. The owner asked to be named (2026-10-06), and the partner
@@ -114,8 +119,20 @@ export function EngineerSection({
 
           <div className="mp-eng__copy">
             <Reveal delay={0.05}>
+              {/* About: his role, over his name. The teaser: his license,
+                  over the promise — the role is already on the plate beside
+                  it, and the number is the one fact the home page's first
+                  mention of him was missing. */}
               <p className="mp-eng__role">
-                {e.role} · {e.credential}
+                {full || !e.license ? (
+                  <>
+                    {e.role} · {e.credential}
+                  </>
+                ) : (
+                  <>
+                    {e.credential} · {e.license.number}
+                  </>
+                )}
               </p>
               <h2 id="mp-eng-title" className="mp-eng__title">
                 {full ? e.name : e.teaserTitle}
@@ -178,14 +195,27 @@ export function EngineerSection({
 
             <Reveal delay={0.16}>
               <h3 className="mp-eng__forlabel">{u.forYou}</h3>
-              <ul className="mp-pillars mp-eng__for">
-                {e.forYou.map((p) => (
-                  <li key={p.k}>
-                    <b>{p.k}</b>
-                    <span>{p.v}</span>
-                  </li>
-                ))}
-              </ul>
+              {full ? (
+                <ul className="mp-pillars mp-eng__for">
+                  {e.forYou.map((p) => (
+                    <li key={p.k}>
+                      <b>{p.k}</b>
+                      <span>{p.v}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                /* The teaser prints the three NAMES only. Its paragraph, two
+                   lines up, already says all three in a sentence; the rows
+                   that explain each one are About's, one tap away. Printed
+                   in full here they were the same three sentences on two
+                   pages. */
+                <ul className="mp-eng__keys">
+                  {e.forYou.map((p) => (
+                    <li key={p.k}>{p.k}</li>
+                  ))}
+                </ul>
+              )}
             </Reveal>
 
             <Reveal delay={0.18} className="mp-cta-row">

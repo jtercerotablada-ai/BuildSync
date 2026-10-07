@@ -16,6 +16,14 @@ type Svc = SiteContent['services'][number] | Service;
  * include, what do I get, what do I do next. Compact on the index pages;
  * the detail page carries the full lists.
  *
+ * EVERY LINE ON THE CARD IS THE CARD'S OWN. Three of the four answers used
+ * to be the first item of a list the service's page prints in full
+ * (`when[0]`, `deliverables[0]`) or its whole "Next step" paragraph, and the
+ * summary was that page's first line: each service was told twice in the
+ * same words. The card now reads `service.card` (site.ts), the page keeps
+ * its lists, and its first line is `heroSub`. The card is rendered on
+ * /services only — /existing-buildings has its own (SituationCard).
+ *
  * "Next step" ends in the step itself: a link to the proposal form with this
  * service preselected. The row used to tell the reader to "send the notice"
  * with nothing to tap, and the card's only link went to more reading.
@@ -66,7 +74,7 @@ export function ServiceCard({
           <dl className="mp-svc__qa">
             <div>
               <dt>{u.whenYouNeedIt}</dt>
-              <dd>{service.when[0]}</dd>
+              <dd>{service.card.when}</dd>
             </div>
             <div>
               <dt>{u.whatsIncluded}</dt>
@@ -74,12 +82,12 @@ export function ServiceCard({
             </div>
             <div>
               <dt>{u.whatYouReceive}</dt>
-              <dd>{service.deliverables[0]}</dd>
+              <dd>{service.card.receive}</dd>
             </div>
             <div>
               <dt>{u.nextStep}</dt>
               <dd>
-                {service.nextStep}
+                {service.card.next}
                 {/* A county program's own label already names what to send
                     and where ("Send the Miami-Dade Notice"). The generic one
                     repeats on every other card, so it gets the same hidden

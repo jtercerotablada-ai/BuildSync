@@ -104,7 +104,10 @@ export function AboutView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <PartnerSection n="04" lang={lang} />
+      {/* The short form: what each firm is, and the four registrations as
+          one list, each license still a link to the state's search. The
+          block with the two cards is the home page's. */}
+      <PartnerSection n="04" lang={lang} variant="about" />
 
       {/* The default secondary ("Meet the engineer" → /about#engineer) would
           point back up this same page. */}

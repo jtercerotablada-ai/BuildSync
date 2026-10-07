@@ -96,6 +96,12 @@ const services: SiteContent['services'] = [
     areaServed: ['Miami-Dade County, Florida'],
     summary:
       'Un camino claro desde la notificación de Miami-Dade hasta el cierre de la recertificación — inspección, informe estructural en el formulario del condado, alcance de reparaciones, reinspección.',
+    /* The card's own lines on /es/services — see `card` in site.ts. */
+    card: {
+      when: 'La notificación ya llegó, un aviso de cortesía anuncia que viene, o una recertificación anterior sigue abierta.',
+      receive: 'El informe estructural en el formulario de Miami-Dade, un registro fotográfico y, donde hagan falta reparaciones, su alcance por escrito.',
+      next: 'Empiece por la notificación — o, si aún no la tiene, por la dirección y el año de construcción.',
+    },
     /* The name most owners still use, first — as a name, with no number —
        and two short sentences, so the button under it sits higher on a
        phone. See the EN block. */
@@ -339,6 +345,11 @@ const services: SiteContent['services'] = [
     areaServed: ['Broward County, Florida'],
     summary:
       'Desde la Notificación de Inspección Requerida hasta la carta de finalización que cierra el expediente — inspección, informe estructural en el formulario oficial del programa, alcance de reparaciones, reinspección.',
+    card: {
+      when: 'La carta certificada ya llegó, el edificio se acerca a su primera inspección, o un expediente anterior sigue abierto.',
+      receive: 'El informe estructural en el formulario oficial del programa, con su informe narrativo y sus fotografías, y el alcance de reparaciones donde haga falta.',
+      next: 'Empiece por la carta de su ciudad — o, si aún no la tiene, por la dirección y el año del certificado de ocupación.',
+    },
     /* The first two sentences of the home section's lede (`program.lede`),
        word for word. See the EN block. */
     heroSub:
@@ -568,11 +579,26 @@ const services: SiteContent['services'] = [
     track: 'existing',
     summary:
       'La inspección de hito (milestone) de Florida explicada para su edificio, la investigación adicional cuando un informe la exige, y las inspecciones de seguridad estructural fuera del ciclo de un programa.',
+    /* "Miami-Dade y Broward, Florida" under "Cobertura", on this page and
+       the five below: with "Condados de…" (`serviceAreaLabel`) the fact was
+       a six-word line on six pages. Spanish only — the English label is
+       short enough as it is. */
+    coverage: 'Miami-Dade y Broward, Florida',
+    card: {
+      when: 'La junta directiva no sabe qué inspección debe el edificio, un informe exige investigación adicional, o hay un motivo para revisar y ninguna notificación.',
+      receive: 'Un informe de inspección con los hallazgos por orden de prioridad y, en condominios y cooperativas, un resumen que la junta puede enviar a los propietarios.',
+      next: 'Díganos dónde está el edificio, qué edad y cuántos pisos tiene, y qué motivó la pregunta.',
+    },
+    /* The page's own first line — see the EN block, and its note on length:
+       measured on a phone like the English one. */
+    heroSub:
+      'Qué reglas alcanzan a su edificio, cómo se cumple en su condado la inspección de hito (milestone) de Florida, y las inspecciones de seguridad estructural cuando no hay notificación.',
     /* The H1 names who it is for and where — see the EN block. Shorter than
-       a literal translation: "de Florida" is the first thing the line under
-       it says, and at phone size every extra word is another line. */
+       a literal translation: "de Florida" is in the line under it, and at
+       phone size every extra word is another line. */
     headings: {
       h1: 'Inspecciones de hito (milestone) para condominios en Miami-Dade y Broward',
+      considerations: 'A qué edificios alcanza la ley, y qué puede ver una inspección.',
     },
     problemTitle: '¿Qué inspección debe el edificio?',
     problem:
@@ -730,6 +756,17 @@ const services: SiteContent['services'] = [
     track: 'existing',
     summary:
       'Cómo se está comportando realmente el edificio hoy — deterioro evaluado, capacidad verificada, reparaciones diseñadas para que puedan cotizarse y construirse.',
+    coverage: 'Miami-Dade y Broward, Florida',
+    card: {
+      when: 'Un informe enumera reparaciones, han aparecido grietas o desprendimientos, o va a comprar o modificar un edificio.',
+      receive: 'Un informe de evaluación con el deterioro mapeado y, cuando se diseñan las reparaciones, planos y especificaciones que un contratista puede cotizar.',
+      next: 'Empiece por las fotografías y cualquier informe anterior; le decimos si hace falta una visita.',
+    },
+    heroSub:
+      'Qué significan realmente las grietas, los desprendimientos o el informe que tiene en las manos — y reparaciones especificadas para que todos coticen lo mismo.',
+    headings: {
+      considerations: 'Lo que una evaluación resuelve, y lo que deja abierto.',
+    },
     problemTitle: 'No toda grieta es un problema estructural.',
     problem:
       'Grietas, desprendimientos y movimientos parecen alarmantes y significan cosas muy distintas. Antes de gastar en reparaciones, un propietario necesita saber qué condiciones afectan la capacidad y cuáles no — y luego necesita reparaciones especificadas con la precisión suficiente para cotizarlas.',
@@ -791,6 +828,17 @@ const services: SiteContent['services'] = [
     track: 'new',
     summary:
       'Cimentaciones, columnas, vigas, losas y muros de corte diseñados como una sola trayectoria de carga — detallados para la obra y emitidos listos para permiso.',
+    coverage: 'Miami-Dade y Broward, Florida',
+    card: {
+      when: 'Un edificio nuevo necesita sus planos estructurales para el permiso, un arquitecto necesita la estructura de su diseño, o un contratista necesita detalles que se puedan construir.',
+      receive: 'Planos estructurales listos para el permiso, con su memoria de cálculo, notas generales y detalles típicos.',
+      next: 'Empiece por los planos arquitectónicos, en la etapa en que estén, y la ubicación del sitio.',
+    },
+    heroSub:
+      'Concreto reforzado para casas, edificios de mediana altura y estructuras comerciales — calculado para el viento de huracán y detallado para poder construirse.',
+    headings: {
+      considerations: 'El estudio de suelos, la geometría y la revisión del permiso.',
+    },
     problemTitle: 'El concreto se resuelve primero en el papel.',
     problem:
       'El concreto no perdona: un refuerzo que no se puede colocar, una condición de transferencia resuelta tarde o un espesor de losa fijado antes de conocer las cargas se convierten en problemas de obra que cuestan mucho más de lo que ahorraron.',
@@ -830,7 +878,8 @@ const services: SiteContent['services'] = [
       'Juego de planos estructurales, listo para permiso',
       'Memoria de cálculo estructural',
       'Notas generales y detalles típicos',
-      'Documentos firmados y sellados donde el alcance lo requiera',
+      /* "Para la presentación del permiso" — see the EN block. */
+      'Documentos firmados y sellados para la presentación del permiso, donde el alcance lo requiera',
     ],
     nextStep:
       'Envíe los planos arquitectónicos (en cualquier etapa) y la ubicación del sitio. Recibirá una propuesta con alcance, entregables y honorarios.',
@@ -854,6 +903,17 @@ const services: SiteContent['services'] = [
     track: 'new',
     summary:
       'Análisis de gravedad y lateral, demanda de viento y sismo, y el sistema de cimentación que lleva todo eso al terreno.',
+    coverage: 'Miami-Dade y Broward, Florida',
+    card: {
+      when: 'Antes de comprometerse con un sitio o un concepto, en un lote difícil, o cuando hay que resolver el viento de huracán y las cargas laterales.',
+      receive: 'Los resultados del análisis en un resumen, el diseño de cimentaciones con sus reacciones, y la memoria de cálculo que respalda ambos.',
+      next: 'Empiece por el sitio y el concepto; agregue el estudio geotécnico si lo hay.',
+    },
+    heroSub:
+      'Todo el edificio en un solo modelo, del techo a las cimentaciones — para saber si un sitio o un concepto funciona antes de comprometerse.',
+    headings: {
+      considerations: 'Un análisis vale lo que valen sus datos.',
+    },
     problemTitle: 'Una sola trayectoria de carga, del techo al suelo.',
     problem:
       'Cuando el diseño por gravedad, el diseño por viento y las cimentaciones se tratan como ejercicios separados, es en las uniones entre ellos donde aparecen las fallas y las órdenes de cambio.',
@@ -911,6 +971,17 @@ const services: SiteContent['services'] = [
     track: 'new',
     summary:
       'Modelos digitales coordinados que resuelven los conflictos antes de que lleguen a la obra y producen entregables estructurales más claros.',
+    coverage: 'Miami-Dade y Broward, Florida',
+    card: {
+      when: 'El equipo modela en Revit, el propietario o el contratista pide un modelo federado e informes de interferencias, o las instalaciones y la estructura siguen chocando en los planos.',
+      receive: 'El modelo estructural, los informes de interferencias e incidencias, y planos y tablas tomados del modelo.',
+      next: 'Díganos el software, el nivel de detalle y el calendario de coordinación.',
+    },
+    heroSub:
+      'La estructura modelada en Revit y verificada con las demás disciplinas, para que cada interferencia se cierre en el diseño y no en obra.',
+    headings: {
+      considerations: 'Lo que un modelo puede hacer, y lo que no.',
+    },
     problemTitle: 'Encuentre los conflictos antes de llegar a obra.',
     problem:
       'La mayoría de los conflictos entre la estructura, la arquitectura y las instalaciones mecánicas, eléctricas y de plomería se descubren en obra, donde corregirlos cuesta más. Un modelo coordinado traslada ese descubrimiento al diseño, donde cuesta una conversación en lugar de una orden de cambio.',
@@ -968,6 +1039,17 @@ const services: SiteContent['services'] = [
     track: 'new',
     summary:
       'Una segunda lectura independiente del diseño estructural — cumplimiento de código, trayectoria de carga, constructibilidad y calidad de la documentación.',
+    coverage: 'Miami-Dade y Broward, Florida',
+    card: {
+      when: 'Un prestamista o una aseguradora pide una revisión independiente, un juego de planos está por emitirse, o algo en la estructura le preocupa.',
+      receive: 'Un informe de revisión y un registro de comentarios priorizados, con seguimiento hasta cerrar cada uno.',
+      next: 'Envíe los planos y los cálculos, y díganos qué debe responder la revisión.',
+    },
+    heroSub:
+      'Un ingeniero independiente lee sus planos y cálculos según el código aplicable antes de que se emitan, y sigue hasta cerrar cada comentario.',
+    headings: {
+      considerations: 'Qué es una revisión por pares, y qué no es.',
+    },
     problemTitle: 'Una segunda lectura antes de emitir los planos.',
     problem:
       'Cuando un problema estructural aparece en construcción, ya es un evento de cronograma. Una revisión independiente antes de emitir el juego de planos es la reducción de riesgo más barata disponible en un proyecto.',
@@ -1368,10 +1450,12 @@ export const es: SiteContent = {
     'Otro / aún no estoy seguro',
   ],
 
+  /* The grid's own headline, a question — see the EN comment. The home
+     page keeps "De una vivienda unifamiliar…", on `newBuildings`. */
   typologiesSection: {
     eyebrow: 'Qué diseñamos',
-    title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
-    accentWord: 'mediana altura',
+    title: '¿Diseñamos su tipo de edificio?',
+    accentWord: 'su tipo',
     lede: 'El mismo ingeniero y el mismo estándar de detallado, a la escala del edificio que tenemos enfrente. Si su proyecto no está en esta lista, vale más una conversación que una suposición.',
   },
 
@@ -1387,8 +1471,8 @@ export const es: SiteContent = {
   /* The design side of the practice in ONE home-page section — see the
      banner over `newBuildings` in site.ts. It replaced `pathsSection`,
      `paths`, `recertBand` and `bim`, which are gone from both bundles. The
-     headline is the approved "Qué diseñamos" line; the typology grid that
-     also carries it now lives on /services. */
+     headline is the approved "Qué diseñamos" line, printed here only: the
+     typology grid on /services has its own. */
   newBuildings: {
     eyebrow: 'Edificios nuevos',
     title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
@@ -1556,6 +1640,18 @@ export const es: SiteContent = {
         { label: 'Contratista Eléctrico Certificado', number: 'EC13010175' },
       ],
     },
+    /* El bloque completo va solo en la página de inicio. /about y
+       /existing-buildings llevan cada una su versión corta, con sus propias
+       palabras y las mismas reglas — ver el comentario en site.ts. */
+    about: {
+      title: 'Dos empresas, cada una con su propia licencia.',
+      body: 'Precision Source Inc. es una empresa aparte: un contratista general y eléctrico certificado en Florida, con sede en Miami. En las recertificaciones de Miami-Dade y en las inspecciones BSIP de Broward, las dos empresas trabajan como un solo equipo. Los tres números de licencia de abajo abren la búsqueda de licencias del estado, donde usted mismo puede comprobarlos.',
+    },
+    brief: {
+      title: 'El mismo equipo en cada paso.',
+      body: 'Desde la notificación hasta el cierre usted trata con un solo equipo: esta firma y Precision Source Inc., un contratista general y eléctrico certificado en Florida, con sede en Miami, que trabaja con nosotros en las recertificaciones y en las inspecciones BSIP. Entre las dos empresas suman más de 30 años de experiencia combinada.',
+      link: { href: '/about#contractor', label: 'Las dos empresas y sus licencias' },
+    },
   },
   /* Las formas de contactar al ingeniero sin llenar el formulario, y los dos
      datos que dio el propietario el 6 de octubre de 2026: la propuesta es
@@ -1649,17 +1745,21 @@ export const es: SiteContent = {
       { k: 'Cobertura', v: 'Miami-Dade y Broward' },
       { k: 'Resultado', v: 'Informes, alcances de reparación, reinspecciones' },
     ],
+    /* The hub: four situations, each with the service that answers it — one
+       item per existing-building service, in the `services` order. See the
+       EN comment in site.ts for what a line may and may not say. Written as
+       the reader would say it ("Llegó una notificación…"), not translated. */
     triggers: {
       eyebrow: 'Cuándo llamar',
       title: 'Cuatro situaciones en las que conviene llamar a un ingeniero.',
+      lede: 'Busque la suya. Cada una lleva al servicio que la resuelve.',
       items: [
-        { k: 'Llegó una notificación', v: 'Llegó una Notificación de Inspección Requerida de su ciudad o de su condado — recertificación en Miami-Dade, el BSIP en Broward — y la junta directiva necesita contratar a un ingeniero estructural antes del plazo.' },
-        { k: 'Deterioro visible', v: 'Han aparecido grietas, desprendimientos, manchas de corrosión o movimiento y alguien tiene que decir si afecta la capacidad.' },
-        { k: 'Antes de gastar', v: 'Se están cotizando reparaciones y el alcance no ha sido definido por un ingeniero, así que las ofertas no son comparables.' },
-        { k: 'Antes de comprar', v: 'Due diligence estructural en una adquisición, incluidas modificaciones y preguntas sobre cambio de uso.' },
+        { slug: 'building-recertification', k: 'Llegó una notificación en Miami-Dade.', v: 'Es la recertificación de edificios de Miami-Dade. Envíenos la carta: llevamos la parte estructural desde la primera visita hasta el informe que la cierra, y la página del programa indica las edades y el plazo que aplican.' },
+        { slug: 'broward-bsip', k: 'Llegó una notificación en Broward.', v: 'Es el Programa de Inspección de Seguridad de Edificios, el BSIP, y la carta de su ciudad fija su propia fecha. Partimos de esa carta, inspeccionamos el edificio y preparamos el informe estructural en el formulario oficial del programa, hasta el cierre del expediente.' },
+        { slug: 'milestone-inspections', k: 'La junta pregunta si la ley de inspecciones de hito alcanza al edificio.', v: 'La ley estatal y los programas de los condados se superponen. Le decimos qué reglas alcanzan a su edificio y cómo se cumplen en su condado — e inspeccionamos cuando no ha llegado ninguna notificación pero una compra, un prestamista o un deterioro visible dan motivo para revisar.' },
+        { slug: 'structural-condition-assessments', k: 'Un informe enumera reparaciones, o algo le preocupa.', v: 'Antes de que los contratistas coticen, un ingeniero dice qué condiciones afectan la estructura y define la reparación, para que todas las ofertas respondan al mismo alcance. La misma evaluación sirve antes de comprar un edificio o de modificarlo.' },
       ],
     },
-    servicesEyebrow: 'Servicios para edificios existentes',
     /* The one sequence both county programs share — NO age and NO deadline
        here; they are on each county's page. Step order and the six titles
        match the `process` of the two program pages. `cta` → Miami-Dade,
@@ -1675,8 +1775,9 @@ export const es: SiteContent = {
         { n: '02', title: 'Inspección', detail: 'Inspección estructural en sitio — estructura, losas, balcones, techo y cimentaciones expuestas — documentada en campo, con fotografías vinculadas a su ubicación.' },
         { n: '03', title: 'Informe presentado', detail: 'El informe estructural se prepara en el formulario oficial que exige el condado, en un lenguaje con el que la junta directiva puede actuar, y se presenta aunque enumere reparaciones.' },
         { n: '04', title: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones definimos qué debe corregirse y con qué estándar, para que el trabajo pueda cotizarse en igualdad de condiciones. La obra que requiere permiso espera a tenerlo.' },
-        { n: '05', title: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales.' },
-        { n: '06', title: 'Cierre', detail: 'Un informe enmendado — en Broward, con una carta de finalización firmada y sellada — indica que las reparaciones están completas. Eso cierra el expediente hasta el siguiente ciclo.' },
+        /* Its own sentence — see the EN step. */
+        { n: '05', title: 'Reinspección', detail: 'Cuando la obra termina, volvemos a las áreas reparadas y las comparamos con lo que encontró el primer informe.' },
+        { n: '06', title: 'Cierre', detail: 'Un informe enmendado — en Broward, con una carta de finalización firmada y sellada — indica que las reparaciones están completas. El expediente queda cerrado hasta el siguiente ciclo.' },
       ],
     },
   },

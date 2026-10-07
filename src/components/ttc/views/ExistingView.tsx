@@ -3,7 +3,7 @@ import { getContent } from '@/lib/ttc/content';
 import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
-import { ServiceCard } from '@/components/ttc/mp/ServiceCard';
+import { SituationCard } from '@/components/ttc/mp/SituationCard';
 import { ProcessTimeline } from '@/components/ttc/mp/ProcessTimeline';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
@@ -11,7 +11,23 @@ import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
-/** Landing for associations, managers and owners of buildings already standing. */
+/**
+ * Landing for associations, managers and owners of buildings already
+ * standing — a HUB, not a second copy of /services.
+ *
+ *   01  When to call        four situations, each with one door to the
+ *                           service that answers it (SituationCard)
+ *   02  Recertification     the six steps both county programs share
+ *       & BSIP
+ *   03  Who we work with    the short form of the partner block
+ *   04  Contact
+ *
+ * It used to list four "moments" that linked nowhere and then print the four
+ * existing-building services as the cards /services prints, word for word.
+ * The two are one section now, written for this page; the full cards — when
+ * you need it, what is included, what you receive, next step — are on
+ * /services, and each situation here leads to its service's own page.
+ */
 export function ExistingView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.existingPage;
@@ -42,43 +58,33 @@ export function ExistingView({ lang }: { lang: Lang }) {
         photo={imagery.pages.existingBuildings}
       />
 
-      <section className="mp-section mp-surface--paper">
+      <section className="mp-section mp-section--lg mp-surface--paper" aria-labelledby="mp-situations-title">
         <div className="mp-shell">
           <SectionHeading n="01" label={p.triggers.eyebrow} />
-          <div className="mp-split">
+          <div className="mp-intro">
             <Reveal>
-              <h2 className="mp-split__title">{p.triggers.title}</h2>
+              <h2 id="mp-situations-title" className="mp-intro__title">
+                {p.triggers.title}
+              </h2>
             </Reveal>
-            <Reveal delay={0.05}>
-              <ul className="mp-pillars">
-                {p.triggers.items.map((t) => (
-                  <li key={t.k}>
-                    <b>{t.k}</b>
-                    <span>{t.v}</span>
-                  </li>
-                ))}
-              </ul>
+            <Reveal delay={0.06}>
+              <p className="mp-intro__lede">{p.triggers.lede}</p>
             </Reveal>
           </div>
-        </div>
-      </section>
-
-      <section className="mp-section mp-section--lg mp-surface--concrete">
-        <div className="mp-shell">
-          <SectionHeading n="02" label={p.servicesEyebrow} />
           <div className="mp-svcgrid">
-            {existing.map((s, i) => (
-              <ServiceCard key={s.slug} service={s} index={i} />
+            {p.triggers.items.map((item, i) => (
+              <SituationCard key={item.slug} item={item} index={i} />
             ))}
           </div>
         </div>
       </section>
 
-      <ProcessTimeline n="03" />
+      <ProcessTimeline n="02" />
       {/* Right after the process: who the reader will be dealing with while
-          it runs. */}
-      <PartnerSection n="04" lang={lang} surface="paper" />
-      <ContactCTA n="05" />
+          it runs. The short form — the block is whole on the home page, and
+          the licenses are listed on /about, where this one links. */}
+      <PartnerSection n="03" lang={lang} surface="paper" variant="brief" />
+      <ContactCTA n="04" />
     </>
   );
 }

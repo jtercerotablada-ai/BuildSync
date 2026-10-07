@@ -1,7 +1,7 @@
 import React from 'react';
 import { getContent } from '@/lib/ttc/content';
-import type { Lang } from '@/lib/ttc/i18n';
-import { SectionHeading, Reveal } from './primitives';
+import { localePath, type Lang } from '@/lib/ttc/i18n';
+import { SectionHeading, Reveal, TextLink } from './primitives';
 
 /**
  * Who the practice works with: two licensed firms side by side, each with its
@@ -28,15 +28,33 @@ import { SectionHeading, Reveal } from './primitives';
  * to do there. The business registry number stays plain text for now: it
  * has no letter prefix (PE, CGC, EC), and nobody has checked that a bare
  * number finds one record on that form. Link it once that is confirmed.
+ *
+ * THREE FORMS, ONE PER PAGE. The block above — headline, lede, the two
+ * cards, the line about the registry — was printed whole on the home page,
+ * on /about and on /existing-buildings: one text on three pages, and the
+ * first thing the on-page check listed as repeated. Now:
+ *   • `full`  (home): everything above, unchanged.
+ *   • `about` (/about): what each company is, and the four registrations as
+ *     ONE list — firm, license, number — with the same three links. No
+ *     logos and no cards: the page is about the practice, and the list is
+ *     what a board came to check.
+ *   • `brief` (/existing-buildings): two sentences on who the reader deals
+ *     with while a recertification runs, and a link to the list on /about.
+ * The copy of the two short forms is `partner.about` and `partner.brief`
+ * (site.ts); the rules written there for the whole block hold for all three.
+ * The section keeps its id, `contractor`, in every form — /about#contractor
+ * is where `brief` links.
  */
 export function PartnerSection({
   n,
   lang,
   surface = 'concrete',
+  variant = 'full',
 }: {
   n: string;
   lang: Lang;
   surface?: 'paper' | 'concrete';
+  variant?: 'full' | 'about' | 'brief';
 }) {
   const c = getContent(lang);
   const p = c.partner;
@@ -60,6 +78,69 @@ export function PartnerSection({
     ) : (
       number
     );
+
+  if (variant !== 'full') {
+    const short = variant === 'about' ? p.about : p.brief;
+    /* One row per registration, the firm's own first and then in the order
+       of the home page's cards. Each row is a single line of text — who,
+       which license, which number — so it reads as a register and is not
+       the home page's card cut into pieces. */
+    const rows =
+      variant === 'about'
+        ? [
+            ...(registryNo
+              ? [{ who: firm.name, label: p.engineering.registryLabel, value: registryNo as React.ReactNode }]
+              : []),
+            ...(e.license
+              ? [{ who: e.name, label: p.engineering.licenseLabel, value: licenseNo(e.license.number) }]
+              : []),
+            ...build.licenses.map((lic) => ({
+              who: build.name,
+              label: lic.label,
+              value: licenseNo(lic.number),
+            })),
+          ]
+        : [];
+
+    return (
+      <section
+        id="contractor"
+        className={`mp-section mp-surface--${surface} mp-partner mp-partner--${variant}`}
+        aria-labelledby="mp-partner-title"
+      >
+        <div className="mp-shell">
+          <SectionHeading n={n} label={p.eyebrow} />
+
+          <div className="mp-split">
+            <Reveal>
+              <h2 id="mp-partner-title" className="mp-split__title">
+                {short.title}
+              </h2>
+            </Reveal>
+            <Reveal delay={0.05}>
+              <p className="mp-lead mp-partner__lede">{short.body}</p>
+              {rows.length ? (
+                <ul className="mp-partner__register" aria-label={p.licensesLabel}>
+                  {rows.map((row) => (
+                    <li key={`${row.who} ${row.label}`}>
+                      <span className="mp-partner__register-who">{row.who}</span>{' '}
+                      <span className="mp-partner__register-label">{row.label}</span>{' '}
+                      <span className="mp-partner__register-no">{row.value}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {variant === 'brief' ? (
+                <p className="mp-partner__more">
+                  <TextLink href={localePath(p.brief.link.href, lang)}>{p.brief.link.label}</TextLink>
+                </p>
+              ) : null}
+            </Reveal>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
