@@ -243,17 +243,10 @@ export const ui = {
     es: 'Español',
     /** Visually hidden note on the inert switch of an English-only page (/credits). */
     unavailable: 'Spanish version not available',
-    /**
-     * The one line of Spanish on an English page (LanguageOffer): shown only
-     * to a browser set to Spanish, as a link to the same page under /es,
-     * with a button to close it. Spanish in BOTH files — it is never shown
-     * in any other language, and English is not offered the same way on
-     * Spanish pages.
-     */
-    offer: {
-      text: '¿Prefiere leer esto en español?',
-      dismiss: 'Cerrar este aviso',
-    },
+    /* There is no pop-up line offering Spanish. One was shipped on October
+       7, 2026 ("¿Prefiere leer esto en español?", for browsers set to
+       Spanish) and removed the same day: the owner did not like it. The word
+       "Español" in the header is the way in. */
   },
   breadcrumb: 'Breadcrumb',
   /** Accessible name of the jump links under a county program's hero on a

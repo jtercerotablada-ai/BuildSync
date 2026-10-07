@@ -12,7 +12,6 @@ import {
   stripLang,
 } from '@/lib/ttc/i18n';
 import { EASE } from './primitives';
-import { LanguageOffer } from './LanguageOffer';
 import { refreshSearch, useContent, useLang, useSearch } from './lang';
 
 /** The burger shows at ≤1180px (mp.css); the menu has no reason to exist past it. */
@@ -157,10 +156,8 @@ export function SiteHeader() {
     // Only elements this effect inerted are released again, so an element
     // that was already inert for some other reason stays that way.
     const inerted: HTMLElement[] = [];
-    // The Spanish offer (LanguageOffer) lies under the menu like the page
-    // does: covered, so blocked with it.
     document
-      .querySelectorAll<HTMLElement>('#main, .mp-footer, .mp-langoffer')
+      .querySelectorAll<HTMLElement>('#main, .mp-footer')
       .forEach((el) => {
         if (el.hasAttribute('inert')) return;
         el.setAttribute('inert', '');
@@ -299,11 +296,6 @@ export function SiteHeader() {
       >
         {c.ui.skipToContent}
       </a>
-      {/* Right after the skip link in the document, so a keyboard or screen
-          reader user whose browser is set to Spanish meets the offer first,
-          not after the whole English page. On screen it sits under the
-          header; nothing is rendered for anyone else. */}
-      {translated ? <LanguageOffer href={other} /> : null}
       <header
         className="mp-header"
         ref={headerRef}

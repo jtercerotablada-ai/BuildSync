@@ -402,7 +402,6 @@
   /* ── Chrome ──────────────────────────────────────────────────────────── */
   --mp-header-h: 76px;
   --mp-radius: 0px;
-  --mp-z-offer: 60;
   --mp-z-menu: 65;
   --mp-z-header: 70;
   --mp-z-skip: 80;
@@ -583,13 +582,11 @@ html:has(.mp) {
 /* Every dark surface carries the same token block, so any component that
    reads --mp-ink-* or --mp-line is right on either surface without knowing
    which one it is on — text, hairlines, focus rings and the dark button
-   variants (03). The mobile menu is a graphite surface too, and so is the
-   Spanish offer (04). */
+   variants (03). The mobile menu is a graphite surface too. */
 .mp-surface--graphite,
 .mp-phero,
 .mp-footer,
-.mp-menu,
-.mp-langoffer {
+.mp-menu {
   color: var(--mp-snow);
   --mp-line: var(--mp-line-dark);
   --mp-line-soft: var(--mp-line-dark-soft);
@@ -1295,99 +1292,6 @@ a.mp-menu__mail {
   content: '';
   position: absolute;
   inset: -7px 0;
-}
-
-/* ── The Spanish offer ───────────────────────────────────────────────────
-   LanguageOffer.tsx: one line on English pages, for a browser set to
-   Spanish. It is not in the server HTML and it is out of the flow, so it
-   takes no room: nothing moves when it appears, and a visitor it is not for
-   never gets it at all.
-
-   Where: at the top of the PAGE, right under the header, on the header's
-   right content edge — under the switch it explains. `absolute`, not
-   `fixed`: it is read on arrival and scrolls away with the page, so it
-   never rides over the text or the form. (Fixed to the bottom of the screen
-   it sat on the first-screen button of the two program pages at any visible
-   height under ~660px, which with a phone browser's own bars is most
-   phones.) Past 900px every page opens with a hero that holds nothing in
-   its first 64px under the header. Up to 900px that room is the hero's top
-   band, which shrinks with the screen's HEIGHT: on a phone the line becomes
-   a strip across the band, and on a screen too short to have one it is not
-   shown at all (both in 19 · RESPONSIVE).
-
-   It never meets the phone bar (20 · V3) either: the bar comes in once
-   60% of a screen has been scrolled, and this is gone under the header
-   after 54px.
-
-   A graphite surface (the dark token block, 01), so the link is snow and
-   the ring gold. Its z-index is under the header's and under the menu's,
-   which covers it while open (SiteHeader makes it inert then). The link and
-   the close button are 44px targets. */
-.mp-langoffer {
-  position: absolute;
-  inset-block-start: calc(var(--mp-header-h) + var(--mp-2));
-  /* The right edge of .mp-shell at any width: the gutter, plus the margin
-     the shell is centred with once the screen is wider than --mp-w. */
-  inset-inline-end: max(var(--mp-pad), calc((100% - var(--mp-w)) / 2 + var(--mp-pad)));
-  z-index: var(--mp-z-offer);
-  display: flex;
-  background: var(--mp-graphite);
-  border: 1px solid var(--mp-line-strong);
-  font-size: var(--mp-t-small);
-  line-height: 1.25;
-  animation: mp-enter 0.55s var(--mp-ease) backwards;
-}
-.mp-langoffer a {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  min-height: 44px;
-  padding: var(--mp-2) var(--mp-4);
-  font-weight: 500;
-  text-decoration: underline;
-  text-decoration-color: var(--mp-gold);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.3em;
-  transition: color var(--mp-dur) var(--mp-ease);
-}
-.mp-langoffer button {
-  position: relative;
-  flex: none;
-  width: 44px;
-  min-height: 44px;
-  border-inline-start: 1px solid var(--mp-line);
-  color: var(--mp-snow-2);
-  transition: color var(--mp-dur) var(--mp-ease);
-}
-/* The close mark is two hairlines, like the burger's. Borders, not
-   backgrounds: a forced-colours theme repaints backgrounds and would leave
-   an empty button. */
-.mp-langoffer button::before,
-.mp-langoffer button::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 14px;
-  margin: -0.75px 0 0 -7px;
-  border-block-start: 1.5px solid currentColor;
-  transform: rotate(45deg);
-}
-.mp-langoffer button::after {
-  transform: rotate(-45deg);
-}
-/* Inside the box: at the usual 3px offset the ring would sit on the border
-   and, on a phone, slide under the header above it. */
-.mp-langoffer :is(a, button):focus-visible {
-  outline-offset: -3px;
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-langoffer a:hover {
-    color: var(--mp-gold);
-  }
-  .mp-langoffer button:hover {
-    color: var(--mp-snow);
-  }
 }
 
 /* ═══ 05 · FOOTER ═════════════════════════════════════════════════════════ */
@@ -3563,18 +3467,6 @@ a.mp-menu__mail {
   }
 }
 
-/* Shorter still — a phone held sideways, or a very small one: that 8svh band
-   is under 42px, less than the Spanish offer (04) is tall, so the line would
-   lie on the breadcrumb row, and on a sideways phone across the home page's
-   first line. There is no room for it, so it is not shown; the header says
-   "Español" in a word on these screens anyway. Measured on every page: from
-   521px of height up, the offer touches no line of text. */
-@media (max-width: 900px) and (max-height: 520px) {
-  .mp-langoffer {
-    display: none;
-  }
-}
-
 @media (max-width: 640px) {
   /* Reading size. On a phone the "small" step IS body size, 16px. It was
      14.4px, and more than a third of the recertification page's text was
@@ -3756,32 +3648,6 @@ a.mp-menu__mail {
      to logo + close. visibility, like the language link: it also leaves the
      Tab order. */
   .mp-header.is-menu-open .mp-header__cta {
-    visibility: hidden;
-  }
-  /* The Spanish offer (04) is a strip across the page, flush under the
-     header, with the same gutters as the bar above it: the sentence starts
-     under the logo and the close button ends under the menu button. On a
-     phone every hero opens with a photo band (8svh on a short screen, 16svh
-     otherwise), so the strip lies on the photograph and covers no word of
-     the page; where the band is too short for that, the offer is not shown
-     (the max-height rule above). */
-  .mp-langoffer {
-    inset-block-start: var(--mp-header-h);
-    inset-inline: 0;
-    padding-inline: var(--mp-pad);
-    border-inline: 0;
-    border-block-start: 0;
-  }
-  .mp-langoffer a {
-    flex: 1;
-    padding-inline-start: 0;
-  }
-  /* The one hero with no band: the form opened for a county program gives
-     it up to put the upload on the first screen (20 · V3), so there the
-     strip would lie on the breadcrumb. The breadcrumb steps aside while the
-     offer is up — `visibility`, so nothing moves, and no link is left
-     focusable underneath. It is back the moment the offer is closed. */
-  .mp:has(.mp-langoffer):has([data-mp-notice-first]) .mp-breadcrumbs {
     visibility: hidden;
   }
   .mp-timing > div {
@@ -5283,7 +5149,6 @@ a.mp-offices__row .mp-offices__office {
   .mp-header,
   .mp-menu,
   .mp-skip,
-  .mp-langoffer,
   .mp-burger,
   .mp-motion-toggle,
   .mp-hero__photo,

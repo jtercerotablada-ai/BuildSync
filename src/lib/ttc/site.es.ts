@@ -1108,12 +1108,6 @@ export const es: SiteContent = {
       en: 'English',
       es: 'Español',
       unavailable: 'Versión en inglés no disponible',
-      /* The same Spanish line as in site.ts, not a translation of it: it is
-         only ever shown on English pages (see LanguageOffer). */
-      offer: {
-        text: '¿Prefiere leer esto en español?',
-        dismiss: 'Cerrar este aviso',
-      },
     },
     breadcrumb: 'Ruta de navegación',
     onThisPage: 'En esta página',

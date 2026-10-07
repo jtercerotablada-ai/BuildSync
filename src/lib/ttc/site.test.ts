@@ -357,10 +357,4 @@ describe('language switch', () => {
       expect(c.ui.language.es).toBe('Español');
     }
   });
-
-  // Shown on English pages only, to a browser set to Spanish.
-  it('offers Spanish in Spanish, the same line in both files', () => {
-    expect(es.ui.language.offer).toEqual(en.ui.language.offer);
-    expect(en.ui.language.offer.text).toMatch(/español/);
-  });
 });
