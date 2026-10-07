@@ -1002,8 +1002,8 @@ const caseStudies: SiteContent['caseStudies'] = [];
 
 export const es: SiteContent = {
   company: {
-    legalName: 'Tercero Tablada Civil & Structural Engineering Inc.',
-    name: 'Tercero Tablada Civil & Structural Engineering Inc.',
+    legalName: 'Tercero Tablada Civil and Structural Engineering Inc.',
+    name: 'Tercero Tablada Civil and Structural Engineering Inc.',
     shortName: 'Tercero Tablada',
     discipline: 'Ingeniería Civil y Estructural',
     url: 'https://ttcivilstructural.com',
@@ -1200,7 +1200,7 @@ export const es: SiteContent = {
       firmProjects: 'Proyectos de la firma',
       priorExperience: 'Experiencia profesional previa',
       priorNote:
-        'Trabajo realizado en otras empresas antes de fundar la firma. Se lista solo como experiencia — no son proyectos de Tercero Tablada Civil & Structural Engineering Inc.',
+        'Trabajo realizado en otras empresas antes de fundar la firma. Se lista solo como experiencia — no son proyectos de Tercero Tablada Civil and Structural Engineering Inc.',
     },
     form: {
       heading: 'Solicitar propuesta',
@@ -1288,11 +1288,11 @@ export const es: SiteContent = {
         'Las descripciones de este sitio son generales. El alcance, la secuencia y los entregables para cualquier edificio específico se confirman por escrito antes de comenzar el trabajo, y los requisitos varían según la jurisdicción.',
     },
     typologiesNote:
-      'Las fotografías ilustran el tipo de estructura descrito; ninguna muestra un proyecto de Tercero Tablada Civil & Structural Engineering Inc. Lo que realiza la firma se describe en',
+      'Las fotografías ilustran el tipo de estructura descrito; ninguna muestra un proyecto de Tercero Tablada Civil and Structural Engineering Inc. Lo que realiza la firma se describe en',
     typologiesNoteLink: 'Trabajos típicos',
     typologiesNoteEnd: '.',
     galleryNote:
-      'Fotografía arquitectónica con licencia, mostrada como material y no como portafolio. Ninguna imagen de esta página muestra un proyecto de Tercero Tablada Civil & Structural Engineering Inc.',
+      'Fotografía arquitectónica con licencia, mostrada como material y no como portafolio. Ninguna imagen de esta página muestra un proyecto de Tercero Tablada Civil and Structural Engineering Inc.',
     processDisclaimer:
       'Los requisitos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Esto describe una secuencia típica, no un procedimiento ni un resultado garantizado.',
     legalPages: { privacy: 'Política de privacidad', terms: 'Términos de uso', legal: 'Legal' },
@@ -1472,11 +1472,11 @@ export const es: SiteContent = {
     /* "El alcance que entregamos" was "the scope we deliver", word for word
        (see the style notes at the top: nobody is handed "un alcance"). */
     teaser:
-      'En Tercero Tablada Civil & Structural Engineering Inc., cada proyecto lo diseña, revisa y firma la misma persona. Usted trata directamente con el ingeniero desde su primer mensaje, y lo que aprueba en la propuesta es lo que entregamos.',
+      'En Tercero Tablada Civil and Structural Engineering Inc., cada proyecto lo diseña, revisa y firma la misma persona. Usted trata directamente con el ingeniero desde su primer mensaje, y lo que aprueba en la propuesta es lo que entregamos.',
     bio: [
       /* The Master's keeps the program's own name ("…en Construction Project
          Management", Universidad de Barcelona), the same in bio and education. */
-      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil & Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada trabajo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
+      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil and Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada trabajo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
       'La firma cubre las dos mitades del trabajo estructural en el Sur de Florida: el diseño de edificios nuevos de concreto reforzado, y la evaluación, recertificación y reparación de edificios que ya están en pie. Ambas se hacen con la misma disciplina — el razonamiento detrás de cada conclusión queda escrito, y nada sale de la oficina sin haberse revisado línea por línea.',
     ],
     education: [
@@ -1501,7 +1501,7 @@ export const es: SiteContent = {
       { k: 'Nombre', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Licencia', v: 'Ingeniero Profesional, Florida' },
       { k: 'Cargo', v: 'Ingeniero Principal · Fundador' },
-      { k: 'Firma', v: 'Tercero Tablada Civil & Structural Engineering Inc.' },
+      { k: 'Firma', v: 'Tercero Tablada Civil and Structural Engineering Inc.' },
       { k: 'Región', v: 'Miami-Dade y Broward' },
     ],
   },
@@ -1554,7 +1554,7 @@ export const es: SiteContent = {
     eyebrow: 'Sobre la firma',
     titleLines: ['Una firma de ingeniería estructural', 'con un solo ingeniero responsable.'],
     accentWord: 'responsable',
-    sub: 'Tercero Tablada Civil & Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
+    sub: 'Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
     facts: [
       { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Enfoque', v: 'Concreto · Edificios existentes · BIM' },
@@ -1738,7 +1738,7 @@ export const es: SiteContent = {
         { h: 'Resultados regulatorios', p: 'Los requisitos de inspección, recertificación y permisos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Las edades y los plazos publicados aquí fueron verificados en la fecha indicada junto a ellos y pueden cambiar. Las descripciones de cualquier proceso en este sitio son secuencias típicas, no garantías. No prometemos la aprobación de ningún departamento de construcción ni autoridad revisora.' },
         { h: 'Documentos sellados', p: 'Donde se requiera un documento firmado y sellado, se emite como entregable formal bajo un alcance de trabajo acordado. El contenido de este sitio web nunca es un entregable sellado.' },
         { h: 'Exactitud y disponibilidad', p: 'Mantenemos este sitio actualizado, pero no garantizamos que cada afirmación sea completa o esté libre de errores, ni que el sitio esté siempre disponible.' },
-        { h: 'Propiedad intelectual', p: 'Los textos, el nombre y el logotipo de la firma que aparecen en este sitio pertenecen a Tercero Tablada Civil & Structural Engineering Inc. y no pueden reproducirse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
+        { h: 'Propiedad intelectual', p: 'Los textos, el nombre y el logotipo de la firma que aparecen en este sitio pertenecen a Tercero Tablada Civil and Structural Engineering Inc. y no pueden reproducirse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
       ],
     },
     contactHeading: 'Contacto',

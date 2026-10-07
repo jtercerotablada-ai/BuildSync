@@ -57,7 +57,7 @@ import { photo, video, type Photo, type Clip } from './media';
 
 export const company = {
   /**
-   * The firm is named "Tercero Tablada Civil & Structural Engineering Inc."
+   * The firm is named "Tercero Tablada Civil and Structural Engineering Inc."
    * — that is the name, not a legal long-form of a shorter brand. `name` is
    * therefore the full name and is what belongs in page titles, metadata,
    * schema.org, alt text and any sentence that names the practice.
@@ -66,10 +66,10 @@ export const company = {
    * fit (a drawing title block, a compact chip). Never reach for it just to
    * make a line shorter.
    */
-  legalName: 'Tercero Tablada Civil & Structural Engineering Inc.',
-  name: 'Tercero Tablada Civil & Structural Engineering Inc.',
+  legalName: 'Tercero Tablada Civil and Structural Engineering Inc.',
+  name: 'Tercero Tablada Civil and Structural Engineering Inc.',
   shortName: 'Tercero Tablada',
-  discipline: 'Civil & Structural Engineering',
+  discipline: 'Civil and Structural Engineering',
   url: 'https://ttcivilstructural.com',
   /**
    * Used in <meta description> fallbacks, the footer tag and Organization
@@ -370,7 +370,7 @@ export const ui = {
     firmProjects: 'Firm projects',
     priorExperience: 'Prior professional experience',
     priorNote:
-      'Work performed at other firms before the practice was founded. Listed for experience only — not projects of Tercero Tablada Civil & Structural Engineering Inc.',
+      'Work performed at other firms before the practice was founded. Listed for experience only — not projects of Tercero Tablada Civil and Structural Engineering Inc.',
   },
   form: {
     heading: 'Request a proposal',
@@ -472,11 +472,11 @@ export const ui = {
      — the same words as its nav label — so the sentence leads up to it
      without saying "typical engagements" twice. */
   typologiesNote:
-    'Photographs illustrate the kind of structure described; none shows a project by Tercero Tablada Civil & Structural Engineering Inc. What the firm takes on is described under',
+    'Photographs illustrate the kind of structure described; none shows a project by Tercero Tablada Civil and Structural Engineering Inc. What the firm takes on is described under',
   typologiesNoteLink: 'Typical Engagements',
   typologiesNoteEnd: '.',
   galleryNote:
-    'Licensed architectural photography, shown as material rather than as a portfolio. No image on this page depicts a project by Tercero Tablada Civil & Structural Engineering Inc.',
+    'Licensed architectural photography, shown as material rather than as a portfolio. No image on this page depicts a project by Tercero Tablada Civil and Structural Engineering Inc.',
   processDisclaimer:
     'Requirements vary by jurisdiction, building age, construction type and scope. This describes a typical sequence, not a guaranteed procedure or outcome.',
   legalPages: { privacy: 'Privacy Policy', terms: 'Terms of Use', legal: 'Legal' },
@@ -2224,9 +2224,9 @@ export const leadership = {
   /* No phone is published, so "first message", not "first call"; and the
      promise is the scope we deliver, not what gets built. */
   teaser:
-    'Every project at Tercero Tablada Civil & Structural Engineering Inc. is engineered, checked and signed by the same person. You deal directly with the engineer from your first message, and the scope you approve in the proposal is the scope we deliver.',
+    'Every project at Tercero Tablada Civil and Structural Engineering Inc. is engineered, checked and signed by the same person. You deal directly with the engineer from your first message, and the scope you approve in the proposal is the scope we deliver.',
   bio: [
-    'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil & Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
+    'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil and Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
     'The practice covers both halves of structural work in South Florida: the design of new reinforced-concrete buildings, and the evaluation, recertification and repair of buildings already standing. Both are done with the same discipline — the reasoning behind every conclusion is written down, and nothing leaves the office that has not been checked line by line.',
   ],
   education: [
@@ -2252,7 +2252,7 @@ export const leadership = {
     { k: 'Name', v: 'Juan Tercero, PE., M.Sc.' },
     { k: 'Licensure', v: 'Professional Engineer, Florida' },
     { k: 'Role', v: 'Principal Engineer · Founder' },
-    { k: 'Practice', v: 'Tercero Tablada Civil & Structural Engineering Inc.' },
+    { k: 'Practice', v: 'Tercero Tablada Civil and Structural Engineering Inc.' },
     { k: 'Region', v: 'Miami-Dade & Broward' },
   ],
 } as const;
@@ -2261,7 +2261,7 @@ export const aboutPage = {
   eyebrow: 'About the practice',
   titleLines: ['A structural practice built', 'around one accountable engineer.'],
   accentWord: 'accountable',
-  sub: 'Tercero Tablada Civil & Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
+  sub: 'Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
   facts: [
     { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
     { k: 'Focus', v: 'Concrete · Existing buildings · BIM' },
@@ -2491,7 +2491,7 @@ export const legal = {
       { h: 'Sealed documents', p: 'Where a signed and sealed document is required, it is issued as a formal deliverable under an agreed scope of work. Content on this website is never a sealed deliverable.' },
       { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
-      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil & Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
+      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],
   },
   contactHeading: 'Contact',

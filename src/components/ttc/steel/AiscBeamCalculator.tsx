@@ -172,7 +172,7 @@ export function AiscBeamCalculator() {
       <div className="stl-sheethead">
         <div>
           <div className="stl-brand">TERCERO TABLADA</div>
-          <div className="stl-brand-sub">Civil &amp; Structural Engineering Inc.</div>
+          <div className="stl-brand-sub">Civil and Structural Engineering Inc.</div>
         </div>
         <div className="stl-sheettitle">
           <strong>STEEL I-BEAM DESIGN</strong>

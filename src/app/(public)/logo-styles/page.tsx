@@ -118,7 +118,7 @@ function CompanyText({
         TERCERO TABLADA
       </text>
       <text x={x} y={36} fontFamily="'Inter', Arial, sans-serif" fontWeight={400} fontSize={6.5} fill={subColor} letterSpacing="1.2">
-        CIVIL &amp; STRUCTURAL ENGINEERING INC.
+        CIVIL AND STRUCTURAL ENGINEERING INC.
       </text>
       <text x={x} y={50} fontFamily="'Inter', Arial, sans-serif" fontWeight={600} fontSize={6} fill={accentColor} letterSpacing="1.5">
         REGISTERED P.E.

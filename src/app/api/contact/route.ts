@@ -118,7 +118,7 @@ function getResend() {
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@ttcivilstructural.com";
 const FROM =
   process.env.EMAIL_FROM ||
-  "Tercero Tablada Civil & Structural Engineering Inc. <noreply@ttcivilstructural.com>";
+  "Tercero Tablada Civil and Structural Engineering Inc. <noreply@ttcivilstructural.com>";
 const SITE = "https://ttcivilstructural.com";
 const INBOX = `${SITE}/portal/admin/submissions`;
 
@@ -154,7 +154,7 @@ function shell(inner: string, lang: "en" | "es" = "en") {
 <div style="max-width:560px;margin:32px auto;background:#fff;border:1px solid #e8e4dc">
   <div style="background:#0b0c0d;padding:22px 24px;border-bottom:2px solid #c99a38">
     <img src="${SITE}/ttc/img/logo-white.png" width="36" height="36" alt="" style="vertical-align:middle;border:0" />
-    <span style="color:#f6f4ef;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-left:12px;vertical-align:middle">Tercero Tablada Civil &amp; Structural Engineering Inc.</span>
+    <span style="color:#f6f4ef;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-left:12px;vertical-align:middle">Tercero Tablada Civil and Structural Engineering Inc.</span>
   </div>
   <div style="padding:28px 24px;font-size:15px;line-height:1.6">${inner}</div>
 </div></body></html>`;

@@ -19,9 +19,9 @@ export default function RegisterPage() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-muted-foreground">
         <p>
-          BuildSync is the internal workspace of Tercero Tablada Civil &amp;
-          Structural Engineering. To get an account, ask a workspace admin to
-          send you an invitation.
+          BuildSync is the internal workspace of Tercero Tablada Civil and
+          Structural Engineering Inc. To get an account, ask a workspace admin
+          to send you an invitation.
         </p>
         <p>
           Then open the link in the invitation email: it lets you choose your

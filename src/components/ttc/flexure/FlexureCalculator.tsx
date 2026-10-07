@@ -244,7 +244,7 @@ export function FlexureCalculator() {
       <div className="flx-sheethead">
         <div>
           <div className="flx-brand">TERCERO TABLADA</div>
-          <div className="flx-brand-sub">Civil &amp; Structural Engineering Inc.</div>
+          <div className="flx-brand-sub">Civil and Structural Engineering Inc.</div>
         </div>
         <div className="flx-sheettitle">
           <strong>{mode === 'design' ? 'FLEXURAL DESIGN (singly reinforced)' : 'FLEXURAL ANALYSIS'}</strong>
