@@ -6,6 +6,7 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
+import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { ButtonLink, SectionHeading, Reveal, TextLink } from '@/components/ttc/mp/primitives';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -194,6 +195,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         photo={imagery.services[service.slug]}
       >
         {program ? <EngineerCredential lang={lang} /> : null}
+        {program ? <ReachRow c={c} /> : null}
       </PageHero>
 
       {/* Why it matters + when you need it.
@@ -300,6 +302,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                 {cta}
               </ButtonLink>
               {program ? <p className="mp-prog__ctanote">{program.ctaNote}</p> : null}
+              {program ? <ReachRow c={c} assure className="mp-reach--row" /> : null}
             </Reveal>
           </div>
         </section>

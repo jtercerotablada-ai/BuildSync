@@ -3920,30 +3920,126 @@ a.mp-menu__mail {
   line-height: 1.6;
   color: var(--mp-ink-3);
 }
-.mp-partner__note {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.2fr) minmax(0, 1fr);
-  gap: var(--mp-4);
-  align-items: baseline;
-  margin: clamp(1.5rem, 3vw, 2.5rem) 0 0;
-  padding-block-start: var(--mp-4);
-  border-block-start: 1px solid var(--mp-line);
-}
-.mp-partner__note b {
-  font-weight: 500;
-  color: var(--mp-ink);
-}
-.mp-partner__note span {
-  max-width: 68ch;
-  color: var(--mp-ink-2);
-}
 @media (max-width: 900px) {
   .mp-partner__cards {
     grid-template-columns: minmax(0, 1fr);
   }
-  .mp-partner__note {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.25rem;
+}
+
+/* ── Reach: call, WhatsApp, and the bar on phones ────────────────────────── */
+/* Two plain links under a button. They are text, not a second pair of
+   buttons: the button above stays the one primary action, and these are the
+   two other ways in for someone who would rather talk than fill in a form. */
+.mp-reach {
+  display: grid;
+  gap: var(--mp-2);
+  margin: var(--mp-4) 0 0;
+}
+.mp-reach--row {
+  /* Inside the button-and-note flex row: take the whole next line. */
+  flex: 1 1 100%;
+  margin-block-start: 0;
+}
+.mp-reach__assure {
+  margin: 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+.mp-reach__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--mp-6);
+  margin: 0;
+}
+.mp-reach__link {
+  display: inline-flex;
+  align-items: center;
+  /* A phone number is the thing most likely to be tapped with a thumb. */
+  min-height: 44px;
+  font-size: var(--mp-t-body);
+  font-weight: 500;
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mp-gold);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-reach__link:hover {
+    text-decoration-thickness: 2px;
+  }
+}
+.mp-close .mp-reach {
+  margin-block-start: var(--mp-6);
+}
+
+/* The bar. Phones and small tablets only — on a desktop the header button
+   and the links above are always within reach. It slides in after the first
+   screen (MobileActionBar sets .is-shown) and is hidden while the menu is
+   open: the bar is a later sibling of the header in SiteChrome. */
+.mp-bar {
+  display: none;
+}
+@media (max-width: 900px) {
+  .mp-bar {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    /* Under the header (70) and the open menu (65). */
+    z-index: 60;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding-block-end: env(safe-area-inset-bottom, 0px);
+    background: var(--mp-charcoal);
+    border-block-start: 1px solid var(--mp-line-dark);
+    transform: translateY(100%);
+    visibility: hidden;
+    transition:
+      transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+      visibility 0s linear 0.28s;
+  }
+  .mp-bar.is-shown {
+    transform: none;
+    visibility: visible;
+    transition:
+      transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+      visibility 0s;
+  }
+  .mp-header.is-menu-open ~ .mp-bar {
+    display: none;
+  }
+  .mp-bar__item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    padding-inline: var(--mp-2);
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+    color: var(--mp-snow);
+  }
+  .mp-bar__item + .mp-bar__item {
+    border-inline-start: 1px solid var(--mp-line-dark);
+  }
+  .mp-bar__item--main {
+    background: var(--mp-snow);
+    color: var(--mp-ink);
+  }
+  /* Room for the bar under the last line of the footer, on the pages that
+     have one (it is absent on /contact). */
+  body:has(.mp-bar) .mp-footer {
+    padding-block-end: calc(var(--mp-8) + 56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-bar,
+  .mp-bar.is-shown {
+    transition: none;
   }
 }
 

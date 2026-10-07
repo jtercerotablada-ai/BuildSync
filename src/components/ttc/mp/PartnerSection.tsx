@@ -6,8 +6,9 @@ import { SectionHeading, Reveal } from './primitives';
 /**
  * Who the practice works with: two licensed firms side by side, each with its
  * own mark and its own Florida licences — the engineering practice on the
- * left, Precision Source on the right — and one line underneath saying whose
- * seal goes on the reports.
+ * left, Precision Source on the right. Nothing here says who signs which
+ * report: the owner decided the site does not state it (see `partner` in
+ * site.ts), so do not add a "signed and sealed" line back.
  *
  * The two cards are deliberately the same shape. The point a client takes
  * away is "two separate licensed companies, one team", and a block that put
@@ -155,13 +156,6 @@ export function PartnerSection({
             </p>
           </Reveal>
         ) : null}
-
-        <Reveal delay={0.08}>
-          <p className="mp-partner__note">
-            <b>{p.seal.k}</b>
-            <span>{p.seal.v}</span>
-          </p>
-        </Reveal>
       </div>
     </section>
   );

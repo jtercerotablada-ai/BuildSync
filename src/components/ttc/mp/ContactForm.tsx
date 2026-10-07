@@ -852,7 +852,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
             )}
           </button>
           <span className="mp-form__note" style={{ margin: 0 }}>
-            {c.contact.responseNote}
+            {c.reach.free} {c.contact.responseNote}
           </span>
         </div>
 

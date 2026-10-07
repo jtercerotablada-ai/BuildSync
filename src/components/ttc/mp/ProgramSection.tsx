@@ -6,6 +6,7 @@ import { Img } from './media';
 import { ButtonLink, Reveal, RevealText, SectionHeading, TextLink } from './primitives';
 import { accentLines } from './text';
 import { useContent, useL } from './lang';
+import { ReachRow } from './ReachRow';
 
 /**
  * One county's program, on the home page: Miami-Dade's recertification, then
@@ -95,6 +96,7 @@ export function ProgramSection({
                 {p.cta}
               </ButtonLink>
               <p className="mp-prog__ctanote">{p.ctaNote}</p>
+              <ReachRow c={c} className="mp-reach--row" />
             </Reveal>
 
             {/* The same list the service page prints, without its card: the

@@ -127,7 +127,7 @@ const COPY = {
     subject: "We received your proposal request",
     title: "Your request is with the engineer.",
     body: (service: string, ref: string) =>
-      `Thank you. Your proposal request (${escapeHtml(service)}) has been received and will be read by Juan Tercero, PE., M.Sc. You will hear back by email with questions or with a written proposal. Reference: ${ref}.`,
+      `Thank you. Your proposal request (${escapeHtml(service)}) has been received and will be read by Juan Tercero, PE., M.Sc. You will hear back by email, usually within two hours, with questions or with a written proposal. The proposal is free. Reference: ${ref}.`,
     files: (n: number) => `${n} file${n === 1 ? "" : "s"} attached.`,
     footer: "This is an automatic confirmation. Replying to it reaches the office.",
   },
@@ -135,7 +135,7 @@ const COPY = {
     subject: "Recibimos su solicitud de propuesta",
     title: "Su solicitud ya está en manos del ingeniero.",
     body: (service: string, ref: string) =>
-      `Gracias. Su solicitud de propuesta (${escapeHtml(service)}) fue recibida y será leída por Juan Tercero, PE., M.Sc. Recibirá respuesta por correo con preguntas o con una propuesta escrita. Referencia: ${ref}.`,
+      `Gracias. Su solicitud de propuesta (${escapeHtml(service)}) fue recibida y será leída por Juan Tercero, PE., M.Sc. Recibirá respuesta por correo, normalmente en menos de dos horas, con preguntas o con una propuesta escrita. La propuesta es gratis. Referencia: ${ref}.`,
     files: (n: number) => `${n} archivo${n === 1 ? "" : "s"} adjunto${n === 1 ? "" : "s"}.`,
     footer: "Esta es una confirmación automática. Si responde a este correo, su mensaje llegará a la oficina.",
   },

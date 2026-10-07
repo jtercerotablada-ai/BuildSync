@@ -969,13 +969,14 @@ export const es: SiteContent = {
      */
     email: 'info@ttcivilstructural.com',
     phone: { display: '(772) 265-8506', href: 'tel:+17722658506' },
+    whatsapp: { href: 'https://wa.me/17722658506' },
     address: null,
     serviceAreaLabel: 'Condados de Miami-Dade y Broward, Florida',
     social: {
       linkedin: null,
     },
     responseNote:
-      'Cada consulta la lee y la responde el ingeniero, no un centro de llamadas.',
+      'Cada consulta la lee y la responde el ingeniero, no un centro de llamadas — normalmente en menos de dos horas.',
   },
 
   primaryNav: [
@@ -1123,7 +1124,7 @@ export const es: SiteContent = {
       sending: 'Enviando',
       sendAnother: 'Enviar otra solicitud',
       successTitle: 'Solicitud recibida.',
-      successBody: 'Su solicitud está en la bandeja del ingeniero.',
+      successBody: 'Su solicitud está en la bandeja del ingeniero. Normalmente respondemos en menos de dos horas.',
       successConfirmed: 'Se envió una confirmación a su correo electrónico.',
       successRef: 'Referencia',
       whatNext: 'Qué sigue',
@@ -1396,17 +1397,16 @@ export const es: SiteContent = {
   },
 
   /* La empresa con la que se hacen las recertificaciones. Mismas reglas que
-     en site.ts: empresa APARTE, un solo equipo, sin reparto de tareas
-     impreso, y la última línea dice quién firma y QUÉ firma: el informe
-     estructural. "Cada informe" contradecía las notas de alcance ("el
-     informe eléctrico lo firma un profesional calificado en diseño
-     eléctrico"); no quitar "estructural" hasta que el dueño lo defina. */
+     en site.ts: empresa APARTE, un solo equipo, sin reparto de tareas impreso
+     y sin decir quién firma qué informe (decisión del dueño, 2026-10-06).
+     "Más de 30 años de experiencia combinada" son las dos empresas juntas,
+     nunca el ingeniero solo. */
   partner: {
     eyebrow: 'Con quién trabajamos',
     kicker: 'Dos empresas con licencia',
     title: 'Un solo equipo en su edificio.',
     lede:
-      'Realizamos las recertificaciones de Miami-Dade y las inspecciones BSIP de Broward junto a Precision Source Inc., contratista general y eléctrico certificado en Florida, con sede en Miami. Dos empresas con licencia que trabajan como un solo equipo, desde el aviso hasta el informe final.',
+      'Realizamos las recertificaciones de Miami-Dade y las inspecciones BSIP de Broward junto a Precision Source Inc., contratista general y eléctrico certificado en Florida, con sede en Miami. Dos empresas con licencia que trabajan como un solo equipo, desde el aviso hasta el informe final, con más de 30 años de experiencia combinada entre las dos.',
     licensesLabel: 'Licencias de Florida',
     verifyLead: 'Cada número de licencia abre la búsqueda de licencias del DBPR de Florida.',
     engineering: {
@@ -1424,11 +1424,22 @@ export const es: SiteContent = {
         { label: 'Contratista Eléctrico Certificado', number: 'EC13010175' },
       ],
     },
-    seal: {
-      k: 'Firmado y sellado',
-      v: 'Cada informe estructural lleva la firma y el sello de Juan Tercero, PE., M.Sc., Ingeniero Profesional de Florida.',
-    },
   },
+  /* Las formas de contactar al ingeniero sin llenar el formulario, y los dos
+     datos que dio el propietario el 6 de octubre de 2026: la propuesta es
+     gratis y normalmente se responde en menos de dos horas. "Normalmente":
+     no convertirlo en promesa. */
+  reach: {
+    label: 'Contactar al ingeniero',
+    call: 'Llamar',
+    whatsapp: 'WhatsApp',
+    whatsappNotice: 'Enviar la notificación por WhatsApp',
+    form: 'Enviar la notificación',
+    whatsappText: 'Hola, recibí una notificación de inspección de mi edificio.',
+    free: 'La propuesta es gratis.',
+    reply: 'Normalmente respondemos en menos de dos horas.',
+  },
+
   aboutPage: {
     eyebrow: 'Sobre la firma',
     titleLines: ['Una firma de ingeniería estructural', 'con un solo ingeniero responsable.'],

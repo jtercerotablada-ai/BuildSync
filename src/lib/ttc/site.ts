@@ -136,6 +136,10 @@ export const contact = {
   phone: { display: '(772) 265-8506', href: 'tel:+17722658506' } as
     | { display: string; href: string }
     | null,
+  /** WhatsApp on the same line. The owner confirmed on October 6, 2026 that
+   *  people may send the photo of their notice there. `null` hides every
+   *  WhatsApp link on the site. */
+  whatsapp: { href: 'https://wa.me/17722658506' } as { href: string } | null,
   /** e.g. { line1: '…', city: 'Miami', state: 'FL', zip: '33131' } */
   address: null as {
     line1: string;
@@ -149,9 +153,12 @@ export const contact = {
   social: {
     linkedin: null as string | null,
   },
-  /** Shown near the form. No response-time promise: only what is always true. */
+  /** Shown near the form. The reply time is the owner's own figure (October
+   *  6, 2026: "immediate, more or less one or two hours later"), printed as
+   *  what is USUAL, never as a guarantee — a message sent at midnight is
+   *  answered in the morning. Do not sharpen "usually" into a promise. */
   responseNote:
-    'Every inquiry is read and answered by the engineer, not by a call center.',
+    'Every inquiry is read and answered by the engineer, not by a call center — usually within two hours.',
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -339,7 +346,7 @@ export const ui = {
     sending: 'Sending',
     sendAnother: 'Send another request',
     successTitle: 'Request received.',
-    successBody: 'Your request is in the engineer’s inbox.',
+    successBody: 'Your request is in the engineer’s inbox. We usually reply within two hours.',
     successConfirmed: 'A confirmation has been sent to your email address.',
     successRef: 'Reference',
     whatNext: 'What happens next',
@@ -2273,6 +2280,26 @@ export const legal = {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
+ * The ways to reach the engineer without filling in the form, and the two
+ * facts the owner supplied on October 6, 2026 that sit next to them: the
+ * proposal costs nothing, and a reply usually comes within two hours.
+ * "Usually" is his word ("más o menos") — do not sharpen it into a promise.
+ * The number itself lives in `contact.phone` / `contact.whatsapp`.
+ */
+export const reach = {
+  /** aria-label of the bar on phones. */
+  label: 'Contact the engineer',
+  call: 'Call',
+  whatsapp: 'WhatsApp',
+  whatsappNotice: 'Send the notice by WhatsApp',
+  form: 'Send the notice',
+  /* Prefilled in the WhatsApp chat, so the first message already says why. */
+  whatsappText: 'Hello, I received a building inspection notice.',
+  free: 'The proposal is free.',
+  reply: 'We usually reply within two hours.',
+};
+
+/**
  * The firm Tercero Tablada works with on recertifications: Precision Source,
  * a Florida-certified general and electrical contractor in Miami.
  *
@@ -2284,14 +2311,12 @@ export const legal = {
  *     equipo" — and an earlier draft that had Precision Source doing the
  *     repair work was simply wrong. Each card says what the firm IS (its
  *     licences), not what it does on a job.
- *   - The closing line says who signs, and of WHAT: the structural report. A
- *     contractor on a recertification team could be read as the one
- *     inspecting, so the engineer's seal is stated. It used to say "every
- *     report", which put that seal on the electrical report too — on the same
- *     pages whose scope notes say "the electrical report is signed by a
- *     professional qualified in electrical design". Keep the word
- *     "structural" until the owner settles who signs the electrical one; then
- *     this line and the four scope notes change together.
+ *   - Nothing here says who signs which report. The owner's call
+ *     (2026-10-06): "no es necesario que especifiques quién firma o no". A
+ *     closing "Signed and sealed" line was written and removed the same day;
+ *     do not bring it back, and do not add "both reports, one engineer".
+ *   - "More than 30 years of combined experience" is the two firms TOGETHER,
+ *     in the owner's words — never thirty years of the engineer alone.
  *   - Every license number is a link to the DBPR search (PartnerSection), and
  *     `verifyLead` says so in words, right under the cards.
  *
@@ -2304,7 +2329,7 @@ export const partner = {
   kicker: 'Two licensed firms',
   title: 'One team on your building.',
   lede:
-    'We carry out Miami-Dade recertifications and Broward BSIP inspections together with Precision Source Inc., a Florida-certified general and electrical contractor based in Miami. Two licensed firms working as one team, from the notice to the final report.',
+    'We carry out Miami-Dade recertifications and Broward BSIP inspections together with Precision Source Inc., a Florida-certified general and electrical contractor based in Miami. Two licensed firms working as one team, from the notice to the final report, with more than 30 years of combined experience between them.',
   licensesLabel: 'Florida licenses',
   /* Printed under the two cards, followed by `ui.engineer.verifyHow` (what
      to do on that page). The registry has no per-license URL, so all three
@@ -2326,10 +2351,6 @@ export const partner = {
       { label: 'Certified General Contractor', number: 'CGC061867' },
       { label: 'Certified Electrical Contractor', number: 'EC13010175' },
     ],
-  },
-  seal: {
-    k: 'Signed and sealed',
-    v: 'Every structural report is signed and sealed by Juan Tercero, PE., M.Sc., Florida Professional Engineer.',
   },
 };
 
@@ -2354,6 +2375,7 @@ export const en = {
   credentials,
   leadership,
   partner,
+  reach,
   aboutPage,
   servicesPage,
   existingPage,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { SiteHeader } from './SiteHeader';
 import { SiteFooter } from './SiteFooter';
+import { MobileActionBar } from './MobileActionBar';
 import { LangHtml } from './lang';
 
 /**
@@ -22,6 +23,9 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      {/* After the header in the DOM on purpose: mp.css hides the bar while the
+          menu is open with a sibling selector on `.mp-header.is-menu-open`. */}
+      <MobileActionBar />
     </>
   );
 }

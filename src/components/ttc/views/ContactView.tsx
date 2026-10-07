@@ -8,6 +8,7 @@ import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
+import { whatsappHref } from '@/components/ttc/mp/ReachRow';
 
 /**
  * The proposal page. `presetService` is the raw `?service=` value — normally
@@ -26,6 +27,7 @@ import { breadcrumbLd, JsonLd } from './meta';
  */
 export function ContactView({ lang, presetService }: { lang: Lang; presetService?: string }) {
   const c = getContent(lang);
+  const waHref = whatsappHref(c);
   const p = c.contactPage;
   const u = c.ui.contactPage;
   const navLabel = c.primaryNav[4].label;
@@ -79,6 +81,16 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
                     <span className="mp-info__label">{u.phone}</span>
                     <a className="mp-info__value" href={c.contact.phone.href}>
                       {c.contact.phone.display}
+                    </a>
+                    <span className="mp-info__meta">{c.reach.reply}</span>
+                  </div>
+                ) : null}
+
+                {waHref ? (
+                  <div className="mp-info__block">
+                    <span className="mp-info__label">{c.reach.whatsapp}</span>
+                    <a className="mp-info__value" href={waHref} target="_blank" rel="noopener noreferrer">
+                      {c.reach.whatsappNotice}
                     </a>
                   </div>
                 ) : null}

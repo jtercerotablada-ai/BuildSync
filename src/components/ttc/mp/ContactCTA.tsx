@@ -11,6 +11,7 @@ import {
 } from './primitives';
 import { accentLines } from './text';
 import { useContent, useL } from './lang';
+import { ReachRow } from './ReachRow';
 
 /**
  * Closing band. Flat graphite over the plan grid, one headline, two buttons,
@@ -73,6 +74,12 @@ export function ContactCTA({
           <ButtonLink href={l(second.href)} variant="line">
             {second.label}
           </ButtonLink>
+        </Reveal>
+
+        {/* The other two ways in, and the two facts next to them: the proposal
+            is free and a reply usually comes within two hours. */}
+        <Reveal delay={0.13}>
+          <ReachRow c={c} assure className="mp-reach--close" />
         </Reveal>
 
         <AnimatedLine className="mp-rule mp-close__rule" delay={0.14} />
