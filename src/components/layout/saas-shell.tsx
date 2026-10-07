@@ -8,8 +8,8 @@ import "@/app/globals.css";
 
 /* Everything the authenticated app needs and the public site must not ship:
    Tailwind + shadcn (globals.css), Inter, the next-auth session, React Query,
-   the AI panel state and the toaster. The root layout is a bare <html><body>
-   so the marketing pages under (public) load only mp.css. Every SaaS layout
+   the AI panel state and the toaster. The root layouts are a bare <html><body>
+   so the marketing pages under (public) and (public-es) load only mp.css. Every SaaS layout
    wraps its tree in this — the (auth), (dashboard), (fullpage) and (portal)
    groups plus forms/, invite/, maintenance/ and onboarding/.
 

@@ -437,8 +437,10 @@ export function isMarketingRoute(pathname: string): boolean {
  * where a stray request is pointed: a missing entry fails closed (the apex
  * answers 404), it never leaks the route onto the public host.
  *
- * Mirrors the top-level folders of src/app, route groups flattened, (public)
- * excluded. proxy.test.ts diffs the two and fails on any drift, so adding an
+ * Mirrors the top-level folders of src/app, route groups flattened, the two
+ * marketing groups — (public) and (public-es) — excluded, and so is
+ * (app)/[...unmatched], which is not a route of its own but the app's 404
+ * for whatever matches nothing. proxy.test.ts diffs the two and fails on any drift, so adding an
  * app route folder without adding it here fails the suite.
  *
  * `projects` is shared on purpose: the bare /projects is the marketing index

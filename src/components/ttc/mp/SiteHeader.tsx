@@ -38,10 +38,11 @@ const MENU_MQ = '(max-width: 1180px)';
  * through a half-faded backing. That is a CSS decision (no background/color
  * transition on .mp-header); nothing here times it.
  *
- * Every piece of chrome carries its own `lang`. The root layout's <html
- * lang="en"> is shared with the app and only corrected by `LangHtml` after
- * hydration, and es/layout.tsx marks the page body only — so the skip link,
- * header and menu say "es" themselves, in the server HTML.
+ * Every piece of chrome carries its own `lang`. That dates from when one
+ * root layout printed <html lang="en"> for every page and es/layout.tsx
+ * marked the page body only, so the skip link, header and menu had to say
+ * "es" themselves in the server HTML. The Spanish root layout says it for
+ * the whole document now; these stay, and agree with it.
  */
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';

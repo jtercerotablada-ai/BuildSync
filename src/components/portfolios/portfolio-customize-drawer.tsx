@@ -53,7 +53,7 @@ import type {
   ColumnKey,
   ColumnDef,
   PortfolioPrivacy,
-} from "@/app/(dashboard)/portfolios/[portfolioId]/customize-shared";
+} from "@/app/(app)/(dashboard)/portfolios/[portfolioId]/customize-shared";
 
 // Curated color palette (brand golds + common hues used across BuildSync).
 const COLOR_OPTIONS = [

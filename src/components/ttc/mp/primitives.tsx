@@ -47,7 +47,7 @@ export const EASE = [0.16, 1, 0.3, 1] as const;
 /**
  * Marker class on every element a reveal animates. It carries no declaration
  * of its own: the print rule in mp.css and the <noscript> rule in
- * (public)/layout.tsx use it to force the final state — on paper for a block
+ * PublicShell.tsx use it to force the final state — on paper for a block
  * that was still parked below the fold, and as a backstop should a Motion
  * `initial` ever be put on one of these again.
  */

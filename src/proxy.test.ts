@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -465,11 +465,20 @@ describe("isRoleAgnosticUploadRequest", () => {
 });
 
 /**
+ * The two route groups that are the marketing site, one per language. Each has
+ * its own root layout so it can print its own <html lang> — see the "root
+ * layouts" suite at the end of this file. Everything else under src/app is
+ * the app.
+ */
+const MARKETING_GROUPS = ["(public)", "(public-es)"];
+
+/**
  * Read the top-level URL segments straight out of src/app.
  *
- * Route groups — (auth), (dashboard)… — and @parallel slots add no segment, so
- * their children count as top-level. _private folders are not routable. The
- * (public) group is collected separately: it is the marketing site.
+ * Route groups — (app), (auth), (dashboard)… — and @parallel slots add no
+ * segment, however deeply they nest, so their children count as top-level.
+ * _private folders are not routable. The marketing groups are collected
+ * separately.
  *
  * Same idea as reading the WorkspaceRole enum from schema.prisma above: the
  * file system is the arbiter, so a new app folder that nobody added to
@@ -484,7 +493,7 @@ function topLevelRouteSegments(): { app: string[]; marketing: string[] } {
       const name = entry.name;
       if (name.startsWith("_")) continue;
       if (/^\(.+\)$/.test(name) || name.startsWith("@")) {
-        walk(join(dir, name), name === "(public)" ? marketing : bucket);
+        walk(join(dir, name), MARKETING_GROUPS.includes(name) ? marketing : bucket);
         continue;
       }
       bucket.add(name);
@@ -494,8 +503,16 @@ function topLevelRouteSegments(): { app: string[]; marketing: string[] } {
   return { app: [...app].sort(), marketing: [...marketing].sort() };
 }
 
+/**
+ * The one dynamic folder allowed at the top level: the app's catch-all for
+ * URLs that match no route. It is not a route to list in APP_SEGMENTS — it
+ * exists only to 404 under the app's root layout — and it is pinned below.
+ */
+const UNMATCHED = "[...unmatched]";
+
 describe("APP_SEGMENTS — drift against src/app", () => {
-  const { app, marketing } = topLevelRouteSegments();
+  const { app: appFolders, marketing } = topLevelRouteSegments();
+  const app = appFolders.filter((s) => s !== UNMATCHED);
 
   it("sees a route tree that still contains the known folders", () => {
     // Guards the walker itself: one that silently found nothing would make
@@ -513,8 +530,42 @@ describe("APP_SEGMENTS — drift against src/app", () => {
   });
 
   it("has no dynamic top-level segment the list could not represent", () => {
-    // A top-level [param] folder would match every path, on both hosts.
+    // A top-level [param] folder would match every path, on both hosts. The
+    // single exception is the app's own catch-all for unmatched URLs.
     expect([...app, ...marketing].filter((s) => s.startsWith("["))).toEqual([]);
+    expect(appFolders).toContain(UNMATCHED);
+  });
+
+  it("lets the unmatched catch-all do nothing but 404", () => {
+    // With a root layout per route group there is no app-wide not-found page,
+    // so this catch-all is what gives an unknown URL the app's 404. It matches
+    // EVERY path no other route does: the day it renders anything, each of
+    // those answers 200 instead.
+    const dir = join(__dirname, "app", "(app)", UNMATCHED);
+    expect(readdirSync(dir)).toEqual(["page.tsx"]);
+    const code = readFileSync(join(dir, "page.tsx"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    expect(code).toBe(
+      'import { notFound } from "next/navigation"; export default function Page() { notFound(); }',
+    );
+    // And the screen it lands on is the app's, beside the app's root layout.
+    expect(existsSync(join(__dirname, "app", "(app)", "not-found.tsx"))).toBe(true);
+  });
+
+  it("never reaches the unmatched catch-all on the public host", () => {
+    // The marketing site has its own 404. Anything the public host does not
+    // know is answered by the proxy before routing, so the app's 404 (whose
+    // only button leads to the staff home) cannot appear there.
+    const hosts = { app: "app.example.com", public: "example.com" };
+    for (const path of ["/abuot", "/wp-login.php", "/does/not/exist", "/x.png"]) {
+      expect(hostSplitAction("example.com", path, "", hosts), path).toEqual({
+        kind: "rewrite",
+        pathname: PUBLIC_NOT_FOUND,
+        status: 404,
+      });
+    }
   });
 
   it("serves every (public) page folder as marketing on the apex", () => {
@@ -922,9 +973,9 @@ describe("proxy() — the public 404 response", () => {
 });
 
 /**
- * Every page file under src/app/(public), as a URL pattern: route groups and
- * @slots add no segment, _private folders are skipped. The file system is the
- * arbiter, as with APP_SEGMENTS above.
+ * Every page file under the marketing groups, as a URL pattern: route groups
+ * and @slots add no segment, _private folders are skipped. The file system is
+ * the arbiter, as with APP_SEGMENTS above.
  */
 function publicPageRoutes(): string[] {
   const routes: string[] = [];
@@ -939,11 +990,11 @@ function publicPageRoutes(): string[] {
       }
     }
   };
-  walk(join(__dirname, "app", "(public)"), "");
+  for (const group of MARKETING_GROUPS) walk(join(__dirname, "app", group), "");
   return routes.sort();
 }
 
-/** Files under (public) that would create a URL without being a page. */
+/** Files under the marketing groups that would create a URL without being a page. */
 function publicNonPageRouteFiles(): string[] {
   const found: string[] = [];
   const walk = (dir: string) => {
@@ -959,11 +1010,11 @@ function publicNonPageRouteFiles(): string[] {
       }
     }
   };
-  walk(join(__dirname, "app", "(public)"));
+  for (const group of MARKETING_GROUPS) walk(join(__dirname, "app", group));
   return found;
 }
 
-describe("public 404 — drift against src/app/(public)", () => {
+describe("public 404 — drift against the marketing route groups", () => {
   const routes = publicPageRoutes();
   const isCatchAll = (r: string) => r.includes("[...") || r.includes("[[...");
   const slugRoutes = ["/services/[slug]", "/es/services/[slug]"];
@@ -993,7 +1044,7 @@ describe("public 404 — drift against src/app/(public)", () => {
     expect(pages.filter((r) => !isEs(r)).sort()).toEqual([...EN_PUBLIC_PAGES].sort());
   });
 
-  it("knows exactly the Spanish pages that exist under (public)/es", () => {
+  it("knows exactly the Spanish pages that exist under (public-es)", () => {
     expect(pages.filter(isEs).sort()).toEqual([...ES_PUBLIC_PAGES].sort());
   });
 
@@ -1113,5 +1164,97 @@ describe("next.config.ts — retired URL redirects", () => {
     const source = readFileSync(join(__dirname, "proxy.ts"), "utf8");
     expect(source).not.toMatch(/pathname\s*===\s*["']\/v2["']/);
     expect(source).not.toMatch(/startsWith\(\s*["']\/v2\//);
+  });
+});
+
+/*
+ * One root layout per language. There is no src/app/layout.tsx: the app, the
+ * English site and the Spanish site are three route groups, each rendering
+ * its own <html>, so that every /es page leaves the SERVER as lang="es". With
+ * a single root the attribute was "en" for all of them and a client effect
+ * corrected it after hydration, which an SEO crawler reported as 16 pages
+ * contradicting their own hreflang.
+ *
+ * What keeps that true is where files sit, so the file system is read here,
+ * as it is for APP_SEGMENTS above.
+ */
+describe("root layouts — one <html lang> per route group", () => {
+  const appDir = join(__dirname, "app");
+  const groups = readdirSync(appDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && /^\(.+\)$/.test(e.name))
+    .map((e) => e.name)
+    .sort();
+  const htmlLang = (group: string) =>
+    readFileSync(join(appDir, group, "layout.tsx"), "utf8").match(/<html\s+lang="([^"]+)"/)?.[1];
+  /** Every page under a group, as a URL (nested groups add no segment). */
+  const pagesOf = (group: string) => {
+    const urls: string[] = [];
+    const walk = (dir: string, url: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          const grouped = /^\(.+\)$/.test(entry.name) || entry.name.startsWith("@");
+          walk(join(dir, entry.name), grouped ? url : `${url}/${entry.name}`);
+        } else if (/^page\.[jt]sx?$/.test(entry.name)) {
+          urls.push(url || "/");
+        }
+      }
+    };
+    walk(join(appDir, group), "");
+    return urls;
+  };
+  const isEs = (url: string) => url === "/es" || url.startsWith("/es/");
+
+  it("has no layout above the groups", () => {
+    // A top-level layout would be THE root layout again, and its <html> the
+    // only one: the per-group lang would stop reaching the document.
+    expect(existsSync(join(appDir, "layout.tsx"))).toBe(false);
+  });
+
+  it("has exactly the three groups, each printing its own language", () => {
+    expect(groups).toEqual(["(app)", ...MARKETING_GROUPS].sort());
+    expect(htmlLang("(app)")).toBe("en");
+    expect(htmlLang("(public)")).toBe("en");
+    expect(htmlLang("(public-es)")).toBe("es");
+  });
+
+  it("keeps every page under a root layout", () => {
+    // A page folder beside the groups has no <html> at all and fails the
+    // build; only route handlers and metadata files may live there.
+    const loose = readdirSync(appDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !groups.includes(e.name))
+      .map((e) => e.name);
+    expect(loose).toEqual(["api"]);
+    expect(readdirSync(appDir).filter((n) => /^page\.[jt]sx?$/.test(n))).toEqual([]);
+  });
+
+  it("files every Spanish page under the Spanish root, and only those", () => {
+    // The language of the document is decided by the folder, not the URL: an
+    // /es page added under (public) would silently ship as lang="en" again.
+    const es = pagesOf("(public-es)");
+    const en = pagesOf("(public)");
+    expect(es.length).toBeGreaterThan(0);
+    expect(en.length).toBeGreaterThan(0);
+    expect(es.filter((u) => !isEs(u))).toEqual([]);
+    expect(en.filter(isEs)).toEqual([]);
+    expect(pagesOf("(app)").filter(isEs)).toEqual([]);
+  });
+
+  it("gives each root layout its own error boundary", () => {
+    // error.tsx only catches below the layout it sits beside. Without one, a
+    // page failure in that group falls through to global-error.tsx.
+    for (const group of groups) {
+      expect(existsSync(join(appDir, group, "error.tsx")), group).toBe(true);
+    }
+  });
+
+  it("mounts the same shell in both marketing groups", () => {
+    // The two sites differ in <html lang> and nothing else. A layout that
+    // stopped going through PublicShell would be a copy, free to drift.
+    for (const group of MARKETING_GROUPS) {
+      const source = readFileSync(join(appDir, group, "(site)", "layout.tsx"), "utf8");
+      expect(source, group).toContain("<PublicShell>");
+      expect(source, group).toContain("export const metadata = publicMetadata");
+      expect(source, group).toContain("export const viewport = publicViewport");
+    }
   });
 });
