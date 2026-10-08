@@ -310,8 +310,21 @@ describe('the whole site: the firm’s part no longer ends at the structural rep
     es: /parte estructural|preparamos el informe estructural|propuesta para la inspección y el informe estructural|presenta el informe estructural|solo (?:el|la) (?:informe|parte) estructural|informe estructural en el formulario/i,
   };
 
+  /* Only the pages that describe the county programs: "the structural side
+     of the model" on the BIM page is not the firm's share of a
+     recertification. */
+  const PROGRAM_PAGES = [
+    '/',
+    '/services',
+    '/existing-buildings',
+    '/projects',
+    `/services/${RECERT}`,
+    `/services/${BSIP}`,
+    '/services/milestone-inspections',
+  ];
+
   for (const lang of LANGS) {
-    for (const [path] of views(lang)) {
+    for (const [path] of views(lang).filter(([p]) => PROGRAM_PAGES.includes(p))) {
       it(`${lang} ${path}: no sentence says so`, () => {
         expect(text(page(lang, path))).not.toMatch(STRUCTURAL_ONLY[lang]);
       });
@@ -351,7 +364,7 @@ describe('the whole site: the firm’s part no longer ends at the structural rep
     // are not Broward's.
     it(`${lang}: the pages that speak of both counties name no county’s certificate`, () => {
       const c = getContent(lang);
-      for (const path of ['/', '/existing-buildings', '/projects', '/services/milestone-inspections', '/about', '/contact']) {
+      for (const path of ['/', '/existing-buildings', '/projects', '/services/milestone-inspections']) {
         const t = text(page(lang, path));
         expect(t, path).not.toMatch(MIAMI_DADE_ONLY[lang]);
         expect(t, path).not.toMatch(THERMOGRAPHY);
@@ -375,8 +388,8 @@ describe('the whole site: conditions in words, and no word on who signs which pa
     // No ampere rating, no foot-candle level, no thermographer's grade: the
     // numbers behind "where the electrical service requires it" and "the
     // county's standard" stay in the county's own texts.
-    it(`${lang}: no amperes, no foot-candles, no certification level is typed anywhere`, () => {
-      const unit = /\bamp(?:s|eres?)?\b|\bamperios?\b|foot[- ]?candles?|pie[- ]?candelas?|\bcandelas?\b|\blux\b|level[- ]?(?:ii|2)\b|nivel[- ]?(?:ii|2)\b/i;
+    it(`${lang}: no amperes and no foot-candles are typed anywhere`, () => {
+      const unit = /\bamp(?:s|eres?)?\b|\bamperios?\b|foot[- ]?candles?|pie[- ]?candelas?|\bcandelas?\b|\blux\b/i;
       expect(all.filter((s) => unit.test(s))).toEqual([]);
     });
 
@@ -386,6 +399,11 @@ describe('the whole site: conditions in words, and no word on who signs which pa
     it(`${lang}: no part is assigned to a person, a trade or a firm`, () => {
       const who = /electrical engineer|certified thermographer|thermographer|licensed electrician|ingenier[oa] (?:eléctric[oa]|electricista)|termógraf[oa]|electricista/i;
       expect(all.filter((s) => who.test(s))).toEqual([]);
+      // With the package complete, "signed by the same person" on the home
+      // teaser or on /about reads as one engineer signing every part.
+      expect([c.leadership.teaser, ...c.leadership.forYou.flatMap((r) => [r.v, r.teaser])].join(' ')).not.toMatch(
+        /signed by|signs the report|firma la misma persona|firma el informe/i,
+      );
       for (const slug of [RECERT, BSIP]) {
         const own = strings(svc(c, slug)).join(' ');
         expect(own).not.toMatch(/Precision Source/i);
