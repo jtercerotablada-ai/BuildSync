@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   altPath,
   hasTranslation,
@@ -11,8 +16,11 @@ import {
   localePath,
   stripLang,
 } from '@/lib/ttc/i18n';
-import { EASE } from './primitives';
 import { refreshSearch, useContent, useLang, useSearch } from './lang';
+
+/** How long the menu's entrance has to have been on screen for a close to
+ *  be worth an exit (the panel is about nine tenths in by then). */
+const ENTRANCE_SHOWN_MS = 100;
 
 /** The burger shows at ≤1180px (mp.css); the menu has no reason to exist past it. */
 const MENU_MQ = '(max-width: 1180px)';
@@ -38,6 +46,13 @@ const MENU_MQ = '(max-width: 1180px)';
  * through a half-faded backing. That is a CSS decision (no background/color
  * transition on .mp-header); nothing here times it.
  *
+ * The menu's entrance and exit are CSS as well (mp.css, "Mobile menu"). They
+ * were Motion's `AnimatePresence`, which put the whole animation library in
+ * the script every page loads before it can paint — for a panel most visits
+ * never open. The one thing CSS cannot do alone is keep an element in the
+ * DOM while it animates OUT, so `closing` holds the panel there until its
+ * exit has played.
+ *
  * Every piece of chrome carries its own `lang`. That dates from when one
  * root layout printed <html lang="en"> for every page and es/layout.tsx
  * marked the page body only, so the skip link, header and menu had to say
@@ -49,11 +64,22 @@ export function SiteHeader() {
   const lang = useLang();
   const c = useContent();
   const search = useSearch();
-  const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
+  /* The panel is leaving: still in the DOM, playing `mp-menu-out`. Set and
+     cleared during render from `open`, like the route rule below, so every
+     way of closing — the burger, a link, Escape, a wider window, a route
+     change — gets the exit without having to ask for it. */
+  const [closing, setClosing] = useState(false);
+  const [wasOpen, setWasOpen] = useState(false);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    setClosing(!open);
+  }
   const headerRef = useRef<HTMLElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  /* When a frame first showed the open panel; null until one has. */
+  const shownAt = useRef<number | null>(null);
 
   /* Close the menu when the route changes — adjusted during render rather than
      in an effect, so there is no extra commit. */
@@ -213,13 +239,51 @@ export function SiteHeader() {
 
     return () => {
       root.style.overflow = prevOverflow;
-      lenis?.start();
+      // Read again, not the one captured above: the smooth-scroll library
+      // loads after the page does, and may have arrived (and stopped itself,
+      // seeing the menu open) since.
+      (
+        window as unknown as { __ttcLenis?: { start: () => void } }
+      ).__ttcLenis?.start();
       inerted.forEach((el) => el.removeAttribute('inert'));
       document.removeEventListener('keydown', onKeyDown);
       mq.removeEventListener('change', onMq);
       window.clearTimeout(focusTimer);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    shownAt.current = null;
+    const frame = requestAnimationFrame(() => {
+      shownAt.current = performance.now();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  /* A close that lands before the entrance has really shown — a double tap,
+     a slow phone that had not drawn the panel yet — gets no exit.
+     `mp-menu-out` starts from the fully open panel, so playing it then would
+     flash the whole menu in just to fade it away; Motion faded from wherever
+     the entrance had got to, which that early is next to nothing. Decided
+     before the browser paints, so the closing panel is never seen. */
+  useLayoutEffect(() => {
+    if (!closing) return;
+    const shown = shownAt.current;
+    if (shown === null || performance.now() - shown < ENTRANCE_SHOWN_MS) {
+      setClosing(false);
+    }
+  }, [closing]);
+
+  /* The exit normally ends on `animationend` (below). This is for the day it
+     does not fire — a tab in the background, an animation switched off by a
+     rule this file does not know about: the panel must not stay in the DOM,
+     invisible, over the page. */
+  useEffect(() => {
+    if (!closing) return;
+    const timer = window.setTimeout(() => setClosing(false), 400);
+    return () => window.clearTimeout(timer);
+  }, [closing]);
 
   const canonical = stripLang(pathname);
   const isActive = useCallback(
@@ -394,67 +458,63 @@ export function SiteHeader() {
         </div>
       </header>
 
-      <AnimatePresence>
-        {open ? (
-          <motion.div
-            id="mp-mobile-menu"
-            ref={menuRef}
-            className="mp-menu"
-            data-lenis-prevent=""
-            // A named region, not a dialog: see the menu effect above.
-            role="region"
-            aria-label={c.ui.siteMenu}
-            lang={langAttr}
-            onClick={closeOnLink}
-            initial={reduce ? false : { opacity: 0, y: -14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, y: -14 }}
-            transition={{ duration: 0.28, ease: EASE }}
-          >
-            <nav className="mp-menu__nav" aria-label={c.ui.primaryNavLabel}>
-              {headerNav.map((item, i) => (
-                <motion.span
-                  key={item.href}
-                  initial={reduce ? false : { opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.36,
-                    ease: EASE,
-                    delay: 0.04 + i * 0.04,
-                  }}
-                  style={{ display: 'block' }}
+      {open || closing ? (
+        <div
+          id="mp-mobile-menu"
+          ref={menuRef}
+          className={open ? 'mp-menu' : 'mp-menu is-closing'}
+          data-lenis-prevent=""
+          // A named region, not a dialog: see the menu effect above.
+          role="region"
+          aria-label={c.ui.siteMenu}
+          lang={langAttr}
+          // On its way out it is no longer the menu: nothing in it can be
+          // reached, and the burger no longer points at it.
+          inert={open ? undefined : true}
+          onClick={closeOnLink}
+          onAnimationEnd={(e) => {
+            // The panel's own exit, not a link's entrance bubbling up.
+            if (e.target === e.currentTarget && !open) setClosing(false);
+          }}
+        >
+          <nav className="mp-menu__nav" aria-label={c.ui.primaryNavLabel}>
+            {headerNav.map((item, i) => (
+              <span
+                key={item.href}
+                className="mp-menu__item"
+                // 40 ms apart, the first after 40 ms (mp.css has the rest).
+                style={{ animationDelay: `${40 + i * 40}ms` }}
+              >
+                <Link
+                  href={l(item.href)}
+                  aria-current={isActive(item.href) ? 'page' : undefined}
                 >
-                  <Link
-                    href={l(item.href)}
-                    aria-current={isActive(item.href) ? 'page' : undefined}
-                  >
-                    <span className="mp-menu__n" aria-hidden="true">
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    {item.label}
-                  </Link>
-                </motion.span>
-              ))}
-            </nav>
-
-            <div className="mp-menu__foot">
-              <Link href={l(c.primaryCta.href)} className="mp-btn mp-btn--solid">
-                <span>{c.primaryCta.label}</span>
-                <span className="mp-btn__arrow" aria-hidden="true">
-                  →
-                </span>
-              </Link>
-              <div className="mp-menu__lang">{langSwitch}</div>
-              <a className="mp-menu__mail" href={`mailto:${c.contact.email}`}>
-                {c.contact.email}
-              </a>
-              <span className="mp-menu__mail" style={{ opacity: 0.7 }}>
-                {c.contact.serviceAreaLabel}
+                  <span className="mp-menu__n" aria-hidden="true">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  {item.label}
+                </Link>
               </span>
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            ))}
+          </nav>
+
+          <div className="mp-menu__foot">
+            <Link href={l(c.primaryCta.href)} className="mp-btn mp-btn--solid">
+              <span>{c.primaryCta.label}</span>
+              <span className="mp-btn__arrow" aria-hidden="true">
+                →
+              </span>
+            </Link>
+            <div className="mp-menu__lang">{langSwitch}</div>
+            <a className="mp-menu__mail" href={`mailto:${c.contact.email}`}>
+              {c.contact.email}
+            </a>
+            <span className="mp-menu__mail" style={{ opacity: 0.7 }}>
+              {c.contact.serviceAreaLabel}
+            </span>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -33,12 +33,13 @@
  *      being buffered in full at hydration (4.9 MB of off-screen footage on a
  *      phone that never scrolled). Not mounting is the only reliable "not yet".
  *
- *   4. SSR SAFETY. `useReducedMotion()` returns `null` on the server but the
- *      visitor's REAL preference on the first client render, so anything that
- *      branches on it during that render ships markup React will not patch.
- *      The poster is therefore rendered unconditionally on the server and on
- *      the first client pass, and the upgrade to video happens in effects.
- *      Components that show or hide on the motion preference do it in CSS.
+ *   4. SSR SAFETY. The server cannot know the visitor's motion preference, so
+ *      anything that branched on it in the first client render would ship
+ *      markup React will not patch. The poster is therefore rendered
+ *      unconditionally on the server and on the first client pass
+ *      (`useReducedMotion`, below, says "no preference" for both), and the
+ *      upgrade to video happens in effects. Components that show or hide on
+ *      the motion preference do it in CSS.
  *
  *   5. THE VISITOR CAN STOP IT. A loop that runs longer than five seconds next
  *      to content needs a pause control (WCAG 2.2.2) — an OS reduced-motion
@@ -47,7 +48,6 @@
  */
 
 import React from 'react';
-import { useReducedMotion } from 'motion/react';
 import type { Clip, Photo } from '@/lib/ttc/media';
 import type { Lang } from '@/lib/ttc/i18n';
 import { useContent, useLang } from './lang';
@@ -65,6 +65,33 @@ const PICK: React.CSSProperties = { display: 'contents' };
 
 /** The phone breakpoint shared by the clip renditions and their posters. */
 const PHONE = '(max-width: 700px)';
+
+/** How long a clip that is due waits for a poster that will not settle. */
+const POSTER_WAIT_MS = 5000;
+
+/* ── The visitor's motion preference ─────────────────────────────────────
+   One media query, read as an external store. This used to be Motion's
+   `useReducedMotion`, which made the whole animation library part of the
+   script every page loads before it can paint — for one boolean.
+
+   The server and the hydration pass get `false`, so the first client render
+   is the server's (rule 4); React renders again with the real value right
+   after, and again whenever the visitor changes the setting. */
+const REDUCE = '(prefers-reduced-motion: reduce)';
+
+function subscribeReduce(notify: () => void) {
+  const mq = window.matchMedia(REDUCE);
+  mq.addEventListener('change', notify);
+  return () => mq.removeEventListener('change', notify);
+}
+
+function useReducedMotion(): boolean {
+  return React.useSyncExternalStore(
+    subscribeReduce,
+    () => window.matchMedia(REDUCE).matches,
+    () => false,
+  );
+}
 
 /** A photograph's or a clip's written description, in the page's language. */
 const describe = (media: { alt: string; altEs: string }, lang: Lang) =>
@@ -274,6 +301,11 @@ export function VideoLoop({
   const reduce = useReducedMotion();
   const paused = useMotionPaused();
   const posterRef = React.useRef<HTMLImageElement | null>(null);
+  // The poster file the browser actually chose from the <picture> below —
+  // AVIF or JPEG, phone or desktop. The <video> that takes the picture's
+  // place asks for that same file, so the swap never downloads a second one.
+  // Known only once the poster has loaded: see `comeDue`.
+  const chosenPoster = React.useRef<string | null>(null);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const pausedRef = React.useRef(paused);
   // What the off-screen observer last reported: null until it has reported.
@@ -297,6 +329,44 @@ export function VideoLoop({
   React.useEffect(() => {
     if (due || reduce) return;
 
+    // Its moment has come — but the <video> may only take the poster's place
+    // once the poster has SETTLED, loaded or failed. Until an image has
+    // loaded, Chromium reports no `currentSrc` for it: a <video> mounted
+    // earlier would not know which file the <picture> chose, would ask for
+    // the JPEG, and the visitor would pay for two posters. On a first visit
+    // the hero's poster is in long before `load`; this is for the visits
+    // where it is not — a client-side navigation to the page (the document
+    // is already `complete`), a fling down to a clip whose poster is lazy.
+    let offPoster: (() => void) | undefined;
+    const comeDue = () => {
+      const img = posterRef.current;
+      const go = () => {
+        if (img?.currentSrc && img.naturalWidth > 0) chosenPoster.current = img.currentSrc;
+        setDue(true);
+      };
+      if (!img || img.complete) {
+        go();
+        return;
+      }
+      let cap = 0;
+      const done = () => {
+        offPoster?.();
+        go();
+      };
+      offPoster = () => {
+        img.removeEventListener('load', done);
+        img.removeEventListener('error', done);
+        window.clearTimeout(cap);
+        offPoster = undefined;
+      };
+      img.addEventListener('load', done);
+      img.addEventListener('error', done);
+      cap = window.setTimeout(done, POSTER_WAIT_MS);
+      // A lazy poster the browser has not started on yet: start it now, so
+      // the clip keeps the lead time the observer below gave it.
+      img.loading = 'eager';
+    };
+
     if (priority) {
       // After `load`, then an idle moment: the hero stream never competes with
       // the LCP poster, the fonts or the JavaScript. Safari has no
@@ -305,9 +375,9 @@ export function VideoLoop({
       let timer: number | undefined;
       const whenIdle = () => {
         if (typeof window.requestIdleCallback === 'function') {
-          idleId = window.requestIdleCallback(() => setDue(true), { timeout: 2000 });
+          idleId = window.requestIdleCallback(comeDue, { timeout: 2000 });
         } else {
-          timer = window.setTimeout(() => setDue(true), 300);
+          timer = window.setTimeout(comeDue, 300);
         }
       };
       if (document.readyState === 'complete') whenIdle();
@@ -316,6 +386,7 @@ export function VideoLoop({
         window.removeEventListener('load', whenIdle);
         if (idleId !== undefined) window.cancelIdleCallback(idleId);
         if (timer !== undefined) window.clearTimeout(timer);
+        offPoster?.();
       };
     }
 
@@ -328,14 +399,17 @@ export function VideoLoop({
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {
-          setDue(true);
+          comeDue();
           io.disconnect();
         }
       },
       { rootMargin: '100% 0px' },
     );
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      offPoster?.();
+    };
   }, [priority, due, reduce]);
 
   // Playback START is the `autoPlay` attribute's job, not an observer's.
@@ -388,10 +462,13 @@ export function VideoLoop({
 
   if (showVideo) {
     // Client-only branch, so reading the viewport here cannot mismatch the
-    // server. The phone poster is the one the <picture> below already chose,
-    // so the swap costs no second poster download.
+    // server. The poster is the file the <picture> below already chose, so
+    // the swap costs no second poster download; if the picture never
+    // reported one — its file failed, or never settled — the JPEG for this
+    // viewport stands in.
     const poster =
-      clip.mobilePoster && window.matchMedia(PHONE).matches ? clip.mobilePoster : clip.poster;
+      chosenPoster.current ||
+      (clip.mobilePoster && window.matchMedia(PHONE).matches ? clip.mobilePoster : clip.poster);
     return (
       <video
         ref={videoRef}
@@ -427,7 +504,13 @@ export function VideoLoop({
   // nothing before and after the swap.
   return (
     <picture style={PICK}>
+      {/* First match wins: the phone frame before the wide one, and AVIF
+          before the JPEG of the same frame. */}
+      {clip.mobilePosterAvif ? (
+        <source media={PHONE} type="image/avif" srcSet={clip.mobilePosterAvif} />
+      ) : null}
       {clip.mobilePoster ? <source media={PHONE} srcSet={clip.mobilePoster} /> : null}
+      <source type="image/avif" srcSet={clip.posterAvif} />
       <img
         ref={posterRef}
         className={className}

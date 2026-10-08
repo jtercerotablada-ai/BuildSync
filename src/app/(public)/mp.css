@@ -1225,6 +1225,45 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open):has(:
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* Its entrance and exit, in CSS — the figures the Motion version had: the
+   panel comes down 14px over .28s; each link rises 12px over .36s, 40 ms
+   apart (the delay is inline, per link); closing plays the panel back up.
+   SiteHeader keeps the panel in the DOM, `.is-closing`, until this exit
+   ends. `backwards` holds the from-state through a link's delay and lets go
+   of opacity and transform once the entrance is over. */
+@keyframes mp-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+@keyframes mp-menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+@keyframes mp-menu-fade {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes mp-menu-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.mp-menu {
+  animation: mp-menu-in 0.28s var(--mp-ease) backwards;
+}
+.mp-menu.is-closing {
+  animation: mp-menu-out 0.28s var(--mp-ease) forwards;
+}
+.mp-menu__item {
+  display: block;
+  animation: mp-menu-item-in 0.36s var(--mp-ease) backwards;
+}
 .mp-menu__nav {
   display: flex;
   flex-direction: column;
@@ -5380,6 +5419,18 @@ a.mp-menu__mail {
      The extra .mp wins on specificity wherever these land. */
   .mp .mp-enter {
     animation: none;
+  }
+
+  /* The menu, as it was under Motion for these visitors: it is simply there
+     when opened — no entrance, and no link waiting out its stagger unseen —
+     and it fades, without moving, when closed. The fade keeps its length:
+     this rule is more specific than the clamp above. */
+  .mp .mp-menu,
+  .mp .mp-menu__item {
+    animation: none;
+  }
+  .mp .mp-menu.is-closing {
+    animation: mp-menu-fade 0.28s var(--mp-ease) forwards !important;
   }
 
   /* Reduced-motion loops are posters (media.tsx): nothing to pause. Hidden

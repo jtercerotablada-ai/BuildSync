@@ -421,6 +421,12 @@ export type PhotoKey = keyof typeof catalogue;
    is cropped on the frame centre. The model clip is not full-bleed — it was
    cut for a 16:9 stage — so its phone file is the same frame at 720×406.
    `VideoLoop` offers the mobile file under `(max-width: 700px)`.
+
+   POSTERS IN AVIF. The poster is what a phone downloads at high priority
+   before anything is on screen, so each one also ships as `<poster>.avif`
+   (sharp, quality 45, 4:2:0: the hero's phone frame went from 89 KB to
+   52 KB, seen through the scrim there is no telling them apart). The JPEG
+   stays as the fallback and as the frame a crawler is given.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type Clip = {
@@ -436,6 +442,9 @@ export type Clip = {
   mobile?: string;
   /** The poster matching `mobile`, same framing. */
   mobilePoster?: string;
+  /** The same two posters as AVIF, for the browsers that take it. */
+  posterAvif: string;
+  mobilePosterAvif?: string;
 };
 
 const v = (
@@ -446,6 +455,7 @@ const v = (
 ): Clip => ({
   src: `/ttc/video/${name}.mp4`,
   poster: `/ttc/video/${name}-poster.jpg`,
+  posterAvif: `/ttc/video/${name}-poster.avif`,
   alt,
   altEs,
   w: 1920,
@@ -454,6 +464,7 @@ const v = (
     ? {
         mobile: `/ttc/video/${name}-mobile.mp4`,
         mobilePoster: `/ttc/video/${name}-mobile-poster.jpg`,
+        mobilePosterAvif: `/ttc/video/${name}-mobile-poster.avif`,
       }
     : {}),
 });
