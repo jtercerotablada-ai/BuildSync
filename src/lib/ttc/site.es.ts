@@ -1453,20 +1453,16 @@ export const es: SiteContent = {
       ],
       directEmail: '¿Prefiere el correo electrónico? Escriba a',
       /* Mirror of `program` in site.ts. "Carta" throughout, the word the
-         buttons use ("Basta una foto de la carta"); the date is written in
-         the Spanish order. */
+         buttons use ("Basta una foto de la carta"). */
       program: {
         attachments: 'Suba la foto de la carta',
         attachmentsHint:
           'Basta una foto de la carta tomada con el teléfono; un PDF también sirve. Hasta cinco archivos de 25 MB cada uno.',
         location: 'Dirección del edificio',
         locationPlaceholder: 'Calle, número y ciudad',
-        noticeDate: 'Fecha de la carta',
-        noticeDatePlaceholder: 'Día, mes y año',
-        stories: 'Número de pisos',
-        message: 'Cuéntenos de su edificio',
+        message: 'Comentarios',
         messagePlaceholder:
-          'Qué tipo de edificio es y qué le ha pedido la ciudad o el condado. ¿Aún no tiene la carta? Indíquenos la antigüedad del edificio.',
+          'Lo que quiera que sepamos. ¿Aún no tiene la carta? Indíquenos la antigüedad del edificio.',
       },
       errors: {
         name: 'Por favor, ingrese su nombre',
@@ -1985,7 +1981,7 @@ export const es: SiteContent = {
       sub: 'Qué recopilamos a través de este sitio web, por qué lo recopilamos y qué hacemos con ello.',
       sections: [
         { h: 'Qué recopilamos', p: [
-          `${ADS.on ? privacyAds.collect : 'La'} única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta — y, cuando envía una notificación, su fecha y el número de pisos si usted los indica. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.`,
+          `${ADS.on ? privacyAds.collect : 'La'} única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.`,
           'El formulario no pide datos de pago, números de identificación personal (por ejemplo, el del Seguro Social o el de la licencia de conducir) ni contraseñas, y una propuesta no los necesita. Le pedimos que no los incluya en la descripción ni en los archivos que adjunte.',
         ] },
         { h: 'Por qué la recopilamos', p: 'La usamos para responder a su solicitud y para entender el alcance de ingeniería sobre el que pregunta. No la vendemos, alquilamos ni compartimos con fines publicitarios.' },

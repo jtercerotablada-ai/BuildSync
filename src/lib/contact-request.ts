@@ -39,9 +39,6 @@ export function descriptionRequired(option: string, attached: number): boolean {
   return !(isProgramOption(option) && attached > 0);
 }
 
-/** Caps of the two optional notice fields; the inputs' maxLength mirrors them. */
-export const NOTICE_DATE_MAX = 40;
-export const STORIES_MAX = 20;
 /** Cap of each line of a request's source. */
 export const SOURCE_MAX = 300;
 

@@ -11,8 +11,6 @@ import {
   type ContactAttachment,
 } from '@/lib/contact-attachments';
 import {
-  NOTICE_DATE_MAX,
-  STORIES_MAX,
   descriptionRequired,
   isProgramOption,
   requestSource,
@@ -30,9 +28,6 @@ type Fields = {
   location: string;
   service: string;
   message: string;
-  /** County programs only (see `program` below); both optional. */
-  noticeDate: string;
-  stories: string;
 };
 
 const EMPTY: Fields = {
@@ -43,8 +38,6 @@ const EMPTY: Fields = {
   location: '',
   service: '',
   message: '',
-  noticeDate: '',
-  stories: '',
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -201,10 +194,11 @@ function reveal(block: HTMLElement | null, focusTarget: HTMLElement | null = blo
  * The two county programs differ, because every button that opens the form
  * for one of them says "a phone photo of the letter is enough":
  *   • `program` — a county program is SELECTED. The labels speak of a notice
- *     and a building, two optional fields appear (date on the notice, number
- *     of stories), and the description is optional once a file has finished
- *     uploading. It follows the dropdown, so a visitor who came in through
- *     the menu and picks a program gets the same rules.
+ *     and a building, the description is called "Comments" and is optional
+ *     once a file has finished uploading. Nothing else is asked: the letter
+ *     carries its date, the folio and the address, and the rest is on the
+ *     county's property records. It follows the dropdown, so a visitor who
+ *     came in through the menu and picks a program gets the same rules.
  *   • `noticeFirst` — the form was OPENED with a program preselected. The
  *     upload is then the first control, and mp.css shortens the page above
  *     it (the `data-mp-notice-first` mark). Fixed for the life of the form:
@@ -538,10 +532,6 @@ export function ContactForm({ presetService }: { presetService?: string }) {
           location: f.location.trim(),
           service: f.service,
           message: f.message.trim(),
-          // The two notice fields exist only while a county program is
-          // selected; what was typed before switching away is not sent.
-          noticeDate: (isProgramOption(f.service) && f.noticeDate.trim()) || null,
-          stories: (isProgramOption(f.service) && f.stories.trim()) || null,
           lang,
           files: files.length ? files : null,
           ...arrival(),
@@ -782,13 +772,6 @@ export function ContactForm({ presetService }: { presetService?: string }) {
           </div>
           <Field id="mp-location" name="location" label={program ? t.program.location : t.location} value={f.location} onChange={set('location')} error={errors.location} placeholder={program ? t.program.locationPlaceholder : t.locationPlaceholder} autoComplete={program ? 'street-address' : 'address-level2'} autoCapitalize="words" maxLength={160} required />
         </div>
-
-        {program ? (
-          <div className="mp-form__row">
-            <Field id="mp-notice-date" name="noticeDate" label={t.program.noticeDate} optional optionalLabel={t.optional} value={f.noticeDate} onChange={set('noticeDate')} placeholder={t.program.noticeDatePlaceholder} autoComplete="off" maxLength={NOTICE_DATE_MAX} />
-            <Field id="mp-stories" name="stories" label={t.program.stories} optional optionalLabel={t.optional} inputMode="numeric" value={f.stories} onChange={set('stories')} autoComplete="off" maxLength={STORIES_MAX} />
-          </div>
-        ) : null}
 
         <div className="mp-field" data-invalid={messageError ? 'true' : undefined}>
           <label className="mp-field__label" htmlFor="mp-message">

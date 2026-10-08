@@ -12,9 +12,7 @@ import {
   isContactFileAllowed,
 } from "@/lib/contact-attachments";
 import {
-  NOTICE_DATE_MAX,
   SOURCE_MAX,
-  STORIES_MAX,
   descriptionRequired,
   oneLine,
 } from "@/lib/contact-request";
@@ -86,10 +84,6 @@ const contactFields = z.object({
   service: z.string().trim().min(1, "Service is required").max(120),
   // May arrive empty — whether that is acceptable is decided below.
   message: z.string().trim().max(5000),
-  // County programs only, both optional: what the letter says and how tall
-  // the building is.
-  noticeDate: z.string().trim().max(NOTICE_DATE_MAX).nullable().optional(),
-  stories: z.string().trim().max(STORIES_MAX).nullable().optional(),
   lang: z.enum(["en", "es"]).optional().default("en"),
   files: z.array(attachmentSchema).max(CONTACT_MAX_FILES).nullable().optional(),
   landing: sourceLine,
@@ -182,8 +176,6 @@ export async function POST(request: Request) {
     const { name, email, phone, company, location, service, lang, landing, referrer } =
       parsed.data;
     const message = parsed.data.message || NO_DESCRIPTION;
-    const noticeDate = oneLine(parsed.data.noticeDate ?? "", NOTICE_DATE_MAX);
-    const stories = oneLine(parsed.data.stories ?? "", STORIES_MAX);
 
     if (!ALLOWED_SERVICES.has(service)) {
       return NextResponse.json(
@@ -208,14 +200,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // The schema has no column for company/location/language, the two notice
-    // fields or the request's source; they ride in the message body under a
-    // divider so the inbox shows everything.
+    // The schema has no column for company/location/language or the
+    // request's source; they ride in the message body under a divider so the
+    // inbox shows everything.
     const extras = [
       `Project location: ${location}`,
       company ? `Company / association: ${company}` : null,
-      noticeDate ? `Date on the notice: ${noticeDate}` : null,
-      stories ? `Number of stories: ${stories}` : null,
       `Language: ${lang}`,
       landing ? `Arrived on: ${landing}` : null,
       referrer ? `Referred by: ${referrer}` : null,
@@ -259,8 +249,6 @@ export async function POST(request: Request) {
             ${company ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Company</td><td style="padding:6px 0">${escapeHtml(company)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#62655f;font-weight:600">Service</td><td style="padding:6px 0">${escapeHtml(service)}</td></tr>
             <tr><td style="padding:6px 0;color:#62655f;font-weight:600">Location</td><td style="padding:6px 0">${escapeHtml(location)}</td></tr>
-            ${noticeDate ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Notice date</td><td style="padding:6px 0">${escapeHtml(noticeDate)}</td></tr>` : ""}
-            ${stories ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Stories</td><td style="padding:6px 0">${escapeHtml(stories)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#62655f;font-weight:600">Language</td><td style="padding:6px 0">${lang}</td></tr>
             ${landing ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Arrived on</td><td style="padding:6px 0">${escapeHtml(landing)}</td></tr>` : ""}
             ${referrer ? `<tr><td style="padding:6px 0;color:#62655f;font-weight:600">Referred by</td><td style="padding:6px 0">${escapeHtml(referrer)}</td></tr>` : ""}

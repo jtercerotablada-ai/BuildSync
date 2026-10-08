@@ -492,8 +492,10 @@ export const ui = {
        comes first, the building is a building and not a "project", and the
        description stops being required once a file has uploaded (the rule is
        descriptionRequired in contact-request.ts; the route applies it too).
-       The date and the number of stories are what the engineer needs first
-       and are both optional. Design services keep the labels above.
+       Nothing else is asked: the letter carries its date, the folio and the
+       address, and the engineer reads the rest on the county's property
+       records — the fewer boxes, the more owners finish the form. So the
+       description is "Comments". Design services keep the labels above.
        No age, day count or deadline here — those live in each county's
        timing row and nowhere else. */
     program: {
@@ -502,12 +504,9 @@ export const ui = {
         'A phone photo of the letter is enough; a PDF works too. Up to five files, 25 MB each.',
       location: 'Building address',
       locationPlaceholder: 'Street address and city',
-      noticeDate: 'Date on the notice',
-      noticeDatePlaceholder: 'Month, day and year',
-      stories: 'Number of stories',
-      message: 'Tell us about the building',
+      message: 'Comments',
       messagePlaceholder:
-        'What kind of building it is and what the city or the county has asked for. No notice yet? Tell us how old the building is.',
+        'Anything you want us to know. No notice yet? Tell us how old the building is.',
     },
     errors: {
       name: 'Please enter your name',
@@ -3082,7 +3081,7 @@ export const legal = {
     sub: 'What we collect through this website, why we collect it, and what we do with it.',
     sections: [
       { h: 'What we collect', p: [
-        `${ADS.on ? privacyAds.collect : 'The only'} personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.`,
+        `${ADS.on ? privacyAds.collect : 'The only'} personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.`,
         'The form does not ask for payment details, personal identification numbers (a Social Security or driver’s license number, for example) or passwords, and a proposal does not need them. Please leave them out of your description and of the files you attach.',
       ] },
       { h: 'Why we collect it', p: 'We use it to respond to your request and to understand the engineering scope you are asking about. We do not sell it, rent it, or share it for advertising.' },

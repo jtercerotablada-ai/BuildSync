@@ -156,31 +156,28 @@ describe("a description, when the visitor writes one", () => {
   });
 });
 
-describe("the two notice fields", () => {
-  it("ride under the message and reach the office", async () => {
-    const res = await post({ ...BASE, noticeDate: " the 3rd of last month ", stories: "4" });
+// The form used to ask for the date on the notice and the number of stories.
+// It no longer does (the letter carries the date; the rest is on the county's
+// property records), and the Privacy page no longer lists them. A page loaded
+// before that change may still send them: the request goes through, and
+// neither value is stored or shown to anyone.
+describe("the two fields the form no longer has", () => {
+  it("are ignored: not stored, not sent to the office, and no reason to refuse the request", async () => {
+    const res = await post({ ...BASE, noticeDate: "the 3rd of last month", stories: "17 floors" });
     expect(res.status).toBe(201);
-    expect(db.rows[0].message).toContain("\nDate on the notice: the 3rd of last month\n");
-    expect(db.rows[0].message).toContain("\nNumber of stories: 4\n");
-    expect(office()?.html).toContain("the 3rd of last month");
+    for (const s of ["Date on the notice", "Number of stories", "the 3rd of last month", "17 floors"]) {
+      expect(db.rows[0].message).not.toContain(s);
+      expect(office()?.html).not.toContain(s);
+    }
+    // Whatever their length or shape: the keys are not read at all.
+    const odd = await post({ ...BASE, noticeDate: "x".repeat(5000), stories: { not: "a string" } });
+    expect(odd.status).toBe(201);
   });
 
-  it("are left out when empty", async () => {
-    await post({ ...BASE, noticeDate: "", stories: null });
-    expect(db.rows[0].message).not.toContain("Date on the notice");
-    expect(db.rows[0].message).not.toContain("Number of stories");
-  });
-
-  it("cannot forge another line of the stored request", async () => {
+  it("cannot forge a line of the stored request", async () => {
     const res = await post({ ...BASE, stories: "4\nLanguage: zz" });
     expect(res.status).toBe(201);
-    expect(db.rows[0].message).toContain("\nNumber of stories: 4 Language: zz\n");
-    expect(db.rows[0].message).not.toContain("\nLanguage: zz");
-  });
-
-  it("are refused past the length the inputs allow", async () => {
-    const res = await post({ ...BASE, noticeDate: "x".repeat(41) });
-    expect(res.status).toBe(400);
+    expect(db.rows[0].message).not.toContain("Language: zz");
   });
 });
 
@@ -222,8 +219,6 @@ describe("the confirmation sent to the address the visitor typed", () => {
     const res = await post({
       ...BASE,
       message: "Please wire the retainer to account 12345.",
-      noticeDate: "the 3rd of last month",
-      stories: "17 floors",
       landing: "/landing-marker",
       referrer: "https://referrer-marker.example/",
     });
@@ -232,8 +227,6 @@ describe("the confirmation sent to the address the visitor typed", () => {
     const html = confirmation()!.html;
     for (const s of [
       "wire the retainer",
-      "the 3rd of last month",
-      "17 floors",
       "/landing-marker",
       "referrer-marker",
       BASE.location,
