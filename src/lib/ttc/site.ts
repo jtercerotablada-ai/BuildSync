@@ -47,6 +47,38 @@
  *     threshold buildings (over three stories or 50 feet). That both programs
  *     cover structural and electrical is still said where the programs are
  *     described (the ledes, the timing rows and the questions).
+ *   • The site DOES say that one team delivers the COMPLETE package — the
+ *     owner's decision (October 7, 2026). Asked whether the firm does only
+ *     the structural part of a recertification, he answered "es completo que
+ *     hacemos nosotros" and listed it: structural, electrical, parking lot
+ *     illumination, thermography, parking lot guardrail. Until that day
+ *     every page said the firm's part was "the structural side" and "the
+ *     structural report". Do not "correct" it back. What the package IS
+ *     differs by county, and was read at the primary sources that day:
+ *       – Miami-Dade: the structural report and the electrical report on the
+ *         county's forms; an infrared thermography report attached to the
+ *         electrical one, ONLY where the building's electrical service
+ *         requires it (it is not a fifth certificate); the county's two
+ *         parking-lot certifications, illumination and guardrails; a cover
+ *         letter; photographs; and a site plan or survey where a property
+ *         has more than one building.
+ *       – Broward: ONE written report, with the Board's structural form, its
+ *         electrical form and color photographs. The Board's current policy
+ *         asks for no thermography and no parking-lot certificate, and
+ *         guardrails and parking garages are items of the structural
+ *         inspection. Never print Miami-Dade's certificates on a Broward
+ *         page.
+ *     Each program's page lays its own package out in `packet`. Where a page
+ *     speaks of both counties at once it says "the complete package each
+ *     county asks for", never one list for both. What the first rule above
+ *     forbids is still forbidden: who prepares, signs or seals which part; a
+ *     split of the work between the firm and Precision Source; a credential
+ *     the site does not show (no "electrical engineer", no "certified
+ *     thermographer"). And never: a number for a condition (amperes,
+ *     foot-candles, a distance), "required for every building" where the
+ *     source says "where applicable", or "complete" as a promise that a
+ *     building will be recertified — a complete package is not a closed
+ *     recertification, and each page says so under "Good to know".
  */
 
 import { photo, video, type Photo, type Clip } from './media';
@@ -903,6 +935,39 @@ export type Service = {
     /** Text link → /services/<slug>. */
     detail: string;
   };
+  /**
+   * THE COMPLETE PACKAGE, PART BY PART — the two county programs only.
+   * The one place on a program's page that lays out everything that county
+   * asks for with the filing, and that the team delivers: one row per part,
+   * its name and ONE plain sentence on what it is and when it applies.
+   * Rendered under the two columns of "Scope & deliverables", right after
+   * "What you receive" (ServiceDetailView): a definition list, and its
+   * `label` a <p>. NOT headings — the page stands at its ceiling of 23
+   * (pages.test.ts), and a part of a packet is not a section of the page.
+   *
+   * What a row may and may not say (the owner's decision of October 7, 2026
+   * and the sources read that day; the header of this file has both):
+   *   • Only parts verified for THIS county. Miami-Dade's parking-lot
+   *     certificates and its thermography rule are never printed on the
+   *     Broward page (complete-package.test.ts).
+   *   • A conditional part states its condition in words — "where the
+   *     building's electrical service requires it", "where it applies" —
+   *     and never as a number: no amperes, no foot-candles, no distance.
+   *   • What a certificate RECORDS, never that a building passes: the
+   *     illumination form says the levels meet the standard or do not, and
+   *     the guardrail form says whether the lot is beside water at all.
+   *   • Nothing about who prepares, signs or seals a part, and no split
+   *     between the firm and Precision Source: "our team", "one team".
+   *   • `note` says what is true of the whole list and of no single row.
+   * The two programs share no row (programs.test.ts), and the Spanish
+   * mirror has the same rows in the same order.
+   */
+  packet?: {
+    label: string;
+    lede: string;
+    parts: { k: string; v: string }[];
+    note: string;
+  };
   seo: { title: string; description: string; keywords: string[] };
 };
 
@@ -939,26 +1004,36 @@ export const services: Service[] = [
     coverage: 'Miami-Dade County, Florida',
     areaServed: ['Miami-Dade County, Florida'],
     summary:
-      'A clear path from the Miami-Dade notice to a closed recertification — inspection, the structural report on the county’s form, repair scope, reinspection.',
+      'One team for the complete Miami-Dade recertification, from the notice to the amended report that closes it — the structural report, the electrical report and the certificates the county asks for with them.',
     card: {
       when: 'The notice has arrived, a courtesy notice says it is coming, or an earlier recertification is still open.',
-      receive: 'The structural report on Miami-Dade’s form, a photographic record and, where repairs are needed, the repair scope in writing.',
+      receive: 'Every report and certificate Miami-Dade asks for — structural, electrical and, where they apply, thermography and the parking-lot certificates — plus the repair scope where one is needed.',
       next: 'Start with the notice — a photo from your phone will do — or, if there is none yet, with the address and the year built.',
     },
     /* The first words under the H1 are the name most owners still use, so a
        visitor who searched "40-year recertification" knows this is the page.
-       A name, never a trigger, and no number. The second sentence is the
-       opening of the home section's own lede (`program.lede`), and leads
-       into the button under it. Two short sentences on purpose: this line
-       is SHORTER than `summary`, which it replaces here, so the button sits
-       higher on a phone's first screen, not lower. */
+       A name, never a trigger, and no number. Then what the owner asked
+       the first screen to say (October 7, 2026): one team delivers it
+       COMPLETE, and what that is in three words.
+
+       MEASURE BEFORE LENGTHENING IT. The line sits between the H1 and the
+       button, and every line of it pushes that button down a phone's first
+       screen. It used to end "Send us the notice from your city or the
+       county."; that sentence went, because the button right under it says
+       "Send the Miami-Dade Notice" and with it the line ran six lines at
+       390px where the old one ran three. As written it is four lines at
+       360 and 390px (one more than before, 29px) and the same four as
+       before at 320px. */
     heroSub:
-      'The inspection most owners still call the 40-year recertification. Send us the notice from your city or the county.',
+      'Most owners still call it the 40-year recertification. One team delivers it complete: structural, electrical and the county’s certificates.',
     /* The page's own h2s, in the words a board searches with ("who has to
        recertify in Miami-Dade"). The ages and the day counts they lead to
        are in the row, never in the heading. */
     headings: {
-      whatsIncluded: 'What a Miami-Dade recertification inspection includes',
+      /* "…includes in Miami-Dade", the county last: with "Miami-Dade" in
+         the middle the balanced heading broke inside the name, at its
+         hyphen ("Miami-" / "Dade"). */
+      whatsIncluded: 'What a complete recertification includes in Miami-Dade',
       whenItApplies: 'Who has to recertify in Miami-Dade, and when',
       howItRuns: 'How a recertification runs, step by step',
       faq: 'Questions boards ask about Miami-Dade recertification',
@@ -968,9 +1043,11 @@ export const services: Service[] = [
     /* Opens by saying what a recertification IS — the page assumed the
        reader knew (the Broward page always had this sentence). And "a
        structural engineer", once: it is the trade a board searches for, and
-       the body of the page never said it. */
+       the body of the page never said it. The last sentence used to end
+       "…can carry the structural side of it": since October 7, 2026 it
+       says the team delivers the whole of it (the header has the decision). */
     problem:
-      'Building recertification is Miami-Dade County’s periodic safety inspection of older buildings, structural and electrical, reported in writing to your Building Official. The Notice of Required Inspection comes with forms and very little explanation of what actually has to happen. Boards and owners need a structural engineer who knows the county’s sequence and can carry the structural side of it from the first site visit to the report that closes the recertification.',
+      'Building recertification is Miami-Dade County’s periodic safety inspection of older buildings, structural and electrical, reported in writing to your Building Official. The Notice of Required Inspection comes with forms and very little explanation of what actually has to happen. Boards and owners need a structural engineer whose team knows the county’s sequence and delivers the whole of it — the structural report, the electrical report and the certificates that go with them — from the first site visit to the report that closes the recertification.',
     audience: [
       'Condominium, cooperative and homeowner associations',
       'Property managers',
@@ -981,7 +1058,7 @@ export const services: Service[] = [
       'A previous report listed repairs and the recertification is still open.',
       'You are buying or managing a Miami-Dade building and want to know where it stands in the recertification cycle.',
     ],
-    capabilities: ['Notice review', 'Structural inspection', 'Report on the county’s form', 'Repair scope', 'Reinspection'],
+    capabilities: ['Notice review', 'Structural & electrical inspection', 'Thermography, where required', 'Parking-lot certificates', 'Reports on the county’s forms', 'Repair scope', 'Reinspection'],
     /* Scope = work the engineer does; deliverables = documents the client
        keeps. Four of six scope lines used to restate a deliverable. */
     /* Three of these lines were word for word the Broward page's. Each page
@@ -991,31 +1068,36 @@ export const services: Service[] = [
     scope: [
       'Review of the notice from your city or the county, the building’s records and prior reports',
       'Structural inspection on site — frame, slabs, balconies, facade, roof and foundations',
+      'Electrical inspection on site — the service, the meter and electric rooms, panels, wiring and grounding, emergency lighting, exit signs and the fire alarm',
+      'Infrared thermography of the electrical equipment, where the building’s electrical service requires it',
+      'Light levels measured in the parking lot that serves the building, and the lot inspected for the county’s guardrail certification',
       'Classification of observed conditions by structural significance, for the recertification report',
       'Repair scope that states what has to be corrected, so contractors bid the same work',
       'Reinspection of completed repairs',
-      'Answers to the reviewing office’s questions on the structural report',
+      'Answers to the reviewing office’s questions on the reports',
     ],
     /* The county's order, not the order the site used to publish: file the
        report first (even if it lists repairs), repair under permit, close
        with an amended report. Same six labels as the Broward page. */
     process: [
       { step: 'Notice review', detail: 'We read the notice and the building’s history, and confirm what the Building Official is asking for and by when.' },
-      { step: 'Inspection', detail: 'Structural inspection on site — frame, slabs, balconies, facade, roof and exposed foundations — documented with photographs tied to their locations.' },
-      { step: 'Report filed', detail: 'The structural report goes on the county’s own form, signed and sealed, and is filed even when it lists repairs. The county asks for the report first, not after the work.' },
+      { step: 'Inspection', detail: 'Structural and electrical inspection on site — the frame, slabs, balconies, facade, roof and exposed foundations, and the building’s electrical systems — documented with photographs tied to their locations. Thermography and the parking-lot measurements are done where they apply.' },
+      { step: 'Report filed', detail: 'The structural and electrical reports go on the county’s own forms, signed and sealed, with the certificates and attachments your building needs, and are filed even when they list repairs. The county asks for the reports first, not after the work.' },
       { step: 'Repairs under permit', detail: 'Where repairs are needed, we define what has to be corrected so contractors bid the same work. Repairs that need a permit wait for it, then follow its schedule.' },
       { step: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings.' },
       { step: 'Close-out', detail: 'An amended report states that the repairs are complete. That is what closes the recertification, until the next cycle.' },
     ],
+    /* The first line is the whole package, named once; its parts, each with
+       what it is and when it applies, are `packet`, printed right under
+       this list. The photographs are one of those parts. */
     deliverables: [
-      'Structural recertification report on the county’s own form, signed and sealed',
-      'Photographic record of observed conditions',
-      'Written repair scope, where the report lists repairs',
+      'The complete recertification package for your building, signed and sealed: the structural and electrical reports on the county’s own forms, with the certificates and attachments set out below',
+      'Written repair scope, where the reports list repairs',
       'Letter on whether the building can remain occupied during repairs, where required',
       'Amended report after repairs',
     ],
     nextStep:
-      'Send the notice — a phone photo is enough — or the address and the year built. We confirm what your Building Official is asking for and reply with a proposal for the inspection and the structural report.',
+      'Send the notice — a phone photo is enough — or the address and the year built. We confirm what your Building Official is asking for and reply with a proposal for the complete recertification: every report and certificate your building needs.',
     timing: {
       checked: regulatoryChecked,
       /* This note used to say recertification and the state milestone
@@ -1119,7 +1201,18 @@ export const services: Service[] = [
       },
       {
         q: 'We received a Miami-Dade recertification notice. What do we do first?',
-        a: 'Send it to us — a phone photo of the letter is enough. We read the notice and the building’s history, confirm what your Building Official is asking for and by when, and reply with a proposal for the inspection and the structural report. In a condominium or cooperative of three habitable stories or more, the board also has duties to unit owners: see “What the board must do” above.',
+        a: 'Send it to us — a phone photo of the letter is enough. We read the notice and the building’s history, confirm what your Building Official is asking for and by when, and reply with a proposal for the complete recertification, not only its structural report. In a condominium or cooperative of three habitable stories or more, the board also has duties to unit owners: see “What the board must do” above.',
+      },
+      {
+        /* The owner's answer of October 7, 2026, as the question a board
+           types. It took the place of "Who do we file the recertification
+           report with?" — the page is at its ceiling of 23 headings, and
+           that answer is said twice more, in the note beside the table and
+           under "Who sent your notice?". Thermography carries its condition
+           in words, the parking-lot certifications theirs ("where they
+           apply"), and no part is said to be due for every building. */
+        q: 'Does a Miami-Dade recertification include the electrical report, thermography and the parking-lot certificates?',
+        a: 'Yes. The county asks for more than a structural report: an electrical report as well, an infrared thermography inspection where the building’s electrical service requires it, and its two parking-lot certifications, for illumination and for guardrails, where they apply. One team delivers all of it, so the board makes one call. Each part, and when it applies, is set out in the package list above.',
       },
       {
         q: 'How long do we have to recertify in Miami-Dade?',
@@ -1152,10 +1245,6 @@ export const services: Service[] = [
         a: 'For condominium and cooperative buildings of three habitable stories or more, the recertification report serves as the state milestone inspection, and no separate milestone report is filed. What state law adds for those buildings is the board’s duties to unit owners, listed under “What the board must do” above. Other buildings are outside the milestone law and answer only to the county’s program.',
       },
       {
-        q: 'Who do we file the recertification report with?',
-        a: 'With the office that sent the notice: the Building Official of your city, or the county in unincorporated areas. Each city runs its own notices and filing, and may have its own forms. Questions about a notice go to the office that sent it, and we read your city’s letter first.',
-      },
-      {
         q: 'What if the recertification report lists repairs?',
         a: 'The report is filed anyway: the county asks for it first, not after the work. Where repairs are needed, we define what has to be corrected so contractors bid the same work; repairs that need a permit wait for it, and an amended report stating that the repairs are complete closes the recertification. The time allowed is in the “If repairs are needed” row above.',
       },
@@ -1186,7 +1275,12 @@ export const services: Service[] = [
       /* Threshold buildings: neutral on purpose. It states the county's rule
          and what we do about it; it claims no credential either way. */
       'Buildings over three stories or 50 feet are “threshold buildings”, and their structural report must come from an engineer with the additional qualifications Miami-Dade County requires. We confirm this for your building before we propose.',
-      'The structural and electrical reports go on the county’s own forms; a firm’s own form is not accepted. The county’s packet also includes certificates for parking-lot illumination and, where a lot is next to water, guardrails.',
+      'Only the county’s own forms are accepted for the structural and electrical reports — a firm’s own form is not — and each building on a property is reported separately.',
+      /* What the two parking-lot forms ARE: a measurement and a finding, on
+         the county's own sheets. Never "we certify that the lot complies". */
+      'The parking-lot certifications record what was measured and found, not a promise that a lot passes: light levels that meet the county’s standard or do not, and whether a lot beside water has the guardrail the county requires. Where a guardrail is missing, the owner needs a permit to install one.',
+      /* "Complete" is the package, never the outcome — see the header. */
+      'A complete package is not yet a closed recertification. Where the reports list repairs, they are made under permit first, and the amended report is what closes it.',
       'The Building Official may grant an extension of up to 60 days to file the report or to obtain permits, on a signed and sealed request from the engineer stating that the building can remain occupied.',
       'The amended report that closes a recertification comes from the engineer or architect who filed the original report. If another firm filed yours, say so when you write — we confirm what closing it will take before we propose.',
       'A condition that puts life or property in danger is reported to the owner and to the Building Official of your city, or of the county in unincorporated areas; the engineer has a duty to do so.',
@@ -1238,6 +1332,41 @@ export const services: Service[] = [
       },
       checked: officeLinksChecked,
     },
+    /* THE MIAMI-DADE PACKAGE. Read on October 7, 2026 at the county's
+       recertification page, its upload guidelines (the packet's file list),
+       the two report forms and the two parking-lot forms in force, the
+       Board of Rules and Appeals' guidelines and Chapter 8C of the county
+       code. What each row is careful about:
+         • Thermography is an inspection whose written report is ATTACHED to
+           the electrical report — not a certificate of its own — and it is
+           conditional. The condition is a size of electrical service: said
+           in words, never as the number.
+         • Illumination: the county says "applicable"; the form reports
+           measured levels and that they meet the standard OR DO NOT.
+         • Guardrails: the form records, either way, whether the lot is
+           beside water, and only then whether the guardrail is there.
+         • The county's list is the county's. A city may ask for a different
+           set (`note`), and no city's is stated here.
+       Left out on purpose: the letter of qualifications that goes with a
+       threshold building's structural report (it would say who signs —
+       the neutral sentence under "Good to know" covers it), the county's
+       review fee (no fees on this site) and structural glazing, which has
+       a recertification of its own. */
+    packet: {
+      label: 'The Miami-Dade package, part by part',
+      lede: 'What the county asks for with a recertification, and what our team delivers for your building. Some parts go in for every building; others only where the condition beside them is met.',
+      parts: [
+        { k: 'Structural report', v: 'The condition of the structure — foundations, frame, slabs, balconies, facade and roof — on the county’s structural form. Every building in the program files one.' },
+        { k: 'Electrical report', v: 'The general condition of the building’s electrical systems, on the county’s electrical form. Every building in the program files one, as a file of its own.' },
+        { k: 'Infrared thermography', v: 'An infrared inspection of the electrical equipment, with a written report that is attached to the electrical report. It applies where the building’s electrical service requires it, and never to the panels inside the units.' },
+        { k: 'Parking-lot illumination certificate', v: 'The light levels measured in the parking lot that serves the building, and whether they meet the county’s standard for that type of building. Filed with the package where it applies.' },
+        { k: 'Parking-lot guardrail certificate', v: 'The county’s form on whether the parking lot is next to a canal, a lake or another body of water and, if it is, whether parked vehicles are protected by the guardrail the county requires.' },
+        { k: 'Cover letter', v: 'A letter that goes with each report and states its conclusion on the building’s continued occupancy.' },
+        { k: 'Photographs', v: 'The photographs the county’s forms call for: the conditions each report describes, and every elevation of the building.' },
+        { k: 'Site plan or survey', v: 'An aerial view that identifies the building goes with every structural report. Where a property has more than one building, a site plan or a copy of a survey shows which one the reports are for.' },
+      ],
+      note: 'Each city runs its own filing and may ask for a different set than the county’s list. We read your city’s letter first, and propose the package it asks for.',
+    },
     alsoCalled: ['40-Year Recertification', 'Building Recertification'],
     crossLink: { text: 'Building in Broward?', label: 'See the BSIP', slug: 'broward-bsip' },
     program: {
@@ -1248,7 +1377,7 @@ export const services: Service[] = [
          "90 days" must always equal the row's "Time to file". */
       titleLines: ['Miami-Dade recertification.', '90 days from the notice.'],
       accentWord: '90 days',
-      lede: 'Miami-Dade’s recertification reaches almost every building other than single-family homes and duplexes. Send us the notice from your city or the county: we inspect the building, prepare the structural report on the county’s own form, and stay through repairs to the amended report that closes it.',
+      lede: 'Miami-Dade’s recertification reaches almost every building other than single-family homes and duplexes. Send us the notice from your city or the county: one team delivers the complete package — the structural and electrical reports on the county’s forms and the certificates that go with them — and stays through repairs to the amended report that closes it.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Miami-Dade Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year built.',
@@ -1267,9 +1396,13 @@ export const services: Service[] = [
        it 687 px of the 580 a search result shows (seo.ts has the rule). */
     seo: {
       title: 'Miami-Dade Building Recertification (formerly 40-Year)',
+      /* The description used to end "a Florida P.E. inspects and files on
+         the county's form" — one person and one form. It now says what the
+         page says: the complete package, with the parts people search for
+         by name, and thermography with its condition. */
       description:
-        'Miami-Dade building recertification, still called the 40-year recertification. Send your notice: a Florida P.E. inspects and files on the county’s form.',
-      keywords: ['building recertification Miami-Dade', 'Miami-Dade recertification engineer', '40 year recertification Miami', '30 year recertification Miami', 'condo recertification Miami', 'structural recertification report'],
+        'Complete Miami-Dade recertification, still called the 40-year recertification: structural and electrical reports, parking-lot certificates, thermography if required.',
+      keywords: ['building recertification Miami-Dade', 'Miami-Dade recertification engineer', '40 year recertification Miami', '30 year recertification Miami', 'condo recertification Miami', 'structural recertification report', 'electrical recertification Miami-Dade', 'infrared thermography inspection Miami', 'parking lot illumination certification', 'parking lot guardrail certification'],
     },
   },
   {
@@ -1281,24 +1414,28 @@ export const services: Service[] = [
     coverage: 'Broward County, Florida',
     areaServed: ['Broward County, Florida'],
     summary:
-      'From the Notice of Required Inspection to the completion letter that closes the file — inspection, the structural report on the program’s official form, repair scope, reinspection.',
+      'One team for the complete BSIP package, from the Notice of Required Inspection to the completion letter that closes the file — the structural and electrical inspections, the written report and the program’s two official forms.',
     card: {
       when: 'The certified letter has arrived, the building is close to its first inspection, or an earlier file is still open.',
-      receive: 'The structural report on the program’s official form, with its narrative and photographs, and the repair scope where one is needed.',
+      receive: 'The whole package — the written report, the program’s structural and electrical forms and color photographs — and the repair scope where one is needed.',
       next: 'Start with your city’s letter — a photo from your phone will do — or, if there is none yet, with the address and the year of the certificate of occupancy.',
     },
-    /* The line under the H1 is the first two sentences of the home section's
-       lede (`program.lede`): the name owners still use, as a name, and no
-       number. One change — "Broward’s BSIP" for the program's full name,
-       which the H1 right above spells out (the Spanish lede has always said
-       "El BSIP de Broward"). With the full name this line ran a line longer
-       than `summary` on a 320px phone and pushed the button down. */
+    /* The line under the H1: the name owners still use, as a name, and no
+       number — "Broward’s BSIP", not the program's full name, which the H1
+       right above spells out. Since October 7, 2026 it also says what the
+       owner asked the first screen to say: one team delivers it COMPLETE —
+       and what that is in Broward, the two inspections in one report.
+       "Reaches almost every building type, in every city" and "Send us the
+       notice from your Building Official." gave way to it (the home
+       section's lede still says the first, the button under this line the
+       second). Measured like the Miami-Dade line: four lines at 360 and
+       390px, where the old one ran five — this line may not grow. */
     heroSub:
-      'Broward’s BSIP — many owners still call it the 40-year recertification — reaches almost every building type, in every city. Send us the notice from your Building Official.',
+      'Many owners still call Broward’s BSIP the 40-year recertification. One team delivers it complete: structural and electrical, in one report.',
     /* The page's own h2s — see the Miami-Dade block. No age and no day count
        in any of them. */
     headings: {
-      whatsIncluded: 'What the structural engineer inspects',
+      whatsIncluded: 'What a complete Broward BSIP inspection covers',
       whenItApplies: 'Which buildings the Broward BSIP reaches',
       howItRuns: 'From the notice to the filed report',
       faq: 'Questions boards ask about the Broward BSIP',
@@ -1309,9 +1446,11 @@ export const services: Service[] = [
     problemTitle: 'A certified letter with a deadline.',
     /* "40-year" here, in the line under the H1, in the first question and in
        the title: always as the name people still use, never as a trigger.
-       "A structural engineer", once — see the Miami-Dade block. */
+       "A structural engineer", once — see the Miami-Dade block, and for the
+       last sentence too: it used to end "…who can carry the structural
+       side". */
     problem:
-      'Broward’s Building Safety Inspection Program (BSIP) is a countywide safety inspection of older buildings, structural and electrical, written by the Broward County Board of Rules and Appeals and enforced by your city’s Building Official. Many owners still call it the 40-year recertification, and much of what is written about it describes rules that have since changed. Boards and owners need a structural engineer working from the current policy who can carry the structural side from the first site visit to the close-out.',
+      'Broward’s Building Safety Inspection Program (BSIP) is a countywide safety inspection of older buildings, structural and electrical, written by the Broward County Board of Rules and Appeals and enforced by your city’s Building Official. Many owners still call it the 40-year recertification, and much of what is written about it describes rules that have since changed. Boards and owners need a structural engineer whose team works from the current policy and delivers both halves of the program, the structural inspection and the electrical one, from the first site visit to the close-out.',
     audience: [
       'Condominium, cooperative and homeowner associations',
       'Property managers',
@@ -1322,32 +1461,35 @@ export const services: Service[] = [
       'A previous report listed repairs and the file is still open.',
       'You are buying or managing a Broward building and want to know where it stands in the inspection cycle.',
     ],
-    capabilities: ['Notice review', 'Structural inspection', 'Report on the official form', 'Repair scope', 'Reinspection & close-out'],
+    capabilities: ['Notice review', 'Structural & electrical inspection', 'Written report & both official forms', 'Repair scope', 'Reinspection & close-out'],
     scope: [
       'Review of your city’s letter, the building’s records and prior reports',
       'Structural inspection on site — frame, slabs, balconies, stairs, guardrails, roof and foundations, and the parking garage where there is one',
+      'Electrical inspection on site — the service and its equipment, electric rooms, wiring and grounding, emergency lighting, the fire alarm and exit lights, and the wiring at parking lots and garages',
       'Observed conditions classified by structural significance, for the BSIP report',
       'Repair work defined so contractors bid the same scope',
       'Reinspection of the repaired areas',
-      'Answers to the Building Official’s questions on the structural report',
+      'Answers to the Building Official’s questions on the report and its forms',
     ],
     /* Same six labels as the Miami-Dade page; Broward's own content. */
     process: [
       { step: 'Notice review', detail: 'We read your city’s letter first: the date it was received, the date it sets, and what the Building Official asks to be filed.' },
-      { step: 'Inspection', detail: 'A systematic visual examination of the structure on site, with testing or opened finishes only where what we see calls for it.' },
-      { step: 'Report filed', detail: 'A written narrative report with color photographs, plus the official structural form of the Board of Rules and Appeals, signed and sealed. It is filed as soon as it is complete, even when it lists repairs.' },
+      { step: 'Inspection', detail: 'A systematic visual examination of the structure and of the electrical systems on site, with testing or opened finishes only where what we see calls for it.' },
+      { step: 'Report filed', detail: 'A written narrative report with color photographs, plus the Board of Rules and Appeals’ official structural and electrical forms, signed and sealed. It is filed as soon as it is complete, even when it lists repairs.' },
       { step: 'Repairs under permit', detail: 'Where repairs are needed, we define the work so contractors bid the same scope, and issue the signed and sealed letter on whether the building can stay occupied meanwhile. Repairs wait for their permits.' },
       { step: 'Reinspection', detail: 'When the work is complete, the areas noted in the original report are reinspected.' },
       { step: 'Close-out', detail: 'An amended report and a signed and sealed completion letter go to the owner and to the Building Official. That closes the file, until the next cycle.' },
     ],
+    /* The first line is the whole package, named once; its parts are
+       `packet`, printed right under this list. */
     deliverables: [
-      'Structural report on the program’s official form, with a written narrative and color photographs, signed and sealed',
+      'The complete BSIP package, signed and sealed: a written narrative report, the Board’s structural and electrical forms and color photographs, set out part by part below',
       'Written repair scope where repairs are needed',
       'Signed and sealed letter on whether the building can remain occupied during repairs',
       'Amended report and completion letter after repairs',
     ],
     nextStep:
-      'Send the notice — a phone photo is enough — or the address and the year of the certificate of occupancy. We read what your city is asking for and reply with a proposal for the inspection and the structural report.',
+      'Send the notice — a phone photo is enough — or the address and the year of the certificate of occupancy. We read what your city is asking for and reply with a proposal for the complete BSIP inspection and report, structural and electrical.',
     timing: {
       checked: regulatoryChecked,
       /* Policy #05-05, Sec. I.E: the program "shall serve as compliance for
@@ -1435,7 +1577,16 @@ export const services: Service[] = [
       },
       {
         q: 'We received a Broward BSIP notice. What do we do first?',
-        a: 'Send it to us — a phone photo of the letter is enough. We read your city’s letter first: the date it was received, the date it sets, and what the Building Official asks to be filed; then we reply with a proposal for the inspection and the structural report. In a condominium or cooperative of three habitable stories or more, the board also has duties to unit owners: see “What the board must do” above.',
+        a: 'Send it to us — a phone photo of the letter is enough. We read your city’s letter first: the date it was received, the date it sets, and what the Building Official asks to be filed; then we reply with a proposal for the complete inspection and report, structural and electrical. In a condominium or cooperative of three habitable stories or more, the board also has duties to unit owners: see “What the board must do” above.',
+      },
+      {
+        /* The Broward form of the owner's answer of October 7, 2026 — see
+           the Miami-Dade block. It took the place of "Who do we file the
+           BSIP report with?", which the note beside the table and "Who sent
+           your notice?" both answer. Broward's parts only: two inspections,
+           one report, the Board's two forms, color photographs. */
+        q: 'Does the Broward BSIP include an electrical inspection?',
+        a: 'Yes. The program asks for two inspections, structural and electrical, reported together: one written report, with the Board of Rules and Appeals’ structural form, its electrical form and color photographs. One team delivers all of it, so the board makes one call. Each part is set out in the package list above.',
       },
       {
         q: 'How long do we have to file the BSIP report?',
@@ -1467,10 +1618,6 @@ export const services: Service[] = [
         a: 'For condominium and cooperative buildings of three habitable stories or more, the BSIP report serves as phase one and phase two of the state milestone inspection. What state law adds for those buildings is the board’s duties to unit owners, listed under “What the board must do” above. Other buildings are outside the milestone law and answer only to the BSIP.',
       },
       {
-        q: 'Who do we file the BSIP report with?',
-        a: 'With your city’s Building Official — the office that sent the notice. The program is written by the Broward County Board of Rules and Appeals and enforced by each city, and each city handles filing its own way. We read your city’s letter first, and work to the date it states.',
-      },
-      {
         q: 'What if the BSIP report lists repairs?',
         a: 'The report is filed as soon as it is complete, even when it lists repairs. The repairs then follow under permit, and while they are underway the engineer issues a signed and sealed letter on whether the building can remain occupied. A reinspection, an amended report and a completion letter close the file; the time allowed is in the “If repairs are needed” row above.',
       },
@@ -1496,6 +1643,8 @@ export const services: Service[] = [
       'Only the Board of Rules and Appeals’ own structural and electrical forms are accepted — a firm’s own form is not — and they come in addition to a written narrative report with color photographs, not instead of it.',
       'The amended report and the completion letter come from the professional who inspected the building and issued the original report. If another firm issued yours, say so when you write — we confirm what closing the file will take before we propose.',
       'Parking garages, guardrails, and the balconies, elevated decks, docks and seawalls attached to or supporting a structure are part of the inspection.',
+      /* "Complete" is the package, never the outcome — see the header. */
+      'A complete package is not yet a closed file. Where the report lists repairs, they follow under permit, and the amended report with its completion letter is what closes it.',
       /* The last two are the Miami-Dade page's last two, in this page's
          terms: the Building Official is your city's, and the report is the
          BSIP report. */
@@ -1535,6 +1684,36 @@ export const services: Service[] = [
       },
       checked: officeLinksChecked,
     },
+    /* THE BROWARD PACKAGE. Read on October 7, 2026 in the Board of Rules
+       and Appeals' current documents: Policy #05-05 (effective August 9,
+       2024), its General Considerations & Guidelines and the two report
+       forms (revised May 11, 2023). It is NOT Miami-Dade's list:
+         • No parking-lot illumination certificate and no guardrail
+           certificate exist in this program. Guardrails are an item of the
+           structural form; parking lots and garages appear in the
+           electrical form as wiring. Do not add either certificate here.
+         • No thermography either. An earlier edition of the policy asked
+           for it and is still hosted on other sites; the forms in force do
+           not. `note` says so, as what the CURRENT policy asks, and says no
+           more than the Board's own brochure did: it is used where an
+           inspection calls for it.
+         • What a city adds to the filing is the city's (`What your city
+           adds`): named as a possibility, never as one city's rule.
+       Re-read after the 9th Edition of the code takes effect. */
+    packet: {
+      label: 'The Broward BSIP package, part by part',
+      lede: 'What the Board of Rules and Appeals asks for with a Building Safety Inspection, and what our team delivers for your building: two inspections, structural and electrical, in one written report.',
+      parts: [
+        { k: 'Written report', v: 'A detailed narrative report of the inspection, signed and sealed, that states whether the building is structurally and electrically safe or what repairs it needs.' },
+        { k: 'Structural form', v: 'The Board’s own Structural Safety Inspection Report Form, completed for the building: foundations, walls, floors and roof, framing, windows and exterior doors. Guardrails are among its items, and a parking garage is inspected with the structure.' },
+        { k: 'Electrical form', v: 'The Board’s own Electrical Safety Inspection Report Form: the electric service and its equipment, electric rooms, wiring and grounding, emergency lighting, the fire alarm, exit lights, and the wiring at parking lots and garages.' },
+        { k: 'Color photographs', v: 'Included with the report to show the conditions observed, above all where defects were found.' },
+        { k: 'Supporting data', v: 'Drawings or sketches and, where the inspection called for testing, the test reports, attached to the structural form.' },
+        { k: 'Summary for unit owners', v: 'In a condominium or a cooperative, a summary of the report, prepared for the association to send to unit owners.' },
+        { k: 'What your city adds', v: 'Some cities ask for a cover sheet or a submittal form of their own with the filing. Your city’s letter says what it wants, and we read it first.' },
+      ],
+      note: 'The Board’s current policy does not ask for infrared thermography; it is used where the electrical inspection calls for it.',
+    },
     alsoCalled: ['BSIP', 'Broward Building Safety Inspection Program', '40-Year Building Safety Inspection Program', '40-Year Recertification'],
     crossLink: { text: 'Building in Miami-Dade?', label: 'See Miami-Dade Recertification', slug: 'building-recertification' },
     program: {
@@ -1543,7 +1722,7 @@ export const services: Service[] = [
       /* "180 days" must always equal the row's "Time to file". */
       titleLines: ['Broward BSIP.', '180 days from the notice.'],
       accentWord: '180 days',
-      lede: 'Broward’s Building Safety Inspection Program — many owners still call it the 40-year recertification — reaches almost every building type, in every city. Send us the notice from your Building Official: we inspect the building, prepare the structural report on the Board of Rules and Appeals’ own form, and stay through repairs and close-out.',
+      lede: 'Broward’s Building Safety Inspection Program — many owners still call it the 40-year recertification — reaches almost every building type, in every city. Send us the notice from your Building Official: one team delivers the complete package — both inspections, structural and electrical, the written report and the program’s official forms — and stays through repairs and close-out.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Broward Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
@@ -1560,9 +1739,12 @@ export const services: Service[] = [
        "— Structural Engineer" after it, it was 630 px of the 580 shown. */
     seo: {
       title: 'Broward BSIP (formerly 40-Year Recertification)',
+      /* The description used to end "A Florida P.E. inspects and files the
+         structural report": half the program, and one person. It now says
+         both inspections and one team (the header has the decision). */
       description:
-        'Broward’s Building Safety Inspection Program (BSIP), still called the 40-year recertification. A Florida P.E. inspects and files the structural report.',
-      keywords: ['Broward BSIP engineer', 'building safety inspection program Broward', '25-year building inspection Broward', 'Broward BSIP', 'building safety inspection Broward', '40 year inspection Broward', 'BSIP structural report'],
+        'Broward’s Building Safety Inspection Program (BSIP), still called the 40-year recertification: one team for the structural and electrical inspection.',
+      keywords: ['Broward BSIP engineer', 'building safety inspection program Broward', '25-year building inspection Broward', 'Broward BSIP', 'building safety inspection Broward', '40 year inspection Broward', 'BSIP structural and electrical report', 'electrical safety inspection Broward'],
     },
   },
   {
@@ -1645,7 +1827,7 @@ export const services: Service[] = [
       'Separating cosmetic from structural, and urgent from monitorable',
     ],
     process: [
-      { step: 'Applicability', detail: 'We confirm which rules reach the building and what any notice in hand is asking for. Where a county program applies, the work runs as that program.' },
+      { step: 'Applicability', detail: 'We confirm which rules reach the building and what any notice in hand is asking for. Where a county program applies, the work runs as that program, and our team delivers the complete package that county asks for.' },
       { step: 'Records review', detail: 'Available drawings, prior reports and repair history reviewed before the site visit.' },
       { step: 'Field inspection', detail: 'Systematic visual inspection with photographic documentation and location mapping.' },
       { step: 'Evaluation', detail: 'Observations evaluated structurally — distinguishing cosmetic from structural, and urgent from monitorable. Where deterioration is substantial, the further investigation is scoped.' },
@@ -1737,7 +1919,7 @@ export const services: Service[] = [
           values: [
             'Miami-Dade County. The notice comes from the Building Official of your city, or from the county in unincorporated areas.',
             'Almost every building other than single-family homes and duplexes; the full list is on the Miami-Dade page.',
-            'A structural report and an electrical report, each on the county’s own form.',
+            'A structural report and an electrical report, each on the county’s own form, filed with the certificates and attachments the county asks for.',
             'With the Building Official who sent the notice.',
           ],
         },
@@ -2390,12 +2572,15 @@ export type Engagement = {
    specific county, and every `status` carries the one Work label.
 
    02 names both county programs because its location is both counties:
-   "recertification" alone is Miami-Dade's word. 03 is no longer called a
-   "milestone" inspection — in both counties the milestone inspection is met
-   through the county program, which is profile 02. */
+   "recertification" alone is Miami-Dade's word. For the same reason its
+   deliverable is "the complete package the county asks for" and not a list:
+   the two counties ask for different packages, and each is on its own
+   program's page. 03 is no longer called a "milestone" inspection — in both
+   counties the milestone inspection is met through the county program,
+   which is profile 02. */
 export const engagements: Engagement[] = [
   { n: '01', title: 'Mid-rise residential frame', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes', status: 'Typical engagement' },
-  { n: '02', title: 'Condominium recertification or BSIP inspection', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural inspection, structural report on the official form, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'Structural report on the official form · Photographic record · Repair scope', status: 'Typical engagement' },
+  { n: '02', title: 'Condominium recertification or BSIP inspection', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural and electrical inspection, the reports on the official forms, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'The complete package the county asks for, on its official forms · Photographic record · Repair scope', status: 'Typical engagement' },
   { n: '03', title: 'Structural safety inspection', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope', status: 'Typical engagement' },
   { n: '04', title: 'Foundation system for a constrained site', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations', status: 'Typical engagement' },
   { n: '05', title: 'Multi-discipline BIM coordination', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings', status: 'Typical engagement' },
@@ -2605,8 +2790,8 @@ export const existingPage = {
     title: 'Four moments that need an engineer.',
     lede: 'Find the one that is yours. Each leads to the service that answers it.',
     items: [
-      { slug: 'building-recertification', k: 'A notice arrived in Miami-Dade.', v: 'That is Miami-Dade’s building recertification. Send us the letter: we take the structural side from the first visit to the report that closes it, and the program’s page gives the ages and the deadline that apply.' },
-      { slug: 'broward-bsip', k: 'A notice arrived in Broward.', v: 'That is the Building Safety Inspection Program, the BSIP, and your city’s letter sets its own date. We start from that letter, inspect the building and prepare the structural report on the program’s official form, through to close-out.' },
+      { slug: 'building-recertification', k: 'A notice arrived in Miami-Dade.', v: 'That is Miami-Dade’s building recertification. Send us the letter: one team delivers the complete package the county asks for — structural, electrical and the certificates that go with them — from the first visit to the report that closes it. The program’s page gives the ages and the deadline that apply.' },
+      { slug: 'broward-bsip', k: 'A notice arrived in Broward.', v: 'That is the Building Safety Inspection Program, the BSIP, and your city’s letter sets its own date. We start from that letter and deliver the whole package — the structural and electrical inspections, the written report and the program’s official forms — through to close-out.' },
       { slug: 'milestone-inspections', k: 'The board asks whether the milestone law reaches the building.', v: 'The state law and the county programs overlap. We tell you which rules reach your building and how they are met in your county — and we inspect when no notice has come but a purchase, a lender or visible distress gives a reason to look.' },
       { slug: 'structural-condition-assessments', k: 'A report lists repairs, or something worries you.', v: 'Before contractors price anything, an engineer says which conditions affect the structure and defines the repair, so every bid answers the same scope. The same assessment serves before you buy a building or alter one.' },
     ],
@@ -2623,17 +2808,23 @@ export const existingPage = {
 
      `cta` goes to Miami-Dade's page and `ctaSecondary` to Broward's: with
      one program per county, a single "in detail" link would leave one
-     county without a door. */
+     county without a door.
+
+     This block speaks of BOTH counties at once, so it says "the complete
+     package each county asks for" and names no certificate: Miami-Dade's
+     parking-lot certifications and thermography are not Broward's (see the
+     header, October 7, 2026). The lede used to end "We run the structural
+     side". */
   timeline: {
     eyebrow: 'Recertification & BSIP',
     title: 'A clear path from the notice to close-out.',
-    lede: 'Miami-Dade calls it building recertification; Broward calls it the Building Safety Inspection Program. The ages and the deadlines are different, and each county’s are on its own page. The sequence is the same: the report is filed first, repairs follow under permit, and a final report closes the file. We run the structural side so the board knows what happens next at every stage.',
+    lede: 'Miami-Dade calls it building recertification; Broward calls it the Building Safety Inspection Program. The ages and the deadlines are different, and each county’s are on its own page. The sequence is the same: the report is filed first, repairs follow under permit, and a final report closes the file. One team delivers the complete package each county asks for, so the board makes one call and knows what happens next at every stage.',
     cta: { href: '/services/building-recertification', label: 'Miami-Dade Recertification in Detail' },
     ctaSecondary: { href: '/services/broward-bsip', label: 'Broward BSIP in Detail' },
     steps: [
       { n: '01', title: 'Notice review', detail: 'We read the notice and the building record, confirm what the Building Official is asking for, and set the schedule against the date on the letter.' },
-      { n: '02', title: 'Inspection', detail: 'Structural inspection on site — frame, slabs, balconies, roof and exposed foundations — documented in the field, with photographs tied to their locations.' },
-      { n: '03', title: 'Report filed', detail: 'The structural report goes on the official form the county requires, in language a board can act on, and is filed even when it lists repairs.' },
+      { n: '02', title: 'Inspection', detail: 'Inspection on site, structural and electrical — the frame, slabs, balconies, roof and exposed foundations, and the building’s electrical systems — documented in the field, with photographs tied to their locations.' },
+      { n: '03', title: 'Report filed', detail: 'The reports, structural and electrical, go on the official forms the county requires, in language a board can act on, and are filed even when they list repairs.' },
       { n: '04', title: 'Repairs under permit', detail: 'Where repairs are required we define what must be corrected and to what standard, so the work can be bid fairly. Work that needs a permit waits for it.' },
       /* Its own sentence: this step used to be, word for word, the
          Miami-Dade page's step five. */

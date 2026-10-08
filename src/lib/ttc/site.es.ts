@@ -46,6 +46,17 @@
  *     Both are right; "dueño" is the one a building owner says.
  *   • "El edificio", not "el sitio", for a building that already stands
  *     ("la primera visita al edificio"); "en sitio" stays for "on site".
+ *   • The complete package (the owner's decision of October 7, 2026 — see
+ *     the header of site.ts): "el paquete completo", "un solo equipo". Its
+ *     parts by the names a South Florida owner uses: "informe estructural",
+ *     "informe eléctrico", "termografía infrarroja", "certificado de
+ *     iluminación del estacionamiento", "certificado de barandas
+ *     (guardrails) del estacionamiento" — with the official English name in
+ *     parentheses the first time, where the letter the owner holds says it
+ *     in English. "Barandas", not "barreras de protección", which an
+ *     earlier line used for the same guardrails. Broward's package is NOT
+ *     Miami-Dade's: no parking-lot certificate and no thermography rule is
+ *     printed on the Broward page.
  */
 
 import { photo } from './media';
@@ -95,21 +106,23 @@ const services: SiteContent['services'] = [
     coverage: 'Condado de Miami-Dade, Florida',
     areaServed: ['Miami-Dade County, Florida'],
     summary:
-      'Un camino claro desde la notificación de Miami-Dade hasta el cierre de la recertificación — inspección, informe estructural en el formulario del condado, alcance de reparaciones, reinspección.',
+      'Un solo equipo para la recertificación completa de Miami-Dade, desde la notificación hasta el informe enmendado que la cierra — el informe estructural, el informe eléctrico y los certificados que el condado pide con ellos.',
     /* The card's own lines on /es/services — see `card` in site.ts. */
     card: {
       when: 'La notificación ya llegó, un aviso de cortesía anuncia que viene, o una recertificación anterior sigue abierta.',
-      receive: 'El informe estructural en el formulario de Miami-Dade, un registro fotográfico y, donde hagan falta reparaciones, su alcance por escrito.',
+      receive: 'Todos los informes y certificados que pide Miami-Dade — estructural, eléctrico y, donde apliquen, la termografía y los certificados del estacionamiento — y el alcance de reparaciones donde haga falta.',
       next: 'Empiece por la notificación — sirve una foto tomada con el teléfono — o, si aún no la tiene, por la dirección y el año de construcción.',
     },
     /* The name most owners still use, first — as a name, with no number —
-       and two short sentences, so the button under it sits higher on a
-       phone. See the EN block. */
+       then what the first screen now has to say: one team delivers it
+       complete. Measured on a phone like the English line (see the EN
+       block): four lines at 360 and 390px, five at 320px. "Envíenos la
+       notificación…" went — the button under it says so. */
     heroSub:
-      'La inspección que muchos todavía llaman la recertificación de 40 años. Envíenos la notificación de su ciudad o del condado.',
+      'Muchos todavía la llaman la recertificación de 40 años. Un solo equipo la entrega completa: estructural, eléctrica y los certificados del condado.',
     /* The page's own h2s — same keys as the EN block; no age, no day count. */
     headings: {
-      whatsIncluded: 'Qué incluye una inspección de recertificación en Miami-Dade',
+      whatsIncluded: 'Qué incluye una recertificación completa en Miami-Dade',
       whenItApplies: 'Quién debe recertificar en Miami-Dade, y cuándo',
       howItRuns: 'Cómo se hace una recertificación, paso a paso',
       faq: 'Preguntas frecuentes sobre la recertificación en Miami-Dade',
@@ -119,7 +132,7 @@ const services: SiteContent['services'] = [
     /* One sentence on what a recertification is, and "un ingeniero
        estructural", once: the Spanish pages never said it in their body. */
     problem:
-      'La recertificación de edificios es la inspección periódica de seguridad, estructural y eléctrica, que el Condado de Miami-Dade exige a los edificios antiguos, con un informe escrito para el Building Official (el funcionario de construcción). La Notificación de Inspección Requerida (Notice of Required Inspection) trae formularios y muy poca explicación de lo que realmente tiene que ocurrir. Las juntas directivas y los propietarios necesitan un ingeniero estructural que conozca la secuencia del condado y pueda llevar la parte estructural desde la primera visita al edificio hasta el informe que cierra la recertificación.',
+      'La recertificación de edificios es la inspección periódica de seguridad, estructural y eléctrica, que el Condado de Miami-Dade exige a los edificios antiguos, con un informe escrito para el Building Official (el funcionario de construcción). La Notificación de Inspección Requerida (Notice of Required Inspection) trae formularios y muy poca explicación de lo que realmente tiene que ocurrir. Las juntas directivas y los propietarios necesitan un ingeniero estructural cuyo equipo conozca la secuencia del condado y la entregue completa — el informe estructural, el informe eléctrico y los certificados que los acompañan — desde la primera visita al edificio hasta el informe que cierra la recertificación.',
     audience: [
       'Asociaciones de condominio, de cooperativa y de propietarios',
       'Administradores de propiedades',
@@ -133,33 +146,37 @@ const services: SiteContent['services'] = [
       'Un informe anterior identificó reparaciones y la recertificación sigue abierta.',
       'Está comprando o administrando un edificio en Miami-Dade y quiere saber en qué punto del ciclo de recertificación se encuentra.',
     ],
-    capabilities: ['Revisión de la notificación', 'Inspección estructural', 'Informe en el formulario del condado', 'Alcance de reparaciones', 'Reinspección'],
+    capabilities: ['Revisión de la notificación', 'Inspección estructural y eléctrica', 'Termografía, donde se requiera', 'Certificados del estacionamiento', 'Informes en los formularios del condado', 'Alcance de reparaciones', 'Reinspección'],
     scope: [
       'Revisión de la notificación de su ciudad o del condado, los registros del edificio y los informes previos',
       'Inspección estructural en sitio — estructura, losas, balcones, fachada, techo y cimentaciones',
+      'Inspección eléctrica en sitio — la acometida, los cuartos de medidores y eléctricos, los tableros, el cableado y la puesta a tierra, la iluminación de emergencia, los letreros de salida y la alarma contra incendios',
+      'Termografía infrarroja de los equipos eléctricos, donde el servicio eléctrico del edificio la requiera',
+      'Medición de los niveles de iluminación del estacionamiento que sirve al edificio, e inspección del estacionamiento para el certificado de barandas (guardrails) del condado',
       'Clasificación de las condiciones observadas según su importancia estructural, para el informe de recertificación',
       'Alcance de reparaciones que indica qué debe corregirse, para que los contratistas coticen el mismo trabajo',
       'Reinspección de las reparaciones terminadas',
-      'Respuesta a las preguntas de la oficina revisora sobre el informe estructural',
+      'Respuesta a las preguntas de la oficina revisora sobre los informes',
     ],
     /* The county's order — see the EN block. Same six labels as Broward's. */
     process: [
       { step: 'Revisión de la notificación', detail: 'Leemos la notificación y el historial del edificio, y confirmamos qué está pidiendo el Building Official y para cuándo.' },
-      { step: 'Inspección', detail: 'Inspección estructural en sitio — estructura, losas, balcones, fachada, techo y cimentaciones expuestas — documentada con fotografías vinculadas a su ubicación.' },
-      { step: 'Informe presentado', detail: 'El informe estructural se prepara en el formulario del propio condado, firmado y sellado, y se presenta aunque enumere reparaciones. El condado pide el informe primero, no después de la obra.' },
+      { step: 'Inspección', detail: 'Inspección estructural y eléctrica en sitio — la estructura, las losas, los balcones, la fachada, el techo y las cimentaciones expuestas, y los sistemas eléctricos del edificio — documentada con fotografías vinculadas a su ubicación. La termografía y las mediciones del estacionamiento se hacen donde aplican.' },
+      { step: 'Informe presentado', detail: 'Los informes estructural y eléctrico se preparan en los formularios del propio condado, firmados y sellados, con los certificados y anexos que su edificio necesite, y se presentan aunque enumeren reparaciones. El condado pide los informes primero, no después de la obra.' },
       { step: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones, definimos qué debe corregirse para que los contratistas coticen el mismo trabajo. Las reparaciones que requieren permiso esperan a tenerlo y luego siguen su calendario.' },
       { step: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales.' },
       { step: 'Cierre', detail: 'Un informe enmendado indica que las reparaciones están completas. Eso es lo que cierra la recertificación, hasta el siguiente ciclo.' },
     ],
+    /* The whole package, named once; its parts are `packet`, printed right
+       under this list — see the EN block. */
     deliverables: [
-      'Informe estructural de recertificación en el formulario del propio condado, firmado y sellado',
-      'Registro fotográfico de las condiciones observadas',
-      'Alcance de reparaciones por escrito, cuando el informe las enumere',
+      'El paquete completo de recertificación de su edificio, firmado y sellado: los informes estructural y eléctrico en los formularios del propio condado, con los certificados y anexos que se detallan abajo',
+      'Alcance de reparaciones por escrito, cuando los informes las enumeren',
       'Carta sobre si el edificio puede seguir ocupado durante las reparaciones, cuando se requiera',
       'Informe enmendado tras las reparaciones',
     ],
     nextStep:
-      'Envíe la notificación — basta una foto tomada con el teléfono — o la dirección y el año de construcción. Confirmamos qué le está pidiendo el Building Official (el funcionario de construcción) y respondemos con una propuesta para la inspección y el informe estructural.',
+      'Envíe la notificación — basta una foto tomada con el teléfono — o la dirección y el año de construcción. Confirmamos qué le está pidiendo el Building Official (el funcionario de construcción) y respondemos con una propuesta para la recertificación completa: todos los informes y certificados que su edificio necesite.',
     timing: {
       checked: regulatoryChecked,
       /* Corrected with the EN note: the county report SERVES AS the state
@@ -210,7 +227,17 @@ const services: SiteContent['services'] = [
       },
       {
         q: 'Nos llegó la notificación de recertificación de Miami-Dade. ¿Qué hacemos primero?',
-        a: 'Envíenosla — basta una foto de la carta tomada con el teléfono. Leemos la notificación y el historial del edificio, confirmamos qué está pidiendo el Building Official (el funcionario de construcción) y para cuándo, y respondemos con una propuesta para la inspección y el informe estructural. En un condominio o una cooperativa de tres pisos habitables o más, la junta directiva tiene además deberes con los propietarios de las unidades: vea “Qué debe hacer la junta directiva”, arriba.',
+        a: 'Envíenosla — basta una foto de la carta tomada con el teléfono. Leemos la notificación y el historial del edificio, confirmamos qué está pidiendo el Building Official (el funcionario de construcción) y para cuándo, y respondemos con una propuesta para la recertificación completa, no solo para su informe estructural. En un condominio o una cooperativa de tres pisos habitables o más, la junta directiva tiene además deberes con los propietarios de las unidades: vea “Qué debe hacer la junta directiva”, arriba.',
+      },
+      {
+        /* The owner's answer of October 7, 2026, as a board asks it — see
+           the EN block. It took the place of "¿Ante quién se presenta el
+           informe de recertificación?", which the note beside the table and
+           "¿Quién le envió la notificación?" both answer. The official
+           English name of the guardrail certificate is in parentheses:
+           that is the word on the county's form. */
+        q: '¿La recertificación de Miami-Dade incluye el informe eléctrico, la termografía y los certificados del estacionamiento?',
+        a: 'Sí. El condado pide más que un informe estructural: también un informe eléctrico, una inspección de termografía infrarroja donde el servicio eléctrico del edificio la requiera, y sus dos certificados del estacionamiento, el de iluminación y el de barandas (guardrails), donde apliquen. Un solo equipo entrega todo, así que la junta directiva hace una sola llamada. Cada parte, y cuándo aplica, está en la lista del paquete, más arriba.',
       },
       {
         q: '¿Cuánto tiempo tenemos para recertificar en Miami-Dade?',
@@ -239,10 +266,6 @@ const services: SiteContent['services'] = [
         a: 'En edificios de condominio y cooperativa de tres pisos habitables o más, el informe de recertificación sirve como la inspección de hito (milestone) del estado, y no se presenta un informe de hito aparte. Lo que la ley estatal añade para esos edificios son los deberes de la junta directiva con los propietarios de las unidades, que aparecen en “Qué debe hacer la junta directiva”, arriba. Los demás edificios quedan fuera de la ley de inspecciones de hito y responden solo al programa del condado.',
       },
       {
-        q: '¿Ante quién se presenta el informe de recertificación?',
-        a: 'Ante la oficina que envió la notificación: el Building Official de su ciudad, o el condado en las áreas no incorporadas. Cada ciudad maneja sus propias notificaciones y su propia presentación, y puede tener formularios propios. Las preguntas sobre una notificación se dirigen a la oficina que la envió, y nosotros leemos primero la carta de su ciudad.',
-      },
-      {
         q: '¿Qué pasa si el informe de recertificación enumera reparaciones?',
         a: 'El informe se presenta igual: el condado lo pide primero, no después de la obra. Donde se requieran reparaciones, definimos qué debe corregirse para que los contratistas coticen el mismo trabajo; las que requieren permiso esperan a tenerlo, y un informe enmendado que indica que las reparaciones están completas cierra la recertificación. El plazo está en la fila “Si hay reparaciones” de la tabla de arriba.',
       },
@@ -262,7 +285,12 @@ const services: SiteContent['services'] = [
     considerations: [
       /* Threshold buildings: neutral on purpose, claims no credential. */
       'Los edificios de más de tres pisos o 50 pies se consideran “threshold buildings” (edificios de umbral), y su informe estructural debe prepararlo un ingeniero con las calificaciones adicionales que exige el Condado de Miami-Dade. Lo confirmamos para su edificio antes de presentar una propuesta.',
-      'Los informes estructural y eléctrico se presentan en los formularios del propio condado; no se acepta el formulario de una firma. El paquete del condado también incluye certificados de la iluminación del estacionamiento y, donde el estacionamiento colinda con agua, de las barreras de protección.',
+      'Para los informes estructural y eléctrico solo se aceptan los formularios del propio condado — no el formulario de una firma —, y cada edificio de una propiedad se informa por separado.',
+      /* What the two parking-lot forms ARE: a measurement and a finding.
+         Never "certificamos que el estacionamiento cumple". */
+      'Los certificados del estacionamiento dejan constancia de lo que se midió y se encontró, no prometen que un estacionamiento cumpla: si los niveles de iluminación alcanzan o no el estándar del condado, y si un estacionamiento junto al agua tiene la baranda que el condado exige. Donde falte la baranda, el propietario necesita un permiso para instalarla.',
+      /* "Completo" is the package, never the outcome — see the EN header. */
+      'Un paquete completo todavía no es una recertificación cerrada. Donde los informes enumeren reparaciones, primero se hacen, con permiso, y el informe enmendado es lo que la cierra.',
       'El Building Official puede conceder una prórroga de hasta 60 días para presentar el informe o para obtener los permisos, a solicitud firmada y sellada del ingeniero en la que declare que el edificio puede seguir ocupado.',
       'El informe enmendado que cierra una recertificación lo emite el ingeniero o arquitecto que presentó el informe original. Si el suyo lo presentó otra firma, indíquelo al escribirnos — confirmamos qué hará falta para cerrarla antes de presentar una propuesta.',
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad, o del condado en las áreas no incorporadas; el ingeniero tiene el deber de hacerlo.',
@@ -307,6 +335,26 @@ const services: SiteContent['services'] = [
       },
       checked: officeLinksChecked,
     },
+    /* EL PAQUETE DE MIAMI-DADE — mirror of the EN `packet`: the same eight
+       rows in the same order, and the same care in each (read the comment
+       there before touching one). Specific to the Spanish: the county's
+       own name for a part is in parentheses where the owner will meet it in
+       English — on the form, or as the name of the file. */
+    packet: {
+      label: 'El paquete de Miami-Dade, parte por parte',
+      lede: 'Lo que el condado pide con una recertificación, y lo que nuestro equipo entrega para su edificio. Algunas partes se presentan para todos los edificios; otras, solo donde se cumple la condición que las acompaña.',
+      parts: [
+        { k: 'Informe estructural', v: 'La condición estructural del edificio — cimentaciones, estructura, losas, balcones, fachada y techo — en el formulario estructural del condado (Structural Report). Lo presentan todos los edificios del programa.' },
+        { k: 'Informe eléctrico', v: 'La condición general de los sistemas eléctricos del edificio, en el formulario eléctrico del condado (Electrical Report). Lo presentan todos los edificios del programa, como un archivo aparte.' },
+        { k: 'Termografía infrarroja', v: 'Una inspección infrarroja de los equipos eléctricos (infrared thermography), con un informe escrito que se adjunta al informe eléctrico. Aplica donde el servicio eléctrico del edificio la requiera, y nunca a los tableros que están dentro de las unidades.' },
+        { k: 'Certificado de iluminación del estacionamiento', v: 'Los niveles de iluminación medidos en el estacionamiento que sirve al edificio (Parking Lot Illumination), y si alcanzan el estándar del condado para ese tipo de edificio. Se presenta con el paquete donde aplique.' },
+        { k: 'Certificado de barandas (guardrails) del estacionamiento', v: 'El formulario del condado sobre si el estacionamiento colinda con un canal, un lago u otro cuerpo de agua y, de ser así, si los vehículos estacionados están protegidos por la baranda que el condado exige.' },
+        { k: 'Carta de presentación', v: 'Una carta (cover letter) que acompaña a cada informe e indica su conclusión sobre si el edificio puede seguir ocupado.' },
+        { k: 'Fotografías', v: 'Las fotografías que piden los formularios del condado: las condiciones que describe cada informe y cada fachada del edificio.' },
+        { k: 'Plano del sitio o levantamiento', v: 'Una vista aérea que identifica el edificio acompaña a todo informe estructural. Donde una propiedad tiene más de un edificio, un plano del sitio (site plan) o la copia de un levantamiento (survey) muestra a cuál corresponden los informes.' },
+      ],
+      note: 'Cada ciudad maneja su propia presentación y puede pedir un conjunto distinto de la lista del condado. Leemos primero la carta de su ciudad y proponemos el paquete que esa carta pide.',
+    },
     alsoCalled: ['Recertificación de 40 años', 'Recertificación de edificios'],
     crossLink: { text: '¿Su edificio está en Broward?', label: 'Vea el BSIP', slug: 'broward-bsip' },
     program: {
@@ -315,7 +363,7 @@ const services: SiteContent['services'] = [
       /* "90 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['Recertificación en Miami-Dade.', '90 días desde la notificación.'],
       accentWord: '90 días',
-      lede: 'La recertificación de Miami-Dade alcanza a casi todos los edificios, salvo las viviendas unifamiliares y los dúplex. Envíenos la notificación de su ciudad o del condado: inspeccionamos el edificio, preparamos el informe estructural en el formulario del propio condado y lo acompañamos durante las reparaciones hasta el informe enmendado que la cierra.',
+      lede: 'La recertificación de Miami-Dade alcanza a casi todos los edificios, salvo las viviendas unifamiliares y los dúplex. Envíenos la notificación de su ciudad o del condado: un solo equipo entrega el paquete completo — informes estructural y eléctrico en los formularios del condado, con sus certificados — y lo acompaña hasta el informe enmendado que la cierra.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Miami-Dade',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
@@ -330,9 +378,13 @@ const services: SiteContent['services'] = [
        it, it was 771 px of the 580 a search result shows (seo.ts). */
     seo: {
       title: 'Recertificación de edificios en Miami-Dade, antes “de 40 años”',
+      /* It used to end "un P.E. de Florida inspecciona y presenta el
+         informe": one person, one report. It now names the complete
+         package — see the EN block. The English terms in the keywords are
+         the ones on the county's forms. */
       description:
-        'Recertificación de edificios en Miami-Dade, la que muchos aún llaman “de 40 años”. Envíe la notificación: un P.E. de Florida inspecciona y presenta el informe.',
-      keywords: ['recertificación de edificios Miami-Dade', 'ingeniero recertificación Miami-Dade', 'recertificación 40 años Miami', 'recertificación 30 años Miami', 'recertificación de condominios Miami', 'informe de recertificación estructural'],
+        'Recertificación completa de edificios en Miami-Dade, aún llamada “de 40 años”: informes estructural y eléctrico, termografía si aplica y certificados.',
+      keywords: ['recertificación de edificios Miami-Dade', 'ingeniero recertificación Miami-Dade', 'recertificación 40 años Miami', 'recertificación 30 años Miami', 'recertificación de condominios Miami', 'informe de recertificación estructural', 'recertificación eléctrica Miami-Dade', 'termografía infrarroja Miami', 'certificado de iluminación del estacionamiento', 'certificado de barandas del estacionamiento', 'parking lot illumination certification', 'parking lot guardrail certification'],
     },
   },
   {
@@ -344,19 +396,21 @@ const services: SiteContent['services'] = [
     coverage: 'Condado de Broward, Florida',
     areaServed: ['Broward County, Florida'],
     summary:
-      'Desde la Notificación de Inspección Requerida hasta la carta de finalización que cierra el expediente — inspección, informe estructural en el formulario oficial del programa, alcance de reparaciones, reinspección.',
+      'Un solo equipo para el paquete completo del BSIP, desde la Notificación de Inspección Requerida hasta la carta de finalización que cierra el expediente — las inspecciones estructural y eléctrica, el informe escrito y los dos formularios oficiales del programa.',
     card: {
       when: 'La carta certificada ya llegó, el edificio se acerca a su primera inspección, o un expediente anterior sigue abierto.',
-      receive: 'El informe estructural en el formulario oficial del programa, con su informe narrativo y sus fotografías, y el alcance de reparaciones donde haga falta.',
+      receive: 'El paquete completo — el informe escrito, los formularios estructural y eléctrico del programa y las fotografías a color — y el alcance de reparaciones donde haga falta.',
       next: 'Empiece por la carta de su ciudad — sirve una foto tomada con el teléfono — o, si aún no la tiene, por la dirección y el año del certificado de ocupación.',
     },
-    /* The first two sentences of the home section's lede (`program.lede`),
-       word for word. See the EN block. */
+    /* The name owners still use, as a name, then what the first screen now
+       has to say: one team delivers it complete — in Broward, the two
+       inspections in one report. See the EN block, and its note on length:
+       no taller than the line it replaced at 320, 360 or 390px. */
     heroSub:
-      'El BSIP de Broward — muchos propietarios todavía lo llaman la recertificación de 40 años — alcanza a casi todos los tipos de edificio, en todas las ciudades. Envíenos la notificación de su ciudad.',
+      'Muchos propietarios todavía llaman al BSIP de Broward la recertificación de 40 años. Un solo equipo lo entrega completo: estructural y eléctrico, en un mismo informe.',
     /* The page's own h2s — same keys as the EN block; no age, no day count. */
     headings: {
-      whatsIncluded: 'Qué inspecciona el ingeniero estructural',
+      whatsIncluded: 'Qué cubre una inspección completa del BSIP de Broward',
       whenItApplies: 'A qué edificios alcanza el BSIP de Broward',
       howItRuns: 'De la notificación al informe presentado',
       faq: 'Preguntas frecuentes sobre el BSIP de Broward',
@@ -368,7 +422,7 @@ const services: SiteContent['services'] = [
        program name appears once, because it is what the letter says. "Un
        ingeniero estructural", once — see the Miami-Dade block. */
     problem:
-      'El Programa de Inspección de Seguridad de Edificios (BSIP, por Building Safety Inspection Program) de Broward exige una inspección de seguridad, estructural y eléctrica, de los edificios antiguos de todo el condado. Lo redacta la Junta de Reglas y Apelaciones del Condado de Broward (Board of Rules and Appeals) y lo hace cumplir el Building Official (el funcionario de construcción) de su ciudad. Muchos propietarios todavía lo llaman la recertificación de 40 años, y buena parte de lo que se ha escrito sobre él describe reglas que ya cambiaron. Las juntas directivas y los propietarios necesitan un ingeniero estructural que trabaje con la política vigente y pueda llevar la parte estructural desde la primera visita al edificio hasta el cierre.',
+      'El Programa de Inspección de Seguridad de Edificios (BSIP, por Building Safety Inspection Program) de Broward exige una inspección de seguridad, estructural y eléctrica, de los edificios antiguos de todo el condado. Lo redacta la Junta de Reglas y Apelaciones del Condado de Broward (Board of Rules and Appeals) y lo hace cumplir el Building Official (el funcionario de construcción) de su ciudad. Muchos propietarios todavía lo llaman la recertificación de 40 años, y buena parte de lo que se ha escrito sobre él describe reglas que ya cambiaron. Las juntas directivas y los propietarios necesitan un ingeniero estructural cuyo equipo trabaje con la política vigente y entregue las dos mitades del programa, la inspección estructural y la eléctrica, desde la primera visita al edificio hasta el cierre.',
     audience: [
       'Asociaciones de condominio, de cooperativa y de propietarios',
       'Administradores de propiedades',
@@ -379,32 +433,35 @@ const services: SiteContent['services'] = [
       'Un informe anterior identificó reparaciones y el expediente sigue abierto.',
       'Está comprando o administrando un edificio en Broward y quiere saber en qué punto del ciclo de inspección se encuentra.',
     ],
-    capabilities: ['Revisión de la notificación', 'Inspección estructural', 'Informe en el formulario oficial', 'Alcance de reparaciones', 'Reinspección y cierre'],
+    capabilities: ['Revisión de la notificación', 'Inspección estructural y eléctrica', 'Informe escrito y los dos formularios oficiales', 'Alcance de reparaciones', 'Reinspección y cierre'],
     scope: [
       'Revisión de la carta de su ciudad, los registros del edificio y los informes previos',
       'Inspección estructural en sitio — estructura, losas, balcones, escaleras, barandas, techo y cimentaciones, y el garaje de estacionamiento donde lo haya',
+      'Inspección eléctrica en sitio — la acometida y sus equipos, los cuartos eléctricos, el cableado y la puesta a tierra, la iluminación de emergencia, la alarma contra incendios y las luces de salida, y el cableado de estacionamientos y garajes',
       'Condiciones observadas, clasificadas según su importancia estructural, para el informe del BSIP',
       'Trabajo de reparación definido para que los contratistas coticen lo mismo',
       'Reinspección de las áreas reparadas',
-      'Respuesta a las preguntas del Building Official sobre el informe estructural',
+      'Respuesta a las preguntas del Building Official sobre el informe y sus formularios',
     ],
     /* Same six labels as the Miami-Dade page; Broward's own content. */
     process: [
       { step: 'Revisión de la notificación', detail: 'Leemos primero la carta de su ciudad: la fecha en que se recibió, la fecha que fija y lo que el Building Official pide que se presente.' },
-      { step: 'Inspección', detail: 'Un examen visual sistemático de la estructura en sitio, con ensayos o aperturas de acabados solo donde lo que vemos lo justifica.' },
-      { step: 'Informe presentado', detail: 'Un informe narrativo escrito con fotografías a color, más el formulario estructural oficial de la Junta de Reglas y Apelaciones, firmado y sellado. Se presenta en cuanto está completo, aunque enumere reparaciones.' },
+      { step: 'Inspección', detail: 'Un examen visual sistemático de la estructura y de los sistemas eléctricos en sitio, con ensayos o aperturas de acabados solo donde lo que vemos lo justifica.' },
+      { step: 'Informe presentado', detail: 'Un informe narrativo escrito con fotografías a color, más los formularios oficiales, estructural y eléctrico, de la Junta de Reglas y Apelaciones, firmados y sellados. Se presenta en cuanto está completo, aunque enumere reparaciones.' },
       { step: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones, definimos el trabajo para que los contratistas coticen lo mismo, y emitimos la carta firmada y sellada sobre si el edificio puede seguir ocupado mientras tanto. Las reparaciones esperan a tener sus permisos.' },
       { step: 'Reinspección', detail: 'Terminada la obra, se reinspeccionan las áreas señaladas en el informe original.' },
       { step: 'Cierre', detail: 'Un informe enmendado y una carta de finalización firmada y sellada se entregan al propietario y al Building Official. Eso cierra el expediente, hasta el siguiente ciclo.' },
     ],
+    /* The whole package, named once; its parts are `packet` — see the EN
+       block. */
     deliverables: [
-      'Informe estructural en el formulario oficial del programa, con informe narrativo y fotografías a color, firmado y sellado',
+      'El paquete completo del BSIP, firmado y sellado: un informe narrativo escrito, los formularios estructural y eléctrico de la Junta y fotografías a color, detallados parte por parte abajo',
       'Alcance de reparaciones por escrito, cuando se requieran',
       'Carta firmada y sellada sobre si el edificio puede seguir ocupado durante las reparaciones',
       'Informe enmendado y carta de finalización tras las reparaciones',
     ],
     nextStep:
-      'Envíe la notificación — basta una foto tomada con el teléfono — o la dirección y el año del certificado de ocupación. Leemos lo que pide su ciudad y respondemos con una propuesta para la inspección y el informe estructural.',
+      'Envíe la notificación — basta una foto tomada con el teléfono — o la dirección y el año del certificado de ocupación. Leemos lo que pide su ciudad y respondemos con una propuesta para la inspección y el informe completos del BSIP, estructural y eléctrico.',
     timing: {
       checked: regulatoryChecked,
       /* The sentence about the city's letter moved to the front, and the
@@ -452,7 +509,15 @@ const services: SiteContent['services'] = [
       },
       {
         q: 'Nos llegó la notificación del BSIP de Broward. ¿Qué hacemos primero?',
-        a: 'Envíenosla — basta una foto de la carta tomada con el teléfono. Leemos primero la carta de su ciudad: la fecha en que se recibió, la fecha que fija y lo que el Building Official (el funcionario de construcción) pide que se presente; luego respondemos con una propuesta para la inspección y el informe estructural. En un condominio o una cooperativa de tres pisos habitables o más, la junta directiva tiene además deberes con los propietarios de las unidades: vea “Qué debe hacer la junta directiva”, arriba.',
+        a: 'Envíenosla — basta una foto de la carta tomada con el teléfono. Leemos primero la carta de su ciudad: la fecha en que se recibió, la fecha que fija y lo que el Building Official (el funcionario de construcción) pide que se presente; luego respondemos con una propuesta para la inspección y el informe completos, estructural y eléctrico. En un condominio o una cooperativa de tres pisos habitables o más, la junta directiva tiene además deberes con los propietarios de las unidades: vea “Qué debe hacer la junta directiva”, arriba.',
+      },
+      {
+        /* Broward's form of the owner's answer — see the EN block. It took
+           the place of "¿Ante quién se presenta el informe del BSIP?".
+           Broward's parts only: two inspections, one report, the Board's
+           two forms, color photographs. */
+        q: '¿El BSIP de Broward incluye una inspección eléctrica?',
+        a: 'Sí. El programa pide dos inspecciones, la estructural y la eléctrica, que se informan juntas: un solo informe escrito, con el formulario estructural y el formulario eléctrico de la Junta de Reglas y Apelaciones y con fotografías a color. Un solo equipo entrega todo, así que la junta directiva hace una sola llamada. Cada parte está en la lista del paquete, más arriba.',
       },
       {
         q: '¿Cuánto tiempo tenemos para presentar el informe del BSIP?',
@@ -481,10 +546,6 @@ const services: SiteContent['services'] = [
         a: 'En edificios de condominio y cooperativa de tres pisos habitables o más, el informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado. Lo que la ley estatal añade para esos edificios son los deberes de la junta directiva con los propietarios de las unidades, que aparecen en “Qué debe hacer la junta directiva”, arriba. Los demás edificios quedan fuera de la ley de inspecciones de hito y responden solo al BSIP.',
       },
       {
-        q: '¿Ante quién se presenta el informe del BSIP?',
-        a: 'Ante el Building Official de su ciudad, la oficina que envió la notificación. El programa lo redacta la Junta de Reglas y Apelaciones del Condado de Broward y lo hace cumplir cada ciudad, y cada ciudad maneja la presentación a su manera. Leemos primero la carta de su ciudad y trabajamos con la fecha que indica.',
-      },
-      {
         q: '¿Qué pasa si el informe del BSIP enumera reparaciones?',
         a: 'El informe se presenta en cuanto está completo, aunque enumere reparaciones. Las reparaciones siguen después, con permiso, y mientras duran el ingeniero emite una carta firmada y sellada sobre si el edificio puede seguir ocupado. Una reinspección, un informe enmendado y una carta de finalización cierran el expediente; el plazo está en la fila “Si hay reparaciones” de la tabla de arriba.',
       },
@@ -509,6 +570,8 @@ const services: SiteContent['services'] = [
       'Solo se aceptan los formularios estructural y eléctrico de la propia Junta de Reglas y Apelaciones — no el formulario de una firma — y se presentan además de un informe narrativo escrito con fotografías a color, no en su lugar.',
       'El informe enmendado y la carta de finalización los emite el profesional que inspeccionó el edificio y emitió el informe original. Si el suyo lo emitió otra firma, indíquelo al escribirnos — confirmamos qué hará falta para cerrar el expediente antes de presentar una propuesta.',
       'Los garajes de estacionamiento, las barandas de protección y los balcones, terrazas elevadas, muelles y muros de contención costeros (seawalls) que estén unidos a una estructura o la sostengan forman parte de la inspección.',
+      /* "Completo" is the package, never the outcome — see the EN header. */
+      'Un paquete completo todavía no es un expediente cerrado. Donde el informe enumere reparaciones, estas siguen con permiso, y lo que lo cierra es el informe enmendado con su carta de finalización.',
       /* The last two, in this page's terms — see the EN block. */
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad; el ingeniero tiene el deber de hacerlo.',
       'Un informe del BSIP documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará el Building Official a partir de él.',
@@ -538,6 +601,25 @@ const services: SiteContent['services'] = [
       },
       checked: officeLinksChecked,
     },
+    /* EL PAQUETE DE BROWARD — mirror of the EN `packet`: the same seven
+       rows in the same order. It is NOT Miami-Dade's list: no parking-lot
+       certificate and no thermography rule here (read the EN comment). The
+       two forms keep their English names in parentheses — that is what is
+       printed on them. */
+    packet: {
+      label: 'El paquete del BSIP de Broward, parte por parte',
+      lede: 'Lo que la Junta de Reglas y Apelaciones pide con una inspección de seguridad del edificio (Building Safety Inspection), y lo que nuestro equipo entrega para el suyo: dos inspecciones, la estructural y la eléctrica, en un solo informe escrito.',
+      parts: [
+        { k: 'Informe escrito', v: 'Un informe narrativo detallado de la inspección, firmado y sellado, que indica si el edificio es seguro en lo estructural y en lo eléctrico o qué reparaciones necesita.' },
+        { k: 'Formulario estructural', v: 'El formulario de la propia Junta (Structural Safety Inspection Report Form), completado para el edificio: cimentaciones, muros, pisos y techo, estructura, ventanas y puertas exteriores. Las barandas son uno de sus puntos, y un garaje de estacionamiento se inspecciona con la estructura.' },
+        { k: 'Formulario eléctrico', v: 'El formulario de la propia Junta (Electrical Safety Inspection Report Form): la acometida y sus equipos, los cuartos eléctricos, el cableado y la puesta a tierra, la iluminación de emergencia, la alarma contra incendios, las luces de salida y el cableado de estacionamientos y garajes.' },
+        { k: 'Fotografías a color', v: 'Se incluyen con el informe para mostrar las condiciones observadas, sobre todo donde se encontraron defectos.' },
+        { k: 'Datos de respaldo', v: 'Planos o croquis y, donde la inspección exigió ensayos, sus informes, adjuntos al formulario estructural.' },
+        { k: 'Resumen para los propietarios', v: 'En un condominio o una cooperativa, un resumen del informe, preparado para que la asociación lo envíe a los propietarios de las unidades.' },
+        { k: 'Lo que añade su ciudad', v: 'Algunas ciudades piden con la presentación una hoja de portada o un formulario propio. La carta de su ciudad indica qué quiere, y la leemos primero.' },
+      ],
+      note: 'La política vigente de la Junta no pide termografía infrarroja; se usa donde la inspección eléctrica lo justifica.',
+    },
     alsoCalled: ['BSIP', 'Building Safety Inspection Program', 'Programa de Inspección de Seguridad de Edificios de Broward', 'Recertificación de 40 años'],
     crossLink: { text: '¿Su edificio está en Miami-Dade?', label: 'Vea la recertificación de Miami-Dade', slug: 'building-recertification' },
     program: {
@@ -548,7 +630,7 @@ const services: SiteContent['services'] = [
       accentWord: '180 días',
       /* Shorter than a literal translation on purpose: 55 words at most, and
          the full program name is already in the label above it. */
-      lede: 'El BSIP de Broward — muchos propietarios todavía lo llaman la recertificación de 40 años — alcanza a casi todos los tipos de edificio, en todas las ciudades. Envíenos la notificación de su ciudad: inspeccionamos el edificio, preparamos el informe estructural en el formulario oficial del programa y lo acompañamos durante las reparaciones y el cierre.',
+      lede: 'El BSIP de Broward — muchos propietarios todavía lo llaman la recertificación de 40 años — alcanza a casi todos los tipos de edificio, en todas las ciudades. Envíenos la notificación de su ciudad: un solo equipo entrega el paquete completo — inspección estructural y eléctrica, informe y formularios oficiales — y lo acompaña hasta el cierre, reparaciones incluidas.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Broward',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
@@ -564,9 +646,11 @@ const services: SiteContent['services'] = [
        ends at the former name: "— Ingeniero estructural" did not fit. */
     seo: {
       title: 'BSIP de Broward (antes recertificación de 40 años)',
+      /* It used to end "Un P.E. de Florida presenta el informe
+         estructural": half the program, and one person — see the EN block. */
       description:
-        'Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, aún llamado recertificación de 40 años. Un P.E. de Florida presenta el informe estructural.',
-      keywords: ['ingeniero BSIP Broward', 'programa de inspección de seguridad de edificios Broward', 'inspección de edificios de 25 años Broward', 'BSIP Broward', 'Broward BSIP engineer', 'building safety inspection program Broward', 'recertificación 40 años Broward'],
+        'Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, aún llamado recertificación de 40 años: inspección estructural y eléctrica completa.',
+      keywords: ['ingeniero BSIP Broward', 'programa de inspección de seguridad de edificios Broward', 'inspección de edificios de 25 años Broward', 'BSIP Broward', 'Broward BSIP engineer', 'building safety inspection program Broward', 'recertificación 40 años Broward', 'inspección eléctrica BSIP Broward', 'BSIP electrical safety inspection'],
     },
   },
   {
@@ -625,7 +709,7 @@ const services: SiteContent['services'] = [
       'Distinción entre lo cosmético y lo estructural, y entre lo urgente y lo que puede monitorearse',
     ],
     process: [
-      { step: 'Aplicabilidad', detail: 'Confirmamos qué reglas alcanzan al edificio y qué pide la notificación, si la hay. Donde aplica el programa de un condado, el trabajo se hace bajo ese programa.' },
+      { step: 'Aplicabilidad', detail: 'Confirmamos qué reglas alcanzan al edificio y qué pide la notificación, si la hay. Donde aplica el programa de un condado, el trabajo se hace bajo ese programa, y nuestro equipo entrega el paquete completo que ese condado pide.' },
       { step: 'Revisión de registros', detail: 'Planos disponibles, informes previos e historial de reparaciones revisados antes de la visita al edificio.' },
       { step: 'Inspección en campo', detail: 'Inspección visual sistemática con documentación fotográfica y mapeo de ubicaciones.' },
       { step: 'Evaluación', detail: 'Observaciones evaluadas estructuralmente — distinguiendo lo cosmético de lo estructural, y lo urgente de lo que puede monitorearse. Donde el deterioro es sustancial, se define la investigación adicional.' },
@@ -701,7 +785,7 @@ const services: SiteContent['services'] = [
           values: [
             'El Condado de Miami-Dade. La notificación la envía el Building Official (el funcionario de construcción) de su ciudad, o el condado en las áreas no incorporadas.',
             'Casi todos los edificios, salvo las viviendas unifamiliares y los dúplex; la lista completa está en la página de Miami-Dade.',
-            'Un informe estructural y un informe eléctrico, cada uno en el formulario del propio condado.',
+            'Un informe estructural y un informe eléctrico, cada uno en el formulario del propio condado, presentados con los certificados y anexos que el condado pide.',
             'Ante el Building Official que envió la notificación.',
           ],
         },
@@ -1543,7 +1627,7 @@ export const es: SiteContent = {
     { n: '01', title: 'Estructura residencial de mediana altura', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales', status: 'Trabajo típico' },
     /* 02 names both county programs and 03 is no longer a "milestone"
        inspection — see the comment over `engagements` in site.ts. */
-    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural, informe estructural en el formulario oficial, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'Informe estructural en el formulario oficial · Registro fotográfico · Alcance de reparaciones', status: 'Trabajo típico' },
+    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural y eléctrica, informes en los formularios oficiales, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'El paquete completo que pide el condado, en sus formularios oficiales · Registro fotográfico · Alcance de reparaciones', status: 'Trabajo típico' },
     { n: '03', title: 'Inspección de seguridad estructural', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento', status: 'Trabajo típico' },
     { n: '04', title: 'Sistema de cimentación para un sitio restringido', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo', status: 'Trabajo típico' },
     { n: '05', title: 'Coordinación BIM multidisciplinaria', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo', status: 'Trabajo típico' },
@@ -1755,8 +1839,8 @@ export const es: SiteContent = {
       title: 'Cuatro situaciones en las que conviene llamar a un ingeniero.',
       lede: 'Busque la suya. Cada una lleva al servicio que la resuelve.',
       items: [
-        { slug: 'building-recertification', k: 'Llegó una notificación en Miami-Dade.', v: 'Es la recertificación de edificios de Miami-Dade. Envíenos la carta: llevamos la parte estructural desde la primera visita hasta el informe que la cierra, y la página del programa indica las edades y el plazo que aplican.' },
-        { slug: 'broward-bsip', k: 'Llegó una notificación en Broward.', v: 'Es el Programa de Inspección de Seguridad de Edificios, el BSIP, y la carta de su ciudad fija su propia fecha. Partimos de esa carta, inspeccionamos el edificio y preparamos el informe estructural en el formulario oficial del programa, hasta el cierre del expediente.' },
+        { slug: 'building-recertification', k: 'Llegó una notificación en Miami-Dade.', v: 'Es la recertificación de edificios de Miami-Dade. Envíenos la carta: un solo equipo entrega el paquete completo que pide el condado — lo estructural, lo eléctrico y los certificados que los acompañan — desde la primera visita hasta el informe que la cierra. La página del programa indica las edades y el plazo que aplican.' },
+        { slug: 'broward-bsip', k: 'Llegó una notificación en Broward.', v: 'Es el Programa de Inspección de Seguridad de Edificios, el BSIP, y la carta de su ciudad fija su propia fecha. Partimos de esa carta y entregamos el paquete completo — las inspecciones estructural y eléctrica, el informe escrito y los formularios oficiales del programa — hasta el cierre del expediente.' },
         { slug: 'milestone-inspections', k: 'La junta directiva pregunta si la ley de inspecciones de hito alcanza al edificio.', v: 'La ley estatal y los programas de los condados se superponen. Le decimos qué reglas alcanzan a su edificio y cómo se cumplen en su condado — e inspeccionamos cuando no ha llegado ninguna notificación pero una compra, un prestamista o un deterioro visible dan motivo para revisar.' },
         { slug: 'structural-condition-assessments', k: 'Un informe enumera reparaciones, o algo le preocupa.', v: 'Antes de que los contratistas coticen, un ingeniero dice qué condiciones afectan la estructura y define la reparación, para que todas las ofertas respondan al mismo alcance. La misma evaluación sirve antes de comprar un edificio o de modificarlo.' },
       ],
@@ -1768,13 +1852,13 @@ export const es: SiteContent = {
     timeline: {
       eyebrow: 'Recertificación y BSIP',
       title: 'Un camino claro desde la notificación hasta el cierre.',
-      lede: 'Miami-Dade lo llama recertificación de edificios; Broward, Programa de Inspección de Seguridad de Edificios. Las edades y los plazos son distintos, y los de cada condado están en su propia página. La secuencia es la misma: primero se presenta el informe, las reparaciones siguen con permiso, y un informe final cierra el expediente. Llevamos la parte estructural para que la junta directiva sepa qué sigue en cada etapa.',
+      lede: 'Miami-Dade lo llama recertificación de edificios; Broward, Programa de Inspección de Seguridad de Edificios. Las edades y los plazos son distintos, y los de cada condado están en su propia página. La secuencia es la misma: primero se presenta el informe, las reparaciones siguen con permiso, y un informe final cierra el expediente. Un solo equipo entrega el paquete completo que pide cada condado, para que la junta directiva haga una sola llamada y sepa qué sigue en cada etapa.',
       cta: { href: '/services/building-recertification', label: 'La recertificación de Miami-Dade en detalle' },
       ctaSecondary: { href: '/services/broward-bsip', label: 'El BSIP de Broward en detalle' },
       steps: [
         { n: '01', title: 'Revisión de la notificación', detail: 'Leemos la notificación y el registro del edificio, confirmamos qué pide el Building Official y fijamos el calendario en función de la fecha de la carta.' },
-        { n: '02', title: 'Inspección', detail: 'Inspección estructural en sitio — estructura, losas, balcones, techo y cimentaciones expuestas — documentada en campo, con fotografías vinculadas a su ubicación.' },
-        { n: '03', title: 'Informe presentado', detail: 'El informe estructural se prepara en el formulario oficial que exige el condado, en un lenguaje con el que la junta directiva puede actuar, y se presenta aunque enumere reparaciones.' },
+        { n: '02', title: 'Inspección', detail: 'Inspección en sitio, estructural y eléctrica — la estructura, las losas, los balcones, el techo y las cimentaciones expuestas, y los sistemas eléctricos del edificio — documentada en campo, con fotografías vinculadas a su ubicación.' },
+        { n: '03', title: 'Informe presentado', detail: 'Los informes, el estructural y el eléctrico, se preparan en los formularios oficiales que exige el condado, en un lenguaje con el que la junta directiva puede actuar, y se presentan aunque enumeren reparaciones.' },
         { n: '04', title: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones definimos qué debe corregirse y con qué estándar, para que el trabajo pueda cotizarse en igualdad de condiciones. La obra que requiere permiso espera a tenerlo.' },
         /* Its own sentence — see the EN step. */
         { n: '05', title: 'Reinspección', detail: 'Cuando la obra termina, volvemos a las áreas reparadas y las comparamos con lo que encontró el primer informe.' },

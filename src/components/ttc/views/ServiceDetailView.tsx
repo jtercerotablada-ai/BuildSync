@@ -17,9 +17,10 @@ import { breadcrumbLd, JsonLd } from './meta';
 
 /**
  * One service, in the order a client asks the questions: when you need it →
- * what is included and what you receive → when it applies (regulated
- * services) → the questions boards ask, then who sent the notice (the two
- * county programs) → how it runs → good to know → next step.
+ * what is included and what you receive (on the two county programs, then
+ * the complete package that county asks for, part by part) → when it applies
+ * (regulated services) → the questions boards ask, then who sent the notice
+ * (the two county programs) → how it runs → good to know → next step.
  *
  * No code-standard names are rendered here (`service.standards` is not read
  * at all any more): a client reads "the Florida Building Code" in the process
@@ -300,6 +301,30 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               </div>
             </Reveal>
           </div>
+          {/* The complete package, part by part — the two county programs
+              (`service.packet`). Under the two columns, so it follows "What
+              you receive": the first line of that list names the package
+              and this block lays it out, one row per part — its name, what
+              it is and when it applies. A definition list, and its label a
+              <p> drawn by its class: a part of a packet is not a section
+              of the page, and the page is at its ceiling of headings
+              (pages.test.ts). Each county's rows are its own; see the rules
+              over `packet` in site.ts before adding one. */}
+          {service.packet ? (
+            <Reveal as="div" delay={0.05} className="mp-packet">
+              <p className="mp-packet__label">{service.packet.label}</p>
+              <p className="mp-packet__lede">{service.packet.lede}</p>
+              <dl className="mp-packet__list">
+                {service.packet.parts.map((part) => (
+                  <div key={part.k}>
+                    <dt>{part.k}</dt>
+                    <dd>{part.v}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mp-packet__note">{service.packet.note}</p>
+            </Reveal>
+          ) : null}
         </div>
       </section>
 

@@ -100,6 +100,8 @@ describe('service pages: the Spanish mirror carries the same blocks', () => {
       expect(Boolean(t?.offices)).toBe(Boolean(s.offices));
       expect(Boolean(t?.alsoCalled?.length)).toBe(Boolean(s.alsoCalled?.length));
       expect(t?.comparison?.rows.length ?? 0).toBe(s.comparison?.rows.length ?? 0);
+      // The complete package, part by part: the same rows in both languages.
+      expect(t?.packet?.parts.length ?? 0).toBe(s.packet?.parts.length ?? 0);
     });
   }
 
@@ -138,6 +140,10 @@ describe('county rules stay in the timing rows', () => {
       ...(s.countyPages ?? []).flatMap((p) => [p.title, p.text]),
       s.comparison?.title,
       ...(s.comparison?.rows ?? []).flatMap((r) => [r.name, ...r.values]),
+      s.packet?.label,
+      s.packet?.lede,
+      s.packet?.note,
+      ...(s.packet?.parts ?? []).flatMap((p) => [p.k, p.v]),
       s.offices?.title,
       s.offices?.lede,
       s.offices?.note,

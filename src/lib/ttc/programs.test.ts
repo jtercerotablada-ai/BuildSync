@@ -46,6 +46,11 @@ describe('the two county programs: each page in its own words', () => {
       ...(s.timing?.duties ?? []),
       ...(s.faq ?? []).flatMap((f) => [f.q, f.a]),
       ...s.considerations,
+      // The complete package, part by part: each county's is its own list.
+      s.packet?.label,
+      s.packet?.lede,
+      s.packet?.note,
+      ...(s.packet?.parts ?? []).map((p) => p.v),
       s.offices?.lede,
       s.offices?.note,
       s.program?.lede,
