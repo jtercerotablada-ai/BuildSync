@@ -2976,19 +2976,22 @@ export const closingCta = {
    state the site is in until the four variables are set — nothing here is
    printed and the page reads as it always has.
 
-   Every statement was read against the tag itself, in a browser, on October
-   7, 2026, with a test ID: who gets it (a visitor whose landing address
-   carries gclid, gbraid or wbraid, or who still holds a click cookie); what
-   is loaded (www.googletagmanager.com/gtag/js); what is stored (cookies
-   `_gcl_au`, `_gcl_aw` / `_gcl_ag` / `_gcl_gb`, `_gcl_gs`, local storage
-   `_gcl_ls`, and Google's own `GCL_AW_P` on its three domains); what is sent
-   and when (www.google.com/ccm/collect on each full page load; on a
-   conversion, www.googleadservices.com/pagead/conversion,
-   googleads.g.doubleclick.net/pagead/viewthroughconversion and
-   www.google.com/pagead/1p-conversion — the first with the page's address
-   and title, the click identifier and the `_gcl_au` number; the conversions
-   with those plus the label, the screen size and the browser's client hints;
-   none with anything from the form). Google's own cookie was written on a
+   Every statement was read against the tag itself, in a browser: on October
+   7, 2026 with a test ID, and again on October 8 with the firm's own ID and
+   the tag in its frame (ads.ts, "WHERE THE TAG RUNS"). Who gets it (a
+   visitor whose landing address carries gclid, gbraid or wbraid, or who
+   still holds a click cookie); what is loaded
+   (www.googletagmanager.com/gtag/js); what is stored (cookies `_gcl_au`,
+   `_gcl_aw` / `_gcl_ag` / `_gcl_gb`, `_gcl_gs`, local storage `_gcl_ls`,
+   and Google's own `GCL_AW_P` on its three domains); what is sent and when
+   (www.google.com/ccm/collect on each full page load, with the page's
+   address, the click identifier and the `_gcl_au` number; on a conversion,
+   www.googleadservices.com/pagead/conversion and /ccm/conversion and
+   googleads.g.doubleclick.net/pagead/viewthroughconversion, with those plus
+   the address of the page the visitor is on, the label, the screen size and
+   the browser's client hints; none with the page's title, which the tag's
+   frame does not have, and none with anything from the form). Google's own
+   cookie was written on a
    gclid landing and not on a gbraid or wbraid one, hence "can". The 90 days are
    Google's published figure and the expiry the cookies were written with;
    the sentence prints it from ADS_COOKIE_DAYS. "Not used to personalize ads
@@ -2996,27 +2999,33 @@ export const closingCta = {
    settings the script applies (allow_ad_personalization_signals: false and
    restricted_data_processing: true). Sources are cited in ads.ts.
 
-   IT STAYS TRUE ONLY WHILE THE GOOGLE ADS ACCOUNT LEAVES "ENHANCED
-   CONVERSIONS" OFF. That feature makes the tag read the e-mail and phone
-   fields of the form; the script asks for it not to, and this page says
-   nothing written in the form is passed on.
+   "WHAT YOU WRITE IN THE FORM IS NOT PART OF IT" IS KEPT TRUE BY WHERE THE
+   TAG RUNS, NOT BY A SETTING. With "Enhanced conversions" on in the Google
+   Ads account — and this account had it on from its first day — the tag
+   reads the e-mail field of the document it runs in: on October 8, 2026,
+   with the tag in the page, it sent that address hashed, whatever the
+   script asked. The tag is now loaded in a frame that holds no form
+   (ads.ts), and the paragraph says so. If the tag ever goes back into the
+   page, the sentence is false again that same day: ads.ts describes the
+   check to run before and after any change.
 
    Same rules as the rest of `legal` (see the comment inside it): what the
    code does, in plain words — no claim of compliance, no retention period of
    the firm's own, and no link out (Google's pages are named as text; the
    site links six outside hosts and pages.test.ts keeps that list).
-   The Spanish twin is `privacyAds` in site.es.ts; ads.test.ts pins both. */
+   The Spanish twin is `privacyAds` in site.es.ts; views/ads-pages.test.ts
+   reads both, in both states of the switch. */
 const privacyAds = {
   h: 'Cookies, analytics and advertising',
-  /* Opens "What we collect" in place of "The only": with the tag on the
-     page, the form is no longer the only thing that records anything. */
+  /* Opens "What we collect" in place of "The only": with measurement on,
+     the form is no longer the only thing that records anything. */
   collect:
     'Apart from what Google’s advertising tag records when a visitor arrives from one of our ads (described under “Cookies, analytics and advertising” below), the only',
   p: [
     'The public pages of this site run no analytics and no social-media scripts, and the form uses no outside verification service (CAPTCHA). Their scripts, fonts, photographs and video are served from this site’s own address, with one exception, which is also the only case in which these pages set cookies: a visitor who arrives by clicking one of our Google ads.',
     'An ad’s link carries a click identifier that Google adds to the address it opens. Only when the address you arrive at carries one do these pages load Google’s advertising tag, a script served from googletagmanager.com. A visitor who comes from an ordinary search result, from another link or by typing the address is not given the tag, unless an earlier visit through an ad left the cookies described next. We use it for one thing: to know which ad led to a call, a WhatsApp chat or a request sent through the form.',
     `The tag keeps the click identifier and a random number in your browser: in cookies under this site’s address whose names begin with “_gcl_”, and in one entry of the browser’s local storage. Google can also set a cookie of its own, carrying the same identifier, on its advertising addresses (google.com, googleadservices.com and doubleclick.net). The cookies are set to expire after ${ADS_COOKIE_DAYS} days, and your browser may shorten that. While they last, the tag is loaded again whenever you return to these pages.`,
-    'Each time one of these pages is loaded in full, the tag sends Google the click identifier, the random number and the address and title of the page. When you tap a phone link, open the WhatsApp link or send the form, it sends them again with a label that says which of the three happened and with technical details of your browser and device, such as their versions and the screen size. As with any request a browser makes, Google also sees your internet address (IP). What you write in the form is not part of it: we do not pass the tag your name, email address or phone number, your description or files, or the reference of your request.',
+    'Each time one of these pages is loaded in full, the tag sends Google the click identifier, the random number and the address of the page. When you tap a phone link, open the WhatsApp link or send the form, it sends them again with the address of the page you are on, a label that says which of the three happened and technical details of your browser and device, such as their versions and the screen size. As with any request a browser makes, Google also sees your internet address (IP). What you write in the form is not part of it: the tag runs in a frame of its own, apart from the page and its form, and we do not pass it your name, email address or phone number, your description or files, or the reference of your request.',
     'We have switched off, in the tag’s own settings, the use of these events to personalize ads and to build remarketing lists. Google receives them as the company that runs the ads and handles them under its own privacy policy and terms, which we do not control. To remove what the tag stored, clear this site’s cookies and site data in your browser; after that the tag is not loaded again unless you arrive from another of our ads. Google’s own controls for the ads it shows you are at myadcenter.google.com.',
   ],
 };

@@ -50,40 +50,86 @@
  * no click identifier in its address, and the cookie answers for it. The
  * staff application is a different document too and never prints the script.
  *
+ * WHERE THE TAG RUNS — IN A FRAME OF ITS OWN, NOT IN THE PAGE. The script
+ * does not add Google's tag to the page's document. It makes a hidden, empty
+ * frame of this same site and loads the tag inside it. The page keeps only
+ * `window.__ttcAds` and the click listener, and hands the frame one thing
+ * per conversion: its label.
+ *
+ * The reason is the form. A Google Ads account can have "Enhanced
+ * conversions" set to automatic — this one had it that way from the day it
+ * was created — and then the tag searches the document it runs in for an
+ * e-mail field and sends that address, hashed, with the conversion
+ * (`em=tv.1~em.<SHA-256>` and `ec_mode=a` on the request).
+ * `allow_enhanced_conversions: false`, below, does not stop that automatic
+ * mode: on October 8, 2026, with the tag in the page, the live site sent the
+ * hash of what was typed in the form's e-mail field, and measurement was
+ * switched off the same hour. The frame's document has no form, no field and
+ * no text, so there is nothing in it for the tag to find.
+ *
+ * The frame is same-origin on purpose: the tag still reads and writes this
+ * site's `_gcl_` cookies and still sees the click identifier in the address,
+ * which is what ties a conversion to an ad.
+ *
  * WHAT THE TAG IS TOLD TO DO, AND NOT DO (adsBootScript):
  *   • three conversions and nothing else — no Google Analytics, and no
  *     remarketing ping on page load (`send_page_view: false`);
  *   • ad personalisation off (`allow_ad_personalization_signals: false`, and
  *     consent `ad_personalization: 'denied'`) and restricted data processing
  *     on, so Google does not add visitors to remarketing lists;
- *   • no enhanced conversions (`allow_enhanced_conversions: false`): the
- *     event is the label alone — not the name, e-mail, phone, message, files
- *     or reference of the request.
+ *   • no enhanced conversions (`allow_enhanced_conversions: false`) — which
+ *     turned out to refuse only the kind a site sends by hand; the automatic
+ *     kind is kept out by the frame, above. The event is the label alone —
+ *     not the name, e-mail, phone, message, files or reference of the
+ *     request.
  * Google documents these controls at
  *   https://developers.google.com/tag-platform/security/guides/privacy
  *
- * WHAT IT WAS SEEN TO DO, in Chromium, with a test ID, on October 7, 2026:
+ * WHAT IT WAS SEEN TO DO, in Chromium, on October 8, 2026, with the firm's
+ * own conversion ID, the tag in its frame and "Enhanced conversions" still
+ * on in the account (first watched on October 7, with a test ID and the tag
+ * in the page):
  *   • on an ad landing: GET www.googletagmanager.com/gtag/js, then one
- *     POST www.google.com/ccm/collect ("page_view": the page's address and
- *     title, the click identifier, the tag's random number), one
- *     GET www.googleadservices.com/pagead/set_partitioned_cookie and one
- *     POST ad.doubleclick.net/ccm/s/collect;
+ *     POST www.google.com/ccm/collect ("page_view": the page's address, the
+ *     click identifier, the tag's random number — and no title: the frame
+ *     has none), one GET www.googleadservices.com/pagead/set_partitioned_cookie
+ *     and one POST ad.doubleclick.net/ccm/s/collect;
  *   • moving between pages of the site: nothing;
  *   • on a later full load (cookie only): the script and the ccm/collect;
  *   • on each conversion: GET www.googleadservices.com/pagead/conversion/<id>/,
- *     POST googleads.g.doubleclick.net/pagead/viewthroughconversion/<id>/
- *     (a 302) and GET www.google.com/pagead/1p-conversion/<id>/ after it —
- *     with the label, the page's address and title, the click identifier, the
+ *     www.googleadservices.com/ccm/conversion/<id>/ (a GET or a POST) and
+ *     POST googleads.g.doubleclick.net/pagead/viewthroughconversion/<id>/ —
+ *     with the label, the address of the page the visitor is on (the tag
+ *     reads it from the window above its frame), the address the frame was
+ *     made at (the page that was loaded in full), the click identifier, the
  *     random number, the screen size and the browser's client hints;
- *   • nothing typed into the form, in any of them.
+ *   • with the form filled in: the e-mail parameter empty (`em=tv.1`), and
+ *     nothing typed into the form in any request — not in clear, not
+ *     URL-encoded, not as a SHA-256.
  * The ccm/collect "page_view" on every full load is the tag's own doing and
  * no setting here stops it. The Privacy page says so.
  *
- * TWO THINGS THE CODE CANNOT GUARANTEE, because they are set in the Google
- * Ads account and reach the tag from Google's side: "Enhanced conversions"
- * (it reads the form's e-mail and phone fields) and a Google Analytics
- * destination added to this tag. Both must stay OFF there, or the Privacy
- * page stops being true while this file still looks right.
+ * TWO THINGS THE CODE CANNOT GUARANTEE:
+ *   • A Google Analytics destination added to this tag. That is set in the
+ *     Google Ads account and reaches the tag from Google's side; it must
+ *     stay OFF there, or the Privacy page stops being true while this file
+ *     still looks right.
+ *   • What Google's tag does inside its frame tomorrow. The frame is
+ *     same-origin, so the browser does not forbid the tag from reaching the
+ *     page above it — it already reads that window's address. What keeps
+ *     the form out of its reach is that the tag looks for fields in its OWN
+ *     document. That is how it behaves, not a rule it is bound by, so it is
+ *     CHECKED and not assumed. Before measurement is switched on, and after
+ *     any change to this file: open /contact with a click identifier in the
+ *     address (?gclid=TEST), fill in the form without sending it, call
+ *     `__ttcAds('form')`, and read every request to Google for the name,
+ *     e-mail and phone that were typed — in clear, URL-encoded, and as
+ *     SHA-256 in hex and in base64. None may be there, and `em` must be
+ *     `tv.1`. Do it on an https address: on http://localhost the tag does
+ *     no enhanced conversions at all (`em=tv.1~ec.e3`, in the page and in
+ *     a frame alike), so a pass there proves nothing. "Enhanced conversions"
+ *     should be switched off in the account as well; the frame is what
+ *     keeps the page true while it is not.
  *
  * WHAT IT STORES. Cookies under this site's address whose names begin with
  * `_gcl_` (`_gcl_au`, the click cookie, and `_gcl_gs` when the link carries
@@ -220,7 +266,9 @@ export const ADS_TAG_SRC = 'https://www.googletagmanager.com/gtag/js';
  *
  * It runs once per document and does nothing at all unless the visitor
  * arrived from an ad (see the top of this file). When they did, it
- *   1. queues the settings and loads Google's tag;
+ *   1. makes a hidden frame and, INSIDE IT, queues the settings and loads
+ *      Google's tag — never in the page's own document, so the tag has no
+ *      form to read (see "WHERE THE TAG RUNS", at the top);
  *   2. keeps `window.__ttcAds(kind)`, the one function that reports a
  *      conversion — the same kind is not reported twice within a second, so
  *      a double tap is one call, not two;
@@ -230,8 +278,34 @@ export const ADS_TAG_SRC = 'https://www.googletagmanager.com/gtag/js';
  *      handler that stops the event cannot hide it.
  * The form reports through the same function (reportConversion, below).
  *
+ * The frame (`f` in the script; `b()` builds it, `x` is its window). It is
+ * opened and closed —
+ * `document.open()`, `close()` — before anything is put in it: that gives
+ * it a document of its own carrying this page's address, the address the
+ * tag reads the click identifier from, instead of the blank one a new frame
+ * starts with, which not every browser keeps. Its window is read again
+ * after that, because older browsers made a new one on `open()`. The queue
+ * function stays in the page and pushes into the frame's `dataLayer`; no
+ * script is written into the frame but Google's.
+ *
+ * It goes in <head>, where React leaves alone what it did not render — as
+ * long as the page hydrates. When hydration fails at the root (a browser
+ * extension rewrote the page first, say), React builds the document again
+ * and keeps only scripts and styles in <head>: the frame goes, where the
+ * tag's own <script>, in the old arrangement, stayed. That can happen before
+ * the tag has run and written its click cookie, and a frame built later, on
+ * another page of the site, would find neither the identifier in the
+ * address nor the cookie. So the script watches <head> and builds the frame
+ * again the moment it is taken out, while the address is still the one the
+ * visitor arrived at — three times at most, so that something bent on
+ * removing it cannot lock the page in a loop. A conversion that finds the
+ * frame gone all the same builds it again before reporting. A frame built
+ * again loads the tag again, and with it the page-load request of that one
+ * page.
+ *
  * ES5 and self-contained: it is not compiled, and it must never be the
- * reason a page breaks — hence the try/catch around the whole of it.
+ * reason a page breaks — hence the try/catch around the whole of it, and a
+ * second one inside `__ttcAds`, which runs later, from a click.
  */
 export function adsBootScript(cfg: AdsOn): string {
   const id = JSON.stringify(cfg.id);
@@ -239,24 +313,35 @@ export function adsBootScript(cfg: AdsOn): string {
     '(function(w,d){try{',
     'if(w.__ttcAds)return;',
     `if(!(${AD_CLICK_PARAM}.test(w.location.search)||${AD_CLICK_COOKIE}.test(d.cookie)))return;`,
-    `var I=${id},L=${JSON.stringify(cfg.labels)},T={};`,
-    'w.dataLayer=w.dataLayer||[];',
-    'function g(){w.dataLayer.push(arguments)}',
+    `var I=${id},L=${JSON.stringify(cfg.labels)},T={},f,x,R=0;`,
+    // The queue is the FRAME's. Nothing of Google's is put on the page's window.
+    'function g(){x.dataLayer.push(arguments)}',
+    'function b(){',
+    "f=d.createElement('iframe');",
+    "f.setAttribute('aria-hidden','true');f.tabIndex=-1;f.style.display='none';",
+    'd.head.appendChild(f);',
+    'var y=f.contentWindow.document;y.open();y.close();',
+    'x=f.contentWindow;y=x.document;x.dataLayer=[];',
     "g('consent','default',{ad_personalization:'denied',analytics_storage:'denied'});",
     "g('set','allow_ad_personalization_signals',false);",
     "g('js',new Date());",
     "g('config',I,{send_page_view:false,allow_enhanced_conversions:false,restricted_data_processing:true});",
-    "var s=d.createElement('script');s.async=true;",
+    "var s=y.createElement('script');s.async=true;",
     `s.src=${JSON.stringify(`${ADS_TAG_SRC}?id=`)}+I;`,
-    'd.head.appendChild(s);',
-    'w.__ttcAds=function(k){var n=Date.now();',
+    '(y.head||y.documentElement).appendChild(s)}',
+    'b();',
+    'w.__ttcAds=function(k){try{var n=Date.now();',
     'if(!L[k]||n-(T[k]||0)<1000)return;',
-    "T[k]=n;g('event','conversion',{send_to:I+'/'+L[k]})};",
+    'T[k]=n;if(!f.parentNode)b();',
+    "g('event','conversion',{send_to:I+'/'+L[k]})}catch(e){}};",
     "d.addEventListener('click',function(e){",
     "var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;",
     "var h=a.getAttribute('href')||'';",
     `if(${CALL_LINK}.test(h))w.__ttcAds('call');`,
     `else if(${WHATSAPP_LINK}.test(h))w.__ttcAds('whatsapp')},true);`,
+    // The frame is put back as soon as it is taken out of <head>; R bounds it.
+    'if(w.MutationObserver)new w.MutationObserver(function(){',
+    'try{if(!f.parentNode&&R++<3)b()}catch(e){}}).observe(d.head,{childList:true});',
     '}catch(e){}})(window,document);',
   ].join('');
 }

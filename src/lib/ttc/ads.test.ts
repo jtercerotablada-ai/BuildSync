@@ -20,9 +20,11 @@ import {
  * stand-in for `window` and `document`.
  *
  * What a real browser then does with Google's tag — the requests, the
- * cookies — cannot be tested here; it was watched once, with a test ID, and
- * is written down in ads.ts and on the Privacy page. The pages themselves,
- * in both states of the switch, are in views/ads-pages.test.ts.
+ * cookies, and whether it can find the form — cannot be tested here; it was
+ * watched in a browser and is written down in ads.ts and on the Privacy
+ * page, with the check to repeat before measurement is switched on. The
+ * pages themselves, in both states of the switch, are in
+ * views/ads-pages.test.ts.
  */
 
 const TEST: AdsOn = {
@@ -149,32 +151,112 @@ describe('which link is which conversion', () => {
 /* ── the bootstrap script, as it is shipped ─────────────────────────────── */
 
 type Link = { getAttribute: (name: string) => string | null };
+type Tag = { src?: string; async?: boolean };
+type FrameWindow = { dataLayer?: IArguments[]; document: unknown };
+/** The frame the script makes for Google's tag: its own window and document. */
+type Frame = {
+  attrs: Record<string, string>;
+  style: Record<string, string>;
+  tabIndex?: number;
+  /** Set when the frame is put in the page; a test clears it to take it out. */
+  parentNode: unknown;
+  setAttribute: (name: string, value: string) => void;
+  /** As a browser gives it: no window until the frame is in a document. */
+  readonly contentWindow: FrameWindow | null;
+  /** The same window, for the tests to read whatever the frame's state. */
+  win: FrameWindow;
+  /** What was done to the frame's document, in order. */
+  log: string[];
+  /** What was added to the frame's <head>. */
+  tags: Tag[];
+};
 
-/** Run the script against a stand-in browser; return what it did. */
-function boot(search: string, cookie: string, cfg: AdsOn = TEST) {
-  const appended: { src?: string; async?: boolean }[] = [];
+/**
+ * Run the script against a stand-in browser; return what it did.
+ * `dead`: frames that never get a window (something neuters them).
+ * `observer`: the stand-in window has a MutationObserver.
+ */
+function boot(search: string, cookie: string, cfg: AdsOn = TEST, env: { dead?: boolean; observer?: boolean } = {}) {
+  /** Everything added to the PAGE's own <head>. */
+  const pageHead: unknown[] = [];
+  const frames: Frame[] = [];
   const listeners: { type: string; fn: (e: unknown) => void; capture: unknown }[] = [];
   let clock = 1_000_000;
+  const head = {
+    appendChild: (el: unknown) => {
+      pageHead.push(el);
+      const frame = frames.find((f) => f === el);
+      if (frame) frame.parentNode = head;
+      return el;
+    },
+  };
+  const makeFrame = (): Frame => {
+    const log: string[] = [];
+    const tags: Tag[] = [];
+    const win: FrameWindow = {
+      document: {
+        open: () => log.push('open'),
+        close: () => log.push('close'),
+        createElement: (tag: string) => {
+          log.push(`create ${tag}`);
+          return {} as Tag;
+        },
+        head: {
+          appendChild: (el: Tag) => {
+            // How much was already queued for the tag when it was added.
+            log.push(`add tag, ${win.dataLayer?.length ?? 'no'} queued`);
+            tags.push(el);
+          },
+        },
+      },
+    };
+    const frame: Frame = {
+      attrs: {},
+      style: {},
+      parentNode: null,
+      setAttribute: (name, value) => {
+        frame.attrs[name] = value;
+      },
+      log,
+      tags,
+      win,
+      get contentWindow() {
+        return env.dead || !frame.parentNode ? null : win;
+      },
+    };
+    frames.push(frame);
+    return frame;
+  };
   const document = {
     cookie,
-    createElement: () => ({}) as { src?: string; async?: boolean },
-    head: { appendChild: (el: { src?: string }) => appended.push(el) },
+    createElement: (tag: string) => (tag === 'iframe' ? makeFrame() : ({} as Tag)),
+    head,
     addEventListener: (type: string, fn: (e: unknown) => void, capture: unknown) =>
       listeners.push({ type, fn, capture }),
   };
+  /** What the script asked to be told about, had the window an observer. */
+  const observers: { fn: () => void; target: unknown; options: unknown }[] = [];
+  class FakeObserver {
+    constructor(private fn: () => void) {}
+    observe(target: unknown, options: unknown) {
+      observers.push({ fn: this.fn, target, options });
+    }
+  }
   const window: {
     location: { search: string };
     dataLayer?: IArguments[];
     __ttcAds?: (kind: string) => void;
-  } = { location: { search } };
+    MutationObserver?: typeof FakeObserver;
+  } = env.observer ? { location: { search }, MutationObserver: FakeObserver } : { location: { search } };
   // `new Date()` for the tag's 'js' command, `Date.now()` for the script's
   // own clock — the second is the one the tests move.
   const FakeDate = Object.assign(function FakeDate() {}, { now: () => clock });
   const run = () => vm.runInNewContext(adsBootScript(cfg), { window, document, Date: FakeDate });
   run();
-  /** Everything queued for Google's tag, as plain arrays of plain values. */
+  /** Everything queued for Google's tag — in its frame, the latest one — as
+   *  plain arrays of plain values. */
   const queue = (): unknown[][] =>
-    (window.dataLayer ?? []).map((args) => JSON.parse(JSON.stringify(Array.from(args))));
+    (frames.at(-1)?.win.dataLayer ?? []).map((args) => JSON.parse(JSON.stringify(Array.from(args))));
   const events = () => queue().filter((q) => q[0] === 'event');
   const click = (href: string | null, inside = true) => {
     const link: Link = { getAttribute: (name) => (name === 'href' ? href : null) };
@@ -186,7 +268,10 @@ function boot(search: string, cookie: string, cfg: AdsOn = TEST) {
   };
   return {
     window,
-    appended,
+    head,
+    pageHead,
+    frames,
+    observers,
     listeners,
     queue,
     events,
@@ -207,7 +292,8 @@ describe('the bootstrap script', () => {
       ['', '_gcl_au=1.1.1.1'],
     ]) {
       const b = boot(search, cookie);
-      expect(b.appended).toEqual([]);
+      expect(b.pageHead).toEqual([]);
+      expect(b.frames).toEqual([]);
       expect(b.listeners).toEqual([]);
       expect(b.window.dataLayer).toBeUndefined();
       expect(b.window.__ttcAds).toBeUndefined();
@@ -223,19 +309,145 @@ describe('the bootstrap script', () => {
       ['?service=broward-bsip', '_gcl_gb=GCL.1.TEST123'],
     ]) {
       const b = boot(search, cookie);
-      expect(b.appended).toEqual([{ async: true, src: `${ADS_TAG_SRC}?id=AW-000000000` }]);
+      expect(b.frames).toHaveLength(1);
+      expect(b.frames[0].tags).toEqual([{ async: true, src: `${ADS_TAG_SRC}?id=AW-000000000` }]);
       expect(b.listeners.map((l) => [l.type, l.capture])).toEqual([['click', true]]);
       // Printed twice in one document (it is not, but nothing forbids it):
       // the second copy must not load the tag or listen again.
       b.run();
-      expect(b.appended).toHaveLength(1);
+      expect(b.frames).toHaveLength(1);
+      expect(b.frames[0].tags).toHaveLength(1);
       expect(b.listeners).toHaveLength(1);
     }
   });
 
+  // The promise the Privacy page makes about the form rests on this. With
+  // "Enhanced conversions" on in the Google Ads account, the tag reads the
+  // e-mail field of the document it runs in (ads.ts, "WHERE THE TAG RUNS").
+  // So it never runs in the page: the page's <head> is given one thing, the
+  // frame, and the page's window is given no queue for the tag to read.
+  it('loads it in a frame of its own — nothing of Google’s is added to the page’s document or window', () => {
+    const b = boot('?gclid=TEST123', '');
+    expect(b.pageHead).toEqual([b.frames[0]]);
+    expect(b.window.dataLayer).toBeUndefined();
+    expect(Object.keys(b.window).sort()).toEqual(['__ttcAds', 'location']);
+    // The tag itself is added to the frame's document, not the page's.
+    expect(b.frames[0].tags).toHaveLength(1);
+    const script = adsBootScript(TEST);
+    expect(script).not.toMatch(/w\.dataLayer|d\.createElement\('script'\)|d\.head\.appendChild\(s\)/);
+    // After a click and a sent form, still nothing but the frame.
+    b.click('tel:+17722658506');
+    b.window.__ttcAds?.('form');
+    expect(b.pageHead).toEqual([b.frames[0]]);
+    expect(b.window.dataLayer).toBeUndefined();
+  });
+
+  it('the frame is nothing a visitor can see, reach or hear announced', () => {
+    const frame = boot('?gclid=TEST123', '').frames[0];
+    expect(frame.style).toEqual({ display: 'none' });
+    expect(frame.attrs).toEqual({ 'aria-hidden': 'true' });
+    expect(frame.tabIndex).toBe(-1);
+    // No address of its own: nothing is fetched to make it.
+    expect(Object.keys(frame.attrs)).not.toContain('src');
+  });
+
+  // Opened and closed before anything goes in (see adsBootScript): the tag is
+  // added last, to a document that is the frame's for good, with the four
+  // settings already waiting for it.
+  it('opens and closes the frame’s document, queues the settings, then adds the tag', () => {
+    const frame = boot('?gclid=TEST123', '').frames[0];
+    expect(frame.log).toEqual(['open', 'close', 'create script', 'add tag, 4 queued']);
+  });
+
+  // React can rebuild <head> after an error and drop what it did not render.
+  // A conversion that finds the frame gone builds it again first; the click
+  // cookie the first frame wrote still ties it to its ad.
+  it('builds the frame again if it was taken out of the page, and the conversion is not lost', () => {
+    const b = boot('?gclid=TEST123', '');
+    b.click('tel:+17722658506');
+    expect(b.events()).toHaveLength(1);
+    b.frames[0].parentNode = null;
+    b.tick(5_000);
+    b.window.__ttcAds?.('form');
+    expect(b.frames).toHaveLength(2);
+    expect(b.pageHead).toEqual([b.frames[0], b.frames[1]]);
+    expect(b.frames[1].log).toEqual(['open', 'close', 'create script', 'add tag, 4 queued']);
+    expect(b.queue().map((x) => x[0])).toEqual(['consent', 'set', 'js', 'config', 'event']);
+    expect(b.events()).toEqual([['event', 'conversion', { send_to: 'AW-000000000/LABEL_FORM' }]]);
+    // While it is in the page, it is left alone.
+    b.tick(5_000);
+    b.click('https://wa.me/17722658506');
+    expect(b.frames).toHaveLength(2);
+    expect(b.events()).toHaveLength(2);
+  });
+
+  it('a conversion that cannot be reported is dropped quietly — a click on “Call” still calls', () => {
+    const b = boot('?gclid=TEST123', '');
+    // The frame's window is gone but the frame still looks attached.
+    b.frames[0].win.dataLayer = undefined;
+    expect(() => b.click('tel:+17722658506')).not.toThrow();
+    expect(() => b.window.__ttcAds?.('form')).not.toThrow();
+  });
+
+  // The one edit that must never pass: a way back into the page. A frame
+  // that cannot be used (something neuters frames, `open()` throws) means no
+  // measurement for that visitor — not the tag in the page's document, where
+  // it would read the form.
+  it('if the frame cannot be used, it gives up — it never falls back to the page', () => {
+    const b = boot('?gclid=TEST123', '', TEST, { dead: true });
+    expect(b.pageHead).toEqual([b.frames[0]]);
+    expect(b.frames[0].tags).toEqual([]);
+    expect(b.frames[0].win.dataLayer).toBeUndefined();
+    expect(Object.keys(b.window)).toEqual(['location']);
+    expect(b.listeners).toEqual([]);
+  });
+
+  // React keeps only scripts and styles in <head> when it has to build the
+  // document again after a failed hydration: the frame goes, and with it a
+  // tag that may not have run yet (adsBootScript). The script watches <head>
+  // and puts the frame back at once, while the address still carries the
+  // click identifier.
+  it('watches <head> and builds the frame again the moment it is taken out — three times at most', () => {
+    const b = boot('?gclid=TEST123', '', TEST, { observer: true });
+    expect(b.observers).toHaveLength(1);
+    expect(b.observers[0].target).toBe(b.head);
+    expect(b.observers[0].options).toEqual({ childList: true });
+    // Any other change in <head> is none of its business.
+    b.observers[0].fn();
+    expect(b.frames).toHaveLength(1);
+    for (const count of [2, 3, 4]) {
+      b.frames.at(-1)!.parentNode = null;
+      b.observers[0].fn();
+      expect(b.frames).toHaveLength(count);
+      expect(b.frames.at(-1)!.log).toEqual(['open', 'close', 'create script', 'add tag, 4 queued']);
+      // Putting the new frame in <head> is itself a change there: no loop.
+      b.observers[0].fn();
+      expect(b.frames).toHaveLength(count);
+    }
+    // Something keeps removing it: stop, rather than lock the page in a loop.
+    b.frames.at(-1)!.parentNode = null;
+    b.observers[0].fn();
+    b.observers[0].fn();
+    expect(b.frames).toHaveLength(4);
+    // A conversion still builds one for itself.
+    b.window.__ttcAds?.('form');
+    expect(b.frames).toHaveLength(5);
+    expect(b.events()).toEqual([['event', 'conversion', { send_to: 'AW-000000000/LABEL_FORM' }]]);
+  });
+
+  it('a browser with no MutationObserver is not watched, and nothing else changes', () => {
+    const b = boot('?gclid=TEST123', '');
+    expect(b.observers).toEqual([]);
+    expect(b.frames).toHaveLength(1);
+    b.click('tel:+17722658506');
+    expect(b.events()).toHaveLength(1);
+  });
+
   // What the tag is told before it loads. Each line is a promise the Privacy
   // page makes: no remarketing ping, no personalised advertising, no
-  // enhanced conversions, no Analytics.
+  // Analytics, and no enhanced conversions sent by hand — the account's
+  // automatic kind is not stopped by a setting; the frame keeps it out
+  // (the tests above, and ads.ts, "WHERE THE TAG RUNS").
   it('queues the settings before anything else, and no page view', () => {
     const q = boot('?gclid=TEST123', '').queue();
     expect(q.map((x) => x[0])).toEqual(['consent', 'set', 'js', 'config']);
