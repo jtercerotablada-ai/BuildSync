@@ -59,6 +59,7 @@
  *     printed on the Broward page.
  */
 
+import { ADS, ADS_COOKIE_DAYS } from './ads';
 import { photo } from './media';
 import type { SiteContent } from './site';
 
@@ -1189,6 +1190,26 @@ const caseStudies: SiteContent['caseStudies'] = [];
    BUNDLE
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* The Privacy page while Google Ads measurement is ON — the Spanish twin of
+   `privacyAds` in site.ts. Read the comment there: what each sentence was
+   checked against, the one flag that prints it (ADS.on, ads.ts), and why it
+   names Google's pages without linking them. Same content as the English,
+   written as Spanish: "la etiqueta" is Google's tag throughout, so the label
+   that tells the three conversions apart is "un código". */
+const privacyAds = {
+  h: 'Cookies, analítica y publicidad',
+  /* Opens "Qué recopilamos" in place of "La": see the English comment. */
+  collect:
+    'Aparte de lo que registra la etiqueta publicitaria de Google cuando un visitante llega desde uno de nuestros anuncios (se describe más abajo, en “Cookies, analítica y publicidad”), la',
+  p: [
+    'Las páginas públicas de este sitio no ejecutan scripts de analítica ni de redes sociales, y el formulario no usa ningún servicio externo de verificación (CAPTCHA). Sus scripts, tipografías, fotografías y videos se sirven desde la propia dirección de este sitio, con una excepción, que es también el único caso en que estas páginas instalan cookies: el de quien llega haciendo clic en uno de nuestros anuncios de Google.',
+    'El enlace de un anuncio lleva un identificador de clic que Google añade a la dirección que abre. Solo cuando la dirección por la que usted llega lo trae, estas páginas cargan la etiqueta publicitaria de Google, un script que se sirve desde googletagmanager.com. Quien llega desde un resultado de búsqueda corriente, desde otro enlace o escribiendo la dirección no recibe la etiqueta, salvo que una visita anterior a través de un anuncio haya dejado las cookies que se describen a continuación. La usamos para una sola cosa: saber qué anuncio dio lugar a una llamada, a un chat de WhatsApp o a una solicitud enviada por el formulario.',
+    `La etiqueta guarda en su navegador el identificador de clic y un número aleatorio: en cookies bajo la dirección de este sitio cuyos nombres empiezan por “_gcl_”, y en una entrada del almacenamiento local del navegador. Google puede instalar además una cookie propia, con el mismo identificador, en sus direcciones de publicidad (google.com, googleadservices.com y doubleclick.net). Las cookies se crean con una caducidad de ${ADS_COOKIE_DAYS} días, que su navegador puede acortar. Mientras duran, la etiqueta se vuelve a cargar cada vez que usted regresa a estas páginas.`,
+    'Cada vez que una de estas páginas se carga por completo, la etiqueta envía a Google el identificador de clic, el número aleatorio y la dirección y el título de la página. Cuando usted toca un enlace de teléfono, abre el enlace de WhatsApp o envía el formulario, los envía de nuevo con un código que indica cuál de las tres cosas ocurrió y con datos técnicos de su navegador y de su dispositivo, como sus versiones y el tamaño de la pantalla. Como en cualquier solicitud que hace un navegador, Google ve también su dirección de internet (IP). Lo que usted escribe en el formulario no forma parte de ello: no entregamos a la etiqueta su nombre, su correo electrónico ni su teléfono, tampoco su descripción ni sus archivos, ni la referencia de su solicitud.',
+    'Hemos desactivado, en la configuración de la propia etiqueta, el uso de estos eventos para personalizar anuncios y para crear listas de remarketing. Google los recibe como la empresa que gestiona los anuncios y los trata conforme a su propia política de privacidad y a sus condiciones, que no controlamos. Para eliminar lo que la etiqueta guardó, borre en su navegador las cookies y los datos de este sitio; después, la etiqueta no vuelve a cargarse salvo que usted llegue desde otro de nuestros anuncios. Los controles de Google sobre los anuncios que le muestra están en myadcenter.google.com.',
+  ],
+};
+
 export const es: SiteContent = {
   company: {
     legalName: 'Tercero Tablada Civil and Structural Engineering Inc.',
@@ -1954,14 +1975,17 @@ export const es: SiteContent = {
        list of them, and `contact` leads to the e-mail address under
        "Contacto". See the EN comment in site.ts — above all what may be
        written here (only what the code does) and what may not (anything
-       that is the owner's legal decision). */
+       that is the owner's legal decision). As in English, Google Ads
+       measurement swaps the opening of "Qué recopilamos" and the heading
+       and first paragraph of "Cookies y analítica" for `privacyAds`, above,
+       on the same flag that prints the script. */
     privacy: {
       title: 'Política de privacidad',
       h1: 'Política de privacidad de este sitio web',
       sub: 'Qué recopilamos a través de este sitio web, por qué lo recopilamos y qué hacemos con ello.',
       sections: [
         { h: 'Qué recopilamos', p: [
-          'La única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta — y, cuando envía una notificación, su fecha y el número de pisos si usted los indica. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.',
+          `${ADS.on ? privacyAds.collect : 'La'} única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta — y, cuando envía una notificación, su fecha y el número de pisos si usted los indica. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.`,
           'El formulario no pide datos de pago, números de identificación personal (por ejemplo, el del Seguro Social o el de la licencia de conducir) ni contraseñas, y una propuesta no los necesita. Le pedimos que no los incluya en la descripción ni en los archivos que adjunte.',
         ] },
         { h: 'Por qué la recopilamos', p: 'La usamos para responder a su solicitud y para entender el alcance de ingeniería sobre el que pregunta. No la vendemos, alquilamos ni compartimos con fines publicitarios.' },
@@ -1974,8 +1998,13 @@ export const es: SiteContent = {
            not locked. See the EN comment. */
         { h: 'Los archivos que adjunta', p: 'Un archivo se sube en el momento en que usted lo agrega al formulario, antes de enviar la solicitud, y va directamente de su navegador al proveedor de almacenamiento. Se guarda en una dirección larga y aleatoria que no se publica ni se enlaza en ninguna parte. Quien tenga esa dirección puede abrir el archivo, por lo que no la damos a conocer: la oficina abre los adjuntos desde su propia bandeja, con sesión iniciada. Si usted quita un archivo, o sale de la página sin enviar, la copia ya subida no queda unida a ninguna solicitud; escríbanos si desea que la eliminemos.' },
         { h: 'Cuánto tiempo la conservamos', p: 'Las solicitudes se conservan mientras sean comercialmente relevantes y durante el tiempo que requiera cualquier encargo resultante. Puede pedirnos que eliminemos su solicitud y sus adjuntos en cualquier momento. Cuando se elimina una solicitud, sus archivos adjuntos se eliminan del almacenamiento junto con ella.' },
-        { h: 'Cookies y analítica', p: [
-          'Las páginas públicas de este sitio no instalan cookies ni ejecutan scripts de analítica, de publicidad o de redes sociales. Sus scripts, tipografías, fotografías y videos se sirven desde la propia dirección de este sitio, y el formulario no usa ningún servicio externo de verificación (CAPTCHA).',
+        /* The heading and the first paragraph change with Google Ads
+           measurement (`privacyAds`, above); the other two are true either
+           way. */
+        { h: ADS.on ? privacyAds.h : 'Cookies y analítica', p: [
+          ...(ADS.on ? privacyAds.p : [
+            'Las páginas públicas de este sitio no instalan cookies ni ejecutan scripts de analítica, de publicidad o de redes sociales. Sus scripts, tipografías, fotografías y videos se sirven desde la propia dirección de este sitio, y el formulario no usa ningún servicio externo de verificación (CAPTCHA).',
+          ]),
           'Una sola preferencia se guarda en su navegador y nunca se nos envía: si usted pausa el video de fondo, el sitio lo recuerda para que siga en pausa en la página siguiente.',
           'El área autenticada de gestión de proyectos de este dominio puede usar cookies para el inicio de sesión; esas son estrictamente necesarias para mantener una sesión activa y no se usan para perfilar a los visitantes del sitio público.',
         ] },

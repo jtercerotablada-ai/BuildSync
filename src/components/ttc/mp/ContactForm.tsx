@@ -18,6 +18,7 @@ import {
   requestSource,
   type RequestSource,
 } from '@/lib/contact-request';
+import { reportConversion } from '@/lib/ttc/ads';
 import { getContent, type SiteContent } from '@/lib/ttc/content';
 import { useContent, useLang } from './lang';
 
@@ -475,7 +476,11 @@ export function ContactForm({ presetService }: { presetService?: string }) {
 
   /* ── submit ────────────────────────────────────────────────────────────── */
 
-  function succeed(reference: string, didConfirm: boolean) {
+  /**
+   * `sent` is false for the one success that is not a request: the honeypot
+   * (a bot is shown the success screen and nothing was sent anywhere).
+   */
+  function succeed(reference: string, didConfirm: boolean, sent = true) {
     setRef(reference);
     setConfirmed(didConfirm);
     // The focused heading reads the title; the region adds the rest.
@@ -485,6 +490,14 @@ export function ContactForm({ presetService }: { presetService?: string }) {
         .join(' '),
     );
     setStatus('ok');
+    // Google Ads conversion "form": once per request the server accepted, and
+    // only here — a refused or failed send never reaches this function, and
+    // the button is disabled while one is in flight, so there is no second
+    // call for the same request. It carries NOTHING from the form: not the
+    // name, e-mail, phone, message, files or `reference`. A no-op unless
+    // measurement is configured and this visitor arrived from one of the
+    // firm's ads (src/lib/ttc/ads.ts).
+    if (sent) reportConversion('form');
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -504,7 +517,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
       return;
     }
     if (honeypot.current) {
-      succeed('', false);
+      succeed('', false, false);
       return;
     }
 

@@ -69,9 +69,37 @@ const appHostNoindex = APP_HOST
     ]
   : [];
 
+/**
+ * Google Ads conversion measurement on the public site is switched by four
+ * variables (src/lib/ttc/ads.ts — the one module that reads them, and the
+ * place to read about them). They are FROZEN HERE, AT BUILD TIME, for every
+ * bundle of the build: browser, server and proxy.
+ *
+ * Without this Next inlines a NEXT_PUBLIC_* variable only where it is set
+ * when the build runs. Left unset, the server code keeps a live
+ * `process.env` read — and /contact and the public 404 are rendered on
+ * demand, so a server started with different variables than its build would
+ * print the measurement script on those pages while the prerendered Privacy
+ * page still said the site sets no cookies. With the values pinned (an unset
+ * one as the empty string, which is "off"), the script and the Privacy text
+ * always come from the same four values. Nothing else is done with them.
+ */
+const GOOGLE_ADS_VARS = [
+  "NEXT_PUBLIC_GOOGLE_ADS_ID",
+  "NEXT_PUBLIC_GOOGLE_ADS_LABEL_FORM",
+  "NEXT_PUBLIC_GOOGLE_ADS_LABEL_CALL",
+  "NEXT_PUBLIC_GOOGLE_ADS_LABEL_WHATSAPP",
+] as const;
+const googleAdsEnv = Object.fromEntries(
+  GOOGLE_ADS_VARS.map((name) => [name, process.env[name] ?? ""]),
+);
+
 const nextConfig: NextConfig = {
   // Enable React strict mode for better development experience
   reactStrictMode: true,
+
+  // See GOOGLE_ADS_VARS above: build-time values, the same in every bundle.
+  env: googleAdsEnv,
 
   // Image optimization configuration
   images: {

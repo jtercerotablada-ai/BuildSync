@@ -49,6 +49,9 @@ A modern project management application inspired by Asana, built with Next.js 16
    - `NEXTAUTH_URL` - Your app URL (the host the app is served from, not the marketing apex)
    - `APP_URL` - Base for absolute links sent by email; must match `NEXTAUTH_URL`
    - `APP_HOST` / `PUBLIC_HOST` - Optional. Split the authenticated app onto its own host
+   - `NEXT_PUBLIC_GOOGLE_ADS_ID` and the three `NEXT_PUBLIC_GOOGLE_ADS_LABEL_*` - Optional. Google Ads
+     conversion measurement on the public site; off unless all four are set, read at build time,
+     and the Privacy page changes with them (see `src/lib/ttc/ads.ts`)
 
    Sign-in is email + password only. Google OAuth was removed on 2026-08-16.
 

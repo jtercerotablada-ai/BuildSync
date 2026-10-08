@@ -92,6 +92,7 @@
  *     recertification, and each program page says so under "Good to know".
  */
 
+import { ADS, ADS_COOKIE_DAYS } from './ads';
 import { photo, video, type Photo, type Clip } from './media';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2967,6 +2968,59 @@ export const closingCta = {
    LEGAL
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* THE PRIVACY PAGE WHILE GOOGLE ADS MEASUREMENT IS ON.
+
+   `ADS.on` (ads.ts) is the one flag: the same value that makes the public
+   shell print the script makes `legal.privacy`, below, print this text in
+   place of the sentence that says the public pages set no cookies. Off — the
+   state the site is in until the four variables are set — nothing here is
+   printed and the page reads as it always has.
+
+   Every statement was read against the tag itself, in a browser, on October
+   7, 2026, with a test ID: who gets it (a visitor whose landing address
+   carries gclid, gbraid or wbraid, or who still holds a click cookie); what
+   is loaded (www.googletagmanager.com/gtag/js); what is stored (cookies
+   `_gcl_au`, `_gcl_aw` / `_gcl_ag` / `_gcl_gb`, `_gcl_gs`, local storage
+   `_gcl_ls`, and Google's own `GCL_AW_P` on its three domains); what is sent
+   and when (www.google.com/ccm/collect on each full page load; on a
+   conversion, www.googleadservices.com/pagead/conversion,
+   googleads.g.doubleclick.net/pagead/viewthroughconversion and
+   www.google.com/pagead/1p-conversion — the first with the page's address
+   and title, the click identifier and the `_gcl_au` number; the conversions
+   with those plus the label, the screen size and the browser's client hints;
+   none with anything from the form). Google's own cookie was written on a
+   gclid landing and not on a gbraid or wbraid one, hence "can". The 90 days are
+   Google's published figure and the expiry the cookies were written with;
+   the sentence prints it from ADS_COOKIE_DAYS. "Not used to personalize ads
+   or to add you to remarketing lists" is what Google documents for the two
+   settings the script applies (allow_ad_personalization_signals: false and
+   restricted_data_processing: true). Sources are cited in ads.ts.
+
+   IT STAYS TRUE ONLY WHILE THE GOOGLE ADS ACCOUNT LEAVES "ENHANCED
+   CONVERSIONS" OFF. That feature makes the tag read the e-mail and phone
+   fields of the form; the script asks for it not to, and this page says
+   nothing written in the form is passed on.
+
+   Same rules as the rest of `legal` (see the comment inside it): what the
+   code does, in plain words — no claim of compliance, no retention period of
+   the firm's own, and no link out (Google's pages are named as text; the
+   site links six outside hosts and pages.test.ts keeps that list).
+   The Spanish twin is `privacyAds` in site.es.ts; ads.test.ts pins both. */
+const privacyAds = {
+  h: 'Cookies, analytics and advertising',
+  /* Opens "What we collect" in place of "The only": with the tag on the
+     page, the form is no longer the only thing that records anything. */
+  collect:
+    'Apart from what Google’s advertising tag records when a visitor arrives from one of our ads (described under “Cookies, analytics and advertising” below), the only',
+  p: [
+    'The public pages of this site run no analytics and no social-media scripts, and the form uses no outside verification service (CAPTCHA). Their scripts, fonts, photographs and video are served from this site’s own address, with one exception, which is also the only case in which these pages set cookies: a visitor who arrives by clicking one of our Google ads.',
+    'An ad’s link carries a click identifier that Google adds to the address it opens. Only when the address you arrive at carries one do these pages load Google’s advertising tag, a script served from googletagmanager.com. A visitor who comes from an ordinary search result, from another link or by typing the address is not given the tag, unless an earlier visit through an ad left the cookies described next. We use it for one thing: to know which ad led to a call, a WhatsApp chat or a request sent through the form.',
+    `The tag keeps the click identifier and a random number in your browser: in cookies under this site’s address whose names begin with “_gcl_”, and in one entry of the browser’s local storage. Google can also set a cookie of its own, carrying the same identifier, on its advertising addresses (google.com, googleadservices.com and doubleclick.net). The cookies are set to expire after ${ADS_COOKIE_DAYS} days, and your browser may shorten that. While they last, the tag is loaded again whenever you return to these pages.`,
+    'Each time one of these pages is loaded in full, the tag sends Google the click identifier, the random number and the address and title of the page. When you tap a phone link, open the WhatsApp link or send the form, it sends them again with a label that says which of the three happened and with technical details of your browser and device, such as their versions and the screen size. As with any request a browser makes, Google also sees your internet address (IP). What you write in the form is not part of it: we do not pass the tag your name, email address or phone number, your description or files, or the reference of your request.',
+    'We have switched off, in the tag’s own settings, the use of these events to personalize ads and to build remarketing lists. Google receives them as the company that runs the ads and handles them under its own privacy policy and terms, which we do not control. To remove what the tag stored, clear this site’s cookies and site data in your browser; after that the tag is not loaded again unless you arrive from another of our ads. Google’s own controls for the ads it shows you are at myadcenter.google.com.',
+  ],
+};
+
 export const legal = {
   notice:
     'Information on this site is general and does not constitute an engineering opinion, a professional engagement, or a representation about a specific building. Requirements vary by jurisdiction and scope.',
@@ -3000,6 +3054,15 @@ export const legal = {
      and these sentences have to follow; add analytics and "Cookies and
      analytics" is no longer true.
 
+     ONE CHANGE IS ALREADY WIRED IN: Google Ads conversion measurement
+     (ads.ts). While it is off, the page is the text below. When its
+     variables are set, the same flag that prints the script swaps two
+     things here — the opening of "What we collect", and the first paragraph
+     and the heading of "Cookies and analytics" — for `privacyAds`, above.
+     The terms of use need no twin: nothing in them speaks of cookies,
+     scripts or advertising, and the Privacy text names Google's pages
+     without linking them.
+
      What is NOT here, because only the owner can decide it: a governing law
      or venue, arbitration, a retention period in days, a deadline to answer
      or delete, a named privacy officer, a claim of compliance with any
@@ -3010,7 +3073,7 @@ export const legal = {
     sub: 'What we collect through this website, why we collect it, and what we do with it.',
     sections: [
       { h: 'What we collect', p: [
-        'The only personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.',
+        `${ADS.on ? privacyAds.collect : 'The only'} personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach — and, when you send a notice, the date on it and the number of stories if you give them. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.`,
         'The form does not ask for payment details, personal identification numbers (a Social Security or driver’s license number, for example) or passwords, and a proposal does not need them. Please leave them out of your description and of the files you attach.',
       ] },
       { h: 'Why we collect it', p: 'We use it to respond to your request and to understand the engineering scope you are asking about. We do not sell it, rent it, or share it for advertising.' },
@@ -3024,8 +3087,13 @@ export const legal = {
          day the store is. */
       { h: 'Files you attach', p: 'A file is uploaded when you add it to the form, before you send the request, and goes directly from your browser to the storage provider. It is kept at a long, random address that is not published or linked anywhere. Anyone who has that address can open the file, so we do not give it out: the office opens attachments from its own signed-in inbox. If you remove a file, or leave the page without sending, the copy already uploaded is attached to no request; write to us if you want it deleted.' },
       { h: 'How long we keep it', p: 'Requests are retained while they are commercially relevant and for as long as any resulting engagement requires. You may ask us to delete your request and its attachments at any time. When a request is deleted, the files attached to it are deleted from storage with it.' },
-      { h: 'Cookies and analytics', p: [
-        'The public pages of this site set no cookies and run no analytics, advertising or social-media scripts. Their scripts, fonts, photographs and video are served from this site’s own address, and the form uses no outside verification service (CAPTCHA).',
+      /* The heading and the first paragraph are the ones that change with
+         Google Ads measurement (`privacyAds`, above); the other two are true
+         either way. */
+      { h: ADS.on ? privacyAds.h : 'Cookies and analytics', p: [
+        ...(ADS.on ? privacyAds.p : [
+          'The public pages of this site set no cookies and run no analytics, advertising or social-media scripts. Their scripts, fonts, photographs and video are served from this site’s own address, and the form uses no outside verification service (CAPTCHA).',
+        ]),
         'One preference is kept in your browser and is never sent to us: if you pause the background video, the site remembers it so that the video stays paused on the next page.',
         'Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.',
       ] },

@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
+import { AdsTag } from '@/components/ttc/mp/AdsTag';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { SiteGraph } from '@/components/ttc/mp/SiteGraph';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
 import { OG_IMAGE, brandedTitle } from '@/components/ttc/views/meta';
+import { ADS } from '@/lib/ttc/ads';
 import { absoluteUrl, company } from '@/lib/ttc/site';
 import '@/app/(public)/mp.css';
 
@@ -128,7 +130,23 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
     <div
       className={`mp ${mpSans.variable} ${mpMono.variable} ${mpSerif.variable}`}
     >
-      <SiteGraph />
+      {/* Google Ads conversion measurement — dormant until its four variables
+          are set (src/lib/ttc/ads.ts), and then loaded only for a visitor who
+          arrived from one of the firm's ads. First in the shell so the
+          decision is taken as the page is parsed.
+
+          A ternary around <SiteGraph />, not `{ADS.on && <AdsTag />}` beside
+          it, on purpose: an empty slot is still a slot in what the server
+          sends, and with measurement off every page must be byte for byte
+          what it was before this existed. */}
+      {ADS.on ? (
+        <>
+          <AdsTag />
+          <SiteGraph />
+        </>
+      ) : (
+        <SiteGraph />
+      )}
       {/* Backstop. The scroll reveals no longer write a hidden state into the
           server HTML (primitives.tsx, reveal.ts), so without JavaScript there
           is nothing to undo today. This stays for the day a Motion `initial`
