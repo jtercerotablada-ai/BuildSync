@@ -438,7 +438,7 @@ export type Clip = {
   /** Intrinsic size of `src` (the desktop file). */
   w: number;
   h: number;
-  /** ≤720px-wide rendition for phones — `<source media="(max-width: 700px)">`. */
+  /** ≤720px-wide rendition for phones; VideoLoop picks it at `(max-width: 700px)`. */
   mobile?: string;
   /** The poster matching `mobile`, same framing. */
   mobilePoster?: string;

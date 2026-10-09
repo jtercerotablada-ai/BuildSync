@@ -306,6 +306,12 @@ export function VideoLoop({
   // place asks for that same file, so the swap never downloads a second one.
   // Known only once the poster has loaded: see `comeDue`.
   const chosenPoster = React.useRef<string | null>(null);
+  // The clip file for this visit — the phone rendition or the master —
+  // decided once, the first time the <video> is rendered, and kept. It used
+  // to be two <source>s with `media`, which lets the browser run its own
+  // selection again whenever the element is rebuilt: PageSpeed's phone run
+  // came back with the 3 MB master downloaded next to the 0.9 MB phone file.
+  const rendition = React.useRef<string | null>(null);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const pausedRef = React.useRef(paused);
   // What the off-screen observer last reported: null until it has reported.
@@ -469,10 +475,16 @@ export function VideoLoop({
     const poster =
       chosenPoster.current ||
       (clip.mobilePoster && window.matchMedia(PHONE).matches ? clip.mobilePoster : clip.poster);
+    if (rendition.current === null) {
+      rendition.current = clip.mobile && window.matchMedia(PHONE).matches ? clip.mobile : clip.src;
+    }
     return (
       <video
         ref={videoRef}
         className={className}
+        // One file, named outright: phones get the light portrait rendition,
+        // everything else the 1080p master (see `rendition`).
+        src={rendition.current}
         poster={poster}
         width={clip.w}
         height={clip.h}
@@ -485,13 +497,7 @@ export function VideoLoop({
         preload="auto"
         aria-hidden="true"
         tabIndex={-1}
-      >
-        {/* First match wins, and `media` on a video <source> is honoured again
-            (Chrome 120+, Safari, Firefox): phones take the light portrait
-            rendition, everything else the 1080p master. */}
-        {clip.mobile ? <source src={clip.mobile} type="video/mp4" media={PHONE} /> : null}
-        <source src={clip.src} type="video/mp4" />
-      </video>
+      />
     );
   }
 
