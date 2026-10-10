@@ -79,6 +79,17 @@ export function refreshSearch() {
   searchListeners.forEach((notify) => notify());
 }
 
+/* A calculator keeps its case after the # of its address (`#b=…`,
+   BeamCalculator.tsx). Read like the query and at the same moments, so the
+   language link opens the twin page ON THE SAME CASE. That key and no other:
+   any other fragment is a place on this page, which the twin need not have. */
+const readCarried = () => (window.location.hash.startsWith('#b=') ? window.location.hash : '');
+
+/** `#b=…` of the page on screen, or '' — and '' on the server. With `useSearch()`, which re-reads it. */
+export function useCarriedHash(): string {
+  return useSyncExternalStore(subscribeSearch, readCarried, noSearch);
+}
+
 /** `?service=…` of the page on screen, or '' — and '' on the server. */
 export function useSearch(): string {
   const pathname = usePathname();

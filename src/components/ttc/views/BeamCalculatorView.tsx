@@ -1,6 +1,7 @@
 import React from 'react';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
+import '@/components/ttc/calc/calc.css';
 import { beamStrings } from '@/lib/calc/beam/strings';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { TextLink } from '@/components/ttc/mp/primitives';
@@ -34,6 +35,7 @@ export const BEAM_PATH = '/resources/beam';
 export function BeamCalculatorView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const s = beamStrings[lang].page;
+  const ui = beamStrings[lang].ui;
   const resources = navLabelOf(c, '/resources');
 
   return (
@@ -61,7 +63,8 @@ export function BeamCalculatorView({ lang }: { lang: Lang }) {
           <noscript>
             <p className="mp-app__noscript">{s.noscript}</p>
           </noscript>
-          <BeamCalculator lang={lang} />
+          {/* The form's words go in as a prop: this language's, and only the form's. */}
+          <BeamCalculator t={ui} />
         </div>
       </section>
 
@@ -97,8 +100,10 @@ export function BeamCalculatorView({ lang }: { lang: Lang }) {
           <div className="mp-appnotes__terms">
             <h3 className="mp-appnotes__h">{s.disclaimer.title}</h3>
             <p>{s.disclaimer.body}</p>
-            <p>
+            {/* The site's terms say the same of every calculator (site.ts, legal.terms). */}
+            <p className="mp-appnotes__links">
               <TextLink href={localePath('/resources', lang)}>{s.back}</TextLink>
+              <TextLink href={localePath('/terms', lang)}>{c.legal.terms.title}</TextLink>
             </p>
           </div>
         </div>

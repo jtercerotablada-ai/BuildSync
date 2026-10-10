@@ -43,12 +43,15 @@ function spaced<T extends { at: number; text: string }>(labels: T[], charWidth =
 export function BeamSchematic({
   form,
   reactions,
+  ownWeight = 0,
   width,
   probeX,
   summary,
 }: {
   form: BeamForm;
   reactions: BeamReaction[] | null;
+  /** The beam's own weight per length, when it is one of the loads (kip/ft, kN/m). Drawn; its value is in the title above. */
+  ownWeight?: number;
   width: number;
   probeX: number | null;
   summary: string;
@@ -59,15 +62,29 @@ export function BeamSchematic({
   const px = (x: number) => xToPx(Math.min(L, Math.max(0, x)), L, width);
   const top = Y - HALF;
 
-  const wMax = Math.max(1e-12, ...form.dists.flatMap((d) => [Math.abs(d.w1), Math.abs(d.w2)]));
-  const dists = form.dists
-    .filter((d) => on(d.x1) && on(d.x2) && d.x1 !== d.x2 && (d.w1 !== 0 || d.w2 !== 0))
-    .map((d) => {
-      const [a, b, wa, wb] = d.x1 < d.x2 ? [d.x1, d.x2, d.w1, d.w2] : [d.x2, d.x1, d.w2, d.w1];
-      const h = (w: number) => (w === 0 ? 0 : 10 + (Math.abs(w) / wMax) * 34);
-      const sign = d.dir === 'down' ? 1 : -1;
-      return { id: d.id, a, b, wa, wb, ha: h(wa), hb: h(wb), sign };
-    });
+  // What is typed is shown as typed; what is computed, to the four figures of the tables.
+  const typed = (v: number) => formatNumber(Math.abs(v), 6);
+  const wMax = Math.max(1e-12, Math.abs(ownWeight), ...form.dists.flatMap((d) => [Math.abs(d.w1), Math.abs(d.w2)]));
+  const hOf = (w: number) => (w === 0 ? 0 : 10 + (Math.abs(w) / wMax) * 34);
+  // Each distributed load with its two intensities SIGNED, positive downward.
+  const dists = [
+    ...form.dists
+      .filter((d) => on(d.x1) && on(d.x2) && d.x1 !== d.x2 && (d.w1 !== 0 || d.w2 !== 0))
+      .map((d) => {
+        const [a, b, wa, wb] = d.x1 < d.x2 ? [d.x1, d.x2, d.w1, d.w2] : [d.x2, d.x1, d.w2, d.w1];
+        const sign = d.dir === 'down' ? 1 : -1;
+        return { id: String(d.id), a, b, wa: sign * wa, wb: sign * wb, own: false };
+      }),
+    // The beam's own weight is a load like the others, and is drawn as one.
+    ...(ownWeight > 0 ? [{ id: 'own', a: 0, b: L, wa: ownWeight, wb: ownWeight, own: true }] : []),
+  ].map((d) => {
+    const ha = hOf(d.wa);
+    const hb = hOf(d.wb);
+    // Where a load whose ends differ in sign passes through zero (0 to 1 along it), or null.
+    const t0 = d.wa * d.wb < 0 ? d.wa / (d.wa - d.wb) : null;
+    const heightAt = (t: number) => (t0 === null ? ha + (hb - ha) * t : t <= t0 ? ha * (1 - t / t0) : (hb * (t - t0)) / (1 - t0));
+    return { ...d, ha, hb, t0, heightAt };
+  });
 
   const dimLabels = spaced(
     [0, L, ...form.supports.map((s) => s.x), ...form.hinges.map((h) => h.x)]
@@ -78,8 +95,8 @@ export function BeamSchematic({
   const reactionLabels = spaced(
     (reactions ?? []).map((r) => ({
       at: px(r.x),
-      text: `${r.Rv < 0 ? '↓' : '↑'} ${formatNumber(Math.abs(r.Rv), 3)}`,
-      moment: r.kind === 'fixed' && Math.abs(r.Rm) > 1e-9 ? `${r.Rm < 0 ? '↻' : '↺'} ${formatNumber(Math.abs(r.Rm), 3)}` : '',
+      text: `${r.Rv < 0 ? '↓' : '↑'} ${formatNumber(Math.abs(r.Rv))}`,
+      moment: r.kind === 'fixed' && Math.abs(r.Rm) > 1e-9 ? `${r.Rm < 0 ? '↻' : '↺'} ${formatNumber(Math.abs(r.Rm))}` : '',
     })),
     6.8,
     10,
@@ -97,15 +114,23 @@ export function BeamSchematic({
             const t = i / n;
             const x = xa + (xb - xa) * t;
             const w = d.wa + (d.wb - d.wa) * t;
-            const h = d.ha + (d.hb - d.ha) * t;
-            // Down for a positive value of a downward load; a load whose two ends differ in sign turns round on the way.
-            const down = d.sign * w > 0;
-            return { x, h, down, zero: w === 0 };
+            // As tall as the load is there, and pointing the way it acts there:
+            // a load whose ends differ in sign tapers to nothing and turns round.
+            return { x, h: d.heightAt(t), down: w > 0, zero: w === 0 };
           });
-          const label = d.wa === d.wb ? formatNumber(Math.abs(d.wa), 3) : `${formatNumber(Math.abs(d.wa), 3)} – ${formatNumber(Math.abs(d.wb), 3)}`;
+          const way = (w: number) => (w > 0 ? '↓' : '↑');
+          const label = d.own
+            ? ''
+            : d.t0 !== null
+              ? `${typed(d.wa)} ${way(d.wa)} – ${typed(d.wb)} ${way(d.wb)}`
+              : d.wa === d.wb
+                ? typed(d.wa)
+                : `${typed(d.wa)} – ${typed(d.wb)}`;
+          const x0 = d.t0 === null ? null : xa + (xb - xa) * d.t0;
+          const outline = x0 === null ? `${xa},${top} ${xa},${top - d.ha} ${xb},${top - d.hb} ${xb},${top}` : `${xa},${top} ${xa},${top - d.ha} ${x0},${top} ${xb},${top - d.hb} ${xb},${top}`;
           return (
             <g key={d.id} className="mp-beam__dist">
-              <polygon points={`${xa},${top} ${xa},${top - d.ha} ${xb},${top - d.hb} ${xb},${top}`} />
+              <polygon points={outline} />
               {arrows.map((a, i) =>
                 a.zero || a.h < 9 ? null : (
                   <g key={i}>
@@ -114,9 +139,14 @@ export function BeamSchematic({
                   </g>
                 ),
               )}
-              <text className="mp-beam__label" x={xa + 2} y={top - Math.max(d.ha, d.hb) - 6} textAnchor="start">
-                {label} {u.line}
-              </text>
+              {/* The weight carries no label here: it runs the whole beam, under every
+                  other label, and wherever it was put it sat on one of them. Its
+                  value is in the drawing's title (BeamCalculator.tsx). */}
+              {d.own ? null : (
+                <text className="mp-beam__label" x={xa + 2} y={top - Math.max(d.ha, d.hb) - 6} textAnchor="start">
+                  {label} {u.line}
+                </text>
+              )}
             </g>
           );
         })}
@@ -172,7 +202,7 @@ export function BeamSchematic({
               <line x1={x} x2={x} y1={y0} y2={top} />
               <polygon className="mp-beam__head" points={down ? head(x, top, 1) : head(x, y0, -1)} />
               <text className="mp-beam__label" x={x} y={y0 - 7} textAnchor={x < 48 ? 'start' : x > width - 48 ? 'end' : 'middle'}>
-                {formatNumber(Math.abs(p.P), 3)} {u.force}
+                {typed(p.P)} {u.force}
               </text>
             </g>
           );
@@ -201,7 +231,7 @@ export function BeamSchematic({
               <path d={arc} />
               <polygon className="mp-beam__head" points={`${pt(6, 0)} ${pt(-4, 4.6)} ${pt(-4, -4.6)}`} />
               <text className="mp-beam__label" x={x} y={Y - r - 8} textAnchor={x < 48 ? 'start' : x > width - 48 ? 'end' : 'middle'}>
-                {formatNumber(Math.abs(c.M), 3)} {u.moment}
+                {typed(c.M)} {u.moment}
               </text>
             </g>
           );

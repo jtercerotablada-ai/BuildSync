@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { Lang } from '@/lib/ttc/i18n';
 import { formatNumber } from '@/lib/calc/format';
 import {
   LAYOUTS,
@@ -24,7 +23,7 @@ import {
   type SupportLayout,
 } from '@/lib/calc/beam/model';
 import type { BeamState, SupportKind } from '@/lib/calc/beam/solver';
-import { beamStrings } from '@/lib/calc/beam/strings';
+import type { BeamUi } from '@/lib/calc/beam/strings';
 import { NumField } from '../NumField';
 import { BeamPlot, type PlotPoint } from './BeamPlot';
 import { BeamSchematic } from './BeamSchematic';
@@ -43,13 +42,26 @@ import { BeamSchematic } from './BeamSchematic';
  *
  * NOTHING LEAVES THE BROWSER. No request is made with what is typed; the
  * steel shape table is a static file fetched the first time "Steel shape"
- * is chosen. A beam is shared by its address (`#b=…`), which the browser
- * does not send to a server either.
+ * is chosen.
+ *
+ * THE ADDRESS FOLLOWS THE BEAM. Whatever is on screen is in the address
+ * after the `#` (`#b=…`, which a browser does not send to a server): a
+ * reload, a tab the phone discarded, the language switch and "Copy link"
+ * all come back to the same beam. The example beam leaves the address bare.
+ *
+ * ITS WORDS ARE A PROP (`t`), from the server view: importing strings.ts
+ * here would put both languages and the page's own text in this script.
  *
  * It renders on the server with the default beam (so the page is not an
  * empty box before the script arrives, or without it), then measures its
  * column and reads the address.
  */
+
+/** The example beam, as it is written in an address. */
+const EXAMPLE = encodeBeam(defaultBeam());
+
+/** A value that is rounding, not a result, is zero. */
+const settle = (value: number, floor: number) => (Math.abs(value) <= floor ? 0 : value);
 
 /* A layout effect in the browser (the drawings must be at their real width
    before the first paint), a plain effect where there is no layout. */
@@ -93,14 +105,18 @@ function usePlotHeight(): number {
 
 const arrow = (v: number, up: string, down: string) => (v < 0 ? down : up);
 
-export function BeamCalculator({ lang }: { lang: Lang }) {
-  const t = beamStrings[lang].ui;
+export function BeamCalculator({ t }: { t: BeamUi }) {
   const [form, dispatch] = useReducer(reduceBeam, undefined, defaultBeam);
   const [shapes, setShapes] = useState<SteelShape[] | null>(null);
   const [shapeFilter, setShapeFilter] = useState('');
   const [probeX, setProbeX] = useState<number | null>(null);
   const [typedX, setTypedX] = useState<number | null>(null);
   const [copied, setCopied] = useState<'' | 'ok' | 'failed'>('');
+  const [linkError, setLinkError] = useState(false);
+  // A link that could not be read is left in the address, for the visitor to look at.
+  const unread = useRef(false);
+  // The address still to be written, if the beam has changed since the last time.
+  const pending = useRef<(() => void) | null>(null);
   const [plotRef, width] = useWidth<HTMLDivElement>();
   // The last length the visitor settled on, for carrying the end support along.
   const settledL = useRef(form.L);
@@ -123,11 +139,54 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
         /* not percent-encoded: read as it is */
       }
       const loaded = decodeBeam(text);
-      if (loaded) dispatch({ type: 'load', form: loaded });
+      // Not a beam: the example is shown, and the page says so — a recipient
+      // must not take the example for the beam that was sent.
+      dispatch({ type: 'load', form: loaded ?? defaultBeam() });
+      unread.current = !loaded;
+      setLinkError(!loaded);
     };
     read();
     window.addEventListener('hashchange', read);
     return () => window.removeEventListener('hashchange', read);
+  }, []);
+
+  // The address follows the beam. Waited for, not written on every
+  // keystroke: Safari refuses more than a hundred history changes in thirty
+  // seconds, and a field being typed in passes through values nobody meant.
+  useEffect(() => {
+    const write = () => {
+      pending.current = null;
+      const code = encodeBeam(form);
+      const want = code === EXAMPLE ? '' : `#b=${code}`;
+      if (want) {
+        unread.current = false;
+        setLinkError(false);
+      }
+      // Only a fragment that is this calculator's: `#main` is a place on the
+      // page, and is nobody's to remove.
+      const have = window.location.hash.startsWith('#b=') ? window.location.hash : '';
+      if (have === want || (!want && unread.current)) return;
+      try {
+        window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search + want);
+      } catch {
+        /* the address is a convenience; the calculator works without it */
+      }
+    };
+    pending.current = write;
+    const id = window.setTimeout(write, 300);
+    return () => window.clearTimeout(id);
+  }, [form]);
+  // …and is brought up to date at once when the visitor reaches for something
+  // else: the language link reads the address as it is pressed or focused
+  // (lang.tsx, useCarriedHash), and must not read the beam of a moment ago.
+  useEffect(() => {
+    const flush = () => pending.current?.();
+    window.addEventListener('pointerdown', flush, true);
+    window.addEventListener('focusin', flush, true);
+    return () => {
+      window.removeEventListener('pointerdown', flush, true);
+      window.removeEventListener('focusin', flush, true);
+    };
   }, []);
 
   // The shape table, the first time it is wanted.
@@ -153,12 +212,14 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
   const full = (list: RowList) => form[list].length >= MAX_ROWS;
 
   /* ── What counts as zero ────────────────────────────────────────────── */
+  // Measured against the size of the PROBLEM (the loads, the length), not
+  // of each diagram: a shear that is zero everywhere has nothing of its own
+  // to be measured against, and was drawn at full height from rounding.
   const noise = useMemo(() => {
-    if (!sol) return { V: 0, M: 0, EIv: 0 };
-    const e = sol.extremes;
-    const top = (p: { value: number }, q: { value: number }) => Math.max(Math.abs(p.value), Math.abs(q.value));
-    return { V: 1e-9 * top(e.Vmax, e.Vmin), M: 1e-9 * top(e.Mmax, e.Mmin), EIv: 1e-9 * top(e.EIvMax, e.EIvMin) };
-  }, [sol]);
+    const F = 1e-9 * a.loadScale;
+    const L = sol ? sol.L : 0;
+    return { V: F, M: F * L, EIv: F * L * L * L };
+  }, [a.loadScale, sol]);
 
   /* ── What the diagrams draw ─────────────────────────────────────────── */
   const series = useMemo(() => {
@@ -183,7 +244,10 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
     };
   }, [sol, a.toDeflection, noise]);
 
-  const x0 = probeX ?? typedX ?? (sol ? round4(sol.L / 2) : null);
+  // Where the values are read: under the pointer, else where typed, else
+  // midspan — and always ON the beam, which may have got shorter since.
+  const asked = probeX ?? typedX;
+  const x0 = sol ? (asked === null ? round4(sol.L / 2) : Math.min(sol.L, Math.max(0, asked))) : null;
   const here = sol && x0 !== null ? { left: sol.at(x0, 'left'), right: sol.at(x0, 'right') } : null;
   const two = (l: number, r: number) => Math.abs(l - r) > 1e-9 * Math.max(1, Math.abs(l), Math.abs(r));
 
@@ -207,9 +271,17 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
 
   const copyLink = async () => {
     const hash = `#b=${encodeBeam(form)}`;
-    window.history.replaceState(window.history.state, '', hash);
+    // The page and the beam, and nothing else: not the query string the
+    // visitor arrived with (an ad's click identifier, a campaign tag), which
+    // would travel to everyone the link is sent to.
+    const link = `${window.location.origin}${window.location.pathname}${hash}`;
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search + hash);
+    } catch {
+      /* see above */
+    }
+    try {
+      await navigator.clipboard.writeText(link);
       setCopied('ok');
     } catch {
       // No clipboard (an old browser, a page not served over https): the address bar has it.
@@ -270,7 +342,17 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
             <legend className="mp-num__label">{t.toolbar.units}</legend>
             {(['us', 'si'] as const).map((key) => (
               <label key={key} className="mp-seg__item">
-                <input type="radio" name="beam-units" checked={form.units === key} onChange={() => dispatch({ type: 'units', units: key })} />
+                <input
+                  type="radio"
+                  name="beam-units"
+                  checked={form.units === key}
+                  onChange={() => {
+                    dispatch({ type: 'units', units: key });
+                    // A position typed in feet is not that many metres.
+                    setTypedX(null);
+                    setProbeX(null);
+                  }}
+                />
                 <span>{t.toolbar[key]}</span>
               </label>
             ))}
@@ -524,6 +606,7 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
               dispatch({ type: 'load', form: defaultBeam() });
               setShapeFilter('');
               setTypedX(null);
+              setLinkError(false);
               if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
             }}
           >
@@ -540,7 +623,8 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
         <div className="mp-app__issues" role="alert" aria-live="assertive">
           {a.issues.length ? (
             <>
-              <p className="mp-app__issues-title">{t.issuesTitle}</p>
+              {/* With the beam solved, what is wrong is a value of the section. */}
+              <p className="mp-app__issues-title">{sol ? t.issuesSection : t.issuesTitle}</p>
               <ul>
                 {general.map((i: FormIssue) => (
                   <li key={i.code}>{t.issues[i.code]}</li>
@@ -548,12 +632,23 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                 {a.issues.some((i) => i.row) ? [...new Set(a.issues.filter((i) => i.row).map((i) => t.issues[i.code]))].map((text) => <li key={text}>{text}</li>) : null}
               </ul>
             </>
+          ) : linkError ? (
+            <p className="mp-app__issues-title">{t.linkError}</p>
           ) : null}
         </div>
 
         <div className="mp-app__plots" ref={plotRef}>
-          <p className="mp-plot__title mp-plot__title--first">{t.results.schematic}</p>
-          <BeamSchematic form={form} reactions={sol ? sol.reactions : null} width={width} probeX={sol ? probeX : null} summary={says.beam} />
+          <p className="mp-plot__title mp-plot__title--first">
+            {t.results.schematic}
+            {/* The band of small arrows along the whole beam, when the shape's weight is one of the loads. */}
+            {a.section.selfWeight > 0 ? (
+              <span className="mp-plot__unit">
+                {' '}
+                · {t.results.ownWeight} {formatNumber(a.section.selfWeight, 6)} {u.line}
+              </span>
+            ) : null}
+          </p>
+          <BeamSchematic form={form} reactions={sol ? sol.reactions : null} ownWeight={a.section.selfWeight} width={width} probeX={sol ? probeX : null} summary={says.beam} />
           {sol && series ? (
             <>
               <BeamPlot title={t.results.shear} unit={u.force} points={series.V} marks={series.marksV} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here ? { x: probeX, y: here.right.V } : null} onProbe={setProbeX} summary={says.V} />
@@ -598,12 +693,12 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                       <th scope="row">{t.supports.kinds[r.kind]}</th>
                       <td>{num(r.x)}</td>
                       <td>
-                        {num(Math.abs(r.Rv))} <span className="mp-app__dir">{Math.abs(r.Rv) < 1e-12 ? '' : arrow(r.Rv, t.results.upward, t.results.downward)}</span>
+                        {num(Math.abs(settle(r.Rv, noise.V)))} <span className="mp-app__dir">{Math.abs(r.Rv) <= noise.V ? '' : arrow(r.Rv, t.results.upward, t.results.downward)}</span>
                       </td>
                       <td>
                         {r.kind === 'fixed' ? (
                           <>
-                            {num(Math.abs(r.Rm))} <span className="mp-app__dir">{Math.abs(r.Rm) < 1e-12 ? '' : arrow(r.Rm, t.results.ccw, t.results.cw)}</span>
+                            {num(Math.abs(settle(r.Rm, noise.M)))} <span className="mp-app__dir">{Math.abs(r.Rm) <= noise.M ? '' : arrow(r.Rm, t.results.ccw, t.results.cw)}</span>
                           </>
                         ) : (
                           '—'
@@ -614,7 +709,7 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                 </tbody>
               </table>
               <p className="mp-app__note">
-                {t.results.equilibrium} {num(sol.reactions.reduce((sum, r) => sum + r.Rv, 0))} = {num(sol.totalLoad)} {u.force}.
+                {t.results.equilibrium} {num(settle(sol.reactions.reduce((sum, r) => sum + r.Rv, 0), noise.V))} = {num(settle(sol.totalLoad, noise.V))} {u.force}.
               </p>
             </div>
 
@@ -624,7 +719,7 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                 <div>
                   <dt>{t.results.maxShear}</dt>
                   <dd>
-                    {num(Math.abs(vMax.value))} {u.force} <span className="mp-app__dir">{where(vMax.x)}</span>
+                    {num(Math.abs(settle(vMax.value, noise.V)))} {u.force} <span className="mp-app__dir">{Math.abs(vMax.value) <= noise.V ? '' : where(vMax.x)}</span>
                   </dd>
                 </div>
                 <div>
@@ -652,11 +747,8 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                   <dd>
                     {dAbs ? (
                       <>
-                        {num(Math.abs(dAbs.value * a.toDeflection))} {u.deflection}{' '}
-                        <span className="mp-app__dir">
-                          {Math.abs(dAbs.value) < 1e-12 ? '' : `${arrow(dAbs.value, t.results.upward, t.results.downward)}, `}
-                          {where(dAbs.x)}
-                        </span>
+                        {num(Math.abs(settle(dAbs.value, noise.EIv) * a.toDeflection))} {u.deflection}{' '}
+                        <span className="mp-app__dir">{Math.abs(dAbs.value) <= noise.EIv ? '' : `${arrow(dAbs.value, t.results.upward, t.results.downward)}, ${where(dAbs.x)}`}</span>
                       </>
                     ) : (
                       <span className="mp-app__dir">{t.results.needEI}</span>
@@ -703,9 +795,9 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                           {num(s.from)} – {num(s.to)}
                         </th>
                         <td>
-                          {num(Math.abs(s.deflection))} <span className="mp-app__dir">{Math.abs(s.deflection) < 1e-12 ? '' : arrow(s.deflection, t.results.upward, t.results.downward)}</span>
+                          {num(Math.abs(settle(s.EIv.value, noise.EIv) * a.toDeflection))} <span className="mp-app__dir">{Math.abs(s.EIv.value) <= noise.EIv ? '' : arrow(s.deflection, t.results.upward, t.results.downward)}</span>
                         </td>
-                        <td>{s.ratio === null ? '—' : s.ratio > 99999 ? '> 99,999' : `L/${Math.round(s.ratio).toLocaleString('en-US')}`}</td>
+                        <td>{s.ratio === null || Math.abs(s.EIv.value) <= noise.EIv ? '—' : s.ratio > 99999 ? '> 99,999' : `L/${Math.round(s.ratio).toLocaleString('en-US')}`}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -730,7 +822,7 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                     }}
                     onChange={(x) => {
                       setProbeX(null);
-                      setTypedX(Math.min(sol.L, Math.max(0, x)));
+                      setTypedX(x);
                     }}
                   />
                 </div>
@@ -740,10 +832,10 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                     <dd>
                       {two(here.left.V, here.right.V) ? (
                         <>
-                          {num(here.left.V)} <span className="mp-app__dir">{t.results.left}</span>, {num(here.right.V)} <span className="mp-app__dir">{t.results.right}</span> {u.force}
+                          {num(settle(here.left.V, noise.V))} <span className="mp-app__dir">{t.results.left}</span>, {num(settle(here.right.V, noise.V))} <span className="mp-app__dir">{t.results.right}</span> {u.force}
                         </>
                       ) : (
-                        `${num(here.right.V)} ${u.force}`
+                        `${num(settle(here.right.V, noise.V))} ${u.force}`
                       )}
                     </dd>
                   </div>
@@ -752,10 +844,10 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                     <dd>
                       {two(here.left.M, here.right.M) ? (
                         <>
-                          {num(here.left.M)} <span className="mp-app__dir">{t.results.left}</span>, {num(here.right.M)} <span className="mp-app__dir">{t.results.right}</span> {u.moment}
+                          {num(settle(here.left.M, noise.M))} <span className="mp-app__dir">{t.results.left}</span>, {num(settle(here.right.M, noise.M))} <span className="mp-app__dir">{t.results.right}</span> {u.moment}
                         </>
                       ) : (
-                        `${num(here.right.M)} ${u.moment}`
+                        `${num(settle(here.right.M, noise.M))} ${u.moment}`
                       )}
                     </dd>
                   </div>
@@ -764,7 +856,7 @@ export function BeamCalculator({ lang }: { lang: Lang }) {
                       <div>
                         <dt>{t.results.deflection}</dt>
                         <dd>
-                          {num(here.right.EIv * a.toDeflection)} {u.deflection}
+                          {num(settle(here.right.EIv, noise.EIv) * a.toDeflection)} {u.deflection}
                         </dd>
                       </div>
                       <div>

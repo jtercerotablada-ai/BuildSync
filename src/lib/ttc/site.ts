@@ -3118,6 +3118,12 @@ export const legal = {
         'Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.',
       ] },
       { h: 'Links that leave this site', p: 'Calling us, writing by WhatsApp and following a link to a county office, to the state license search or to another official source all happen outside this website. What you send or do there is handled by that service under its own privacy terms, which we do not control. The WhatsApp link opens a chat with a first line already written; nothing is sent until you send it.' },
+      /* True of BeamCalculator.tsx: it makes no request with what is typed
+         (the steel shape table is a static file of this site), and keeps the
+         case in the fragment of the address, which no browser sends. Read
+         against the code on October 10, 2026; a calculator that saves or
+         sends anything makes this false. */
+      { h: 'Calculators', p: 'The calculators under Resources do their work in your browser. The values you enter are not sent to us and are not stored by us. A calculator keeps them in the address of the page, after the # sign, which is the part of an address a browser does not send: that is how a reload, or a link you copy, opens the same case. Whoever you give that link to sees the values in it.' },
       { h: 'Your choices', p: 'You can ask us what we hold about you, ask for it to be corrected, or ask for it to be deleted. Write to the address below and we will respond. Tell us the email address you used on the form and, if you kept it, the reference from the confirmation: that is how we find your request.' },
       { h: 'Changes', p: 'If this policy changes we will update it on this page.' },
     ],
@@ -3142,6 +3148,10 @@ export const legal = {
       { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available. The reply time mentioned on this site is what is usual, not a commitment.' },
       { h: 'Links to other sites', p: 'This site links to county offices, to the Florida DBPR’s license search, to statutes and codes, and to WhatsApp. Those pages belong to whoever publishes them and are outside our control: they can change or move, and what they say and how they handle your information is theirs to answer for. City building offices are named, not linked; under each list of them we print the date the names were last checked.' },
       { h: 'Photographs and examples', p: 'The photographs and video on this site are licensed images that show kinds of buildings and of work. None of them shows a project of the firm, and none was chosen because a building in it received a notice. The profiles under Typical Engagements describe the work the firm takes on; they are not past projects.' },
+      /* What each calculator page says of itself under "Before you rely on
+         it", said once for all of them. No cap on liability and no warranty
+         clause: those are the owner's to decide (see above). */
+      { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means before you rely on it. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
       { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],

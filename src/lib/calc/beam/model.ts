@@ -393,6 +393,12 @@ export interface BeamAnalysis {
   toDeflection: number;
   /** Multiply EI·θ by this for the slope in radians. */
   toSlope: number;
+  /**
+   * The size of the problem, as a force: every load's magnitude added up
+   * (a couple counts as its moment over the length). What the page measures
+   * rounding against — a shear a billionth of this is zero, not a result.
+   */
+  loadScale: number;
   spans: (BeamSpan & { deflection: number; ratio: number | null })[];
 }
 
@@ -400,7 +406,14 @@ export function analyse(form: BeamForm, shape?: SteelShape | null): BeamAnalysis
   const section = sectionProps(form, shape);
   const EI = stiffness(form.units, section);
   const toDeflection = deflectionFactor(form.units, EI);
-  const out = solveBeam(toEngine(form, section));
+  const engine = toEngine(form, section);
+  const out = solveBeam(engine);
+  const span = form.L > 0 && Number.isFinite(form.L) ? form.L : 1;
+  const size = (v: number) => (Number.isFinite(v) ? Math.abs(v) : 0);
+  const loadScale =
+    (engine.points ?? []).reduce((sum, p) => sum + size(p.P), 0) +
+    (engine.dists ?? []).reduce((sum, d) => sum + ((size(d.w1) + size(d.w2)) / 2) * size(d.x2 - d.x1), 0) +
+    (engine.couples ?? []).reduce((sum, c) => sum + size(c.M) / span, 0);
   const issues: FormIssue[] = [];
   if (!out.ok) {
     for (const issue of out.issues) {
@@ -412,7 +425,9 @@ export function analyse(form: BeamForm, shape?: SteelShape | null): BeamAnalysis
   }
   const s = form.section;
   const bad = (v: number) => !Number.isFinite(v) || v < 0;
-  if (bad(s.E) || (s.mode === 'props' && (bad(s.I) || bad(s.S) || bad(s.Av))) || (s.mode === 'rect' && (bad(s.b) || bad(s.h)))) issues.push({ code: 'section' });
+  // Only what the chosen kind of section uses: a steel shape brings its own
+  // modulus, and a leftover in a field that is not on screen is no problem.
+  if ((s.mode !== 'shape' && bad(s.E)) || (s.mode === 'props' && (bad(s.I) || bad(s.S) || bad(s.Av))) || (s.mode === 'rect' && (bad(s.b) || bad(s.h)))) issues.push({ code: 'section' });
   const solution = out.ok ? out : null;
   const lengthToShown = form.units === 'us' ? 12 : 1000;
   return {
@@ -422,6 +437,7 @@ export function analyse(form: BeamForm, shape?: SteelShape | null): BeamAnalysis
     EI,
     toDeflection,
     toSlope: EI > 0 ? 1 / EI : 0,
+    loadScale,
     spans: solution
       ? beamSpans(solution).map((p) => {
           const deflection = p.EIv.value * toDeflection;
@@ -525,12 +541,20 @@ export function decodeBeam(text: string): BeamForm | null {
     nextId: 0,
   };
   const sec = section.split(',');
-  if (sec[0] === 's' && sec.length === 3 && /^[A-Za-z0-9./-]{2,24}$/.test(sec[1])) {
+  // A material is the listed one only with the listed modulus: any other E
+  // is the visitor's own, or switching units would quietly "restore" it.
+  const material = (letter: string, E: number): MaterialKey => {
+    const key = MATERIAL_BY_LETTER[letter];
+    return key !== 'custom' && MATERIALS[key][units] !== E ? 'custom' : key;
+  };
+  if (sec[0] === 's' && sec.length === 3 && /^[A-Za-z0-9./-]{2,24}$/.test(sec[1]) && (sec[2] === '0' || sec[2] === '1')) {
     form.section = { ...form.section, mode: 'shape', material: 'steel', shape: sec[1], selfWeight: sec[2] === '1' };
   } else if (sec[0] === 'r' && sec.length === 5 && MATERIAL_BY_LETTER[sec[1]]) {
-    form.section = { ...form.section, mode: 'rect', material: MATERIAL_BY_LETTER[sec[1]], E: num(sec[2]), b: num(sec[3]), h: num(sec[4]) };
+    const E = num(sec[2]);
+    form.section = { ...form.section, mode: 'rect', material: material(sec[1], E), E, b: num(sec[3]), h: num(sec[4]) };
   } else if (sec[0] === 'p' && sec.length === 6 && MATERIAL_BY_LETTER[sec[1]]) {
-    form.section = { ...form.section, mode: 'props', material: MATERIAL_BY_LETTER[sec[1]], E: num(sec[2]), I: num(sec[3]), S: num(sec[4]), Av: num(sec[5]) };
+    const E = num(sec[2]);
+    form.section = { ...form.section, mode: 'props', material: material(sec[1], E), E, I: num(sec[3]), S: num(sec[4]), Av: num(sec[5]) };
   } else return null;
   if (bad || !(form.L > 0)) return null;
   form.nextId = id;

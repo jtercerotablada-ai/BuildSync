@@ -452,3 +452,53 @@ describe('beam form: what each edit does', () => {
     }
   });
 });
+
+describe('beam form: the size of the problem', () => {
+  it('the loads add up to the scale the page measures rounding against', () => {
+    // 8 kip, and 1.2 kip/ft over 20 ft.
+    near(analyse(defaultBeam()).loadScale, 8 + 1.2 * 20);
+    const f = defaultBeam();
+    // A couple counts as its moment over the length; up or down, a load is its size.
+    near(analyse({ ...f, points: [], dists: [], couples: [{ id: 90, x: 5, M: 40, dir: 'ccw' }] }).loadScale, 40 / 20);
+    near(analyse({ ...f, points: [{ id: 91, x: 4, P: 3, dir: 'up' }, { id: 92, x: 9, P: 3, dir: 'down' }], dists: [] }).loadScale, 6);
+    // A trapezoid is its mean intensity over its length.
+    near(analyse({ ...f, points: [], dists: [{ id: 93, x1: 2, x2: 12, w1: 1, w2: 3, dir: 'down' }] }).loadScale, 20);
+    expect(analyse({ ...f, points: [], dists: [] }).loadScale).toBe(0);
+  });
+
+  it('the beam’s own weight is one of the loads it counts', () => {
+    const f = defaultBeam();
+    const own = analyse({ ...f, points: [], dists: [], section: { ...f.section, mode: 'shape', shape: 'W18X50', selfWeight: true } }, shape('W18X50'));
+    // 50 lb/ft over 20 ft is one kip.
+    near(own.loadScale, 1, 1e-3);
+    expect(own.section.selfWeight).toBeGreaterThan(0);
+  });
+
+  it('a value the chosen kind of section does not use is not an error of it', () => {
+    const f = defaultBeam();
+    // A rolled shape brings steel's modulus: the E left in the other tab is not asked for.
+    expect(analyse({ ...f, section: { ...f.section, mode: 'shape', shape: 'W18X50', E: -1 } }, shape('W18X50')).issues).toEqual([]);
+    // …and where it IS used, it is still named.
+    expect(analyse({ ...f, section: { ...f.section, E: -1 } }).issues).toEqual([{ code: 'section' }]);
+    expect(analyse({ ...f, section: { ...f.section, mode: 'rect', b: 10, h: 20, E: -1 } }).issues).toEqual([{ code: 'section' }]);
+  });
+});
+
+describe('beam form: what a link may say', () => {
+  const code = encodeBeam(defaultBeam());
+  const withSection = (section: string) => code.replace(/;[^;]*$/, `;${section}`);
+
+  it('the own-weight mark is 0 or 1, and nothing else', () => {
+    expect(decodeBeam(withSection('s,W18X50,1'))?.section.selfWeight).toBe(true);
+    expect(decodeBeam(withSection('s,W18X50,0'))?.section.selfWeight).toBe(false);
+    for (const mark of ['2', '', 'true', '01', '-1', '1.0']) expect(decodeBeam(withSection(`s,W18X50,${mark}`)), mark).toBeNull();
+  });
+
+  it('a modulus that is not the listed material’s opens as a material of the visitor’s own', () => {
+    expect(decodeBeam(code)?.section.material).toBe('steel');
+    const other = decodeBeam(code.replace('29000', '29500'));
+    expect(other?.section.E).toBe(29500);
+    // "Steel" beside 29,500 would be a label that contradicts its number.
+    expect(other?.section.material).toBe('custom');
+  });
+});

@@ -306,6 +306,36 @@ describe('beam: what cannot be solved, and why', () => {
     expect(solveBeam({ L, supports: [{ x: 5, kind: 'pin' }, { x: 5, kind: 'fixed' }], ...load }).ok).toBe(true);
   });
 
+  it('supports too close to tell apart are named as that — the beam they hold is not a mechanism', () => {
+    // A wall, and three supports within a millionth of the span of each other
+    // (found by comparing ten thousand random beams with another method). The
+    // beam is held; the arithmetic cannot separate the three reactions.
+    const crowded: BeamModel = {
+      L: 55.34,
+      supports: [
+        { x: 0.00006275254157410934, kind: 'fixed' },
+        { x: 28.5, kind: 'roller' },
+        { x: 28.493997010061328, kind: 'pin' },
+        { x: 28.50005534, kind: 'pin' },
+      ],
+      points: [
+        { x: 15, P: 89.5771865218939 },
+        { x: 0, P: 248.7681396290434 },
+      ],
+      couples: [
+        { x: 28.493997010061328, M: -2376.5708656124852 },
+        { x: 55.33910919609746, M: -14987.467592860385 },
+        { x: 5.15, M: 17656.00711937588 },
+      ],
+    };
+    expect(issuesOf(crowded)).toEqual(['close-supports']);
+    // The same beam with the crowd thinned to one support is solved.
+    expect(solveBeam({ ...crowded, supports: crowded.supports.slice(0, 2) }).ok).toBe(true);
+    // A real mechanism is still called one, however its supports are spaced.
+    expect(issuesOf({ L, supports: [{ x: 4, kind: 'pin' }], ...load })).toEqual(['unstable']);
+    expect(issuesOf({ L, supports: SS, hinges: [10], ...load })).toEqual(['unstable']);
+  });
+
   it('is unstable with no load on it too: the supports decide, not the loads', () => {
     expect(issuesOf({ L, supports: [{ x: 4, kind: 'pin' }] })).toEqual(['unstable']);
     const idle = solved({ L, supports: SS });

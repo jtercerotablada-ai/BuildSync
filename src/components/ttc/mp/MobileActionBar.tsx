@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
+import { stripLang } from '@/lib/ttc/i18n';
 import { useContent, useL } from './lang';
 import { whatsappHref } from './ReachRow';
 
@@ -17,6 +19,10 @@ import { whatsappHref } from './ReachRow';
  *
  * Why it waits for a scroll: the first screen already carries its own
  * buttons, and a bar over the hero would cover the strip of links under it.
+ *
+ * Not on a calculator either: its reader is an engineer at work, not an owner
+ * with a notice, and the bar lay over the last field and the diagram being
+ * read. The header and the footer still carry every way to reach the firm.
  *
  * Not on /contact — the form is the page — and not while the menu is open
  * (the header's `.is-menu-open` hides it in mp.css; the menu has its own
@@ -39,6 +45,8 @@ export function MobileActionBar() {
   const phone = c.contact.phone;
   if (!phone) return null;
   if (/\/contact\/?$/.test(pathname)) return null;
+  const canonical = stripLang(pathname).replace(/\/$/, '');
+  if (openCalculatorPaths.some((p) => p === canonical)) return null;
   const wa = whatsappHref(c);
   const r = c.reach;
 

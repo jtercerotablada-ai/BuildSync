@@ -264,8 +264,12 @@ describe('beam calculator: what its script carries', () => {
   it('its engine, its words, the shape table — and none of the site’s copy', () => {
     const files = reach(join(SRC, 'components/ttc/calc/beam/BeamCalculator.tsx'));
     expect(files).toEqual(
-      expect.arrayContaining(['lib/calc/beam/solver.ts', 'lib/calc/beam/model.ts', 'lib/calc/beam/strings.ts', 'lib/calc/format.ts', 'lib/steel/aisc-shapes.json', 'components/ttc/calc/NumField.tsx']),
+      expect.arrayContaining(['lib/calc/beam/solver.ts', 'lib/calc/beam/model.ts', 'lib/calc/format.ts', 'lib/steel/aisc-shapes.json', 'components/ttc/calc/NumField.tsx']),
     );
+    // Its words come in as a prop from the server view. strings.ts holds both
+    // languages and the page's own paragraphs: imported here, all of it would
+    // travel with the calculator's script.
+    expect(files).not.toContain('lib/calc/beam/strings.ts');
     const forbidden = files.filter((f) => /^lib\/ttc\/(site|site\.es|content|calculators|cities|city-)/.test(f) || /lib\/beam-analysis|lib\/beam\/|lib\/advanced-beam/.test(f));
     expect(forbidden).toEqual([]);
     // Nothing of the retired calculators' interface either.
@@ -276,5 +280,71 @@ describe('beam calculator: what its script carries', () => {
     const code = readFileSync(join(SRC, 'components/ttc/calc/beam/BeamCalculator.tsx'), 'utf8');
     expect(code).toMatch(/import\('@\/lib\/steel\/aisc-shapes\.json'\)/);
     expect(code).not.toMatch(/^import .*aisc-shapes\.json/m);
+  });
+});
+
+describe('beam calculator: the site around it', () => {
+  const source = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
+  // The families of class that are a calculator's own.
+  const OWN = /\.mp-(app|appsec|appnotes|num|seg|plot|beam)(?![a-z0-9])/g;
+
+  it('its styles are a sheet of its own: the sheet of every public page has none of them', () => {
+    const shared = source('app/(public)/mp.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(shared.match(OWN) ?? []).toEqual([]);
+    const own = source('components/ttc/calc/calc.css');
+    for (const cls of ['.mp-app__top', '.mp-num__box', '.mp-seg__item', '.mp-plot', '.mp-beam', '.mp-appnotes__grid']) expect(own, cls).toContain(cls);
+    // What must beat a shared class does it by weight, not by which sheet loads last.
+    expect(own.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/(^|[\s,}])\.mp-appsec\s*\{/);
+    expect(source('components/ttc/views/BeamCalculatorView.tsx')).toContain("import '@/components/ttc/calc/calc.css';");
+  });
+
+  it('every class its markup uses is styled in that sheet', () => {
+    const own = source('components/ttc/calc/calc.css');
+    const used = new Set<string>();
+    for (const m of render('en').matchAll(/class="([^"]*)"/g)) {
+      for (const cls of m[1].split(/\s+/)) if (/^mp-(app|appsec|appnotes|num|seg|plot|beam)(?![a-z0-9])/.test(cls)) used.add(cls);
+    }
+    expect(used.size).toBeGreaterThan(30);
+    // Three name a thing without styling it: the drawing among the plots, its
+    // unit label (styled as one of the dimension texts) and a field that is a list.
+    const NAMES_ONLY = ['mp-beam', 'mp-beam__unit', 'mp-num--select'];
+    const missing = [...used].filter((cls) => !NAMES_ONLY.includes(cls) && !new RegExp(`\\.${cls}(?![a-zA-Z0-9_-])`).test(own));
+    expect(missing).toEqual([]);
+  });
+
+  for (const lang of LANGS) {
+    it(`${lang}: no call bar lies over the form on a phone — and the other pages keep theirs`, () => {
+      expect(render(lang)).not.toContain('mp-bar');
+      route.pathname = localePath('/resources', lang);
+      expect(renderToStaticMarkup(h(SiteChrome, null, h('p', null, 'x')))).toContain('class="mp-bar"');
+    });
+
+    it(`${lang}: beside the disclaimer, the site's terms — which speak of the calculators, as the privacy policy does`, () => {
+      const main = render(lang).match(/<main\b[\s\S]*<\/main>/)![0];
+      expect(main).toContain(`href="${localePath('/terms', lang)}"`);
+      const c = getContent(lang);
+      const about = /^Calcula(tors|doras)$/;
+      for (const doc of [c.legal.terms, c.legal.privacy]) {
+        const section = doc.sections.find((x) => about.test(x.h));
+        expect(section, doc.title).toBeDefined();
+        // Said once in each, and not the same sentence in both.
+        expect(doc.sections.filter((x) => about.test(x.h))).toHaveLength(1);
+      }
+      const said = (doc: typeof c.legal.terms) => JSON.stringify(doc.sections.find((x) => about.test(x.h))!.p);
+      expect(said(c.legal.terms)).not.toBe(said(c.legal.privacy));
+      // The policy says what the calculator's own line says: nothing typed is sent.
+      expect(said(c.legal.privacy)).toMatch(lang === 'en' ? /not sent to us/ : /no se nos envían/);
+    });
+  }
+
+  it('the language link carries the beam: the header reads the address after the #, for that key alone', () => {
+    const lang = source('components/ttc/mp/lang.tsx');
+    expect(lang).toContain("window.location.hash.startsWith('#b=') ? window.location.hash : ''");
+    expect(source('components/ttc/mp/SiteHeader.tsx')).toContain('altPath(pathname, search) + carried');
+    // On the server and while hydrating there is no address to read: the static page carries the plain twin.
+    for (const l of LANGS) {
+      const twin = localePath(BEAM_PATH, l === 'en' ? 'es' : 'en');
+      expect(render(l)).toContain(`href="${twin}"`);
+    }
   });
 });

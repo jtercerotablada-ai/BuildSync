@@ -106,6 +106,8 @@ type Ui = {
     needEI: string;
     needS: string;
     needAv: string;
+    /** On the drawing, before the beam's own weight. */
+    ownWeight: string;
     signs: string;
     shearRule: Record<Exclude<SectionProps['shearRule'], 'none'>, string>;
     elastic: string;
@@ -114,6 +116,10 @@ type Ui = {
   };
   issues: Record<FormIssueCode, string>;
   issuesTitle: string;
+  /** Over a problem that leaves the beam solved: a value of the section. */
+  issuesSection: string;
+  /** A beam was in the address and could not be read. */
+  linkError: string;
   /** Read out when the results change. */
   solved: string;
   plot: { zero: string; max: string; min: string };
@@ -196,15 +202,15 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       },
       section: {
         title: 'Section and material',
-        intro: 'Needed for deflection and stress only. Reactions, shear and moment do not depend on it.',
+        intro: 'Needed for deflection and stress only. Reactions, shear and moment do not depend on it, unless the beam’s own weight is included.',
         mode: 'Section given as',
         modes: { props: 'Properties', rect: 'Rectangle', shape: 'Steel shape' },
         material: 'Material',
         materials: {
           steel: 'Steel',
           aluminum: 'Aluminum',
-          concrete: 'Concrete, normalweight',
-          wood: 'Wood, Douglas Fir-Larch No. 2',
+          concrete: 'Concrete, normalweight, f′c = 4,000 psi (28 MPa)',
+          wood: 'Wood, Douglas Fir-Larch No. 2, 2 to 4 in. thick',
           custom: 'Other (enter E)',
         },
         E: 'Modulus of elasticity, E',
@@ -261,12 +267,13 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         needEI: 'Enter E and I to see deflection.',
         needS: 'Enter the section modulus to see bending stress.',
         needAv: 'Enter a shear area to see shear stress.',
+        ownWeight: 'own weight',
         signs: 'Shear is positive when the part of the beam to the left of the cut is pushed up. Moment is positive when the beam sags, with tension at the bottom.',
         shearRule: {
           area: 'Shear divided by the shear area entered.',
           rect: '1.5 × shear ÷ area: the peak of a rectangle’s parabolic distribution.',
           web: 'Shear divided by the web area, d × t_w.',
-          hss: 'Shear divided by the area of the two webs, 2 × h × t.',
+          hss: 'Shear divided by the area of the two webs, 2 × (d − 3t) × t, with t the design wall thickness.',
           round: 'Shear divided by half the area of the section.',
         },
         elastic: 'Elastic stresses from M ÷ S and the shear rule above — not a check of strength.',
@@ -281,10 +288,13 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         'hinge-at-end': 'A hinge at an end of the beam releases nothing. Move it inside the beam.',
         'hinge-at-fixed': 'A hinge cannot sit on a fixed support. Use a pin there instead.',
         'couple-at-hinge': 'A moment cannot be applied exactly at a hinge. Move it to one side.',
+        'close-supports': 'Two supports are too close together to be told apart. Move one of them, or use a single fixed support there.',
         unstable: 'These supports do not hold the beam: it would move as a mechanism. Add a support, fix one, or remove a hinge.',
         section: 'A section value is negative or not a number.',
       },
       issuesTitle: 'This beam cannot be solved yet',
+      issuesSection: 'Check the section',
+      linkError: 'The beam in this link could not be read. The example beam is shown instead.',
       solved: 'Results updated.',
       plot: { zero: 'zero', max: 'max', min: 'min' },
     },
@@ -294,7 +304,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         'Reactions, shear and moment diagrams, deflection and stress for a beam on any supports under point, distributed and moment loads. Runs in your browser.',
       h1: 'Beam reactions and diagrams',
       eyebrow: 'Calculator',
-      sub: 'Reactions, shear and moment diagrams, deflection and stress of a beam on any supports, under any set of loads. Determinate or not.',
+      sub: 'For any supports, internal hinges and any set of loads — determinate or not. Each diagram is exact along the whole beam, not interpolated between points.',
       facts: [
         { k: 'Supports', v: 'Pin, roller, fixed, hinges' },
         { k: 'Loads', v: 'Point, distributed, moments' },
@@ -326,6 +336,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
           'It does not combine or factor loads: enter the loads of the combination you are checking.',
           'It does not compare deflection with a limit. It gives the length-to-deflection ratio of each span for you to compare.',
           'For concrete, the deflection is that of the uncracked section entered: cracking and creep are not modelled.',
+          'The beam’s own weight is not a load unless a steel shape is chosen and its box is ticked. Otherwise add it to the loads.',
         ],
       },
       signs: {
@@ -335,6 +346,8 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
           'Shear is positive when the part of the beam to the left of the cut is pushed up.',
           'Moment is positive when the beam sags (tension at the bottom) and is drawn above the axis.',
           'Deflection is drawn the way the beam moves: down is down.',
+          'In the tables, deflection is positive upward, and slope is in radians, positive counter-clockwise.',
+          'Lengths, forces and moments are in feet and kips or in metres and kilonewtons; the section is in inches or millimetres.',
         ],
       },
       disclaimer: {
@@ -403,15 +416,15 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       },
       section: {
         title: 'Sección y material',
-        intro: 'Solo hace falta para la deflexión y los esfuerzos. Las reacciones, el cortante y el momento no dependen de ella.',
+        intro: 'Solo hace falta para la deflexión y los esfuerzos. Las reacciones, el cortante y el momento no dependen de ella, salvo que se incluya el peso propio de la viga.',
         mode: 'Sección dada por',
         modes: { props: 'Propiedades', rect: 'Rectángulo', shape: 'Perfil de acero' },
         material: 'Material',
         materials: {
           steel: 'Acero',
           aluminum: 'Aluminio',
-          concrete: 'Concreto de peso normal',
-          wood: 'Madera, Douglas Fir-Larch n.º 2',
+          concrete: 'Concreto de peso normal, f′c = 4,000 psi (28 MPa)',
+          wood: 'Madera, Douglas Fir-Larch n.º 2, de 2 a 4 in de espesor',
           custom: 'Otro (introduzca E)',
         },
         E: 'Módulo de elasticidad, E',
@@ -468,12 +481,13 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         needEI: 'Introduzca E e I para ver la deflexión.',
         needS: 'Introduzca el módulo de sección para ver el esfuerzo de flexión.',
         needAv: 'Introduzca un área de cortante para ver el esfuerzo cortante.',
-        signs: 'El cortante es positivo cuando la parte de la viga a la izquierda del corte es empujada hacia arriba. El momento es positivo cuando la viga se comba hacia abajo, con tensión en la fibra inferior.',
+        ownWeight: 'peso propio',
+        signs: 'El cortante es positivo cuando la parte de la viga a la izquierda del corte es empujada hacia arriba. El momento es positivo cuando la viga se comba hacia abajo, con tracción en la fibra inferior.',
         shearRule: {
           area: 'Cortante dividido entre el área de cortante introducida.',
           rect: '1.5 × cortante ÷ área: el máximo de la distribución parabólica de un rectángulo.',
           web: 'Cortante dividido entre el área del alma, d × t_w.',
-          hss: 'Cortante dividido entre el área de las dos almas, 2 × h × t.',
+          hss: 'Cortante dividido entre el área de las dos almas, 2 × (d − 3t) × t, con t el espesor de diseño de la pared.',
           round: 'Cortante dividido entre la mitad del área de la sección.',
         },
         elastic: 'Esfuerzos elásticos con M ÷ S y la regla de cortante anterior; no es una comprobación de resistencia.',
@@ -488,10 +502,13 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         'hinge-at-end': 'Una rótula en un extremo de la viga no libera nada. Colóquela dentro de la viga.',
         'hinge-at-fixed': 'Una rótula no puede estar sobre un empotramiento. Use ahí un apoyo articulado.',
         'couple-at-hinge': 'No se puede aplicar un momento exactamente en una rótula. Muévalo a un lado.',
+        'close-supports': 'Dos apoyos están demasiado juntos para distinguirlos. Mueva uno de ellos, o use ahí un solo empotramiento.',
         unstable: 'Estos apoyos no sostienen la viga: se movería como un mecanismo. Añada un apoyo, empotre uno o quite una rótula.',
         section: 'Un valor de la sección es negativo o no es un número.',
       },
       issuesTitle: 'Esta viga todavía no se puede resolver',
+      issuesSection: 'Revise la sección',
+      linkError: 'No se pudo leer la viga de este enlace. Se muestra la viga de ejemplo.',
       solved: 'Resultados actualizados.',
       plot: { zero: 'cero', max: 'máx.', min: 'mín.' },
     },
@@ -501,7 +518,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         'Reacciones, diagramas de cortante y momento, deflexión y esfuerzos de una viga con cualquier apoyo y cualquier carga. Se calcula en su navegador.',
       h1: 'Reacciones y diagramas de vigas',
       eyebrow: 'Calculadora',
-      sub: 'Reacciones, diagramas de cortante y de momento, deflexión y esfuerzos de una viga con cualquier disposición de apoyos y cualquier combinación de cargas. Isostática o hiperestática.',
+      sub: 'Para cualquier disposición de apoyos, rótulas internas y cualquier combinación de cargas, sea la viga isostática o hiperestática. Cada diagrama es exacto a lo largo de toda la viga, no interpolado entre puntos.',
       facts: [
         { k: 'Apoyos', v: 'Articulado, rodillo, empotrado, rótulas' },
         { k: 'Cargas', v: 'Puntuales, distribuidas, momentos' },
@@ -532,7 +549,8 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
           'No comprueba la resistencia, el pandeo lateral-torsional, el aplastamiento del alma ni ningún otro estado límite de una norma de diseño.',
           'No combina ni mayora cargas: introduzca las cargas de la combinación que esté comprobando.',
           'No compara la deflexión con un límite. Da la relación entre longitud y deflexión de cada vano para que usted la compare.',
-          'En concreto, la deflexión es la de la sección sin fisurar que se introduce: no se modelan la fisuración ni la fluencia lenta.',
+          'En vigas de concreto, la deflexión es la de la sección sin fisurar que se introduce: no se modelan la fisuración ni la fluencia lenta.',
+          'El peso propio de la viga no es una carga, salvo que se elija un perfil de acero y se marque su casilla. En otro caso, añádalo a las cargas.',
         ],
       },
       signs: {
@@ -540,8 +558,10 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         items: [
           'Las cargas se introducen como magnitudes con un sentido; una carga hacia abajo es la gravedad.',
           'El cortante es positivo cuando la parte de la viga a la izquierda del corte es empujada hacia arriba.',
-          'El momento es positivo cuando la viga se comba hacia abajo (tensión en la fibra inferior) y se dibuja sobre el eje.',
+          'El momento es positivo cuando la viga se comba hacia abajo (tracción en la fibra inferior) y se dibuja sobre el eje.',
           'La deflexión se dibuja como se mueve la viga: hacia abajo es hacia abajo.',
+          'En las tablas, la deflexión es positiva hacia arriba, y el giro va en radianes, positivo en sentido antihorario.',
+          'Longitudes, fuerzas y momentos van en pies y kips o en metros y kilonewtons; la sección, en pulgadas o milímetros.',
         ],
       },
       disclaimer: {

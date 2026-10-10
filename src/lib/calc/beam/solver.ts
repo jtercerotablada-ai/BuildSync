@@ -87,6 +87,7 @@ export type BeamIssueCode =
   | 'hinge-at-end' // a hinge at an end of the beam releases nothing
   | 'hinge-at-fixed' // a hinge on a fixed support: which side is held?
   | 'couple-at-hinge' // a couple on a hinge: applied to which side?
+  | 'close-supports' // two supports so close that the arithmetic cannot tell them apart
   | 'unstable'; // the supports do not hold the beam: a mechanism
 
 export interface BeamIssue {
@@ -376,15 +377,21 @@ export function solveBeam(model: BeamModel): BeamOutcome {
   equation(1, 'right', 'V'); // nothing is left past the right end:
   equation(1, 'right', 'M'); // the whole beam is in equilibrium
 
+  // No solution: a mechanism — unless two supports sit within a thousandth
+  // of the beam of each other. That pair IS stable (it clamps the beam), but
+  // its two reactions are a difference of nearly equal numbers and the
+  // system is singular to rounding; calling it a mechanism would be false.
+  const closest = supports.reduce((gap, s, i) => (i === 0 ? gap : Math.min(gap, s.a - supports[i - 1].a)), Infinity);
+  const unsolved: BeamOutcome = { ok: false, issues: [{ code: closest < 1e-3 ? 'close-supports' : 'unstable' }] };
   const u = solveLinear(A, b);
-  if (!u) return { ok: false, issues: [{ code: 'unstable' }] };
+  if (!u) return unsolved;
 
   const stateAt = (xn: number, side: Side): Quad => unknownsAt(loadsAt(xn, side), xn, side, (i) => u[i]);
   // The solution must satisfy what it was asked: anything else is a matrix
   // too close to singular to trust (a mechanism but for rounding).
   const scale = Math.max(1, ...points.map((p) => Math.abs(p.P)), ...dists.map((d) => Math.abs(d.wa) + Math.abs(d.wb)), ...couples.map((c) => Math.abs(c.M)));
   const end = stateAt(1, 'right');
-  if (Math.abs(end.V) > 1e-6 * scale || Math.abs(end.M) > 1e-6 * scale) return { ok: false, issues: [{ code: 'unstable' }] };
+  if (Math.abs(end.V) > 1e-6 * scale || Math.abs(end.M) > 1e-6 * scale) return unsolved;
 
   /* ── Back in the caller's units ────────────────────────────────────── */
   const at = (x: number, side?: Side): BeamState => {

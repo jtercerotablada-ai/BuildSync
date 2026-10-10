@@ -16,7 +16,7 @@ import {
   localePath,
   stripLang,
 } from '@/lib/ttc/i18n';
-import { refreshSearch, useContent, useLang, useSearch } from './lang';
+import { refreshSearch, useCarriedHash, useContent, useLang, useSearch } from './lang';
 
 /** How long the menu's entrance has to have been on screen for a close to
  *  be worth an exit (the panel is about nine tenths in by then). */
@@ -64,6 +64,7 @@ export function SiteHeader() {
   const lang = useLang();
   const c = useContent();
   const search = useSearch();
+  const carried = useCarriedHash();
   const [open, setOpen] = useState(false);
   /* The panel is leaving: still in the DOM, playing `mp-menu-out`. Set and
      cleared during render from `open`, like the route rule below, so every
@@ -300,7 +301,9 @@ export function SiteHeader() {
   // back empty after the switch. `search` is '' on the server and while
   // hydrating, so the static HTML carries the plain twin path (see
   // useSearch).
-  const other = altPath(pathname, search);
+  // …and with the case a calculator keeps after the `#` (useCarriedHash): the
+  // switch used to open the twin calculator on the example beam.
+  const other = altPath(pathname, search) + carried;
   const otherLang = lang === 'en' ? 'es' : 'en';
   const langAttr = htmlLang[lang];
   const logo = c.company.logo;
