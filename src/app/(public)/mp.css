@@ -5089,6 +5089,260 @@ a.mp-menu__mail {
   }
 }
 
+/* The calculators catalogue (CalculatorsView, /resources). Two parts under
+   the hero.
+
+   1. THE INDEX (.mp-calcnav): the families as a grid of the owner's icons —
+      gold line drawings, so they sit on the graphite of the hero, straight on
+      it, with a hairline over each cell. A cell is one link to its family
+      further down: the drawing, the family's name, and how many calculators
+      it holds in mono. Six across on a desktop, four on a tablet; on a phone
+      two across, each cell a row (drawing beside the name) so the seventeen
+      of them are nine short rows and not nine tall ones.
+
+   2. THE LEDGER (.mp-calc): one block per family under a strong hairline —
+      the drawing on a graphite tile and the family's name on a rail that
+      stays in view while its rows scroll, and beside it the calculators as
+      hairline rows in the hand of the package list: the name in ink and
+      medium, what it computes in the second ink, the design standards as a
+      quiet line of mono under it.
+
+   The tile is square and graphite because the firm's own mark is: gold on
+   the dark square. No radius (--mp-radius is 0). */
+.mp-calcnav {
+  border-block-start: 1px solid var(--mp-line);
+  padding-block: var(--mp-8) var(--mp-12);
+}
+.mp-calcnav__list {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--mp-8) clamp(1rem, 2.4vw, 2.5rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-calcnav__list a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--mp-4) var(--mp-3);
+  align-items: baseline;
+  height: 100%;
+  padding-block: var(--mp-4) var(--mp-1);
+  border-block-start: 1px solid var(--mp-line);
+  color: var(--mp-snow);
+  text-decoration: none;
+  transition:
+    color var(--mp-dur) var(--mp-ease),
+    border-color var(--mp-dur) var(--mp-ease);
+}
+.mp-calcnav__icons {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--mp-2);
+}
+.mp-calcnav__icons img {
+  display: block;
+  width: 4.75rem;
+  height: 4.75rem;
+}
+.mp-calcnav__name {
+  font-size: var(--mp-t-small);
+  font-weight: 500;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.mp-calcnav__n {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.04em;
+  color: var(--mp-snow-3);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-calcnav__list a:hover {
+    color: var(--mp-gold);
+    border-color: var(--mp-gold);
+  }
+}
+
+.mp-calc {
+  display: grid;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  gap: var(--mp-8) clamp(2rem, 5vw, 5rem);
+  align-items: start;
+  padding-block: var(--mp-6) var(--mp-16);
+  border-block-start: 1px solid var(--mp-line-strong);
+}
+.mp-calc__rail {
+  position: sticky;
+  top: calc(var(--mp-header-h) + var(--mp-6));
+}
+.mp-calc__icons {
+  display: flex;
+  gap: var(--mp-2);
+  margin-block-end: var(--mp-6);
+}
+.mp-calc__icons img {
+  display: block;
+  box-sizing: border-box;
+  width: 7rem;
+  height: 7rem;
+  padding: 0.6rem;
+  background: var(--mp-graphite);
+}
+.mp-calc__title {
+  margin: 0;
+  font-size: var(--mp-t-h3);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  color: var(--mp-ink);
+}
+.mp-calc__count {
+  margin: var(--mp-2) 0 0;
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-faint);
+}
+.mp-calc__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-calc__list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  gap: var(--mp-1) var(--mp-6);
+  align-items: baseline;
+  padding-block: 0.85rem;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+}
+/* The family's own rule is the top of its first row. */
+.mp-calc__list > li:first-child {
+  padding-block-start: 0;
+}
+.mp-calc__list > li + li {
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-calc__name {
+  font-size: var(--mp-t-body);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--mp-ink);
+}
+.mp-calc__name a {
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--mp-gold);
+}
+.mp-calc__does {
+  color: var(--mp-ink-2);
+}
+.mp-calc__codes {
+  grid-column: 2;
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.04em;
+  color: var(--mp-gold-ink);
+}
+.mp-calc__note {
+  margin: 0;
+  padding-block-start: var(--mp-6);
+  border-block-start: 1px solid var(--mp-line-strong);
+  font-size: var(--mp-t-small);
+  line-height: 1.65;
+  color: var(--mp-ink-2);
+}
+@media (max-width: 1180px) {
+  .mp-calcnav__list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .mp-calc {
+    grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  }
+  .mp-calc__icons img {
+    width: 5.5rem;
+    height: 5.5rem;
+    padding: 0.5rem;
+  }
+  .mp-calc__list > li {
+    grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  }
+}
+/* One column: the rail lies down — the tile, and the name beside it — and
+   stops following the scroll, which it would cover. */
+@media (max-width: 900px) {
+  .mp-calc {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--mp-6);
+    padding-block-end: var(--mp-12);
+  }
+  .mp-calc__rail {
+    position: static;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--mp-4);
+    align-items: center;
+  }
+  .mp-calc__icons {
+    grid-row: 1 / span 2;
+    margin: 0;
+  }
+  .mp-calc__icons img {
+    width: 4.5rem;
+    height: 4.5rem;
+    padding: 0.4rem;
+  }
+  .mp-calc__title {
+    align-self: end;
+  }
+  .mp-calc__count {
+    align-self: start;
+  }
+}
+@media (max-width: 640px) {
+  .mp-calcnav {
+    padding-block: var(--mp-6) var(--mp-8);
+  }
+  .mp-calcnav__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--mp-4);
+  }
+  .mp-calcnav__list a {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--mp-3);
+    min-height: 4.5rem;
+    padding-block: var(--mp-2);
+  }
+  .mp-calcnav__icons {
+    grid-column: auto;
+  }
+  .mp-calcnav__icons img {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  /* Two drawings beside a name (steel connections) leave the name 60px in a
+     half-width cell, less than its longest word: that cell takes the whole
+     row. It is the thirteenth, so it starts a row and leaves no gap. */
+  .mp-calcnav__wide {
+    grid-column: 1 / -1;
+  }
+  .mp-calcnav__name {
+    font-size: 0.8125rem;
+  }
+  .mp-calc__list > li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-calc__codes {
+    grid-column: auto;
+  }
+}
+
 /* A heading that IS the link: the milestone page's two county headings. A
    block, so the whole heading is the target and its padding makes a single
    line of it 44px tall. Underlined in gold, like .mp-prose a, so it reads as

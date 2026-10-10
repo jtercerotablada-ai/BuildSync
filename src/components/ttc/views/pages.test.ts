@@ -9,6 +9,7 @@ import { firstSentence } from '@/components/ttc/mp/text';
 import { cityPath } from '@/lib/ttc/cities';
 import { getCityPages } from '@/lib/ttc/city-content';
 import { AboutView } from './AboutView';
+import { CalculatorsView } from './CalculatorsView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -51,6 +52,9 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     ['/privacy', h(LegalView, { lang, kind: 'privacy' })],
     ['/terms', h(LegalView, { lang, kind: 'terms' })],
     ['/public-not-found', h(NotFoundView, { lang })],
+    // The calculators catalogue: a page, though not one to be found yet
+    // (noindex, out of the sitemap — calculators.test.ts has its own rules).
+    ['/resources', h(CalculatorsView, { lang })],
     ...getContent(lang).services.map(
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,
@@ -527,7 +531,8 @@ describe('county program pages: no paragraph is printed twice', () => {
     for (const { lang, path, html } of pages.values()) {
       if (PROGRAMS.some((slug) => path === `/services/${slug}`)) continue;
       const close = html.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)?.[0];
-      // /contact, the legal pages and the 404 have no closing band.
+      // /contact, the legal pages, the 404 and the calculators catalogue
+      // have no closing band.
       if (!close) continue;
       closed.push(`${lang} ${path}`);
       const r = getContent(lang).reach;

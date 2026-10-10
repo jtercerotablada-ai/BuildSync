@@ -675,7 +675,7 @@ describe("hostSplitAction", () => {
       for (const path of [
         "/services/nope",
         "/services/peer-review/x",
-        "/resources",
+        "/resources/nope",
         "/resources/steel-member",
       ]) {
         expect(onPublic(path), path).toBeNull();
@@ -776,10 +776,11 @@ describe("publicNotFoundTarget", () => {
       "/services/nope",
       `/services/${slug}/x`,
       "/services/x/y/z",
-      // The retired calculators: the prefix is marketing, no page exists.
-      "/resources",
+      // The calculators: /resources is the catalogue, and no calculator
+      // has a page of its own yet — the retired ones' addresses included.
       "/resources/steel-member",
       "/resources/load-gen",
+      "/resources/x/y",
     ]) {
       expect(publicNotFoundTarget(path), path).toBe(PUBLIC_NOT_FOUND);
     }
@@ -791,7 +792,7 @@ describe("publicNotFoundTarget", () => {
       "/es/contacto",
       "/es/services/nope",
       `/es/services/${slug}/x`,
-      "/es/resources",
+      "/es/resources/steel-member",
       // Real in English, but with no Spanish twin (i18n's EN_ONLY).
       "/es/credits",
       "/es/logo-styles",
@@ -866,6 +867,8 @@ describe("publicNotFoundTarget", () => {
         "/es/existing-buildings",
         "/es/privacy",
         "/es/projects",
+        // The calculators catalogue (src/lib/ttc/calculators.ts).
+        "/es/resources",
         "/es/services",
         "/es/terms",
         ...services.map((s) => `/es/services/${s.slug}`),
@@ -904,7 +907,7 @@ describe("proxy() — the public 404 response", () => {
       for (const [path, target] of [
         ["/services/nope", PUBLIC_NOT_FOUND],
         [`/services/${services[0].slug}/x`, PUBLIC_NOT_FOUND],
-        ["/resources", PUBLIC_NOT_FOUND],
+        ["/resources/nope", PUBLIC_NOT_FOUND],
         ["/resources/steel-member", PUBLIC_NOT_FOUND],
         [PUBLIC_NOT_FOUND, PUBLIC_NOT_FOUND],
         ["/es/nope", PUBLIC_NOT_FOUND_ES],

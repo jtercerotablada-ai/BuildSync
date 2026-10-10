@@ -22,10 +22,12 @@ const publicPrefixes = [
   "/api/auth",
   "/api/my-tasks/calendar-feed",
   "/api/contact",
-  // The retired public calculators. Nothing renders here any more — the proxy
-  // answers every /resources path with the public 404 (publicNotFoundTarget)
-  // before this list is read — but the prefix stays so that, if they return,
-  // they are public from day one rather than behind the login wall.
+  // The public calculators. /resources is the catalogue that lists them
+  // (src/lib/ttc/calculators.ts); none has a page of its own yet, so the
+  // proxy answers every /resources/<x> with the public 404
+  // (publicNotFoundTarget) before this list is read. The prefix stays so
+  // that each one is public from the day it is built rather than behind the
+  // login wall.
   "/resources",
   "/api/load-gen",
   // Marketing: /services and every /services/<slug> detail page.
@@ -75,6 +77,9 @@ const publicExactRoutes = Array.from(
     "/contact",
     "/existing-buildings",
     "/logo-styles",
+    // The calculators catalogue. In neither nav nor footer yet (it lists
+    // what is planned; see resources/page.tsx), so it is named here.
+    "/resources",
     "/es",
     ...primaryNav.map((item) => item.href),
     ...legal.links.map((link) => link.href),
@@ -252,7 +257,7 @@ export function isRoleAgnosticUploadRequest(body: unknown): boolean {
    and their Spanish mirrors. Any other path under those prefixes is
    REWRITTEN, with status 404, to the public 404 page of its language:
 
-     /services/nope, /services/<slug>/x, /resources, /resources/*  → PUBLIC_NOT_FOUND
+     /services/nope, /services/<slug>/<city>/x, /resources/*       → PUBLIC_NOT_FOUND
      /es/nope, /es/services/nope, /es/credits (English-only page)  → PUBLIC_NOT_FOUND_ES
 
    This is decided on EVERY host — localhost and previews included, split on
@@ -270,8 +275,8 @@ export function isRoleAgnosticUploadRequest(body: unknown): boolean {
    (NextResponse.rewrite(url, { status: 404 })). A direct request for either
    target gets the same 404, never a 200.
 
-   The (public) catch-alls (es/[...rest], services/[slug]/[...rest],
-   resources/[[...rest]]) and the not-found boundaries remain as a fallback for
+   The (public) catch-alls (es/[...rest], services/[slug]/[city]/[...rest],
+   resources/[...rest]) and the not-found boundaries remain as a fallback for
    a path this list somehow misses. proxy.test.ts diffs the list against the
    (public) page files, so a page added without updating it fails the suite
    instead of 404ing in production.
