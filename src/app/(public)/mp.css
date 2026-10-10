@@ -4852,12 +4852,14 @@ a.mp-menu__mail {
    city is what the eye scans for, in ink and medium; the office, under the
    name its own page gives it, in the second ink.
 
-   A row is TEXT — the <li> itself, with the two cells. Each one used to be a
-   link to its city's page, in the link's bronze and underlined, with a hover
-   on the city; the rows stopped being links (site.ts, `Service.offices`) and
-   those rules went with them, so nothing here looks tappable. The row keeps
-   the 0.8rem over and under that made it a 47px target: it is the rhythm of
-   the list, and the same as before. */
+   A row never links OUT. Each one used to be a link to its city's website,
+   in the link's bronze and underlined; those links went (site.ts,
+   `Service.offices`) and their rules with them. Since the city pages
+   (cities.ts), the NAME of a city that has a page of its own on this site
+   is a link to it — ink, with the gold underline of every text link — and
+   the other rows stay plain text. The row keeps its 0.8rem over and under:
+   the rhythm of the list. That padding is the <li>'s, not the link's, so
+   the link carries its own 44px of height (::before, below). */
 .mp-offices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4879,6 +4881,21 @@ a.mp-menu__mail {
 }
 .mp-offices__city {
   font-weight: 500;
+}
+/* A city with a page of its own on this site: its name is the link. The
+   pseudo-element is the thumb's target — the row's height, without moving
+   a line of text (the device .mp-cred a uses). */
+.mp-offices__city a {
+  position: relative;
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--mp-gold);
+}
+.mp-offices__city a::before {
+  content: '';
+  position: absolute;
+  inset: -12px 0;
 }
 .mp-offices__office {
   color: var(--mp-ink-2);
@@ -4964,6 +4981,112 @@ a.mp-menu__mail {
   font-size: var(--mp-t-small);
   line-height: 1.65;
   color: var(--mp-ink-2);
+}
+
+/* A city page (CityView): /services/<program>/<city>. It is built from the
+   county page's pieces, so it looks like a part of it: the rows read on the
+   city's own website are the package list (one column — a city row is a
+   whole sentence or two, and two columns of those were hard to follow), the
+   county's deadlines are the same hairline rows with a wider label ("Time
+   to file in North Miami Beach"), and the office is an address block under
+   the gold rule the package list opens with. */
+/* Two classes: the phone block's `.mp-packet` rule comes later in the file
+   and would otherwise give this block MORE room on a phone than on a desk. */
+.mp-packet.mp-city {
+  margin-block-start: var(--mp-8);
+}
+.mp-city .mp-packet__list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mp-city .mp-packet__list > div {
+  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+}
+.mp-city__k {
+  display: block;
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mp-gold-ink);
+}
+.mp-city__office {
+  display: grid;
+  gap: 0.15rem;
+  margin-block: var(--mp-8) var(--mp-4);
+  font-style: normal;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+.mp-city__office .mp-city__k {
+  margin-block-end: var(--mp-2);
+}
+.mp-city__name {
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+.mp-city__office .mp-city__name,
+.mp-city__office .mp-city__line {
+  display: block;
+}
+.mp-city__rows {
+  margin: 0 0 var(--mp-4);
+  padding: 0;
+  list-style: none;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-city__rows li {
+  display: grid;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  gap: var(--mp-1) var(--mp-4);
+  align-items: baseline;
+  padding-block: 0.8rem;
+  border-block-start: 1px solid var(--mp-line);
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+.mp-city__rows b {
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+/* Inside the "Next step" box, whose own rule zeroes every paragraph. */
+.mp-callout--next .mp-city__more {
+  margin-block-start: var(--mp-4);
+}
+.mp-city__all {
+  margin: 0;
+}
+/* The other cities of the county: links in a row that wraps, each one tall
+   enough to tap. */
+.mp-city__others {
+  margin-block-start: var(--mp-12);
+  padding-block-start: var(--mp-6);
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-city__others ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--mp-6);
+  margin: var(--mp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mp-t-small);
+}
+.mp-city__others a {
+  display: inline-block;
+  padding-block: 0.75rem;
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--mp-gold);
+}
+@media (max-width: 760px) {
+  .mp-city .mp-packet__list > div,
+  .mp-city__rows li {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* A heading that IS the link: the milestone page's two county headings. A

@@ -19,8 +19,10 @@
  *   reproduced nor fixed from here — and it changes from crawl to crawl.
  *
  * So the page prints the city and the office as text, and links ONE
- * county-level page per program (`offices.forms`): Miami-Dade County's
- * recertification page, and Broward's Board of Rules and Appeals.
+ * outside page per program (`offices.forms`): Miami-Dade County's
+ * recertification page, and Broward's Board of Rules and Appeals. (A city
+ * with a page of its own on this site is linked to THAT page from its row —
+ * see cities.ts; the pages those were read on are in city-sources.ts.)
  *
  * The addresses are kept, here, because each name was read on one of them
  * and has to be read there again. City sites move pages without redirecting

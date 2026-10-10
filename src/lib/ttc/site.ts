@@ -819,18 +819,25 @@ export type Service = {
    * a city's name on it, and these two pages named no city at all: one row
    * per city, with the building office as that city's own page names it.
    *
-   * A ROW IS TEXT, NOT A LINK, and it carries no address. Each row used to
+   * A ROW NEVER LINKS OUT, and it carries no address. Each row used to
    * open its city's page. City and town websites answer crawlers unevenly —
    * 403 to one, no answer to the next — and the on-page check the owner
    * runs counted six of these links as broken on one crawl and thirteen on
    * the next, while every one of them opened in a browser. Which ones fail
    * depends on where the crawler connects from, so it can be neither
    * reproduced nor fixed from here. Decided on October 7, 2026: the names
-   * stay, the links to city and town websites go. Do not link a row again,
-   * and do not put a city's address back in this file — the content bundle
+   * stay, the links to city and town websites go. Do not link a city's
+   * website again, and do not put its address back in this file — the content bundle
    * travels to the browser with every page that hands a service to a client
    * component. The addresses each name was read from are a record, in
    * `office-pages.ts`, which no page imports.
+   *
+   * Since October 9, 2026 a city may have a page of its own on THIS site
+   * (`cities.ts`: /services/<program>/<city>). Where it does, the view
+   * links the city's NAME in its row to that page — an internal link, joined
+   * by the row's `city`, so nothing changes in this file and a row still
+   * carries no address. How that office runs the program is on that page,
+   * with where each line was read; a row stays the city and its office.
    *
    * What a row may and may not say:
    *   • The city and its office, nothing else. No fee, no deadline, no day
@@ -849,7 +856,7 @@ export type Service = {
   offices?: {
     /** The section's h2. */
     title: string;
-    /** One short paragraph. Promises no link: the rows are text. */
+    /** One short paragraph. Promises no link: not every row has one. */
     lede: string;
     rows: { city: string; office: string }[];
     /** Under the list: what to do when the city is not on it. */

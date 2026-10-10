@@ -14,7 +14,12 @@ import {
   unmeasured,
 } from '@/lib/ttc/serp';
 import { absoluteUrl, company } from '@/lib/ttc/site';
+import { cityPath } from '@/lib/ttc/cities';
+import { cityPagesEn } from '@/lib/ttc/cities.en';
+import { getCityPages } from '@/lib/ttc/city-content';
+import { citySeo } from '@/lib/ttc/city-seo';
 import { AboutView } from './AboutView';
+import { CityView } from './CityView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
 import { HomeView } from './HomeView';
@@ -74,6 +79,8 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     ...getContent(lang).services.map(
       (s) => [`/services/${s.slug}`, { title: s.seo.title, description: s.seo.description }] as const,
     ),
+    // What `services/[slug]/[city]/page.tsx` hands to pageMeta.
+    ...getCityPages(lang).map((p) => [cityPath(p), citySeo(lang, p)] as const),
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -139,7 +146,8 @@ describe('the ruler: Arial, as the check measures it', () => {
 describe('titles and descriptions: every page in the sitemap', () => {
   it('measures the pages the sitemap lists, and no others', () => {
     expect(pages.map((p) => p.url).sort()).toEqual(sitemap().map((e) => e.url).sort());
-    expect(pages).toHaveLength(32);
+    // Sixteen pages in each language, and one more for every city page.
+    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length));
   });
 
   for (const p of pages) {
@@ -345,6 +353,12 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,
         h(ServiceDetailView, { lang, slug: s.slug }),
+      ],
+    ),
+    ...getCityPages(lang).map(
+      (p): [string, ReactElement] => [
+        cityPath(p),
+        h(CityView, { lang, program: p.program, slug: p.slug }),
       ],
     ),
   ];

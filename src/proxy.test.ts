@@ -25,6 +25,7 @@ import {
 import nextConfig from "../next.config";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 import { services } from "@/lib/ttc/site";
+import { citySlugs } from "@/lib/ttc/city-slugs";
 
 /**
  * The CLIENT API allowlist.
@@ -868,6 +869,8 @@ describe("publicNotFoundTarget", () => {
         "/es/services",
         "/es/terms",
         ...services.map((s) => `/es/services/${s.slug}`),
+        // One page per city, under its county program (city-slugs.ts).
+        ...citySlugs.map((c) => `/es/services/${c.program}/${c.slug}`),
       ].sort(),
     );
   });
@@ -1018,10 +1021,16 @@ describe("public 404 — drift against the marketing route groups", () => {
   const routes = publicPageRoutes();
   const isCatchAll = (r: string) => r.includes("[...") || r.includes("[[...");
   const slugRoutes = ["/services/[slug]", "/es/services/[slug]"];
+  // The city pages: one per entry of city-slugs.ts, under its own program.
+  const cityRoutes = ["/services/[slug]/[city]", "/es/services/[slug]/[city]"];
   const pages = routes
     .filter((r) => !isCatchAll(r))
     .flatMap((r) =>
-      slugRoutes.includes(r) ? services.map((s) => r.replace("[slug]", s.slug)) : [r],
+      slugRoutes.includes(r)
+        ? services.map((s) => r.replace("[slug]", s.slug))
+        : cityRoutes.includes(r)
+          ? citySlugs.map((c) => r.replace("[slug]", c.program).replace("[city]", c.slug))
+          : [r],
     )
     .filter((r) => r !== PUBLIC_NOT_FOUND && r !== PUBLIC_NOT_FOUND_ES);
   const isEs = (r: string) => r === "/es" || r.startsWith("/es/");
@@ -1049,10 +1058,11 @@ describe("public 404 — drift against the marketing route groups", () => {
   });
 
   it("has no dynamic page the known lists cannot enumerate", () => {
-    // [slug] is expanded from site.ts; any other dynamic segment needs its
-    // own entry in the proxy before it can be served.
+    // [slug] is expanded from site.ts and [slug]/[city] from city-slugs.ts;
+    // any other dynamic segment needs its own entry in the proxy before it
+    // can be served.
     const dynamic = routes.filter((r) => r.includes("[") && !isCatchAll(r));
-    expect(dynamic.sort()).toEqual([...slugRoutes].sort());
+    expect(dynamic.sort()).toEqual([...slugRoutes, ...cityRoutes].sort());
   });
 
   it("keeps every catch-all a fallback the proxy answers first", () => {
@@ -1063,7 +1073,10 @@ describe("public 404 — drift against the marketing route groups", () => {
     for (const route of catchAlls) {
       const sample = route
         .replace(/\[\[?\.\.\.[^\]]+\]\]?/, "x")
-        .replace("[slug]", services[0].slug);
+        .replace("[slug]", services[0].slug)
+        // Under a city: a real city of that program, so the sample is one
+        // segment deeper than a page that exists.
+        .replace("[city]", citySlugs.find((c) => c.program === services[0].slug)?.slug ?? "x");
       expect(publicNotFoundTarget(sample), route).not.toBeNull();
       if (route.includes("[[...")) {
         // An optional catch-all also matches its bare parent.

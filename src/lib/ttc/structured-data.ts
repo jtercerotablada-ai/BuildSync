@@ -29,25 +29,25 @@ import { absoluteUrl, company, contact, municipalities, regulatoryCheckedISO } f
  *     itself lives on /about (AboutView), in that page's language.
  */
 
-const ORGANIZATION = `${company.url}/#organization`;
-const WEBSITE = `${company.url}/#website`;
+export const ORGANIZATION = `${company.url}/#organization`;
+export const WEBSITE = `${company.url}/#website`;
 
 /** BCP 47 tags for `inLanguage`; the copy is written for US readers. */
-const LD_LANG: Record<Lang, string> = { en: 'en-US', es: 'es-US' };
+export const LD_LANG: Record<Lang, string> = { en: 'en-US', es: 'es-US' };
 
 /** The practice answers in both, on every channel. schema.org wants the
     language's English name or its tag; names read better in a validator. */
-const SPOKEN = ['English', 'Spanish'];
+export const SPOKEN = ['English', 'Spanish'];
 
 const CATALOG_NAME: Record<Lang, string> = {
   en: 'Structural engineering services',
   es: 'Servicios de ingeniería estructural',
 };
 
-type ServiceContent = SiteContent['services'][number];
+export type ServiceContent = SiteContent['services'][number];
 
 /** Absolute URL of a canonical path, in the page's language. */
-const abs = (path: string, lang: Lang) => `${company.url}${localePath(path, lang)}`;
+export const abs = (path: string, lang: Lang) => `${company.url}${localePath(path, lang)}`;
 
 /**
  * Organization + WebSite: the graph of every public page (SiteGraph).

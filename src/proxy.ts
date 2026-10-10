@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { hasTranslation, langFromPathname, localePath } from "@/lib/ttc/i18n";
 import { legal, primaryNav, services } from "@/lib/ttc/site";
+import { citySlugs } from "@/lib/ttc/city-slugs";
 import { isNonContributorRole } from "@/lib/workspace-roles";
 
 // Public routes that don't require authentication
@@ -246,8 +247,9 @@ export function isRoleAgnosticUploadRequest(body: unknown): boolean {
    ═══════════════════════════════════════════════════════════════════════════
    The marketing site owns every path under /services, /es and /resources, and
    which of those are real pages is a small closed set known right here: the
-   English pages (publicExactRoutes plus /services/<slug> for every slug in
-   site.ts) and their Spanish mirrors. Any other path under those prefixes is
+   English pages (publicExactRoutes, /services/<slug> for every slug in
+   site.ts and /services/<slug>/<city> for every city page in city-slugs.ts)
+   and their Spanish mirrors. Any other path under those prefixes is
    REWRITTEN, with status 404, to the public 404 page of its language:
 
      /services/nope, /services/<slug>/x, /resources, /resources/*  → PUBLIC_NOT_FOUND
@@ -286,6 +288,10 @@ export const PUBLIC_NOT_FOUND_ES = "/es/public-not-found";
 export const EN_PUBLIC_PAGES: readonly string[] = [
   ...publicExactRoutes.filter((href) => href !== "/es"),
   ...services.map((s) => `/services/${s.slug}`),
+  // One page per city under its county program. The slugs only — the pages'
+  // text stays out of the proxy's bundle (cities.test.ts keeps the two
+  // lists together).
+  ...citySlugs.map((c) => `/services/${c.program}/${c.slug}`),
 ];
 
 /** The Spanish mirror: every English page that has a Spanish twin (all but

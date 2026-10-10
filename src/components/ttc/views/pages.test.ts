@@ -6,7 +6,10 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { photo, video } from '@/lib/ttc/media';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { firstSentence } from '@/components/ttc/mp/text';
+import { cityPath } from '@/lib/ttc/cities';
+import { getCityPages } from '@/lib/ttc/city-content';
 import { AboutView } from './AboutView';
+import { CityView } from './CityView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
 import { HomeView } from './HomeView';
@@ -52,6 +55,13 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,
         h(ServiceDetailView, { lang, slug: s.slug }),
+      ],
+    ),
+    // One page per city, under its county program (cities.ts).
+    ...getCityPages(lang).map(
+      (p): [string, ReactElement] => [
+        cityPath(p),
+        h(CityView, { lang, program: p.program, slug: p.slug }),
       ],
     ),
   ];
@@ -293,11 +303,16 @@ describe('links out: the hosts the site may link', () => {
       const o = getContent(lang).services.find((s) => s.slug === slug)!.offices!;
       const list = html.match(/<ul class="mp-offices">([\s\S]*?)<\/ul>/)?.[1] ?? '';
 
-      it(`${slug} (${lang}): each office is a row of text — the city, then its office — and none is a link`, () => {
+      it(`${slug} (${lang}): each office is a row — the city, then its office — and no row leaves the site`, () => {
         const rows = [...list.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
         expect(rows).toEqual(o.rows.map((r) => text(esc(`${r.city} ${r.office}`))));
-        expect(list).not.toMatch(/<a\b/);
-        expect(list).not.toMatch(/href=/);
+        // A row never links OUT: a city's website is not linked again (see
+        // `Service.offices` in site.ts). Where the city has a page of its
+        // own on this site, its NAME is the link to it — cities.test.ts
+        // checks which rows, and where each leads.
+        for (const a of links(list)) {
+          expect(a.href, a.href).toMatch(/^\/(es\/)?services\/[a-z-]+\/[a-z-]+$/);
+        }
       });
 
       // What is left to tap under the list: the way to send the letter the
@@ -519,7 +534,8 @@ describe('county program pages: no paragraph is printed twice', () => {
       expect(close, `${lang} ${path}`).toContain(esc(`${r.free} ${r.reply}`));
     }
     // Home, Services, Existing Buildings, About, Typical Engagements and the
-    // six other services, in each language.
-    expect(closed).toHaveLength(22);
+    // six other services, in each language — and every city page, which
+    // leaves the line to its closing band.
+    expect(closed).toHaveLength(22 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
 });

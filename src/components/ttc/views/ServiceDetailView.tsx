@@ -2,6 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 import { getContent } from '@/lib/ttc/content';
 import { company, imagery, officeLinksCheckedISO, regulatoryCheckedISO } from '@/lib/ttc/site';
+import { cityPath } from '@/lib/ttc/cities';
+import { cityPagesOf } from '@/lib/ttc/city-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { serviceLd, webPageLd } from '@/lib/ttc/structured-data';
 import { PageHero } from '@/components/ttc/mp/PageHero';
@@ -91,6 +93,9 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   // (mp.css `.mp-more`): were a track to shrink, the links would fill the row
   // instead of leaving a blank column.
   const related = c.services.filter((s) => s.slug !== slug && s.track === service.track).slice(0, 3);
+  // The cities of this program that have a page of their own (cities.ts),
+  // by the name their office row carries.
+  const cityPages = new Map(cityPagesOf(lang, service.slug).map((p) => [p.city, p]));
   const isBim = service.slug === 'bim-coordination';
   const trackLabel = service.track === 'new' ? u.newProjects : u.existingBuildings;
   // The SLUG, not the localized label: it survives the language switch and
@@ -476,10 +481,13 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
       {/* Who sent your notice? — the two county programs. The letter has a
           city's name on it, and these pages named none. One row per city:
           its name, and the building office as that city's own page calls
-          it. A ROW IS TEXT. Each one used to be a link to that page; city
-          websites answer crawlers with a 403 or not at all, the on-page
-          check counted thirteen of them as broken, and the rows stopped
-          being links (site.ts, `Service.offices` — do not link one again).
+          it. A ROW NEVER LINKS OUT. Each one used to be a link to the
+          city's page; city websites answer crawlers with a 403 or not at
+          all, the on-page check counted thirteen of them as broken, and
+          the rows stopped being outside links (site.ts, `Service.offices`
+          — do not link a city's website again). Where the city has a page
+          of its own on THIS site (cities.ts), its name links there: how
+          that office runs the program, read on the city's website.
           Right under the questions, whose last word on filing is "the
           office that sent the notice". Then the one link of the block —
           the page the county-level authority publishes its forms on — and
@@ -503,7 +511,13 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                 // grid; it keeps the page's plain text from running
                 // "Hialeah" into "City of Hialeah…".
                 <li key={row.city} className="mp-offices__row">
-                  <span className="mp-offices__city">{row.city}</span>{' '}
+                  <span className="mp-offices__city">
+                    {cityPages.has(row.city) ? (
+                      <Link href={l(cityPath(cityPages.get(row.city)!))}>{row.city}</Link>
+                    ) : (
+                      row.city
+                    )}
+                  </span>{' '}
                   <span className="mp-offices__office">{row.office}</span>
                 </li>
               ))}
