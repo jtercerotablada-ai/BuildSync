@@ -159,9 +159,8 @@ export const calculatorsPage: Record<
     families: string;
     /** "calculators", after a count. */
     count: string;
-    /** The label of the count of open ones, and the mark beside an open one's name. */
+    /** The label of the count of open ones, in the hero. (No mark beside a name: an open one is the row in ink, with a link.) */
     open: string;
-    openMark: string;
     index: string;
     codes: string;
     note: string;
@@ -178,7 +177,6 @@ export const calculatorsPage: Record<
     families: 'Subjects',
     count: 'calculators',
     open: 'Open',
-    openMark: 'Open',
     index: 'Calculators by subject',
     codes: 'Standards',
     note: 'Where an entry names several design standards, each one is a version of the same calculator.',
@@ -194,7 +192,6 @@ export const calculatorsPage: Record<
     families: 'Temas',
     count: 'calculadoras',
     open: 'Abiertas',
-    openMark: 'Abierta',
     index: 'Calculadoras por tema',
     codes: 'Normas',
     note: 'Donde una entrada nombra varias normas de diseño, cada una es una versión de la misma calculadora.',

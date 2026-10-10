@@ -248,15 +248,34 @@ describe('calculators: the page', () => {
     it(`${lang}: every calculator is a row — its name, what it computes, its standards`, () => {
       expect(lists).toHaveLength(calculatorFamilies.length);
       calculatorFamilies.forEach((g, i) => {
-        const rows = [...lists[i].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
+        const rows = [...lists[i].matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
         expect(rows, g.id).toHaveLength(g.items.length);
         g.items.forEach((item, j) => {
-          // An open one carries its mark between the name and the line.
-          const name = `${text(esc(item.name[lang]))}${item.href ? ` ${t.openMark}` : ''}`;
+          // The name, then the line: no word between them, for an open one either.
+          const name = text(esc(item.name[lang]));
           expect(rows[j].startsWith(`${name} ${text(esc(item.does[lang]))}`), rows[j]).toBe(true);
           if (item.codes?.length) expect(rows[j].endsWith(`${t.codes}: ${item.codes.join(' · ')}`), rows[j]).toBe(true);
         });
       });
+    });
+
+    // The owner's rule of October 10, 2026: no "Open" beside a name. A row is
+    // open by being in ink with a link; the others are in a straw grey.
+    it(`${lang}: an open calculator is the row in ink with a link — and no word says so`, () => {
+      const rows = lists.flatMap((list, i) =>
+        [...list.matchAll(/<li\b([^>]*)>([\s\S]*?)<\/li>/g)].map((m, j) => ({ item: calculatorFamilies[i].items[j], cls: attr(m[1], 'class') ?? '', html: m[2] })),
+      );
+      expect(rows).toHaveLength(calculatorCount);
+      for (const { item, cls, html: row } of rows) {
+        const links = [...row.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1]);
+        expect(cls, item.name.en).toBe(item.href ? 'is-open' : '');
+        expect(links, item.name.en).toEqual(item.href ? [localePath(item.href, lang)] : []);
+      }
+      expect(rows.filter((r) => r.cls === 'is-open')).toHaveLength(openCalculatorCount);
+      expect(main).not.toContain('mp-calc__open');
+      // No row carries the word the hero counts them under ("Open", "Abiertas").
+      const marked = rows.filter((r) => new RegExp(`>\\s*${t.open.replace(/s$/, '')}s?\\s*<`, 'i').test(r.html));
+      expect(marked.map((r) => r.item.name.en)).toEqual([]);
     });
 
     // In the menu at the owner's request: the header's link is the current
@@ -380,5 +399,38 @@ describe('calculators: where the page is', () => {
       // The menus lead to the catalogue; a calculator is reached from it.
       expect([...header, ...footer].filter((x) => x.startsWith('/resources/'))).toEqual([]);
     }
+  });
+});
+
+describe('calculators page: the grey of the ones that are not ready', () => {
+  const css = readFileSync(resolve(__dirname, '..', '..', '..', 'app', '(public)', 'mp.css'), 'utf8');
+  const hex = (name: string) => css.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})\\b`))?.[1] ?? '';
+  const luminance = (colour: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a: string, b: string) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  it('is pale beside the ink of the open ones, and still readable as small text on the page’s paper', () => {
+    const wait = hex('--mp-calc-wait');
+    const paper = hex('--mp-paper');
+    const ink = hex('--mp-ink');
+    expect(wait).toMatch(/^#[0-9a-f]{6}$/);
+    // WCAG AA for text of this size.
+    expect(contrast(wait, paper)).toBeGreaterThanOrEqual(4.5);
+    // And far from the ink: the difference is what the page is saying.
+    expect(contrast(ink, paper) / contrast(wait, paper)).toBeGreaterThan(3);
+  });
+
+  it('every part of a row waits in it, and an open row takes the ink back', () => {
+    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const part of ['name', 'does', 'codes']) {
+      expect(rules, part).toMatch(new RegExp(`\\.mp-calc__${part}\\s*\\{[^}]*color:\\s*var\\(--mp-calc-wait\\)`));
+      expect(rules, part).toMatch(new RegExp(`\\.mp-calc__list > li\\.is-open \\.mp-calc__${part}\\s*\\{[^}]*color:\\s*var\\(--mp-(ink|ink-2|gold-ink)\\)`));
+    }
+    expect(rules).not.toContain('mp-calc__open');
   });
 });

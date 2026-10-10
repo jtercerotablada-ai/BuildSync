@@ -27,9 +27,11 @@ import { PageHero } from '@/components/ttc/mp/PageHero';
  *      a rail, and beside it the calculators as hairline rows (the name, one
  *      line on what it computes, the design standards it is planned for).
  *
- * A calculator with an `href` is open: its name is a link to it, with a
- * mark beside it. Nothing else on this page changes for one to go live —
- * the counts are counted from the list.
+ * A calculator with an `href` is open: its row is in ink and its name is a
+ * link to it, underlined in gold. One without is listed in a straw grey. No
+ * word says "open" beside a name — the owner had it taken off (October 10,
+ * 2026): the colour and the link say it. Nothing else on this page changes
+ * for one to go live — the counts are counted from the list.
  *
  * Headings: one h1 and one h2 per family. A calculator's name is a row of a
  * list, not a heading — there are close to a hundred of them.
@@ -113,16 +115,8 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
               </div>
               <ul className="mp-calc__list">
                 {family.items.map((item) => (
-                  <li key={item.name.en}>
-                    <span className="mp-calc__name">
-                      {item.href ? (
-                        <>
-                          <Link href={l(item.href)}>{item.name[lang]}</Link> <span className="mp-calc__open">{t.openMark}</span>
-                        </>
-                      ) : (
-                        item.name[lang]
-                      )}
-                    </span>{' '}
+                  <li key={item.name.en} className={item.href ? 'is-open' : undefined}>
+                    <span className="mp-calc__name">{item.href ? <Link href={l(item.href)}>{item.name[lang]}</Link> : item.name[lang]}</span>{' '}
                     <span className="mp-calc__does">{item.does[lang]}</span>
                     {item.codes?.length ? (
                       <>

@@ -5206,7 +5206,14 @@ a.mp-menu__mail {
   text-transform: uppercase;
   color: var(--mp-ink-faint);
 }
+/* OPEN, OR NOT YET. A calculator that is not ready is listed in a straw
+   grey — its name, its line and its standards alike — so the open ones, in
+   ink with the gold underline of a link, are what the eye finds first. The
+   grey is about as pale as small text may be on this paper: 5.2:1, where
+   4.5:1 is the floor (calculators.test.ts measures it). An open row says so
+   by being a link, not by its colour alone. */
 .mp-calc__list {
+  --mp-calc-wait: #6b6657;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -5231,6 +5238,9 @@ a.mp-menu__mail {
   font-size: var(--mp-t-body);
   font-weight: 500;
   line-height: 1.4;
+  color: var(--mp-calc-wait);
+}
+.mp-calc__list > li.is-open .mp-calc__name {
   color: var(--mp-ink);
 }
 .mp-calc__name a {
@@ -5239,20 +5249,6 @@ a.mp-menu__mail {
   text-underline-offset: 3px;
   text-decoration-color: var(--mp-gold);
 }
-/* An open calculator: its name is a link, with a small mark after it. */
-.mp-calc__open {
-  margin-inline-start: 0.35rem;
-  padding: 0.1rem 0.4rem;
-  border: 1px solid var(--mp-gold-ink);
-  font-family: var(--mp-mono);
-  font-size: 0.6875rem;
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  vertical-align: 0.1em;
-  color: var(--mp-gold-ink);
-}
 @media (pointer: coarse) {
   .mp-calc__name a {
     display: inline-block;
@@ -5260,6 +5256,9 @@ a.mp-menu__mail {
   }
 }
 .mp-calc__does {
+  color: var(--mp-calc-wait);
+}
+.mp-calc__list > li.is-open .mp-calc__does {
   color: var(--mp-ink-2);
 }
 .mp-calc__codes {
@@ -5267,6 +5266,9 @@ a.mp-menu__mail {
   font-family: var(--mp-mono);
   font-size: var(--mp-t-label);
   letter-spacing: 0.04em;
+  color: var(--mp-calc-wait);
+}
+.mp-calc__list > li.is-open .mp-calc__codes {
   color: var(--mp-gold-ink);
 }
 .mp-calc__note {
