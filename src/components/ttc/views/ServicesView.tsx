@@ -1,5 +1,5 @@
 import React from 'react';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
@@ -37,11 +37,11 @@ export function ServicesView({ lang }: { lang: Lang }) {
 
   return (
     <>
-      <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: c.primaryNav[0].label, path: '/services' }])} />
+      <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabelOf(c, '/services'), path: '/services' }])} />
 
       <PageHero
         eyebrow={p.eyebrow}
-        crumbs={[{ href: '/', label: c.ui.home }, { label: c.primaryNav[0].label }]}
+        crumbs={[{ href: '/', label: c.ui.home }, { label: navLabelOf(c, '/services') }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
         sub={p.sub}
         facts={p.facts}

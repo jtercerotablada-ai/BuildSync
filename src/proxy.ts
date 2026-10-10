@@ -77,9 +77,6 @@ const publicExactRoutes = Array.from(
     "/contact",
     "/existing-buildings",
     "/logo-styles",
-    // The calculators catalogue. In neither nav nor footer yet (it lists
-    // what is planned; see resources/page.tsx), so it is named here.
-    "/resources",
     "/es",
     ...primaryNav.map((item) => item.href),
     ...legal.links.map((link) => link.href),

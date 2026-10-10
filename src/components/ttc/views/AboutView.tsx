@@ -1,5 +1,5 @@
 import React from 'react';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { company, imagery } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
@@ -25,7 +25,7 @@ export function AboutView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.aboutPage;
   const e = c.leadership;
-  const navLabel = c.primaryNav[3].label;
+  const navLabel = navLabelOf(c, '/about');
 
   const personLd = {
     '@context': 'https://schema.org',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
@@ -26,7 +26,7 @@ export function WorkView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.workPage;
   const usingReal = c.caseStudies.length > 0;
-  const navLabel = c.primaryNav[2].label;
+  const navLabel = navLabelOf(c, '/projects');
   const label = usingReal ? p.eyebrowReal : c.ui.typicalEngagements;
 
   return (

@@ -1277,13 +1277,14 @@ export const es: SiteContent = {
       'Cada consulta la lee y la responde el ingeniero, no un centro de llamadas — normalmente en menos de dos horas.',
   },
 
-  /* Same five entries in the same order as site.ts — the views read this
-     list by position. /projects is out of the header and named for what it
-     holds: "Proyectos" promised past projects the page does not show. */
+  /* The same entries in the same order as site.ts (site.test.ts compares
+     the two). /projects is out of the header and named for what it holds:
+     "Proyectos" promised past projects the page does not show. */
   primaryNav: [
     { href: '/services', label: 'Servicios' },
     { href: '/existing-buildings', label: 'Edificios existentes' },
     { href: '/projects', label: 'Trabajos típicos', inHeader: false },
+    { href: '/resources', label: 'Recursos' },
     { href: '/about', label: 'Nosotros' },
     { href: '/contact', label: 'Contacto' },
   ],
@@ -1297,6 +1298,7 @@ export const es: SiteContent = {
         { href: '/services', label: 'Servicios' },
         { href: '/existing-buildings', label: 'Edificios existentes' },
         { href: '/projects', label: 'Trabajos típicos' },
+        { href: '/resources', label: 'Recursos' },
         { href: '/about', label: 'Nosotros' },
         { href: '/about#engineer', label: 'Conozca al ingeniero' },
         { href: '/contact', label: 'Solicitar propuesta' },

@@ -258,11 +258,16 @@ export const contact = {
  */
 export type NavItem = { href: string; label: string; description?: string; inHeader?: boolean };
 
-/* The ORDER and the LENGTH of this list are read elsewhere: each view takes
-   its breadcrumb label by position ([0] Services, [1] Existing Buildings,
-   [2] this page, [3] About, [4] Contact) and the proxy derives its public
-   routes from the hrefs. Removing an entry leaves /contact with no label to
-   read and renames two breadcrumbs — hide it with `inHeader` instead.
+/* This list is read elsewhere: each view takes its breadcrumb label from its
+   own entry, by address (`navLabelOf` in content.ts), and the proxy derives
+   its public routes from the hrefs. The ORDER is the header's order.
+   Removing an entry leaves its page with no label to read — hide it with
+   `inHeader` instead.
+
+   /resources is the calculators catalogue (calculators.ts). The owner asked
+   for it in the header on October 9, 2026, the day it was made; it is still
+   noindex and out of the sitemap while no calculator is open (see the
+   route file).
 
    /projects is hidden that way. It holds typical engagement profiles, not
    past jobs, and says so; as "Work", third in the main menu, it sent every
@@ -275,6 +280,7 @@ export const primaryNav: NavItem[] = [
   { href: '/services', label: 'Services' },
   { href: '/existing-buildings', label: 'Existing Buildings' },
   { href: '/projects', label: 'Typical Engagements', inHeader: false },
+  { href: '/resources', label: 'Resources' },
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
 ];
@@ -288,6 +294,7 @@ export const footerNav: { title: string; items: NavItem[] }[] = [
       { href: '/services', label: 'Services' },
       { href: '/existing-buildings', label: 'Existing Buildings' },
       { href: '/projects', label: 'Typical Engagements' },
+      { href: '/resources', label: 'Resources' },
       { href: '/about', label: 'About' },
       { href: '/about#engineer', label: 'Meet the Engineer' },
       { href: '/contact', label: 'Request a Proposal' },

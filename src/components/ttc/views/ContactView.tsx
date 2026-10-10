@@ -1,5 +1,5 @@
 import React from 'react';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
@@ -38,7 +38,7 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
   const p = c.contactPage;
   const u = c.ui.contactPage;
   const b = p.before;
-  const navLabel = c.primaryNav[4].label;
+  const navLabel = navLabelOf(c, '/contact');
 
   return (
     <>

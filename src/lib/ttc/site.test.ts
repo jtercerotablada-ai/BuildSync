@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SiteContent } from './content';
+import { navLabelOf, type SiteContent } from './content';
 import {
   company,
   en,
@@ -355,19 +355,36 @@ describe('office names: where each was read is a record, not content', () => {
 
 /**
  * The header leaves out any page flagged `inHeader: false`, and every view
- * reads `primaryNav` BY POSITION for its breadcrumb label. The compiler sees
- * neither: the flag is optional, so a translation can drop it, and an index
- * into a shorter list is simply `undefined` at run time — /contact would stop
- * rendering. These tests are what notices.
+ * takes its breadcrumb label from `primaryNav` by its own address
+ * (`navLabelOf`). The compiler sees neither: the flag is optional, so a
+ * translation can drop it, and a page missing from one language's list
+ * throws only when that page is rendered. These tests are what notices.
  */
 describe('navigation: what the header leaves out', () => {
-  // [0] ServicesView and ServiceDetailView, [1] ExistingView, [2] WorkView,
-  // [3] AboutView, [4] ContactView.
-  const ORDER = ['/services', '/existing-buildings', '/projects', '/about', '/contact'];
+  // The pages whose views look their label up here — ServicesView,
+  // ServiceDetailView and CityView, ExistingView, WorkView, CalculatorsView,
+  // AboutView, ContactView — in the header's order: Contact last, beside the
+  // button it shares an address with.
+  const ORDER = ['/services', '/existing-buildings', '/projects', '/resources', '/about', '/contact'];
 
   for (const [lang, c] of bundles) {
-    it(`${lang} keeps the five entries the views read by position`, () => {
+    it(`${lang} lists the pages the views look up, in the header's order`, () => {
       expect(c.primaryNav.map((item) => item.href)).toEqual(ORDER);
+    });
+
+    it(`${lang} gives each of them a label, and refuses an address that is not in the list`, () => {
+      for (const href of ORDER) expect(navLabelOf(c, href).trim().length, href).toBeGreaterThan(2);
+      expect(new Set(ORDER.map((href) => navLabelOf(c, href))).size).toBe(ORDER.length);
+      expect(() => navLabelOf(c, '/nowhere')).toThrow(/not in primaryNav/);
+    });
+
+    // The calculators catalogue: in the header since the owner asked for it
+    // there (October 9, 2026), and in the footer under the same name.
+    it(`${lang} shows the calculators catalogue in the header and in the footer`, () => {
+      const item = c.primaryNav.find((i) => i.href === '/resources')!;
+      expect(item.inHeader).not.toBe(false);
+      const inFooter = c.footerNav.flatMap((group) => group.items).find((i) => i.href === '/resources');
+      expect(inFooter?.label).toBe(item.label);
     });
 
     it(`${lang} keeps a page it hides linked from the footer`, () => {
@@ -381,7 +398,7 @@ describe('navigation: what the header leaves out', () => {
     // of the header and carries that name wherever it is linked. Publishing
     // real work is what lets it be "Work" in the header again.
     it(`${lang} names /projects for what it holds while there are no case studies`, () => {
-      const page = c.primaryNav[2];
+      const page = c.primaryNav.find((i) => i.href === '/projects')!;
       if (c.caseStudies.length > 0) return;
       expect(page.inHeader).toBe(false);
       expect(page.label.toLowerCase()).toBe(c.ui.typicalEngagements.toLowerCase());

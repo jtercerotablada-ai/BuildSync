@@ -1,5 +1,5 @@
 import React from 'react';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
@@ -32,7 +32,7 @@ export function ExistingView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.existingPage;
   const existing = c.services.filter((s) => s.track === 'existing');
-  const navLabel = c.primaryNav[1].label;
+  const navLabel = navLabelOf(c, '/existing-buildings');
   // One button per county program, in the site's order (Miami-Dade, then
   // Broward), each with that program's own label and its service preselected
   // on the form. Both solid: neither county is the secondary choice. This

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -12,7 +12,7 @@ import {
   calculatorsPage,
   type CalculatorIcon,
 } from '@/lib/ttc/calculators';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { DESCRIPTION_LIMIT_PX, TITLE_BUDGET_PX, descriptionPx, repeatedWords, titlePx, unmeasured } from '@/lib/ttc/serp';
 import { absoluteUrl } from '@/lib/ttc/site';
@@ -28,9 +28,9 @@ import { pageMeta } from './meta';
  * built yet, under the sixteen icons he drew. A page like that is easy to
  * get wrong in ways no build notices: an entry in one language only, a
  * calculator said to be open, a vendor's name copied in with a list, an icon
- * that is not his or that points at no file, the page indexed and linked
- * before there is anything on it. These hold it to what calculators.ts says
- * it is.
+ * that is not his or that points at no file, the page handed to search
+ * engines before there is anything on it. These hold it to what
+ * calculators.ts says it is.
  */
 
 const route = vi.hoisted(() => ({ pathname: '/' }));
@@ -236,6 +236,19 @@ describe('calculators: the page', () => {
       });
     });
 
+    // In the menu at the owner's request: the header's link is the current
+    // page here, and the breadcrumb calls the page what the menu calls it.
+    it(`${lang}: the header's link to it is marked as the current page, and its breadcrumb carries the same name`, () => {
+      const label = navLabelOf(getContent(lang), '/resources');
+      const header = html.match(/<nav class="mp-header__nav"[\s\S]*?<\/nav>/)?.[0] ?? '';
+      const current = [...header.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].filter((m) => attr(m[1], 'aria-current') === 'page');
+      expect(current.map((m) => [attr(m[1], 'href'), text(m[2])])).toEqual([[localePath('/resources', lang), label]]);
+      const crumbs = main.match(/<ol class="mp-breadcrumbs">[\s\S]*?<\/ol>/)?.[0] ?? '';
+      expect(text(crumbs.match(/<span aria-current="page">([\s\S]*?)<\/span>/)?.[1] ?? '')).toBe(label);
+      const footer = html.match(/<footer\b[\s\S]*<\/footer>/)?.[0] ?? '';
+      expect(footer).toContain(`href="${localePath('/resources', lang)}"`);
+    });
+
     it(`${lang}: the first screen says how many there are and that none is open`, () => {
       expect(text(main)).toContain(text(esc(t.sub)));
       expect(text(main)).toContain(`${calculatorCount} ${t.planned}`);
@@ -296,7 +309,7 @@ describe('calculators: the page', () => {
   });
 });
 
-describe('calculators: where the page is, and where it is not yet', () => {
+describe('calculators: where the page is, and what it is not yet', () => {
   it('/resources and /es/resources are pages; nothing under them is', () => {
     expect(EN_PUBLIC_PAGES).toContain('/resources');
     expect(ES_PUBLIC_PAGES).toContain('/es/resources');
@@ -308,8 +321,9 @@ describe('calculators: where the page is, and where it is not yet', () => {
     }
   });
 
-  // A list of calculators that do not exist is not a page to be found for:
-  // out of the sitemap, noindex (the two route files), linked from nowhere.
+  // It is in the menu (the owner asked for it there). A list of calculators
+  // that do not exist is still not a page to be found for in a search: out
+  // of the sitemap, and noindex in the two route files.
   it('is not in the sitemap', () => {
     const urls = sitemap().map((e) => e.url);
     for (const lang of LANGS) expect(urls).not.toContain(absoluteUrl(localePath('/resources', lang)));
@@ -321,26 +335,15 @@ describe('calculators: where the page is, and where it is not yet', () => {
     }
   });
 
-  it('no page of the site links to it yet: not the header, not the footer, not the content', () => {
+  it('is in the header and in the footer, in both languages — and nothing deeper than the page is linked', () => {
     for (const lang of LANGS) {
       const c = getContent(lang);
-      const hrefs = [...c.primaryNav.map((n) => n.href), ...c.footerNav.flatMap((g) => g.items.map((n) => n.href))];
-      expect(hrefs.filter((x) => x.startsWith('/resources'))).toEqual([]);
+      const header = c.primaryNav.filter((n) => n.inHeader !== false).map((n) => n.href);
+      const footer = c.footerNav.flatMap((g) => g.items.map((n) => n.href));
+      expect(header).toContain('/resources');
+      expect(footer).toContain('/resources');
+      // No calculator has an address yet: a link past the page is a 404.
+      expect([...header, ...footer].filter((x) => x.startsWith('/resources/'))).toEqual([]);
     }
-    // …and no source file other than the page's own writes the address.
-    // (lib/resources/ is what is left of the calculators retired earlier:
-    // their old catalogue, which no page imports.)
-    const files = (dir: string): string[] =>
-      readdirSync(dir).flatMap((name) => {
-        const full = join(dir, name);
-        if (statSync(full).isDirectory()) return files(full);
-        return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [full] : [];
-      });
-    const own = /resources[\\/](page|\[\.\.\.rest\][\\/]page)\.tsx$|calculators\.ts$|CalculatorsView\.tsx$|proxy\.ts$|lib[\\/]resources[\\/]/;
-    const linking = files(SRC)
-      .filter((f) => !own.test(f))
-      .filter((f) => /(href|path)[=:]\s*[{'"`]+\/resources\b/.test(readFileSync(f, 'utf8')))
-      .map((f) => f.slice(SRC.length + 1).replace(/\\/g, '/'));
-    expect(linking).toEqual([]);
   });
 });

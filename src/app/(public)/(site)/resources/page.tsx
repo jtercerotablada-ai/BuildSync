@@ -9,13 +9,13 @@ import { CalculatorsView } from '@/components/ttc/views/CalculatorsView';
  * The address is the one the calculators had before they were taken off the
  * public site; it comes back as the page that LISTS them, none built yet.
  *
- * NOT TO BE FOUND YET: noindex, absent from the sitemap, and linked from no
- * page. A list of calculators that do not exist is not a page to rank for,
- * and the site's visitors are building owners, not engineers looking for a
- * tool. The day the first calculator opens: drop `robots` below (and in the
- * Spanish twin), add '/resources' to sitemap.ts, and link the page from the
- * footer — seo.test.ts then measures its title and description with the
- * rest.
+ * IN THE MENU, NOT IN SEARCH YET. The owner asked for it in the header the
+ * day it was made ("Resources", site.ts `primaryNav`, and the footer). It
+ * stays noindex and out of the sitemap while no calculator is open: a list
+ * of calculators that do not exist is not a page to rank for. The day the
+ * first one opens: drop `robots` below (and in the Spanish twin) and add
+ * '/resources' to sitemap.ts — seo.test.ts then measures its title and
+ * description with the rest.
  */
 const LANG = 'en' as const;
 

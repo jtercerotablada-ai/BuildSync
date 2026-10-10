@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import {
   CALCULATOR_ICON_PX,
   calculatorCount,
@@ -66,7 +66,8 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
     <>
       <PageHero
         eyebrow={t.eyebrow}
-        crumbs={[{ href: '/', label: c.ui.home }, { label: t.crumb }]}
+        // Called in its breadcrumb what the menu calls it.
+        crumbs={[{ href: '/', label: c.ui.home }, { label: navLabelOf(c, '/resources') }]}
         titleLines={[t.h1]}
         sub={t.sub}
         // How long the list is — counted from it, never typed.

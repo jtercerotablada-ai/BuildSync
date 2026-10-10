@@ -11,9 +11,10 @@ import type { Lang } from './i18n';
  *
  * WHEN A CALCULATOR IS BUILT: give its entry an `href` (CalculatorsView
  * prints the name as a link), then make the page indexable and list it in
- * the sitemap — see the route file. Until then the page is noindex, out of
- * the sitemap and linked from nowhere: a list of things that do not exist
- * yet is not something to be found for.
+ * the sitemap — see the route file. Until then the page is in the header
+ * and the footer (the owner asked for that the same day) but noindex and
+ * out of the sitemap: a list of things that do not exist yet is not
+ * something to be found for in a search.
  *
  * THE FAMILIES AND THEIR ICONS. The owner drew sixteen icons, one per
  * general subject ("los 16 iconos corresponden a temas generales; varios

@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { company, imagery, officeLinksCheckedISO, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { cityPath } from '@/lib/ttc/cities';
 import { cityPagesOf } from '@/lib/ttc/city-content';
@@ -190,7 +190,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
       <JsonLd
         data={breadcrumbLd(lang, [
           { name: u.home, path: '/' },
-          { name: c.primaryNav[0].label, path: '/services' },
+          { name: navLabelOf(c, '/services'), path: '/services' },
           { name: service.title, path: `/services/${service.slug}` },
         ])}
       />
@@ -199,7 +199,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         eyebrow={trackLabel}
         crumbs={[
           { href: '/', label: u.home },
-          { href: '/services', label: c.primaryNav[0].label },
+          { href: '/services', label: navLabelOf(c, '/services') },
           { label: service.shortTitle },
         ]}
         // `title` is the service's name (cards, nav, schema); a page that

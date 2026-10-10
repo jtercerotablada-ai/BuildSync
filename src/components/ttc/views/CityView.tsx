@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { getContent } from '@/lib/ttc/content';
+import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { imagery, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { citiesChecked, citiesCheckedISO, cityPath, type CityPage } from '@/lib/ttc/cities';
 import { cityPagesOf, findCityPage } from '@/lib/ttc/city-content';
@@ -182,7 +182,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
       <JsonLd
         data={breadcrumbLd(lang, [
           { name: u.home, path: '/' },
-          { name: c.primaryNav[0].label, path: '/services' },
+          { name: navLabelOf(c, '/services'), path: '/services' },
           { name: service.title, path: servicePath },
           { name: page.city, path: cityPath(page) },
         ])}
@@ -192,7 +192,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
         eyebrow={service.shortTitle}
         crumbs={[
           { href: '/', label: u.home },
-          { href: '/services', label: c.primaryNav[0].label },
+          { href: '/services', label: navLabelOf(c, '/services') },
           { href: servicePath, label: service.shortTitle },
           { label: page.city },
         ]}
