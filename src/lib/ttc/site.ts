@@ -265,9 +265,7 @@ export type NavItem = { href: string; label: string; description?: string; inHea
    `inHeader` instead.
 
    /resources is the calculators catalogue (calculators.ts). The owner asked
-   for it in the header on October 9, 2026, the day it was made; it is still
-   noindex and out of the sitemap while no calculator is open (see the
-   route file).
+   for it in the header on October 9, 2026, the day it was made.
 
    /projects is hidden that way. It holds typical engagement profiles, not
    past jobs, and says so; as "Work", third in the main menu, it sent every

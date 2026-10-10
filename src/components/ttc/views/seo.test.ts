@@ -19,6 +19,11 @@ import { cityPagesEn } from '@/lib/ttc/cities.en';
 import { getCityPages } from '@/lib/ttc/city-content';
 import { citySeo } from '@/lib/ttc/city-seo';
 import { AboutView } from './AboutView';
+import { calculatorsPage } from '@/lib/ttc/calculators';
+import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
+import { beamStrings } from '@/lib/calc/beam/strings';
+import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
+import { CalculatorsView } from './CalculatorsView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -81,6 +86,9 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     ),
     // What `services/[slug]/[city]/page.tsx` hands to pageMeta.
     ...getCityPages(lang).map((p) => [cityPath(p), citySeo(lang, p)] as const),
+    // The calculators catalogue, and the calculators that are open.
+    ['/resources', { title: calculatorsPage[lang].title, description: calculatorsPage[lang].description }] as const,
+    [BEAM_PATH, { title: beamStrings[lang].page.title, description: beamStrings[lang].page.description }] as const,
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -146,8 +154,9 @@ describe('the ruler: Arial, as the check measures it', () => {
 describe('titles and descriptions: every page in the sitemap', () => {
   it('measures the pages the sitemap lists, and no others', () => {
     expect(pages.map((p) => p.url).sort()).toEqual(sitemap().map((e) => e.url).sort());
-    // Sixteen pages in each language, and one more for every city page.
-    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length));
+    // Sixteen pages in each language, one more for every city page, and the
+    // calculators: their catalogue and each one that is open.
+    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length + 1 + openCalculatorPaths.length));
   });
 
   for (const p of pages) {
@@ -361,6 +370,8 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
         h(CityView, { lang, program: p.program, slug: p.slug }),
       ],
     ),
+    ['/resources', h(CalculatorsView, { lang })],
+    [BEAM_PATH, h(BeamCalculatorView, { lang })],
   ];
 }
 

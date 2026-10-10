@@ -26,6 +26,7 @@ import nextConfig from "../next.config";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 import { services } from "@/lib/ttc/site";
 import { citySlugs } from "@/lib/ttc/city-slugs";
+import { openCalculatorPaths } from "@/lib/ttc/calculator-paths";
 
 /**
  * The CLIENT API allowlist.
@@ -867,8 +868,10 @@ describe("publicNotFoundTarget", () => {
         "/es/existing-buildings",
         "/es/privacy",
         "/es/projects",
-        // The calculators catalogue (src/lib/ttc/calculators.ts).
+        // The calculators catalogue (src/lib/ttc/calculators.ts), and the
+        // calculators that are open (calculator-paths.ts).
         "/es/resources",
+        ...openCalculatorPaths.map((p) => `/es${p}`),
         "/es/services",
         "/es/terms",
         ...services.map((s) => `/es/services/${s.slug}`),

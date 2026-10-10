@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { absoluteUrl, services } from '@/lib/ttc/site';
 import { cityPath } from '@/lib/ttc/cities';
 import { citySlugs } from '@/lib/ttc/city-slugs';
+import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { hreflangFor, LANGS, localePath } from '@/lib/ttc/i18n';
 
 /**
@@ -39,6 +40,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...services.map((s) => ({ path: `/services/${s.slug}`, freq: 'monthly' as const, priority: 0.8 })),
     // One page per city, under its county program (cities.ts).
     ...citySlugs.map((c) => ({ path: cityPath(c), freq: 'monthly' as const, priority: 0.7 })),
+    // The calculators catalogue, and each calculator that is open
+    // (calculator-paths.ts). The ones only listed have no page to list.
+    { path: '/resources', freq: 'monthly', priority: 0.6 },
+    ...openCalculatorPaths.map((path) => ({ path, freq: 'monthly' as const, priority: 0.7 })),
   ];
 
   return pages.flatMap((p) =>

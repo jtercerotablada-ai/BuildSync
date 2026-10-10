@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { hasTranslation, langFromPathname, localePath } from "@/lib/ttc/i18n";
 import { legal, primaryNav, services } from "@/lib/ttc/site";
 import { citySlugs } from "@/lib/ttc/city-slugs";
+import { openCalculatorPaths } from "@/lib/ttc/calculator-paths";
 import { isNonContributorRole } from "@/lib/workspace-roles";
 
 // Public routes that don't require authentication
@@ -23,11 +24,11 @@ const publicPrefixes = [
   "/api/my-tasks/calendar-feed",
   "/api/contact",
   // The public calculators. /resources is the catalogue that lists them
-  // (src/lib/ttc/calculators.ts); none has a page of its own yet, so the
-  // proxy answers every /resources/<x> with the public 404
-  // (publicNotFoundTarget) before this list is read. The prefix stays so
-  // that each one is public from the day it is built rather than behind the
-  // login wall.
+  // (src/lib/ttc/calculators.ts); the ones that are open have a page
+  // (calculator-paths.ts, listed with the known pages below), and the proxy
+  // answers every other /resources/<x> with the public 404
+  // (publicNotFoundTarget) before this list is read. The prefix makes each
+  // one public from the day it is built rather than behind the login wall.
   "/resources",
   "/api/load-gen",
   // Marketing: /services and every /services/<slug> detail page.
@@ -79,6 +80,9 @@ const publicExactRoutes = Array.from(
     "/logo-styles",
     "/es",
     ...primaryNav.map((item) => item.href),
+    // The calculators that are open (the catalogue itself, /resources, is in
+    // the nav). The paths only — their text stays out of the proxy's bundle.
+    ...openCalculatorPaths,
     ...legal.links.map((link) => link.href),
   ]),
 ).filter((href) => href !== "/projects/all" && href !== "/projects/new");
@@ -254,7 +258,7 @@ export function isRoleAgnosticUploadRequest(body: unknown): boolean {
    and their Spanish mirrors. Any other path under those prefixes is
    REWRITTEN, with status 404, to the public 404 page of its language:
 
-     /services/nope, /services/<slug>/<city>/x, /resources/*       → PUBLIC_NOT_FOUND
+     /services/nope, /services/<slug>/<city>/x, /resources/<not open> → PUBLIC_NOT_FOUND
      /es/nope, /es/services/nope, /es/credits (English-only page)  → PUBLIC_NOT_FOUND_ES
 
    This is decided on EVERY host — localhost and previews included, split on

@@ -9,23 +9,19 @@ import { CalculatorsView } from '@/components/ttc/views/CalculatorsView';
  * The address is the one the calculators had before they were taken off the
  * public site; it comes back as the page that LISTS them, none built yet.
  *
- * IN THE MENU, NOT IN SEARCH YET. The owner asked for it in the header the
- * day it was made ("Resources", site.ts `primaryNav`, and the footer). It
- * stays noindex and out of the sitemap while no calculator is open: a list
- * of calculators that do not exist is not a page to rank for. The day the
- * first one opens: drop `robots` below (and in the Spanish twin) and add
- * '/resources' to sitemap.ts — seo.test.ts then measures its title and
+ * In the menu since the day it was made ("Resources", site.ts
+ * `primaryNav`, and the footer), at the owner's request. It was noindex
+ * and out of the sitemap while it listed only calculators that did not
+ * exist; the first one opened on October 10, 2026 (/resources/beam), and
+ * with it the page is in the sitemap and seo.test.ts measures its title and
  * description with the rest.
  */
 const LANG = 'en' as const;
 
-export const metadata: Metadata = {
-  ...pageMeta(LANG, '/resources', {
-    title: calculatorsPage[LANG].title,
-    description: calculatorsPage[LANG].description,
-  }),
-  robots: { index: false, follow: true },
-};
+export const metadata: Metadata = pageMeta(LANG, '/resources', {
+  title: calculatorsPage[LANG].title,
+  description: calculatorsPage[LANG].description,
+});
 
 export default function Page() {
   return <CalculatorsView lang={LANG} />;

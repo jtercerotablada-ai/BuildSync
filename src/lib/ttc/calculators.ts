@@ -5,16 +5,17 @@ import type { Lang } from './i18n';
  * CALCULATORS — the catalogue at /resources (and /es/resources)
  * ─────────────────────────────────────────────────────────────────────────────
  * The owner's request of October 9, 2026: one page that will hold every
- * calculator, with all of them LISTED and none of them built yet ("solo
- * ponlas sin crearlas aún"). So this is a list of what is planned, by
- * family, and the page says so in its first line: nothing here opens.
+ * calculator, with all of them LISTED ("solo ponlas sin crearlas aún"), and
+ * then built one at a time. So this is the list of what is planned, by
+ * family, and the page says which are open: an entry with an `href` is a
+ * calculator that exists; one without is on the way.
  *
- * WHEN A CALCULATOR IS BUILT: give its entry an `href` (CalculatorsView
- * prints the name as a link), then make the page indexable and list it in
- * the sitemap — see the route file. Until then the page is in the header
- * and the footer (the owner asked for that the same day) but noindex and
- * out of the sitemap: a list of things that do not exist yet is not
- * something to be found for in a search.
+ * WHEN A CALCULATOR IS BUILT: add its address to calculator-paths.ts, give
+ * its entry here the same `href`, and add its two route files.
+ * CalculatorsView prints the name as a link and marks it open; the counts
+ * on the page are counted, never typed. The first one — "Beam reactions and
+ * diagrams", /resources/beam — opened the day after the list was made, and
+ * with it the page went into the sitemap.
  *
  * THE FAMILIES AND THEIR ICONS. The owner drew sixteen icons, one per
  * general subject ("los 16 iconos corresponden a temas generales; varios
@@ -156,7 +157,11 @@ export const calculatorsPage: Record<
     description: string;
     crumb: string;
     families: string;
-    planned: string;
+    /** "calculators", after a count. */
+    count: string;
+    /** The label of the count of open ones, and the mark beside an open one's name. */
+    open: string;
+    openMark: string;
     index: string;
     codes: string;
     note: string;
@@ -165,13 +170,15 @@ export const calculatorsPage: Record<
   en: {
     eyebrow: 'Tools',
     h1: 'Structural engineering calculators',
-    sub: 'The calculators we are building, by subject. None is open yet: this page is the list, and each one will be linked from here on the day it is released.',
+    sub: 'The calculators we are building, by subject. The ones that are open are linked and run in your browser; the rest are listed, and each will be linked from here on the day it is released.',
     title: 'Structural Engineering Calculators',
     description:
-      'The structural engineering calculators we are building: analysis, steel, concrete, timber, foundations, connections and loads. None is open yet.',
+      'Structural engineering calculators by subject: analysis, steel, concrete, timber, foundations, connections and loads. The open ones run in your browser.',
     crumb: 'Calculators',
     families: 'Subjects',
-    planned: 'planned',
+    count: 'calculators',
+    open: 'Open',
+    openMark: 'Open',
     index: 'Calculators by subject',
     codes: 'Standards',
     note: 'Where an entry names several design standards, each one is a version of the same calculator.',
@@ -179,13 +186,15 @@ export const calculatorsPage: Record<
   es: {
     eyebrow: 'Herramientas',
     h1: 'Calculadoras de ingeniería estructural',
-    sub: 'Las calculadoras que estamos construyendo, por tema. Ninguna está abierta todavía: esta página es la lista, y cada una se enlazará desde aquí el día en que se publique.',
+    sub: 'Las calculadoras que estamos construyendo, por tema. Las que ya están abiertas tienen enlace y funcionan en su navegador; las demás están en la lista, y cada una se enlazará desde aquí el día en que se publique.',
     title: 'Calculadoras de ingeniería estructural',
     description:
-      'Calculadoras de ingeniería estructural en construcción: análisis, acero, concreto, madera, cimentaciones, conexiones y cargas. Aún no hay ninguna abierta.',
+      'Calculadoras de ingeniería estructural por tema: análisis, acero, concreto, madera, cimentaciones, conexiones y cargas. Las abiertas funcionan en su navegador.',
     crumb: 'Calculadoras',
     families: 'Temas',
-    planned: 'previstas',
+    count: 'calculadoras',
+    open: 'Abiertas',
+    openMark: 'Abierta',
     index: 'Calculadoras por tema',
     codes: 'Normas',
     note: 'Donde una entrada nombra varias normas de diseño, cada una es una versión de la misma calculadora.',
@@ -198,7 +207,7 @@ export const calculatorFamilies: CalculatorFamily[] = [
     title: { en: 'Beams', es: 'Vigas' },
     icons: ['beam'],
     items: [
-      { name: { en: 'Beam reactions and diagrams', es: 'Reacciones y diagramas de vigas' }, does: { en: 'Reactions, shear and moment diagrams, deflection and stress of a beam under any set of loads.', es: 'Reacciones, diagramas de cortante y de momento, deflexión y esfuerzos de una viga con cualquier combinación de cargas.' } },
+      { name: { en: 'Beam reactions and diagrams', es: 'Reacciones y diagramas de vigas' }, does: { en: 'Reactions, shear and moment diagrams, deflection and stress of a beam under any set of loads.', es: 'Reacciones, diagramas de cortante y de momento, deflexión y esfuerzos de una viga con cualquier combinación de cargas.' }, href: '/resources/beam' },
       { name: { en: 'Single-span beam', es: 'Viga de un solo vano' }, does: { en: 'The simply supported case, under point and distributed loads.', es: 'El caso simplemente apoyado, con cargas puntuales y distribuidas.' } },
       { name: { en: 'Continuous beam', es: 'Viga continua' }, does: { en: 'A beam over several supports, solved by finite elements.', es: 'Una viga sobre varios apoyos, resuelta por elementos finitos.' } },
       { name: { en: 'Shaft on bearings', es: 'Eje sobre cojinetes' }, does: { en: 'Reactions, bending and deflection of a mechanical shaft.', es: 'Reacciones, flexión y deflexión de un eje mecánico.' } },
@@ -414,3 +423,6 @@ export const calculatorFamilies: CalculatorFamily[] = [
 
 /** How many calculators the catalogue lists. */
 export const calculatorCount = calculatorFamilies.reduce((n, g) => n + g.items.length, 0);
+
+/** How many of them are open. */
+export const openCalculatorCount = calculatorFamilies.reduce((n, g) => n + g.items.filter((i) => i.href).length, 0);

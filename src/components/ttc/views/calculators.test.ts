@@ -10,8 +10,10 @@ import {
   calculatorFamilies,
   calculatorIcons,
   calculatorsPage,
+  openCalculatorCount,
   type CalculatorIcon,
 } from '@/lib/ttc/calculators';
+import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { DESCRIPTION_LIMIT_PX, TITLE_BUDGET_PX, descriptionPx, repeatedWords, titlePx, unmeasured } from '@/lib/ttc/serp';
@@ -28,9 +30,8 @@ import { pageMeta } from './meta';
  * built yet, under the sixteen icons he drew. A page like that is easy to
  * get wrong in ways no build notices: an entry in one language only, a
  * calculator said to be open, a vendor's name copied in with a list, an icon
- * that is not his or that points at no file, the page handed to search
- * engines before there is anything on it. These hold it to what
- * calculators.ts says it is.
+ * that is not his or that points at no file, a link to a calculator that
+ * has no page. These hold it to what calculators.ts says it is.
  */
 
 const route = vi.hoisted(() => ({ pathname: '/' }));
@@ -118,12 +119,32 @@ describe('calculators: the list', () => {
     }
   });
 
-  // None is built. The day one is, its entry gets an href — and the route
-  // file says what else changes that day.
-  it('no calculator is open yet, and the page says so', () => {
-    expect(items.filter((i) => i.href)).toEqual([]);
-    expect(calculatorsPage.en.sub).toMatch(/None is open yet/);
-    expect(calculatorsPage.es.sub).toMatch(/Ninguna está abierta todavía/);
+  // An entry with an href is a calculator that exists. Its address is one
+  // calculator-paths.ts lists (the proxy and the sitemap read that file),
+  // it has a route file in each language, and both are known public pages.
+  it('the open calculators are exactly the ones with a page, in both languages', () => {
+    const hrefs = items.filter((i) => i.href).map((i) => i.href!);
+    expect(hrefs).toEqual([...openCalculatorPaths]);
+    expect(openCalculatorCount).toBe(hrefs.length);
+    expect(openCalculatorCount).toBeGreaterThanOrEqual(1);
+    for (const href of hrefs) {
+      expect(href).toMatch(/^\/resources\/[a-z-]+$/);
+      expect(EN_PUBLIC_PAGES).toContain(href);
+      expect(ES_PUBLIC_PAGES).toContain(localePath(href, 'es'));
+      expect(publicNotFoundTarget(href), href).toBeNull();
+      expect(publicNotFoundTarget(localePath(href, 'es')), href).toBeNull();
+      expect(existsSync(join(SRC, 'app', '(public)', '(site)', ...href.split('/').filter(Boolean), 'page.tsx')), href).toBe(true);
+      expect(existsSync(join(SRC, 'app', '(public-es)', '(site)', 'es', ...href.split('/').filter(Boolean), 'page.tsx')), href).toBe(true);
+    }
+  });
+
+  // The page says which are open by linking them; it never says that all
+  // are, or that none is.
+  it('the page’s own words do not count the open ones', () => {
+    for (const lang of LANGS) {
+      const said = [calculatorsPage[lang].sub, calculatorsPage[lang].description].join(' ');
+      expect(said).not.toMatch(/none is open|ninguna está abierta|all (of them )?are open|todas están abiertas/i);
+    }
   });
 });
 
@@ -230,7 +251,9 @@ describe('calculators: the page', () => {
         const rows = [...lists[i].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
         expect(rows, g.id).toHaveLength(g.items.length);
         g.items.forEach((item, j) => {
-          expect(rows[j].startsWith(`${text(esc(item.name[lang]))} ${text(esc(item.does[lang]))}`), rows[j]).toBe(true);
+          // An open one carries its mark between the name and the line.
+          const name = `${text(esc(item.name[lang]))}${item.href ? ` ${t.openMark}` : ''}`;
+          expect(rows[j].startsWith(`${name} ${text(esc(item.does[lang]))}`), rows[j]).toBe(true);
           if (item.codes?.length) expect(rows[j].endsWith(`${t.codes}: ${item.codes.join(' · ')}`), rows[j]).toBe(true);
         });
       });
@@ -249,9 +272,17 @@ describe('calculators: the page', () => {
       expect(footer).toContain(`href="${localePath('/resources', lang)}"`);
     });
 
-    it(`${lang}: the first screen says how many there are and that none is open`, () => {
+    it(`${lang}: the first screen says how many there are and how many are open — counted, not typed`, () => {
       expect(text(main)).toContain(text(esc(t.sub)));
-      expect(text(main)).toContain(`${calculatorCount} ${t.planned}`);
+      const facts = [...(main.match(/<dl class="mp-phero__facts[^"]*">[\s\S]*?<\/dl>/)?.[0] ?? '').matchAll(/<dt>([\s\S]*?)<\/dt><dd>([\s\S]*?)<\/dd>/g)].map((m) => [text(m[1]), text(m[2])]);
+      expect(facts).toEqual([
+        [t.crumb, String(calculatorCount)],
+        [t.open, String(openCalculatorCount)],
+        [t.families, String(calculatorFamilies.length)],
+      ]);
+      // Each family says how many it holds.
+      const counts = [...main.matchAll(/<p class="mp-calc__count">([\s\S]*?)<\/p>/g)].map((m) => text(m[1]));
+      expect(counts).toEqual(calculatorFamilies.map((g) => `${g.items.length} ${t.count}`));
     });
 
     // The index: one link per family, in the order of the page, each to a
@@ -286,8 +317,9 @@ describe('calculators: the page', () => {
       });
     });
 
-    it(`${lang}: no calculator is a link, and the page links to nothing outside the site`, () => {
-      expect(lists.join('')).not.toMatch(/<a\b/);
+    it(`${lang}: the open calculators are links to their pages in this language, the others are not links`, () => {
+      const links = [...lists.join('').matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((m) => [attr(m[1], 'href'), text(m[2])]);
+      expect(links).toEqual(items.filter((i) => i.href).map((i) => [localePath(i.href!, lang), text(esc(i.name[lang]))]));
       expect(main).not.toMatch(/href="https?:/);
     });
 
@@ -309,29 +341,32 @@ describe('calculators: the page', () => {
   });
 });
 
-describe('calculators: where the page is, and what it is not yet', () => {
-  it('/resources and /es/resources are pages; nothing under them is', () => {
+describe('calculators: where the page is', () => {
+  it('/resources and /es/resources are pages; under them, only the calculators that are open', () => {
     expect(EN_PUBLIC_PAGES).toContain('/resources');
     expect(ES_PUBLIC_PAGES).toContain('/es/resources');
     expect(publicNotFoundTarget('/resources')).toBeNull();
     expect(publicNotFoundTarget('/es/resources')).toBeNull();
-    for (const path of ['/resources/beam', '/resources/steel-member', '/resources/load-gen', '/resources/a/b']) {
+    for (const path of ['/resources/truss', '/resources/steel-member', '/resources/load-gen', '/resources/a/b', `${openCalculatorPaths[0]}/x`, `${openCalculatorPaths[0]}s`]) {
       expect(publicNotFoundTarget(path), path).toBe(PUBLIC_NOT_FOUND);
       expect(publicNotFoundTarget(`/es${path}`), path).toBe(PUBLIC_NOT_FOUND_ES);
     }
   });
 
-  // It is in the menu (the owner asked for it there). A list of calculators
-  // that do not exist is still not a page to be found for in a search: out
-  // of the sitemap, and noindex in the two route files.
-  it('is not in the sitemap', () => {
+  // With a calculator open the catalogue is a page to be found: in the
+  // sitemap with each open calculator, in both languages, and not noindex.
+  it('is in the sitemap, with every open calculator', () => {
     const urls = sitemap().map((e) => e.url);
-    for (const lang of LANGS) expect(urls).not.toContain(absoluteUrl(localePath('/resources', lang)));
+    for (const lang of LANGS) {
+      for (const path of ['/resources', ...openCalculatorPaths]) expect(urls, path).toContain(absoluteUrl(localePath(path, lang)));
+    }
+    // …and no address under /resources that is not one of those.
+    expect(urls.filter((u) => u.includes('/resources')).length).toBe(2 * (1 + openCalculatorPaths.length));
   });
 
-  it('both routes declare noindex', () => {
+  it('neither route keeps a calculator-less page’s noindex', () => {
     for (const f of ['(public)/(site)/resources/page.tsx', '(public-es)/(site)/es/resources/page.tsx']) {
-      expect(readFileSync(join(SRC, 'app', f), 'utf8'), f).toMatch(/robots:\s*\{\s*index:\s*false,\s*follow:\s*true\s*\}/);
+      expect(readFileSync(join(SRC, 'app', f), 'utf8'), f).not.toMatch(/robots\s*:/);
     }
   });
 
@@ -342,7 +377,7 @@ describe('calculators: where the page is, and what it is not yet', () => {
       const footer = c.footerNav.flatMap((g) => g.items.map((n) => n.href));
       expect(header).toContain('/resources');
       expect(footer).toContain('/resources');
-      // No calculator has an address yet: a link past the page is a 404.
+      // The menus lead to the catalogue; a calculator is reached from it.
       expect([...header, ...footer].filter((x) => x.startsWith('/resources/'))).toEqual([]);
     }
   });

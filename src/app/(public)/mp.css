@@ -5239,6 +5239,26 @@ a.mp-menu__mail {
   text-underline-offset: 3px;
   text-decoration-color: var(--mp-gold);
 }
+/* An open calculator: its name is a link, with a small mark after it. */
+.mp-calc__open {
+  margin-inline-start: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--mp-gold-ink);
+  font-family: var(--mp-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: 0.1em;
+  color: var(--mp-gold-ink);
+}
+@media (pointer: coarse) {
+  .mp-calc__name a {
+    display: inline-block;
+    padding-block: 0.6rem;
+  }
+}
 .mp-calc__does {
   color: var(--mp-ink-2);
 }
@@ -5340,6 +5360,718 @@ a.mp-menu__mail {
   }
   .mp-calc__codes {
     grid-column: auto;
+  }
+}
+
+/* A CALCULATOR (.mp-app) — the page of one tool of the catalogue, the beam
+   calculator first (BeamCalculator.tsx). (Not mp-tool: that name is the
+   software band of the About page.) Written for all of them: `mp-app`
+   is the layout, `mp-num` and `mp-seg` the fields, `mp-plot` a diagram;
+   only `mp-beam` is the beam's own drawing.
+
+   Desktop: the form on the left and the drawings on the right, which FOLLOW
+   the form down the page (sticky) — a load is changed at the bottom of a long
+   form and its diagram is still on screen. The tables of numbers run across
+   the full width under both. One column from 1100px down: form, drawings,
+   tables.
+
+   Fields are the site's underline fields, made compact: the label small
+   above, the unit in mono after the number, 44px tall so a finger finds
+   them. Their text stays at the body size — 16px or more — or iOS zooms the
+   page on every tap. Numbers are tabular everywhere.
+
+   The drawings use the site's two colours and nothing else: ink for the
+   beam and the curves, gold for the loads and for what is being pointed at. */
+.mp-appsec {
+  padding-block-start: var(--mp-12);
+}
+.mp-app {
+  display: grid;
+  gap: var(--mp-12);
+  min-width: 0;
+}
+/* The form and the drawings are a grid of their own: the drawings follow
+   the form (sticky) and must stop where IT ends. As two areas of one grid
+   with the tables, they went on sticking over the tables. */
+.mp-app__top {
+  display: grid;
+  grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
+  gap: var(--mp-8) clamp(2rem, 4vw, 4rem);
+  align-items: start;
+  min-width: 0;
+}
+.mp-app__form {
+  display: grid;
+  gap: var(--mp-8);
+  min-width: 0;
+}
+.mp-app__out {
+  position: sticky;
+  top: calc(var(--mp-header-h) + var(--mp-4));
+  display: grid;
+  gap: var(--mp-4);
+  min-width: 0;
+}
+.mp-app__tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  gap: var(--mp-8) clamp(1.5rem, 3vw, 3rem);
+  align-items: start;
+}
+.mp-app__privacy {
+  margin: 0;
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line);
+  font-size: 0.8125rem;
+  color: var(--mp-ink-3);
+}
+.mp-app__noscript {
+  margin: 0 0 var(--mp-6);
+  padding: var(--mp-4);
+  border: 1px solid var(--mp-line-strong);
+  font-size: var(--mp-t-small);
+}
+
+/* ── the form ── */
+.mp-app__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-4) var(--mp-6);
+  align-items: end;
+}
+.mp-app__bar > .mp-num {
+  flex: 1 1 11rem;
+}
+.mp-app__group {
+  display: grid;
+  gap: var(--mp-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mp-app__group > legend {
+  display: block;
+  width: 100%;
+  padding: var(--mp-4) 0 var(--mp-1);
+  border-block-start: 1px solid var(--mp-line-strong);
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mp-ink);
+}
+.mp-app__item + .mp-app__item {
+  padding-block-start: var(--mp-3);
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-app__row,
+.mp-app__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-3) var(--mp-4);
+  align-items: end;
+  min-width: 0;
+}
+/* A row that can be removed: its fields wrap among themselves, and the
+   button keeps a column of its own beside the last line of them — never a
+   line to itself. */
+.mp-app__row--rm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+.mp-app__row > .mp-num,
+.mp-app__fields > .mp-num {
+  flex: 1 1 6.25rem;
+}
+.mp-app__row--one > .mp-num {
+  flex: 0 1 12rem;
+}
+.mp-app__row--two > .mp-num,
+.mp-app__row--three > .mp-num {
+  flex-basis: 9rem;
+}
+.mp-app__row-error {
+  margin: var(--mp-2) 0 0;
+  font-size: 0.8125rem;
+  color: var(--mp-error-ink);
+}
+.mp-app__none,
+.mp-app__note,
+.mp-app__computed,
+.mp-app__need {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+.mp-app__computed {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.02em;
+  color: var(--mp-ink-2);
+}
+.mp-app__need {
+  padding-block: var(--mp-3);
+}
+.mp-app__check {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-3);
+  min-height: 44px;
+  font-size: var(--mp-t-small);
+  cursor: pointer;
+}
+.mp-app__check input {
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--mp-ink);
+}
+
+.mp-num {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.mp-num__label {
+  padding: 0;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-num__opt {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--mp-ink-faint);
+}
+.mp-num__box {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-height: 44px;
+  border-block-end: 1px solid var(--mp-line-input);
+  transition: border-color var(--mp-dur) var(--mp-ease);
+}
+.mp-num__box:focus-within {
+  border-block-end-color: var(--mp-gold-ink);
+  box-shadow: 0 1px 0 var(--mp-gold-ink);
+}
+.mp-num__input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.6rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--mp-t-body);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  color: var(--mp-ink);
+  appearance: none;
+}
+.mp-num__input:focus {
+  outline: none;
+}
+.mp-num__input:focus-visible {
+  outline: 2px solid var(--mp-gold-ink);
+  outline-offset: 3px;
+}
+.mp-num__input::placeholder {
+  color: var(--mp-ink-faint);
+}
+select.mp-num__input {
+  padding-inline-end: 1.4rem;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 8px) center, calc(100% - 3px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.mp-num__unit {
+  flex: none;
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  white-space: nowrap;
+  color: var(--mp-ink-3);
+}
+.mp-num[data-invalid='true'] .mp-num__box {
+  border-block-end-color: var(--mp-error);
+  box-shadow: 0 1px 0 var(--mp-error);
+}
+
+/* A choice of two or three, as a row of tabs: real radios, hidden, each
+   with its label drawn as the tab. */
+.mp-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mp-seg > legend {
+  width: 100%;
+  margin-block-end: 0.35rem;
+}
+.mp-seg__item {
+  position: relative;
+  flex: 1 1 auto;
+  cursor: pointer;
+}
+.mp-seg__item input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.mp-seg__item span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--mp-4);
+  border: 1px solid var(--mp-line-strong);
+  font-size: var(--mp-t-small);
+  white-space: nowrap;
+  color: var(--mp-ink-2);
+  transition:
+    background-color var(--mp-dur-fast) var(--mp-ease),
+    color var(--mp-dur-fast) var(--mp-ease);
+}
+.mp-seg__item + .mp-seg__item span {
+  border-inline-start: 0;
+}
+.mp-seg__item input:checked + span {
+  border-color: var(--mp-ink);
+  background: var(--mp-ink);
+  color: var(--mp-paper);
+}
+.mp-seg__item input:focus-visible + span {
+  outline: 2px solid var(--mp-gold-ink);
+  outline-offset: 2px;
+}
+
+.mp-app__add,
+.mp-app__remove,
+.mp-app__btn {
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+.mp-app__add {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  font-size: var(--mp-t-small);
+  font-weight: 500;
+  color: var(--mp-gold-ink);
+}
+.mp-app__add:disabled {
+  color: var(--mp-ink-faint);
+  cursor: default;
+}
+.mp-app__remove {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--mp-line);
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--mp-ink-3);
+}
+.mp-app__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-3);
+  align-items: center;
+  padding-block-start: var(--mp-6);
+  border-block-start: 1px solid var(--mp-line-strong);
+}
+.mp-app__btn {
+  min-height: 44px;
+  padding: 0 var(--mp-4);
+  border: 1px solid var(--mp-line-strong);
+  font-size: var(--mp-t-small);
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+.mp-app__btn--quiet {
+  border-color: transparent;
+  color: var(--mp-ink-3);
+}
+.mp-app__copied {
+  flex: 1 1 100%;
+  min-height: 1.3em;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--mp-gold-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-app__add:not(:disabled):hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .mp-app__remove:hover {
+    border-color: var(--mp-error);
+    color: var(--mp-error-ink);
+  }
+  .mp-app__btn:hover {
+    border-color: var(--mp-ink);
+  }
+  .mp-seg__item:hover input:not(:checked) + span {
+    color: var(--mp-ink);
+    border-color: var(--mp-ink-3);
+  }
+}
+.mp-app__add:focus-visible,
+.mp-app__remove:focus-visible,
+.mp-app__btn:focus-visible {
+  outline: 2px solid var(--mp-gold-ink);
+  outline-offset: 2px;
+}
+
+/* ── the answer ── */
+.mp-app__issues:empty {
+  display: none;
+}
+.mp-app__issues {
+  padding: var(--mp-4);
+  border: 1px solid var(--mp-error);
+  font-size: var(--mp-t-small);
+  color: var(--mp-error-ink);
+}
+.mp-app__issues-title {
+  margin: 0 0 var(--mp-2);
+  font-weight: 500;
+}
+.mp-app__issues ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+}
+.mp-app__plots {
+  display: grid;
+  gap: var(--mp-1);
+  min-width: 0;
+}
+.mp-plot {
+  min-width: 0;
+  margin: 0;
+}
+.mp-plot__title {
+  margin: 0;
+  padding-block-start: var(--mp-2);
+  border-block-start: 1px solid var(--mp-line);
+  font-size: 0.6875rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-plot__title--first {
+  border-block-start-color: var(--mp-line-strong);
+}
+.mp-plot__unit {
+  font-family: var(--mp-mono);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--mp-ink-faint);
+}
+.mp-plot__svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  user-select: none;
+}
+.mp-plot__guide {
+  stroke: var(--mp-line);
+  stroke-dasharray: 2 4;
+}
+.mp-plot__axis {
+  stroke: var(--mp-ink-3);
+  stroke-width: 1;
+}
+.mp-plot__area {
+  fill: rgba(201, 154, 56, 0.2);
+}
+.mp-plot__line {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+}
+.mp-plot__dot {
+  fill: var(--mp-ink);
+}
+.mp-plot__value,
+.mp-beam__label,
+.mp-beam__reaction text,
+.mp-beam__dim text {
+  font-family: var(--mp-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink);
+  /* A halo of the page's own colour: a line that crosses a number goes
+     behind it. */
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.mp-plot__probe line,
+.mp-plot__probe-line {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1;
+}
+.mp-plot__probe circle {
+  fill: var(--mp-gold);
+  stroke: var(--mp-ink);
+  stroke-width: 1.25;
+}
+.mp-plot__hit {
+  fill: transparent;
+  cursor: crosshair;
+  /* A finger moving sideways moves the marker; up and down still scrolls the page. */
+  touch-action: pan-y;
+}
+
+.mp-beam__member {
+  fill: var(--mp-ink);
+}
+.mp-beam__dist > polygon {
+  fill: rgba(201, 154, 56, 0.16);
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1;
+}
+.mp-beam__dist line {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1;
+}
+.mp-beam__dist .mp-beam__head {
+  fill: var(--mp-gold-ink);
+  stroke: none;
+}
+.mp-beam__dist .mp-beam__label,
+.mp-beam__reaction text {
+  fill: var(--mp-gold-ink);
+}
+.mp-beam__point line,
+.mp-beam__couple path {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+}
+/* The same arc in the page's colour, wider, under the ink one: the arrows of
+   a distributed load do not run through a moment drawn over them. */
+.mp-beam__couple .mp-beam__halo {
+  stroke: var(--mp-paper);
+  stroke-width: 6;
+}
+.mp-beam__point .mp-beam__head,
+.mp-beam__couple .mp-beam__head {
+  fill: var(--mp-ink);
+}
+.mp-beam__support line,
+.mp-beam__support circle,
+.mp-beam__pin {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-beam__wall {
+  fill: var(--mp-concrete);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-beam__hinge {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 2;
+}
+.mp-beam__reaction text {
+  font-weight: 500;
+}
+.mp-beam__dim line {
+  stroke: var(--mp-ink-faint);
+  stroke-width: 1;
+}
+.mp-beam__dim text {
+  font-size: 11px;
+  fill: var(--mp-ink-3);
+}
+
+.mp-app__card {
+  min-width: 0;
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line-strong);
+}
+.mp-app__card > * + * {
+  margin-block-start: var(--mp-3);
+}
+.mp-app__h {
+  margin: 0;
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mp-app__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mp-t-small);
+  font-variant-numeric: tabular-nums;
+}
+.mp-app__table th,
+.mp-app__table td {
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-block-end: 1px solid var(--mp-line);
+  text-align: start;
+  vertical-align: baseline;
+}
+.mp-app__table thead th {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-app__table tbody th {
+  font-weight: 500;
+}
+.mp-app__dl {
+  margin-inline: 0;
+  margin-block-end: 0;
+  font-size: var(--mp-t-small);
+  font-variant-numeric: tabular-nums;
+}
+.mp-app__dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.15rem var(--mp-4);
+  padding-block: 0.5rem;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-app__dl dt {
+  color: var(--mp-ink-2);
+}
+.mp-app__dl dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: end;
+}
+.mp-app__dir {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--mp-ink-3);
+}
+
+/* Under the tool: how it is solved, what it assumes, what it does not do. */
+.mp-appnotes__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--mp-8) clamp(1.5rem, 3vw, 3rem);
+  margin-block-start: var(--mp-16);
+}
+.mp-appnotes__h {
+  margin: 0 0 var(--mp-3);
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line-strong);
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mp-appnotes__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+.mp-appnotes__list li {
+  padding-block: 0.6rem;
+}
+.mp-appnotes__list li + li {
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-appnotes__terms {
+  max-width: 46rem;
+  margin-block-start: var(--mp-12);
+  font-size: var(--mp-t-small);
+  line-height: 1.65;
+  color: var(--mp-ink-2);
+}
+.mp-appnotes__terms p {
+  margin: 0 0 var(--mp-4);
+}
+
+@media (max-width: 1100px) {
+  .mp-app {
+    gap: var(--mp-8);
+  }
+  .mp-app__top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-app__out {
+    position: static;
+  }
+  .mp-appnotes__grid {
+    grid-template-columns: minmax(0, 1fr);
+    margin-block-start: var(--mp-12);
+  }
+}
+@media (max-width: 640px) {
+  .mp-appsec {
+    padding-block-start: var(--mp-8);
+  }
+  .mp-app__row > .mp-num,
+  .mp-app__fields > .mp-num {
+    flex-basis: 5.5rem;
+  }
+  /* Three tabs on one line of a phone: "Perfil de acero" is the long one. */
+  .mp-seg__item span {
+    padding-inline: var(--mp-2);
+    font-size: 0.8125rem;
+  }
+}
+/* On paper: the beam, its drawings and its numbers. Not the buttons. */
+@media print {
+  .mp-app,
+  .mp-app__top {
+    display: block;
+  }
+  .mp-app__out {
+    position: static;
+  }
+  .mp-app__actions,
+  .mp-app__add,
+  .mp-app__remove,
+  .mp-app__bar,
+  .mp-plot__hit,
+  .mp-appnotes .mp-split {
+    display: none !important;
+  }
+  .mp-app__form,
+  .mp-app__out,
+  .mp-app__tables {
+    margin-block-end: 1.5rem;
+  }
+  .mp-plot,
+  .mp-app__card,
+  .mp-app__item {
+    break-inside: avoid;
   }
 }
 

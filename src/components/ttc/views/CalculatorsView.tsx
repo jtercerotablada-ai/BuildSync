@@ -7,6 +7,7 @@ import {
   calculatorFamilies,
   calculatorIcons,
   calculatorsPage,
+  openCalculatorCount,
   type CalculatorFamily,
 } from '@/lib/ttc/calculators';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
@@ -19,15 +20,16 @@ import { PageHero } from '@/components/ttc/mp/PageHero';
  * calculator, with all of them written down and none built yet
  * (calculators.ts has the request and the rules). Three parts:
  *
- *   1. the hero, whose first line says that none of them is open;
+ *   1. the hero, which says how many there are and how many are open;
  *   2. the index — the families as a grid of his icons on the graphite of
  *      the hero, each a link to its family further down;
  *   3. the ledger — one block per family: the icon and the family's name on
  *      a rail, and beside it the calculators as hairline rows (the name, one
  *      line on what it computes, the design standards it is planned for).
  *
- * The day a calculator has an `href`, its name becomes a link — nothing
- * else on this page needs to change for one to go live.
+ * A calculator with an `href` is open: its name is a link to it, with a
+ * mark beside it. Nothing else on this page changes for one to go live —
+ * the counts are counted from the list.
  *
  * Headings: one h1 and one h2 per family. A calculator's name is a row of a
  * list, not a heading — there are close to a hundred of them.
@@ -72,7 +74,8 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
         sub={t.sub}
         // How long the list is — counted from it, never typed.
         facts={[
-          { k: t.crumb, v: `${calculatorCount} ${t.planned}` },
+          { k: t.crumb, v: String(calculatorCount) },
+          { k: t.open, v: String(openCalculatorCount) },
           { k: t.families, v: String(calculatorFamilies.length) },
         ]}
       />
@@ -105,14 +108,20 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
                 <Icons family={family} lang={lang} className="mp-calc__icons" />
                 <h2 className="mp-calc__title">{family.title[lang]}</h2>
                 <p className="mp-calc__count">
-                  {family.items.length} {t.planned}
+                  {family.items.length} {t.count}
                 </p>
               </div>
               <ul className="mp-calc__list">
                 {family.items.map((item) => (
                   <li key={item.name.en}>
                     <span className="mp-calc__name">
-                      {item.href ? <Link href={l(item.href)}>{item.name[lang]}</Link> : item.name[lang]}
+                      {item.href ? (
+                        <>
+                          <Link href={l(item.href)}>{item.name[lang]}</Link> <span className="mp-calc__open">{t.openMark}</span>
+                        </>
+                      ) : (
+                        item.name[lang]
+                      )}
                     </span>{' '}
                     <span className="mp-calc__does">{item.does[lang]}</span>
                     {item.codes?.length ? (
