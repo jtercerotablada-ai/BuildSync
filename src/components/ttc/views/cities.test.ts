@@ -125,16 +125,24 @@ describe('city pages: what the text may not say', () => {
         for (const line of said) {
           for (const s of sentences(line)) {
             if (!/\b40[- ]year\b|\b40 años\b/i.test(s)) continue;
-            expect(s, s).toMatch(/still|former|formerly|name|called|calls|titled|the same as|todavía|aún|antes|anterior|antiguo|nombre|llama|titul|la misma/i);
+            // A word that makes it a NAME ("still calls it", "the former name",
+            // "known as"). "Still" alone does not: "a 40-year building still
+            // has to be recertified" states the old rule as the rule.
+            expect(s, s).toMatch(/former|formerly|\bnames?\b|\bcall(s|ed)?\b|titled|label|known|the same as|anterior|antigu[oa]|nombre|llama|titul|conoc|la misma/i);
           }
         }
       });
 
       it(`${name}: no money, no web address, no e-mail, no office hours`, () => {
         for (const line of said) {
-          expect(line, line).not.toMatch(/[$€]|\bdollars?\b|\bdólares\b|\bfees?\b|\btarifas?\b/i);
+          expect(line, line).not.toMatch(/[$€]|\bdollars?\b|\bdólares\b|\bfees?\b|\btarifas?\b|\bfines?\b|\bmultas?\b|\brecargos?\b|\bsurcharges?\b/i);
           expect(line, line).not.toMatch(/https?:|www\.|\.(gov|com|org|net)\b|@/i);
-          expect(line, line).not.toMatch(/\b[ap]\.?m\.?\b|\bMonday\b|\bFriday\b|\blunes\b|\bviernes\b|\bhours of operation\b|\bhorario\b/i);
+          // Every day of the week, not two of them. ("a.m." needs its dots:
+          // without them the pattern read "I am on the board" as an hour, and
+          // an hour needs a digit, which no line may have anyway.)
+          expect(line, line).not.toMatch(
+            /\b[ap]\.m\.|\b(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)days?\b|\b(lunes|martes|miércoles|jueves|viernes|sábados?|domingos?)\b|\b(office |business )?hours of operation\b|\b(office|business|counter) hours\b|\bhorarios?\b|\bhoras de (atención|oficina)\b/i,
+          );
         }
       });
 
@@ -143,16 +151,27 @@ describe('city pages: what the text may not say', () => {
       // "we sign" is a claim about the firm.
       it(`${name}: assigns no signature, promises no outcome, claims no history with the office`, () => {
         for (const line of said) {
-          expect(line, line).not.toMatch(/\b(we|our (team|engineers?|firm))\b[^.]*\b(sign|seal|stamp)/i);
-          expect(line, line).not.toMatch(/\b(firmamos|sellamos|nuestr[oa]s? (ingenier[oa]s?|equipo|firma) (firma|sella))/i);
+          // By clause, and however the firm is named: "our structural
+          // engineer signs", "Tercero Tablada seals", "signed by our engineer"
+          // all say it. The names are matched with their capitals — "un
+          // tercero" is a third party.
+          for (const clause of sentences(line).flatMap((s) => s.split(/;\s+/))) {
+            const signs = /\b(signs?|seals?|stamps?|signed|sealed|stamped|signature)\b/i.test(clause) || /\b(firma[nrs]?|firmamos|sell[ao][nrs]?|sellamos|firmad[oa]s?|sellad[oa]s?)\b/i.test(clause);
+            const firm = /\b(we|our|ours|us)\b/i.test(clause) || /\b(nuestr[oa]s?|nosotros)\b/i.test(clause) || /\b(Tercero|Tablada|Juan)\b/.test(clause);
+            expect(signs && firm, clause).toBe(false);
+          }
           expect(line, line).not.toMatch(/\bguarantee|\bwe (will )?get (you|it|your building) (re)?certified|\bgarantiza/i);
-          expect(line, line).not.toMatch(/\bwe have (filed|worked|recertified)|\byears of experience\b|\bhemos (presentado|trabajado|recertificado)/i);
+          expect(line, line).not.toMatch(
+            /\bwe(’|')ve\b|\bwe have (filed|worked|recertified|handled|submitted|done|helped|inspected)|\byears of experience\b|\baños de experiencia\b|\bhemos (presentado|trabajado|recertificado|tramitado|gestionado|inspeccionado|hecho)/i,
+          );
         }
       });
 
       it(`${name}: the firm’s part is the complete package, never the structural report alone`, () => {
         for (const line of said) {
-          expect(line, line).not.toMatch(/\b(only|just) the structural\b|\bstructural (side|part|report) only\b|\bsolo (el|la|lo) (informe |parte )?estructural\b/i);
+          expect(line, line).not.toMatch(
+            /\b(only|just) the structural\b|\bstructural (side|part|report) (only|alone)\b|\b(solo|sólo|únicamente|solamente) (el|la|lo) (informe |parte )?estructural\b/i,
+          );
         }
       });
 
@@ -165,11 +184,26 @@ describe('city pages: what the text may not say', () => {
           }
         });
       } else {
-        it(`${name}: thermography and the parking-lot documents are never named without their condition`, () => {
+        // "Required" is not a condition: "thermography is required for every
+        // building" is the claim this is here to stop.
+        const CONDITION = /\bwhere\b|\bif\b|\bwhen\b|\bdonde\b|\bcuando\b|\bsi\b|applicable|aplica|correspond/i;
+        it(`${name}: thermography is never named without its condition`, () => {
           for (const line of said) {
             for (const s of sentences(line)) {
-              if (!/thermograph|termograf/i.test(s)) continue;
-              expect(s, s).toMatch(/\bwhere\b|\bif\b|\bwhen\b|\bdonde\b|\bcuando\b|\bsi\b|applicable|aplica|correspond|requir|exig/i);
+              if (/thermograph|termograf/i.test(s)) expect(s, s).toMatch(CONDITION);
+            }
+          }
+        });
+
+        // A parking-lot document is named as something the city's own page
+        // lists or says (or with its condition, or in a question) — never as
+        // our statement of what a report carries.
+        it(`${name}: a parking-lot document is named as what the city’s page lists, or with its condition`, () => {
+          const CITY_SAYS = /\b(city|town|village)(’s)?\b|\b(page|list|sheet|forms?)\b|\b(ciudad|municipio|villa|página|lista|hoja|formularios?)\b/i;
+          for (const line of said) {
+            for (const s of sentences(line)) {
+              if (!/parking|estacionamiento|illuminat|iluminaci|guardrail|baranda/i.test(s) || /\?$/.test(s)) continue;
+              expect(CONDITION.test(s) || CITY_SAYS.test(s), s).toBe(true);
             }
           }
         });
@@ -192,6 +226,16 @@ describe('city pages: what the text may not say', () => {
     }
   }
 });
+
+/** A city's own systems that are not on its website's domain: the host, and
+ *  the city whose pages send owners there. */
+const CITY_SYSTEMS: Record<string, string[]> = {
+  surfside: ['library.municode.com'],
+  'key-biscayne': ['aca-prod.accela.com'],
+  'hallandale-beach': ['hallandalefl-energovpub.tylerhost.net', 'cohb.org'],
+  'deerfield-beach': ['deerfieldbeach.geocivix.com'],
+  miramar: ['miramarfl-energovweb.tylerhost.net'],
+};
 
 describe('city pages: where each line was read', () => {
   // The record follows the English page; the Spanish page says the same.
@@ -216,6 +260,16 @@ describe('city pages: where each line was read', () => {
       if (p.office.address?.length || p.office.phone) expect(rec.office.length).toBeGreaterThan(0);
       const read = rec.office.map((q) => q.quote).join(' ');
       if (p.office.phone) expect(read.replace(/\D/g, ''), 'phone').toContain(p.office.phone.replace(/\D/g, ''));
+      // The address, part by part: the street, the floor, the city and the
+      // ZIP code are each in the city's own words ("FL" is the one thing a
+      // page may write its own way — some print "Florida").
+      const plain = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      for (const line of p.office.address ?? []) {
+        for (const part of line.split(/,\s*/)) {
+          const piece = part.replace(/^FL\s+/, '');
+          expect(plain(read), `"${part}" of "${line}"`).toContain(plain(piece));
+        }
+      }
     });
 
     it(`${key(p)}: every quote was read on an outside https page — the city’s own, or its county’s`, () => {
@@ -226,10 +280,15 @@ describe('city pages: where each line was read', () => {
         expect(u.hostname, q.page).not.toContain(new URL(company.url).hostname);
         expect(q.quote.length, q.page).toBeGreaterThan(3);
       }
-      // At least the page the office's name was read on (office-pages.ts) is
-      // among them, or a page of the same site.
-      const hosts = new Set(Object.values(rec.rows).flat().map((q) => new URL(q.page).hostname.replace(/^www\./, '')));
-      expect([...hosts].some((host) => host === known || host.endsWith(`.${known}`) || known.endsWith(`.${host}`)), `${[...hosts].join(', ')} vs ${known}`).toBe(true);
+      // EVERY quote, not one of them: on the site the office's name was read
+      // on (office-pages.ts), or on a system that city itself sends owners
+      // to — its code library, its permit portal. Never another city's site,
+      // never a third party's.
+      const own = (host: string) => host === known || host.endsWith(`.${known}`) || known.endsWith(`.${host}`);
+      for (const q of [...rec.office, ...Object.values(rec.rows).flat()]) {
+        const host = new URL(q.page).hostname.replace(/^www\./, '');
+        expect(own(host) || (CITY_SYSTEMS[p.slug] ?? []).includes(host), `${host} for ${p.slug}`).toBe(true);
+      }
     });
   }
 
@@ -388,6 +447,8 @@ describe('city pages: the page a visitor gets', () => {
       it(`${name}: one h1 that names the program and the city, four h2, one h3 per question`, () => {
         const h1 = [...main.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => spaced(m[1]));
         expect(h1).toEqual([cityH1(lang, p)]);
+        // cityH1 is the view's own function: what it returns is checked too.
+        expect(h1[0]).toContain(p.place.replace(/^(the|la) /, ''));
         expect(h1[0].length).toBeGreaterThanOrEqual(22);
         expect((main.replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '').match(/<h2\b/g) ?? []).length).toBe(4);
         const h3 = [...main.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => text(m[1]));
@@ -457,7 +518,9 @@ describe('city pages: the page a visitor gets', () => {
         const hrefs = [...main.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1].replace(/&amp;/g, '&'));
         expect(hrefs).toContain(localePath(`/contact?service=${p.program}`, lang));
         expect(hrefs.some((x) => x.startsWith(localePath(`/services/${p.program}`, lang) + '#'))).toBe(true);
-        const known = new Set([...EN_PUBLIC_PAGES, ...ES_PUBLIC_PAGES]);
+        // Of the page's own language: a Spanish page whose button opened the
+        // English form passed while either list would do.
+        const known = new Set<string>(lang === 'es' ? ES_PUBLIC_PAGES : EN_PUBLIC_PAGES);
         for (const href of hrefs.filter((x) => x.startsWith('/'))) {
           expect(known.has(href.replace(/[?#].*$/, '')), href).toBe(true);
         }
@@ -479,6 +542,7 @@ describe('city pages: the page a visitor gets', () => {
         const ld = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
         const svc = ld.find((x) => x['@type'] === 'Service');
         expect(svc.areaServed['@type']).toBe('City');
+        expect(svc.areaServed.name).toContain(p.city.replace(/^(City of|Ciudad de) /, ''));
         expect(svc.areaServed.containedInPlace.name).toMatch(p.program === 'broward-bsip' ? /^Broward/ : /^Miami-Dade/);
         expect(svc.url).toBe(absoluteUrl(localePath(cityPath(p), lang)));
         const faq = ld.find((x) => x['@type'] === 'FAQPage');
@@ -494,10 +558,15 @@ describe('city pages: the page a visitor gets', () => {
 /**
  * ONE HOME FOR EACH PIECE OF TEXT — the rule of shared-text.test.ts, for the
  * city pages: a block of six words or more that a city page prints is on no
- * other city page and on no other page of the site. What every page of the
- * site already repeats on purpose (the engineer's name and license line, the
- * closing band) is not a city page's doing, and is left out by measuring
- * it first on the pages that are not cities.
+ * other city page and on no other page of the site. The one block every
+ * page repeats on purpose — the engineer's name and license line — is set
+ * aside by name.
+ *
+ * WHOLE BLOCKS: a paragraph with one word changed is a different block. So a
+ * second test reads the pages' own sentences with the city's names taken
+ * out: the questions are the same question asked of each city, on purpose
+ * (it is what an owner types); any other sentence may turn up on two pages
+ * — "the program page does not say" — and on no more.
  */
 describe('city pages: no block of text is printed on two pages', () => {
   for (const lang of LANGS) {
@@ -512,14 +581,34 @@ describe('city pages: no block of text is printed on two pages', () => {
         }
       };
       for (const [path, html] of site.get(lang)!) add(path, html);
-      // What the site already shares before any city page is counted.
-      const already = new Set([...where].filter(([, v]) => v.pages.size > 1).map(([k]) => k));
+      // The one block every page repeats on purpose, BY NAME: the engineer's
+      // credential line. (It used to be measured — "whatever two other pages
+      // already share" — which also let through everything the two county
+      // pages have in common, the free-proposal line among it.)
+      const c = getContent(lang);
+      const already = new Set([norm(`${c.leadership.name} ${c.ui.engineer.licensePrefix} ${c.leadership.license!.number}`)]);
       for (const [path, html] of cities.get(lang)!) add(path, html);
       const cityPaths = new Set(cities.get(lang)!.keys());
       const shared = [...where]
         .filter(([k, v]) => v.pages.size > 1 && !already.has(k) && [...v.pages].some((x) => cityPaths.has(x)))
         .map(([, v]) => `${[...v.pages].join(' + ')}: ${v.text}`);
       expect(shared).toEqual([]);
+    });
+
+    it(`${lang}: with the city's names taken out, no sentence but a question is on more than two city pages`, () => {
+      const where = new Map<string, { text: string; slugs: Set<string> }>();
+      for (const p of getCityPages(lang)) {
+        const names = [p.office.name, p.place, p.city, p.place.replace(/^(the|la) /i, ''), p.city.replace(/^(City of|Ciudad de|Town of|Village of) /i, '')].sort((a, b) => b.length - a.length);
+        const own = [p.description, p.heroSub, p.lede, ...p.local.map((x) => x.v), ...p.faq.map((x) => x.a), p.nextStep];
+        for (const s of own.flatMap(sentences)) {
+          const masked = names.reduce((t, n) => t.split(n).join('§'), s);
+          if (words(masked) < 6) continue;
+          const k = norm(masked);
+          if (!where.has(k)) where.set(k, { text: masked, slugs: new Set() });
+          where.get(k)!.slugs.add(p.slug);
+        }
+      }
+      expect([...where.values()].filter((v) => v.slugs.size > 2).map((v) => `${[...v.slugs].join(', ')}: ${v.text}`)).toEqual([]);
     });
   }
 });

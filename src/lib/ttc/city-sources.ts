@@ -129,6 +129,7 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
   },
   'building-recertification/miami-beach': {
     office: [
+      { page: 'https://www.miamibeachfl.gov/city-hall/building/', quote: '1700 Convention Center Drive, Miami Beach, FL, 33139' },
       { page: 'https://www.miamibeachfl.gov/wp-content/uploads/2022/07/Existing-Building-Recertification-SOP-7.21.2022.pdf', quote: '1700 Convention Center Drive, Second Floor' },
       { page: 'https://www.miamibeachfl.gov/city-hall/building/building-recert/', quote: 'Please contact our existing Building Recertification team at 305.673.7610 and select the option for Building Recertification.' },
     ],
@@ -218,6 +219,7 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
   },
   'building-recertification/hialeah': {
     office: [
+      { page: 'https://www.hialeahfl.gov/682/Contact-Us', quote: 'Hialeah, FL 33010' },
       { page: 'https://www.hialeahfl.gov/682/Contact-Us', quote: '501 Palm Avenue, 2nd Floor' },
       { page: 'https://www.hialeahfl.gov/682/Contact-Us', quote: 'Main Line: 305-883-5825' },
     ],
@@ -293,6 +295,7 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
   },
   'building-recertification/coral-gables': {
     office: [
+      { page: 'https://www.coralgables.com/department/development-services/development-services-faq', quote: 'Development Services is located at 427 Biltmore Way, Coral Gables, FL 33134.' },
       { page: 'https://www.coralgables.com/department/development-services/building-division/services/building-recertification', quote: '427 Biltmore Way' },
       { page: 'https://www.coralgables.com/department/development-services/building-division/services/building-recertification', quote: '305-460-5229' },
     ],
@@ -486,6 +489,7 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
   },
   'building-recertification/north-miami': {
     office: [
+      { page: 'https://www.northmiamifl.gov/155/Building', quote: 'North Miami, FL 33161' },
       { page: 'https://www.northmiamifl.gov/155/Building', quote: '12340 NE 8th Avenue' },
       { page: 'https://www.northmiamifl.gov/155/Building', quote: 'Phone: 305-895-9820' },
     ],
@@ -663,6 +667,8 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
   },
   'building-recertification/aventura': {
     office: [
+      { page: 'https://www.cityofaventura.com/167/Community-Development', quote: '4th Floor' },
+      { page: 'https://www.cityofaventura.com/167/Community-Development', quote: 'Aventura, FL 33180' },
       { page: 'https://www.cityofaventura.com/167/Community-Development', quote: '19200 West Country Club Drive' },
       { page: 'https://www.cityofaventura.com/548/Building-Recertification', quote: 'Phone: 305-466-8937' },
     ],
@@ -1129,6 +1135,7 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
   },
   'building-recertification/key-biscayne': {
     office: [
+      { page: 'https://keybiscayne.fl.gov/services/index.php', quote: "The Village of Key Biscayne's Village Hall is located at 88 W. McIntyre Street, Key Biscayne, Florida 33149" },
       { page: 'https://aca-prod.accela.com/keybiscayne/Default.aspx', quote: 'Our Offices are at 88 W. McIntyre St., Suite 250.' },
       { page: 'https://keybiscayne.fl.gov/services/human_resources/staff_directory/building_zoning_planning.php', quote: 'For general BZP inquiries, please call 305-365-5512.' },
     ],
@@ -1659,6 +1666,7 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
   },
   'broward-bsip/pembroke-pines': {
     office: [
+      { page: 'https://www.ppines.com/164/The-Building-Department', quote: 'Pembroke Pines, FL 33025' },
       { page: 'https://www.ppines.com/164/The-Building-Department', quote: '601 City Center Way, 2nd Floor' },
       { page: 'https://www.ppines.com/1484/BSIP-Building-Safety-Inspection-Program', quote: 'Contact the Building Department at (954) 435-6502' },
     ],
