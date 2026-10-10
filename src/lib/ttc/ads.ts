@@ -109,6 +109,20 @@
  * The ccm/collect "page_view" on every full load is the tag's own doing and
  * no setting here stops it. The Privacy page says so.
  *
+ * ONE THING IT WAS SEEN TO DO THAT IT NO LONGER CAN (October 10, 2026). A new
+ * frame's document remembers the address of the page that made it, fragment
+ * and all, as its `document.referrer` — and the tag sends that with every
+ * conversion (`ref=`). A calculator keeps the visitor's case in the
+ * fragment (`#b=…`, BeamCalculator.tsx; the Privacy page says that part of
+ * an address is not sent), so a call reported from a calculator page carried
+ * the beam to Google. `b()` now takes the fragment off the address for the
+ * instant the frame is made and puts it back (try/finally): the frame has
+ * never seen it. If the address cannot be changed, no frame is made — a
+ * conversion goes unreported rather than the case be sent. The page loads'
+ * own requests never carried it. GOOGLE-ADS/verificacion/hash-leak.mjs is the
+ * check: run it with the gate whenever this file or a calculator's address
+ * code changes.
+ *
  * TWO THINGS THE CODE CANNOT GUARANTEE:
  *   • A Google Analytics destination added to this tag. That is set in the
  *     Google Ads account and reaches the tag from Google's side; it must
@@ -288,6 +302,11 @@ export const ADS_TAG_SRC = 'https://www.googletagmanager.com/gtag/js';
  * function stays in the page and pushes into the frame's `dataLayer`; no
  * script is written into the frame but Google's.
  *
+ * It is made while the page's address has NO FRAGMENT (`h` is taken off and
+ * put back around it, whatever happens in between): a frame remembers the
+ * address it was made at, and what a calculator keeps after the `#` is not
+ * for the tag — see "ONE THING IT WAS SEEN TO DO", at the top.
+ *
  * It goes in <head>, where React leaves alone what it did not render — as
  * long as the page hydrates. When hydration fails at the root (a browser
  * extension rewrote the page first, say), React builds the document again
@@ -317,10 +336,15 @@ export function adsBootScript(cfg: AdsOn): string {
     // The queue is the FRAME's. Nothing of Google's is put on the page's window.
     'function g(){x.dataLayer.push(arguments)}',
     'function b(){',
+    // The frame must never see the fragment: off before it is made, back after — or no frame.
+    "var h=w.location.hash||'',p=w.location.pathname+w.location.search;",
+    "if(h)w.history.replaceState(w.history.state,'',p);",
+    'try{',
     "f=d.createElement('iframe');",
     "f.setAttribute('aria-hidden','true');f.tabIndex=-1;f.style.display='none';",
     'd.head.appendChild(f);',
     'var y=f.contentWindow.document;y.open();y.close();',
+    "}finally{if(h)w.history.replaceState(w.history.state,'',p+h)}",
     'x=f.contentWindow;y=x.document;x.dataLayer=[];',
     "g('consent','default',{ad_personalization:'denied',analytics_storage:'denied'});",
     "g('set','allow_ad_personalization_signals',false);",

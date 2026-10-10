@@ -176,9 +176,11 @@ type Frame = {
  * `dead`: frames that never get a window (something neuters them).
  * `observer`: the stand-in window has a MutationObserver.
  */
-function boot(search: string, cookie: string, cfg: AdsOn = TEST, env: { dead?: boolean; observer?: boolean } = {}) {
+function boot(search: string, cookie: string, cfg: AdsOn = TEST, env: { dead?: boolean; observer?: boolean; hash?: string; frozen?: boolean } = {}) {
   /** Everything added to the PAGE's own <head>. */
   const pageHead: unknown[] = [];
+  /** The address being rewritten and the frame being made, in the order they happened. */
+  const trail: string[] = [];
   const frames: Frame[] = [];
   const listeners: { type: string; fn: (e: unknown) => void; capture: unknown }[] = [];
   let clock = 1_000_000;
@@ -186,7 +188,11 @@ function boot(search: string, cookie: string, cfg: AdsOn = TEST, env: { dead?: b
     appendChild: (el: unknown) => {
       pageHead.push(el);
       const frame = frames.find((f) => f === el);
-      if (frame) frame.parentNode = head;
+      if (frame) {
+        frame.parentNode = head;
+        // What a new frame's document remembers as its referrer: the address at this moment.
+        trail.push(`frame made at ${window.location.pathname}${window.location.search}${window.location.hash}`);
+      }
       return el;
     },
   };
@@ -242,12 +248,24 @@ function boot(search: string, cookie: string, cfg: AdsOn = TEST, env: { dead?: b
       observers.push({ fn: this.fn, target, options });
     }
   }
+  const location = { pathname: '/resources/beam', search, hash: env.hash ?? '' };
+  const history = {
+    state: null,
+    /** As a browser's: the address becomes `url`. `frozen`: a browser that refuses (Safari, after too many). */
+    replaceState: (_state: unknown, _title: string, url: string) => {
+      if (env.frozen) throw new Error('SecurityError');
+      trail.push(`address ${url}`);
+      const at = url.indexOf('#');
+      location.hash = at < 0 ? '' : url.slice(at);
+    },
+  };
   const window: {
-    location: { search: string };
+    location: typeof location;
+    history: typeof history;
     dataLayer?: IArguments[];
     __ttcAds?: (kind: string) => void;
     MutationObserver?: typeof FakeObserver;
-  } = env.observer ? { location: { search }, MutationObserver: FakeObserver } : { location: { search } };
+  } = env.observer ? { location, history, MutationObserver: FakeObserver } : { location, history };
   // `new Date()` for the tag's 'js' command, `Date.now()` for the script's
   // own clock — the second is the one the tests move.
   const FakeDate = Object.assign(function FakeDate() {}, { now: () => clock });
@@ -268,6 +286,7 @@ function boot(search: string, cookie: string, cfg: AdsOn = TEST, env: { dead?: b
   };
   return {
     window,
+    trail,
     head,
     pageHead,
     frames,
@@ -330,7 +349,8 @@ describe('the bootstrap script', () => {
     const b = boot('?gclid=TEST123', '');
     expect(b.pageHead).toEqual([b.frames[0]]);
     expect(b.window.dataLayer).toBeUndefined();
-    expect(Object.keys(b.window).sort()).toEqual(['__ttcAds', 'location']);
+    // (`history` and `location` are the stand-in window's own.)
+    expect(Object.keys(b.window).sort()).toEqual(['__ttcAds', 'history', 'location']);
     // The tag itself is added to the frame's document, not the page's.
     expect(b.frames[0].tags).toHaveLength(1);
     const script = adsBootScript(TEST);
@@ -357,6 +377,63 @@ describe('the bootstrap script', () => {
   it('opens and closes the frame’s document, queues the settings, then adds the tag', () => {
     const frame = boot('?gclid=TEST123', '').frames[0];
     expect(frame.log).toEqual(['open', 'close', 'create script', 'add tag, 4 queued']);
+  });
+
+  // A new frame remembers the address it was made at — fragment and all — as
+  // its referrer, and the tag sends that with every conversion. A calculator
+  // keeps the visitor's case after the #: the frame is made without it.
+  describe('what is after the # of the address is not for the tag', () => {
+    const BEAM = '#b=us;23.75;p0_r23.75;;12,8;;;p,s,29000,800,88.9,6.39';
+
+    it('the frame is made while the address has no fragment, and the fragment is put back', () => {
+      const b = boot('?gclid=TEST123', '', TEST, { hash: BEAM });
+      expect(b.trail).toEqual(['address /resources/beam?gclid=TEST123', 'frame made at /resources/beam?gclid=TEST123', `address /resources/beam?gclid=TEST123${BEAM}`]);
+      expect(b.window.location.hash).toBe(BEAM);
+      // Opened and closed inside that same instant: `open()` gives the frame this page's address.
+      expect(b.frames[0].log.slice(0, 2)).toEqual(['open', 'close']);
+      expect(b.frames).toHaveLength(1);
+    });
+
+    it('an address with no fragment is left alone', () => {
+      const b = boot('?gclid=TEST123', '');
+      expect(b.trail).toEqual(['frame made at /resources/beam?gclid=TEST123']);
+    });
+
+    it('the fragment comes back even when the frame cannot be made', () => {
+      const b = boot('?gclid=TEST123', '', TEST, { hash: BEAM, dead: true });
+      expect(b.trail.at(-1)).toBe(`address /resources/beam?gclid=TEST123${BEAM}`);
+      expect(b.window.location.hash).toBe(BEAM);
+    });
+
+    it('a frame built again later is made the same way, without the fragment of that moment', () => {
+      const b = boot('?gclid=TEST123', '', TEST, { hash: BEAM });
+      const later = '#b=us;31.5;p0_r31.5;;12,8;;;p,s,29000,800,88.9,6.39';
+      b.window.location.hash = later;
+      b.frames[0].parentNode = null;
+      b.trail.length = 0;
+      b.tick(5_000);
+      b.window.__ttcAds?.('call');
+      expect(b.frames).toHaveLength(2);
+      expect(b.trail).toEqual(['address /resources/beam?gclid=TEST123', 'frame made at /resources/beam?gclid=TEST123', `address /resources/beam?gclid=TEST123${later}`]);
+      expect(b.events()).toHaveLength(1);
+    });
+
+    it('if the address cannot be changed no frame is made: a conversion unreported, not a case sent', () => {
+      const b = boot('?gclid=TEST123', '', TEST, { hash: BEAM, frozen: true });
+      expect(b.frames).toEqual([]);
+      expect(b.pageHead).toEqual([]);
+      expect(b.window.__ttcAds).toBeUndefined();
+      expect(b.window.location.hash).toBe(BEAM);
+      // …and with no fragment such a browser is measured as before.
+      expect(boot('?gclid=TEST123', '', TEST, { frozen: true }).frames).toHaveLength(1);
+    });
+
+    it('no frame is ever made at an address with a fragment, whatever the fragment', () => {
+      for (const hash of ['#main', '#b=x', '#', '#a#b']) {
+        const b = boot('?gclid=TEST123', '_gcl_aw=GCL.1.x', TEST, { hash: hash === '#' ? '' : hash });
+        expect(b.trail.filter((t) => t.startsWith('frame made at ')).every((t) => !t.includes('#')), hash).toBe(true);
+      }
+    });
   });
 
   // React can rebuild <head> after an error and drop what it did not render.
@@ -398,7 +475,7 @@ describe('the bootstrap script', () => {
     expect(b.pageHead).toEqual([b.frames[0]]);
     expect(b.frames[0].tags).toEqual([]);
     expect(b.frames[0].win.dataLayer).toBeUndefined();
-    expect(Object.keys(b.window)).toEqual(['location']);
+    expect(Object.keys(b.window).sort()).toEqual(['history', 'location']);
     expect(b.listeners).toEqual([]);
   });
 
