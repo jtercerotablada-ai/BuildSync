@@ -11,6 +11,12 @@ import { xToPx } from './BeamPlot';
  * its value, and — once solved — each reaction under its support. On the
  * same x scale as the three diagrams below it.
  *
+ * A reaction is an ARROW ON THE SUPPORT'S OWN LINE, where the force acts, and
+ * its value beside the arrow: to the right, or to the left where the right
+ * has no room (the last support of a beam) or is taken by a neighbour. It
+ * used to be one centred line of text, "↑ 2.592": the arrow was a character
+ * of that text and so stood beside the support, not under it.
+ *
  * Loads are drawn above the beam whichever way they point; the arrowhead
  * says which. A distributed load's height is its intensity against the
  * largest one on the beam, so two loads can be compared by eye.
@@ -24,6 +30,13 @@ import { xToPx } from './BeamPlot';
 const H = 216;
 const Y = 118; // the beam's axis
 const HALF = 3; // half its thickness
+// A reaction's arrow: clear of the support's base above, of the dimension line below.
+const R_TOP = Y + 32;
+const R_BOTTOM = Y + 56;
+const R_HEAD = 4.5; // half the width of its head
+const R_CLEAR = 6; // the room each side of its line that an arrow keeps to itself
+const R_TEXT = 9; // from its line to its value
+const R_CHAR = 6.9; // one character of the labels' 11.5px mono
 
 const head = (x: number, y: number, dir: 1 | -1, size = 5) => `${x},${y} ${x - size},${y - dir * size * 1.7} ${x + size},${y - dir * size * 1.7}`;
 
@@ -92,15 +105,37 @@ export function BeamSchematic({
       .filter((x, i, arr) => arr.indexOf(x) === i)
       .map((x) => ({ at: px(x), text: formatNumber(x) })),
   );
-  const reactionLabels = spaced(
-    (reactions ?? []).map((r) => ({
-      at: px(r.x),
-      text: `${r.Rv < 0 ? '↓' : '↑'} ${formatNumber(Math.abs(r.Rv))}`,
-      moment: r.kind === 'fixed' && Math.abs(r.Rm) > 1e-9 ? `${r.Rm < 0 ? '↻' : '↺'} ${formatNumber(Math.abs(r.Rm))}` : '',
-    })),
-    6.8,
-    10,
-  );
+  const reactionMarks = (() => {
+    const list = (reactions ?? [])
+      .filter((r) => on(r.x))
+      .map((r) => ({
+        at: px(r.x),
+        // No force, no arrow: its value alone, under the support.
+        dir: r.Rv === 0 ? 0 : r.Rv > 0 ? 1 : -1,
+        // The force, and under it the moment of a fixed support with the way it turns.
+        lines: [formatNumber(Math.abs(r.Rv)), ...(r.kind === 'fixed' && r.Rm !== 0 ? [`${r.Rm < 0 ? '↻' : '↺'} ${formatNumber(Math.abs(r.Rm))}`] : [])],
+      }))
+      .sort((p, q) => p.at - q.at);
+    // Every arrow keeps its place whatever is written; a value goes where
+    // there is room for it, and is left to the table where there is none.
+    const taken: [number, number][] = list.map((r) => [r.at - R_CLEAR, r.at + R_CLEAR]);
+    const free = (a: number, b: number) => a >= 2 && b <= width - 2 && taken.every(([p, q]) => b + 3 <= p || a - 3 >= q);
+    return list.map((r) => {
+      const w = Math.max(...r.lines.map((s) => s.length)) * R_CHAR;
+      if (r.dir === 0) return { ...r, side: 0, shown: true };
+      const right: [number, number] = [r.at + R_TEXT, r.at + R_TEXT + w];
+      const left: [number, number] = [r.at - R_TEXT - w, r.at - R_TEXT];
+      // Which side comes first is decided by WHERE THE SUPPORT IS, not by how
+      // long its number happens to be: at the far end of the drawing, where a
+      // value of six characters would not fit outside, it goes inside.
+      const inside = r.at + R_TEXT + 6 * R_CHAR > width - 2;
+      const [first, second] = inside ? ([left, right] as const) : ([right, left] as const);
+      const span = free(...first) ? first : free(...second) ? second : null;
+      const side = span === null ? 0 : span === right ? 1 : -1;
+      if (span) taken.push(span);
+      return { ...r, side, shown: side !== 0 };
+    });
+  })();
 
   return (
     <figure className="mp-plot mp-beam">
@@ -238,16 +273,26 @@ export function BeamSchematic({
         })}
 
         {/* reactions */}
-        {reactionLabels.map((r) => (
-          <g key={r.at} className="mp-beam__reaction">
-            <text x={r.at} y={Y + 46} textAnchor={r.at < 40 ? 'start' : r.at > width - 40 ? 'end' : 'middle'}>
-              {r.text}
-            </text>
-            {r.moment ? (
-              <text x={r.at} y={Y + 60} textAnchor={r.at < 40 ? 'start' : r.at > width - 40 ? 'end' : 'middle'}>
-                {r.moment}
-              </text>
+        {reactionMarks.map((r, i) => (
+          <g key={i} className="mp-beam__reaction">
+            {r.dir > 0 ? (
+              <>
+                <line x1={r.at} x2={r.at} y1={R_BOTTOM} y2={R_TOP + R_HEAD} />
+                <polygon className="mp-beam__head" points={head(r.at, R_TOP, -1, R_HEAD)} />
+              </>
+            ) : r.dir < 0 ? (
+              <>
+                <line x1={r.at} x2={r.at} y1={R_TOP} y2={R_BOTTOM - R_HEAD} />
+                <polygon className="mp-beam__head" points={head(r.at, R_BOTTOM, 1, R_HEAD)} />
+              </>
             ) : null}
+            {r.shown
+              ? r.lines.map((line, k) => (
+                  <text key={k} x={r.at + r.side * R_TEXT} y={(R_TOP + R_BOTTOM) / 2 + 4 + k * 14} textAnchor={r.side > 0 ? 'start' : r.side < 0 ? 'end' : 'middle'}>
+                    {line}
+                  </text>
+                ))
+              : null}
           </g>
         ))}
 

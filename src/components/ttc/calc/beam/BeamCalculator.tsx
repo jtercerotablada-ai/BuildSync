@@ -220,6 +220,8 @@ export function BeamCalculator({ t }: { t: BeamUi }) {
     const L = sol ? sol.L : 0;
     return { V: F, M: F * L, EIv: F * L * L * L };
   }, [a.loadScale, sol]);
+  // On the drawing as in the table: a reaction that is rounding is none, and gets no arrow.
+  const drawnReactions = useMemo(() => (sol ? sol.reactions.map((r) => ({ ...r, Rv: settle(r.Rv, noise.V), Rm: settle(r.Rm, noise.M) })) : null), [sol, noise]);
 
   /* ── What the diagrams draw ─────────────────────────────────────────── */
   const series = useMemo(() => {
@@ -648,7 +650,7 @@ export function BeamCalculator({ t }: { t: BeamUi }) {
               </span>
             ) : null}
           </p>
-          <BeamSchematic form={form} reactions={sol ? sol.reactions : null} ownWeight={a.section.selfWeight} width={width} probeX={sol ? probeX : null} summary={says.beam} />
+          <BeamSchematic form={form} reactions={drawnReactions} ownWeight={a.section.selfWeight} width={width} probeX={sol ? probeX : null} summary={says.beam} />
           {sol && series ? (
             <>
               <BeamPlot title={t.results.shear} unit={u.force} points={series.V} marks={series.marksV} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here ? { x: probeX, y: here.right.V } : null} onProbe={setProbeX} summary={says.V} />

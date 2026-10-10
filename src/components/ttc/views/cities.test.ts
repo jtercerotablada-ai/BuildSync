@@ -683,7 +683,10 @@ describe('city pages: their text is in no client bundle', () => {
       return out.map((f) => f.slice(SRC.length + 1).replace(/\\/g, '/')).join(' → ');
     };
     expect(TEXT.filter((f) => reach.has(f)).map(trail)).toEqual([]);
-  });
+    // It reads every file a client component can reach: two to four seconds
+    // alone, and past the default five when the machine is busy with a build
+    // or with other tests. Slow is not failed.
+  }, 30_000);
 });
 
 describe('county pages: a city with a page of its own is linked from its row, and only there', () => {

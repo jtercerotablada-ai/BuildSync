@@ -544,6 +544,14 @@ select.mp-num__input {
 .mp-beam__reaction text {
   font-weight: 500;
 }
+/* A reaction's arrow, on the support's own line: in the colour of its value. */
+.mp-beam__reaction line {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1.5;
+}
+.mp-beam__reaction .mp-beam__head {
+  fill: var(--mp-gold-ink);
+}
 .mp-beam__dim line {
   stroke: var(--mp-ink-faint);
   stroke-width: 1;
