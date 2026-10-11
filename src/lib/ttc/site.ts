@@ -157,6 +157,8 @@ export const company = {
     markDarkSm: '/ttc/img/logo-square@256.png',
     markLightSm: '/ttc/img/logo-white@256.png',
     lockupLightSm: '/ttc/img/logo-white-wide@640.png',
+    /** The dark lockup at the same 640px, lossless WebP: the letterhead of a printed calculation sheet. */
+    lockupDarkSm: '/ttc/img/logo-horizontal@640.webp',
     markSmSize: { w: 256, h: 256 },
     lockupSmSize: { w: 640, h: 244 },
     markDarkXs: '/ttc/img/logo-square@144.webp',
@@ -3151,9 +3153,12 @@ export const legal = {
       /* What each calculator page says of itself under "Use it as an engineer
          would", said once for all of them — and, like that page, without
          telling anyone when a result may be relied on: the first section
-         says nothing here may, and this one must not undo it. No cap on liability and no warranty
-         clause: those are the owner's to decide (see above). */
-      { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means: a decision rests on that check, not on the calculator. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project.' },
+         says nothing here may, and this one must not undo it. Its last sentence
+         is the owner's (October 10, 2026: the printed sheet "does not say
+         anything that takes the responsibility off me"): no warranty, and no
+         responsibility for results or their use. The words are ours, not
+         counsel's — he was told so. Still no cap on liability in figures. */
+      { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means: a decision rests on that check, not on the calculator. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project. They are offered as they are, with no warranty, and the firm accepts no responsibility for the results obtained with them or for how those results are used.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
       { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],

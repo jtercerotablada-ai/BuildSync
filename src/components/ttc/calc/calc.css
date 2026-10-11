@@ -765,45 +765,435 @@ select.mp-num__input {
 .mp-app__out.mp-app__out--tall {
   position: static;
 }
-/* On paper: the beam, its drawings and its numbers. Not the buttons. */
+/* ON PAPER: A CALCULATION SHEET, not the web page on six sheets.
+
+   The owner printed the page (October 10, 2026) and got its hero, a form
+   with a field to a line, half-empty pages, a note printed over a heading,
+   no logo, no word of whose calculator it was, and the disclaimer at the
+   bottom of the last sheet. What prints now, in this order:
+
+     1. the letterhead (.mp-sheet__head, markup that exists only for paper):
+        the firm's real dark lockup, the calculator's name, what the sheet is;
+     2. the input, in three columns of small type — every value, no chrome;
+     3. the beam and its three diagrams, across the whole sheet;
+     4. the result tables, two abreast;
+     5. what it assumes, what it does not do and the signs, three abreast;
+     6. the disclaimer in a ruled box, with the credit under it.
+
+   And in the MARGIN OF EVERY PAGE (@page margin boxes — Chromium and Edge
+   print them; a browser that does not simply leaves the margins empty): the
+   firm's name and the calculator's at the top, the short disclaimer and the
+   page number at the foot, so that one page copied without the others still
+   says what it is. Their words come from strings.ts through three custom
+   properties BeamCalculatorView sets on the root.
+
+   Sizes are in points and millimetres here and nowhere else: this is paper. */
+.mp-sheet {
+  display: none;
+}
+/* The field that narrows the list of shapes: named so that paper can leave it out. */
+.mp-num.mp-num--filter {
+  min-width: 0;
+}
+@page {
+  size: letter;
+  margin: 15mm 12mm 17mm;
+  @top-left {
+    content: var(--mp-sheet-top, '');
+    font: 600 7pt/1.2 var(--mp-sans, sans-serif);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #000;
+    vertical-align: bottom;
+    padding-block-end: 2mm;
+  }
+  @top-right {
+    content: var(--mp-sheet-name, '');
+    font: 400 7pt/1.2 var(--mp-sans, sans-serif);
+    color: #000;
+    vertical-align: bottom;
+    padding-block-end: 2mm;
+  }
+  @bottom-left {
+    content: var(--mp-sheet-bottom, '');
+    font: 400 6.25pt/1.3 var(--mp-sans, sans-serif);
+    color: #000;
+    vertical-align: top;
+    padding-block-start: 2mm;
+    width: 88%;
+  }
+  @bottom-right {
+    content: counter(page) ' / ' counter(pages);
+    font: 400 7pt/1.3 var(--mp-mono, monospace);
+    color: #000;
+    vertical-align: top;
+    padding-block-start: 2mm;
+  }
+}
 @media print {
-  .mp-app,
-  .mp-app__top {
-    display: block;
-  }
-  .mp-app__out {
-    position: static;
-  }
+  /* Not part of a sheet: the page's hero, its essay on the method, its links,
+     the site's footer, and everything that is a control and not a value. */
+  .mp:has(.mp-app) .mp-phero,
+  .mp:has(.mp-app) .mp-footer,
+  .mp-appnotes .mp-split,
+  .mp-appnotes__links,
   .mp-app__actions,
   .mp-app__add,
   .mp-app__remove,
   .mp-app__bar,
+  .mp-app__privacy,
+  .mp-app__noscript,
   .mp-plot__hit,
-  .mp-appnotes .mp-split {
+  .mp-num__hint,
+  .mp-num--filter,
+  .mp-app__card:last-child > p:last-child {
     display: none !important;
   }
-  .mp-app__form,
-  .mp-app__out,
-  .mp-app__tables {
-    margin-block-end: 1.5rem;
+  .mp-sheet {
+    display: block;
   }
-  .mp-plot,
-  .mp-app__card,
+  .mp:has(.mp-app) {
+    font-size: 8.5pt;
+    line-height: 1.35;
+    color: #000;
+  }
+  .mp-section.mp-appsec,
+  .mp-section.mp-appnotes {
+    padding: 0 !important;
+    background: none !important;
+  }
+  .mp-appsec > .mp-shell,
+  .mp-appnotes > .mp-shell {
+    max-width: none;
+    padding-inline: 0;
+  }
+
+  /* 1. The letterhead. */
+  .mp-sheet__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8mm;
+    margin: 0 0 4mm;
+    padding: 0 0 3mm;
+    border-block-end: 1.5pt solid #000;
+  }
+  .mp-sheet__logo {
+    display: block;
+    width: 58mm;
+    height: auto;
+  }
+  .mp-sheet__title {
+    text-align: end;
+  }
+  .mp-sheet__kind,
+  .mp-sheet__site {
+    margin: 0;
+    font-family: var(--mp-mono);
+    font-size: 6.5pt;
+    letter-spacing: 0.08em;
+  }
+  .mp-sheet__kind {
+    text-transform: uppercase;
+  }
+  .mp-sheet__name {
+    margin: 0.5mm 0 0.8mm;
+    font-size: 15pt;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+
+  /* 2. The input: every group a short block, the blocks in three columns. */
+  .mp-app,
+  .mp-app__top {
+    display: block;
+  }
+  .mp-app__form {
+    display: block;
+    columns: 3;
+    column-gap: 7mm;
+    margin: 0 0 3mm;
+  }
+  .mp-app__group {
+    display: block;
+    break-inside: avoid;
+    margin: 0 0 3mm;
+  }
+  .mp-app__group > legend {
+    padding: 1mm 0 0.6mm;
+    border-block-start: 0.75pt solid #000;
+    font-size: 8.5pt;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
   .mp-app__item {
     break-inside: avoid;
+    padding-block: 0.6mm;
   }
-  /* The site's footer — its links, its lockup — is not part of a sheet of
-     calculations. */
-  .mp:has(.mp-app) .mp-footer {
-    display: none !important;
+  .mp-app__item + .mp-app__item {
+    padding-block-start: 0.8mm;
+    border-block-start: 0.25pt solid #999;
   }
-  /* The chosen tab is ink with paper letters on screen, and backgrounds are
-     not printed: it came out blank, and the sheet did not say which units or
-     which kind of section. On paper it is the one in bold, ruled under. */
-  .mp-seg__item input:checked + span {
+  .mp-app__row--rm {
+    display: block;
+  }
+  /* The fields of a row end on one line, however many lines their labels take. */
+  .mp-app__row,
+  .mp-app__fields {
+    gap: 0.5mm 2.5mm;
+    align-items: end;
+  }
+  .mp-app .mp-app__row > .mp-num,
+  .mp-app .mp-app__fields > .mp-num,
+  .mp-app .mp-app__fields > .mp-num.mp-num--wide {
+    flex: 1 1 13mm;
+  }
+  /* A direction is a word, and "Counter-clockwise" a long one: room for it,
+     and no ellipsis — a list cannot be opened on paper. */
+  .mp-app .mp-app__fields > .mp-num.mp-num--dir {
+    flex: 1 1 27mm;
+  }
+  .mp-num {
+    gap: 0;
+  }
+  .mp-num__label {
+    font-size: 5.25pt;
+    letter-spacing: 0.05em;
+    color: #333;
+  }
+  .mp-num__box {
+    min-height: 0;
+    gap: 0.8mm;
+    border: 0;
+  }
+  .mp-app .mp-num__input,
+  .mp-app select.mp-num__input {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 8.5pt;
+    line-height: 1.3;
+    color: #000;
+    appearance: none;
+    text-overflow: clip;
+  }
+  .mp-num__unit {
+    font-size: 6pt;
+    color: #333;
+  }
+  /* Where the browser can size a field by what is in it (Chromium, Edge), a
+     field is as wide as its value and its unit stands right after it: no
+     value is cut and no row is spread across the column. Elsewhere the
+     widths above stand. */
+  @supports (field-sizing: content) {
+    .mp-app .mp-app__row > .mp-num,
+    .mp-app .mp-app__fields > .mp-num,
+    .mp-app .mp-app__fields > .mp-num.mp-num--dir,
+    .mp-app .mp-app__fields > .mp-num.mp-num--wide {
+      flex: 0 1 auto;
+      min-width: 11mm;
+    }
+    .mp-app .mp-num__input,
+    .mp-app select.mp-num__input {
+      field-sizing: content;
+      width: auto;
+      min-width: 3mm;
+      max-width: 100%;
+    }
+    .mp-app__row,
+    .mp-app__fields {
+      gap: 0.5mm 4mm;
+    }
+  }
+  .mp-app__none,
+  .mp-app__note,
+  .mp-app__computed,
+  .mp-app__need {
+    margin: 0.5mm 0 0;
+    font-size: 6.25pt;
+    line-height: 1.35;
+    color: #333;
+  }
+  /* Of a choice of two or three, the one chosen — as plain words. */
+  .mp-seg > legend {
+    margin: 0;
+  }
+  .mp-seg__item:not(:has(input:checked)) {
+    display: none;
+  }
+  .mp-seg__item span {
+    display: inline;
+    min-height: 0;
+    padding: 0;
+    border: 0 !important;
     background: none !important;
-    color: #000 !important;
+    box-shadow: none !important;
+    font-size: 8.5pt;
     font-weight: 600;
-    box-shadow: inset 0 -3px 0 #000;
+    color: #000 !important;
+  }
+  .mp-app__check {
+    min-height: 0;
+    gap: 1.5mm;
+    font-size: 7pt;
+  }
+  .mp-app__check input {
+    width: 2.6mm;
+    height: 2.6mm;
+  }
+
+  /* 3. The beam and its diagrams: the sheet's width, whatever the window's was. */
+  .mp-app__out {
+    position: static;
+    display: block;
+    margin: 0 0 3mm;
+  }
+  .mp-app__issues:not(:empty) {
+    margin: 0 0 3mm;
+    padding: 2mm;
+    border: 1pt solid #000;
+    font-size: 8.5pt;
+  }
+  .mp-app__plots {
+    display: block;
+  }
+  .mp-plot {
+    break-inside: avoid;
+    margin: 0;
+  }
+  .mp-plot__title {
+    margin: 1.5mm 0 0;
+    padding-block-start: 1mm;
+    border-block-start: 0.25pt solid #999;
+    font-size: 6.5pt;
+    break-after: avoid;
+  }
+  .mp-plot__title--first {
+    border-block-start: 0.75pt solid #000;
+  }
+  .mp-plot__svg {
+    width: 100%;
+    height: auto;
+  }
+  /* The halo behind a number is the page's colour, which a screen has and
+     paper does not: the PDF a browser writes drew it, for some labels, in
+     the label's own ink — numbers as blots. On paper a number is its
+     letters and nothing else. */
+  .mp-plot__value,
+  .mp-beam__label,
+  .mp-beam__reaction text,
+  .mp-beam__dim text {
+    stroke: none !important;
+  }
+  .mp-beam__couple .mp-beam__halo {
+    stroke: #fff;
+  }
+  .mp-app__plots > .mp-app__note {
+    margin-block-start: 1mm;
+  }
+
+  /* 4. The tables, two abreast. */
+  .mp-app__tables {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 3mm 8mm;
+    margin: 0 0 3mm;
+  }
+  .mp-app__card {
+    break-inside: avoid;
+    padding-block-start: 1mm;
+    border-block-start: 0.75pt solid #000;
+  }
+  .mp-app__card > * + * {
+    margin-block-start: 0.8mm;
+  }
+  .mp-app__h {
+    margin: 0;
+    font-size: 8.5pt;
+    font-weight: 600;
+  }
+  .mp-app__table,
+  .mp-app__dl {
+    font-size: 8pt;
+  }
+  .mp-app__table th,
+  .mp-app__table td {
+    padding: 0.7mm 2mm 0.7mm 0;
+  }
+  .mp-app__table thead th {
+    font-size: 5.5pt;
+  }
+  .mp-app__dl > div {
+    padding-block: 0.7mm;
+  }
+  .mp-app__dir {
+    font-size: 6.75pt;
+  }
+  .mp-sheet__stamp {
+    margin: 0 0 3mm;
+    font-family: var(--mp-mono);
+    font-size: 6pt;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    color: #333;
+  }
+
+  /* 5. What it assumes, what it leaves out, the signs: three abreast. */
+  .mp-appnotes__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 6mm;
+    margin: 0;
+  }
+  .mp-appnotes__h {
+    margin: 0 0 0.6mm;
+    padding-block-start: 1mm;
+    border-block-start: 0.75pt solid #000;
+    font-size: 8.5pt;
+    font-weight: 600;
+  }
+  .mp-appnotes__list {
+    font-size: 6.5pt;
+    line-height: 1.35;
+    color: #000;
+  }
+  .mp-appnotes__list li {
+    padding-block: 0.6mm;
+  }
+  .mp-appnotes__list li + li {
+    border-block-start: 0.25pt solid #bbb;
+  }
+
+  /* 6. The disclaimer, where it is read: a ruled box, whole on one page. */
+  .mp-appnotes__terms {
+    max-width: none;
+    margin: 4mm 0 0;
+    padding: 2.5mm 3mm;
+    border: 1pt solid #000;
+    font-size: 8pt;
+    line-height: 1.4;
+    color: #000;
+    break-inside: avoid;
+  }
+  .mp-appnotes__terms .mp-appnotes__h {
+    padding: 0;
+    border: 0;
+    font-size: 7pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .mp-appnotes__terms p {
+    margin: 0;
+  }
+  .mp-sheet__credit {
+    margin-block-start: 1.5mm !important;
+    font-family: var(--mp-mono);
+    font-size: 6.5pt;
+    letter-spacing: 0.02em;
   }
 }

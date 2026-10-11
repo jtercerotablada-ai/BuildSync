@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { agree, formatNumber } from '@/lib/calc/format';
 import {
   LAYOUTS,
@@ -107,6 +108,11 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
  * lets the column scroll with the page instead of pinning it half out of
  * sight.
  */
+/** A diagram as it is drawn for paper: the shortest the page uses, so four drawings share a sheet with the input. */
+const PAPER_PLOT = 96;
+/** …and as wide as the sheet's column of type: 191 mm of a Letter page, in the drawing's own pixels. Drawn for THAT width, whatever the window's — a phone's drawing blown up to a page was all letters. */
+const PAPER_WIDTH = 724;
+
 function usePlotHeight(): number {
   const [h, setH] = useState(150);
   useEffect(() => {
@@ -164,11 +170,38 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
   const [typedX, setTypedX] = useState<number | null>(null);
   const [copied, setCopied] = useState<'' | 'ok' | 'failed'>('');
   const [linkError, setLinkError] = useState(false);
+  // The printed sheet says when it was printed and gives the address that
+  // opens this very beam. Written at the moment of printing — `beforeprint`
+  // is the button and the browser's own Print alike — and put on the page
+  // at once, before the browser lays it out for paper.
+  //
+  // The three diagrams are drawn at their shortest for paper, so that the
+  // beam and all three share the first sheet under the input; on screen
+  // their height is the window's to give (usePlotHeight).
+  const [stamp, setStamp] = useState<{ when: string; url: string } | null>(null);
+  const [onPaper, setOnPaper] = useState(false);
+  useEffect(() => {
+    const mark = () => {
+      const when = new Intl.DateTimeFormat(t.sheet.locale, { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+      const url = `${window.location.origin}${window.location.pathname}#b=${encodeBeam(form)}`;
+      flushSync(() => {
+        setStamp({ when, url });
+        setOnPaper(true);
+      });
+    };
+    const back = () => setOnPaper(false);
+    window.addEventListener('beforeprint', mark);
+    window.addEventListener('afterprint', back);
+    return () => {
+      window.removeEventListener('beforeprint', mark);
+      window.removeEventListener('afterprint', back);
+    };
+  }, [form, t.sheet.locale]);
   // A link that could not be read is left in the address, for the visitor to look at.
   const unread = useRef(false);
   // The address still to be written, if the beam has changed since the last time.
   const pending = useRef<(() => void) | null>(null);
-  const [plotRef, width] = useWidth<HTMLDivElement>();
+  const [plotRef, windowWidth] = useWidth<HTMLDivElement>();
   const [outRef, tooTall] = useTooTall<HTMLElement>();
   // The last length the visitor settled on, for carrying the end support along.
   const settledL = useRef(form.L);
@@ -177,7 +210,9 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
   useEffect(() => {
     if (!editingL.current && form.L > 0 && Number.isFinite(form.L)) settledL.current = form.L;
   }, [form.L]);
-  const plotHeight = usePlotHeight();
+  const windowPlotHeight = usePlotHeight();
+  const plotHeight = onPaper ? PAPER_PLOT : windowPlotHeight;
+  const width = onPaper ? PAPER_WIDTH : windowWidth;
   const u = UNITS[form.units];
   // What the ids of this form's messages begin with.
   const uid = useId();
@@ -773,7 +808,8 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
             shapes ? (
               <>
                 <div className="mp-app__row mp-app__row--two">
-                  <label className="mp-num">
+                  {/* A tool for finding a shape, not a value of the beam: left off the printed sheet (calc.css). */}
+                  <label className="mp-num mp-num--filter">
                     <span className="mp-num__label">{t.section.filter}</span>
                     <span className="mp-num__box">
                       <input className="mp-num__input" type="text" value={shapeFilter} onChange={(e) => setShapeFilter(e.target.value)} placeholder={t.section.filterHint} autoComplete="off" spellCheck={false} />
@@ -1157,6 +1193,12 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
         ) : null}
 
       <p className="mp-app__privacy">{t.results.privacy}</p>
+      {/* On paper only: when the sheet was printed, and the address that opens this very beam again. */}
+      {stamp ? (
+        <p className="mp-sheet mp-sheet__stamp">
+          {t.sheet.printed.replace('{when}', stamp.when)} · {t.sheet.link.replace('{url}', stamp.url)}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -937,3 +937,67 @@ describe('beam calculator: the site around it', () => {
     }
   });
 });
+
+describe('beam calculator: on paper it is a calculation sheet', () => {
+  // The owner printed the page and got a web page on six sheets: no logo, no
+  // credit, and its disclaimer at the bottom of the last one.
+  const css = readFileSync(join(SRC, 'components/ttc/calc/calc.css'), 'utf8');
+  const print = css.slice(css.indexOf('@media print {'));
+  const page = css.slice(css.indexOf('@page {'), css.indexOf('@media print {'));
+
+  for (const lang of LANGS) {
+    const c = getContent(lang);
+    const s = beamStrings[lang].page;
+
+    it(`${lang}: a letterhead with the firm's own lockup, the calculator's name and what the sheet is`, () => {
+      const html = render(lang);
+      const head = html.match(/<div class="mp-sheet mp-sheet__head">[\s\S]*?<\/div><\/div>/)?.[0] ?? '';
+      const img = head.match(/<img\b[^>]*>/)?.[0] ?? '';
+      // The real file, a straight resize of the dark lockup: never a drawing of the logo.
+      expect(attr(img, 'src')).toBe('/ttc/img/logo-horizontal@640.webp');
+      expect(existsSync(join(SRC, '..', 'public', 'ttc', 'img', 'logo-horizontal@640.webp'))).toBe(true);
+      expect(attr(img, 'alt')).toBe(c.company.legalName);
+      expect(text(head)).toContain(s.sheet.kind);
+      expect(text(head)).toContain(text(esc(s.h1)));
+      expect(text(head)).toContain(`ttcivilstructural.com${localePath(BEAM_PATH, lang)}`);
+    });
+
+    it(`${lang}: the disclaimer takes the responsibility off the firm, on the page and on the sheet, and credits it`, () => {
+      const main = render(lang).match(/<main\b[\s\S]*<\/main>/)![0];
+      expect(s.disclaimer.body).toMatch(lang === 'en' ? /comes with no warranty/ : /se ofrece sin garantía/);
+      expect(s.disclaimer.body).toMatch(lang === 'en' ? /accepts no responsibility for its results or for how they are used/ : /no asume ninguna responsabilidad por sus resultados ni por el uso que se haga de ellos/);
+      expect(s.disclaimer.body).toContain(c.company.legalName);
+      expect(text(main)).toContain(text(esc(s.disclaimer.body)));
+      // The credit under it, with the firm's name and the calculator's address.
+      const credit = main.match(/<p class="mp-sheet mp-sheet__credit">([\s\S]*?)<\/p>/)?.[1] ?? '';
+      expect(text(credit)).toContain(c.company.legalName);
+      expect(text(credit)).toContain(`ttcivilstructural.com${localePath(BEAM_PATH, lang)}`);
+      // …and the Terms say the same of every calculator.
+      const terms = JSON.stringify(c.legal.terms.sections.find((x) => /^Calcula(tors|doras)$/.test(x.h))!.p);
+      expect(terms).toMatch(lang === 'en' ? /with no warranty, and the firm accepts no responsibility/ : /sin garantía, y la firma no asume ninguna responsabilidad/);
+    });
+
+    it(`${lang}: every page's margin names the firm and carries the short disclaimer, in this language`, () => {
+      const html = render(lang);
+      const style = html.match(/<style>(:root\{--mp-sheet-top:[\s\S]*?)<\/style>/)?.[1] ?? '';
+      // Three CSS strings, and nothing in them that could end the element or the string.
+      const values = [...style.matchAll(/--mp-sheet-(top|name|bottom):"([^"]*)"/g)].map((m) => [m[1], m[2].replace(/\\([0-9a-f]+) /g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))]);
+      expect(Object.fromEntries(values)).toEqual({ top: c.company.legalName, name: s.h1, bottom: s.sheet.margin });
+      expect(style).not.toMatch(/<|>/);
+      expect(s.sheet.margin).toMatch(lang === 'en' ? /No warranty; no responsibility is accepted/ : /Sin garantía; no se asume responsabilidad/);
+    });
+  }
+
+  it('the sheet’s own markup exists only on paper, and the page’s hero and footer are left off it', () => {
+    const screen = css.slice(0, css.indexOf('@page {')).replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(screen).toMatch(/\.mp-sheet\s*\{\s*display:\s*none;\s*\}/);
+    expect(print).toMatch(/\.mp-sheet\s*\{\s*display:\s*block;\s*\}/);
+    for (const hidden of ['.mp:has(.mp-app) .mp-phero', '.mp:has(.mp-app) .mp-footer', '.mp-app__actions', '.mp-app__add', '.mp-app__remove', '.mp-num--filter']) expect(print, hidden).toContain(hidden);
+    // The margins of every page: the firm at the top, the disclaimer and the page number at the foot.
+    for (const box of ['@top-left', '@top-right', '@bottom-left', '@bottom-right']) expect(page, box).toContain(box);
+    for (const name of ['--mp-sheet-top', '--mp-sheet-name', '--mp-sheet-bottom']) expect(page, name).toContain(`var(${name}`);
+    expect(page).toContain('counter(page)');
+    // The disclaimer's box is never split between two pages.
+    expect(print).toMatch(/\.mp-appnotes__terms\s*\{[^}]*break-inside:\s*avoid/);
+  });
+});

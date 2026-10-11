@@ -35,6 +35,11 @@ type Ui = {
    * stands.
    */
   numbers: { group: string; ambiguous: string; refused: string };
+  /**
+   * The printed sheet's own line, written when it is printed: {when} is the
+   * date and time in `locale`, {url} the address that opens this very beam.
+   */
+  sheet: { locale: string; printed: string; link: string };
   toolbar: { units: string; us: string; si: string; layout: string; layoutPick: string; reset: string; copy: string; copied: string; copyFailed: string; print: string };
   layouts: Record<SupportLayout, string>;
   beam: { title: string; length: string };
@@ -166,6 +171,14 @@ type Page = {
   limits: { title: string; items: string[] };
   signs: { title: string; items: string[] };
   disclaimer: { title: string; body: string };
+  /**
+   * ON PAPER (calc.css, the print rules): `kind` is what the sheet is,
+   * under its title in the letterhead; `credit` closes the disclaimer's box
+   * ({firm} and {address} are the site's); `margin` is the short form of the
+   * disclaimer printed at the foot of EVERY page, for the page that gets
+   * photocopied without the others.
+   */
+  sheet: { kind: string; credit: string; margin: string };
   back: string;
   /** Shown in place of the tool where scripts do not run. */
   noscript: string;
@@ -179,6 +192,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         ambiguous: 'With one comma this reads two ways. For thousands, write {grouped}. If the comma is the decimal mark, write {padded} or, with a point, {decimal}: here a point is always the decimal mark.',
         refused: '“{text}” is not a number: the value is still {value}.',
       },
+      sheet: { locale: 'en-US', printed: 'Printed {when}', link: 'To open this beam again: {url}' },
       toolbar: {
         units: 'Units',
         us: 'US (ft, kip)',
@@ -414,7 +428,12 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       },
       disclaimer: {
         title: 'Use it as an engineer would',
-        body: 'This calculator is an aid for people qualified to judge its results. It is not an engineering opinion on any structure, and it comes with no warranty. Check the results by independent means: a decision in a design rests on your own check, never on this calculator.',
+        body: 'This calculator is an aid for people qualified to judge its results. It is not an engineering opinion on any structure, and it comes with no warranty. Check the results by independent means: a decision in a design rests on your own check, never on this calculator. Tercero Tablada Civil and Structural Engineering Inc. did not prepare, review or seal what is computed with it, and accepts no responsibility for its results or for how they are used.',
+      },
+      sheet: {
+        kind: 'Calculation sheet',
+        credit: 'Produced with the beam calculator of {firm} — {address}',
+        margin: 'An aid for engineers qualified to check it — not an engineering opinion, a design or a sealed document. No warranty; no responsibility is accepted for its results or their use. Verify independently.',
       },
       back: 'All calculators',
       noscript: 'This calculator needs JavaScript: it computes in your browser, and sends nothing to a server.',
@@ -428,6 +447,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         ambiguous: 'Con una sola coma se lee de dos maneras. Si son miles, escriba {grouped}. Si la coma es el decimal, escriba {padded} o, con punto, {decimal}: aquí el punto es siempre el decimal.',
         refused: '«{text}» no es un número: el valor sigue siendo {value}.',
       },
+      sheet: { locale: 'es-US', printed: 'Impreso el {when}', link: 'Para abrir esta viga de nuevo: {url}' },
       toolbar: {
         units: 'Unidades',
         us: 'EE. UU. (ft, kip)',
@@ -663,7 +683,12 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       },
       disclaimer: {
         title: 'Úsela como la usaría un ingeniero',
-        body: 'Esta calculadora es una ayuda para quien está capacitado para juzgar sus resultados. No es una opinión de ingeniería sobre ninguna estructura y se ofrece sin garantía. Compruebe los resultados por medios independientes: una decisión de diseño se apoya en su propia comprobación, nunca en esta calculadora.',
+        body: 'Esta calculadora es una ayuda para quien está capacitado para juzgar sus resultados. No es una opinión de ingeniería sobre ninguna estructura y se ofrece sin garantía. Compruebe los resultados por medios independientes: una decisión de diseño se apoya en su propia comprobación, nunca en esta calculadora. Tercero Tablada Civil and Structural Engineering Inc. no preparó, revisó ni selló lo que se calcula con ella, y no asume ninguna responsabilidad por sus resultados ni por el uso que se haga de ellos.',
+      },
+      sheet: {
+        kind: 'Hoja de cálculo',
+        credit: 'Elaborada con la calculadora de vigas de {firm} — {address}',
+        margin: 'Una ayuda para ingenieros capacitados para comprobarla: no es una opinión de ingeniería, un diseño ni un documento sellado. Sin garantía; no se asume responsabilidad por sus resultados ni por su uso. Verifíquela de forma independiente.',
       },
       back: 'Todas las calculadoras',
       noscript: 'Esta calculadora necesita JavaScript: calcula en su navegador y no envía nada a un servidor.',
