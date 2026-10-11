@@ -1,3 +1,4 @@
+import { fieldNumber } from '../format';
 import { beamSpans, solveBeam, type BeamIssueCode, type BeamModel, type BeamSolution, type BeamSpan, type SupportKind } from './solver';
 
 /**
@@ -360,6 +361,7 @@ export function shearStress(units: UnitSystem, p: SectionProps, V: number): numb
 /* ── From the form to the engine ──────────────────────────────────────── */
 
 export type RowList = 'supports' | 'hinges' | 'points' | 'couples' | 'dists';
+/** What the engine says of a beam (supports or hinges too close together included), and what only the form can know: a section value that is not one. */
 export type FormIssueCode = BeamIssueCode | 'section';
 export interface FormIssue {
   code: FormIssueCode;
@@ -418,7 +420,10 @@ export function analyse(form: BeamForm, shape?: SteelShape | null): BeamAnalysis
   if (!out.ok) {
     for (const issue of out.issues) {
       const w = issue.where;
-      // The beam's own weight is appended to the distributed loads: it is no row of the form.
+      // The engine's lists are the form's, row for row: the place it names is
+      // the row's — of two supports or two hinges too close together, the one
+      // further right. Only the beam's own weight, appended to the distributed
+      // loads, is no row of the form.
       const row = w && form[w.list][w.index] ? { list: w.list, id: form[w.list][w.index].id } : undefined;
       issues.push({ code: issue.code, row });
     }
@@ -457,56 +462,112 @@ export function analyse(form: BeamForm, shape?: SteelShape | null): BeamAnalysis
  * opens the same beam. Signs carry the directions; nothing but numbers and a
  * few letters is written, and `decodeBeam` accepts nothing else — the string
  * comes back from wherever a link was pasted.
+ *
+ * WHATEVER THE FORM HOLDS IS WRITTEN, and read back as that form: a length
+ * of 0 on the way to 0.5, a number of any size, each to the eight figures
+ * its field shows. A reload must come back to the beam that was on screen,
+ * with its warning — not to the example.
+ *
+ * IT BEGINS WITH A CHECK of the rest (`checkOf`). Without one, a link that
+ * lost its last character on the way is still a link, to another beam: a
+ * 12 × 24 rectangle became a 12 × 2 one, with no notice.
  */
 export function encodeBeam(form: BeamForm): string {
-  const n = (v: number) => (Number.isFinite(v) ? String(round6(v)) : '0');
+  const n = written;
   const sec = form.section;
-  const parts = [
+  const body = [
     form.units,
     n(form.L),
     form.supports.map((s) => `${s.kind[0]}${n(s.x)}`).join('_'),
     form.hinges.map((h) => n(h.x)).join('_'),
-    form.points.map((p) => `${n(p.x)},${n(p.dir === 'down' ? p.P : -p.P)}`).join('_'),
-    form.dists.map((d) => `${n(d.x1)},${n(d.x2)},${n(d.dir === 'down' ? d.w1 : -d.w1)},${n(d.dir === 'down' ? d.w2 : -d.w2)}`).join('_'),
-    form.couples.map((c) => `${n(c.x)},${n(c.dir === 'ccw' ? c.M : -c.M)}`).join('_'),
+    form.points.map((p) => `${n(p.x)},${signed(p.P, p.dir === 'up')}`).join('_'),
+    form.dists.map((d) => `${n(d.x1)},${n(d.x2)},${signed(d.w1, d.dir === 'up')},${signed(d.w2, d.dir === 'up')}`).join('_'),
+    form.couples.map((c) => `${n(c.x)},${signed(c.M, c.dir === 'cw')}`).join('_'),
     sec.mode === 'shape'
       ? `s,${sec.shape.replace(/[^A-Za-z0-9./-]/g, '')},${sec.selfWeight ? 1 : 0}`
       : sec.mode === 'rect'
         ? `r,${MATERIAL_LETTER[sec.material]},${n(sec.E)},${n(sec.b)},${n(sec.h)}`
         : `p,${MATERIAL_LETTER[sec.material]},${n(sec.E)},${n(sec.I)},${n(sec.S)},${n(sec.Av)}`,
-  ];
-  return parts.join(';');
+  ].join(';');
+  return `${checkOf(body)};${body}`;
 }
 
+/**
+ * The check an address begins with: the length of the rest and a sum of its
+ * characters, as one number in base 36. A link that lost its tail has
+ * another length, so no shortened link passes. One changed character, or two
+ * neighbours swapped, always changes the sum: 31 shares no factor with
+ * 1,296, and no two characters of a link are 216 apart.
+ *
+ * Links are kept by the people they were sent to: this must never change.
+ */
+function checkOf(body: string): string {
+  let sum = 0;
+  for (let i = 0; i < body.length; i++) sum = (sum * 31 + body.charCodeAt(i)) % 1296;
+  // 1,296 is 36²: the sum is the last two characters, the length the ones before.
+  return (body.length * 1296 + sum).toString(36);
+}
 
 const NUMBER = /^-?\d+(\.\d+)?(e-?\d+)?$/;
+/* What is not a number has a name. A field can be left holding one: a value
+   near the largest a number can be overflows when the units are switched. */
+const NAMED = new Map<string, number>([['inf', Infinity], ['-inf', -Infinity], ['nan', Number.NaN]]);
+/** A number as an address carries it: the eight figures its field shows, with no `+` in an exponent. */
+const written = (v: number): string => (Number.isFinite(v) ? fieldNumber(v).replace('e+', 'e') : v > 0 ? 'inf' : v < 0 ? '-inf' : 'nan');
+/**
+ * A size and its direction as one signed number. A zero keeps its direction
+ * too, as −0: an upward load whose size is being retyped is still upward
+ * after a reload.
+ */
+const signed = (v: number, reversed: boolean): string => (v === 0 ? (reversed ? '-0' : '0') : written(reversed ? -v : v));
+
 const KINDS: Record<string, SupportKind> = { p: 'pin', r: 'roller', f: 'fixed' };
 /* 'custom' is written u (the visitor's own): c is concrete. */
 const MATERIAL_LETTER: Record<MaterialKey, string> = { steel: 's', aluminum: 'a', concrete: 'c', wood: 'w', custom: 'u' };
-const MATERIAL_BY_LETTER: Record<string, MaterialKey> = Object.fromEntries(Object.entries(MATERIAL_LETTER).map(([k, v]) => [v, k as MaterialKey]));
+
+/*
+ * No form writes a longer address: twelve rows of every kind with every
+ * number at its longest (22 characters: −1.2345678 × 10²⁰ is written out in
+ * full) come to 2,899 characters.
+ */
+const MAX_LINK = 3000;
 
 /** The beam a string from `encodeBeam` describes, or `null` if it is anything else. */
 export function decodeBeam(text: string): BeamForm | null {
-  if (text.length > 2000) return null;
+  if (text.length > MAX_LINK) return null;
+  const cut = text.indexOf(';');
+  const first = text.slice(0, Math.max(cut, 0));
+  // A link from before the check existed begins with its units. Those have
+  // been sent to people, and open as they always did.
+  if (first === 'us' || first === 'si') return readBeam(text);
+  const body = text.slice(cut + 1);
+  return first !== '' && first === checkOf(body) ? readBeam(body) : null;
+}
+
+/** The eight fields of an address, without its check. */
+function readBeam(text: string): BeamForm | null {
   const parts = text.split(';');
   if (parts.length !== 8) return null;
   const [units, L, supports, hinges, points, dists, couples, section] = parts;
   if (units !== 'us' && units !== 'si') return null;
   let bad = false;
   const num = (s: string): number => {
-    if (!NUMBER.test(s)) {
-      bad = true;
-      return 0;
-    }
-    const v = Number(s);
-    if (!Number.isFinite(v) || Math.abs(v) > 1e12) bad = true;
-    return v;
+    const named = NAMED.get(s);
+    if (named !== undefined) return named;
+    const v = NUMBER.test(s) ? Number(s) : Number.NaN;
+    if (!Number.isFinite(v)) bad = true;
+    // As a number, the −0 of `signed` is a plain zero.
+    return v + 0;
   };
+  /** Written with a minus: the direction is the other one. */
+  const reversed = (s: string) => s.startsWith('-');
   const rows = (s: string, fields: number): string[][] => {
     if (s === '') return [];
     const list = s.split('_').map((r) => r.split(','));
-    if (list.length > MAX_ROWS || list.some((r) => r.length !== fields)) bad = true;
-    return list;
+    if (list.length <= MAX_ROWS && list.every((r) => r.length === fields)) return list;
+    // Not a list: none of it is read. A row short of a field has nothing where its number should be.
+    bad = true;
+    return [];
   };
   let id = 1;
   // What the link does not carry (the rectangle's sides when it gives
@@ -522,41 +583,37 @@ export function decodeBeam(text: string): BeamForm | null {
       return { id: id++, kind: kind ?? 'pin', x: num(s.slice(1)) };
     }),
     hinges: rows(hinges, 1).map(([x]) => ({ id: id++, x: num(x) })),
-    points: rows(points, 2).map(([x, P]) => {
-      const v = num(P);
-      return { id: id++, x: num(x), P: Math.abs(v), dir: v < 0 ? ('up' as const) : ('down' as const) };
-    }),
+    points: rows(points, 2).map(([x, P]) => ({ id: id++, x: num(x), P: Math.abs(num(P)), dir: reversed(P) ? ('up' as const) : ('down' as const) })),
     dists: rows(dists, 4).map(([x1, x2, w1, w2]) => {
       const a = num(w1);
       const b = num(w2);
       // One direction per load: upward only when neither end points down.
-      const up = a <= 0 && b <= 0 && (a < 0 || b < 0);
-      return { id: id++, x1: num(x1), x2: num(x2), w1: up ? -a : a, w2: up ? -b : b, dir: up ? ('up' as const) : ('down' as const) };
+      const up = a <= 0 && b <= 0 && (reversed(w1) || reversed(w2));
+      return { id: id++, x1: num(x1), x2: num(x2), w1: up ? Math.abs(a) : a, w2: up ? Math.abs(b) : b, dir: up ? ('up' as const) : ('down' as const) };
     }),
-    couples: rows(couples, 2).map(([x, M]) => {
-      const v = num(M);
-      return { id: id++, x: num(x), M: Math.abs(v), dir: v < 0 ? ('cw' as const) : ('ccw' as const) };
-    }),
+    couples: rows(couples, 2).map(([x, M]) => ({ id: id++, x: num(x), M: Math.abs(num(M)), dir: reversed(M) ? ('cw' as const) : ('ccw' as const) })),
     section: { ...base.section },
     nextId: 0,
   };
   const sec = section.split(',');
+  // Looked up by its letter among the five, never as a property: "constructor"
+  // is a property of every object, and is no material.
+  const listed = (Object.keys(MATERIAL_LETTER) as MaterialKey[]).find((key) => MATERIAL_LETTER[key] === sec[1]);
   // A material is the listed one only with the listed modulus: any other E
   // is the visitor's own, or switching units would quietly "restore" it.
-  const material = (letter: string, E: number): MaterialKey => {
-    const key = MATERIAL_BY_LETTER[letter];
-    return key !== 'custom' && MATERIALS[key][units] !== E ? 'custom' : key;
-  };
+  const material = (key: MaterialKey, E: number): MaterialKey => (key !== 'custom' && MATERIALS[key][units] !== E ? 'custom' : key);
   if (sec[0] === 's' && sec.length === 3 && /^[A-Za-z0-9./-]{2,24}$/.test(sec[1]) && (sec[2] === '0' || sec[2] === '1')) {
     form.section = { ...form.section, mode: 'shape', material: 'steel', shape: sec[1], selfWeight: sec[2] === '1' };
-  } else if (sec[0] === 'r' && sec.length === 5 && MATERIAL_BY_LETTER[sec[1]]) {
+  } else if (sec[0] === 'r' && sec.length === 5 && listed) {
     const E = num(sec[2]);
-    form.section = { ...form.section, mode: 'rect', material: material(sec[1], E), E, b: num(sec[3]), h: num(sec[4]) };
-  } else if (sec[0] === 'p' && sec.length === 6 && MATERIAL_BY_LETTER[sec[1]]) {
+    form.section = { ...form.section, mode: 'rect', material: material(listed, E), E, b: num(sec[3]), h: num(sec[4]) };
+  } else if (sec[0] === 'p' && sec.length === 6 && listed) {
     const E = num(sec[2]);
-    form.section = { ...form.section, mode: 'props', material: material(sec[1], E), E, I: num(sec[3]), S: num(sec[4]), Av: num(sec[5]) };
+    form.section = { ...form.section, mode: 'props', material: material(listed, E), E, I: num(sec[3]), S: num(sec[4]), Av: num(sec[5]) };
   } else return null;
-  if (bad || !(form.L > 0)) return null;
+  // A length that cannot be one is read like any other: 0 is what the field
+  // holds on the way to 0.5, and the form says what is wrong with it.
+  if (bad) return null;
   form.nextId = id;
   return form;
 }

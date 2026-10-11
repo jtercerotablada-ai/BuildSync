@@ -1,9 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { createElement as h } from 'react';
+import type { Metadata } from 'next';
+import { createElement as h, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import sitemap from '@/app/sitemap';
+import { beamStrings } from '@/lib/calc/beam/strings';
 import {
   CALCULATOR_ICON_PX,
   calculatorCount,
@@ -381,6 +383,34 @@ describe('calculators: where the page is', () => {
     }
     // …and no address under /resources that is not one of those.
     expect(urls.filter((u) => u.includes('/resources')).length).toBe(2 * (1 + openCalculatorPaths.length));
+  });
+
+  // Nothing noticed what a route file says: the Spanish route could hand the
+  // English page, or the catalogue's page under the catalogue's address, or
+  // ask not to be indexed. Reading its source for "some view, some path"
+  // does not notice either — any view and any path pass. So each route is
+  // IMPORTED and asked: the address it declares, and the page it renders.
+  it('each open calculator’s two routes are its own page, in their own language, and indexable', async () => {
+    // What each open calculator calls itself, in its one h1. A calculator
+    // that opens without a line here fails the next expectation, on purpose.
+    const h1: Record<string, Record<Lang, string>> = { '/resources/beam': { en: beamStrings.en.page.h1, es: beamStrings.es.page.h1 } };
+    expect(Object.keys(h1)).toEqual([...openCalculatorPaths]);
+    for (const href of openCalculatorPaths) {
+      for (const [dir, lang] of [
+        ['(public)/(site)', 'en'],
+        ['(public-es)/(site)/es', 'es'],
+      ] as const) {
+        const where = `${dir}${href}`;
+        // The cheap check, which names the file: its language is one constant.
+        expect(readFileSync(join(SRC, 'app', dir, ...href.split('/').filter(Boolean), 'page.tsx'), 'utf8'), where).toContain(`const LANG = '${lang}' as const;`);
+        const page = (await import(`@/app/${dir}${href}/page`)) as { metadata: Metadata; default: () => ReactElement };
+        expect(page.metadata.alternates?.canonical, where).toBe(localePath(href, lang));
+        expect(page.metadata.robots, where).toBeUndefined();
+        route.pathname = localePath(href, lang);
+        const html = renderToStaticMarkup(h(page.default));
+        expect([...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => text(m[1])), where).toEqual([h1[href][lang]]);
+      }
+    }
   });
 
   it('neither route keeps a calculator-less page’s noindex', () => {

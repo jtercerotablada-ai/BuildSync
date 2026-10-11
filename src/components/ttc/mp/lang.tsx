@@ -50,19 +50,28 @@ export function L({
    re-renders with the real value.
 
    The address bar tells nobody when the app router rewrites it, so the
-   store is re-read at the three moments that matter: after a route change
-   (the effect below — the router writes the URL after the render that
-   changed the pathname, so a read DURING that render is one page behind),
-   on Back/Forward, and when the link itself is about to be used (see
-   `refreshSearch`). */
+   store is re-read at the moments that matter: after a route change (the
+   effect below — the router writes the URL after the render that changed
+   the pathname, so a read DURING that render is one page behind), on
+   Back/Forward, when the link itself is about to be used (see
+   `refreshSearch`), and when a calculator says it has rewritten its own
+   address (`ADDRESS_EVENT`). */
 const searchListeners = new Set<() => void>();
+
+/* What a calculator sends to the window after writing its case into the
+   address (BeamCalculator.tsx, under the same name). By name and not by
+   import: this file reads the site's whole copy, which a calculator's script
+   must not carry. */
+const ADDRESS_EVENT = 'mp:address';
 
 function subscribeSearch(notify: () => void) {
   searchListeners.add(notify);
   window.addEventListener('popstate', notify);
+  window.addEventListener(ADDRESS_EVENT, notify);
   return () => {
     searchListeners.delete(notify);
     window.removeEventListener('popstate', notify);
+    window.removeEventListener(ADDRESS_EVENT, notify);
   };
 }
 
@@ -88,6 +97,15 @@ const readCarried = () => (window.location.hash.startsWith('#b=') ? window.locat
 /** `#b=…` of the page on screen, or '' — and '' on the server. With `useSearch()`, which re-reads it. */
 export function useCarriedHash(): string {
   return useSyncExternalStore(subscribeSearch, readCarried, noSearch);
+}
+
+/**
+ * The query and the carried `#b=…` as the address bar has them at this
+ * instant — for the click of the language link, which must not trust what
+ * was rendered a moment before (see SiteHeader). In the browser only.
+ */
+export function addressNow(): { search: string; carried: string } {
+  return { search: readSearch(), carried: readCarried() };
 }
 
 /** `?service=…` of the page on screen, or '' — and '' on the server. */

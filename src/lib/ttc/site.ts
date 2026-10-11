@@ -3134,7 +3134,7 @@ export const legal = {
     h1: 'Terms of Use for This Website',
     sub: 'The basis on which the information published here is provided.',
     sections: [
-      { h: 'General information only', p: 'The content on this website describes services in general terms. It is not an engineering opinion, a recommendation for a specific building, or a substitute for a site-specific evaluation. Nothing here should be relied on as the basis for a construction, repair or compliance decision.' },
+      { h: 'General information only', p: 'The content on this website describes services in general terms, and its calculators are working aids. None of it is an engineering opinion, a recommendation for a specific building, or a substitute for a site-specific evaluation. Nothing here should be relied on as the basis for a construction, repair or compliance decision.' },
       { h: 'No professional relationship', p: [
         'Visiting this site, reading it, or submitting the proposal request form does not create a professional engineering relationship. An engagement begins only when scope, fee and terms are agreed in writing.',
         'The same is true of a call, an email or a WhatsApp message, and of a notice sent by any of them: we read it and reply, and nothing is under way until you have accepted a written proposal. Asking for a proposal is free and commits you to nothing.',
@@ -3148,10 +3148,12 @@ export const legal = {
       { h: 'Accuracy and availability', p: 'We keep this site current, but do not warrant that every statement is complete or free of error, or that the site will always be available. The reply time mentioned on this site is what is usual, not a commitment.' },
       { h: 'Links to other sites', p: 'This site links to county offices, to the Florida DBPR’s license search, to statutes and codes, and to WhatsApp. Those pages belong to whoever publishes them and are outside our control: they can change or move, and what they say and how they handle your information is theirs to answer for. City building offices are named, not linked; under each list of them we print the date the names were last checked.' },
       { h: 'Photographs and examples', p: 'The photographs and video on this site are licensed images that show kinds of buildings and of work. None of them shows a project of the firm, and none was chosen because a building in it received a notice. The profiles under Typical Engagements describe the work the firm takes on; they are not past projects.' },
-      /* What each calculator page says of itself under "Before you rely on
-         it", said once for all of them. No cap on liability and no warranty
+      /* What each calculator page says of itself under "Use it as an engineer
+         would", said once for all of them — and, like that page, without
+         telling anyone when a result may be relied on: the first section
+         says nothing here may, and this one must not undo it. No cap on liability and no warranty
          clause: those are the owner's to decide (see above). */
-      { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means before you rely on it. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project.' },
+      { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means: a decision rests on that check, not on the calculator. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
       { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
     ],

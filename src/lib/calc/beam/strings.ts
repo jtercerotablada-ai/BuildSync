@@ -1,5 +1,5 @@
 import type { Lang } from '@/lib/ttc/i18n';
-import type { FormIssueCode, MaterialKey, SectionProps, SupportLayout } from './model';
+import type { FormIssueCode, MaterialKey, RowList, SectionMode, SectionProps, SupportLayout } from './model';
 import type { SupportKind } from './solver';
 
 /**
@@ -12,10 +12,29 @@ import type { SupportKind } from './solver';
  *
  * Spanish as an engineer in Florida writes it: "cortante", "momento
  * flector", "deflexión", "apoyo", "rótula", "voladizo"; decimals with a
- * point, as on US drawings.
+ * point, as on US drawings — and no comma between thousands, which that
+ * reader takes for the decimal mark: 4000 psi here, 53 670 on the page
+ * (`numbers.group`).
  */
 
 type Ui = {
+  /**
+   * How this page writes numbers. `group` is what it sets thousands apart
+   * with (formatNumber, parseNumber).
+   *
+   * `ambiguous` is the line under a field whose text reads two ways on a
+   * page without grouping commas ("1,250"). It says what to write for each
+   * meaning, never three spellings in a row: {grouped} for thousands (1250),
+   * {padded} for the decimal with a comma (1,2500) and {decimal} for the
+   * decimal with a point (1.250). That last one is itself thousands to a
+   * reader who sets them apart with points, so the line also says that a
+   * point is the decimal mark here.
+   *
+   * `refused` is the line left under a field whose text was not a number
+   * when the field was left: {text} is that text, {value} the value that
+   * stands.
+   */
+  numbers: { group: string; ambiguous: string; refused: string };
   toolbar: { units: string; us: string; si: string; layout: string; layoutPick: string; reset: string; copy: string; copied: string; copyFailed: string; print: string };
   layouts: Record<SupportLayout, string>;
   beam: { title: string; length: string };
@@ -52,6 +71,8 @@ type Ui = {
     modes: { props: string; rect: string; shape: string };
     material: string;
     materials: Record<MaterialKey, string>;
+    /** Under the fields while that material and its listed modulus are in use: what the modulus assumes. */
+    materialNote: Record<'concrete' | 'wood', string>;
     E: string;
     I: string;
     S: string;
@@ -63,11 +84,17 @@ type Ui = {
     filter: string;
     filterHint: string;
     loading: string;
+    /** The shape table did not arrive, and the button that fetches the page again. */
+    loadFailed: string;
+    reload: string;
+    /** A link named a shape the table does not have; {shape} is the name. */
+    unknownShape: string;
     noMatch: string;
     selfWeight: string;
     computed: string;
   };
-  row: { remove: string; limit: string };
+  /** `names`: one row of each list, for the group it is and the button that removes it ("Support 2"). */
+  row: { remove: string; limit: string; names: Record<RowList, string> };
   results: {
     title: string;
     schematic: string;
@@ -84,6 +111,8 @@ type Ui = {
     cw: string;
     ccw: string;
     equilibrium: string;
+    /** In its place when they do not: {sum}, {load} and {unit}. */
+    unbalanced: string;
     maxima: string;
     maxShear: string;
     maxSagging: string;
@@ -103,9 +132,8 @@ type Ui = {
     slope: string;
     left: string;
     right: string;
-    needEI: string;
-    needS: string;
-    needAv: string;
+    /** What is missing for a result, said in the fields the chosen kind of section has. */
+    need: Record<SectionMode, { deflection: string; bending: string; shear: string }>;
     /** On the drawing, before the beam's own weight. */
     ownWeight: string;
     signs: string;
@@ -146,6 +174,11 @@ type Page = {
 export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
   en: {
     ui: {
+      numbers: {
+        group: ',',
+        ambiguous: 'With one comma this reads two ways. For thousands, write {grouped}. If the comma is the decimal mark, write {padded} or, with a point, {decimal}: here a point is always the decimal mark.',
+        refused: '“{text}” is not a number: the value is still {value}.',
+      },
       toolbar: {
         units: 'Units',
         us: 'US (ft, kip)',
@@ -209,9 +242,13 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         materials: {
           steel: 'Steel',
           aluminum: 'Aluminum',
-          concrete: 'Concrete, normalweight, f′c = 4,000 psi (28 MPa)',
-          wood: 'Wood, Douglas Fir-Larch No. 2, 2 to 4 in. thick',
+          concrete: 'Concrete',
+          wood: 'Wood',
           custom: 'Other (enter E)',
+        },
+        materialNote: {
+          concrete: 'This E is for normalweight concrete with f′c = 4,000 psi (28 MPa).',
+          wood: 'This E is for Douglas Fir-Larch No. 2 lumber, 2 to 4 in. thick.',
         },
         E: 'Modulus of elasticity, E',
         I: 'Moment of inertia, I',
@@ -224,11 +261,18 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         filter: 'Find a shape',
         filterHint: 'W18, HSS6X4, Pipe5…',
         loading: 'Loading the shape table…',
+        loadFailed: 'The shape table could not be loaded.',
+        reload: 'Load the page again',
+        unknownShape: 'The shape {shape} is not in the table. Choose one from the list.',
         noMatch: 'No shape matches.',
         selfWeight: 'Include the beam’s own weight',
         computed: 'From these dimensions',
       },
-      row: { remove: 'Remove', limit: 'Twelve at most.' },
+      row: {
+        remove: 'Remove',
+        limit: 'Twelve at most.',
+        names: { supports: 'Support', hinges: 'Hinge', points: 'Point load', dists: 'Distributed load', couples: 'Applied moment' },
+      },
       results: {
         title: 'Results',
         schematic: 'Loads and supports',
@@ -245,6 +289,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         cw: 'clockwise',
         ccw: 'counter-clockwise',
         equilibrium: 'The reactions add up to the load:',
+        unbalanced: 'The reactions add up to {sum} {unit} and the load is {load} {unit}: they should be equal. Do not use these results.',
         maxima: 'Largest values',
         maxShear: 'Shear',
         maxSagging: 'Sagging moment',
@@ -264,9 +309,23 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         slope: 'Slope',
         left: 'just left',
         right: 'just right',
-        needEI: 'Enter E and I to see deflection.',
-        needS: 'Enter the section modulus to see bending stress.',
-        needAv: 'Enter a shear area to see shear stress.',
+        need: {
+          props: {
+            deflection: 'Enter E and I to see deflection.',
+            bending: 'Enter the section modulus to see bending stress.',
+            shear: 'Enter a shear area to see shear stress.',
+          },
+          rect: {
+            deflection: 'Enter E, the width and the depth to see deflection.',
+            bending: 'Enter the width and the depth to see bending stress.',
+            shear: 'Enter the width and the depth to see shear stress.',
+          },
+          shape: {
+            deflection: 'Choose a shape to see deflection.',
+            bending: 'Choose a shape to see bending stress.',
+            shear: 'Choose a shape to see shear stress.',
+          },
+        },
         ownWeight: 'own weight',
         signs: 'Shear is positive when the part of the beam to the left of the cut is pushed up. Moment is positive when the beam sags, with tension at the bottom.',
         shearRule: {
@@ -288,7 +347,9 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         'hinge-at-end': 'A hinge at an end of the beam releases nothing. Move it inside the beam.',
         'hinge-at-fixed': 'A hinge cannot sit on a fixed support. Use a pin there instead.',
         'couple-at-hinge': 'A moment cannot be applied exactly at a hinge. Move it to one side.',
-        'close-supports': 'Two supports are too close together to be told apart. Move one of them, or use a single fixed support there.',
+        'close-supports':
+          'Two supports are closer together than a thousandth of the beam’s length: a pair like that is not solved. Use one support there, or a fixed support if the two are meant to clamp the beam.',
+        'close-hinges': 'This hinge is too close to the hinge or the support beside it: the short piece between the two is not solved. Move it away, or remove it.',
         unstable: 'These supports do not hold the beam: it would move as a mechanism. Add a support, fix one, or remove a hinge.',
         section: 'A section value is negative or not a number.',
       },
@@ -335,6 +396,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
           'It does not check strength, lateral-torsional buckling, web crippling or any other limit state of a design code.',
           'It does not combine or factor loads: enter the loads of the combination you are checking.',
           'It does not compare deflection with a limit. It gives the length-to-deflection ratio of each span for you to compare.',
+          'It does not solve two supports closer together than a thousandth of the beam’s length, nor a hinge hard against the hinge or the support beside it: it says so and gives no numbers.',
           'For concrete, the deflection is that of the uncracked section entered: cracking and creep are not modelled.',
           'The beam’s own weight is not a load unless a steel shape is chosen and its box is ticked. Otherwise add it to the loads.',
         ],
@@ -352,7 +414,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       },
       disclaimer: {
         title: 'Use it as an engineer would',
-        body: 'This calculator is an aid for people qualified to judge its results. It is not an engineering opinion on any structure, and it comes with no warranty. Check the results independently before relying on them in a design.',
+        body: 'This calculator is an aid for people qualified to judge its results. It is not an engineering opinion on any structure, and it comes with no warranty. Check the results by independent means: a decision in a design rests on your own check, never on this calculator.',
       },
       back: 'All calculators',
       noscript: 'This calculator needs JavaScript: it computes in your browser, and sends nothing to a server.',
@@ -360,6 +422,12 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
   },
   es: {
     ui: {
+      numbers: {
+        // A narrow no-break space.
+        group: '\u202f',
+        ambiguous: 'Con una sola coma se lee de dos maneras. Si son miles, escriba {grouped}. Si la coma es el decimal, escriba {padded} o, con punto, {decimal}: aquí el punto es siempre el decimal.',
+        refused: '«{text}» no es un número: el valor sigue siendo {value}.',
+      },
       toolbar: {
         units: 'Unidades',
         us: 'EE. UU. (ft, kip)',
@@ -423,9 +491,13 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         materials: {
           steel: 'Acero',
           aluminum: 'Aluminio',
-          concrete: 'Concreto de peso normal, f′c = 4,000 psi (28 MPa)',
-          wood: 'Madera, Douglas Fir-Larch n.º 2, de 2 a 4 in de espesor',
+          concrete: 'Concreto',
+          wood: 'Madera',
           custom: 'Otro (introduzca E)',
+        },
+        materialNote: {
+          concrete: 'Este E corresponde a concreto de peso normal con f′c = 4000 psi (28 MPa).',
+          wood: 'Este E corresponde a madera aserrada Douglas Fir-Larch n.º 2, de 2 a 4 in de espesor.',
         },
         E: 'Módulo de elasticidad, E',
         I: 'Momento de inercia, I',
@@ -438,11 +510,18 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         filter: 'Buscar un perfil',
         filterHint: 'W18, HSS6X4, Pipe5…',
         loading: 'Cargando la tabla de perfiles…',
+        loadFailed: 'No se pudo cargar la tabla de perfiles.',
+        reload: 'Cargar la página de nuevo',
+        unknownShape: 'El perfil {shape} no está en la tabla. Elija uno de la lista.',
         noMatch: 'Ningún perfil coincide.',
         selfWeight: 'Incluir el peso propio de la viga',
         computed: 'Con estas dimensiones',
       },
-      row: { remove: 'Quitar', limit: 'Doce como máximo.' },
+      row: {
+        remove: 'Quitar',
+        limit: 'Doce como máximo.',
+        names: { supports: 'Apoyo', hinges: 'Rótula', points: 'Carga puntual', dists: 'Carga distribuida', couples: 'Momento aplicado' },
+      },
       results: {
         title: 'Resultados',
         schematic: 'Cargas y apoyos',
@@ -459,6 +538,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         cw: 'horario',
         ccw: 'antihorario',
         equilibrium: 'Las reacciones suman la carga:',
+        unbalanced: 'Las reacciones suman {sum} {unit} y la carga es {load} {unit}: deberían ser iguales. No use estos resultados.',
         maxima: 'Valores máximos',
         maxShear: 'Cortante',
         maxSagging: 'Momento positivo',
@@ -478,9 +558,23 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         slope: 'Giro',
         left: 'justo a la izquierda',
         right: 'justo a la derecha',
-        needEI: 'Introduzca E e I para ver la deflexión.',
-        needS: 'Introduzca el módulo de sección para ver el esfuerzo de flexión.',
-        needAv: 'Introduzca un área de cortante para ver el esfuerzo cortante.',
+        need: {
+          props: {
+            deflection: 'Introduzca E e I para ver la deflexión.',
+            bending: 'Introduzca el módulo de sección para ver el esfuerzo de flexión.',
+            shear: 'Introduzca un área de cortante para ver el esfuerzo cortante.',
+          },
+          rect: {
+            deflection: 'Introduzca E, el ancho y la altura para ver la deflexión.',
+            bending: 'Introduzca el ancho y la altura para ver el esfuerzo de flexión.',
+            shear: 'Introduzca el ancho y la altura para ver el esfuerzo cortante.',
+          },
+          shape: {
+            deflection: 'Elija un perfil para ver la deflexión.',
+            bending: 'Elija un perfil para ver el esfuerzo de flexión.',
+            shear: 'Elija un perfil para ver el esfuerzo cortante.',
+          },
+        },
         ownWeight: 'peso propio',
         signs: 'El cortante es positivo cuando la parte de la viga a la izquierda del corte es empujada hacia arriba. El momento es positivo cuando la viga se comba hacia abajo, con tracción en la fibra inferior.',
         shearRule: {
@@ -502,7 +596,9 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         'hinge-at-end': 'Una rótula en un extremo de la viga no libera nada. Colóquela dentro de la viga.',
         'hinge-at-fixed': 'Una rótula no puede estar sobre un empotramiento. Use ahí un apoyo articulado.',
         'couple-at-hinge': 'No se puede aplicar un momento exactamente en una rótula. Muévalo a un lado.',
-        'close-supports': 'Dos apoyos están demasiado juntos para distinguirlos. Mueva uno de ellos, o use ahí un solo empotramiento.',
+        'close-supports':
+          'Dos apoyos están a menos de una milésima de la longitud de la viga: un par así no se resuelve. Use ahí un solo apoyo, o un empotramiento si los dos deben impedir el giro de la viga.',
+        'close-hinges': 'Esta rótula está demasiado cerca de la rótula o del apoyo que tiene al lado: el tramo corto entre ambos no se resuelve. Aléjela o quítela.',
         unstable: 'Estos apoyos no sostienen la viga: se movería como un mecanismo. Añada un apoyo, empotre uno o quite una rótula.',
         section: 'Un valor de la sección es negativo o no es un número.',
       },
@@ -549,6 +645,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
           'No comprueba la resistencia, el pandeo lateral-torsional, el aplastamiento del alma ni ningún otro estado límite de una norma de diseño.',
           'No combina ni mayora cargas: introduzca las cargas de la combinación que esté comprobando.',
           'No compara la deflexión con un límite. Da la relación entre longitud y deflexión de cada vano para que usted la compare.',
+          'No resuelve dos apoyos a menos de una milésima de la longitud de la viga, ni una rótula pegada a la rótula o al apoyo que tiene al lado: lo indica y no da números.',
           'En vigas de concreto, la deflexión es la de la sección sin fisurar que se introduce: no se modelan la fisuración ni la fluencia lenta.',
           'El peso propio de la viga no es una carga, salvo que se elija un perfil de acero y se marque su casilla. En otro caso, añádalo a las cargas.',
         ],
@@ -566,7 +663,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       },
       disclaimer: {
         title: 'Úsela como la usaría un ingeniero',
-        body: 'Esta calculadora es una ayuda para quien está capacitado para juzgar sus resultados. No es una opinión de ingeniería sobre ninguna estructura y se ofrece sin garantía. Compruebe los resultados de forma independiente antes de apoyarse en ellos para un diseño.',
+        body: 'Esta calculadora es una ayuda para quien está capacitado para juzgar sus resultados. No es una opinión de ingeniería sobre ninguna estructura y se ofrece sin garantía. Compruebe los resultados por medios independientes: una decisión de diseño se apoya en su propia comprobación, nunca en esta calculadora.',
       },
       back: 'Todas las calculadoras',
       noscript: 'Esta calculadora necesita JavaScript: calcula en su navegador y no envía nada a un servidor.',

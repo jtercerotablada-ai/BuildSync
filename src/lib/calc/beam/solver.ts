@@ -12,15 +12,55 @@
  * the slope and deflection at the left end, the support reactions and the
  * rotation jump at each hinge; the equations are the support conditions,
  * zero moment at each hinge, and the equilibrium of the whole beam. Every
- * response is then a sum of polynomials ⟨x − a⟩ⁿ, EXACT at every point —
- * there is no mesh, and nothing is interpolated.
+ * response is then a sum of polynomials ⟨x − a⟩ⁿ in closed form: there is no
+ * mesh and nothing is interpolated — the value at a point is the formula
+ * worked out at that point.
  *
  * Why not finite elements (the retired lib/beam-analysis did that): a load
  * placed a hair from a support makes a hair-long element, and the stiffness
  * matrix loses a digit of precision for every factor of ten in L/ℓ, cubed.
  * Here a load adds no unknown at all, so where it sits cannot hurt the
- * solution; only two SUPPORTS that nearly coincide are ill-conditioned, and
- * that is the physics, not the arithmetic.
+ * solution, nor how short it is — down to a billionth of L, under which two
+ * positions are one: a distributed load shorter than a billionth of the
+ * length is not applied.
+ *
+ * WHAT IS EXACT, AND WHERE IT STOPS. The formula is exact; the numbers in it
+ * are doubles. Held against an independent solver (direct stiffness in
+ * 640-bit arithmetic) on the 55,878 beams of an exhaustive lattice and on
+ * ninety thousand random ones:
+ *   — Whether the supports hold the beam is COUNTED (`restOf`), not left to
+ *     the elimination: no mechanism was solved, no held beam called one.
+ *   — What costs digits is two UNKNOWNS that nearly coincide. Two supports
+ *     close together each take the pair's moment over the gap, and the split
+ *     between them is lost to rounding while their sum stays right; a piece
+ *     between hinges that rests on two points close together is the same.
+ *     So two consecutive supports closer than a thousandth of L are refused
+ *     ('close-supports') whatever stands between them, a hinge included, and
+ *     so is a piece resting on a base under a hundred-thousandth of L
+ *     ('close-hinges'): see CLOSE and CLOSE_HINGE.
+ *   — Inside those limits, with everything a hundredth of L apart or more,
+ *     every value agreed to 1e-7 of the largest of its diagram, and to
+ *     1e-12 on ordinary beams.
+ *   — Nearer the limits it is the LARGEST reaction that measures the error,
+ *     and nothing in the solution shows it: the reactions still add up.
+ *     Errors of up to about 2e-3 of the largest reaction were measured where
+ *     a close pair stands beside a levered piece (one resting on a short
+ *     base):
+ *       · 24.09 returned for a reaction of 20.6, and 3,690 for the 3,687
+ *         beside it: two supports a thousandth of L apart, a hinge as close
+ *         to a roller;
+ *       · −1,329 for −991, beside one of 227,400: two hinges at their limit
+ *         beside two walls at theirs;
+ *       · ∓0.044 on a close pair that carries nothing, beside a reaction
+ *         of 21: a piece on a base of a ten-thousandth of L further along.
+ *     A reaction under about a hundredth of the largest one is then not good
+ *     to four figures, whatever share of the LOAD it is, and the largest
+ *     ones may be off in their fourth. A slope across a short piece is a
+ *     small deflection over a small length and loses more: 0.45 was returned
+ *     for 0.09 on a link 1.4e-5 of L long.
+ *   — A number holds only so much. A length or a load too large for the
+ *     results to be numbers is refused before anything is worked out: see
+ *     BIG.
  *
  * UNITS: any consistent set. Lengths in one unit (L), forces in one unit
  * (F): P in F, w in F/L, M in F·L. The flexural stiffness is NOT an input:
@@ -80,19 +120,24 @@ export interface BeamModel {
 }
 
 export type BeamIssueCode =
-  | 'length' // L is not a positive, finite number
-  | 'number' // a value is not a finite number
+  | 'length' // L is not a positive number, or not of a size the engine takes (see BIG)
+  | 'number' // a value is not a number, or a load is larger than the engine takes (see BIG)
   | 'outside' // a position is off the beam
   | 'no-supports'
   | 'hinge-at-end' // a hinge at an end of the beam releases nothing
   | 'hinge-at-fixed' // a hinge on a fixed support: which side is held?
   | 'couple-at-hinge' // a couple on a hinge: applied to which side?
-  | 'close-supports' // two supports so close that the arithmetic cannot tell them apart
+  | 'close-supports' // two supports next to each other, closer than a thousandth of the length: not solved
+  | 'close-hinges' // a piece between hinges held on a base under a hundred-thousandth of the length: not solved
   | 'unstable'; // the supports do not hold the beam: a mechanism
 
 export interface BeamIssue {
   code: BeamIssueCode;
-  /** Which list the offending entry is in, and its index there. */
+  /**
+   * Which list the offending entry is in, and its index there. Of two
+   * supports or two hinges too close together, the one further right; of a
+   * hinge too close to a support, the hinge.
+   */
   where?: { list: 'supports' | 'hinges' | 'points' | 'couples' | 'dists'; index: number };
 }
 
@@ -147,7 +192,11 @@ export interface BeamSolution {
   };
   /** Resultant of the applied loads, positive downward. */
   totalLoad: number;
-  /** What is left of ΣF and ΣM (about x = 0) once the reactions are in: zero but for rounding. */
+  /**
+   * What is left of ΣF and ΣM (about x = 0) once the reactions are in: zero
+   * but for rounding. No beam is returned as solved with more than a
+   * millionth of its loads left over.
+   */
   residual: { force: number; moment: number };
 }
 
@@ -155,6 +204,52 @@ export type BeamOutcome = BeamSolution | { ok: false; issues: BeamIssue[] };
 
 /* Positions are compared in units of L; two closer than this are one. */
 const EPS = 1e-9;
+/* Two supports that are not one, and closer than this, are not solved. The
+   arithmetic loses a digit of the split between them for every factor of
+   ten in the gap, and up to three times that for a fixed support beside
+   another: at a ten-thousandth of L a reaction of 15 came out as 15.29
+   with −0.29 beside it where the beam has +0.00009 — and the sum of the two
+   is right all the while, so no check on the solution can see it. At a
+   thousandth the pair by itself is right in the figures printed; beside a
+   levered piece it is not always (the header has the measurements).
+
+   The rule is about two supports NEXT TO EACH OTHER along the beam,
+   whatever stands between them: a hinge between the two, or under one of
+   them, changes nothing. With a hinge there they hold two different pieces
+   and are not the pair described above, and on pins and rollers such beams
+   were being solved right. They are refused all the same: with a fixed
+   support among the two they were not (a wall 4.5e-5 of L from the next
+   and a hinge between them: 114.9 returned for 114.7), so an exception
+   would need a limit of its own, and none has been measured. */
+const CLOSE = 1e-3;
+/* The same for a piece of the beam between hinges that rests on two points
+   this close: a hinge beside another hinge, or beside the only support of
+   its piece. (A hinge beside a support is no trouble when the piece rests
+   on something else as well, nor beside a fixed support.) One such piece by
+   itself is solved right down to a hundred-thousandth of L; below, the
+   elimination gave up and a beam that stands was called a mechanism.
+   Several of them, or one beside a close pair of supports, are another
+   matter: the header has what was measured, and `lost` what is refused. */
+const CLOSE_HINGE = 1e-5;
+/* The largest length and the largest load the engine takes, and the
+   smallest length. Nobody builds a beam of 1e60 ft, but a link can ask for
+   one, and a number holds only so much (1.8e308): past it a product is
+   Infinity, and Infinity less Infinity is no number at all. A uniform load
+   of 1e308 came back as "two supports closer than a thousandth" on
+   supports 20 ft apart; two point loads of ±1e308 as a solution, with
+   Infinity among its moments for the diagrams to draw.
+
+   What a solution holds grows as load × length³ — as intensity × length⁴
+   for a distributed load. With the length and twelve rows of every kind of
+   load all AT the limit, the largest number in the solutions of the page's
+   seven layouts was 1.5e300 (the tip of a cantilever), a hundred million
+   times short of the end. One piece levered on a base at ITS limit uses
+   that margin up, which is why the stations are looked at once more before
+   a solution is returned. The smallest length is for the couples, which
+   are divided by it: 8 kip·ft on a beam of 1e-310 ft was "two supports
+   closer than a thousandth" too. */
+const BIG = 1e60;
+const SMALL = 1e-60;
 
 type Quad = { V: number; M: number; T: number; Y: number };
 
@@ -198,6 +293,18 @@ function addRampFrom(q: Quad, d: number, k: number) {
   q.M -= (k * d2 * d) / 6;
   q.T -= (k * d2 * d2) / 24;
   q.Y -= (k * d2 * d2 * d) / 120;
+}
+/* A whole distributed load, downward, seen from a distance d past its START
+   that is at or beyond its end: by its moments about that start,
+   m[n] = ∫ w(s)·sⁿ ds. The brackets would say "the load running on for ever,
+   less the same from its end on" — two ramps of slope (w2 − w1)/length, and
+   for a short load that slope is huge and the two cancel to nothing: a
+   10 kip triangle a ten-millionth of the span long came out as 9.875. */
+function addLoadBehind(q: Quad, d: number, m: number[]) {
+  q.V -= m[0];
+  q.M -= m[0] * d - m[1];
+  q.T -= (m[0] * d * d - 2 * m[1] * d + m[2]) / 2;
+  q.Y -= (m[0] * d * d * d - 3 * m[1] * d * d + 3 * m[2] * d - m[3]) / 6;
 }
 /** A jump k in slope at the point (what a hinge allows). */
 function addKink(q: Quad, d: number, side: Side, k: number) {
@@ -254,10 +361,80 @@ function bisect(f: (x: number) => number, a: number, b: number, fa: number): num
   return (lo + hi) / 2;
 }
 
+/* Where f crosses zero between a and b, given its values at the two; null
+   when it does not. An end where f is zero has no sign to bracket with, and
+   is no reason to pass over the cell: the shear at a free end is zero and
+   can cross zero again a hair further on, with the largest moment there. So
+   that end is looked at just inside the cell instead, and the cell is passed
+   over only if f is still zero there (zero all along) or has the sign of the
+   other end. Zero is anything up to `zero`, the caller's measure of rounding:
+   the moment at a hinge comes out as ±1e-15, and that sign is nobody's. */
+function crossing(f: (x: number, side: Side) => number, a: number, b: number, fa: number, fb: number, zero: number): number | null {
+  // Nothing at either end — no load on this stretch, the commonest cell of
+  // all — is nothing in between: not worth two more evaluations to learn.
+  if (fa === 0 && fb === 0) return null;
+  const hair = 1e-6 * (b - a);
+  let lo = a;
+  let hi = b;
+  let flo = fa;
+  let fhi = fb;
+  if (Math.abs(flo) <= zero) flo = f((lo += hair), 'right');
+  if (Math.abs(fhi) <= zero) fhi = f((hi -= hair), 'left');
+  if (Math.abs(flo) <= zero || Math.abs(fhi) <= zero || flo < 0 === fhi < 0) return null;
+  return bisect((x) => f(x, 'right'), lo, hi, flo);
+}
+
+/* Do the supports hold the beam? In a mechanism nothing bends: the hinges cut
+   the beam into pieces and each one moves as a straight line. A line is held
+   by a fixed support, or by two of its points that cannot move — a support
+   on it, or a hinge whose other piece is held without leaning on this one.
+   That is a count, exact wherever the supports are; the elimination cannot
+   tell a mechanism from two supports a hair apart, so it is not asked.
+
+   `null` for a mechanism. Otherwise, for each piece that rests on points
+   alone, the distance from the first of them to the last, and the hinge (its
+   place in `hinges`) at an end of that base, −1 when both ends are supports.
+   Positions in units of L, both lists in ascending order. */
+function restOf(supports: { a: number; kind: SupportKind }[], hinges: number[]): { base: number; hinge: number }[] | null {
+  const n = hinges.length + 1;
+  const wall = new Array<boolean>(n).fill(false);
+  const own: number[][] = Array.from({ length: n }, () => []);
+  // A support on a hinge holds that point of both its pieces.
+  const pinned = hinges.map(() => false);
+  for (const s of supports) {
+    const on = hinges.findIndex((h) => Math.abs(h - s.a) < EPS);
+    if (on >= 0) pinned[on] = true;
+    else {
+      const i = hinges.filter((h) => h < s.a).length;
+      own[i].push(s.a);
+      if (s.kind === 'fixed') wall[i] = true;
+    }
+  }
+  // Piece i with what is on it and the hinge on ONE side of it: held that
+  // way, the piece on its other side may lean on it.
+  const holds = (i: number, hinge: boolean) => wall[i] || own[i].length + (hinge ? 1 : 0) >= 2;
+  const fromLeft: boolean[] = [];
+  for (let i = 0; i < n; i++) fromLeft.push(holds(i, i > 0 && (pinned[i - 1] || fromLeft[i - 1])));
+  const fromRight = new Array<boolean>(n).fill(false);
+  for (let i = n - 1; i >= 0; i--) fromRight[i] = holds(i, i < n - 1 && (pinned[i] || fromRight[i + 1]));
+
+  const rest: { base: number; hinge: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    if (wall[i]) continue;
+    const before = i > 0 && (pinned[i - 1] || fromLeft[i - 1]);
+    const after = i < n - 1 && (pinned[i] || fromRight[i + 1]);
+    const points = [...(before ? [hinges[i - 1]] : []), ...own[i], ...(after ? [hinges[i]] : [])];
+    if (points.length < 2) return null;
+    rest.push({ base: points[points.length - 1] - points[0], hinge: after ? i : before ? i - 1 : -1 });
+  }
+  return rest;
+}
+
 export function solveBeam(model: BeamModel): BeamOutcome {
   const issues: BeamIssue[] = [];
   const L = model.L;
-  if (!Number.isFinite(L) || L <= 0) return { ok: false, issues: [{ code: 'length' }] };
+  // Not a number, not positive, or not of a size the engine takes.
+  if (!(L >= SMALL && L <= BIG)) return { ok: false, issues: [{ code: 'length' }] };
 
   const hingesIn = model.hinges ?? [];
   const pointsIn = model.points ?? [];
@@ -266,6 +443,8 @@ export function solveBeam(model: BeamModel): BeamOutcome {
 
   /* ── What was entered, checked ─────────────────────────────────────── */
   const finite = (...v: number[]) => v.every(Number.isFinite);
+  /** The size of a load: a number, and one the engine takes. (NaN is not under any limit.) */
+  const sized = (...v: number[]) => v.every((s) => Math.abs(s) <= BIG);
   const on = (x: number) => x >= -EPS * L && x <= L * (1 + EPS);
   const unit = (x: number) => Math.min(1, Math.max(0, x / L));
 
@@ -279,15 +458,15 @@ export function solveBeam(model: BeamModel): BeamOutcome {
     else if (unit(h) < EPS || unit(h) > 1 - EPS) issues.push({ code: 'hinge-at-end', where: { list: 'hinges', index } });
   });
   pointsIn.forEach((p, index) => {
-    if (!finite(p.x, p.P)) issues.push({ code: 'number', where: { list: 'points', index } });
+    if (!finite(p.x) || !sized(p.P)) issues.push({ code: 'number', where: { list: 'points', index } });
     else if (!on(p.x)) issues.push({ code: 'outside', where: { list: 'points', index } });
   });
   couplesIn.forEach((c, index) => {
-    if (!finite(c.x, c.M)) issues.push({ code: 'number', where: { list: 'couples', index } });
+    if (!finite(c.x) || !sized(c.M)) issues.push({ code: 'number', where: { list: 'couples', index } });
     else if (!on(c.x)) issues.push({ code: 'outside', where: { list: 'couples', index } });
   });
   distsIn.forEach((d, index) => {
-    if (!finite(d.x1, d.x2, d.w1, d.w2)) issues.push({ code: 'number', where: { list: 'dists', index } });
+    if (!finite(d.x1, d.x2) || !sized(d.w1, d.w2)) issues.push({ code: 'number', where: { list: 'dists', index } });
     else if (!on(d.x1) || !on(d.x2)) issues.push({ code: 'outside', where: { list: 'dists', index } });
   });
   if (issues.length) return { ok: false, issues };
@@ -316,14 +495,42 @@ export function solveBeam(model: BeamModel): BeamOutcome {
   });
   if (issues.length) return { ok: false, issues };
 
+  /* ── Is it held, and by things far enough apart to solve? ──────────── */
+  // A mechanism is called one whatever else is true of it: moving a support
+  // that is too close to another would not make it stand.
+  const rest = restOf(supports, hinges);
+  if (!rest) return { ok: false, issues: [{ code: 'unstable' }] };
+  supports.forEach((s, i) => {
+    if (i > 0 && s.a - supports[i - 1].a < CLOSE - EPS) issues.push({ code: 'close-supports', where: { list: 'supports', index: s.from } });
+  });
+  /** A hinge of `hinges`, as the caller listed it. */
+  const hingeIssue = (i: number): BeamIssue => ({ code: 'close-hinges', where: { list: 'hinges', index: hingesIn.findIndex((h) => Math.abs(unit(h) - hinges[i]) < EPS) } });
+  for (const r of rest) {
+    // Two supports alone on a base this short are the case above.
+    if (r.hinge < 0 || r.base >= CLOSE_HINGE - EPS) continue;
+    const issue = hingeIssue(r.hinge);
+    if (!issues.some((i) => i.code === issue.code && i.where?.index === issue.where?.index)) issues.push(issue);
+  }
+  if (issues.length) return { ok: false, issues };
+
   const points = pointsIn.filter((p) => p.P !== 0).map((p) => ({ a: unit(p.x), P: p.P }));
   const couples = couplesIn.filter((c) => c.M !== 0).map((c) => ({ a: unit(c.x), M: c.M / L }));
   // A distributed load entered right-to-left is the same load.
   const dists = distsIn
     .map((d) => (d.x1 <= d.x2 ? d : { x1: d.x2, x2: d.x1, w1: d.w2, w2: d.w1 }))
-    .map((d) => ({ a: unit(d.x1), b: unit(d.x2), wa: d.w1 * L, wb: d.w2 * L, k: 0 }))
+    // Its length from the two positions as they were given: taken from the
+    // two divided by L, a load a ten-millionth of the span long would be
+    // known to nine figures only, and its resultant with it.
+    .map((d) => ({ a: unit(d.x1), b: unit(d.x2), len: (d.x2 - d.x1) / L, wa: d.w1 * L, wb: d.w2 * L, k: 0, m: [0, 0, 0, 0] }))
+    // One whose two ends are one position (EPS) has no length here, whatever
+    // its intensity: it is not applied.
     .filter((d) => d.b - d.a > EPS && (d.wa !== 0 || d.wb !== 0));
-  for (const d of dists) d.k = (d.wb - d.wa) / (d.b - d.a);
+  for (const d of dists) {
+    const dw = d.wb - d.wa;
+    d.k = dw / d.len;
+    // ∫ w(s)·sⁿ ds from its start, n = 0…3: all it is to a point past its end.
+    d.m = [d.len * (d.wa + dw / 2), d.len ** 2 * (d.wa / 2 + dw / 3), d.len ** 3 * (d.wa / 3 + dw / 4), d.len ** 4 * (d.wa / 4 + dw / 5)];
+  }
 
   /** The applied loads alone, on a beam with zero slope and deflection at the left end. */
   const loadsAt = (x: number, side: Side): Quad => {
@@ -331,14 +538,27 @@ export function solveBeam(model: BeamModel): BeamOutcome {
     for (const p of points) addUpwardForce(q, x - p.a, side, -p.P);
     for (const c of couples) addCcwCouple(q, x - c.a, side, c.M);
     for (const d of dists) {
-      addUniformFrom(q, x - d.a, d.wa);
-      addRampFrom(q, x - d.a, d.k);
-      // …and taken off again past its end.
-      addUniformFrom(q, x - d.b, -d.wb);
-      addRampFrom(q, x - d.b, -d.k);
+      const past = x - d.a;
+      if (past >= d.b - d.a) addLoadBehind(q, past, d.m);
+      else {
+        // Inside the load: the part of it behind the point.
+        addUniformFrom(q, past, d.wa);
+        addRampFrom(q, past, d.k);
+      }
     }
     return q;
   };
+  /** Their resultant, positive downward; and its moment about x = 0, counter-clockwise, per unit of L. */
+  const totalLoad = points.reduce((sum, p) => sum + p.P, 0) + dists.reduce((sum, d) => sum + ((d.wa + d.wb) / 2) * d.len, 0);
+  const momentOfLoads =
+    points.reduce((sum, p) => sum - p.P * p.a, 0) +
+    couples.reduce((sum, c) => sum + c.M, 0) +
+    dists.reduce((sum, d) => {
+      // ∫ w(s)·s ds over the load: its resultant at its left end, plus the
+      // moment of the trapezoid about that end.
+      const W = ((d.wa + d.wb) / 2) * d.len;
+      return sum - (W * d.a + (d.wa * d.len * d.len) / 2 + ((d.wb - d.wa) * d.len * d.len) / 3);
+    }, 0);
   const intensityAt = (x: number, side: Side): number => {
     let w = 0;
     for (const d of dists) {
@@ -377,21 +597,40 @@ export function solveBeam(model: BeamModel): BeamOutcome {
   equation(1, 'right', 'V'); // nothing is left past the right end:
   equation(1, 'right', 'M'); // the whole beam is in equilibrium
 
-  // No solution: a mechanism — unless two supports sit within a thousandth
-  // of the beam of each other. That pair IS stable (it clamps the beam), but
-  // its two reactions are a difference of nearly equal numbers and the
-  // system is singular to rounding; calling it a mechanism would be false.
-  const closest = supports.reduce((gap, s, i) => (i === 0 ? gap : Math.min(gap, s.a - supports[i - 1].a)), Infinity);
-  const unsolved: BeamOutcome = { ok: false, issues: [{ code: closest < 1e-3 ? 'close-supports' : 'unstable' }] };
+  // The beam is held and nothing on it is too close together, so this goes
+  // through. Should the arithmetic fail all the same — several things each
+  // just past its limit — the beam is refused as what it then is, too close
+  // to separate, with the tightest of them named; never as a mechanism,
+  // which it is not.
+  const lost = (): BeamOutcome => {
+    const tight = rest.filter((r) => r.hinge >= 0).sort((p, q) => p.base - q.base)[0];
+    if (tight) return { ok: false, issues: [hingeIssue(tight.hinge)] };
+    let near = 1;
+    for (let i = 2; i < nR; i++) if (supports[i].a - supports[i - 1].a < supports[near].a - supports[near - 1].a) near = i;
+    return { ok: false, issues: [{ code: 'close-supports', where: nR > 1 ? { list: 'supports', index: supports[near].from } : undefined }] };
+  };
   const u = solveLinear(A, b);
-  if (!u) return unsolved;
+  if (!u) return lost();
 
   const stateAt = (xn: number, side: Side): Quad => unknownsAt(loadsAt(xn, side), xn, side, (i) => u[i]);
-  // The solution must satisfy what it was asked: anything else is a matrix
-  // too close to singular to trust (a mechanism but for rounding).
-  const scale = Math.max(1, ...points.map((p) => Math.abs(p.P)), ...dists.map((d) => Math.abs(d.wa) + Math.abs(d.wb)), ...couples.map((c) => Math.abs(c.M)));
+  // The reactions must carry the loads — their sum and their moment about
+  // x = 0, both taken from the loads themselves and not from the response —
+  // and nothing may be left past the right end. All of it measured against
+  // the loads AS FORCES (a distributed load is its mean intensity times its
+  // length, a couple its moment over L). Against intensities, one short
+  // load of huge intensity made the tolerance huge, and reactions of 9.875
+  // under a load of 10 were returned as the solution. (That load is now
+  // taken off by its moments and adds up; of 140,000 random beams, the
+  // closest allowed among them, none was stopped here. It stays as the last
+  // word on what may be called a solution.)
+  const size =
+    points.reduce((sum, p) => sum + Math.abs(p.P), 0) +
+    dists.reduce((sum, d) => sum + ((Math.abs(d.wa) + Math.abs(d.wb)) / 2) * d.len, 0) +
+    couples.reduce((sum, c) => sum + Math.abs(c.M), 0);
+  const force = supports.reduce((sum, _s, i) => sum + u[2 + i], 0) - totalLoad;
+  const moment = momentOfLoads + supports.reduce((sum, s, i) => sum + u[2 + i] * s.a, 0) + fixedAt.reduce((sum, _s, k) => sum + u[2 + nR + k], 0);
   const end = stateAt(1, 'right');
-  if (Math.abs(end.V) > 1e-6 * scale || Math.abs(end.M) > 1e-6 * scale) return unsolved;
+  if ([force, moment, end.V, end.M].some((left) => Math.abs(left) > 1e-6 * size)) return lost();
 
   /* ── Back in the caller's units ────────────────────────────────────── */
   const at = (x: number, side?: Side): BeamState => {
@@ -416,7 +655,7 @@ export function solveBeam(model: BeamModel): BeamOutcome {
   // V where w = 0, M where V = 0, v where θ = 0, θ where M = 0. The crossing
   // is bracketed on a fine grid and closed by bisection.
   const stations: BeamState[] = [];
-  const candidates: BeamState[] = [];
+  const grids: BeamState[][] = [];
   const GRID = 24;
   for (let i = 0; i < breaksN.length - 1; i++) {
     const a = breaksN[i];
@@ -428,46 +667,40 @@ export function solveBeam(model: BeamModel): BeamOutcome {
       grid.push(at(xn * L, j === 0 ? 'right' : j === n ? 'left' : 'right'));
     }
     stations.push(...grid);
-    // Every grid point is a candidate too: a derivative that is EXACTLY zero
-    // on one (the midspan of a symmetric beam) is no sign change to bracket.
-    candidates.push(...grid);
-    const roots = (f: (s: BeamState) => number) => {
-      for (let j = 0; j < n; j++) {
-        const fa = f(grid[j]);
-        const fb = f(grid[j + 1]);
-        if (fa === 0 || fb === 0 || fa < 0 === fb < 0) continue;
-        const x = bisect((xx) => f(at(xx, 'right')), grid[j].x, grid[j + 1].x, fa);
+    grids.push(grid);
+  }
+  // The limits on what is entered (BIG) keep these numbers; on a beam near
+  // the limit of length under loads near theirs, a levered piece can still
+  // take a deflection past the largest there is. That is no solution, and it
+  // is the length, cubed, that took it there.
+  if (!stations.every((s) => finite(s.V, s.M, s.EItheta, s.EIv))) return { ok: false, issues: [{ code: 'length' }] };
+  // Every grid point is a candidate too: a derivative that is EXACTLY zero
+  // on one (the midspan of a symmetric beam) is no sign change to bracket.
+  const candidates = [...stations];
+  const roots = (f: (s: BeamState) => number) => {
+    // Rounding, for this diagram: a million-millionth of its largest value.
+    const zero = 1e-12 * stations.reduce((top, s) => Math.max(top, Math.abs(f(s))), 0);
+    for (const grid of grids) {
+      for (let j = 0; j < grid.length - 1; j++) {
+        const x = crossing((xx, side) => f(at(xx, side)), grid[j].x, grid[j + 1].x, f(grid[j]), f(grid[j + 1]), zero);
+        if (x === null) continue;
         // On the side of the crossing that is INSIDE this stretch: a root that
         // lands on its far end (the moment dying out at a free end) must not
         // be read past a load or a support there — that put a zero among the
         // extremes of a shear diagram that never reaches zero.
         candidates.push(at(x, x - grid[j].x < grid[j + 1].x - x ? 'right' : 'left'));
       }
-    };
-    roots((s) => s.w);
-    roots((s) => s.V);
-    roots((s) => s.M);
-    roots((s) => s.EItheta);
-  }
+    }
+  };
+  roots((s) => s.w);
+  roots((s) => s.V);
+  roots((s) => s.M);
+  roots((s) => s.EItheta);
   const pick = (of: (s: BeamState) => number, sign: 1 | -1): BeamExtreme => {
     let best = candidates[0];
     for (const s of candidates) if (sign * of(s) > sign * of(best)) best = s;
     return { value: of(best), x: best.x };
   };
-
-  const totalLoad = points.reduce((sum, p) => sum + p.P, 0) + dists.reduce((sum, d) => sum + ((d.wa + d.wb) / 2) * (d.b - d.a), 0);
-  // About x = 0, counter-clockwise positive, per unit of L then × L.
-  const momentOfLoads =
-    points.reduce((sum, p) => sum - p.P * p.a, 0) +
-    couples.reduce((sum, c) => sum + c.M, 0) +
-    dists.reduce((sum, d) => {
-      // ∫ w(s)·s ds over the load: its resultant at its left end, plus the
-      // moment of the trapezoid about that end.
-      const len = d.b - d.a;
-      const W = ((d.wa + d.wb) / 2) * len;
-      return sum - (W * d.a + (d.wa * len * len) / 2 + ((d.wb - d.wa) * len * len) / 3);
-    }, 0);
-  const momentOfReactions = supports.reduce((sum, s, i) => sum + u[2 + i] * s.a, 0) + fixedAt.reduce((sum, _s, k) => sum + u[2 + nR + k], 0);
 
   return {
     ok: true,
@@ -487,10 +720,7 @@ export function solveBeam(model: BeamModel): BeamOutcome {
       EIthetaMin: pick((s) => s.EItheta, -1),
     },
     totalLoad,
-    residual: {
-      force: reactions.reduce((sum, r) => sum + r.Rv, 0) - totalLoad,
-      moment: (momentOfLoads + momentOfReactions) * L,
-    },
+    residual: { force, moment: moment * L },
   };
 }
 
@@ -515,6 +745,8 @@ export function beamSpans(solution: BeamSolution): BeamSpan[] {
   if (xs[0] > tol) stretches.push({ from: 0, to: xs[0], kind: 'cantilever' });
   for (let i = 0; i < xs.length - 1; i++) stretches.push({ from: xs[i], to: xs[i + 1], kind: 'span' });
   if (solution.L - xs[xs.length - 1] > tol) stretches.push({ from: xs[xs.length - 1], to: solution.L, kind: 'cantilever' });
+  // Rounding of the slope, as in the search for the extremes.
+  const zero = 1e-12 * Math.max(Math.abs(solution.extremes.EIthetaMax.value), Math.abs(solution.extremes.EIthetaMin.value));
   return stretches.map((s) => {
     let best: BeamExtreme = { value: 0, x: s.from };
     const consider = (st: BeamState) => {
@@ -527,10 +759,9 @@ export function beamSpans(solution: BeamSolution): BeamSpan[] {
     // …and a turning point of the shape inside it, closed by bisection.
     const inside = solution.stations.filter((st) => st.x >= s.from - tol && st.x <= s.to + tol);
     for (let j = 0; j < inside.length - 1; j++) {
-      const fa = inside[j].EItheta;
-      const fb = inside[j + 1].EItheta;
-      if (fa === 0 || fb === 0 || fa < 0 === fb < 0 || inside[j + 1].x - inside[j].x < tol) continue;
-      consider(solution.at(bisect((x) => solution.at(x, 'right').EItheta, inside[j].x, inside[j + 1].x, fa)));
+      if (inside[j + 1].x - inside[j].x < tol) continue;
+      const x = crossing((xx, side) => solution.at(xx, side).EItheta, inside[j].x, inside[j + 1].x, inside[j].EItheta, inside[j + 1].EItheta, zero);
+      if (x !== null) consider(solution.at(x));
     }
     return { ...s, EIv: best };
   });

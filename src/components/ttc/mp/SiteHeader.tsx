@@ -16,7 +16,7 @@ import {
   localePath,
   stripLang,
 } from '@/lib/ttc/i18n';
-import { refreshSearch, useCarriedHash, useContent, useLang, useSearch } from './lang';
+import { addressNow, refreshSearch, useCarriedHash, useContent, useLang, useSearch } from './lang';
 
 /** How long the menu's entrance has to have been on screen for a close to
  *  be worth an exit (the panel is about nine tenths in by then). */
@@ -335,6 +335,21 @@ export function SiteHeader() {
       // The query may have changed without the pathname (see refreshSearch).
       onPointerDown={refreshSearch}
       onFocus={refreshSearch}
+      // …and the address is read once more AT the click. A calculator writes
+      // its case into the address as the visitor leaves a field, which a press
+      // on this link is — after the pointer went down; and not every browser
+      // gives a clicked link the focus (Safari, Firefox on a Mac), so no
+      // second reading was certain to follow. A link that is behind the
+      // address goes where the address says: the twin page is another
+      // document either way.
+      onClick={(e) => {
+        const now = addressNow();
+        const fresh = altPath(pathname, now.search) + now.carried;
+        refreshSearch();
+        if (fresh === other || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        window.location.assign(fresh);
+      }}
     >
       {otherLabel}
     </Link>
