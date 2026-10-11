@@ -88,21 +88,30 @@ export function refreshSearch() {
   searchListeners.forEach((notify) => notify());
 }
 
-/* A calculator keeps its case after the # of its address (`#b=…`,
-   BeamCalculator.tsx). Read like the query and at the same moments, so the
-   language link opens the twin page ON THE SAME CASE. That key and no other:
-   any other fragment is a place on this page, which the twin need not have. */
-const readCarried = () => (window.location.hash.startsWith('#b=') ? window.location.hash : '');
+/* A calculator keeps its case after the # of its address, under a key of one
+   letter: `#b=…` on the beam calculator, `#s=…` on the single-span one
+   (BeamCalculator.tsx). Read like the query and at the same moments, so the
+   language link opens the twin page ON THE SAME CASE. A fragment of that
+   shape — `#`, one lower-case letter, `=` — and no other: any other fragment
+   (`#main`, a family of the catalogue) is a place on this page, which the
+   twin need not have. By shape and not from a list of keys: this file cannot
+   import a calculator's code, and a third calculator must not have to be
+   remembered here. Nor by the page it stands on: such a fragment typed by
+   hand where nothing reads it (`#s=…` on the beam calculator, `#x=1` on
+   /about) goes to a twin that does not read it either, and changes nothing
+   there. A gate on the path would not stop the first of those. */
+const CARRIED = /^#[a-z]=/;
+const readCarried = () => (CARRIED.test(window.location.hash) ? window.location.hash : '');
 
-/** `#b=…` of the page on screen, or '' — and '' on the server. With `useSearch()`, which re-reads it. */
+/** A calculator's `#b=…` or `#s=…` on the page on screen, or '' — and '' on the server. With `useSearch()`, which re-reads it. */
 export function useCarriedHash(): string {
   return useSyncExternalStore(subscribeSearch, readCarried, noSearch);
 }
 
 /**
- * The query and the carried `#b=…` as the address bar has them at this
- * instant — for the click of the language link, which must not trust what
- * was rendered a moment before (see SiteHeader). In the browser only.
+ * The query and a calculator's carried fragment as the address bar has them
+ * at this instant — for the click of the language link, which must not trust
+ * what was rendered a moment before (see SiteHeader). In the browser only.
  */
 export function addressNow(): { search: string; carried: string } {
   return { search: readSearch(), carried: readCarried() };

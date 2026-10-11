@@ -32,6 +32,13 @@ import { ambiguousNumber, fieldNumber, parseNumber } from '@/lib/calc/format';
  * then the old value with nothing to say it was the old one.) The field
  * itself carries no mark then: what it shows is the value in use.
  *
+ * A field that may be left EMPTY says which value stands for "nothing
+ * here" (`emptyIs`): that value is shown as an empty field, not as its
+ * digits, and an emptied field reports it and is not marked. Without it an
+ * optional limit opened on a 0 that read as a limit of zero. A text that
+ * was not a number, left in such a field while it was empty, is dropped
+ * without the line that names the value standing: none is on screen.
+ *
  * The unit sits inside the `<label>`, so it is part of the field's name
  * ("Length ft") for a screen reader as it is for the eye.
  */
@@ -43,6 +50,7 @@ export function NumField({
   invalid,
   describedBy,
   optional,
+  emptyIs,
   numbers,
   onEdit,
   onCommit,
@@ -57,6 +65,8 @@ export function NumField({
   describedBy?: string;
   /** The word for "optional", shown after the label when the field may be left at zero. */
   optional?: string;
+  /** The value an empty field stands for, where the field may be left empty. */
+  emptyIs?: number;
   /**
    * How the page writes numbers: what it sets thousands apart with; the
    * line for a text that reads two ways, with {grouped}, {decimal} and
@@ -79,19 +89,26 @@ export function NumField({
   const before = useRef(value);
   const id = useId();
   const group = numbers?.group ?? ',';
+  const canBeEmpty = emptyIs !== undefined;
+  // What the field shows of its value when nobody is typing in it.
+  const shown = canBeEmpty && Object.is(value, emptyIs) ? '' : fieldNumber(value);
+  /** The number a text is, the empty field's value included; null when it is neither. */
+  const read = (text: string) => (canBeEmpty && text.trim() === '' ? emptyIs : parseNumber(text, group));
   // What is said of a dropped text is said of one value. Once the value
   // changes under it (other units, an example, a link opened) the line is
   // withdrawn, and does not come back if the value does.
   if (dropped && !Object.is(dropped.value, value)) setDropped(null);
   const left = draft === null && dropped && Object.is(dropped.value, value) ? dropped.text : null;
   const unsure = ambiguousNumber(draft ?? left ?? '', group);
-  const refused = draft !== null && parseNumber(draft, group) === null;
+  const refused = draft !== null && read(draft) === null;
   const marked = Boolean(invalid) || refused;
   // One pass over the line, so that nothing typed is taken for a place in it.
   const fill = (line: string, parts: Record<string, string>) => line.replace(/\{(\w+)\}/g, (all, key: string) => parts[key] ?? all);
   const hint = unsure && numbers ? fill(numbers.ambiguous, unsure) : '';
-  // A paragraph pasted by mistake is named by its beginning.
-  const lost = left !== null && !hint && numbers ? fill(numbers.refused, { text: left.length > 24 ? `${left.slice(0, 24)}…` : left, value: fieldNumber(value) }) : '';
+  // A paragraph pasted by mistake is named by its beginning. Under a field
+  // that is empty again nothing is said: the line would name the value an
+  // empty field stands for ("the value is still 0"), which it does not show.
+  const lost = left !== null && !hint && numbers && !(canBeEmpty && Object.is(value, emptyIs)) ? fill(numbers.refused, { text: left.length > 24 ? `${left.slice(0, 24)}…` : left, value: fieldNumber(value) }) : '';
   // While the field has focus the line is about the text in it, and is read with it.
   const tied = hint !== '' && draft !== null;
   const described = [tied ? id : '', describedBy ?? ''].filter(Boolean).join(' ');
@@ -110,19 +127,19 @@ export function NumField({
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
-            value={draft ?? fieldNumber(value)}
+            value={draft ?? shown}
             aria-invalid={marked ? true : undefined}
             aria-describedby={described || undefined}
             onFocus={(e) => {
               before.current = value;
-              setDraft(fieldNumber(value));
+              setDraft(shown);
               setDropped(null);
               e.currentTarget.select();
               onEdit?.();
             }}
             onChange={(e) => {
               setDraft(e.target.value);
-              onChange(parseNumber(e.target.value, group) ?? before.current);
+              onChange(read(e.target.value) ?? before.current);
             }}
             onBlur={() => {
               // An emptied field says nothing: there is no text to name. Nor

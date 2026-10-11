@@ -15,7 +15,10 @@ import type { Lang } from './i18n';
  * CalculatorsView prints the name as a link and marks it open; the counts
  * on the page are counted, never typed. The first one — "Beam reactions and
  * diagrams", /resources/beam — opened the day after the list was made, and
- * with it the page went into the sitemap.
+ * with it the page went into the sitemap. The second, "Single-span beam"
+ * (/resources/single-span-beam), is that calculator's engine on one fixed
+ * pair of supports, with what a single span is checked by: each load on its
+ * own, and the stiffness and section modulus the span asks for.
  *
  * THE FAMILIES AND THEIR ICONS. The owner drew sixteen icons, one per
  * general subject ("los 16 iconos corresponden a temas generales; varios
@@ -205,7 +208,7 @@ export const calculatorFamilies: CalculatorFamily[] = [
     icons: ['beam'],
     items: [
       { name: { en: 'Beam reactions and diagrams', es: 'Reacciones y diagramas de vigas' }, does: { en: 'Reactions, shear and moment diagrams, deflection and stress of a beam under any set of loads.', es: 'Reacciones, diagramas de cortante y de momento, deflexión y esfuerzos de una viga con cualquier combinación de cargas.' }, href: '/resources/beam' },
-      { name: { en: 'Single-span beam', es: 'Viga de un solo vano' }, does: { en: 'The simply supported case, under point and distributed loads.', es: 'El caso simplemente apoyado, con cargas puntuales y distribuidas.' } },
+      { name: { en: 'Single-span beam', es: 'Viga de un solo vano' }, does: { en: 'The simply supported case, under point and distributed loads.', es: 'El caso simplemente apoyado, con cargas puntuales y distribuidas.' }, href: '/resources/single-span-beam' },
       { name: { en: 'Continuous beam', es: 'Viga continua' }, does: { en: 'A beam over several supports, solved by finite elements.', es: 'Una viga sobre varios apoyos, resuelta por elementos finitos.' } },
       { name: { en: 'Shaft on bearings', es: 'Eje sobre cojinetes' }, does: { en: 'Reactions, bending and deflection of a mechanical shaft.', es: 'Reacciones, flexión y deflexión de un eje mecánico.' } },
     ],

@@ -9,5 +9,10 @@
  * TO OPEN A CALCULATOR: add its path here, give its entry in calculators.ts
  * the same `href`, and add its two route files (English and /es).
  * calculators.test.ts and proxy.test.ts fail until the three agree.
+ *
+ * In the order of the catalogue (calculators.test.ts compares the two lists
+ * as written). The sitemap and the phone's call bar read it as well: a
+ * calculator's page is listed for search engines, and has no bar lying over
+ * its form.
  */
-export const openCalculatorPaths = ['/resources/beam'] as const;
+export const openCalculatorPaths = ['/resources/beam', '/resources/single-span-beam'] as const;

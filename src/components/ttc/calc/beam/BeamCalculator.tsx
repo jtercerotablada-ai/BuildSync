@@ -24,6 +24,8 @@ import {
   type SupportLayout,
 } from '@/lib/calc/beam/model';
 import type { BeamState, SupportKind } from '@/lib/calc/beam/solver';
+import { DEFAULT_LIMIT, SPAN_KEY, adoptBeam, byLoad, convertStress, decodeSpan, defaultSpan, encodeSpan, pinEnds, reduceSpan, sizing, type SpanCase } from '@/lib/calc/beam/span';
+import type { SpanUi } from '@/lib/calc/beam/span-strings';
 import type { BeamUi } from '@/lib/calc/beam/strings';
 import { NumField } from '../NumField';
 import { BeamPlot, type PlotPoint } from './BeamPlot';
@@ -57,10 +59,49 @@ import { BeamSchematic } from './BeamSchematic';
  * It renders on the server with the default beam (so the page is not an
  * empty box before the script arrives, or without it), then measures its
  * column and reads the address.
+ *
+ * TWO PAGES, ONE COMPONENT. "Single-span beam" (/resources/single-span-beam)
+ * is this calculator with the `span` prop — the words of what that page
+ * adds — and nothing else of its own: a copy of this file would have drifted
+ * from it within a month. In that mode (lib/calc/beam/span.ts):
+ *   — the supports are a pin at 0 and a roller at L, after every edit and
+ *     in every link opened (a link whose beam held more than that is
+ *     opened so, and the results box says what was left out); the groups
+ *     for supports, hinges and applied moments and the list of layouts are
+ *     not rendered, and a line in the Beam group leads to the first
+ *     calculator, with the beam on screen, for those;
+ *   — two cards are added under the drawings: each load alone ("Load by
+ *     load") and the section two limits ask for ("Section needed");
+ *   — the address is `#s=…`: those two limits, then the beam.
+ * Without the prop, none of it: every difference below is behind `single`.
  */
 
 /** The example beam, as it is written in an address. */
 const EXAMPLE = encodeBeam(defaultBeam());
+/** …and the single-span page's example: its own beam, the limits it opens with. */
+const EXAMPLE_SPAN = encodeSpan(defaultSpan(), DEFAULT_LIMIT, 0);
+
+/**
+ * What the fragment of an address opens. `undefined`: it is not a
+ * calculator's (`#main` is a place on the page). `null`: it is, and cannot
+ * be read. On the first calculator a beam after `#b=`. On the single-span
+ * page its own case after `#s=` — and the first calculator's `#b=…` too,
+ * which an engineer may bring over by hand: that beam's loads, on the span.
+ */
+function caseIn(hash: string, single: boolean): SpanCase | null | undefined {
+  // The single-span page reads its key even with nothing after it: a link cut that short is a link that cannot be read.
+  const m = hash.match(single ? /^#([sb])=(.*)$/ : /^#(b)=(.+)$/);
+  if (!m) return undefined;
+  let text = m[2];
+  try {
+    text = decodeURIComponent(text);
+  } catch {
+    /* not percent-encoded: read as it is */
+  }
+  if (single) return m[1] === SPAN_KEY ? decodeSpan(text) : adoptBeam(text);
+  const beam = decodeBeam(text);
+  return beam && { form: beam, limit: DEFAULT_LIMIT, stress: 0 };
+}
 
 /*
  * Sent to the window each time this page rewrites its own address: nothing
@@ -160,9 +201,42 @@ function useTooTall<T extends HTMLElement>(): [React.RefObject<T | null>, boolea
 
 const arrow = (v: number, up: string, down: string) => (v < 0 ? down : up);
 
-/** `initial`: the beam it opens with, where that is not the example — for the tests, which cannot type. */
-export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }) {
-  const [form, dispatch] = useReducer(reduceBeam, initial, (given) => given ?? defaultBeam());
+/**
+ * `span`: the words of the single-span page, which is this calculator in
+ * that mode; `generalPath`: the first calculator's address in the page's
+ * language, for that mode's link to it.
+ *
+ * `initial`: the beam it opens with, where that is not the example — for the
+ * tests, which cannot type. `initialLimits`, the same for the single-span
+ * page's two limits.
+ */
+export function BeamCalculator({
+  t,
+  span,
+  generalPath,
+  initial,
+  initialLimits,
+}: {
+  t: BeamUi;
+  span?: SpanUi;
+  generalPath?: string;
+  initial?: BeamForm;
+  initialLimits?: { limit: number; stress: number };
+}) {
+  const single = Boolean(span);
+  const reduce = single ? reduceSpan : reduceBeam;
+  const [form, dispatch] = useReducer(reduce, initial, (given) => (single ? pinEnds(given ?? defaultSpan()) : given ?? defaultBeam()));
+  // The single-span page's two limits: the deflection limit L/`limit`, and
+  // the bending stress to size for — zero for none, as an optional value of
+  // the section is. Part of the case with the beam: in the address, in a
+  // copied link, on the printed sheet; back to the example's with the beam.
+  const [limit, setLimit] = useState(initialLimits?.limit ?? DEFAULT_LIMIT);
+  const [stress, setStress] = useState(initialLimits?.stress ?? 0);
+  // What the address carries after the #: this page's key, and the case on
+  // screen as that page writes it.
+  const prefix = `#${single ? SPAN_KEY : 'b'}=`;
+  const example = single ? EXAMPLE_SPAN : EXAMPLE;
+  const codeOf = useCallback((beam: BeamForm) => (single ? encodeSpan(beam, limit, stress) : encodeBeam(beam)), [single, limit, stress]);
   const [shapes, setShapes] = useState<SteelShape[] | null>(null);
   const [shapesFailed, setShapesFailed] = useState(false);
   const [shapeFilter, setShapeFilter] = useState('');
@@ -170,6 +244,13 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
   const [typedX, setTypedX] = useState<number | null>(null);
   const [copied, setCopied] = useState<'' | 'ok' | 'failed'>('');
   const [linkError, setLinkError] = useState(false);
+  // On the single-span page, a link whose beam held what this span has not —
+  // other supports, hinges, applied moments (span.ts, `lost`): the span shown
+  // is not that beam, and the results box says so. A state of its own, not
+  // `linkError`: that one is withdrawn as soon as the address is written
+  // again, which for a beam brought over is 300 ms after it opens. This one
+  // stays through the edits that follow, until another link or Start over.
+  const [lost, setLost] = useState(false);
   // The printed sheet says when it was printed and gives the address that
   // opens this very beam. Written at the moment of printing — `beforeprint`
   // is the button and the browser's own Print alike — and put on the page
@@ -183,7 +264,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
   useEffect(() => {
     const mark = () => {
       const when = new Intl.DateTimeFormat(t.sheet.locale, { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
-      const url = `${window.location.origin}${window.location.pathname}#b=${encodeBeam(form)}`;
+      const url = `${window.location.origin}${window.location.pathname}${prefix}${codeOf(form)}`;
       flushSync(() => {
         setStamp({ when, url });
         setOnPaper(true);
@@ -196,7 +277,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
       window.removeEventListener('beforeprint', mark);
       window.removeEventListener('afterprint', back);
     };
-  }, [form, t.sheet.locale]);
+  }, [form, codeOf, prefix, t.sheet.locale]);
   // A link that could not be read is left in the address, for the visitor to look at.
   const unread = useRef(false);
   // The address still to be written, if the beam has changed since the last time.
@@ -219,8 +300,11 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
 
   // A beam in the address opens as that beam.
   useEffect(() => {
-    const open = (beam: BeamForm, failed: boolean) => {
-      dispatch({ type: 'load', form: beam });
+    const open = (found: SpanCase, failed: boolean) => {
+      dispatch({ type: 'load', form: found.form });
+      setLimit(found.limit);
+      setStress(found.stress);
+      setLost(Boolean(found.lost));
       // What was waiting to be written is the beam of before: it is not to
       // land on the address this one came from.
       pending.current = null;
@@ -230,42 +314,37 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
       setProbeX(null);
       setTypedX(null);
     };
+    const blank = (): SpanCase => ({ form: single ? defaultSpan() : defaultBeam(), limit: DEFAULT_LIMIT, stress: 0 });
     const read = (changed?: Event) => {
-      const m = window.location.hash.match(/^#b=(.+)$/);
-      if (!m) {
+      const found = caseIn(window.location.hash, single);
+      if (found === undefined) {
         // Back to the bare address is back to the example beam: that is what
         // a bare address opens. Any other fragment (`#main`) is a place on
         // this page, reached from the beam on screen: the beam stays.
-        if (changed && window.location.hash === '') open(defaultBeam(), false);
+        if (changed && window.location.hash === '') open(blank(), false);
         return;
       }
-      let text = m[1];
-      try {
-        text = decodeURIComponent(text);
-      } catch {
-        /* not percent-encoded: read as it is */
-      }
-      const loaded = decodeBeam(text);
       // Not a beam: the example is shown, and the page says so — a recipient
       // must not take the example for the beam that was sent.
-      open(loaded ?? defaultBeam(), !loaded);
+      open(found ?? blank(), !found);
     };
     read();
     window.addEventListener('hashchange', read);
     return () => window.removeEventListener('hashchange', read);
-  }, []);
+  }, [single]);
 
   // The address follows the beam.
-  const write = useCallback((beam: BeamForm) => {
-    const code = encodeBeam(beam);
-    const want = code === EXAMPLE ? '' : `#b=${code}`;
+  const write = useCallback((code: string) => {
+    const want = code === example ? '' : `${prefix}${code}`;
     if (want) {
       unread.current = false;
       setLinkError(false);
     }
     // Only a fragment that is this calculator's: `#main` is a place on the
-    // page, and is nobody's to remove.
-    const have = window.location.hash.startsWith('#b=') ? window.location.hash : '';
+    // page, and is nobody's to remove. (On the single-span page a beam
+    // brought over under the first calculator's key is this page's too: once
+    // read, it is written again under the page's own.)
+    const have = (single ? /^#[sb]=/.test(window.location.hash) : window.location.hash.startsWith('#b=')) ? window.location.hash : '';
     if (have === want || (!want && unread.current)) return;
     try {
       window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search + want);
@@ -273,7 +352,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
       /* the address is a convenience; the calculator works without it */
     }
     window.dispatchEvent(new Event(ADDRESS_EVENT));
-  }, []);
+  }, [example, prefix, single]);
   // Waited for, not written on every keystroke: Safari refuses more than a
   // hundred history changes in thirty seconds, and a field being typed in
   // passes through values nobody meant.
@@ -285,11 +364,14 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
   // else, is the beam that leaving the field makes of it. (The timer once
   // kept out of the Length field altogether: a page reloaded with the caret
   // still in it came back with the length of before, and no word of it.)
+  const leaving = useCallback(
+    () => (editingL.current && form.L > 0 && Number.isFinite(form.L) ? reduce(form, { type: 'carry-end', from: settledL.current, to: form.L }) : form),
+    [form, reduce],
+  );
   useEffect(() => {
     const now = () => {
       pending.current = null;
-      const carried = editingL.current && form.L > 0 && Number.isFinite(form.L);
-      write(carried ? reduceBeam(form, { type: 'carry-end', from: settledL.current, to: form.L }) : form);
+      write(codeOf(leaving()));
     };
     pending.current = now;
     const id = window.setTimeout(() => {
@@ -297,7 +379,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
       if (pending.current === now) now();
     }, 300);
     return () => window.clearTimeout(id);
-  }, [form, write]);
+  }, [codeOf, leaving, write]);
   // …and is brought up to date at once when the visitor reaches for something
   // else: the language link is built from the address (lang.tsx,
   // useCarriedHash) and must not open the beam of a moment ago; a phone may
@@ -469,9 +551,33 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
   const sigma = mAbs ? bendingStress(form.units, a.section, Math.abs(mAbs.value)) : null;
   const tau = vMax ? shearStress(form.units, a.section, Math.abs(vMax.value)) : null;
 
+  /* ── The single-span page's two cards ───────────────────────────────── */
+  // "Load by load": each load alone on the span. Its moments are read at the
+  // section where the moment of all the loads is largest and its deflections
+  // where their deflection is largest — the two places the card above gives
+  // — or at midspan, when one of them is zero all along and has no place.
+  const mid = sol ? round4(sol.L / 2) : 0;
+  const xM = mAbs?.x ?? mid;
+  const xD = dAbs?.x ?? mid;
+  const shares = useMemo(() => (single && sol ? byLoad(form, shape, xM, xD) : null), [single, sol, form, shape, xM, xD]);
+  // "Section needed": from the largest deflection and the largest moment. One
+  // that is rounding asks for no section at all — settled as everything else
+  // this page prints is, by the place its peak has or has not.
+  const limited = limit > 0 && Number.isFinite(limit);
+  const needs = useMemo(() => {
+    if (!single || !peaks || !mAbs) return null;
+    const raw = sizing(a, form, limit, stress);
+    return { I: raw.I !== null && larger(peaks.EIvMax, peaks.EIvMin).x === null ? 0 : raw.I, S: raw.S !== null && mAbs.x === null ? 0 : raw.S };
+  }, [single, peaks, mAbs, a, form, limit, stress]);
+
   // Every number this page prints, with the page's own mark between thousands.
   const num = (v: number, sig = 4) => formatNumber(v, sig, t.numbers.group);
-  const where = (x: number) => `${t.results.at} x = ${num(x)} ${u.length}`;
+  // A value of "Section needed" with its unit. Before a unit that begins
+  // with a power of ten the multiplication sign is written, and no-break
+  // spaces hold figure, sign and unit on one line: "11 400 10³ mm³" read as
+  // one run of digits, and on a phone a line ended between the two.
+  const sized = (v: number, unit: string, sig?: number) => (/^10/.test(unit) ? `${num(v, sig)} × ${unit}`.replace(/ /g, '\u00a0') : `${num(v, sig)} ${unit}`);
+  const where =(x: number) => `${t.results.at} x = ${num(x)} ${u.length}`;
   // What is missing for a result, in the fields the chosen kind of section
   // has: "enter the section modulus" is no help beside a list of shapes.
   // With the shape table on its way, or lost, that is what is missing.
@@ -501,14 +607,14 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
     // The page and the beam, and nothing else: not the query string the
     // visitor arrived with (an ad's click identifier, a campaign tag), which
     // would travel to everyone the link is sent to.
-    const link = `${window.location.origin}${window.location.pathname}#b=${encodeBeam(form)}`;
+    const link = `${window.location.origin}${window.location.pathname}${prefix}${codeOf(form)}`;
     // The address is brought to this beam too — which for the example beam
     // is the bare address — and a link that could not be read has nothing
     // left to say: the one being copied is the beam on screen.
     unread.current = false;
     setLinkError(false);
     pending.current = null;
-    write(form);
+    write(codeOf(form));
     try {
       await navigator.clipboard.writeText(link);
       setCopied('ok');
@@ -517,6 +623,12 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
       setCopied('failed');
     }
     window.setTimeout(() => setCopied(''), 4000);
+  };
+
+  // The single-span page's link to the first calculator: given the beam that
+  // leaving the Length field makes, at the moment it is used.
+  const aim = (e: { currentTarget: HTMLAnchorElement }) => {
+    e.currentTarget.href = `${generalPath}#b=${encodeBeam(leaving())}`;
   };
 
   const filtered = useMemo(() => {
@@ -593,6 +705,8 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
                   checked={form.units === key}
                   onChange={() => {
                     dispatch({ type: 'units', units: key });
+                    // The single-span page's stress limit is in the units' own (ksi, MPa), and goes with them.
+                    if (single) setStress((typed) => convertStress(typed, form.units, key));
                     // A position typed in feet is not that many metres.
                     setTypedX(null);
                     setProbeX(null);
@@ -602,6 +716,8 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
               </label>
             ))}
           </fieldset>
+          {/* The single-span page has one layout, and no list to choose another from. */}
+          {single ? null : (
           <label className="mp-num mp-num--select">
             <span className="mp-num__label">{t.toolbar.layout}</span>
             <span className="mp-num__box">
@@ -621,6 +737,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
               </select>
             </span>
           </label>
+          )}
         </div>
 
         <fieldset className="mp-app__group">
@@ -643,16 +760,38 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
                 // written now. Whatever reads it next — the language link, a
                 // reload — must find this beam, not wait 300 ms for it.
                 pending.current = null;
-                if (!(form.L > 0) || !Number.isFinite(form.L)) return write(form);
+                if (!(form.L > 0) || !Number.isFinite(form.L)) return write(codeOf(form));
                 const carry = { type: 'carry-end', from: settledL.current, to: form.L } as const;
                 dispatch(carry);
                 settledL.current = form.L;
-                write(reduceBeam(form, carry));
+                write(codeOf(reduce(form, carry)));
               }}
             />
           </div>
+          {span ? <p className="mp-app__note">{span.simple}</p> : null}
+          {/* The first calculator, opened on this beam: for the supports, hinges
+              and applied moments this page does not have. A plain link, and so a
+              page load: that calculator reads its beam from the address as it
+              starts. Not on the printed sheet (calc.css): a link is no value. */}
+          {span && generalPath ? (
+            <p className="mp-app__elsewhere">
+              {span.general}{' '}
+              {/* With the caret still in the Length field, what sat on the right
+                  end has not been carried along yet: the link is given the beam
+                  that leaving the field makes, as the address is — when it is
+                  pressed (any button: a new tab is opened by the middle one) and
+                  when it is followed from the keyboard. */}
+              <a className="mp-link" href={`${generalPath}#b=${encodeBeam(form)}`} onPointerDown={aim} onClick={aim}>
+                {span.generalLink}
+                <i aria-hidden="true">→</i>
+              </a>
+            </p>
+          ) : null}
         </fieldset>
 
+        {/* The supports of the single-span page are not the visitor's to place, and it has no hinges. */}
+        {single ? null : (
+        <>
         <fieldset className="mp-app__group">
           <legend>{t.supports.title}</legend>
           {form.supports.map((s, i) => (
@@ -687,6 +826,8 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
           ))}
           {addButton('hinges', t.hinges.add)}
         </fieldset>
+        </>
+        )}
 
         <fieldset className="mp-app__group">
           <legend>{t.loads.point}</legend>
@@ -728,6 +869,8 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
           {addButton('dists', t.loads.addDist)}
         </fieldset>
 
+        {/* …nor applied moments. */}
+        {single ? null : (
         <fieldset className="mp-app__group">
           <legend>{t.loads.couple}</legend>
           {form.couples.length === 0 ? <p className="mp-app__none">{t.loads.noneCouple}</p> : null}
@@ -746,6 +889,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
           ))}
           {addButton('couples', t.loads.addCouple)}
         </fieldset>
+        )}
 
         <fieldset className="mp-app__group">
           <legend>{t.section.title}</legend>
@@ -897,7 +1041,10 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
             type="button"
             className="mp-app__btn mp-app__btn--quiet"
             onClick={() => {
-              dispatch({ type: 'load', form: defaultBeam() });
+              dispatch({ type: 'load', form: single ? defaultSpan() : defaultBeam() });
+              setLimit(DEFAULT_LIMIT);
+              setStress(0);
+              setLost(false);
               setShapeFilter('');
               setTypedX(null);
               setProbeX(null);
@@ -905,7 +1052,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
               setLinkError(false);
               // The address goes bare — if what is after the # is a beam.
               pending.current = null;
-              write(defaultBeam());
+              write(example);
             }}
           >
             {t.toolbar.reset}
@@ -919,6 +1066,7 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
       {/* ── the answer ───────────────────────────────────────────────── */}
       <section className={tooTall ? 'mp-app__out mp-app__out--tall' : 'mp-app__out'} aria-label={t.results.title} ref={outRef}>
         <div className="mp-app__issues" role="alert" aria-live="assertive">
+          {span && lost ? <p className="mp-app__issues-title">{span.leftOut}</p> : null}
           {notices.length ? (
             <>
               {/* With the beam solved, what is wrong is a value of the section. */}
@@ -1108,6 +1256,117 @@ export function BeamCalculator({ t, initial }: { t: BeamUi; initial?: BeamForm }
                   </tbody>
                 </table>
                 {a.spans.some((s) => s.kind === 'cantilever') ? <p className="mp-app__note">{t.results.ratioNote}</p> : null}
+              </div>
+            ) : null}
+
+            {/* The single-span page's two cards. Before "Values at a point",
+                which stays the last one: the sheet leaves its hint off paper
+                by its place (calc.css). */}
+            {span && shares ? (
+              <div className="mp-app__card mp-app__card--wide">
+                <h3 className="mp-app__h">{span.loads.title}</h3>
+                {/* Each cell says what it is: on a phone the rows are laid out as
+                    lines of their own (calc.css), and a browser that reads a
+                    table's meaning from its layout would lose it there. */}
+                <table className="mp-app__table mp-app__table--loads" role="table">
+                  <thead role="rowgroup">
+                    <tr role="row">
+                      <th scope="col" role="columnheader">
+                        {span.loads.load}
+                      </th>
+                      <th scope="col" role="columnheader">
+                        {span.loads.left} ({u.force})
+                      </th>
+                      <th scope="col" role="columnheader">
+                        {span.loads.right} ({u.force})
+                      </th>
+                      <th scope="col" role="columnheader">
+                        {t.results.momentCol} {where(xM)} ({u.moment})
+                      </th>
+                      {a.toDeflection ? (
+                        <th scope="col" role="columnheader">
+                          {t.results.deflection} {where(xD)} ({u.deflection})
+                        </th>
+                      ) : null}
+                    </tr>
+                  </thead>
+                  <tbody role="rowgroup">
+                    {/* A row is named as the form names it: "Point load 1" is the first of the point loads.
+                        And it is settled as a whole. The deflections' floor is lower than the reactions'
+                        (a billionth of the loads, a millionth of the largest reaction): a load a millionth
+                        of the others was printed with a deflection, beside no reaction and no moment. A
+                        load whose two reactions are rounding has no deflection to show for them. */}
+                    {shares.rows.map((r) => (
+                      <tr key={`${r.list}${r.index}`} role="row">
+                        <th scope="row" role="rowheader">
+                          {r.list === 'own' ? span.loads.own : rowName(r.list, r.index)}
+                        </th>
+                        <td role="cell">{num(settle(r.left, noise.V))}</td>
+                        <td role="cell">{num(settle(r.right, noise.V))}</td>
+                        <td role="cell">{num(settle(r.M, noise.M))}</td>
+                        {a.toDeflection ? <td role="cell">{num((Math.abs(r.left) <= noise.V && Math.abs(r.right) <= noise.V ? 0 : settle(r.EIv, noise.EIv)) * a.toDeflection)}</td> : null}
+                      </tr>
+                    ))}
+                    {/* All of them: the reactions and the largest values printed above, never a second sum of the rows. */}
+                    <tr className="mp-app__total" role="row">
+                      <th scope="row" role="rowheader">
+                        {span.loads.all}
+                      </th>
+                      <td role="cell">{num(reactions[0].Rv)}</td>
+                      <td role="cell">{num(reactions[reactions.length - 1].Rv)}</td>
+                      <td role="cell">{num(mAbs.value)}</td>
+                      {a.toDeflection ? <td role="cell">{num((dAbs?.value ?? 0) * a.toDeflection)}</td> : null}
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="mp-app__note">
+                  {span.loads.note}
+                  {a.toDeflection ? ` ${span.loads.noteDeflection}` : ''}
+                </p>
+              </div>
+            ) : null}
+
+            {span && needs ? (
+              <div className="mp-app__card">
+                <h3 className="mp-app__h">{span.sizing.title}</h3>
+                <div className="mp-app__row mp-app__row--two" role="group" aria-label={span.sizing.title}>
+                  <NumField numbers={t.numbers} label={span.sizing.limit} value={limit} onChange={setLimit} invalid={!limited} describedBy={limited ? undefined : `${uid}limit`} />
+                  <NumField numbers={t.numbers} label={span.sizing.stress} unit={u.stress} value={stress} onChange={setStress} emptyIs={0} optional={t.section.optional} invalid={off(stress)} describedBy={off(stress) ? `${uid}stress` : undefined} />
+                </div>
+                <dl className="mp-app__dl">
+                  <div>
+                    <dt>{span.sizing.inertia}</dt>
+                    <dd>
+                      {needs.I !== null ? (
+                        <>
+                          {sized(needs.I, u.I)}
+                          {a.section.I > 0 ? <span className="mp-app__dir"> {span.sizing.has.replace('{value}', sized(a.section.I, u.I, 6))}</span> : null}
+                        </>
+                      ) : (
+                        <span className="mp-app__dir" id={`${uid}limit`}>
+                          {limited ? span.sizing.needE : span.sizing.needLimit}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{span.sizing.modulus}</dt>
+                    <dd>
+                      {needs.S !== null ? (
+                        <>
+                          {sized(needs.S, u.S)}
+                          {a.section.S > 0 ? <span className="mp-app__dir"> {span.sizing.has.replace('{value}', sized(a.section.S, u.S, 6))}</span> : null}
+                        </>
+                      ) : (
+                        // A stress that was entered and cannot be one is told what is wrong with it, not asked for again.
+                        <span className="mp-app__dir" id={`${uid}stress`}>
+                          {off(stress) ? span.sizing.badStress : span.sizing.needStress}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mp-app__note">{span.sizing.note}</p>
               </div>
             ) : null}
 

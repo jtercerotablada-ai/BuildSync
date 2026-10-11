@@ -1,4 +1,4 @@
-/* Loaded by the calculator pages only (BeamCalculatorView.tsx imports it),
+/* Loaded by the calculator pages only (CalculatorPage.tsx imports it),
    after mp.css, whose tokens (--mp-*) and shared classes it builds on. It
    was a block of mp.css: seven hundred lines every public page waited for.
    A rule here that must beat a shared class carries the weight to do it
@@ -182,6 +182,27 @@
   font-size: var(--mp-t-label);
   letter-spacing: 0.02em;
   color: var(--mp-ink-2);
+}
+/* On the single-span page, under the length: where the supports, hinges and
+   applied moments it leaves out are — the first calculator, opened on the
+   beam on screen. A note that ends in one of the site's links (.mp-link,
+   mp.css), which is given the note's size: at its own it stood a size above
+   the sentence it closes. */
+.mp-app__elsewhere {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+.mp-app__elsewhere .mp-link {
+  font-size: inherit;
+}
+/* …and at the note's size its box is 32px tall, where the site's links are
+   37: the 4px the site adds above and below a link's box, for the finger
+   (mp.css, .mp-link::before), made 40 of it and not 44. Six here. By the
+   same means, so that the rule stays under the words. */
+.mp-app__elsewhere .mp-link::before {
+  inset-block: -6px;
 }
 .mp-app__need {
   padding-block: var(--mp-3);
@@ -662,6 +683,23 @@ select.mp-num__input {
   font-weight: 400;
   color: var(--mp-ink-3);
 }
+/* "Load by load", on the single-span page: one row to a load and five
+   columns, where the other cards have three or four. It takes the whole row
+   of cards: in one column of them (387px on a laptop) its head stood four
+   lines tall and a load's name took two or three. Its table stops at a
+   width a row can still be read across. */
+.mp-app__card--wide {
+  grid-column: 1 / -1;
+}
+.mp-app__table--loads {
+  max-width: 56rem;
+}
+/* Its last row is all the loads together: under a rule, as a sum is. */
+.mp-app__total > th,
+.mp-app__total > td {
+  border-block-start: 1px solid var(--mp-line-strong);
+  font-weight: 500;
+}
 
 /* Under the tool: how it is solved, what it assumes, what it does not do. */
 .mp-appnotes__grid {
@@ -746,6 +784,70 @@ select.mp-num__input {
     font-size: 0.8125rem;
   }
 }
+/* "Load by load" on a phone. As a table its five columns are 365px wide in
+   English and 371 in Spanish ("Distributed", "IZQUIERDO" and "DEFLECTION"
+   do not break) and the card has 350: it ran past its card. So a row is
+   two lines: the load's name, then its values, each under its column's
+   head, which is laid out the same way. Equal shares of the width, whatever
+   the number of columns (four, without a deflection). The cells keep their
+   meaning through this by the roles in the markup.
+   Nothing in it breaks inside a word: a cell that may break anywhere broke
+   its NUMBER, "-0.000413" on one line and "6" on the next, and a reader can
+   take the first line for the value.
+   On a SCREEN: paper is as wide as the paper, and there it is a table. */
+@media screen and (max-width: 640px) {
+  .mp-app__table--loads,
+  .mp-app__table--loads > thead,
+  .mp-app__table--loads > tbody {
+    display: block;
+  }
+  .mp-app__table--loads tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-app__table--loads th,
+  .mp-app__table--loads td {
+    flex: 1 1 0;
+    min-width: 0;
+    border-block-end: 0;
+  }
+  .mp-app__table--loads tr > :first-child {
+    flex: 0 0 100%;
+    padding-block-end: 0;
+  }
+  .mp-app__table--loads tr > :last-child {
+    padding-inline-end: 0;
+  }
+  /* The rule over the sum is the row's, not each cell's. */
+  .mp-app__total > th,
+  .mp-app__total > td {
+    border-block-start: 0;
+  }
+  .mp-app__table--loads tr.mp-app__total {
+    border-block-start: 1px solid var(--mp-line-strong);
+  }
+}
+/* A phone held upright: four values on one line have 63 to 80px each, and a
+   value of ten characters is 85. Two to a line there, each still under its
+   head — the two reactions, then the moment and the deflection. (The load's
+   name keeps its whole line by the rule above, which is the more specific.)
+   The values that end a line give up their gap; the second line of values
+   stands close under the first. */
+@media screen and (max-width: 440px) {
+  .mp-app__table--loads th,
+  .mp-app__table--loads td {
+    flex: 0 0 50%;
+  }
+  .mp-app__table--loads tr > :nth-child(2n + 1) {
+    padding-inline-end: 0;
+  }
+  .mp-app__table--loads th:nth-child(n + 4),
+  .mp-app__table--loads td:nth-child(n + 4) {
+    padding-block-start: 0;
+  }
+}
 /* A laptop: the four drawings at their smallest are some 670px, under a
    header of 90 to 110, and a 1366 × 768 screen leaves the page 657. Pinned
    there, the deflection diagram sat under the fold for as long as the form
@@ -785,7 +887,7 @@ select.mp-num__input {
    firm's name and the calculator's at the top, the short disclaimer and the
    page number at the foot, so that one page copied without the others still
    says what it is. Their words come from strings.ts through three custom
-   properties BeamCalculatorView sets on the root.
+   properties CalculatorPage sets on the root.
 
    Sizes are in points and millimetres here and nowhere else: this is paper. */
 .mp-sheet {
@@ -840,6 +942,7 @@ select.mp-num__input {
   .mp-app__actions,
   .mp-app__add,
   .mp-app__remove,
+  .mp-app__elsewhere,
   .mp-app__bar,
   .mp-app__privacy,
   .mp-app__noscript,
@@ -1134,6 +1237,15 @@ select.mp-num__input {
   .mp-app__dir {
     font-size: 6.75pt;
   }
+  /* The single-span page's table of loads, across both columns; its sum under a rule. */
+  .mp-app__table--loads {
+    max-width: none;
+  }
+  .mp-app__total > th,
+  .mp-app__total > td {
+    border-block-start: 0.75pt solid #000;
+    font-weight: 600;
+  }
   .mp-sheet__stamp {
     margin: 0 0 3mm;
     font-family: var(--mp-mono);
@@ -1149,6 +1261,15 @@ select.mp-num__input {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0 6mm;
     margin: 0;
+  }
+  /* On the single-span page's sheet none of the three is split between two
+     pages. With its two cards more, that sheet comes to the foot of a page
+     inside the notes at five point loads and three distributed ones, and
+     they ran on overleaf in mid-sentence, without their headings. Said of
+     the sheet that has the table of loads: the first calculator's prints as
+     it did. */
+  .mp:has(.mp-app__card--wide) .mp-appnotes__grid > * {
+    break-inside: avoid;
   }
   .mp-appnotes__h {
     margin: 0 0 0.6mm;

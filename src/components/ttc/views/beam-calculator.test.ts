@@ -4,13 +4,14 @@ import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { agree, ambiguousNumber, formatNumber, fieldNumber, parseNumber } from '@/lib/calc/format';
-import { MATERIALS, convertUnits, defaultBeam, type BeamForm } from '@/lib/calc/beam/model';
+import { MATERIALS, convertUnits, defaultBeam, encodeBeam, type BeamForm } from '@/lib/calc/beam/model';
 import { beamStrings } from '@/lib/calc/beam/strings';
 import { calculatorFamilies } from '@/lib/ttc/calculators';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { absoluteUrl } from '@/lib/ttc/site';
 import { BeamCalculator } from '@/components/ttc/calc/beam/BeamCalculator';
+import { addressNow } from '@/components/ttc/mp/lang';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
 
@@ -839,7 +840,8 @@ describe('beam calculator: the site around it', () => {
     for (const cls of ['.mp-app__top', '.mp-num__box', '.mp-seg__item', '.mp-plot', '.mp-beam', '.mp-appnotes__grid']) expect(own, cls).toContain(cls);
     // What must beat a shared class does it by weight, not by which sheet loads last.
     expect(own.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/(^|[\s,}])\.mp-appsec\s*\{/);
-    expect(source('components/ttc/views/BeamCalculatorView.tsx')).toContain("import '@/components/ttc/calc/calc.css';");
+    // It comes with the page every calculator shares, which is where its classes are used.
+    expect(source('components/ttc/views/CalculatorPage.tsx')).toContain("import '@/components/ttc/calc/calc.css';");
   });
 
   it('every class its markup uses is styled in that sheet', () => {
@@ -913,9 +915,22 @@ describe('beam calculator: the site around it', () => {
     });
   }
 
-  it('the language link carries the beam: the header reads the address after the #, for that key alone', () => {
+  it('the language link carries the beam: the header reads the address after the #, for a calculator’s key alone', () => {
     const lang = source('components/ttc/mp/lang.tsx');
-    expect(lang).toContain("window.location.hash.startsWith('#b=') ? window.location.hash : ''");
+    // `#b=` here, `#s=` on the single-span page: a key of one letter, by its shape (single-span.test.ts reads what is carried and what is not).
+    expect(lang).toContain('const CARRIED = /^#[a-z]=/;');
+    expect(lang).toContain("CARRIED.test(window.location.hash) ? window.location.hash : ''");
+    // What those two lines read in a browser: a beam after `#b=` goes with the link, whole; a place on the page does not.
+    const beam = `#b=${encodeBeam(defaultBeam())}`;
+    try {
+      vi.stubGlobal('window', { location: { hash: beam, search: '' } });
+      expect(addressNow().carried).toBe(beam);
+      vi.stubGlobal('window', { location: { hash: '#main', search: '' } });
+      expect(addressNow().carried).toBe('');
+    } finally {
+      // The rest of this file renders on a server, where there is no window.
+      vi.unstubAllGlobals();
+    }
     const header = source('components/ttc/mp/SiteHeader.tsx');
     expect(header).toContain('altPath(pathname, search) + carried');
     // The calculator rewrites its own address and tells the window so, under a

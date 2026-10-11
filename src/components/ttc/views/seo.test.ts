@@ -23,6 +23,8 @@ import { calculatorsPage } from '@/lib/ttc/calculators';
 import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { beamStrings } from '@/lib/calc/beam/strings';
 import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
+import { spanPage } from '@/lib/calc/beam/span-page-strings';
+import { SPAN_PATH, SingleSpanView } from './SingleSpanView';
 import { CalculatorsView } from './CalculatorsView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
@@ -89,6 +91,7 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     // The calculators catalogue, and the calculators that are open.
     ['/resources', { title: calculatorsPage[lang].title, description: calculatorsPage[lang].description }] as const,
     [BEAM_PATH, { title: beamStrings[lang].page.title, description: beamStrings[lang].page.description }] as const,
+    [SPAN_PATH, { title: spanPage[lang].title, description: spanPage[lang].description }] as const,
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -372,6 +375,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     ),
     ['/resources', h(CalculatorsView, { lang })],
     [BEAM_PATH, h(BeamCalculatorView, { lang })],
+    [SPAN_PATH, h(SingleSpanView, { lang })],
   ];
 }
 

@@ -10,6 +10,7 @@ import { cityPath } from '@/lib/ttc/cities';
 import { getCityPages } from '@/lib/ttc/city-content';
 import { AboutView } from './AboutView';
 import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
+import { SPAN_PATH, SingleSpanView } from './SingleSpanView';
 import { CalculatorsView } from './CalculatorsView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
@@ -57,6 +58,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     // (calculators.test.ts and beam-calculator.test.ts have their own rules).
     ['/resources', h(CalculatorsView, { lang })],
     [BEAM_PATH, h(BeamCalculatorView, { lang })],
+    [SPAN_PATH, h(SingleSpanView, { lang })],
     ...getContent(lang).services.map(
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,

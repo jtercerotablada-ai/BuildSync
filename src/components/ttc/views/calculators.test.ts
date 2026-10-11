@@ -5,6 +5,7 @@ import { createElement as h, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import sitemap from '@/app/sitemap';
+import { spanPage } from '@/lib/calc/beam/span-page-strings';
 import { beamStrings } from '@/lib/calc/beam/strings';
 import {
   CALCULATOR_ICON_PX,
@@ -127,8 +128,11 @@ describe('calculators: the list', () => {
   it('the open calculators are exactly the ones with a page, in both languages', () => {
     const hrefs = items.filter((i) => i.href).map((i) => i.href!);
     expect(hrefs).toEqual([...openCalculatorPaths]);
+    // Each of them a page of its own: a second calculator is not a second row that opens the first.
+    expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(openCalculatorCount).toBe(hrefs.length);
-    expect(openCalculatorCount).toBeGreaterThanOrEqual(1);
+    // Two are open — the general beam and the single span — and the loop below is run for both.
+    expect(openCalculatorCount).toBeGreaterThanOrEqual(2);
     for (const href of hrefs) {
       expect(href).toMatch(/^\/resources\/[a-z-]+$/);
       expect(EN_PUBLIC_PAGES).toContain(href);
@@ -368,7 +372,8 @@ describe('calculators: where the page is', () => {
     expect(ES_PUBLIC_PAGES).toContain('/es/resources');
     expect(publicNotFoundTarget('/resources')).toBeNull();
     expect(publicNotFoundTarget('/es/resources')).toBeNull();
-    for (const path of ['/resources/truss', '/resources/steel-member', '/resources/load-gen', '/resources/a/b', `${openCalculatorPaths[0]}/x`, `${openCalculatorPaths[0]}s`]) {
+    // Beside each open calculator's address — one segment deeper, one letter longer — there is nothing.
+    for (const path of ['/resources/truss', '/resources/steel-member', '/resources/load-gen', '/resources/a/b', '/resources/single-span', ...openCalculatorPaths.flatMap((open) => [`${open}/x`, `${open}s`])]) {
       expect(publicNotFoundTarget(path), path).toBe(PUBLIC_NOT_FOUND);
       expect(publicNotFoundTarget(`/es${path}`), path).toBe(PUBLIC_NOT_FOUND_ES);
     }
@@ -381,8 +386,10 @@ describe('calculators: where the page is', () => {
     for (const lang of LANGS) {
       for (const path of ['/resources', ...openCalculatorPaths]) expect(urls, path).toContain(absoluteUrl(localePath(path, lang)));
     }
-    // …and no address under /resources that is not one of those.
-    expect(urls.filter((u) => u.includes('/resources')).length).toBe(2 * (1 + openCalculatorPaths.length));
+    // …and no address under /resources that is not one of those, nor any of them twice.
+    const listed = urls.filter((u) => u.includes('/resources'));
+    expect(listed.length).toBe(2 * (1 + openCalculatorPaths.length));
+    expect(new Set(listed).size).toBe(listed.length);
   });
 
   // Nothing noticed what a route file says: the Spanish route could hand the
@@ -393,9 +400,21 @@ describe('calculators: where the page is', () => {
   it('each open calculator’s two routes are its own page, in their own language, and indexable', async () => {
     // What each open calculator calls itself, in its one h1. A calculator
     // that opens without a line here fails the next expectation, on purpose.
-    const h1: Record<string, Record<Lang, string>> = { '/resources/beam': { en: beamStrings.en.page.h1, es: beamStrings.es.page.h1 } };
+    const h1: Record<string, Record<Lang, string>> = {
+      '/resources/beam': { en: beamStrings.en.page.h1, es: beamStrings.es.page.h1 },
+      '/resources/single-span-beam': { en: spanPage.en.h1, es: spanPage.es.h1 },
+    };
     expect(Object.keys(h1)).toEqual([...openCalculatorPaths]);
+    // Two calculators are two pages: no address, no title and no h1 is said by both.
+    const said = { canonical: new Set<string>(), title: new Set<string>(), h1: new Set<string>() };
+    const once = (kind: keyof typeof said, value: string, where: string) => {
+      expect(said[kind].has(value), `${where}: ${kind} “${value}” is another page’s`).toBe(false);
+      said[kind].add(value);
+    };
     for (const href of openCalculatorPaths) {
+      // The page a row of the catalogue opens begins with the words of that row's link.
+      const row = items.find((i) => i.href === href)!;
+      for (const lang of LANGS) expect(h1[href][lang].startsWith(row.name[lang]), `${href} ${lang}`).toBe(true);
       for (const [dir, lang] of [
         ['(public)/(site)', 'en'],
         ['(public-es)/(site)/es', 'es'],
@@ -406,6 +425,9 @@ describe('calculators: where the page is', () => {
         const page = (await import(`@/app/${dir}${href}/page`)) as { metadata: Metadata; default: () => ReactElement };
         expect(page.metadata.alternates?.canonical, where).toBe(localePath(href, lang));
         expect(page.metadata.robots, where).toBeUndefined();
+        once('canonical', String(page.metadata.alternates?.canonical), where);
+        once('title', (page.metadata.title as { absolute: string }).absolute, where);
+        once('h1', h1[href][lang], where);
         route.pathname = localePath(href, lang);
         const html = renderToStaticMarkup(h(page.default));
         expect([...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => text(m[1])), where).toEqual([h1[href][lang]]);
