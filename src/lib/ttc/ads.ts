@@ -113,7 +113,7 @@
  * frame's document remembers the address of the page that made it, fragment
  * and all, as its `document.referrer` — and the tag sends that with every
  * conversion (`ref=`). A calculator keeps the visitor's case in the
- * fragment (`#b=…`, BeamCalculator.tsx; the Privacy page says that part of
+ * fragment (`#b=…`, `#s=…`, `#c=…`: calc/shell/address.ts; the Privacy page says that part of
  * an address is not sent), so a call reported from a calculator page carried
  * the beam to Google. `b()` now takes the fragment off the address for the
  * instant the frame is made and puts it back (try/finally): the frame has

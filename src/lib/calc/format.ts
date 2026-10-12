@@ -1,3 +1,21 @@
+/*
+ * One formatter for each number of figures, made the first time it is asked
+ * for and kept. `toLocaleString` makes a new one at every call, and a
+ * calculator prints some three hundred numbers each time a key is pressed:
+ * on a phone that was a third of the wait for a typed character to show.
+ * The text is the same, character for character: `toLocaleString` is defined
+ * as this formatter's `format`.
+ */
+const PLAIN = new Map<number, Intl.NumberFormat>();
+function plain(significant: number): Intl.NumberFormat {
+  let made = PLAIN.get(significant);
+  if (!made) {
+    made = new Intl.NumberFormat('en-US', { maximumSignificantDigits: significant });
+    PLAIN.set(significant, made);
+  }
+  return made;
+}
+
 /**
  * Numbers as a calculator prints them: a few significant figures, thousands
  * set apart, never "-0", and scientific notation only where a plain number
@@ -19,7 +37,7 @@ export function formatNumber(value: number, significant = 4, group = ','): strin
     return `${Number(mantissa)} × 10^${Number(exponent)}`;
   }
   // By figures, not by decimals: six decimals cut 0.0001192 to 0.000119.
-  const text = Number(value.toPrecision(significant)).toLocaleString('en-US', { maximumSignificantDigits: significant });
+  const text = plain(significant).format(Number(value.toPrecision(significant)));
   return group === ',' ? text : text.replace(/,/g, group);
 }
 

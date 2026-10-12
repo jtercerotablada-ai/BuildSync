@@ -861,7 +861,7 @@ select.mp-num__input {
 }
 /* A taller window does not hold every column either: the drawing of the beam
    grows with what is on it, and a notice may stand over it. The calculator
-   measures its column against the window (BeamCalculator.tsx, useTooTall)
+   measures its column against the window (calc/shell/layout.ts, useTooTall)
    and names the one that does not fit, which is not pinned. With the weight
    to beat the rule that pins it, wherever in the sheet that rule is. */
 .mp-app__out.mp-app__out--tall {
@@ -1325,8 +1325,11 @@ select.mp-num__input {
    span adds, and every rule of it begins with a class of its own: nothing
    here reaches the other two pages.
 
-   — In the form: a span is four fields, two to a line, under its number; a
-     load names its span and whether it is dead or live in two short lists.
+   — In the form: a span is four fields, two to a line, under its number (on
+     a phone the button that removes it stands beside the number, and the
+     fields have the whole width); a load names its span and whether it is
+     dead or live in two short lists. A value too long for its field ends
+     in "…": a number cut short reads as another number.
    — WHICH SPANS ARE LOADED (.mp-cont__pattern): the beam in miniature, a
      gold block over each span whose live load is on — the colour of a load
      in the drawing above it.
@@ -1348,6 +1351,37 @@ select.mp-num__input {
   .mp-cont .mp-app__fields > .mp-num.mp-cont__which {
     flex-basis: 5.5rem;
   }
+  /* A value longer than its field shows that it is: 0.123338 kip/ft, which is what 1.8 kN/m becomes, read
+     "0.12333 kip/ft" beside its unit, a whole-looking number that was not the one in use. */
+  .mp-cont .mp-num__input {
+    text-overflow: ellipsis;
+  }
+}
+/* A settlement's field is named by its support and where that is, "Support 2 · x = 7.315 m": there is a unit in
+   that name, and the capitals of a field's name made it "M", beside a field whose own unit says "mm". As
+   written, then — on paper too. */
+.mp-cont__settle .mp-num__label {
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+/* A list at its limit: its "add" button is still there, to keep the focus of whoever just added the last row,
+   and does nothing — drawn as the disabled one was, and not underlined under the pointer. */
+.mp-cont .mp-app__add[aria-disabled='true'] {
+  color: var(--mp-ink-faint);
+  cursor: default;
+  text-decoration: none;
+}
+/* …and the limit is said under it, in the type of a note of the form. */
+.mp-cont__limit {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+/* The patch behind the value of a distributed load (BeamSchematic, `plates`): the page's colour, so that the
+   edge of a block or an arrow that would cross the value goes behind it. */
+.mp-cont .mp-beam__plate {
+  fill: var(--mp-paper);
 }
 /* The settlements, one field to a support: in columns, so that the last
    line of them is not stretched across the form (four supports were three
@@ -1416,8 +1450,32 @@ select.mp-num__input {
   white-space: normal;
 }
 @media screen and (max-width: 640px) {
+  /* A span's four fields, two to a line at every width of a phone: at 6.5rem three or four shared a line from
+     480px up, and a load of eight characters was cut beside its unit. */
   .mp-cont .mp-app__fields.mp-cont__span > .mp-num {
-    flex-basis: 6.5rem;
+    flex: 1 1 calc(50% - var(--mp-4));
+  }
+  /* …and the whole width of the form: the button that removes the span stands on the line of its number, not
+     in a column of its own beside the fields. The row that held fields and button gives its two children to
+     the span's own grid. */
+  .mp-cont .mp-app__item:has(> .mp-cont__name) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: center;
+    column-gap: var(--mp-4);
+  }
+  .mp-cont .mp-cont__name {
+    margin: 0;
+  }
+  .mp-cont .mp-cont__name + .mp-app__row--rm {
+    display: contents;
+  }
+  .mp-cont .mp-cont__name + .mp-app__row--rm > .mp-app__remove {
+    grid-area: 1 / 2;
+  }
+  .mp-cont .mp-cont__name + .mp-app__row--rm > .mp-app__fields,
+  .mp-cont .mp-app__item:has(> .mp-cont__name) > .mp-app__row-error {
+    grid-column: 1 / -1;
   }
   .mp-cont__table,
   .mp-cont__table > tbody {
@@ -1489,5 +1547,18 @@ select.mp-num__input {
   }
   .mp-cont__table {
     max-width: none;
+  }
+  /* The beam and its three diagrams are read as one column, on one scale: never one of them alone overleaf.
+     (The deflection diagram stood by itself at the head of the second page.) */
+  .mp-cont .mp-app__plots {
+    break-inside: avoid;
+  }
+  /* The limit of a list is said to whoever is adding rows, not on the sheet. */
+  .mp-cont__limit {
+    display: none;
+  }
+  /* On paper a value has no halo: its plate is what keeps the lines off it. */
+  .mp-cont .mp-beam__plate {
+    fill: #fff;
   }
 }

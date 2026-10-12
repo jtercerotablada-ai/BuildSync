@@ -269,9 +269,16 @@ export const SHORT = 1e-3;
  */
 export const STIFF = 1e3;
 
-/* The largest length, load and settlement the engine takes, and the
-   smallest length: the first engine's limits, for its reasons (a number
-   holds only so much, 1.8e308, and a link can ask for anything). What a
+/* The largest and the smallest length, load and settlement the engine
+   takes — a load or a settlement of exactly zero is none, and is taken: the
+   first engine's limits, for its reasons (a number holds only so much,
+   1.8e308, and a link can ask for anything). The smallest is there for the
+   other end of what a number holds: under 2.2e-308 it keeps fewer figures
+   with every decade, and a load of 1e-316 — alone in its case, as a span's
+   live load is in the envelope — failed the engine's own checks of slope
+   and equilibrium and came back as a span too short (`lost`), which no
+   span was. With lengths and loads both from 1e-60, nothing the engine
+   works out of them is that small. What a
    solution holds grows as load × length³ ÷ k: with eight spans, every load
    and the smallest stiffness factor all AT their limits it passes the
    largest number there is, which is why the stations are looked at once
@@ -805,7 +812,7 @@ export function solveCase(model: ContinuousModel): ContinuousCase | Refusal {
 
   /* ── What was entered, checked ─────────────────────────────────────── */
   const issues: ContinuousIssue[] = [];
-  const sized = (...v: number[]) => v.every((s) => Math.abs(s) <= BIG);
+  const sized = (...v: number[]) => v.every((s) => s === 0 || (Math.abs(s) >= SMALL && Math.abs(s) <= BIG));
   const sound = spansIn.map((s) => s.L >= SMALL && s.L <= BIG);
   spansIn.forEach((s, index) => {
     if (!sound[index]) issues.push({ code: 'length', where: { list: 'spans', index } });

@@ -3,9 +3,10 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { convertUnits, defaultBeam, sectionProps, stiffness, type SteelShape } from '../beam/model';
 import { beamSpans, solveBeam, type BeamModel, type BeamSolution, type Side } from '../beam/solver';
-import { analyseContinuous, drawingOf, type AnalysisIssue, type ContinuousResults } from './analysis';
+import { analyseContinuous, analyseSafely, drawingOf, type AnalysisIssue, type ContinuousResults } from './analysis';
 import { SHORT, STIFF } from './engine';
-import { convertContinuous, defaultContinuous, jointPositions, type ContinuousForm, type DistRow, type PointRow, type Section, type SpanRow } from './model';
+import { envelopeContinuous } from './envelope';
+import { convertContinuous, defaultContinuous, jointPositions, toEngine, type ContinuousForm, type DistRow, type PointRow, type Section, type SpanRow } from './model';
 
 /**
  * FROM THE FORM TO WHAT THE PAGE PRINTS — the third calculator's `analyse`.
@@ -399,17 +400,49 @@ describe('continuous beam, analysed: against the first calculator’s engine, ar
     expect(r.at(99).x).toBe(73);
   });
 
-  it('the stress at a point is of the moments there: from nothing, where the moment changes sign between arrangements', () => {
-    for (const x of [5, 28, 44, 59, 70]) {
+  it('the stress at a point: each end of its range is |M| ÷ S of one arrangement solved whole — never a nothing that no arrangement gives', () => {
+    // Where the moment changes sign between arrangements, zero lies between the two ends of its range and is the
+    // moment of none of them: the least stress is that of whichever arrangement bends the beam least there.
+    const places = [5, 12, 28, 31.25, 44, 50, 59, 70];
+    const changes = places.map((x) => {
       const here = r.at(x);
+      const each = cases.map((c) => (Math.abs(c.sol.at(x, 'right').M) * 12) / 96);
+      near(here.sigma!.max, Math.max(...each), tol, 100);
+      near(here.sigma!.min, Math.min(...each), tol, 100);
       const M = here.M.right;
-      const top = Math.max(Math.abs(M.max), Math.abs(M.min));
-      near(here.sigma!.max, (top * 12) / 96);
-      near(here.sigma!.min, M.min <= 0 && M.max >= 0 ? 0 : (Math.min(Math.abs(M.max), Math.abs(M.min)) * 12) / 96);
-    }
+      near(here.sigma!.max, (Math.max(Math.abs(M.max), Math.abs(M.min)) * 12) / 96);
+      const turns = M.min < 0 && M.max > 0;
+      // Of one sign: the least is an end of the moment's range. Of two: it is neither, and it is not nothing.
+      if (turns) expect(here.sigma!.min).toBeGreaterThan(0);
+      else near(here.sigma!.min, (Math.min(Math.abs(M.max), Math.abs(M.min)) * 12) / 96);
+      return turns;
+    });
     // Somewhere on this beam the moment does change sign with the arrangement, and somewhere it does not.
-    expect([5, 28, 44, 59, 70].map((x) => r.at(x).sigma!.min === 0)).toContain(true);
+    expect(changes).toContain(true);
+    expect(changes).toContain(false);
     expect(r.at(44).sigma!.min).toBeGreaterThan(0);
+
+    // BY HAND. Two spans of 24 ft, 0.3 kip/ft dead on both and 3 kip/ft live on the second, S = 81.6 in³: the
+    // three-moment equation gives MB = −(w1 + w2)·24²/16. With no live load MB = −21.6 and the moment at 12 ft is
+    // 0.3·12·12/2 − 10.8 = +10.8 kip·ft; with it MB = −129.6 and the moment there is 21.6 − 64.8 = −43.2. Two
+    // arrangements, two stresses, and neither is nothing.
+    const two = solved(beam({ spans: [span(1, 24, 1, 0.3, 0), span(2, 24, 1, 0.3, 3)], settlements: zeros(3), nextId: 3 }));
+    expect(two.at(12).M.right.min).toBeCloseTo(-43.2, 9);
+    expect(two.at(12).M.right.max).toBeCloseTo(10.8, 9);
+    near(two.at(12).sigma!.min, (10.8 * 12) / 81.6);
+    near(two.at(12).sigma!.max, (43.2 * 12) / 81.6);
+
+    // …and nothing where an arrangement does leave the beam unbent. Two spans of 24 ft under 0.3 kip/ft dead and
+    // 2 kip/ft live each: with no live load M(x) = 0.3·x·(18 − x)/2, nothing at 18 ft; live on the first span alone
+    // sags it there (+54 kip·ft) and live on the second hogs it. One arrangement of the four gives a moment of zero.
+    const flat = solved(beam({ spans: [span(1, 24, 1, 0.3, 2), span(2, 24, 1, 0.3, 2)], settlements: zeros(3), nextId: 3 }));
+    expect(flat.at(18).M.right.max).toBeCloseTo(54, 9);
+    expect(flat.at(18).M.right.min).toBeLessThan(0);
+    expect(flat.at(18).sigma!.min).toBe(0);
+    // Without E and I there is no slope to give, and the stress is the same: it is the envelope's own cases that are added up for it.
+    const bare = solved(beam({ spans: [span(1, 24, 1, 0.3, 0), span(2, 24, 1, 0.3, 3)], settlements: zeros(3), nextId: 3, section: section({ E: 0, I: 0 }) }));
+    expect(bare.at(12).slope).toBeNull();
+    near(bare.at(12).sigma!.min, (10.8 * 12) / 81.6);
   });
 
   it('with the live load on every span instead: the one beam, as the first engine solves it', () => {
@@ -433,10 +466,10 @@ describe('continuous beam, analysed: against the first calculator’s engine, ar
 });
 
 describe('continuous beam, analysed: the slope at a point, where spans are a million times apart in stiffness', () => {
-  // The slope is the one response the envelope does not follow: analysis.ts makes its range itself, from one case
-  // per span. The first calculator has one EI along the beam and cannot be asked about this beam; and what is held
-  // here is not the beam but the ADDING UP — so, this once, the yardstick is the page's own analysis with the live
-  // load "on every span", which adds nothing up: one arrangement at a time, each solved whole.
+  // The slope's range at a point is the envelope's, like the others — the one response it follows at a point and
+  // no further (envelope.ts). The first calculator has one EI along the beam and cannot be asked about this beam; and
+  // what is held here is not the beam but the ADDING UP — so, this once, the yardstick is the page's own analysis with
+  // the live load "on every span", which adds nothing up: one arrangement at a time, each solved whole.
   it('each end of the range is the slope of one arrangement solved whole, to nine figures — in a stiff span too', () => {
     const lens = [24, 30, 18, 27, 22, 31];
     const ks = [0.001, 1000, 0.001, 1000, 0.001, 1000];
@@ -471,6 +504,24 @@ describe('continuous beam, analysed: the slope at a point, where spans are a mil
     // rounding measured against the largest slope a live load causes anywhere, these were out in the sixth figure.)
     expect(stiff).toBeGreaterThan(20);
     expect(flexible).toBeGreaterThan(20);
+  });
+
+  // It was once made here, from the envelope's cases solved a second time on every analysis: about a third of what
+  // an analysis of eight spans took, at every keystroke. One set of cases now: this file solves none of its own.
+  it('the slope’s range is read off the envelope’s state with the others, and no case is solved here', () => {
+    const source = readFileSync(join(resolve(__dirname), 'analysis.ts'), 'utf8');
+    expect(source).not.toMatch(/\bsolveCase\b/);
+    expect(source).toMatch(/if \(env\) return env\.at\(x, side\);/);
+    expect(source).toMatch(/slope: toSlope \? settled\(right\.EItheta, floors\.EItheta, toSlope\) : null,/);
+    // …and it is the same number: the envelope's range of EI·θ at the point, over E·I.
+    const a = analyseContinuous(defaultContinuous());
+    const state = envelopeContinuous(toEngine(defaultContinuous(), a.section, a.EI).model);
+    if (!state.ok) throw new Error('the example was not solved');
+    for (const x of [5, 20, 24, 39, 61.5]) {
+      const turned = state.at(x, 'right').EItheta;
+      expect(turned.max).toBeGreaterThan(turned.min);
+      expect(a.results!.at(x).slope).toEqual({ max: turned.max * a.toSlope, min: turned.min * a.toSlope });
+    }
   });
 });
 
@@ -574,8 +625,70 @@ describe('continuous beam, analysed: settlements and stiffness, by closed forms'
     near(small.supports[1].M.max.value, big.supports[1].M.max.value / 1000);
     near(small.floors.M, big.floors.M / 1000);
     expect(small.supports[1].M.max.value).toBeGreaterThan(1e6 * small.floors.M);
-    // A billionth of the size of the problem, times L for a moment, L² for a slope, L³ for a deflection.
-    expect(big.floors).toEqual({ F: 1e-9 * big.loadScale, V: 1e-9 * big.loadScale, M: 1e-9 * big.loadScale * 40, EItheta: 1e-9 * big.loadScale * 1600, EIv: 1e-9 * big.loadScale * 64000 });
+    // A billionth of the size of the problem, times L for a moment; times L² for a slope and L³ for a deflection,
+    // and for those two a hundredth of that again where every span is the section entered (a factor of 1).
+    const F = 1e-9 * big.loadScale;
+    expect([big.floors.F, big.floors.V, big.floors.M]).toEqual([F, F, F * 40]);
+    near(big.floors.EItheta, F * 1600 * 0.01, 1e-12, F * 16);
+    near(big.floors.EIv, F * 64000 * 0.01, 1e-12, F * 640);
+    // It follows the SMALLEST factor, which is what the engine's rounding of a deflection goes as: ten times the
+    // section everywhere, a tenth of that; beside a span a hundred times more flexible than the section — or a
+    // thousand — the billionth itself, and never more.
+    const floorOf = (k1: number, k2: number) => {
+      const r = solved(sunk(1, { spans: [span(1, L, k1), span(2, L, k2)] }));
+      return r.floors.EIv / (1e-9 * r.loadScale * 64000);
+    };
+    near(floorOf(10, 10), 0.001, 1e-12);
+    near(floorOf(1, 1000), 0.01, 1e-12);
+    near(floorOf(0.5, 1), 0.02, 1e-12);
+    near(floorOf(0.01, 1), 1, 1e-12);
+    near(floorOf(0.001, 1), 1, 1e-12);
+  });
+
+  // Eight spans under 2.1 kip/ft, the fourth 10 ft long and a thousand times as stiff as the section. Clapeyron,
+  // each span's length over its factor (a = L/k), for the seven moments over the inner supports:
+  //     a[j]·M[j−1] + 2(a[j] + a[j+1])·M[j] + a[j+1]·M[j+1] = −w/4·(L[j]²·a[j] + L[j+1]²·a[j+1])
+  // solved here by elimination; then the stiff span as a simple beam under its load and its two end moments:
+  // at its middle (5wL⁴/384 + (Ml + Mr)·L²/16) ÷ (1000·EI) from its supports. A ten-thousandth of an inch, upward:
+  // two parts in ten thousand of what the spans beside it deflect, and a result — its row is not "0" and "—".
+  it('a span a thousand times as stiff as the rest has a deflection of its own, and a beam a hair from a support has left it', () => {
+    const lens = [30, 30, 30, 10, 30, 30, 30, 30];
+    const ks = [1, 1, 1, 1000, 1, 1, 1, 1];
+    const w = 2.1;
+    const a = lens.map((len, i) => len / ks[i]);
+    const [lo, di, up, rhs]: number[][] = [[], [], [], []];
+    for (let j = 1; j < 8; j++) {
+      lo.push(j > 1 ? a[j - 1] : 0);
+      di.push(2 * (a[j - 1] + a[j]));
+      up.push(j < 7 ? a[j] : 0);
+      rhs.push((-w / 4) * (lens[j - 1] ** 2 * a[j - 1] + lens[j] ** 2 * a[j]));
+    }
+    for (let i = 1; i < 7; i++) {
+      const f = lo[i] / di[i - 1];
+      di[i] -= f * up[i - 1];
+      rhs[i] -= f * rhs[i - 1];
+    }
+    const over: number[] = Array.from({ length: 7 }, () => 0);
+    for (let i = 6; i >= 0; i--) over[i] = (rhs[i] - (i < 6 ? up[i] * over[i + 1] : 0)) / di[i];
+    const [Ml, Mr] = [over[2], over[3]];
+    const EIref = (29000 * 843) / 144;
+    const lift = (-((5 * w * 10 ** 4) / 384 + ((Ml + Mr) * 10 ** 2) / 16) / (1000 * EIref)) * 12;
+    expect(Number(lift.toPrecision(4))).toBe(0.0001217);
+    const stiff = solved(beam({ spans: lens.map((len, i) => span(i + 1, len, ks[i], 0.9, 1.2)), settlements: zeros(9), everyArrangement: false, nextId: 9 }));
+    near(stiff.supports[3].M.max.value, Ml, 1e-9, 200);
+    near(stiff.at(95).deflection!.max, lift, 1e-7, lift);
+    near(stiff.spans[3].deflection!.value, lift, 1e-3, lift);
+    expect(stiff.spans[3].deflection!.x).not.toBeNull();
+    expect(stiff.spans[3].ratio).toBeGreaterThan(99999);
+    // One span of 20 ft under 1 kip/ft, read two ten-millionths of a foot from its support: the beam falls away
+    // at wL³/24EI, and is w·x·(L³ − 2Lx² + x³)/24EI below its support there — five billionths of an inch, and that.
+    const plain = solved(beam({ spans: [span(1, 20, 1, 1, 0)], settlements: zeros(2), everyArrangement: false, nextId: 2 }));
+    const x = 2e-7;
+    const down = (-(x * (20 ** 3 - 2 * 20 * x * x + x ** 3)) / 24 / EIref) * 12;
+    near(plain.at(x).deflection!.max, down, 1e-6, Math.abs(down));
+    // On the support itself it has not moved: nothing, exactly.
+    expect(plain.at(0).deflection).toEqual({ max: 0, min: 0 });
+    expect(plain.at(20).deflection).toEqual({ max: 0, min: 0 });
   });
 
   it('supports that all go down together bend nothing: no shear, no moment, no reaction, and the deflection is the settlement', () => {
@@ -586,6 +699,21 @@ describe('continuous beam, analysed: settlements and stiffness, by closed forms'
     expect(r.diagrams.V.marks).toEqual([]);
     expect(r.diagrams.D!.upper.every((p) => Math.abs(p.y + 0.5) < 1e-12)).toBe(true);
     near(r.largest.deflection!.value, -0.5);
+    // The beam is as low everywhere: its largest deflection has no place — where rounding makes −0.5 a hair more
+    // or a hair less is not a place — and the level line is labelled once.
+    expect(r.largest.deflection!.x).toBeNull();
+    expect(r.largest.peaks.D!.map((p) => p.x)).toEqual([null, null]);
+    expect(r.largest.peaks.D![0].value).toBe(r.largest.peaks.D![1].value);
+    expect(r.diagrams.D!.marks).toHaveLength(1);
+    near(r.diagrams.D!.marks[0].y, -0.5);
+    // On unequal spans too, where the two hairs fall at two places (24, 30 and 24 ft, each support 0.3 in down).
+    const three = solved(beam({ spans: [span(1, 24), span(2, 30), span(3, 24)], settlements: [0.3, 0.3, 0.3, 0.3], nextId: 4 }));
+    expect([three.largest.deflection!.x, three.largest.peaks.D![0].x, three.largest.peaks.D![1].x, three.diagrams.D!.marks.length]).toEqual([null, null, null, 1]);
+    near(three.largest.deflection!.value, -0.3);
+    // A support that goes down further than the others is a place again.
+    const one = solved(beam({ spans: [span(1, 24), span(2, 30), span(3, 24)], settlements: [0.3, 0.3, 0.4, 0.3], nextId: 4 }));
+    expect(one.largest.deflection!.x).not.toBeNull();
+    expect(one.diagrams.D!.marks).toHaveLength(2);
     // From its own supports no span has moved.
     expect(r.spans.map((s) => [s.deflection!.value, s.deflection!.x, s.ratio])).toEqual([[0, null, null], [0, null, null]]);
     expect(r.at(7).V.right).toEqual({ max: 0, min: 0 });
@@ -667,6 +795,18 @@ describe('continuous beam, analysed: settlements and stiffness, by closed forms'
     // At the right wall the moment is on the left, and nothing is past the beam.
     near(r.at(span1).M.left.max, (-w * span1 ** 2) / 12);
     expect(r.at(span1).M.right).toEqual({ max: 0, min: 0 });
+  });
+
+  // The stress at a point is of the side that HAS the moment. At a wall on the right, "just right" is past the beam: nothing. One span built in
+  // at both ends, 2 kip/ft on 24 ft: wL²/12 = 96 kip·ft at each wall, 96 × 12 ÷ 81.6 = 14.12 ksi — at x = 0 and at x = L alike.
+  it('at a fixed end the stress is the wall moment’s, at the right end as at the left', () => {
+    const r = solved(beam({ spans: [span(1, 24, 1, 2, 0)], left: 'fixed', right: 'fixed', settlements: zeros(2), everyArrangement: false }));
+    for (const x of [0, 24]) {
+      near(r.at(x).sigma!.max, (96 * 12) / 81.6);
+      near(r.at(x).sigma!.min, (96 * 12) / 81.6);
+    }
+    expect([r.at(0).M.left, r.at(24).M.right]).toEqual([{ max: 0, min: 0 }, { max: 0, min: 0 }]);
+    near(r.at(24).M.left.max, -96);
   });
 
   // Three spans of 30, 6 and 30 ft under w on the outer two. By symmetry MB = MC, and Clapeyron at B is
@@ -773,6 +913,20 @@ describe('continuous beam, analysed: the faults, by row', () => {
     expect(faults(just({ settlements: [0, 1e70, 0, 0] }).issues)).toEqual([['size', { list: 'settlements', joint: 1 }]]);
     // …and one that is not a number, as that.
     expect(faults(three((s) => (s[2].dead = Number.NaN)).issues)).toEqual([['number', { list: 'spans', id: 3, field: 'dead' }]]);
+    // Too small as well as too large, and on the field it was typed in. (A live load of 1e-316 on the middle span,
+    // taken in every arrangement, was answered on the FIRST span's length: "shorter than one thousandth of all the spans".)
+    for (const every of [true, false]) {
+      const a = analyseContinuous({ ...defaultContinuous(), everyArrangement: every, spans: defaultContinuous().spans.map((s, i) => (i === 1 ? { ...s, live: 1e-316 } : s)) });
+      expect(faults(a.issues), String(every)).toEqual([['size', { list: 'spans', id: 2, field: 'live' }]]);
+      expect(a.results).toBeNull();
+    }
+    expect(faults(three((s) => (s[0].dead = 1e-61)).issues)).toEqual([['size', { list: 'spans', id: 1, field: 'dead' }]]);
+    expect(faults(just({ points: [point(9, 1, 5, 1e-316, 'down', true)] }).issues)).toEqual([['size', { list: 'points', id: 9 }]]);
+    expect(faults(just({ dists: [dist(9, 0, 2, 8, 1e-316, 0)] }).issues)).toEqual([['size', { list: 'dists', id: 9 }]]);
+    expect(faults(just({ settlements: [0, 1e-316, 0, 0] }).issues)).toEqual([['size', { list: 'settlements', joint: 1 }]]);
+    // At 1e-60 a load is taken; and an empty field, which is zero, is no load.
+    expect(three((s) => (s[1].live = 1e-60)).issues).toEqual([]);
+    expect(three((s) => (s[1].live = 0)).issues).toEqual([]);
     expect(faults(just({ points: [point(9, 1, 5, Infinity)] }).issues)).toEqual([['number', { list: 'points', id: 9 }]]);
     expect(faults(just({ dists: [dist(9, 0, 2, Number.NaN, 1, 1)] }).issues)).toEqual([['number', { list: 'dists', id: 9 }]]);
     expect(faults(just({ settlements: [0, 0, Number.NaN, 0] }).issues)).toEqual([['number', { list: 'settlements', joint: 2 }]]);
@@ -856,5 +1010,46 @@ describe('continuous beam, analysed: the beam as it is drawn', () => {
     expect(d.uniform).toEqual([{ id: -3, dead: 0.5, live: 1 }]);
     expect(d.live).toEqual({ points: [3], dists: [5, -2] });
     expect(d.beam.points.map((p) => [p.id, p.x])).toEqual([[3, 5], [4, 15]]);
+  });
+});
+
+describe('continuous beam analysis: the door that never throws', () => {
+  // Nothing is known to make the arithmetic throw. This holds what the page
+  // would do if something did: one beam with no results and one line, not a
+  // page taken away with whatever was typed into it.
+  const broken = (): ContinuousForm => {
+    const form = defaultContinuous();
+    // A form whose loads cannot be read: the engine's input is built from them.
+    Object.defineProperty(form, 'points', {
+      get() {
+        throw new Error('made to throw');
+      },
+    });
+    return form;
+  };
+
+  it('an exception in the arithmetic is a beam with no results and the one issue "stopped", on no row', () => {
+    expect(() => analyseContinuous(broken())).toThrow('made to throw');
+    const a = analyseSafely(broken());
+    expect(a.results).toBeNull();
+    expect(a.issues).toEqual([{ code: 'stopped' }]);
+    // What the form goes on showing: the section as it was entered.
+    expect(a.section).toEqual(analyseContinuous(defaultContinuous()).section);
+    expect([a.EI, a.toDeflection, a.toSlope]).toEqual([0, 0, 0]);
+  });
+
+  it('a fault in the values at a point is caught with the rest: they are read once before the analysis is handed over', () => {
+    const source = readFileSync(join(resolve(__dirname), 'analysis.ts'), 'utf8');
+    expect(source).toMatch(/const analysis = analyseContinuous\(form, shape\);\s*analysis\.results\?\.at\(analysis\.results\.L \/ 2\);\s*return analysis;/);
+  });
+
+  it('for every beam that does not throw it is analyseContinuous, to the last number', () => {
+    const flat = (r: ContinuousResults | null) => (r ? JSON.stringify({ ...r, at: r.at(r.L / 3) }) : null);
+    for (const form of [defaultContinuous(), { ...defaultContinuous(), everyArrangement: false }, convertContinuous(defaultContinuous(), 'si'), { ...defaultContinuous(), left: 'free' as const, right: 'free' as const }]) {
+      const [safe, plain] = [analyseSafely(form), analyseContinuous(form)];
+      expect(flat(safe.results)).toBe(flat(plain.results));
+      expect(safe.issues).toEqual(plain.issues);
+      expect(safe.liveSpans).toEqual(plain.liveSpans);
+    }
   });
 });

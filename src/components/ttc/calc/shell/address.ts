@@ -8,12 +8,12 @@ import { useIsoLayoutEffect } from './layout';
  * and a calculator built on it: index.ts.)
  *
  * Whatever is on a calculator's screen is in the page's address after the
- * `#` (`#b=…` for the first calculator, `#s=…` for the second: a key of one
- * lower-case letter, which is what the header's language link carries —
- * mp/lang.tsx, CARRIED). A browser does not send that part to a server. A
- * reload, a tab the phone discarded, the language switch and "Copy link" all
- * come back to the same case. The example leaves the address bare, and a
- * bare address is the example.
+ * `#` (`#b=…` for the first calculator, `#s=…` for the second, `#c=…` for
+ * the third: a key of one lower-case letter, which is what the header's
+ * language link carries — mp/lang.tsx, CARRIED). A browser does not send
+ * that part to a server. A reload, a tab the phone discarded, the language
+ * switch and "Copy link" all come back to the same case. The example leaves
+ * the address bare, and a bare address is the example.
  *
  * This hook knows nothing about beams. It is given the key, the example as
  * the address would write it, the case on screen as the address would write
@@ -28,6 +28,16 @@ import { useIsoLayoutEffect } from './layout';
  * that file reads the site's whole copy, which this script must not carry.
  */
 const ADDRESS_EVENT = 'mp:address';
+
+/*
+ * The mark on the frame around a calculator, put there before any script of
+ * the site runs when the address holds a case: while it is there the page
+ * does not show the example the server sent, which is not the case in the
+ * link. It comes off here, once the address has been read — in the commit
+ * that puts on screen what it held. Where a page has no such frame there is
+ * no mark, and nothing is done.
+ */
+const OPENING = 'data-opening';
 
 export interface AddressOptions<C> {
   /** What this calculator's case is called in its address: one lower-case letter, `#<key>=…`. */
@@ -106,10 +116,19 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
   // What the address carries after the #: this page's key, then the case.
   const prefix = `#${key}=`;
   const [linkError, setLinkError] = useState(false);
+  // The address has been read, and what it holds — a case, a link that
+  // cannot be read, nothing of this calculator's — is on its way to the
+  // screen in this very render.
+  const [looked, setLooked] = useState(false);
   // A link that could not be read is left in the address, for the visitor to look at.
   const unread = useRef(false);
   // The address still to be written, if the case has changed since the last time.
   const pending = useRef<(() => void) | null>(null);
+  // The fragment as this hook last read or wrote it. Any other one in the
+  // address is somebody else's doing: Back, Forward, a link pasted over the
+  // page. What was waiting to be written must not land on it — on the
+  // history entry of the case that is about to open.
+  const seen = useRef<string | null>(null);
   // What the calculator gave at its last render, for what runs later: the
   // listeners below are set once, and must not be set again — still less
   // read the address again — each time the calculator draws itself.
@@ -128,7 +147,19 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
       unread.current = failed;
       setLinkError(failed);
     };
+    // The page this calculator is on. `popstate` tells of every entry of the
+    // site's history, not only of this page's: Back to the catalogue arrives
+    // here too, while this calculator is still on screen for a moment.
+    const here = window.location.pathname;
     const look = (changed?: Event) => {
+      // Another page's address: this one is being left, and what that
+      // address holds is not this calculator's to open — nor is the bare
+      // address of the page before a reason to show the example on the way out.
+      if (window.location.pathname !== here) return;
+      seen.current = window.location.hash;
+      // Said in state, so that it is a render — where a frame is marked. With
+      // no mark there is nothing to take off, and no render to ask for.
+      if (document.querySelector(`[${OPENING}]`)) setLooked(true);
       const found = latest.current.read(window.location.hash);
       if (found === undefined) {
         // Back to the bare address is back to the example: that is what a
@@ -142,9 +173,26 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
       show(found === null ? latest.current.blank() : found, found === null);
     };
     look();
+    // The address changing under the page — a link pasted over this one,
+    // Back, Forward — is told twice: `popstate` in the very task that changes
+    // it, `hashchange` in a later one. It is read at the first. Between the
+    // two the delayed write below could fire, find in the address a case
+    // that was not the one on screen, and write the old case over it: the
+    // link opened nothing. (Read again at the second, which finds the same.)
+    window.addEventListener('popstate', look);
     window.addEventListener('hashchange', look);
-    return () => window.removeEventListener('hashchange', look);
+    return () => {
+      window.removeEventListener('popstate', look);
+      window.removeEventListener('hashchange', look);
+    };
   }, []);
+
+  // …and the screen is this hook's to answer for from the commit that shows
+  // what it read: the frame's mark comes off in that commit, not before (the
+  // example would show for a frame) and not after.
+  useIsoLayoutEffect(() => {
+    if (looked) document.querySelector(`[${OPENING}]`)?.removeAttribute(OPENING);
+  }, [looked]);
 
   // The address follows the case.
   const put = useCallback((code: string) => {
@@ -164,6 +212,8 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
       /* the address is a convenience; the calculator works without it */
     }
     window.dispatchEvent(new Event(ADDRESS_EVENT));
+    // As the browser now has it, which need not be character for character what it was given.
+    seen.current = window.location.hash;
   }, [example, prefix]);
   // Waited for, not written on every keystroke: Safari refuses more than a
   // hundred history changes in thirty seconds, and a field being typed in
@@ -171,6 +221,18 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
   useEffect(() => {
     const now = () => {
       pending.current = null;
+      // Not the address this hook left: it changed under the case on screen.
+      // If what is there now is a case of this calculator, or nothing at
+      // all, it is on its way to being opened (`look`), and this write is
+      // the case of before: dropped. Any other fragment (`#main`) is a place
+      // on the page, and the case is written over it as it always was. Seen
+      // once, the new address is the one to keep to: were nothing to open
+      // it after all, the next edit is written again.
+      const at = window.location.hash;
+      if (at !== seen.current) {
+        seen.current = at;
+        if (at === '' || (latest.current.owns ? latest.current.owns(at) : at.startsWith(prefix))) return;
+      }
       put(current());
     };
     pending.current = now;
@@ -179,7 +241,7 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
       if (pending.current === now) now();
     }, 300);
     return () => window.clearTimeout(id);
-  }, [current, put]);
+  }, [current, put, prefix]);
   // …and is brought up to date at once when the visitor reaches for something
   // else: the language link is built from the address (lang.tsx,
   // useCarriedHash) and must not open the case of a moment ago; a phone may

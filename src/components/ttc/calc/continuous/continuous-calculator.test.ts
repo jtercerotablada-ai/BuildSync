@@ -261,8 +261,11 @@ describe('continuous beam calculator: the form', () => {
     const groups = groupsOf(html);
     const group = (legend: string) => groups.find((g) => g.legend === legend)?.html ?? '';
 
-    it(`${lang}: seven groups — spans, ends, supports, the two kinds of load, the live load, the section`, () => {
-      expect(groups.map((g) => g.legend)).toEqual([c.spans.title, c.ends.title, t.supports.title, t.loads.point, t.loads.dist, c.live.title, t.section.title]);
+    it(`${lang}: seven groups — spans, ends, settlements, the two kinds of load, the live load, the section`, () => {
+      expect(groups.map((g) => g.legend)).toEqual([c.spans.title, c.ends.title, c.settlements.title, t.loads.point, t.loads.dist, c.live.title, t.section.title]);
+      // The group of settlements says what its fields hold, and is not the results card's namesake.
+      expect(c.settlements.title).not.toBe(t.supports.title);
+      expect(c.settlements.title.toLowerCase()).toContain(c.settlements.name.toLowerCase());
       // Nothing of the first calculator that this beam has not: no hinges, no applied moments, no list of layouts, no length of the whole beam.
       for (const gone of [t.hinges.title, t.loads.couple, t.toolbar.layout, t.supports.add, t.hinges.add, t.loads.addCouple, t.supports.note]) expect(text(html), gone).not.toContain(gone);
       expect(html).not.toContain('name="beam-layout"');
@@ -294,12 +297,16 @@ describe('continuous beam calculator: the form', () => {
     });
 
     it(`${lang}: each support has its place, worked out from the spans, and a settlement that may be left empty`, () => {
-      const supports = group(t.supports.title);
+      const supports = group(c.settlements.title);
       expect(fieldsOf(supports).map((f) => [f.label, f.value, f.unit])).toEqual([0, 24, 54, 78].map((x, i) => [`${t.results.support} ${i + 1} · x = ${x} ft`, '', 'in']));
       expect(supports).toContain(`role="group" aria-label="${esc(c.settlements.name)}"`);
       expect(notesOf(supports)).toEqual([c.settlements.note]);
+      // The note is read on the printed sheet too, which writes a 0 where the screen has an empty field: it speaks of both.
+      expect(c.settlements.note).toMatch(lang === 'en' ? /\. Empty or 0: that support does not move\.$/ : /\. Vacío o 0: ese apoyo no se mueve\.$/);
+      // A field's name has a unit in it ("x = 24 ft"): it is not set in capitals, which made a metre "M" beside a field in "mm".
+      expect(readFileSync(join(SRC, 'components/ttc/calc/calc.css'), 'utf8')).toMatch(/\n\.mp-cont__settle \.mp-num__label \{\s*letter-spacing: 0\.02em;\s*text-transform: none;\s*\}/);
       // A free end has no support, and no field; the others keep their numbers from the left.
-      const hung = groupsOf(show(lang, beam({ left: 'free', settlements: [0.75, 0, 0.5, 0] }))).find((g) => g.legend === t.supports.title)!.html;
+      const hung = groupsOf(show(lang, beam({ left: 'free', settlements: [0.75, 0, 0.5, 0] }))).find((g) => g.legend === c.settlements.title)!.html;
       expect(fieldsOf(hung).map((f) => [f.label, f.value])).toEqual([[`${t.results.support} 1 · x = 24 ft`, ''], [`${t.results.support} 2 · x = 54 ft`, '0.5'], [`${t.results.support} 3 · x = 78 ft`, '']]);
     });
 
@@ -379,8 +386,25 @@ describe('continuous beam calculator: the form', () => {
     const one = show('en', beam({ spans: [span(1, 20, 1, 1, 1)], settlements: [0, 0] }));
     expect([...one.matchAll(/<button\b[^>]*class="mp-app__remove"[^>]*>/g)].map((m) => / disabled=""/.test(m[0]))).toEqual([true]);
     const eight = show('en', beam({ spans: Array.from({ length: 8 }, (_, i) => span(i + 1, 20, 1, 1, 1)), settlements: Array.from({ length: 9 }, () => 0) }));
-    const add = [...eight.matchAll(/<button type="button" class="mp-app__add"([^>]*)>/g)].map((m) => [/ disabled=""/.test(m[1]), attr(m[0], 'title')]);
-    expect(add).toEqual([[true, 'Eight at most.'], [false, undefined], [false, undefined]]);
+    // At its limit the button is still there — it keeps the focus of whoever added the eighth span with a key — and
+    // the limit is a line of the page tied to it: not a tooltip on a button nothing can reach.
+    const add = [...eight.matchAll(/<button type="button" class="mp-app__add"([^>]*)>/g)].map((m) => [attr(m[0], 'aria-disabled'), / disabled=""/.test(m[1]), attr(m[0], 'title')]);
+    expect(add).toEqual([['true', false, undefined], [undefined, false, undefined], [undefined, false, undefined]]);
+    expect(eight).toMatch(/<button type="button" class="mp-app__add" aria-disabled="true" aria-describedby="([^"]+)"><span aria-hidden="true">\+<\/span> Add a span<\/button><p class="mp-cont__limit" id="\1" role="status">Eight at most\.<\/p>/);
+    expect(show('en')).not.toContain('mp-cont__limit');
+    // Twelve point loads: the same line, in the first calculator's words for it.
+    const twelve = show('en', beam({ points: Array.from({ length: 12 }, (_, i) => point(i + 1, 0, i + 1, 1)) }));
+    expect(twelve).toMatch(new RegExp(`<p class="mp-cont__limit" id="[^"]+" role="status">${esc(beamStrings.en.ui.row.limit)}</p>`));
+    // What only a browser can do is held as it is written: a full list adds nothing; a row removed with a key hands
+    // the focus to the row that takes its place, or to the "add" button — and a click or a tap moves no focus.
+    const tool = readFileSync(join(SRC, 'components/ttc/calc/continuous/ContinuousCalculator.tsx'), 'utf8');
+    expect(tool).toContain("onClick={() => (full ? undefined : dispatch({ type: 'add', list }))} aria-disabled={full || undefined}");
+    expect(tool).toContain("const near = [row?.nextElementSibling, row?.previousElementSibling].find((el) => el?.classList.contains('mp-app__item'));");
+    expect(tool).toContain("const next = press.detail === 0 ? (near?.querySelector<HTMLElement>('input, select') ?? press.currentTarget.closest('fieldset')?.querySelector<HTMLElement>('.mp-app__add')) : null;");
+    expect(tool).toMatch(/dispatch\(\{ type: 'remove', list, id \}\);\s*next\?\.focus\(\);/);
+    const sheet = readFileSync(join(SRC, 'components/ttc/calc/calc.css'), 'utf8');
+    expect(sheet).toMatch(/\.mp-cont \.mp-app__add\[aria-disabled='true'\] \{\s*color: var\(--mp-ink-faint\);\s*cursor: default;\s*text-decoration: none;\s*\}/);
+    expect(sheet.slice(sheet.lastIndexOf('@media print'))).toMatch(/\.mp-cont__limit \{\s*display: none;\s*\}/);
     // Eight spans, all with a live load: 256 arrangements.
     expect(text(eight)).toContain('Spans with a live load: 8. Arrangements: 256.');
   });
@@ -414,15 +438,15 @@ describe('continuous beam calculator: the example, cell by cell', () => {
       expect(html).toMatch(new RegExp(`<p class="mp-app__note">${esc(t.results.pointHint)}</p></div></div><p class="mp-app__privacy">`));
     });
 
-    it(`${lang}: the supports — each reaction and the moment over it, highest and lowest, with the spans loaded for each`, () => {
+    it(`${lang}: the supports — each reaction and the moment over it, the larger end of its range and then the other, with the spans loaded for each`, () => {
       const card = cards.of(t.supports.title);
       expect(headOf(card)).toEqual([
         t.results.support,
         `${t.results.position} (ft)`,
-        `${c.results.reaction}, ${t.plot.max} (kip)`,
-        `${c.results.reaction}, ${t.plot.min} (kip)`,
-        `${c.results.momentOver}, ${t.plot.max} (kip·ft)`,
-        `${c.results.momentOver}, ${t.plot.min} (kip·ft)`,
+        `${c.results.reaction}, ${c.results.ends.largest} (kip)`,
+        `${c.results.reaction}, ${c.results.ends.other} (kip)`,
+        `${c.results.momentOver}, ${c.results.ends.largest} (kip·ft)`,
+        `${c.results.momentOver}, ${c.results.ends.other} (kip·ft)`,
       ]);
       const R = (j: number, sign: 1 | -1) => {
         const top = best((x) => x.R[j], sign);
@@ -434,21 +458,31 @@ describe('continuous beam calculator: the example, cell by cell', () => {
       };
       expect(rowsOf(card)).toEqual([
         ['1', '0', R(0, 1), R(0, -1), '0', '0'],
-        ['2', '24', R(1, 1), R(1, -1), M('MB', 1), M('MB', -1)],
-        ['3', '54', R(2, 1), R(2, -1), M('MC', 1), M('MC', -1)],
+        // By size: an upward reaction's highest is its largest; the moment over a support is negative, and its lowest is.
+        ['2', '24', R(1, 1), R(1, -1), M('MB', -1), M('MB', 1)],
+        ['3', '54', R(2, 1), R(2, -1), M('MC', -1), M('MC', 1)],
         ['4', '78', R(3, 1), R(3, -1), '0', '0'],
       ]);
-      // The figures themselves, and the arrangements, as an engineer expects them: an end reaction is highest with
-      // the two end spans loaded; the moment over the second support is most hogging with the two spans beside it.
+      // The figures themselves, and the arrangements, as an engineer expects them: an end reaction is largest with
+      // the two end spans loaded; the moment over the second support is most hogging with the two spans beside it,
+      // and that one stands first.
       const second = rowsOf(card)[1];
       expect([rowsOf(card)[0][2], second[2], second[3], second[4], second[5]]).toEqual(
         lang === 'en'
-          ? ['21.17 upward [live load on spans 1 and 3]', '65.43 upward [live load on spans 1 and 2]', '24.82 upward [live load on span 3]', '-55 [live load on span 3]', '-166.9 [live load on spans 1 and 2]']
-          : ['21.17 hacia arriba [carga viva en los vanos 1 y 3]', '65.43 hacia arriba [carga viva en los vanos 1 y 2]', '24.82 hacia arriba [carga viva en el vano 3]', '-55 [carga viva en el vano 3]', '-166.9 [carga viva en los vanos 1 y 2]'],
+          ? ['21.17 upward [live load on spans 1 and 3]', '65.43 upward [live load on spans 1 and 2]', '24.82 upward [live load on span 3]', '-166.9 [live load on spans 1 and 2]', '-55 [live load on span 3]']
+          : ['21.17 hacia arriba [carga viva en los vanos 1 y 3]', '65.43 hacia arriba [carga viva en los vanos 1 y 2]', '24.82 hacia arriba [carga viva en el vano 3]', '-166.9 [carga viva en los vanos 1 y 2]', '-55 [carga viva en el vano 3]'],
       );
-      // Over every arrangement there is no one sum of reactions to give: the card closes with the key to the miniatures.
+      // Over every arrangement there is no one sum of reactions to give; the card has the key to the miniatures, and
+      // has it BEFORE its table: a mark is explained before it is used.
       expect(text(card)).not.toContain(t.results.equilibrium);
       expect(notesOf(card)).toEqual([c.results.key.replace('{on}', '').replace('{off}', '').replace(/\s+/g, ' ')]);
+      expect(card).toMatch(/^<h3\b[^>]*>[^<]*<\/h3><p class="mp-app__note mp-cont__key">[\s\S]*?<\/p><table\b/);
+      expect(card.indexOf('mp-cont__key')).toBeLessThan(card.indexOf('<svg class="mp-cont__pattern" width="34"'));
+      // The key itself: its first mark is a span with its block, its second a span without — and the words on
+      // either side of each say so. Swapped, the key would explain every miniature of the page backwards.
+      const key = card.match(/<p class="mp-app__note mp-cont__key">([\s\S]*?)<\/p>/)?.[1] ?? '';
+      expect([...key.matchAll(/<svg class="mp-cont__pattern"[^>]*>([\s\S]*?)<\/svg>/g)].map((m) => (m[1].match(/<rect\b/g) ?? []).length)).toEqual([1, 0]);
+      expect(c.results.key).toContain(lang === 'en' ? '{on} a span with its live load on, {off} one with it off' : '{on} un vano con su carga viva aplicada, {off} uno sin ella');
       // The miniature beside a value is the beam left to right: a block over each loaded span, 11px to a span, a
       // tick under each of the four supports. "Span 3" alone is the third block, not the first.
       const drawn = [...card.matchAll(/<svg class="mp-cont__pattern"[^>]*aria-label="([^"]*)"[^>]*>([\s\S]*?)<\/svg>/g)].map((m) => ({ said: m[1], blocks: [...m[2].matchAll(/<rect x="([\d.]+)"/g)].map((b) => Number(b[1])), ticks: [...m[2].matchAll(/<line x1="([\d.]+)" x2="\1" y1="9" y2="13"/g)].map((b) => Number(b[1])) }));
@@ -477,8 +511,9 @@ describe('continuous beam calculator: the example, cell by cell', () => {
       expect(rows.map((r) => r[3])).toEqual(['L/723', 'L/632', 'L/723']);
       expect(rows.map((r) => r[1].split(' ')[0])).toEqual(['106.8', '111', '106.8']);
       expect(rows[0][2].startsWith(`0.3986 ${W.down}, ${W.at} x = 11.08 ft [${loaded([0, 2])}]`)).toBe(true);
-      // No overhang, no note about one; and the key.
+      // No overhang, no note about one; and the key, over the table here too.
       expect(notesOf(card)).toEqual([c.results.key.replace('{on}', '').replace('{off}', '').replace(/\s+/g, ' ')]);
+      expect(card).toMatch(/^<h3\b[^>]*>[^<]*<\/h3><p class="mp-app__note mp-cont__key">[\s\S]*?<\/p><table\b/);
     });
 
     it(`${lang}: the largest values, each with its arrangement in words; the stresses of the section`, () => {
@@ -534,6 +569,8 @@ describe('continuous beam calculator: the example, cell by cell', () => {
       // One block for the three spans' dead and live load, written as they were typed; the title says which is which.
       const beamSvg = html.match(/<figure class="mp-plot mp-beam">[\s\S]*?<\/figure>/)?.[0] ?? '';
       expect([...beamSvg.matchAll(/<text class="mp-beam__label"[^>]*>([\s\S]*?)<\/text>/g)].map((m) => text(m[1]))).toEqual(['0.9 + 1.2 kip/ft']);
+      // …on a plate of the page's colour, drawn just before it: a block's edge or an arrow goes behind a value.
+      expect((beamSvg.match(/<rect class="mp-beam__plate"[^>]*><\/rect><text class="mp-beam__label"/g) ?? []).length).toBe(1);
       expect(text(html.match(/<p class="mp-plot__title mp-plot__title--first">([\s\S]*?)<\/p>/)?.[1] ?? '')).toBe(`${t.results.schematic} · ${c.results.uniform}`);
       expect((beamSvg.match(/class="mp-beam__pin"/g) ?? []).length).toBe(4);
       // A reaction is a range here, and an arrow has one length.
@@ -552,14 +589,49 @@ describe('continuous beam calculator: the example, cell by cell', () => {
     });
   }
 
+  // Two spans of 5 and 26 ft, 0.9 dead and 1.2 live on both. Clapeyron: MB = −(w1·5³ + w2·26³)/(8·31), and the
+  // first support's reaction is 2.5·w1 + MB/5 — downward in all four arrangements: −7.718 kip with the live load on
+  // span 1, −27.61 with it on span 2. The force that holds the beam down is the second, and it is the one under
+  // "largest": in the order of their signs it stood under "min", with the smaller one under "max".
+  it('a support pulled down in every arrangement: the larger hold-down force stands first, under "largest"', () => {
+    const MB = (w1: number, w2: number) => -(w1 * 5 ** 3 + w2 * 26 ** 3) / (8 * 31);
+    const RA = (w1: number, w2: number) => 2.5 * w1 + MB(w1, w2) / 5;
+    expect([RA(2.1, 0.9), RA(0.9, 2.1), RA(0.9, 0.9), RA(2.1, 2.1)].map((v) => formatNumber(v))).toEqual(['-7.718', '-27.61', '-10.6', '-24.73']);
+    expect([MB(2.1, 2.1), MB(0.9, 0.9)].map((v) => formatNumber(v))).toEqual(['-149.9', '-64.24']);
+    const held = beam({ spans: [span(1, 5, 1, 0.9, 1.2), span(2, 26, 1, 0.9, 1.2)], settlements: [0, 0, 0] });
+    for (const lang of LANGS) {
+      const t = beamStrings[lang].ui;
+      const c = continuousUi[lang];
+      const card = cardsOf(show(lang, held)).of(t.supports.title);
+      const down = t.results.downward;
+      const on = (n: number) => c.results.pattern.one.replace('{spans}', String(n));
+      const both = c.results.pattern.many.replace('{spans}', `1${c.results.pattern.and}2`);
+      expect(headOf(card).slice(2), lang).toEqual([`${c.results.reaction}, ${c.results.ends.largest} (kip)`, `${c.results.reaction}, ${c.results.ends.other} (kip)`, `${c.results.momentOver}, ${c.results.ends.largest} (kip·ft)`, `${c.results.momentOver}, ${c.results.ends.other} (kip·ft)`]);
+      expect(rowsOf(card)[0].slice(2, 4), lang).toEqual([`27.61 ${down} [${on(2)}]`, `7.718 ${down} [${on(1)}]`]);
+      expect(rowsOf(card)[1].slice(4), lang).toEqual([`-149.9 [${both}]`, `-64.24 [${c.results.pattern.none}]`]);
+      // The diagrams' two words are not a column's: "max" over a size and a direction is what misled.
+      for (const head of headOf(card)) expect(head, lang).not.toMatch(new RegExp(`, (${esc(t.plot.max)}|${esc(t.plot.min)}) \\(`));
+    }
+    // A reaction that changes direction between arrangements: the larger of its two sizes first, each with its own
+    // word. 20 ft on two supports and 10 ft past the second, 0.2 kip/ft dead and 2 kip/ft live on both: the first
+    // support carries w1·10 − w2·100/40 — 21.5 kip up with the live load on the span alone, 3.5 kip DOWN with it on
+    // the overhang alone; the second, w1·10 + w2·10 + w2·2.5 — 49.5 kip with both loaded, 4.5 kip with neither.
+    const tipped = rowsOf(cardsOf(show('en', beam({ spans: [span(1, 20, 1, 0.2, 2), span(2, 10, 1, 0.2, 2)], right: 'free', settlements: [0, 0, 0] }))).of('Supports'));
+    expect(tipped.map((r) => r.slice(2, 4))).toEqual([
+      ['21.5 upward [live load on span 1]', '3.5 downward [live load on span 2]'],
+      ['49.5 upward [live load on spans 1 and 2]', '4.5 upward [no live load]'],
+    ]);
+  });
+
   it('the Spanish page writes its numbers the Spanish way: a narrow space between thousands, never a comma', () => {
     // The example ten times as long and ten times as loaded: reactions a hundred times larger, moments a thousand.
     const big = beam({ spans: [span(1, 240, 1, 9, 12), span(2, 300, 1, 9, 12), span(3, 240, 1, 9, 12)], section: section({ I: 843000, S: 8160, Av: 724.5 }) });
     const most = best((x) => x.MB, -1);
     // The second support’s row as the server writes it, cell by cell — not through `text`, which takes the narrow space for a plain one.
     const [en, es] = LANGS.map((lang) => [...(cardsOf(show(lang, big)).of(beamStrings[lang].ui.supports.title).match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/)?.[1] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)].map((r) => [...r[1].matchAll(/<td\b[^>]*>([^<]*)/g)].map((cell) => cell[1].trim()))[1]);
-    expect(en[4]).toBe(formatNumber(most.MB * 1000, 4));
-    expect([en[4], es[4]]).toEqual(['-166,900', '-166\u202f900']);
+    // The most hogging moment is the larger end of its pair: the first of the two cells.
+    expect(en[3]).toBe(formatNumber(most.MB * 1000, 4));
+    expect([en[3], es[3]]).toEqual(['-166,900', '-166\u202f900']);
     expect([en[1], es[1]]).toEqual(['6,543', '6\u202f543']);
     const spanish = show('es', big).replace(/<(input|option)\b[^>]*>/g, ' ').replace(/<[^>]+>/g, ' ');
     expect(spanish).toMatch(/\d\u202f\d{3}/);
@@ -681,7 +753,7 @@ describe('continuous beam calculator: other beams', () => {
     // From its own supports each span is δ/(3√3) = 0.1155 in under their line, at 20/√3 = 11.55 ft from its outer end.
     expect(rowsOf(cards.of('Span by span')).map((r) => r.slice(2))).toEqual([['0.1155 downward, at x = 11.55 ft', 'L/2,078'], ['0.1155 downward, at x = 28.45 ft', 'L/2,078']]);
     // The form shows the settlement where it was typed.
-    expect(fieldsOf(groupsOf(html).find((g) => g.legend === 'Supports')!.html).map((f) => f.value)).toEqual(['', '0.6', '']);
+    expect(fieldsOf(groupsOf(html).find((g) => g.legend === 'Support settlements')!.html).map((f) => f.value)).toEqual(['', '0.6', '']);
     expect(issuesOf(html)).toBe('');
   });
 
@@ -693,7 +765,7 @@ describe('continuous beam calculator: other beams', () => {
       expect(issuesOf(html)).toBe(`${tt.issuesTitle} ${cc.issues.settlement}`);
       expect(cardsOf(html).titles).toEqual([]);
       expect(text(html)).toContain(tt.results.waiting);
-      const fields = fieldsOf(groupsOf(html).find((g) => g.legend === tt.supports.title)!.html);
+      const fields = fieldsOf(groupsOf(html).find((g) => g.legend === cc.settlements.title)!.html);
       expect(fields.map((f) => f.invalid)).toEqual([false, true, false, false]);
       // The field is tied to its own line, which says the same.
       const line = html.match(new RegExp(`<p class="mp-app__row-error" id="${fields[1].describedBy}">([\\s\\S]*?)</p>`))?.[1] ?? '';
@@ -734,6 +806,101 @@ describe('continuous beam calculator: other beams', () => {
     expect(pairsOf(cards.of('Values at a point')).map((p) => p[0])).toEqual(['Shear, V', 'Bending moment, M']);
     expect(drawingsOf(html)).toHaveLength(3);
     expect(text(html)).toContain(t.results.need.props.deflection);
+  });
+
+  // Five spans of 25.25 ft and a 40 kip load 11.125 ft into the fifth: the supports are at 25.25, 50.5, 75.75,
+  // 101 and 126.25 ft, and the load at 112.125 ft. Places that were ENTERED: written as entered, not to four figures.
+  it('a place that was entered is written as entered: a support at 126.25 ft is not at 126.3, nor a load at 112.125 ft at 112.1', () => {
+    const long = beam({ spans: [1, 2, 3, 4, 5].map((id) => span(id, 25.25, 1, 0.9, 1.2)), settlements: [0, 0, 0, 0, 0, 0], points: [point(6, 4, 11.125, 40)], everyArrangement: false, nextId: 7 });
+    for (const lang of LANGS) {
+      const tt = beamStrings[lang].ui;
+      const html = show(lang, long);
+      const cards = cardsOf(html);
+      expect(rowsOf(cards.of(tt.supports.title)).map((r) => r[1])).toEqual(['0', '25.25', '50.5', '75.75', '101', '126.25']);
+      const rows = rowsOf(cards.of(continuousUi[lang].results.bySpan));
+      expect(rows.map((r) => r[0])).toEqual(['1 0 – 25.25', '2 25.25 – 50.5', '3 50.5 – 75.75', '4 75.75 – 101', '5 101 – 126.25']);
+      // The fifth span sags most under its load, a place that was entered; the first where its shear is nothing, a place worked out.
+      expect(rows[4][1]).toBe(`276.9 ${tt.results.at} x = 112.125 ft`);
+      expect(rows[0][1]).toBe(`105 ${tt.results.at} x = 10 ft`);
+      expect(pairsOf(cards.of(tt.results.maxima))[1]).toEqual([tt.results.maxSagging, `276.9 kip·ft ${tt.results.at} x = 112.125 ft`]);
+      expect(fieldsOf(groupsOf(html).find((g) => g.legend === continuousUi[lang].settlements.title)!.html).map((f) => f.label)).toEqual([0, 25.25, 50.5, 75.75, 101, 126.25].map((x, i) => `${tt.results.support} ${i + 1} · x = ${x} ft`));
+      // The drawing: in words, and on its dimension line.
+      expect(drawingsOf(html)[0]).toContain(`: 126.25 ft; `);
+      expect(drawingsOf(html)[0].endsWith(' 126.25.')).toBe(true);
+      expect(drawingsOf(html)[2]).toContain(`276.9 kip·ft ${tt.results.at} x = 112.125 ft`);
+      const dims = [...(html.match(/<g class="mp-beam__dim">[\s\S]*?<\/g>/)?.[0] ?? '').matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+      expect(dims).toContain('126.25');
+      expect(dims).not.toContain('126.3');
+    }
+    // In metres: three spans of 7.625 m end at 22.875 m.
+    const si = show('en', beam({ units: 'si', spans: [1, 2, 3].map((id) => span(id, 7.625, 1, 13, 17.5)), settlements: [0, 0, 0, 0], section: section({ E: 200000, I: 350.883, S: 1337.18, Av: 4674.2 }), everyArrangement: false, nextId: 4 }));
+    expect(rowsOf(cardsOf(si).of('Supports')).map((r) => r[1])).toEqual(['0', '7.625', '15.25', '22.875']);
+  });
+
+  // Every support 0.3 in down and nothing on the beam: it is 0.3 in lower all along, bent nowhere.
+  it('supports that all settle by the same length: the deflection is that length, with a direction and no place', () => {
+    for (const lang of LANGS) {
+      const tt = beamStrings[lang].ui;
+      const html = show(lang, beam({ spans: [span(1, 24), span(2, 30), span(3, 24)], settlements: [0.3, 0.3, 0.3, 0.3], nextId: 4 }));
+      const cards = cardsOf(html);
+      expect(pairsOf(cards.of(tt.results.maxima))[3]).toEqual([tt.results.maxDeflection, `0.3 in ${tt.results.downward}`]);
+      expect(pairsOf(cards.of(tt.results.point))[2]).toEqual([tt.results.deflection, '-0.3 in']);
+      // The diagram in words gives the one value twice and no place; drawn, it is labelled once.
+      expect(drawingsOf(html)[3]).toBe(esc(`${tt.results.deflection}: ${tt.plot.max} -0.3 in; ${tt.plot.min} -0.3 in.`));
+      expect(drawingsOf(html).slice(1, 3)).toEqual([esc(`${tt.results.shear}: ${tt.plot.zero}.`), esc(`${tt.results.moment}: ${tt.plot.zero}.`)]);
+      const plots = [...html.matchAll(/<figure class="mp-plot"[\s\S]*?<\/figure>/g)].map((m) => m[0]);
+      expect([...(plots[2] ?? '').matchAll(/<text class="mp-plot__value"[^>]*>([^<]*)<\/text>/g)].map((m) => m[1])).toEqual(['-0.3']);
+    }
+  });
+
+  // A W21X44 weighs 44 lb/ft, and that is in the shape table. Without the table the beam that can be solved is
+  // the one without that weight: 18.73 kip at the first support, where this beam has 19.12.
+  it('a steel shape with its own weight asked for, and no shape table yet: no results — another beam’s are not shown', () => {
+    const weighed = beam({ section: section({ mode: 'shape', shape: 'W21X44', selfWeight: true }), everyArrangement: false });
+    for (const lang of LANGS) {
+      const tt = beamStrings[lang].ui;
+      const html = show(lang, weighed);
+      expect(cardsOf(html).titles).toEqual([]);
+      // While the table is on its way nothing is wrong, and nothing is announced: the results wait, and the section group says what for.
+      expect(issuesOf(html)).toBe('');
+      expect(text(html)).toContain(tt.results.waiting);
+      expect(text(html)).toContain(tt.section.loading);
+      expect(text(html)).not.toContain('18.73');
+      // The beam is still drawn, without reactions.
+      expect(html).toContain('<figure class="mp-plot mp-beam">');
+      expect(html).not.toContain('mp-beam__reaction');
+    }
+    // Without its own weight the shape is not one of the loads: shear and moment do not wait for the table.
+    const light = show('en', { ...weighed, section: section({ mode: 'shape', shape: 'W21X44', selfWeight: false }) });
+    expect(cardsOf(light).titles).toHaveLength(4);
+    expect(rowsOf(cardsOf(light).of('Supports'))[0][2]).toBe('18.73 upward');
+    expect(issuesOf(light)).toBe('');
+    // The table LOST is said in the results box, under the line for a beam that cannot be solved yet — a state a
+    // server render cannot reach (the browser regression holds it): here, the line of the source that says it.
+    const tool = readFileSync(join(SRC, 'components/ttc/calc/continuous/ContinuousCalculator.tsx'), 'utf8');
+    expect(tool).toContain('const unweighed = awaited !== null && form.section.selfWeight;');
+    expect(tool).toContain('const r = unweighed ? null : a.results;');
+    expect(tool).toContain('...(unweighed && steel.failed ? [{ id: undefined, text: t.section.loadFailed }] : []),');
+  });
+
+  // A live point load on a LEFT overhang, read where it stands (the middle of the beam, where the card opens). Left of it the shear is the dead
+  // load's alone, the same in both arrangements: −0.5 × 10 = −5 kip. Right of it, −5 with the load off and −9 with it on. The HIGHEST values of
+  // the two sides are one number; only the lowest jumps — and that is a jump: both sides are given.
+  it('a jump that shows only in the lowest value of a range is still two values, left and right', () => {
+    const html = show('en', beam({ spans: [span(1, 12, 1, 0.5, 0), span(2, 8, 1, 0.5, 0)], left: 'free', right: 'fixed', settlements: [0, 0, 0], points: [point(3, 0, 10, 4, 'down', true)], nextId: 4 }));
+    const card = cardsOf(html).of('Values at a point');
+    expect(fieldsOf(card).map((f) => [f.label, f.value])).toEqual([['x', '10']]);
+    expect(pairsOf(card)[0]).toEqual(['Shear, V', '-5 just left , -9 to -5 just right kip']);
+  });
+
+  // A span that hardly moves: 24 ft under a millionth of a kip per foot deflects 5wL⁴/384EI = 3.05 × 10⁻⁷ in, a ratio of nine figures.
+  // Past 99,999 the page stops counting, as the first calculator does.
+  it('a length over a deflection past 99,999 is not written out', () => {
+    expect((24 * 12) / (((5 * 1e-6 * 24 ** 4) / 384 / EI) * 12)).toBeGreaterThan(9e8);
+    for (const lang of LANGS) {
+      const card = cardsOf(show(lang, beam({ spans: [span(1, 24, 1, 0.000001, 0)], settlements: [0, 0], everyArrangement: false }))).of(continuousUi[lang].results.bySpan);
+      expect(rowsOf(card)[0][3]).toBe(lang === 'en' ? '> 99,999' : '> 99 999');
+    }
   });
 
   it('further loads on the drawing: a live one is marked, and spans with other loads are other blocks', () => {
@@ -878,6 +1045,87 @@ describe('continuous beam calculator: what it borrows from the first calculator 
     expect(draw((load) => load.text)).toBe(draw());
   });
 
+  // Every span of a continuous beam carries a block, so a further load's value is written inside one — across its
+  // top edge and its arrows: "0.4 – 1.6" read "-0.4 -- 1.6", and on paper, with no halo, a value was struck
+  // through. A page may ask for a plate behind each distributed load's value.
+  it('…or asks for a plate behind each distributed load’s value: the size of the value, drawn after every block and arrow and just before the value', () => {
+    const form = { ...decodeBeam('us;20;p0_r20;;12,8;0,20,1.2,1.2_2,9,0.4,1.6;;p,s,29000,800,88.9,6.39')!, nextId: 9 };
+    const draw = (plates?: boolean) => renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width: 600, probeX: null, summary: 'a beam', plates }));
+    // Without it — the first two calculators — the drawing is what it was, to the byte.
+    expect(draw()).not.toContain('mp-beam__plate');
+    expect(draw(false)).toBe(draw());
+    const plated = draw(true);
+    // Taking the plates away gives the plain drawing back: nothing else has moved.
+    expect(plated.replace(/<rect class="mp-beam__plate"[^>]*><\/rect>/g, '')).toBe(draw());
+    const pairs = [...plated.matchAll(/<rect class="mp-beam__plate" x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"><\/rect><text class="mp-beam__label" x="([-\d.]+)" y="([-\d.]+)" text-anchor="(start|middle|end)">([^<]*)<\/text>/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]), w: Number(m[3]), h: Number(m[4]), tx: Number(m[5]), ty: Number(m[6]), anchor: m[7], text: m[8] }));
+    // One for each distributed load, none for the point load: its value is written above every block.
+    expect(pairs.map((p) => p.text).sort()).toEqual(['0.4 – 1.6 kip/ft', '1.2 kip/ft']);
+    expect((plated.match(/mp-beam__plate/g) ?? []).length).toBe(2);
+    for (const p of pairs) {
+      // 6.9 px to a character, 2 px to spare each side; from 12 above the baseline to 3 below it.
+      const ink = p.text.length * 6.9;
+      const left = p.anchor === 'start' ? p.tx : p.anchor === 'end' ? p.tx - ink : p.tx - ink / 2;
+      expect([p.x, p.y, p.w, p.h].map((v) => Math.round(v * 1000) / 1000), p.text).toEqual([left - 2, p.ty - 12, ink + 4, 15].map((v) => Math.round(v * 1000) / 1000));
+    }
+    // After every block, every block's arrow and the point load's arrow: what would cross a value is behind its plate.
+    const first = plated.indexOf('mp-beam__plate');
+    expect(plated.lastIndexOf('class="mp-beam__point"')).toBeGreaterThan(0);
+    expect(plated.lastIndexOf('class="mp-beam__point"')).toBeLessThan(first);
+    expect(plated.lastIndexOf('<g class="mp-beam__dist"><polygon')).toBeGreaterThan(0);
+    expect(plated.lastIndexOf('<g class="mp-beam__dist"><polygon')).toBeLessThan(first);
+    // The page's colour on a screen, white on paper — said in this calculator's own part of the sheet.
+    const sheet = readFileSync(join(SRC, 'components/ttc/calc/calc.css'), 'utf8');
+    expect(sheet).toMatch(/\n\.mp-cont \.mp-beam__plate \{\s*fill: var\(--mp-paper\);\s*\}/);
+    expect(sheet.slice(sheet.lastIndexOf('@media print'))).toMatch(/\.mp-cont \.mp-beam__plate \{\s*fill: #fff;\s*\}/);
+    // …and the continuous beam asks for it, with the two other things it asks of the drawing.
+    expect(readFileSync(join(SRC, 'components/ttc/calc/continuous/ContinuousCalculator.tsx'), 'utf8')).toMatch(/<BeamSchematic [^>]*label=\{loadLabel\} plates figures=\{6\} clearUnit \/>/);
+  });
+
+  // The positions under a beam are written to four figures, as the first calculator's tables write one. The
+  // continuous beam's supports are sums of the lengths typed, and its form and tables write them as they add up.
+  it('…or for its positions with more figures: 126.25 ft is not 126.3 on the dimension line of a page that asks for six', () => {
+    const form = { ...decodeBeam('us;126.25;p0_r25.25_r126.25;;;;;p,s,29000,800,88.9,6.39')!, nextId: 9 };
+    const dims = (figures?: number) => [...(renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width: 900, probeX: null, summary: 'a beam', figures })).match(/<g class="mp-beam__dim">[\s\S]*?<\/g>/)?.[0] ?? '').matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+    expect(dims()).toEqual(['0', '25.25', '126.3', 'ft']);
+    expect(dims(4)).toEqual(dims());
+    expect(dims(6)).toEqual(['0', '25.25', '126.25', 'ft']);
+  });
+
+  // "102.3ft", with the 3 half under the unit's halo: the unit stands at the edge of the drawing, 28 px past the
+  // end's tick, and a length of five characters reached it. A beam of several spans is past 100 ft as a matter of course.
+  it('…or for the beam’s length kept clear of its unit: where it would come within 4 px of it, it is written that much to the left, still under its tick', () => {
+    const beamOf = (L: number, ...inner: number[]) => ({ ...decodeBeam(`us;${L};p0${inner.map((x) => `_r${x}`).join('')}_r${L};;;;;p,s,29000,800,88.9,6.39`)!, nextId: 9 });
+    const texts = (form: ReturnType<typeof beamOf>, width: number, clearUnit?: boolean) =>
+      [...renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width, probeX: null, summary: 'a beam', clearUnit })).match(/<g class="mp-beam__dim">[\s\S]*?<\/g>/)![0].matchAll(/<text( class="mp-beam__unit")? x="([\d.]+)"[^>]*>([^<]*)<\/text>/g)].map((m) => ({ unit: Boolean(m[1]), x: Number(m[2]), text: m[3] }));
+    const end = (form: ReturnType<typeof beamOf>, width: number, clearUnit?: boolean) => texts(form, width, clearUnit).filter((t) => !t.unit).at(-1)!;
+    for (const width of [280, 288, 350, 420, 708, 724, 1100]) {
+      for (const [L, written] of [[102.25, '102.3'], [1234.5, '1,235'], [39000, '39,000'], [12.345, '12.35'], [100.5, '100.5'], [12.5, '12.5']] as [number, string][]) {
+        const form = beamOf(L);
+        const unit = texts(form, width, true).find((t) => t.unit)!;
+        const last = end(form, width, true);
+        // 6.8 px to a character of this line: the unit ends at its x, the number is centred on its own.
+        expect(unit.x - unit.text.length * 6.8 - (last.x + (last.text.length * 6.8) / 2), `${L} ft at ${width} px`).toBeGreaterThanOrEqual(4 - 1e-9);
+        // Still the length, and its tick still over it.
+        expect(last.text, `${L} ft at ${width} px`).toBe(written);
+        expect(width - 30 - last.x, `${L} ft at ${width} px`).toBeGreaterThan(0);
+        expect(width - 30 - last.x, `${L} ft at ${width} px`).toBeLessThan((last.text.length * 6.8) / 2);
+        // Not asked for — the first two calculators — the length is where it always was, to the byte of the drawing.
+        expect(end(form, width).x, `${L} ft at ${width} px, not asked`).toBe(width - 30);
+        expect(renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width, probeX: null, summary: 'a beam', clearUnit: false }))).toBe(renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width, probeX: null, summary: 'a beam' })));
+      }
+      // A length that was clear of the unit is where it always was: centred under its tick.
+      for (const L of [20, 78, 100, 7.5]) expect(end(beamOf(L), width, true).x, `${L} ft at ${width} px`).toBe(width - 30);
+    }
+    // A support a foot before the end still gives way to the end, wherever the end's number is written.
+    for (const width of [280, 328, 382]) expect(texts(beamOf(102.25, 101.25), width, true).map((t) => t.text), String(width)).toEqual(['0', '102.3', 'ft']);
+    // The continuous beam's own case: spans of 30.5, 41.25 and 30.5 ft end at 102.25 ft, written with its six figures.
+    const html = show('en', beam({ spans: [span(1, 30.5, 1, 0.9, 1.2), span(2, 41.25, 1, 0.9, 1.2), span(3, 30.5, 1, 0.9, 1.2)] }));
+    const line = [...html.match(/<g class="mp-beam__dim">[\s\S]*?<\/g>/)![0].matchAll(/<text( class="mp-beam__unit")? x="([\d.]+)"[^>]*>([^<]*)<\/text>/g)].map((m) => ({ unit: Boolean(m[1]), x: Number(m[2]), text: m[3] }));
+    const [length, unit] = [line.filter((l) => !l.unit).at(-1)!, line.find((l) => l.unit)!];
+    expect(length.text).toBe('102.25');
+    expect(unit.x - unit.text.length * 6.8 - (length.x + (length.text.length * 6.8) / 2)).toBeGreaterThanOrEqual(4 - 1e-9);
+  });
+
   // calc.css is loaded by all three calculators. What this one adds begins
   // with a class of its own, so that no rule of it can reach the other two.
   it('every rule this calculator adds to the shared sheet begins with a class of its own', () => {
@@ -891,5 +1139,94 @@ describe('continuous beam calculator: what it borrows from the first calculator 
     for (const s of selectors) expect(s, s).toMatch(/^\.mp-cont(__[a-z]+)?(?![\w-])/);
     // …and the sheet before it has no rule about this calculator's classes.
     expect(css.slice(0, from)).not.toMatch(/\.mp-cont(__|[^\w-])/);
+  });
+
+  // What these rules do is held in a browser (the regression script measures every field and prints the sheet).
+  // That they are there, and where, is held here: a rule lost in an edit of the sheet would be lost in silence.
+  it('a value too long for its field ends in “…”, a span’s fields are two to a line on a phone, and the drawings stay together on paper', () => {
+    const css = readFileSync(join(SRC, 'components', 'ttc', 'calc', 'calc.css'), 'utf8');
+    const mine = css.slice(css.indexOf('/* THE CONTINUOUS BEAM (.mp-cont)')).replace(/\/\*[\s\S]*?\*\//g, '');
+    // On a screen only: the printed sheet sizes a field by what is in it, and cuts nothing.
+    expect(mine).toMatch(/@media screen \{[^@]*\.mp-cont \.mp-num__input \{\s*text-overflow: ellipsis;\s*\}/);
+    const phone = mine.slice(mine.indexOf('@media screen and (max-width: 640px)'), mine.indexOf('@media print'));
+    expect(phone).toMatch(/\.mp-cont \.mp-app__fields\.mp-cont__span > \.mp-num \{\s*flex: 1 1 calc\(50% - var\(--mp-4\)\);\s*\}/);
+    expect(phone).not.toMatch(/flex-basis: 6\.5rem/);
+    // The button that removes a span stands on the line of the span's number: the fields have the whole width.
+    expect(phone).toMatch(/\.mp-cont \.mp-app__item:has\(> \.mp-cont__name\) \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) 44px;/);
+    expect(phone).toMatch(/\.mp-cont \.mp-cont__name \+ \.mp-app__row--rm > \.mp-app__remove \{\s*grid-area: 1 \/ 2;\s*\}/);
+    const paper = mine.slice(mine.lastIndexOf('@media print'));
+    expect(paper).toMatch(/\.mp-cont \.mp-app__plots \{\s*break-inside: avoid;\s*\}/);
+    expect(paper).not.toMatch(/text-overflow/);
+  });
+});
+
+describe('continuous beam calculator: what only its source can show of the wiring (the browser script holds what it does)', () => {
+  const source = readFileSync(join(SRC, 'components', 'ttc', 'calc', 'continuous', 'ContinuousCalculator.tsx'), 'utf8');
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  // A beam arriving in the address (Back, Forward, a pasted link) while a
+  // field has the focus: the field kept the text and the fall-back value of
+  // the beam before, and the Length field's commit carried the new beam's
+  // loads from the old length and wrote the result over the new address.
+  it('a beam opened from the address ends the edit in progress first: the length being typed is forgotten, then the field is left, then the beam is put on screen', () => {
+    const open = code.slice(code.indexOf('open: (found) => {'), code.indexOf('typing: (press) =>'));
+    const steps = ['editingL.current = null;', 'settledL.current = new Map();', 'if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();', "dispatch({ type: 'load', form: found });", 'setWhole(found);'];
+    const at = steps.map((s) => open.indexOf(s));
+    expect(at.every((i) => i >= 0), JSON.stringify(at)).toBe(true);
+    expect([...at].sort((p, q) => p - q)).toEqual(at);
+    // The commit of a Length field whose edit was ended that way does nothing: it carries nothing and writes no address.
+    expect(code).toMatch(/onCommit=\{\(\) => \{\s*if \(editingL\.current !== s\.id\) return;\s*editingL\.current = null;/);
+    expect(code).toContain('<div className="mp-app mp-cont" ref={root}>');
+  });
+
+  // "Values at a point": with the focus in x, a pointer resting on a diagram gave the values under it beside the x typed.
+  it('while x is being typed the pointer does not move the position; a press on a drawing leaves the field first', () => {
+    expect(code).toMatch(/const probe = useCallback\(\(x: number \| null\) => \{\s*if \(!typingX\.current\) setProbeX\(x\);\s*\}, \[\]\);/);
+    expect(code.match(/onProbe=\{probe\}/g)).toHaveLength(1);
+    expect(code).not.toContain('onProbe={setProbeX}');
+    expect(code).toMatch(/const leaveX = \(\) => \{\s*const focused = document\.activeElement;\s*if \(typingX\.current && focused instanceof HTMLElement\) focused\.blur\(\);\s*\};/);
+    expect(code).toContain('<div className="mp-app__plots" ref={plotRef} onPointerDownCapture={leaveX}>');
+    expect(code).toMatch(/onEdit=\{\(\) => \{\s*typingX\.current = true;\s*setTypedX\(x0\);\s*setProbeX\(null\);\s*\}\}\s*onCommit=\{\(\) => \{\s*typingX\.current = false;\s*\}\}/);
+  });
+
+  // The beam is solved a moment after a key, not inside it — but only while numbers alone change, never on paper, and never for a beam opened whole.
+  it('what is solved is the form of a moment ago only while it differs from the form by numbers alone', () => {
+    expect(code).toContain("const choicesOf = (form: ContinuousForm) => JSON.stringify(form, (_key, value: unknown) => (typeof value === 'number' ? 0 : value));");
+    expect(code).toContain('const behind = useDeferredValue(form);');
+    expect(code).toContain('const solved = onPaper || form === whole || choicesOf(behind) !== choicesOf(form) ? form : behind;');
+    expect(code).toContain('const a = useMemo(() => analyseSafely(solved, shape), [solved, shape]);');
+    expect(code).toContain('const drawing = useMemo(() => drawingOf(solved), [solved]);');
+    // The results and the cards say so while they are behind.
+    expect(code.match(/aria-busy=\{catching \? true : undefined\}/g)).toHaveLength(2);
+    // Start over is a beam put on screen whole, like one opened from the address.
+    expect(code).toMatch(/const example = defaultContinuous\(\);\s*dispatch\(\{ type: 'load', form: example \}\);\s*setWhole\(example\);/);
+    // The address, the printed link and the length being typed are the form's own, never the one of a moment ago.
+    expect(code).toContain('const code = useCallback(() => encodeContinuous(leaving()), [leaving]);');
+    expect(code).toContain('url: () => address.link(encodeContinuous(form))');
+    // As the server sends it, nothing is behind.
+    for (const lang of LANGS) expect(show(lang)).not.toContain('aria-busy');
+  });
+
+  // Two rules of the form that the numbers-only test rests on: what a choice is.
+  it('two forms that differ by a number are the same choices; by a unit, a row, an end, a kind of section, they are not', () => {
+    const choicesOf = (form: ContinuousForm) => JSON.stringify(form, (_key, value: unknown) => (typeof value === 'number' ? 0 : value));
+    const base = defaultContinuous();
+    const same = (other: ContinuousForm) => choicesOf(other) === choicesOf(base);
+    expect(same({ ...base, spans: base.spans.map((s, i) => (i ? s : { ...s, L: 31.5, dead: Number.NaN, live: -2 })) })).toBe(true);
+    expect(same({ ...base, settlements: [0, 0.5, 0, 0], section: { ...base.section, E: 1, I: 2 } })).toBe(true);
+    expect(same({ ...base, units: 'si' })).toBe(false);
+    expect(same({ ...base, spans: base.spans.slice(0, 2) })).toBe(false);
+    expect(same({ ...base, left: 'fixed' })).toBe(false);
+    expect(same({ ...base, everyArrangement: !base.everyArrangement })).toBe(false);
+    expect(same({ ...base, section: { ...base.section, mode: 'shape' } })).toBe(false);
+    expect(same({ ...base, section: { ...base.section, shape: 'W18X40' } })).toBe(false);
+    expect(same({ ...base, points: [{ id: 9, span: 0, a: 1, P: 1, dir: 'down', live: false }] })).toBe(false);
+  });
+
+  it('the arithmetic is reached through the door that never throws, and its line is in both languages', () => {
+    expect(code).toContain("import { analyseSafely, drawingOf, type AnalysisIssue, type Both, type Diagram, type Value } from '@/lib/calc/continuous/analysis';");
+    expect(code).not.toMatch(/\banalyseContinuous\b/);
+    expect(continuousUi.en.issues.stopped).toBe('The calculation stopped on this beam, and has no result to show for it. The fault is in this calculator, not in the beam.');
+    expect(continuousUi.es.issues.stopped).toBe('El cálculo se ha detenido con esta viga y no tiene ningún resultado que mostrar. El error es de esta calculadora, no de la viga.');
   });
 });

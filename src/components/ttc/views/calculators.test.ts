@@ -435,7 +435,8 @@ describe('calculators: where the page is', () => {
         expect([...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => text(m[1])), where).toEqual([h1[href][lang]]);
       }
     }
-  });
+    // Six routes are imported and each page rendered with its example solved: two seconds alone, more than the default five beside the other suites.
+  }, 30_000);
 
   it('neither route keeps a calculator-less page’s noindex', () => {
     for (const f of ['(public)/(site)/resources/page.tsx', '(public-es)/(site)/es/resources/page.tsx']) {

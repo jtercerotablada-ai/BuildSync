@@ -229,7 +229,9 @@ describe('envelope: against every arrangement, solved in full (120 random beams,
   const scalesOf = (e: ContinuousEnvelope, m: ContinuousModel) => {
     const F = e.all.loadScale || 1;
     const soft = Math.min(...m.spans.map((p) => p.k));
-    return { V: F, M: F * e.L, Y: (F * e.L ** 3) / soft + Math.max(0, ...(m.settlements ?? []).map(Math.abs)) };
+    const sunk = Math.max(0, ...(m.settlements ?? []).map(Math.abs));
+    // (A slope: a settlement turns a span by itself over the span's length.)
+    return { V: F, M: F * e.L, T: (F * e.L ** 2) / soft + sunk / Math.min(...m.spans.map((p) => p.L)), Y: (F * e.L ** 3) / soft + sunk };
   };
 
   it('at every station, on both sides of it, each edge of each band is the best of them', () => {
@@ -257,6 +259,39 @@ describe('envelope: against every arrangement, solved in full (120 random beams,
     // Most of them have several live spans: over a thousand beams, each solved in full, stand behind this.
     expect(arrangements).toBeGreaterThan(1000);
     expect(SEEDS.some((seed) => liveOf(randomModel(seed)).length === 6)).toBe(true);
+  }, 120_000);
+
+  // The slope has no band drawn and no largest value named: it is followed at a point, and held here at points —
+  // every place where something happens, on both sides, and one station in nine between. With it the moment
+  // nearest to zero, which is neither end of the moment's range where the arrangements bend the beam both ways.
+  it('at a point the slope is a range like the others, and the moment nearest to zero is the least that any arrangement gives', () => {
+    let turning = 0;
+    let oneWay = 0;
+    for (const seed of SEEDS) {
+      const { m, e, sols } = beamOf(seed);
+      const sc = scalesOf(e, m);
+      const places = [...new Set(e.stations.map((s) => s.x))].filter((x, i) => i % 9 === 0 || e.breaks.includes(x));
+      for (const x of places) {
+        for (const side of ['left', 'right'] as const) {
+          const here = e.at(x, side);
+          const states = sols.map((s) => s.at(x, side));
+          near(here.EItheta.max, Math.max(...states.map((s) => s.EItheta)), sc.T, 1e-11);
+          near(here.EItheta.min, Math.min(...states.map((s) => s.EItheta)), sc.T, 1e-11);
+          const least = e.leastMoment(x, side);
+          near(least, Math.min(...states.map((s) => Math.abs(s.M))), sc.M, 1e-11);
+          // Never past an end of the range; and where every arrangement bends the beam one way, the nearer end itself.
+          const nearer = Math.min(Math.abs(here.M.max), Math.abs(here.M.min));
+          expect(least).toBeLessThanOrEqual(nearer);
+          if (here.M.min >= 0 || here.M.max <= 0) {
+            expect(least).toBe(nearer);
+            oneWay += 1;
+          } else turning += 1;
+        }
+      }
+    }
+    // Both kinds of point stand behind this, by the thousand.
+    expect(turning).toBeGreaterThan(1000);
+    expect(oneWay).toBeGreaterThan(1000);
   }, 120_000);
 
   it('the largest values are the largest any arrangement reaches, and the arrangement named reaches them', () => {
@@ -379,10 +414,13 @@ describe('envelope: what is in it, and what is not', () => {
     for (const st of e.stations) {
       expect(st.V.max).toBe(st.V.min);
       expect(st.M.max).toBe(st.M.min);
+      expect(st.EItheta.max).toBe(st.EItheta.min);
       expect(st.EIv.max).toBe(st.EIv.min);
+      // One arrangement: the moment nearest to zero is the moment.
+      expect(e.leastMoment(st.x, 'right')).toBe(Math.abs(e.at(st.x, 'right').M.max));
     }
     // The same stations, to the last figure of each.
-    expect(e.stations.map((st) => [st.x, st.V.max, st.M.max, st.EIv.max])).toEqual(s.stations.map((st) => [st.x, st.V, st.M, st.EIv]));
+    expect(e.stations.map((st) => [st.x, st.V.max, st.M.max, st.EItheta.max, st.EIv.max])).toEqual(s.stations.map((st) => [st.x, st.V, st.M, st.EItheta, st.EIv]));
     // The same largest values at the same places (found here on the band's own polynomials: to rounding), with nobody named.
     const same = (got: Governing, want: { value: number; x: number }, scale: number) => {
       near(got.value, want.value, scale, 1e-12);
@@ -494,10 +532,10 @@ describe('envelope: what is in it, and what is not', () => {
       dists: Array.from({ length: 6 }, (_, span) => ({ span, a1: 0, a2: 1e60, w1: 1e60, w2: 1e60, live: true })),
     };
     const out = envelopeContinuous(big);
-    if (out.ok) expect(out.stations.every((s) => [s.x, s.V.max, s.V.min, s.M.max, s.M.min, s.EIv.max, s.EIv.min].every(Number.isFinite))).toBe(true);
+    if (out.ok) expect(out.stations.every((s) => [s.x, s.V.max, s.V.min, s.M.max, s.M.min, s.EItheta.max, s.EItheta.min, s.EIv.max, s.EIv.min].every(Number.isFinite))).toBe(true);
     else expect(out.issues).toEqual([{ code: 'length' }]);
     const sound = enveloped({ ...big, spans: big.spans.map(() => ({ L: 1e20, k: 0.001 })), dists: big.dists?.map((d) => ({ ...d, a2: 1e20, w1: 1e20, w2: 1e20 })) });
-    expect(sound.stations.every((s) => [s.x, s.V.max, s.V.min, s.M.max, s.M.min, s.EIv.max, s.EIv.min].every(Number.isFinite))).toBe(true);
+    expect(sound.stations.every((s) => [s.x, s.V.max, s.V.min, s.M.max, s.M.min, s.EItheta.max, s.EItheta.min, s.EIv.max, s.EIv.min].every(Number.isFinite))).toBe(true);
   });
 });
 
@@ -543,6 +581,20 @@ describe('envelope: where the values are small, and where two places are one', (
     const top = Math.abs(e.spans[5].EIvChord.value);
     near(here.EIv.max, Math.max(...states.map((s) => s.EIv)), top, 1e-9);
     near(here.EIv.min, Math.min(...states.map((s) => s.EIv)), top, 1e-9);
+    // The slope in the two stiff spans, a millionth of the slopes beside them: each edge against the steepest
+    // that span is in any arrangement — its own figures, again. (With rounding measured against the largest
+    // slope a load causes anywhere on the beam, an edge here came back as 3.89e-8 for 5.58e-7.)
+    for (const i of [3, 5]) {
+      const { from, to } = e.spans[i];
+      const steepest = Math.max(...sols.flatMap((s) => s.stations.filter((st) => st.x >= from && st.x <= to).map((st) => Math.abs(st.EItheta))));
+      for (const u of [0.2, 0.5, 0.8]) {
+        const turned = sols.map((s) => s.at(from + u * len).EItheta);
+        const band = e.at(from + u * len).EItheta;
+        near(band.max, Math.max(...turned), steepest, 1e-9);
+        near(band.min, Math.min(...turned), steepest, 1e-9);
+        expect(band.max - band.min).toBeGreaterThan(1e-3 * steepest);
+      }
+    }
     // And the supports: each reaction and each moment over a support against itself.
     e.joints.forEach((j, k) => {
       for (const [got, of] of [

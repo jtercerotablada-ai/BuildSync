@@ -199,6 +199,17 @@ describe('beam calculator: numbers as they are printed and typed', () => {
     expect(formatNumber(1289.04, 6, '')).toBe('1289.04');
   });
 
+  // The formatter is made once for each number of figures and kept (format.ts): a calculator prints hundreds of
+  // numbers at every key. What it writes must be what a formatter made for that one number writes.
+  it('a number printed twice, or after another number of figures, is the same text: the formatter kept is the one a new call would make', () => {
+    const fresh = (v: number, sig: number) => Number(v.toPrecision(sig)).toLocaleString('en-US', { maximumSignificantDigits: sig });
+    const values = [15.2, 0.186212, 1289.04, 29000, -16.8, 1234567, 0.00012346, -0.0024826, 9999.5, 0.99995, 53670.4, 1 / 3, -2 / 3, 9999999, 0.0001];
+    for (const round of [1, 2]) for (const sig of [4, 6, 3, 8, 4]) for (const v of values) expect(formatNumber(v, sig), `${v} to ${sig}, round ${round}`).toBe(fresh(v, sig));
+    const format = readFileSync(join(SRC, 'lib/calc/format.ts'), 'utf8');
+    expect(format.match(/new Intl\.NumberFormat\(/g)).toHaveLength(1);
+    expect(format.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')).not.toContain('toLocaleString');
+  });
+
   it('never prints a negative zero, a NaN or a row of zeros', () => {
     expect(formatNumber(-0)).toBe('0');
     expect(formatNumber(-1e-15)).toBe('0');

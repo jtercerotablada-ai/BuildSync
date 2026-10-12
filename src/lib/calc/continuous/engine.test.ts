@@ -1220,6 +1220,28 @@ describe('continuous beam: what cannot be solved, and why', () => {
     ]);
   });
 
+  // A number under 2.2e-308 keeps fewer figures with every decade. A load
+  // of 1e-316 alone in its case — as a span's live load is, in the
+  // envelope — failed the engine's own checks of slope and equilibrium, and
+  // the beam came back as a span too short, which no span was.
+  it('names every load and settlement that is not zero and smaller than the engine takes — as the number it is, never as a span too short', () => {
+    const base = { spans: [span, span], left: 'pin' as const, right: 'pin' as const };
+    for (const bad of [9.9e-61, -9.9e-61, 1e-100, 1e-316, -5e-324]) {
+      expect(refusal({ ...base, points: [{ span: 0, a: 3, P: 1 }, { span: 1, a: 3, P: bad }] }), String(bad)).toEqual([{ code: 'number', where: { list: 'points', index: 1 } }]);
+      expect(refusal({ ...base, dists: [{ span: 0, a1: 0, a2: 5, w1: bad, w2: 1 }] }), String(bad)).toEqual([{ code: 'number', where: { list: 'dists', index: 0 } }]);
+      expect(refusal({ ...base, dists: [{ span: 0, a1: 0, a2: 5, w1: 1, w2: bad }] }), String(bad)).toEqual([{ code: 'number', where: { list: 'dists', index: 0 } }]);
+      expect(refusal({ ...base, settlements: [0, bad, 0] }), String(bad)).toEqual([{ code: 'number', where: { list: 'settlements', index: 1 } }]);
+    }
+    // At the limit it is taken, either way up; and zero, of either sign, is no load and no settlement.
+    for (const fine of [1e-60, -1e-60, 0, -0]) {
+      expect(solveContinuous({ ...base, points: [{ span: 0, a: 3, P: fine }], dists: [{ span: 1, a1: 0, a2: 5, w1: fine, w2: fine }], settlements: [0, fine, 0] }).ok, String(fine)).toBe(true);
+    }
+    // The beam it was found on: 24, 30 and 24 ft, and on the middle span alone a load of 1e-316.
+    const three = { spans: [{ L: 24, k: 1 }, { L: 30, k: 1 }, { L: 24, k: 1 }], left: 'pin' as const, right: 'pin' as const };
+    expect(refusal({ ...three, dists: [{ span: 1, a1: 0, a2: 30, w1: 1e-316, w2: 1e-316 }] })).toEqual([{ code: 'number', where: { list: 'dists', index: 0 } }]);
+    expect(refusal({ ...three, settlements: [0, 1e-316, 0, 0] })).toEqual([{ code: 'number', where: { list: 'settlements', index: 1 } }]);
+  });
+
   it('names every load that is off its span, or on a span that is not there', () => {
     const base = { spans: [span, { L: 10, k: 1 }], left: 'pin' as const, right: 'pin' as const };
     expect(refusal({ ...base, points: [{ span: 1, a: 10.5, P }] })).toEqual([{ code: 'outside', where: { list: 'points', index: 0 } }]);

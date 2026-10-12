@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { formatNumber } from '@/lib/calc/format';
 import { MAX_ROWS, UNITS, round4, type Direction } from '@/lib/calc/beam/model';
 import type { BeamUi } from '@/lib/calc/beam/strings';
-import { analyseContinuous, drawingOf, type AnalysisIssue, type Both, type Diagram, type Value } from '@/lib/calc/continuous/analysis';
+import { analyseSafely, drawingOf, type AnalysisIssue, type Both, type Diagram, type Value } from '@/lib/calc/continuous/analysis';
 import { STIFF } from '@/lib/calc/continuous/engine';
 import {
   CONTINUOUS_KEY,
@@ -39,7 +39,8 @@ import { useSteelShapes } from '../shell/steel';
  * The third calculator of the catalogue, and the first one's sibling
  * (beam/BeamCalculator.tsx): the form on the left, the answer on the right
  * and nothing between them — every keystroke that leaves a number in a field
- * solves the beam again; the address follows the beam (`#c=…`); nothing
+ * solves the beam again, a moment after the key and not inside it (`solved`,
+ * below); the address follows the beam (`#c=…`); nothing
  * leaves the browser; its words are props; it renders on the server with its
  * example. What is the same from one calculator to the next is the shell's
  * (../shell), used here and not copied; the drawing of the beam and the
@@ -97,6 +98,13 @@ function caseIn(hash: string): ContinuousForm | null | undefined {
 }
 
 /**
+ * A form but for the numbers in it: its units, its rows, every choice made
+ * in it. Two forms with the same one differ only by what was typed into
+ * their fields.
+ */
+const choicesOf = (form: ContinuousForm) => JSON.stringify(form, (_key, value: unknown) => (typeof value === 'number' ? 0 : value));
+
+/**
  * The beam in miniature, for which spans carry their live load: a line, a
  * tick under each support, and a block over each span whose live load is on.
  * `held`: whether each joint has a support (a free end has none). `said`:
@@ -126,12 +134,32 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
   const [form, dispatch] = useReducer(reduceContinuous, initial, (given) => given ?? defaultContinuous());
   const [probeX, setProbeX] = useState<number | null>(null);
   const [typedX, setTypedX] = useState<number | null>(null);
+  // The beam last put on screen whole — opened from the address, or the
+  // example on "Start over": that one is solved in the render that shows it
+  // (`solved`, below), never a moment later under the results of the beam before.
+  const [whole, setWhole] = useState<ContinuousForm | null>(null);
+  // The x field of "Values at a point" has the focus: until it is left, the
+  // position is the one in the field. A pointer resting on a diagram gave
+  // the card the values under it, beside the x that had been typed.
+  const typingX = useRef(false);
+  const probe = useCallback((x: number | null) => {
+    if (!typingX.current) setProbeX(x);
+  }, []);
+  // A press on a drawing is the visitor reaching for it: the x field is left
+  // first (the capture runs before the diagram's own handler), and the
+  // place pressed is then the position — in the field too.
+  const leaveX = () => {
+    const focused = document.activeElement;
+    if (typingX.current && focused instanceof HTMLElement) focused.blur();
+  };
   const [plotRef, windowWidth] = useWidth<HTMLDivElement>();
   const [outRef, tooTall] = useTooTall<HTMLElement>();
   const windowPlotHeight = usePlotHeight();
   const u = UNITS[form.units];
   // What the ids of this form's messages begin with.
   const uid = useId();
+  // The calculator itself: a beam opened from the address asks whether the focus is in one of its fields.
+  const root = useRef<HTMLDivElement>(null);
 
   // The last length the visitor settled on for each span (by its id), and
   // the span whose length is being typed: what sat on the right end of a
@@ -169,7 +197,19 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
     blank: defaultContinuous,
     // A beam in the address opens as that beam.
     open: (found) => {
+      // An edit in progress is an edit of the beam before, and ends here. The
+      // field with the focus is left: it would go on showing what was typed
+      // into that beam, and fall back on that beam's value at the first key
+      // that is not a number (NumField). And the length being typed, with
+      // every length settled on, is forgotten BEFORE the field is left: its
+      // commit (below) would carry this beam's loads from the old length,
+      // and write the beam of before over the address this one came from.
+      editingL.current = null;
+      settledL.current = new Map();
+      const focused = document.activeElement;
+      if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();
       dispatch({ type: 'load', form: found });
+      setWhole(found);
       // A place pointed at on the beam before is not a place on this one.
       setProbeX(null);
       setTypedX(null);
@@ -191,11 +231,36 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
   const steel = useSteelShapes({ wanted: wantsShapes, name: form.section.shape, onName: respell });
   const { shapes, shape } = steel;
 
-  // Everything the page prints (lib/calc/continuous/analysis.ts).
-  const a = useMemo(() => analyseContinuous(form, shape), [form, shape]);
-  const r = a.results;
+  // WHICH BEAM IS SOLVED. Every arrangement of eight spans is a quarter of a
+  // second of arithmetic on a phone, and inside the keystroke it kept the
+  // key off the screen for as long: "12.5" was a field that did not answer.
+  // So while only NUMBERS change, the answer is of the form as it was a
+  // moment ago (`useDeferredValue`): the key shows at once, and the beam is
+  // solved in a render of its own, which the next key may interrupt. The
+  // results say so while they are behind (`aria-busy`). Anything else — the
+  // units, a row added or removed, a choice in a list, a beam opened whole —
+  // is solved in the same render as ever: the answer must never stand under
+  // other units, beside rows it was not solved for, or under a beam it is
+  // not of. And on paper it is the form itself: a sheet is never printed
+  // with the answer of the beam before.
+  const behind = useDeferredValue(form);
+  const solved = onPaper || form === whole || choicesOf(behind) !== choicesOf(form) ? form : behind;
+  const catching = solved !== form;
+
+  // Everything the page prints (lib/calc/continuous/analysis.ts) — through
+  // the door that never throws: an exception in the arithmetic is a beam
+  // that could not be solved, said in the results box, and not the end of
+  // the page with whatever was typed into it.
+  const a = useMemo(() => analyseSafely(solved, shape), [solved, shape]);
+  // What is missing while the shape table is on its way, or lost: the table's own line.
+  const awaited = wantsShapes && !shapes ? (steel.failed ? t.section.loadFailed : t.section.loading) : null;
+  // A shape's OWN WEIGHT is one of the loads, and it is in the table. Asked for, and the table not here, the beam
+  // that could be solved meanwhile is ANOTHER beam, lighter by that weight: its reactions and moments are not
+  // shown as this one's. No results until the table arrives — and if it is lost, the results box says so.
+  const unweighed = awaited !== null && form.section.selfWeight;
+  const r = unweighed ? null : a.results;
   // The same beam as the first calculator's drawing takes one, and what is written by its loads.
-  const drawing = useMemo(() => drawingOf(form), [form]);
+  const drawing = useMemo(() => drawingOf(solved), [solved]);
   const beam = drawing.beam;
   // Which joints have a support, and where each joint is.
   const held = useMemo(() => jointPositions(form).map((_, j) => (j === 0 ? form.left : j === form.spans.length ? form.right : 'pin') !== 'free'), [form]);
@@ -203,10 +268,14 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
 
   // Every number this page prints, with the page's own mark between thousands.
   const num = (v: number, sig = 4) => formatNumber(v, sig, t.numbers.group);
-  const where = (x: number) => `${t.results.at} x = ${num(x)} ${u.length}`;
+  // A PLACE THAT WAS ENTERED — a support, an end of a span, a load: the lengths typed, added up — is written as
+  // it was entered, to six figures, like every typed value on the drawing: five spans of 25.25 ft end at 126.25,
+  // not at 126.3. A place that was worked out (where a span sags most) keeps the four figures of a result.
+  const placed = (x: number) => num(x, 6);
+  const entered = (x: number) => (r ? r.breaks.some((b) => Math.abs(b - x) <= 1e-9 * r.L) : false);
+  const where = (x: number) => `${t.results.at} x = ${entered(x) ? placed(x) : num(x)} ${u.length}`;
   // What is missing for a result, in the fields the chosen kind of section
   // has. With the shape table on its way, or lost, that is what is missing.
-  const awaited = wantsShapes && !shapes ? (steel.failed ? t.section.loadFailed : t.section.loading) : null;
   const need = (what: 'deflection' | 'bending' | 'shear') => awaited ?? t.results.need[form.section.mode][what];
 
   /* ── The faults, by row ─────────────────────────────────────────────── */
@@ -243,6 +312,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
   const notices = [
     ...a.issues.filter((i) => !i.row).map((i) => ({ id: `${uid}${i.code}`, text: says(i) })),
     ...a.issues.filter((i) => i.row).map((i) => ({ id: undefined, text: says(i) })),
+    ...(unweighed && steel.failed ? [{ id: undefined, text: t.section.loadFailed }] : []),
     ...(steel.unknown ? [{ id: undefined, text: unknownText }] : []),
   ].filter((n, i, all) => all.findIndex((m) => m.text === n.text) === i);
   const sectionFault = a.issues.some((i) => i.code === 'section');
@@ -251,15 +321,36 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
   const patch = (list: 'spans' | LoadList, id: number, p: Record<string, unknown>) => dispatch({ type: 'patch', list, id, patch: p });
   const spanName = (i: number) => `${t.results.span} ${i + 1}`;
   const loadName = (list: LoadList, i: number) => `${t.row.names[list]} ${i + 1}`;
+  // A row removed WITH THE KEYBOARD took the focus away with it, and the browser left it on nothing. It is given
+  // to the first control of the row that takes the place — the next one, else the one before — or to the group's
+  // "add" button when no row is left. Not after a click or a tap (`detail` counts them, and is 0 for a key): a
+  // phone would open its keyboard on a field nobody touched.
+  const removeRow = (list: 'spans' | LoadList, id: number) => (press: React.MouseEvent<HTMLButtonElement>) => {
+    const row = press.currentTarget.closest('.mp-app__item');
+    const near = [row?.nextElementSibling, row?.previousElementSibling].find((el) => el?.classList.contains('mp-app__item'));
+    const next = press.detail === 0 ? (near?.querySelector<HTMLElement>('input, select') ?? press.currentTarget.closest('fieldset')?.querySelector<HTMLElement>('.mp-app__add')) : null;
+    dispatch({ type: 'remove', list, id });
+    next?.focus();
+  };
   const removeButton = (list: 'spans' | LoadList, id: number, what: string, fixed = false) => (
-    <button type="button" className="mp-app__remove" onClick={() => dispatch({ type: 'remove', list, id })} disabled={fixed} aria-label={`${t.row.remove}: ${what}`} title={t.row.remove}>
+    <button type="button" className="mp-app__remove" onClick={removeRow(list, id)} disabled={fixed} aria-label={`${t.row.remove}: ${what}`} title={t.row.remove}>
       <span aria-hidden="true">×</span>
     </button>
   );
+  // A list at its limit: the button stays where it is and does nothing, and the limit is a line of the page under
+  // it. `disabled`, it dropped the focus of whoever had just added the last row with a key, and said why only in a
+  // tooltip that a finger, a keyboard and a screen reader cannot reach. (Not on the printed sheet: calc.css.)
   const addButton = (list: 'spans' | LoadList, label: string, full: boolean, limit: string) => (
-    <button type="button" className="mp-app__add" onClick={() => dispatch({ type: 'add', list })} disabled={full} title={full ? limit : undefined}>
-      <span aria-hidden="true">+</span> {label}
-    </button>
+    <>
+      <button type="button" className="mp-app__add" onClick={() => (full ? undefined : dispatch({ type: 'add', list }))} aria-disabled={full || undefined} aria-describedby={full ? `${uid}${list}limit` : undefined}>
+        <span aria-hidden="true">+</span> {label}
+      </button>
+      {full ? (
+        <p className="mp-cont__limit" id={`${uid}${list}limit`} role="status">
+          {limit}
+        </p>
+      ) : null}
+    </>
   );
   // The fields every load has: the span it is on, by its number, and whether it is dead or live.
   const whichSpan = (list: LoadList, id: number, span: number) =>
@@ -280,7 +371,9 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
         <LivePattern on={v.on} held={held} /> {loaded(v.on)}
       </span>
     ) : null;
-  // The key under a card whose values name their arrangement.
+  // The key to the miniatures, OVER the table of a card whose values name their arrangement: a mark is explained
+  // before it is used. (Under the table it was, on a phone, most of a screen below the first miniature, and two
+  // screens with eight spans.)
   const patternKey = () => {
     const [before, rest] = c.results.key.split('{on}');
     const [between, after] = (rest ?? '').split('{off}');
@@ -308,13 +401,15 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
 
   /* ── The drawings in words ──────────────────────────────────────────── */
   // A largest value that is zero is said as zero, at no place; a diagram
-  // that is zero all along, in one word.
+  // that is zero all along, in one word. Zero is said of the VALUE: a value
+  // at no place need not be one — a beam whose supports all settle by one
+  // length is that length down all along (analysis.ts, `level`).
   const spoken = (title: string, unit: string, [hi, lo]: [Value, Value]) => {
     const one = (p: Value) => `${num(p.value)} ${unit}${p.x === null ? '' : ` ${where(p.x)}`}`;
-    return hi.x === null && lo.x === null ? `${title}: ${t.plot.zero}.` : `${title}: ${t.plot.max} ${one(hi)}; ${t.plot.min} ${one(lo)}.`;
+    return hi.value === 0 && lo.value === 0 ? `${title}: ${t.plot.zero}.` : `${title}: ${t.plot.max} ${one(hi)}; ${t.plot.min} ${one(lo)}.`;
   };
   const summary = {
-    beam: `${t.results.schematic}: ${num(beam.L)} ${u.length}; ${beam.supports.map((s) => `${t.supports.kinds[s.kind]} ${num(s.x)}`).join(', ')}.`,
+    beam: `${t.results.schematic}: ${placed(beam.L)} ${u.length}; ${beam.supports.map((s) => `${t.supports.kinds[s.kind]} ${placed(s.x)}`).join(', ')}.`,
     V: r ? spoken(t.results.shear, u.force, r.largest.peaks.V) : '',
     M: r ? spoken(t.results.moment, u.moment, r.largest.peaks.M) : '',
     D: r?.largest.peaks.D ? spoken(t.results.deflection, u.deflection, r.largest.peaks.D) : '',
@@ -341,7 +436,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
         width={width}
         height={plotHeight}
         probe={probeX !== null && read && x0 !== null ? { x: x0, y: read.max } : null}
-        onProbe={setProbeX}
+        onProbe={probe}
         summary={text}
         group={t.numbers.group}
       />
@@ -359,14 +454,18 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
     </>
   );
   // The two ends of a pair, in the two cells they have over every arrangement; the one value, in a single case.
-  const cells = (both: Both, head: string, unit: string, print: (v: Value, named: boolean) => React.ReactNode) =>
-    ranged ? (
+  // BY SIZE, not by sign: first the end further from zero, which is the force or the moment to design for, then
+  // the other. A reaction is printed as a size and a direction, so the pair in the order of its signs put the
+  // larger hold-down force of a support pulled down in every arrangement under "min".
+  const cells = (both: Both, head: string, unit: string, print: (v: Value, named: boolean) => React.ReactNode) => {
+    const [larger, other] = Math.abs(both.min.value) > Math.abs(both.max.value) ? [both.min, both.max] : [both.max, both.min];
+    return ranged ? (
       <>
-        <td role="cell" data-label={`${head}, ${t.plot.max} (${unit})`}>
-          {print(both.max, !both.one)}
+        <td role="cell" data-label={`${head}, ${c.results.ends.largest} (${unit})`}>
+          {print(larger, !both.one)}
         </td>
-        <td role="cell" data-label={`${head}, ${t.plot.min} (${unit})`}>
-          {print(both.min, !both.one)}
+        <td role="cell" data-label={`${head}, ${c.results.ends.other} (${unit})`}>
+          {print(other, !both.one)}
         </td>
       </>
     ) : (
@@ -374,14 +473,15 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
         {print(both.max, false)}
       </td>
     );
+  };
   const heads = (head: string, unit: string) =>
     ranged ? (
       <>
         <th scope="col" role="columnheader">
-          {head}, {t.plot.max} ({unit})
+          {head}, {c.results.ends.largest} ({unit})
         </th>
         <th scope="col" role="columnheader">
-          {head}, {t.plot.min} ({unit})
+          {head}, {c.results.ends.other} ({unit})
         </th>
       </>
     ) : (
@@ -399,7 +499,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
   };
 
   return (
-    <div className="mp-app mp-cont">
+    <div className="mp-app mp-cont" ref={root}>
       <div className="mp-app__top">
         {/* ── the form ───────────────────────────────────────────────── */}
         <form className="mp-app__form" onSubmit={(e) => e.preventDefault()} noValidate>
@@ -448,6 +548,8 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
                           editingL.current = s.id;
                         }}
                         onCommit={() => {
+                          // Not this field's edit to end: a beam opened from the address has ended it (`open`).
+                          if (editingL.current !== s.id) return;
                           editingL.current = null;
                           // The edit is final: what sat on the span's end is carried, and
                           // the address is written now — whatever reads it next must find
@@ -500,7 +602,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
           </fieldset>
 
           <fieldset className="mp-app__group">
-            <legend>{t.supports.title}</legend>
+            <legend>{c.settlements.title}</legend>
             <p className="mp-app__note">{c.settlements.note}</p>
             {/* One field to a support, named by its number and its place along the
                 beam, which is worked out from the spans. A free end has no support. */}
@@ -509,7 +611,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
                 <NumField
                   key={joint}
                   numbers={t.numbers}
-                  label={`${t.results.support} ${i + 1} · x = ${num(at[joint])} ${u.length}`}
+                  label={`${t.results.support} ${i + 1} · x = ${placed(at[joint])} ${u.length}`}
                   unit={u.deflection}
                   value={form.settlements[joint] ?? 0}
                   emptyIs={0}
@@ -617,7 +719,9 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
               return address.link(encodeContinuous(form));
             }}
             reset={() => {
-              dispatch({ type: 'load', form: defaultContinuous() });
+              const example = defaultContinuous();
+              dispatch({ type: 'load', form: example });
+              setWhole(example);
               steel.setFilter('');
               setTypedX(null);
               setProbeX(null);
@@ -628,7 +732,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
         </form>
 
         {/* ── the answer ─────────────────────────────────────────────── */}
-        <section className={tooTall ? 'mp-app__out mp-app__out--tall' : 'mp-app__out'} aria-label={t.results.title} ref={outRef}>
+        <section className={tooTall ? 'mp-app__out mp-app__out--tall' : 'mp-app__out'} aria-label={t.results.title} ref={outRef} aria-busy={catching ? true : undefined}>
           <div className="mp-app__issues" role="alert" aria-live="assertive">
             {notices.length ? (
               <>
@@ -647,7 +751,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
             ) : null}
           </div>
 
-          <div className="mp-app__plots" ref={plotRef}>
+          <div className="mp-app__plots" ref={plotRef} onPointerDownCapture={leaveX}>
             <p className="mp-plot__title mp-plot__title--first">
               {t.results.schematic}
               {/* What the two numbers by a block of uniform load are. */}
@@ -660,8 +764,12 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
                 </span>
               ) : null}
             </p>
-            {/* Over every arrangement a reaction is a range, and an arrow has one length: none is drawn. */}
-            <BeamSchematic form={beam} reactions={r?.reactions ?? null} ownWeight={a.section.selfWeight} width={width} probeX={probeX !== null ? x0 : null} summary={summary.beam} group={t.numbers.group} label={loadLabel} />
+            {/* Over every arrangement a reaction is a range, and an arrow has one length: none is drawn.
+                What this page asks of the drawing that the first calculator's does not (BeamSchematic.tsx):
+                a plate behind each distributed load's value — every span here carries a block, and a further
+                load's value is written inside one; its positions to six figures, as the form and the tables
+                write a support's; and the beam's length clear of the unit after it. */}
+            <BeamSchematic form={beam} reactions={r?.reactions ?? null} ownWeight={a.section.selfWeight} width={width} probeX={probeX !== null ? x0 : null} summary={summary.beam} group={t.numbers.group} label={loadLabel} plates figures={6} clearUnit />
             {r ? (
               <>
                 {plot(t.results.shear, u.force, r.diagrams.V, summary.V, here ? here.V.right : null)}
@@ -681,9 +789,11 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
 
       {/* ── the numbers ──────────────────────────────────────────────── */}
       {r && here && x0 !== null ? (
-        <div className="mp-app__tables">
+        <div className="mp-app__tables" aria-busy={catching ? true : undefined}>
           <div className="mp-app__card mp-app__card--wide">
             <h3 className="mp-app__h">{t.supports.title}</h3>
+            {/* Over every arrangement, the key to the miniatures — before the first of them. */}
+            {r.balance ? null : patternKey()}
             {/* Each cell says what it is: on a phone a row is laid out as lines of
                 its own (calc.css), and a browser that reads a table's meaning from
                 its layout would lose it there. */}
@@ -708,7 +818,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
                       {s.kind === 'fixed' ? <span className="mp-app__dir"> {c.ends.kinds.fixed}</span> : null}
                     </th>
                     <td role="cell" data-label={`${t.results.position} (${u.length})`}>
-                      {num(s.x)}
+                      {placed(s.x)}
                     </td>
                     {cells(s.Rv, c.results.reaction, u.force, reaction)}
                     {cells(s.M, c.results.momentOver, u.moment, moment)}
@@ -725,13 +835,12 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
               ) : (
                 <p className="mp-app__row-error">{t.results.unbalanced.replace('{sum}', num(r.balance.reactions)).replace('{load}', num(r.balance.load)).replace(/\{unit\}/g, u.force)}</p>
               )
-            ) : (
-              patternKey()
-            )}
+            ) : null}
           </div>
 
           <div className="mp-app__card mp-app__card--wide">
             <h3 className="mp-app__h">{c.results.bySpan}</h3>
+            {ranged ? patternKey() : null}
             <table className="mp-app__table mp-cont__table" role="table">
               <thead role="rowgroup">
                 <tr role="row">
@@ -760,7 +869,7 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
                       {s.index + 1}{' '}
                       <span className="mp-app__dir">
                         {s.kind === 'cantilever' ? `${t.results.cantilever}, ` : ''}
-                        {num(s.from)} – {num(s.to)}
+                        {placed(s.from)} – {placed(s.to)}
                       </span>
                     </th>
                     <td role="cell" data-label={`${c.results.sagging} (${u.moment})`}>
@@ -793,7 +902,6 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
               </tbody>
             </table>
             {a.toDeflection && r.spans.some((s) => s.kind === 'cantilever') ? <p className="mp-app__note">{t.results.ratioNote}</p> : null}
-            {ranged ? patternKey() : null}
           </div>
 
           <div className="mp-app__card">
@@ -838,7 +946,8 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
                   {r.largest.deflection ? (
                     <>
                       {num(Math.abs(r.largest.deflection.value))} {u.deflection}{' '}
-                      <span className="mp-app__dir">{r.largest.deflection.x === null ? '' : `${arrow(r.largest.deflection.value, t.results.upward, t.results.downward)}, ${where(r.largest.deflection.x)}`}</span>
+                      {/* A level deflected shape (analysis.ts, `level`) is a value with a direction and no place. */}
+                      <span className="mp-app__dir">{r.largest.deflection.value === 0 ? '' : `${arrow(r.largest.deflection.value, t.results.upward, t.results.downward)}${r.largest.deflection.x === null ? '' : `, ${where(r.largest.deflection.x)}`}`}</span>
                       {r.largest.deflection.x === null ? null : patternLine(r.largest.deflection)}
                     </>
                   ) : (
@@ -885,8 +994,12 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
                 // Taking the field holds the position where it is: the pointer
                 // leaving a diagram on its way here must not move it.
                 onEdit={() => {
+                  typingX.current = true;
                   setTypedX(x0);
                   setProbeX(null);
+                }}
+                onCommit={() => {
+                  typingX.current = false;
                 }}
                 onChange={(x) => {
                   setProbeX(null);

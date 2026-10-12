@@ -59,7 +59,7 @@ export function L({
 const searchListeners = new Set<() => void>();
 
 /* What a calculator sends to the window after writing its case into the
-   address (BeamCalculator.tsx, under the same name). By name and not by
+   address (calc/shell/address.ts, under the same name). By name and not by
    import: this file reads the site's whole copy, which a calculator's script
    must not carry. */
 const ADDRESS_EVENT = 'mp:address';
@@ -89,8 +89,9 @@ export function refreshSearch() {
 }
 
 /* A calculator keeps its case after the # of its address, under a key of one
-   letter: `#b=…` on the beam calculator, `#s=…` on the single-span one
-   (BeamCalculator.tsx). Read like the query and at the same moments, so the
+   letter: `#b=…` on the beam calculator, `#s=…` on the single-span one,
+   `#c=…` on the continuous beam (each hands its key to calc/shell/address.ts,
+   which writes it). Read like the query and at the same moments, so the
    language link opens the twin page ON THE SAME CASE. A fragment of that
    shape — `#`, one lower-case letter, `=` — and no other: any other fragment
    (`#main`, a family of the catalogue) is a place on this page, which the
@@ -103,7 +104,7 @@ export function refreshSearch() {
 const CARRIED = /^#[a-z]=/;
 const readCarried = () => (CARRIED.test(window.location.hash) ? window.location.hash : '');
 
-/** A calculator's `#b=…` or `#s=…` on the page on screen, or '' — and '' on the server. With `useSearch()`, which re-reads it. */
+/** A calculator's case (`#b=…`, `#s=…`, `#c=…`) on the page on screen, or '' — and '' on the server. With `useSearch()`, which re-reads it. */
 export function useCarriedHash(): string {
   return useSyncExternalStore(subscribeSearch, readCarried, noSearch);
 }

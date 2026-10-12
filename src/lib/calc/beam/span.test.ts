@@ -454,7 +454,8 @@ describe('single span: load by load', () => {
     }
     // The dice did not come up empty.
     expect(rows).toBeGreaterThan(400);
-  });
+    // Six hundred beams solved: a second alone, past the default five beside the rest of the suite on a busy machine.
+  }, 30_000);
 });
 
 describe('single span: the section a limit asks for', () => {

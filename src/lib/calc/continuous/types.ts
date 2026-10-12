@@ -88,7 +88,7 @@ export type ContinuousIssueCode =
   | 'no-spans' // there is not one span
   | 'length' // a span's length is not a positive number, or not of a size the engine takes
   | 'stiffness' // a span's stiffness factor is not a positive number, or is out of the range the engine takes
-  | 'number' // a load or a settlement is not a number, or is larger than the engine takes
+  | 'number' // a load or a settlement is not a number, or is one of a size the engine does not take (over 1e60; or under 1e-60 and not zero)
   | 'outside' // a load is placed off its span, or names a span that is not there
   | 'short-span' // a span too short beside the others to be solved to the figures printed
   | 'unstable'; // the supports do not hold the beam
@@ -193,6 +193,12 @@ export interface EnvelopeState {
   x: number;
   V: Range;
   M: Range;
+  /**
+   * Reference EI × slope, positive counter-clockwise. Followed AT A POINT and
+   * no further: a page gives the slope's range where it is asked, and neither
+   * draws its band nor asks for its largest value.
+   */
+  EItheta: Range;
   /** Reference EI × deflection, positive upward. */
   EIv: Range;
 }
@@ -235,7 +241,16 @@ export interface ContinuousEnvelope {
   breaks: number[];
   /** The range of the response at x; where it jumps, on the side asked for (right by default, left at x = L). */
   at(x: number, side?: Side): EnvelopeState;
-  /** Points for plotting the two edges of each band: both sides of every break, every place where an edge has a corner, and enough in between. */
+  /**
+   * The size of the moment NEAREST TO ZERO that any arrangement gives at x,
+   * on the side asked for as `at` takes it. Where the moment keeps one sign
+   * over every arrangement that is an end of its range. Where it changes
+   * sign it is neither end — and not nothing either, unless an arrangement
+   * does leave the beam unbent there: every arrangement is added up for it,
+   * 2ⁿ sums, when it is asked and not before.
+   */
+  leastMoment(x: number, side?: Side): number;
+  /** Points for plotting the two edges of each band: both sides of every break, every place where an edge of the shear's, the moment's or the deflection's has a corner, and enough in between. */
   stations: EnvelopeState[];
   extremes: { Vmax: Governing; Vmin: Governing; Mmax: Governing; Mmin: Governing; EIvMax: Governing; EIvMin: Governing };
   joints: EnvelopeJoint[];

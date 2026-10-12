@@ -424,10 +424,17 @@ describe('calculator shell: what it carries, and what it cannot do', () => {
   // What the address hook does is held in a browser (beam-check.mjs,
   // span-check.mjs). Its shape is held here, as the calculators' tests hold
   // theirs: these are pins of the source, to be moved with it.
-  it('the address: read once and on hashchange, written after 300 ms, brought up to date when the visitor reaches for something else', () => {
+  it('the address: read once and when it changes under the page, written after 300 ms, brought up to date when the visitor reaches for something else', () => {
     const address = code('address.ts');
     // Set up once: an effect that ran again with each render would read the address again, and undo what was typed since it was last written.
-    expect(address).toMatch(/look\(\);\s*window\.addEventListener\('hashchange', look\);\s*return \(\) => window\.removeEventListener\('hashchange', look\);\s*\}, \[\]\);/);
+    // …and again when the address changes under the page: at `popstate`, which comes in the task that changes it,
+    // before the delayed write can fire and put the case of before over a link being opened; and at `hashchange`.
+    expect(address).toMatch(/look\(\);\s*window\.addEventListener\('popstate', look\);\s*window\.addEventListener\('hashchange', look\);\s*return \(\) => \{\s*window\.removeEventListener\('popstate', look\);\s*window\.removeEventListener\('hashchange', look\);\s*\};\s*\}, \[\]\);/);
+    expect(address.match(/addEventListener\('(popstate|hashchange)'/g)).toHaveLength(2);
+    // `popstate` tells of every entry of the site's history: Back to ANOTHER page arrives too, while this calculator
+    // is still on screen. That address is not read — it would show the example on the way out, or open another
+    // calculator's case here. The page is the one the hook was set up on, and the first thing asked.
+    expect(address).toMatch(/const here = window\.location\.pathname;\s*const look = \(changed\?: Event\) => \{\s*if \(window\.location\.pathname !== here\) return;\s*seen\.current = window\.location\.hash;/);
     // A bare address is the example only when the address CHANGED to it; any other fragment that is not this calculator's is a place on the page.
     expect(address).toContain("if (changed && window.location.hash === '') show(latest.current.blank(), false);");
     expect(address).toContain('show(found === null ? latest.current.blank() : found, found === null);');
@@ -438,10 +445,34 @@ describe('calculator shell: what it carries, and what it cannot do', () => {
     expect(address).toContain('const mine = latest.current.owns ? latest.current.owns(window.location.hash) : window.location.hash.startsWith(prefix);');
     expect(address).toContain("const have = mine ? window.location.hash : '';");
     // 300 ms, and only if nothing has written or opened a case meanwhile.
-    expect(address).toMatch(/const id = window\.setTimeout\(\(\) => \{\s*if \(pending\.current === now\) now\(\);\s*\}, 300\);\s*return \(\) => window\.clearTimeout\(id\);\s*\}, \[current, put\]\);/);
+    expect(address).toMatch(/const id = window\.setTimeout\(\(\) => \{\s*if \(pending\.current === now\) now\(\);\s*\}, 300\);\s*return \(\) => window\.clearTimeout\(id\);\s*\}, \[current, put, prefix\]\);/);
+    // …nor over an address that changed under the case. The fragment this hook last read or wrote is kept, in the two
+    // places it does either; a case of this calculator's, or a bare address, found in its place when the write comes
+    // due is on its way to being opened, and the write is dropped.
+    expect(address.match(/seen\.current = window\.location\.hash;/g)).toHaveLength(2);
+    expect(address).toMatch(/window\.dispatchEvent\(new Event\(ADDRESS_EVENT\)\);\s*seen\.current = window\.location\.hash;\s*\}, \[example, prefix\]\);/);
+    expect(address).toMatch(
+      /const now = \(\) => \{\s*pending\.current = null;\s*const at = window\.location\.hash;\s*if \(at !== seen\.current\) \{\s*seen\.current = at;\s*if \(at === '' \|\| \(latest\.current\.owns \? latest\.current\.owns\(at\) : at\.startsWith\(prefix\)\)\) return;\s*\}\s*put\(current\(\)\);\s*\};/,
+    );
     for (const event of ['pointerdown', 'focusin', 'click']) expect(address, event).toContain(`window.addEventListener('${event}', flush, true);`);
     expect(address).toContain("document.addEventListener('visibilitychange', hidden);");
     expect(address).toContain("if (document.visibilityState === 'hidden') flush();");
+  });
+
+  // A page may stand its calculator in a frame that its own first script marks when the address holds a case, so
+  // that the example the server sent is not shown as that case while the scripts are on their way. The mark is
+  // the frame's; taking it off is this hook's, in the commit that puts on screen what the address held. Where no
+  // frame is marked nothing is asked of the calculator: no state, no render.
+  it('a mark on the frame around the tool comes off in the commit that shows what the address held, and costs nothing where there is none', () => {
+    const address = code('address.ts');
+    expect(address).toContain("const OPENING = 'data-opening';");
+    // Looked at on load and at every change of the address; said in state, so that it is a render — only where a frame is marked.
+    expect(address).toMatch(/seen\.current = window\.location\.hash;\s*if \(document\.querySelector\(`\[\$\{OPENING\}\]`\)\) setLooked\(true\);\s*const found = latest\.current\.read\(window\.location\.hash\);/);
+    expect(address.match(/setLooked\(/g)).toHaveLength(1);
+    // …and the mark is taken off in that render's own commit, before the browser paints it.
+    expect(address).toMatch(/useIsoLayoutEffect\(\(\) => \{\s*if \(looked\) document\.querySelector\(`\[\$\{OPENING\}\]`\)\?\.removeAttribute\(OPENING\);\s*\}, \[looked\]\);/);
+    // The shape of a case's fragment, for whoever writes the frame's script: a key of one lower-case letter (mp/lang.tsx, CARRIED).
+    expect(readFileSync(join(SRC, 'components/ttc/mp/lang.tsx'), 'utf8')).toMatch(/const CARRIED = \/\^#\[a-z\]=/);
   });
 
   it('the printed sheet: stamped and set "on paper" in one synchronous step, before the browser lays the page out', () => {

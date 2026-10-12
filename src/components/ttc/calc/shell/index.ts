@@ -13,7 +13,8 @@
  *   layout.ts        the column of drawings: its width, a diagram's height,
  *                    whether it is too tall to pin; what both are on paper.
  *   address.ts       THE ADDRESS FOLLOWS THE CASE: `#<key>=…` read on load
- *                    and on hashchange, written 300 ms after the last change
+ *                    and when the address changes under the page (popstate,
+ *                    hashchange), written 300 ms after the last change
  *                    and at once when the visitor reaches for something
  *                    else; the example leaves it bare.
  *   sheet.tsx        the printed sheet's moment: the stamp (when, and the

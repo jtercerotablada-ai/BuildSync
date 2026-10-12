@@ -3,11 +3,12 @@ import { dirname, join, resolve } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { UNITS, analyse, decodeBeam, deflectionFactor, encodeBeam, sectionProps, stiffness, type SteelShape } from '@/lib/calc/beam/model';
+import { UNITS, analyse, bendingStress, decodeBeam, deflectionFactor, encodeBeam, sectionProps, shearStress, stiffness, type SteelShape } from '@/lib/calc/beam/model';
 import { SPAN_KEY } from '@/lib/calc/beam/span';
 import { spanPage } from '@/lib/calc/beam/span-page-strings';
 import { spanUi } from '@/lib/calc/beam/span-strings';
 import { beamStrings } from '@/lib/calc/beam/strings';
+import { analyseContinuous } from '@/lib/calc/continuous/analysis';
 import { SHORT, STIFF, solveContinuous } from '@/lib/calc/continuous/engine';
 import { envelopeContinuous } from '@/lib/calc/continuous/envelope';
 import {
@@ -45,9 +46,13 @@ import { SPAN_PATH } from './SingleSpanView';
  * THE CONTINUOUS BEAM'S PAGE: /resources/continuous-beam and its /es twin.
  *
  * The third calculator has an engine of its own, tested where it lives
- * (lib/calc/continuous). What is tested here is the PAGE: that every
- * sentence of its notes is true of that engine — the notes are what an
- * engineer reads before trusting a number, and the owner answers for them —;
+ * (lib/calc/continuous). What is tested here is the PAGE: that what
+ * its notes say the tool does, it does — each such sentence beside the
+ * behaviour and, where a word could be turned into its opposite with the
+ * behaviour untouched (a direction, a sign, dead or live, how the
+ * arrangements are reached), the clause itself read in BOTH languages: the
+ * notes are what an engineer reads before trusting a number, and the owner
+ * answers for them —;
  * that each closed form it gives to check the tool by is the one the tool
  * reproduces; that no sentence of the other two calculators' pages is said
  * again, which a search engine reads as one page twice; that the legal
@@ -184,8 +189,8 @@ describe('continuous beam: the closed forms it gives to check it by', () => {
     // Over the middle support the lowest moment is the first case's, with both spans loaded.
     expect(out.joints[1].M.min.value).toBeCloseTo((-w * L ** 2) / 8, 9);
     expect(out.joints[1].M.min.spans).toEqual([0, 1]);
-    // One span loaded is more sagging than both: 49/512 against the 9/128 = 36/512 of the first case.
-    expect((49 * w * L ** 2) / 512).toBeGreaterThan((9 * w * L ** 2) / 128);
+    // One span loaded is more sagging than both, by the engine's own two answers: 49/512 against the 9/128 = 36/512 of the first case, 57.42 against 42.19 kip·ft.
+    expect(out.spans[0].Mmax.value - solved(equal(2, L, { dists: uniform([L, L], w) })).spans[0].Mmax.value).toBeCloseTo(((49 - 36) * w * L ** 2) / 512, 9);
     // …and that arrangement, solved on its own, is the textbook one: −wL²/16 over the support, 7wL/16 at the loaded end.
     const one = solved(equal(2, L, { dists: uniform([L, L], w, true, [0]) }));
     expect(one.joints[1].M).toBeCloseTo((-w * L ** 2) / 16, 9);
@@ -258,6 +263,10 @@ describe('continuous beam: what the method says, the engine does', () => {
     const out = solved(model);
     // Minus the settlement, to the last figure: nothing is solved for there.
     expect(out.joints.map((j) => j.EIv)).toEqual([-0, -900, 400, -250].map((v) => v + 0));
+    // "Rigid supports: one moves only by the settlement entered for it" — each of the three that were given one, by its own. In Spanish, EACH: "uno solo" is "a single one".
+    expect(continuousPage.en.assumes.items[2]).toContain('Rigid supports: one moves only by the settlement entered for it');
+    expect(continuousPage.es.assumes.items[2]).toContain('Apoyos rígidos: cada uno se mueve únicamente lo que indique el asentamiento introducido para él');
+    expect(continuousPage.es.assumes.items[2]).not.toMatch(/\buno solo\b/);
     for (const joint of out.joints.slice(1, -1)) {
       // The span before the support and the span after it say the same moment: their end moments balance.
       expect(out.at(joint.x, 'left').M).toBe(out.at(joint.x, 'right').M);
@@ -403,7 +412,8 @@ describe('continuous beam: what the method says, the engine does', () => {
 
   // "Beam reactions and diagrams reaches the same result with no elements at
   // all, as its page says; on a beam that both can describe, the two
-  // calculators agree."
+  // calculators agree, except where a value is so small that the other page
+  // prints it as 0."
   it('on a beam both calculators can describe, the two engines give the same numbers', () => {
     const example = defaultContinuous();
     const forms: ContinuousForm[] = [
@@ -440,6 +450,36 @@ describe('continuous beam: what the method says, the engine does', () => {
         expect((p.EIv - q.EIv) / Y, `EIv at ${x}`).toBeCloseTo(0, 9);
       }
     }
+    // The exception. Eight spans of 30 ft but the second, 3 in long; 1 kip/ft on the first alone. Past the loaded span each reaction is 2 − √3 =
+    // 0.268 of the one before it, and the last two are under a millionth of the 467 kip beside the short span: what the first calculator's page
+    // takes for rounding and prints as 0 (BeamCalculator.tsx, `noise`). The two ENGINES give them alike, and they are far over this page's own
+    // floor, a billionth of the loads (analysis.ts) — hundreds of times over it — so this page prints them.
+    const far: ContinuousForm = { ...example, everyArrangement: false, spans: [30, 0.25, 30, 30, 30, 30, 30, 30].map((L, i) => ({ id: i + 1, L, k: 1, dead: i === 0 ? 1 : 0, live: 0 })), settlements: Array.from({ length: 9 }, () => 0), nextId: 9 };
+    const farSection = sectionProps(far);
+    const here = solved(toEngine(far, farSection, stiffness(far.units, farSection)).model);
+    const there = analyse(toBeamForm(far)).solution!;
+    const largest = Math.max(...there.reactions.map((r) => Math.abs(r.Rv)));
+    expect(largest).toBeCloseTo(467.1, 1);
+    expect(here.reactions[4].Rv / here.reactions[3].Rv).toBeCloseTo(-(2 - Math.sqrt(3)), 4);
+    const small = here.reactions.map((r, i) => ({ ours: r.Rv, theirs: there.reactions[i].Rv })).filter((r) => Math.abs(r.theirs) < 1e-6 * largest);
+    expect(small.map((r) => r.ours)).toEqual([near(0.00013633, 8), near(-0.000022722, 9)]);
+    for (const r of small) {
+      expect(r.ours / r.theirs).toBeCloseTo(1, 5);
+      expect(Math.abs(r.ours)).toBeGreaterThan(100 * 1e-9 * here.loadScale);
+    }
+    // A deflection as well as a force, and on the page's own example taken as one case: a thousandth of a foot past its second support the
+    // beam has gone down 2.329 millionths of an inch, by both engines. The first calculator's page takes a deflection under a billionth of
+    // the loads × L³ ÷ EI for rounding (BeamCalculator.tsx, `noise`: 5.5 millionths of an inch on this beam) and prints 0 there; this page's
+    // floor for a deflection is lower (analysis.ts, `floors`), and it prints the value. So the sentence names no quantity the value is small beside.
+    const one = analyseContinuous({ ...example, everyArrangement: false });
+    const other = analyse(toBeamForm({ ...example, everyArrangement: false }));
+    const down = other.solution!.at(24.001).EIv;
+    expect(Math.abs(down)).toBeLessThan(1e-9 * other.loadScale * 78 ** 3);
+    expect(Math.abs(down)).toBeGreaterThan(one.results!.floors.EIv);
+    expect(one.results!.at(24.001).deflection).toEqual({ max: near(-2.3288e-6, 9), min: near(-2.3288e-6, 9) });
+    expect(one.results!.at(24.001).deflection!.max / (down * other.toDeflection)).toBeCloseTo(1, 6);
+    expect(continuousPage.en.method.paragraphs[3]).toContain('the two calculators agree, except where a value is so small that the other page prints it as 0.');
+    expect(continuousPage.es.method.paragraphs[3]).toContain('las dos calculadoras coinciden, salvo donde un valor es tan pequeño que la otra página lo da como 0.');
     // …and the page's link to that calculator carries this very beam, when it can hold it.
     expect(decodeBeam(generalCode(example)!)!.supports.map((s) => [s.kind, s.x])).toEqual([['pin', 0], ['roller', 24], ['roller', 54], ['roller', 78]]);
   });
@@ -458,7 +498,6 @@ describe('continuous beam: what it says of the live load, the envelope does', ()
   // "2ⁿ arrangements for n spans with live load, 256 for eight."
   it('eight spans is the most the form takes, and 2⁸ = 256 arrangements', () => {
     expect(MAX_SPANS).toBe(8);
-    expect(2 ** MAX_SPANS).toBe(256);
     for (const lang of LANGS) expect(continuousPage[lang].method.paragraphs[4]).toContain(lang === 'en' ? '2ⁿ arrangements for n spans with live load' : '2ⁿ disposiciones para n vanos con carga viva');
     for (const lang of LANGS) {
       expect(continuousPage[lang].method.paragraphs.filter((p) => p.includes(lang === 'en' ? '256 for eight' : '256 para ocho'))).toHaveLength(1);
@@ -468,6 +507,8 @@ describe('continuous beam: what it says of the live load, the envelope does', ()
     let form = example;
     for (let i = 0; i < 12; i++) form = reduceContinuous(form, { type: 'add', list: 'spans' });
     expect(form.spans).toHaveLength(8);
+    // 2⁸: each new span took the live load of the one before it, and the form counts a span that carries one.
+    expect(2 ** analyseContinuous(form).liveSpans.length).toBe(256);
     for (const span of [...form.spans]) form = reduceContinuous(form, { type: 'remove', list: 'spans', id: span.id });
     expect(form.spans).toHaveLength(1);
   });
@@ -491,6 +532,22 @@ describe('continuous beam: what it says of the live load, the envelope does', ()
         expect((band[r].min - Math.min(...each.map((s) => s[r]))) / scale[r], `${r} min at ${x}`).toBeCloseTo(0, 11);
       }
     }
+    // …and it is reached as the method says, not by those eight: "It is solved once under what is always there and once under each span's
+    // live load alone" — four beams — and the highest is the first plus every effect that raises it, the lowest the first plus every one that lowers it.
+    const always = solved({ ...model, dists: model.dists!.filter((d) => !d.live) });
+    const alone = [0, 1, 2].map((i) => solved({ ...model, dists: model.dists!.filter((d) => d.live && d.span === i) }));
+    const size = { V: 33, M: 167, EIv: 8057 };
+    for (const x of [5.3, 17, 24, 31.9, 47.2, 60, 71.4]) {
+      const band = env.at(x);
+      for (const r of ['V', 'M', 'EIv'] as const) {
+        const effects = alone.map((s) => s.at(x)[r]);
+        const sum = (sign: 1 | -1) => effects.filter((e) => sign * e > 0).reduce((total, e) => total + e, always.at(x)[r]);
+        expect((band[r].max - sum(1)) / size[r], `${r} max at ${x}`).toBeCloseTo(0, 11);
+        expect((band[r].min - sum(-1)) / size[r], `${r} min at ${x}`).toBeCloseTo(0, 11);
+      }
+    }
+    expect(continuousPage.en.method.paragraphs[5]).toContain('It is solved once under what is always there and once under each span’s live load alone.');
+    expect(continuousPage.es.method.paragraphs[5]).toContain('Se resuelve una vez con lo que siempre está y una vez con la carga viva de cada vano por separado.');
   });
 
   // "Dead loads and settlements are in all of them." With no live load there
@@ -548,8 +605,8 @@ describe('continuous beam: what it says of the live load, the envelope does', ()
     }
   });
 
-  // "The live load is on or off a whole span at a time: part of a span is not
-  // loaded on its own." Two live loads on one span that undo each other at
+  // "A span's live load is all on or all off: no part of it is taken on its
+  // own." Two live loads on one span that undo each other at
   // midspan: 10 kip down at the quarter point and 10 kip up at the three-
   // quarter point. Taken one at a time the first alone would give
   // 10 × 20 ÷ 8 = 25 kip·ft at midspan; taken as the span's live load, they
@@ -562,6 +619,12 @@ describe('continuous beam: what it says of the live load, the envelope does', ()
     // The first load by itself, which no arrangement here is: PL/8.
     const alone = solved({ spans: [{ L, k: 1 }], left: 'pin', right: 'pin', points: [{ span: 0, a: L / 4, P: 10 }] });
     expect(alone.at(L / 2).M).toBeCloseTo(25, 9);
+    // A live load that covers part of a span IS that span's live load, whole: the span is named with what it causes, as on or off.
+    const part = enveloped({ spans: [{ L, k: 1 }, { L, k: 1 }], left: 'pin', right: 'pin', dists: [{ span: 1, a1: 0, a2: 5, w1: 2, w2: 2, live: true }] });
+    expect(part.spans[1].Mmax.spans).toEqual([1]);
+    expect(part.joints[1].M.min.spans).toEqual([1]);
+    expect(continuousPage.en.limits.items[1]).toContain('A span’s live load is all on or all off: no part of it is taken on its own');
+    expect(continuousPage.es.limits.items[1]).toContain('Cada vano tiene su carga viva entera o no la tiene: no se toma por separado una parte de ella');
   });
 
   // "A span whose live load has no effect on a value is not listed with it:
@@ -599,6 +662,14 @@ describe('continuous beam: what the notes say of the tool, the tool does', () =>
     // EI·v of the reference section: 5 × 1.5 × 20⁴ ÷ 384 = 3,125, over the factor.
     expect(one.extremes.EIvMin.value).toBeCloseTo((-5 * w * L ** 4) / (384 * k), 8);
     expect(one.extremes.EIvMin.value).toBeCloseTo(-3125 / 2.5, 8);
+    // Bending alone, and nothing added for shear: "with shear deformation left out".
+    expect(continuousPage.en.assumes.items[3]).toContain('with shear deformation left out');
+    expect(continuousPage.es.assumes.items[3]).toContain('la deformación por cortante queda fuera');
+    // The form's own line on the factor: "1 is that section, 2 a span twice as stiff" — at 2 the same span deflects half as much as at 1.
+    const [stiff, plain] = [2, 1].map((factor) => solved({ spans: [{ L, k: factor }], left: 'pin', right: 'pin', dists: [{ span: 0, a1: 0, a2: L, w1: w, w2: w }] }).extremes.EIvMin.value);
+    expect(stiff / plain).toBeCloseTo(0.5, 12);
+    expect(continuousUi.en.spans.note).toContain('1 is that section, 2 a span twice as stiff');
+    expect(continuousUi.es.spans.note).toContain('1 es esa sección; 2, un vano el doble de rígido');
     // Two spans of 20 and 30 ft, the second twice as stiff. The three-moment equation with a stiffness in each span:
     // 2M(L₁/k₁ + L₂/k₂) = −(w/4)(L₁³/k₁ + L₂³/k₂) → M = −1.5 × (8,000 + 13,500) ÷ (8 × 35) = −115.1786 kip·ft.
     const two = solveContinuous({ spans: [{ L: 20, k: 1 }, { L: 30, k: 2 }], left: 'pin', right: 'pin', dists: [{ span: 0, a1: 0, a2: 20, w1: w, w2: w }, { span: 1, a1: 0, a2: 30, w1: w, w2: w }] });
@@ -698,15 +769,44 @@ describe('continuous beam: what the notes say of the tool, the tool does', () =>
     expect(refused.ok ? [] : refused.issues).toEqual([{ code: 'number', where: { list: 'settlements', index: 1 } }]);
     // Without a settlement, the same beam is solved: reactions and moments ask for no EI.
     expect(solveContinuous(engine(form({ section: { ...example.section, I: 0 } })).model).ok).toBe(true);
+    // The form's line on the section: "Where no support settles, shear and moment are the same for any section" — a tenth of the I, the same moment over
+    // the second support; and where one does settle, on a beam with no load, a tenth of the moment.
+    const thin = { ...example.section, I: 84.3 };
+    const unloaded = example.spans.map((s) => ({ ...s, dead: 0, live: 0 }));
+    const over = (f: ContinuousForm) => solved(engine(f).model).joints[1].M;
+    expect(over(form({ section: thin }))).toBeCloseTo(over(example), 9);
+    expect(over(form({ spans: unloaded, settlements: [0, 0.5, 0, 0], section: thin })) / over(form({ spans: unloaded, settlements: [0, 0.5, 0, 0] }))).toBeCloseTo(0.1, 9);
+    expect(continuousUi.en.section.intro).toContain('Where no support settles, shear and moment are the same for any section');
+    expect(continuousUi.es.section.intro).toContain('Si ningún apoyo se asienta, el cortante y el momento son los mismos con cualquier sección');
+    // Which way, in the form's words and in the notes': downward.
+    expect(continuousUi.en.settlements.note).toContain('as a length downward');
+    expect(continuousUi.es.settlements.note).toContain('como longitud hacia abajo');
+    expect(continuousPage.en.signs.items[2]).toContain('A settlement is entered as a length downward');
+    expect(continuousPage.es.signs.items[2]).toContain('Un asentamiento se introduce como una longitud hacia abajo');
   });
 
-  // "Stresses are M/S and V/Av of the section entered. Where a span's
-  // stiffness factor is not 1 that span is another section, and no stress is
-  // printed."
-  it('the section is every span’s only while every stiffness factor is 1', () => {
+  // "Stresses are of the section entered: M/S in bending and, for shear, the
+  // rule printed with the value — V over a shear area, 1.5V/A for a
+  // rectangle. Where any span's stiffness factor is not 1, that span is
+  // another section and no stress is printed at all."
+  it('the stresses are M/S and the shear rule of the section — 1.5V/A for a rectangle — and the section is every span’s only while every factor is 1', () => {
     expect(oneSection(example)).toBe(true);
     expect(oneSection(form({ spans: example.spans.map((s, i) => (i === 2 ? { ...s, k: 1.5 } : s)) }))).toBe(false);
-    for (const lang of LANGS) expect(continuousPage[lang].limits.items.filter((x) => x.includes('M/S') && x.includes('V/Av'))).toHaveLength(1);
+    // A rectangle 12 in wide and 24 in deep: S = 12 × 24² ÷ 6 = 1,152 in³, A = 288 in². 96 kip·ft is 96 × 12 ÷ 1,152 = 1 ksi;
+    // 28.8 kip is 1.5 × 28.8 ÷ 288 = 0.15 ksi — not the 0.1 ksi of V ÷ A.
+    const rect = sectionProps(form({ section: { ...example.section, mode: 'rect', b: 12, h: 24 } }));
+    expect(bendingStress('us', rect, 96)).toBeCloseTo(1, 12);
+    expect(shearStress('us', rect, 28.8)).toBeCloseTo(0.15, 12);
+    // Any other section: V over its shear area. The example's is 7.245 in².
+    expect(shearStress('us', sectionProps(example), 7.245)).toBeCloseTo(1, 12);
+    for (const lang of LANGS) {
+      const line = continuousPage[lang].limits.items.filter((x) => x.includes('M/S'));
+      expect(line).toHaveLength(1);
+      expect(line[0]).toContain(lang === 'en' ? 'V over a shear area, 1.5V/A for a rectangle' : 'V entre un área de cortante, 1.5V/A en un rectángulo');
+      expect(line[0]).toContain(lang === 'en' ? 'Where any span’s stiffness factor is not 1, that span is another section and no stress is printed at all' : 'Si el factor de rigidez de algún vano no es 1, ese vano es otra sección y no se da ningún esfuerzo en toda la viga');
+      // The sentence that was here gave V/Av for every section: a rectangle's is not that.
+      expect(line[0]).not.toContain('V/Av');
+    }
   });
 
   // "A span under 1/1000 of the whole length, or a stiffness factor outside
@@ -741,10 +841,13 @@ describe('continuous beam: what the notes say of the tool, the tool does', () =>
     expect(own(form({ section: { ...example.section, mode: 'shape', selfWeight: false } }), W21X44)).toEqual([]);
     // 44 lb/ft is 0.044 kip/ft, over the whole of each span.
     expect(own(form({ section: { ...example.section, mode: 'shape', selfWeight: true } }), W21X44)).toEqual([24, 30, 24].map((L, span) => ({ span, a1: 0, a2: L, w1: near(0.044, 12), w2: near(0.044, 12), live: false })));
+    expect(continuousPage.en.limits.items[7]).toContain('that weight is a dead load on every span');
+    expect(continuousPage.es.limits.items[7]).toContain('ese peso es una carga muerta en todos los vanos');
   });
 
-  // "Each span's two uniform loads act downward, dead and live. The further
-  // loads have a direction of their own, and each is marked dead or live." —
+  // "Each span's two uniform loads, dead and live, are positive downward: a
+  // minus sign turns one upward. The further loads have a direction of their
+  // own, and each is marked dead or live." —
   // and "A further load is placed from the left end of its own span, not of
   // the beam. In the results x runs along the whole beam, from its left end."
   it('signs and places: a span’s two loads push down, a further load has its own direction and is placed in its own span', () => {
@@ -764,12 +867,17 @@ describe('continuous beam: what the notes say of the tool, the tool does', () =>
     expect(out.breaks).toEqual([0, 24, 29, 54, 57, 63, 78]);
     // The upward load lifts the beam there: the shear rises by 7 kip across it.
     expect(out.at(29, 'right').V - out.at(29, 'left').V).toBeCloseTo(7, 9);
+    // A span's own load typed with a minus sign reaches the engine with it: upward.
+    expect(engine(form({ spans: example.spans.map((s) => ({ ...s, dead: -0.9 })) })).model.dists!.filter((d) => !d.live).map((d) => d.w1)).toEqual([-0.9, -0.9, -0.9]);
+    expect(continuousPage.en.signs.items[0]).toContain('are positive downward: a minus sign turns one upward');
+    expect(continuousPage.es.signs.items[0]).toContain('son positivas hacia abajo: con signo menos, una actúa hacia arriba');
   });
 
-  // "A sagging moment is positive, so under gravity loads the moment over an
-  // interior support is negative: hogging. Shear is positive when the forces
-  // to the left of a cut add up to an upward one."
-  it('a sagging moment is positive, the moment over an interior support is negative, and shear is the upward sum of what is to the left', () => {
+  // "A sagging moment is positive, so the hogging moment that gravity loads
+  // usually cause over an interior support is negative; an arrangement of the
+  // live load, or an overhang, can make the moment there positive. Shear is
+  // positive when the forces to the left of a cut add up to an upward one."
+  it('a sagging moment is positive; over an interior support the moment is usually negative, not always; and shear is the upward sum of what is to the left', () => {
     const out = solveContinuous(engine(example).model);
     if (!out.ok) throw new Error('not solved');
     expect(out.joints.slice(1, -1).every((j) => j.M < 0)).toBe(true);
@@ -778,11 +886,28 @@ describe('continuous beam: what the notes say of the tool, the tool does', () =>
     expect(out.at(0, 'right').V).toBeCloseTo(out.reactions[0].Rv, 9);
     // 10 ft along: that reaction less 2.1 kip/ft over 10 ft.
     expect(out.at(10).V).toBeCloseTo(out.reactions[0].Rv - 21, 9);
+    // "Usually". Three equal spans of 20 ft, no dead load, 1 kip/ft live on the first alone. Clapeyron: 4·MB + MC = −wL²/4 and MB + 4·MC = 0
+    // give MB = −wL²/15 and MC = +wL²/60: the far interior support SAGS, 400 ÷ 60 = 6.667 kip·ft, under a load that only pushes down.
+    const lone = solved(equal(3, 20, { dists: uniform([20, 20, 20], 1, true, [0]) }));
+    expect(lone.joints.map((j) => j.M)).toEqual([0, near(-400 / 15), near(400 / 60), 0]);
+    const band = enveloped(equal(3, 20, { dists: uniform([20, 20, 20], 1, true) }));
+    expect([band.joints[2].M.max.value, band.joints[2].M.max.spans]).toEqual([near(400 / 60), [0]]);
+    // And an overhang: the example with its right end free, the live load on the overhang alone. 2.1 × 24² ÷ 2 = 604.8 kip·ft hogging over its
+    // support, and 108·MB = −0.225 × (24³ + 30³) + 30 × 604.8 = 8,958.6: MB = +82.95 kip·ft over the second support.
+    const hung = enveloped(engine(form({ right: 'free' })).model);
+    expect([hung.joints[1].M.max.value, hung.joints[1].M.max.spans]).toEqual([near(8958.6 / 108), [2]]);
+    expect(continuousPage.en.signs.items[3]).toContain('the hogging moment that gravity loads usually cause over an interior support is negative; an arrangement of the live load, or an overhang, can make the moment there positive');
+    expect(continuousPage.es.signs.items[3]).toContain('el momento que las cargas de gravedad suelen producir sobre un apoyo intermedio es negativo; una disposición de la carga viva, o un voladizo, puede volverlo positivo');
+    expect(continuousPage.en.signs.items[3]).toContain('Shear is positive when the forces to the left of a cut add up to an upward one');
+    expect(continuousPage.es.signs.items[3]).toContain('El cortante es positivo cuando las fuerzas a la izquierda de un corte suman una fuerza hacia arriba');
   });
 
   // "The deflection of a span is measured from the straight line through its
   // two supports, so that a settlement is not counted as bending; an
-  // overhang's is measured from its support."
+  // overhang's is measured from its support. The deflection diagram, the
+  // largest deflection and the one at a point are the movement of the beam
+  // itself, a settlement included. Where a deflection is printed with a sign,
+  // upward is positive; a slope is positive counter-clockwise, in radians."
   it('a span’s deflection is from the line through its supports, an overhang’s from its support: a settlement alone bends neither', () => {
     // One span whose right support goes down: the beam tilts and stays straight.
     const tilted = solveContinuous({ spans: [{ L: 20, k: 1 }], left: 'pin', right: 'pin', settlements: [0, 800] });
@@ -797,6 +922,52 @@ describe('continuous beam: what the notes say of the tool, the tool does', () =>
     expect(hung.spans[0].kind).toBe('cantilever');
     expect(hung.spans[0].EIvChord).toEqual({ value: near(-1000), x: 10 });
     expect(hung.at(10).EIv).toBeCloseTo(-1800, 9);
+    expect(continuousPage.en.signs.items[4]).toContain('measured from the straight line through its two supports, so that a settlement is not counted as bending; an overhang’s is measured from its support.');
+    expect(continuousPage.es.signs.items[4]).toContain('se mide respecto a la recta que une sus dos apoyos, para que un asentamiento no cuente como flexión; la de un voladizo, respecto a su apoyo.');
+    // What that column leaves out, the other three places count. The example under all its loads, its second support 1 in down:
+    const sunk = analyseContinuous(form({ everyArrangement: false, settlements: [0, 1, 0, 0] })).results!;
+    // at that support the beam is 1 in DOWN, and the value at a point says so with a minus — upward is positive;
+    expect(sunk.at(24).deflection).toEqual({ max: near(-1), min: near(-1) });
+    // the largest deflection is the beam's own movement, more than the settlement and more than any span's deflection from its supports;
+    const most = sunk.largest.deflection!.value;
+    expect(most).toBeLessThan(-1);
+    for (const span of sunk.spans) expect(Math.abs(span.deflection!.value)).toBeLessThan(0.5);
+    // the diagram labels that same movement, with its sign;
+    expect(sunk.diagrams.D!.marks.map((mark) => mark.y)).toContain(most);
+    // and the second span, which climbs to the right from the support that went down, turns counter-clockwise: a positive slope.
+    expect(sunk.at(39).slope!.max).toBeGreaterThan(0);
+    // One span of 24 ft under 2.1 kip/ft turns clockwise at its left end, by wL³/24EI = 2.1 × 24³ ÷ (24 × 169,770.83) = 0.007125 rad: negative.
+    const single = analyseContinuous(form({ everyArrangement: false, spans: [{ id: 1, L: 24, k: 1, dead: 2.1, live: 0 }], settlements: [0, 0] })).results!;
+    expect(single.at(0).slope!.max).toBeCloseTo((-2.1 * 24 ** 3) / (24 * ((29000 * 843) / 144)), 9);
+    expect(continuousPage.en.signs.items[4]).toContain('The deflection diagram, the largest deflection and the one at a point are the movement of the beam itself, a settlement included. Where a deflection is printed with a sign, upward is positive; a slope is positive counter-clockwise, in radians.');
+    expect(continuousPage.es.signs.items[4]).toContain('El diagrama de deflexión, la deflexión máxima y la de un punto son el movimiento de la propia viga, asentamientos incluidos. Donde una deflexión lleva signo, hacia arriba es positivo; un giro es positivo en sentido antihorario, en radianes.');
+  });
+
+  // "Where a deflection is printed with a sign, upward is positive; a slope
+  // is positive counter-clockwise, in radians." The same sentence as above,
+  // held here to the engine's own two signs and to what the page prints.
+  it('a deflection with a sign is positive upward, and a positive slope rises to the right', () => {
+    // One span of 20 ft under 1 kip/ft: it goes down, 5wL⁴/384 at its middle; it falls away from its left support
+    // (wL³/24, turning clockwise) and rises to its right one by as much.
+    const sagging = solveContinuous({ spans: [{ L: 20, k: 1 }], left: 'pin', right: 'pin', dists: [{ span: 0, a1: 0, a2: 20, w1: 1, w2: 1 }] });
+    if (!sagging.ok) throw new Error('not solved');
+    expect(sagging.at(10).EIv).toBeCloseTo((-5 * 20 ** 4) / 384, 9);
+    expect(sagging.at(0, 'right').EItheta).toBeCloseTo(-(20 ** 3) / 24, 9);
+    expect(sagging.at(20, 'left').EItheta).toBeCloseTo(20 ** 3 / 24, 9);
+    // The slope is the rise of the deflection per length along the beam: a hair to the right of 5 ft the beam is lower.
+    // Counter-clockwise, with x running to the right, is that rise.
+    const step = 1e-4;
+    expect((sagging.at(5 + step).EIv - sagging.at(5 - step).EIv) / (2 * step)).toBeCloseTo(sagging.at(5).EItheta, 4);
+    expect(sagging.at(5).EItheta).toBeLessThan(0);
+    // The page prints both with that sign, where it prints one: at the middle of the example the beam is below its
+    // line in every arrangement but the one that lifts it, and a settlement entered downward comes back with a minus.
+    const tool = (lang: Lang, initial?: ContinuousForm) => renderToStaticMarkup(h(ContinuousCalculator, { t: beamStrings[lang].ui, c: continuousUi[lang], initial }));
+    expect(tool('en')).toContain('-0.5695 to 0.09732 in');
+    expect(tool('es')).toContain('-0.5695 a 0.09732 in');
+    const sunk = tool('en', form({ spans: example.spans.map((s) => ({ ...s, dead: 0, live: 0 })), settlements: [0.25, 0.25, 0.25, 0.25] }));
+    expect(sunk).toContain('<dd>-0.25 in</dd>');
+    // The note ends on that sentence, in both languages: turned round — "downward", "clockwise" — it is no longer the page's.
+    for (const lang of LANGS) expect(continuousPage[lang].signs.items[4]).toMatch(lang === 'en' ? /Where a deflection is printed with a sign, upward is positive; a slope is positive counter-clockwise, in radians\.$/ : /Donde una deflexión lleva signo, hacia arriba es positivo; un giro es positivo en sentido antihorario, en radianes\.$/);
   });
 
   // "Spans and positions in feet or metres, loads in kips or kilonewtons; a
@@ -931,7 +1102,8 @@ describe('continuous beam: the words of its page', () => {
       expect(s.facts[1].v).toBe(c.live.every);
       // …and the third names the method as the method's first sentence does.
       expect(s.facts[2].k).toBe(s.method.label);
-      expect(low(s.method.paragraphs[0])).toContain(lang === 'en' ? `${low(s.facts[2].v)} method` : 'método directo de la rigidez');
+      expect(low(s.method.paragraphs[0])).toContain(lang === 'en' ? `${low(s.facts[2].v)} method` : `${low(s.facts[2].k)} ${low(s.facts[2].v)}`);
+      expect(low(continuousPage.es.method.paragraphs[0])).toContain('método directo de la rigidez');
       const notes = [...s.method.paragraphs, ...s.assumes.items, ...s.limits.items, ...s.signs.items].join(' ');
       for (const word of [c.spans.stiffness, c.settlements.name, c.spans.dead, c.spans.live, c.live.every, c.ends.kinds.pin]) expect(low(notes), `${lang} ${word}`).toContain(low(word));
       // The cases give each span's largest sagging moment under the name its column has.
@@ -1120,19 +1292,19 @@ describe('continuous beam: the page', () => {
     it(`${lang}: the server sends the example solved, over its eight arrangements — and not an empty box`, () => {
       const up = t.results.upward;
       const supports = cardOf(main, t.supports.title);
-      // Support, position, then the highest and the lowest of its reaction and of the moment over it.
+      // Support, position, then its reaction and the moment over it: of each, the larger end of its range and then the other.
       expect(rowsOf(supports)).toEqual([
         ['1', '0', `21.17 ${up}`, `5.581 ${up}`, '0', '0'],
-        ['2', '24', `65.43 ${up}`, `24.82 ${up}`, '-55', '-166.9'],
-        ['3', '54', `65.43 ${up}`, `24.82 ${up}`, '-55', '-166.9'],
+        ['2', '24', `65.43 ${up}`, `24.82 ${up}`, '-166.9', '-55'],
+        ['3', '54', `65.43 ${up}`, `24.82 ${up}`, '-166.9', '-55'],
         ['4', '78', `21.17 ${up}`, `5.581 ${up}`, '0', '0'],
       ]);
       // "Each largest value … comes with the spans whose live load is on when it occurs": beside each, in a drawing that says it.
       const on = (...spans: number[]) => (spans.length === 1 ? c.results.pattern.one : c.results.pattern.many).replace('{spans}', spans.length === 1 ? String(spans[0]) : `${spans.slice(0, -1).join(', ')}${c.results.pattern.and}${spans.at(-1)}`);
       expect(patternsOf(supports)).toEqual([
         [on(1, 3), on(2)],
-        [on(1, 2), on(3), on(3), on(1, 2)],
-        [on(2, 3), on(1), on(1), on(2, 3)],
+        [on(1, 2), on(3), on(1, 2), on(3)],
+        [on(2, 3), on(1), on(2, 3), on(1)],
         [on(1, 3), on(2)],
       ]);
       const bySpan = cardOf(main, c.results.bySpan);
@@ -1171,7 +1343,7 @@ describe('continuous beam: the page', () => {
       const groups = [...main.matchAll(/<div class="mp-app__item" role="group" aria-label="([^"]*)"/g)].map((m) => m[1]);
       expect(groups).toEqual([1, 2, 3].map((n) => `${t.results.span} ${n}`));
       const legends = [...main.matchAll(/<legend[^>]*>([\s\S]*?)<\/legend>/g)].map((m) => text(m[1]));
-      expect(legends).toEqual(expect.arrayContaining([c.spans.title, c.ends.title, t.supports.title, t.loads.point, t.loads.dist, c.live.title, t.section.title]));
+      expect(legends).toEqual(expect.arrayContaining([c.spans.title, c.ends.title, c.settlements.title, t.loads.point, t.loads.dist, c.live.title, t.section.title]));
       // Three kinds of end, on each side.
       const ends = [...main.matchAll(/<select\b[^>]*>([\s\S]*?)<\/select>/g)].map((m) => [...m[1].matchAll(/<option\b[^>]*>([\s\S]*?)<\/option>/g)].map((o) => text(o[1]))).filter((options) => options.includes(c.ends.kinds.free));
       expect(ends).toEqual([Object.values(c.ends.kinds), Object.values(c.ends.kinds)]);
@@ -1249,7 +1421,7 @@ describe('continuous beam: the page', () => {
       expect(beam.dists.map((d) => [d.x1, d.x2, d.w1])).toEqual([[0, 24, 0.9], [0, 24, 1.2], [24, 54, 0.9], [24, 54, 1.2], [54, 78, 0.9], [54, 78, 1.2]]);
       // The link is named for that calculator, and the notes say that it is there.
       expect(text(main)).toContain(`${c.general} ${c.generalLink}`);
-      expect(s.limits.items.filter((x) => (lang === 'en' ? /the form links to it with this beam when that calculator can hold it/ : /el formulario enlaza con ella, con esta viga, cuando esa calculadora puede representarla/).test(x))).toHaveLength(1);
+      expect(s.limits.items.filter((x) => (lang === 'en' ? /the form links to it with this beam when that calculator can hold it/ : /el formulario lleva esta viga a esa calculadora cuando puede representarla/).test(x))).toHaveLength(1);
     });
 
     it(`${lang}: every image says what it is, and only the footer lockup is read out`, () => {
@@ -1289,9 +1461,8 @@ describe('continuous beam: what the notes say the form does, it does on screen',
     const t = beamStrings[lang].ui;
     const c = continuousUi[lang];
 
-    // "Stresses are M/S and V/Av of the section entered. Where a span's
-    // stiffness factor is not 1 that span is another section, and no stress
-    // is printed."
+    // "Where any span's stiffness factor is not 1, that span is another
+    // section and no stress is printed at all."
     it(`${lang}: with a stiffness factor that is not 1, no stress is printed and a line says why — and the link to the first calculator is gone`, () => {
       const html = tool(lang, { ...example, spans: example.spans.map((s, i) => (i === 1 ? { ...s, k: 1.5 } : s)) });
       const body = text(html);
@@ -1305,6 +1476,21 @@ describe('continuous beam: what the notes say the form does, it does on screen',
       for (const stress of [t.results.bendingStress, t.results.shearStress]) expect(plain, stress).toContain(`<dt>${esc(stress)}</dt>`);
       expect(text(plain)).not.toContain(c.results.noStress);
       expect(text(plain)).toContain(c.generalLink);
+    });
+
+    // "…for shear, the rule printed with the value — V over a shear area,
+    // 1.5V/A for a rectangle." The example as a rectangle 12 in by 24 in: its
+    // largest shear is 33.2723 kip, and 1.5 × 33.2723 ÷ 288 = 0.1733 ksi —
+    // V ÷ A would be 0.1155.
+    it(`${lang}: for a rectangle the shear stress is 1.5 × V ÷ A, and the card says so beside it`, () => {
+      const html = tool(lang, { ...example, section: { ...example.section, mode: 'rect', b: 12, h: 24 } });
+      const values = Object.fromEntries([...html.matchAll(/<dt>([\s\S]*?)<\/dt><dd>([\s\S]*?)<\/dd>/g)].map((m) => [text(m[1]), text(m[2])]));
+      expect(values[t.results.maxShear].startsWith('33.27 kip')).toBe(true);
+      expect(values[t.results.shearStress]).toBe('0.1733 ksi');
+      expect((1.5 * 33.2723) / 288).toBeCloseTo(0.1733, 4);
+      expect(text(html)).toContain(`${t.results.shearRule.rect} ${t.results.elastic}`);
+      // The example's own section: V over the shear area entered, and the card says that.
+      expect(text(tool(lang, example))).toContain(`${t.results.shearRule.area} ${t.results.elastic}`);
     });
 
     // "A settlement is a length you enter … and it needs E and I to become
@@ -1348,7 +1534,7 @@ describe('continuous beam: what the notes say the form does, it does on screen',
       const card = html.split(/<div class="mp-app__card(?: [^"]*)?">/)[1] ?? '';
       const rows = [...(card.match(/<tbody\b[^>]*>[\s\S]*?<\/tbody>/)?.[0] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)].map((r) => [...r[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((x) => text(x[1])));
       // 0.9 + 1.2 = 2.1 kip/ft: end reactions 2.1 × 12 − 155.3087 ÷ 24 = 18.73 kip, interior ones 81.9 − 18.73 = 63.17.
-      expect(21432.6 / 138).toBeCloseTo(155.3087, 4);
+      expect((2.1 * (24 ** 3 + 30 ** 3)) / 4 / 138).toBeCloseTo(155.3087, 4);
       expect(rows).toEqual([
         ['1', '0', `18.73 ${up}`, '0'],
         ['2', '24', `63.17 ${up}`, '-155.3'],

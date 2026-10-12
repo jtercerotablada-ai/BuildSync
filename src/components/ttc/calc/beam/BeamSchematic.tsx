@@ -37,6 +37,33 @@ import { xToPx } from './BeamPlot';
  * WHAT IS WRITTEN BY A LOAD is its value and its unit — unless the page has
  * more to say of its loads than a size (`label`: the continuous beam's are
  * dead or live). The text is then that page's, and is placed as any other.
+ *
+ * THREE THINGS A PAGE MAY ASK FOR, each by a prop of its own. Without them
+ * the drawing is, to the byte, what it was: the first two calculators ask
+ * for none.
+ *
+ * — THE DIMENSION LINE writes each position to four figures, as the tables
+ *   beside the drawing write one — unless the page writes its positions with
+ *   more (`figures`: the continuous beam's supports are sums of the lengths
+ *   typed, and are written as they add up, to six).
+ *
+ * — A PLATE BEHIND A VALUE (`plates`), for a page whose loads stand under one
+ *   another's values — the continuous beam, where every span carries a block
+ *   and a further load's value is written inside one. Values keep clear of
+ *   each other, not of a block's edge or an arrow: "0.4 – 1.6" on the top
+ *   edge of a block read "-0.4 -- 1.6", and on paper, where a value has no
+ *   halo, the arrows struck it through. The plate is a patch of the page's
+ *   colour (white on paper) the size of the value, drawn after every block
+ *   and arrow and before the value: what would cross it goes behind. Only
+ *   the distributed loads' values get one: a point load's is written above
+ *   every block.
+ *
+ * — THE BEAM'S LENGTH CLEAR OF ITS UNIT (`clearUnit`). The unit stands at
+ *   the edge of the drawing, 28 px past the end's tick, whatever is written
+ *   before it, and a length of five characters ran into it: "102.3ft", with
+ *   the 3 half under the unit's halo. Asked for, the length is written as far
+ *   to the left as keeps it 4 px from the unit, still under its tick. A beam
+ *   of several spans is past 100 ft as a matter of course.
  */
 
 const H = 216;
@@ -61,6 +88,8 @@ const V_GAP = 10; // between two values on a line: more than the space inside "1
 const V_EDGE = 2; // what a value keeps from each side of the drawing
 const V_HEAD = 4; // and from its top
 const V_TURN = 4; // a value written upward: from the line it is centred on to its baseline
+const D_CHAR = 6.8; // one character of the dimension line's 11px mono, and a little: what the last number keeps clear of the unit by is measured with it
+const D_CLEAR = 4; // between the beam's length and the unit after it (`clearUnit`)
 
 const head = (x: number, y: number, dir: 1 | -1, size = 5) => `${x},${y} ${x - size},${y - dir * size * 1.7} ${x + size},${y - dir * size * 1.7}`;
 
@@ -114,14 +143,20 @@ function arranged<T extends { text: string; spots: [Spot, ...Spot[]]; stem: { x:
  * The first and the last keep their places before any between them: on the
  * dimension line those are the two ends of the beam, and a support a foot
  * before the end took the end's label — a 20 ft beam read "0 … 19 ft".
+ *
+ * `at` is where a label is written, `place` where the thing it names is,
+ * when the two differ (the beam's length, moved clear of the unit): which
+ * label is first, last or between is said by the places. Where no label has
+ * a `place` the order is that of `at`, as it always was.
  */
-function spaced<T extends { at: number; text: string }>(labels: T[], charWidth = 6.4, gap = 8): T[] {
-  const sorted = [...labels].sort((p, q) => p.at - q.at);
+function spaced<T extends { at: number; text: string; place?: number }>(labels: T[], charWidth = 6.4, gap = 8): T[] {
+  const where = (l: T) => l.place ?? l.at;
+  const sorted = [...labels].sort((p, q) => where(p) - where(q));
   const half = (l: T) => (l.text.length * charWidth) / 2;
   const kept: T[] = [];
   const clear = (l: T) => kept.every((k) => l.at + half(l) + gap <= k.at - half(k) || k.at + half(k) + gap <= l.at - half(l));
   for (const l of [sorted[0], sorted[sorted.length - 1], ...sorted.slice(1, -1)]) if (l && !kept.includes(l) && clear(l)) kept.push(l);
-  return kept.sort((p, q) => p.at - q.at);
+  return kept.sort((p, q) => where(p) - where(q));
 }
 
 export function BeamSchematic({
@@ -133,6 +168,9 @@ export function BeamSchematic({
   summary,
   group = ',',
   label,
+  figures = 4,
+  plates = false,
+  clearUnit = false,
 }: {
   form: BeamForm;
   reactions: BeamReaction[] | null;
@@ -145,6 +183,12 @@ export function BeamSchematic({
   group?: string;
   /** What to write by a point or a distributed load of the form, given its id and the value and unit that would be written. */
   label?: (load: { kind: 'point' | 'dist'; id: number; text: string }) => string;
+  /** How many figures a position on the dimension line is written with: four, as the tables beside it write a position — or as many as the page writes its supports with (the continuous beam's are sums of the lengths typed: six). */
+  figures?: number;
+  /** A patch of the page's colour behind each distributed load's value: a block's edge or an arrow that would cross the value goes behind it. */
+  plates?: boolean;
+  /** The beam's length, the last number of the dimension line, is kept 4 px clear of the unit written after it. */
+  clearUnit?: boolean;
 }) {
   const u = UNITS[form.units];
   const L = form.L > 0 && Number.isFinite(form.L) ? form.L : 1;
@@ -283,7 +327,15 @@ export function BeamSchematic({
     [0, L, ...form.supports.map((s) => s.x), ...form.hinges.map((h) => h.x)]
       .filter(on)
       .filter((x, i, arr) => arr.indexOf(x) === i)
-      .map((x) => ({ at: px(x), text: formatNumber(x, 4, group) })),
+      .map((x): { at: number; text: string; place?: number } => {
+        const text = formatNumber(x, figures, group);
+        if (!clearUnit) return { at: px(x), text };
+        // The beam's length is the last number of the line and the unit stands right after it, at the edge of
+        // the drawing. Where the length would come within 4 px of the unit it is written that much to the
+        // left, still under its tick; its place among the labels is still the end of the beam.
+        const clear = width - 2 - u.length.length * D_CHAR - D_CLEAR - (text.length * D_CHAR) / 2;
+        return { at: x === L ? Math.min(px(x), clear) : px(x), place: px(x), text };
+      }),
   );
   const reactionMarks = (() => {
     const list = (reactions ?? [])
@@ -501,9 +553,12 @@ export function BeamSchematic({
             {along.map(({ key }) => {
               const value = valueOf.get(key)!;
               return (
-                <text key={key} className="mp-beam__label" x={value.spot.x} y={value.spot.y} textAnchor={value.spot.anchor}>
-                  {value.text}
-                </text>
+                <React.Fragment key={key}>
+                  {plates ? <rect className="mp-beam__plate" x={value.box.l - 2} y={value.box.t} width={value.box.r - value.box.l + 4} height={value.box.b - value.box.t} /> : null}
+                  <text className="mp-beam__label" x={value.spot.x} y={value.spot.y} textAnchor={value.spot.anchor}>
+                    {value.text}
+                  </text>
+                </React.Fragment>
               );
             })}
           </g>

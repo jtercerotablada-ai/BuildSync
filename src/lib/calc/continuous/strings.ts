@@ -39,8 +39,15 @@ export type ContinuousUi = {
   spans: { title: string; stiffness: string; dead: string; live: string; note: string; add: string; limit: string };
   /** How each end of the beam is held: the three kinds, and what stands between two spans. */
   ends: { title: string; left: string; right: string; kinds: Record<EndKind, string>; note: string };
-  /** Under "Supports": `name` is what the fields are, for whoever cannot see the note above them. */
-  settlements: { name: string; note: string };
+  /**
+   * The group of settlements: its `title` (not the first calculator's
+   * "Supports", which is the title of the results card under the form too:
+   * two things with one name, and fields that never said "settlement"),
+   * `name`, what the fields are for whoever cannot see the note above them,
+   * and the `note` — true of the screen, where a support that does not
+   * settle is an empty field, and of the printed sheet, which writes its 0.
+   */
+  settlements: { title: string; name: string; note: string };
   /** A further load is dead or live, and is placed in its own span. */
   loads: { kinds: { dead: string; live: string }; note: string };
   /**
@@ -58,6 +65,14 @@ export type ContinuousUi = {
     /** Heads of the "Supports" card. */
     reaction: string;
     momentOver: string;
+    /**
+     * Over every arrangement each of the two is a pair, and its two heads end
+     * in these: `largest` is the end of the range further from zero — the
+     * force or the moment to design for, whichever way it acts — and `other`
+     * the end that is left. (Not "max" and "min": a support held down in
+     * every arrangement read "max 8.025 downward, min 30.23 downward".)
+     */
+    ends: { largest: string; other: string };
     /** The "Span by span" card and its heads. */
     bySpan: string;
     sagging: string;
@@ -69,7 +84,7 @@ export type ContinuousUi = {
      * value: {spans} is their numbers, joined with `and` before the last.
      */
     pattern: { one: string; many: string; none: string; and: string };
-    /** Under a card whose values name their arrangement: {on} and {off} are where the two marks are drawn. */
+    /** Over the table of a card whose values name their arrangement: {on} and {off} are where the two marks are drawn. */
     key: string;
     /** Under the diagrams, when each is a band. */
     band: string;
@@ -83,7 +98,12 @@ export type ContinuousUi = {
     /** In place of the two stresses, where a span is not the section entered. */
     noStress: string;
   };
-  /** The faults that are this form's own. {min} and {max} are the limits of a stiffness factor. */
+  /**
+   * The faults that are this form's own. {min} and {max} are the limits of a
+   * stiffness factor. `stopped` is not a fault of the beam: the arithmetic
+   * itself failed on it (analysis.ts, `analyseSafely`), and the line says no
+   * more than is known.
+   */
   issues: Record<Exclude<AnalysisIssueCode, 'number' | 'section'>, string>;
 };
 
@@ -106,8 +126,9 @@ export const continuousUi: Record<Lang, ContinuousUi> = {
       note: 'Between two spans the beam rests on a simple support. An end span with a free end is an overhang.',
     },
     settlements: {
+      title: 'Support settlements',
       name: 'Settlement',
-      note: 'A settlement for any support, as a length downward. An empty field: that support does not move.',
+      note: 'A settlement for any support, as a length downward. Empty or 0: that support does not move.',
     },
     loads: {
       kinds: { dead: 'Dead', live: 'Live' },
@@ -131,6 +152,7 @@ export const continuousUi: Record<Lang, ContinuousUi> = {
     results: {
       reaction: 'Reaction',
       momentOver: 'Moment over it',
+      ends: { largest: 'largest', other: 'other extreme' },
       bySpan: 'Span by span',
       sagging: 'Largest sagging moment',
       fromSupports: 'Deflection from its supports',
@@ -151,6 +173,7 @@ export const continuousUi: Record<Lang, ContinuousUi> = {
       'short-span': 'This span is shorter than one thousandth of all the spans together: a span that short is not solved. Lengthen it, or remove it.',
       unstable: 'These ends do not hold the beam in place: it takes two supports, or one fixed end.',
       settlement: 'A support settles: turning that into forces takes E and I, which the section does not give yet. Complete the section, or empty the settlement field.',
+      stopped: 'The calculation stopped on this beam, and has no result to show for it. The fault is in this calculator, not in the beam.',
     },
   },
   es: {
@@ -171,8 +194,9 @@ export const continuousUi: Record<Lang, ContinuousUi> = {
       note: 'Entre dos vanos la viga descansa sobre un apoyo simple. Un vano extremo con el extremo libre es un voladizo.',
     },
     settlements: {
+      title: 'Asentamientos de los apoyos',
       name: 'Asentamiento',
-      note: 'Un asentamiento para cualquier apoyo, como longitud hacia abajo. Un campo vacío: ese apoyo no se mueve.',
+      note: 'Un asentamiento para cualquier apoyo, como longitud hacia abajo. Vacío o 0: ese apoyo no se mueve.',
     },
     loads: {
       kinds: { dead: 'Muerta', live: 'Viva' },
@@ -196,12 +220,13 @@ export const continuousUi: Record<Lang, ContinuousUi> = {
     results: {
       reaction: 'Reacción',
       momentOver: 'Momento sobre él',
+      ends: { largest: 'mayor', other: 'otro extremo' },
       bySpan: 'Vano por vano',
       sagging: 'Momento positivo máximo',
-      fromSupports: 'Deflexión desde sus apoyos',
+      fromSupports: 'Deflexión respecto a sus apoyos',
       range: '{min} a {max}',
       pattern: { one: 'carga viva en el vano {spans}', many: 'carga viva en los vanos {spans}', none: 'sin carga viva', and: ' y ' },
-      key: 'Junto a un valor: {on} un vano con su carga viva puesta, {off} uno sin ella, en la disposición que da ese valor.',
+      key: 'Junto a un valor: {on} un vano con su carga viva aplicada, {off} uno sin ella, en la disposición que da ese valor.',
       band: 'Cada banda va del valor más bajo al más alto entre las disposiciones.',
       uniform: 'cargas uniformes: muerta + viva',
       live: 'viva',
@@ -216,6 +241,7 @@ export const continuousUi: Record<Lang, ContinuousUi> = {
       'short-span': 'Este vano no llega a la milésima parte de la suma de todos los vanos: uno tan corto no se resuelve. Alárguelo o quítelo.',
       unstable: 'Estos extremos no sujetan la viga: hacen falta dos apoyos, o un extremo empotrado.',
       settlement: 'Un apoyo se asienta: convertir eso en fuerzas requiere E e I, que la sección aún no da. Complete la sección o vacíe el campo del asentamiento.',
+      stopped: 'El cálculo se ha detenido con esta viga y no tiene ningún resultado que mostrar. El error es de esta calculadora, no de la viga.',
     },
   },
 };

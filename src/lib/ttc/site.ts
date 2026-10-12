@@ -3120,11 +3120,14 @@ export const legal = {
         'Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.',
       ] },
       { h: 'Links that leave this site', p: 'Calling us, writing by WhatsApp and following a link to a county office, to the state license search or to another official source all happen outside this website. What you send or do there is handled by that service under its own privacy terms, which we do not control. The WhatsApp link opens a chat with a first line already written; nothing is sent until you send it.' },
-      /* True of BeamCalculator.tsx: it makes no request with what is typed
-         (the steel shape table is a static file of this site), and keeps the
-         case in the fragment of the address, which no browser sends. Read
-         against the code on October 10, 2026; a calculator that saves or
-         sends anything makes this false. */
+      /* True of the three calculators (calc/beam/BeamCalculator.tsx, which is
+         also the single-span page, and calc/continuous/ContinuousCalculator.tsx):
+         none makes a request with what is typed (the steel shape table is a
+         static file of this site, calc/shell/steel.ts), and each keeps its
+         case in the fragment of the address, which no browser sends
+         (calc/shell/address.ts). Read against the code at c78e06f, the third
+         calculator included; a calculator that saves or sends anything makes
+         this false. */
       { h: 'Calculators', p: 'The calculators under Resources do their work in your browser. The values you enter are not sent to us and are not stored by us. A calculator keeps them in the address of the page, after the # sign, which is the part of an address a browser does not send: that is how a reload, or a link you copy, opens the same case. Whoever you give that link to sees the values in it.' },
       { h: 'Your choices', p: 'You can ask us what we hold about you, ask for it to be corrected, or ask for it to be deleted. Write to the address below and we will respond. Tell us the email address you used on the form and, if you kept it, the reference from the confirmation: that is how we find your request.' },
       { h: 'Changes', p: 'If this policy changes we will update it on this page.' },

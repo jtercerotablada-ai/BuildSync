@@ -1,7 +1,7 @@
 import { agree } from '../format';
 import { bendingStress, deflectionFactor, sectionProps, shearStress, stiffness, type BeamForm, type SectionProps, type SteelShape } from '../beam/model';
 import type { BeamReaction, Side, SupportKind } from '../beam/solver';
-import { solveCase, solveContinuous, type ContinuousCase } from './engine';
+import { solveContinuous } from './engine';
 import { envelopeContinuous } from './envelope';
 import { formIssues, issueOnRow, jointPositions, oneSection, toBeamForm, toEngine, type ContinuousForm, type ContinuousFormIssue, type ContinuousFormIssueCode, type ContinuousRow } from './model';
 import type { ContinuousEnvelope, ContinuousModel, ContinuousSolution, Range } from './types';
@@ -46,21 +46,37 @@ import type { ContinuousEnvelope, ContinuousModel, ContinuousSolution, Range } f
  * 0. One floor, a billionth of the size of the problem: × L for a moment,
  * × L² for a slope, × L³ for a deflection.
  *
+ * AND FOR A SLOPE AND A DEFLECTION, A HUNDREDTH OF THAT where every span is
+ * the section entered: × min(1, 0.01 ÷ the smallest stiffness factor). What
+ * those two are measured against is the engine's rounding of them, and that
+ * goes as 1 over the smallest factor (3e-14 of size × L³ over it, at most:
+ * engine.ts). At a plain billionth of size × L³ — which grows as the fourth
+ * power of the number of spans — eight spans of one section had every
+ * deflection under four to six ten-thousandths of the beam's largest handed
+ * over as nothing: the whole row of a span a thousand times stiffer than
+ * the others read "0" and "—", and the beam was "0 in" a hundredth of a
+ * foot from a support where its slope was a result. Beside a span a hundred
+ * times more flexible than the section, or more, the floor is the billionth
+ * it was.
+ *
  * WHAT A FLOOR DOES NOT DO. It says which values are rounding; it does not
  * make a value just above it good to the four figures printed. Measured
  * (engine.ts, the header): a shear or a reaction is within 2e-12 of the size
  * of the problem at the engine's limits, so one that is itself under a
  * ten-millionth of the loads may be out in its fourth figure; and a
  * deflection is within 3e-14 of that size × L³ over the SMALLEST stiffness
- * factor, so beside a span a thousand times more flexible than the section
- * a deflection read where the beam crosses its own line may be too. What a
- * span is asked for — its largest moment, its largest deflection — is right
- * to its own figures whatever the spans beside it (within 5e-13 of the
- * largest value in that span).
+ * factor — a three-hundredth of its floor at most, a thirtieth beside a
+ * span a thousand times more flexible than the section — so a deflection
+ * read where the beam crosses its own line, a hair from a support, may be
+ * out in its third. What a span is asked for — its largest moment, its
+ * largest deflection — is right to its own figures whatever the spans
+ * beside it (within 5e-13 of the largest value in that span).
  *
- * STRESSES ARE THE SECTION'S. M ÷ S and V ÷ Av are given only where every
- * span has a stiffness factor of 1: a span with another is another section,
- * of which nothing but the stiffness is known (`sameSection`).
+ * STRESSES ARE THE SECTION'S. M ÷ S and the section's shear rule (V over
+ * its shear area; 1.5 V ÷ A for a rectangle — beam/model.ts, `shearStress`)
+ * are given only where every span has a stiffness factor of 1: a span with
+ * another is another section, of which nothing but the stiffness is known
+ * (`sameSection`).
  *
  * UNITS as in model.ts: positions in ft or m along the whole beam, forces in
  * kip or kN, moments in kip·ft or kN·m; a deflection in in or mm, a slope in
@@ -68,8 +84,13 @@ import type { ContinuousEnvelope, ContinuousModel, ContinuousSolution, Range } f
  * deflections positive upward, moments positive sagging.
  */
 
-/** What is wrong, by row. 'size': a number that is one, of a size the engine does not take (under 1e-60 or over 1e60), or whose results are past the largest number there is. */
-export type AnalysisIssueCode = ContinuousFormIssueCode | 'size';
+/**
+ * What is wrong, by row. 'size': a number that is one, of a size the engine
+ * does not take (under 1e-60 or over 1e60), or whose results are past the
+ * largest number there is. 'stopped': the arithmetic threw an exception
+ * (`analyseSafely`) — no row, and nothing known of it but that.
+ */
+export type AnalysisIssueCode = ContinuousFormIssueCode | 'size' | 'stopped';
 export interface AnalysisIssue {
   code: AnalysisIssueCode;
   /** The row at fault, when it is one row. */
@@ -79,7 +100,11 @@ export interface AnalysisIssue {
 /** A value of the cards, settled. */
 export interface Value {
   value: number;
-  /** Where along the beam; null for a value that is rounding — zero, at no place. */
+  /**
+   * Where along the beam; null for a value at no place: one that is
+   * rounding — zero — and the deflection of a beam whose deflected shape is
+   * level, which is the same all along (`Largest.deflection`, `peaks.D`).
+   */
   x: number | null;
   /** Over every arrangement: the spans (from 0, ascending) whose live load is on in the one that gives this value. Null in a single case. */
   on: number[] | null;
@@ -157,7 +182,12 @@ export interface PointValues {
   deflection: Range | null;
   /** In radians, positive counter-clockwise; null without E and I. */
   slope: Range | null;
-  /** M ÷ S there, of the side whose moment is the larger; null as `Largest.sigma`. */
+  /**
+   * |M| ÷ S there, of the side whose moment is the larger: the most and the
+   * least that any arrangement gives — the least is not zero where the moment
+   * changes sign between arrangements, unless one of them does leave the beam
+   * unbent there. Null as `Largest.sigma`.
+   */
   sigma: Range | null;
 }
 
@@ -343,7 +373,9 @@ export function analyseContinuous(form: ContinuousForm, shape?: SteelShape | nul
   const sol: ContinuousSolution = 'all' in outcome ? outcome.all : outcome;
   const L = sol.L;
   const F = 1e-9 * sol.loadScale;
-  const floors: Floors = { F, V: F, M: F * L, EItheta: F * L * L, EIv: F * L * L * L };
+  // A slope and a deflection: a hundredth of that where no span is more flexible than the section — the header says why.
+  const soft = Math.min(1, 0.01 / Math.min(...model.spans.map((s) => s.k)));
+  const floors: Floors = { F, V: F, M: F * L, EItheta: F * L * L * soft, EIv: F * L * L * L * soft };
 
   /* ── Support by support ─────────────────────────────────────────────── */
   const pair = (max: Value, min: Value, floor: number): Both => ({ max, min, one: Math.abs(max.value - min.value) <= floor });
@@ -383,7 +415,12 @@ export function analyseContinuous(form: ContinuousForm, shape?: SteelShape | nul
   const ex = (env ?? sol).extremes;
   const V: [Value, Value] = [valueOf(ex.Vmax, floors.V), valueOf(ex.Vmin, floors.V)];
   const M: [Value, Value] = [valueOf(ex.Mmax, floors.M), valueOf(ex.Mmin, floors.M)];
-  const D: [Value, Value] | null = toDeflection ? [times(valueOf(ex.EIvMax, floors.EIv), toDeflection), times(valueOf(ex.EIvMin, floors.EIv), toDeflection)] : null;
+  const found: [Value, Value] | null = toDeflection ? [times(valueOf(ex.EIvMax, floors.EIv), toDeflection), times(valueOf(ex.EIvMin, floors.EIv), toDeflection)] : null;
+  // A deflected shape that is LEVEL — every support settles by one length and nothing bends the beam — is one
+  // value all along. Its highest and its lowest then differ by rounding alone (a billionth of themselves, at
+  // most), and where each falls is rounding too: one value, at no place. The diagram keeps one label for it.
+  const level = found !== null && found[0].x !== null && found[1].x !== null && Math.abs(found[0].value - found[1].value) <= 1e-9 * Math.abs(found[0].value);
+  const D: [Value, Value] | null = found && level ? [{ ...found[0], x: null }, { ...found[0], x: null }] : found;
   const shear = larger(V[0], V[1]);
   const moment = larger(M[0], M[1]);
   const largest: Largest = {
@@ -416,71 +453,35 @@ export function analyseContinuous(form: ContinuousForm, shape?: SteelShape | nul
   const diagrams = {
     V: drawn((s) => s.V, floors.V, 1, V),
     M: drawn((s) => s.M, floors.M, 1, M),
-    D: D ? drawn((s) => s.EIv, floors.EIv, toDeflection, D) : null,
+    // A level shape is labelled once, where the engine happened to find its highest: a label has to stand somewhere.
+    D: D && found ? drawn((s) => s.EIv, floors.EIv, toDeflection, level ? [found[0], found[0]] : D) : null,
   };
 
   /* ── The values at a point ──────────────────────────────────────────── */
-  // The envelope follows the shear, the moment and the deflection, not the
-  // slope. Its range is made here the same way (envelope.ts says why it is
-  // exact): what is always there, plus each span's live load alone where it
-  // turns the beam one way, and where it turns it the other. Those cases are
-  // solved the first time a slope is asked for, and kept.
-  let cases: ContinuousCase[] | null = null;
-  const slopeCases = (): ContinuousCase[] => {
-    if (cases) return cases;
-    const points = model.points ?? [];
-    const dists = model.dists ?? [];
-    const geometry = { spans: model.spans, left: model.left, right: model.right };
-    const solved = [
-      solveCase({ ...geometry, settlements: model.settlements, points: points.filter((p) => !p.live), dists: dists.filter((d) => !d.live) }),
-      ...liveSpans.map((span) => solveCase({ ...geometry, points: points.filter((p) => p.live && p.span === span), dists: dists.filter((d) => d.live && d.span === span) })),
-    ];
-    // The whole beam was solved, so its parts are: the same spans, some of the same loads.
-    cases = solved.flatMap((c) => (c.ok ? [c] : []));
-    return cases;
-  };
-  // What is rounding in the slope one live load causes is measured WHERE THE
-  // EFFECT IS, as the envelope measures it (envelope.ts, "what counts as an
-  // effect"): against the largest slope that load causes in the span the
-  // point is in — read off the case's own stations, once. Against the
-  // largest slope it causes anywhere, a span a million times stiffer than
-  // the loaded one lost what the load does turn it by.
-  const turned = new Map<ContinuousCase, number[]>();
-  const turnIn = (c: ContinuousCase, span: number): number => {
-    let reach = turned.get(c);
-    if (!reach) {
-      reach = c.spans.map((sp) => c.stations.reduce((most, s) => (s.x >= sp.from && s.x <= sp.to ? Math.max(most, Math.abs(s.EItheta)) : most), 0));
-      turned.set(c, reach);
-    }
-    return reach[span] ?? 0;
-  };
-  const slopeAt = (x: number, side: Side): Range => {
-    if (!env) return only(sol.at(x, side).EItheta);
-    const [base, ...lives] = slopeCases();
-    const range = { max: base.at(x, side).EItheta, min: base.at(x, side).EItheta };
-    for (const c of lives) {
-      // Under a million-millionth of that, an effect is the zero it is: neither added to the highest slope nor to the lowest.
-      const effect = settle(c.at(x, side).EItheta, 1e-12 * turnIn(c, c.spanOf(x, side)));
-      if (effect > 0) range.max += effect;
-      else range.min += effect;
-    }
-    return range;
-  };
+  // Every range is the envelope's own, the slope's with the others: one set
+  // of cases stands behind all of them (envelope.ts). This file used to
+  // solve the same cases over again for the slope alone, on every analysis.
   const settled = (r: Range, floor: number, k = 1): Range => ({ max: settle(r.max, floor) * k, min: settle(r.min, floor) * k });
   const at = (asked: number): PointValues => {
     const x = Math.min(L, Math.max(0, asked));
-    const read = (side: Side): { V: Range; M: Range; EIv: Range } => {
+    const read = (side: Side): { V: Range; M: Range; EItheta: Range; EIv: Range } => {
       if (env) return env.at(x, side);
       const s = sol.at(x, side);
-      return { V: only(s.V), M: only(s.M), EIv: only(s.EIv) };
+      return { V: only(s.V), M: only(s.M), EItheta: only(s.EItheta), EIv: only(s.EIv) };
     };
     const left = read('left');
     const right = read('right');
     const moments = { left: settled(left.M, floors.M), right: settled(right.M, floors.M) };
     // The stress is of the side that has the moment: at a fixed end the other side is past the beam.
     const reach = (r: Range) => Math.max(Math.abs(r.max), Math.abs(r.min));
-    const bent = reach(moments.left) > reach(moments.right) ? moments.left : moments.right;
-    const least = bent.min <= 0 && bent.max >= 0 ? 0 : Math.min(Math.abs(bent.max), Math.abs(bent.min));
+    const side: Side = reach(moments.left) > reach(moments.right) ? 'left' : 'right';
+    const bent = moments[side];
+    // Its lower end is the least |M| that an ARRANGEMENT gives. Where the moment keeps one sign over all of them
+    // that is an end of its range. Where it changes sign it is neither end — and not nothing either: no
+    // arrangement need leave the beam unbent there. The envelope then adds every one of them up
+    // (`leastMoment`), and what comes back is settled as any moment: zero is the answer only where an
+    // arrangement does give a moment that is rounding. (In a single case the two ends are one number.)
+    const least = env && bent.min < 0 && bent.max > 0 ? settle(env.leastMoment(x, side), floors.M) : Math.min(Math.abs(bent.max), Math.abs(bent.min));
     const stress = (m: number) => (sameSection ? bendingStress(form.units, section, m) : null);
     const [low, high] = [stress(least), stress(reach(bent))];
     return {
@@ -488,7 +489,7 @@ export function analyseContinuous(form: ContinuousForm, shape?: SteelShape | nul
       V: { left: settled(left.V, floors.V), right: settled(right.V, floors.V) },
       M: moments,
       deflection: toDeflection ? settled(right.EIv, floors.EIv, toDeflection) : null,
-      slope: toSlope ? settled(slopeAt(x, 'right'), floors.EItheta, toSlope) : null,
+      slope: toSlope ? settled(right.EItheta, floors.EItheta, toSlope) : null,
       sigma: low !== null && high !== null ? { max: high, min: low } : null,
     };
   };
@@ -514,4 +515,40 @@ export function analyseContinuous(form: ContinuousForm, shape?: SteelShape | nul
       at,
     },
   };
+}
+
+/**
+ * `analyseContinuous`, for the page — which must outlive a fault in it. An
+ * exception anywhere in the arithmetic comes back as a beam with no results
+ * and one issue, 'stopped': the page says so in its results box, as it says
+ * every other refusal, the form stays as it was typed, and the next edit is
+ * analysed afresh. Thrown while the page draws itself, the same exception
+ * takes the whole page away, and a link to that beam can never be opened: it
+ * throws again every time. No beam is known to reach this (the tests, the
+ * exact solver, some hundred thousand fuzzed codes); it is here for the
+ * fault nobody has written yet.
+ *
+ * The values at a point are asked for once, at mid-length: they are worked
+ * out when first read and not before (`at`: the envelope's sums there and,
+ * where the moment changes sign, every arrangement added up) — a fault there
+ * is to be caught here with the rest, and the page reads them at once in
+ * any case.
+ */
+export function analyseSafely(form: ContinuousForm, shape?: SteelShape | null): ContinuousAnalysis {
+  try {
+    const analysis = analyseContinuous(form, shape);
+    analysis.results?.at(analysis.results.L / 2);
+    return analysis;
+  } catch {
+    // What the form goes on showing whatever became of the beam: the section it was given, and which spans carry a live load.
+    let section: SectionProps = { E: 0, I: 0, S: 0, Av: 0, shearFactor: 1, shearRule: 'none', selfWeight: 0 };
+    let liveSpans: number[] = [];
+    try {
+      section = sectionProps(form, shape);
+      liveSpans = liveSpansOf(toEngine(form, section, stiffness(form.units, section)).model);
+    } catch {
+      /* as far as it got */
+    }
+    return { section, EI: 0, toDeflection: 0, toSlope: 0, sameSection: true, liveSpans, issues: [{ code: 'stopped' }], results: null };
+  }
 }

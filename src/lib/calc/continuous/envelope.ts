@@ -46,6 +46,26 @@ import type { ContinuousEnvelope, ContinuousModel, EnvelopeJoint, EnvelopeOutcom
  * −3.87e-6 for +5.56e-6, with the wrong arrangement named (six spans, their
  * stiffness factors 0.001 and 1,000 in turn).
  *
+ * THE SLOPE IS FOLLOWED AT A POINT, and no further. Its range at a point is
+ * the same sum as the others' — the base's slope there, plus each span's
+ * effect of one sign — with rounding measured in the span the point is in,
+ * against the largest slope that live load causes there (read off the
+ * case's own stations: the engine names no largest slope of a span). No
+ * largest slope is looked for and no band of it is drawn, so its corners
+ * are not stations. It is here, and not made by the page from cases of its
+ * own, because the cases are here: solved a second time for the slope
+ * alone, the nine of an eight-span beam were about a third of what one
+ * analysis took — and a page analyses the beam at every keystroke.
+ *
+ * AND THE MOMENT NEAREST TO ZERO (`leastMoment`), which a bending stress
+ * given as a range starts from. Where every arrangement bends the beam the
+ * same way at a point it is an end of the moment's range. Where they do
+ * not, the two ends are the arrangements FURTHEST from zero on either side
+ * of it, and the one nearest to it is some other arrangement's — which one
+ * is not to be had from the signs of the effects, as the ends are. Every
+ * arrangement is then added up from the same cases, 2ⁿ sums, and the least
+ * kept: for the one point asked, never for the stations.
+ *
  * WHERE THE LOADS ARE. Every case reads the beam by position (`at`), so
  * every case must have its loads where the others have theirs: the cases
  * are solved on the loads as the engine places them (`placedLoads`: two
@@ -65,9 +85,20 @@ import type { ContinuousEnvelope, ContinuousModel, EnvelopeJoint, EnvelopeOutcom
  *   — no span is named whose effect is zero or of the other sign, and none
  *     is left out that adds more than 1e-12 of the largest value of the
  *     span it is in.
+ * And once more on the same beams, when the slope and the moment nearest to
+ * zero were brought here:
+ *   — both ends of the slope's range, at every station and on both sides
+ *     of every place where something happens, are within 7e-13 of the
+ *     largest slope of the beam;
+ *   — the moment nearest to zero, at 389,000 points — 51,000 of them where
+ *     the moment changes sign between arrangements —, is the least of
+ *     every arrangement's moment there, as good as the moment's own band
+ *     (within 4e-13 of the largest moment on the random beams); it is never
+ *     past the nearer end of the range, and is that end itself wherever
+ *     the moment keeps one sign.
  */
 
-/** The four responses that are followed: shear, moment, deflection, and deflection from the span's own supports. */
+/** The four responses that are followed all along the beam: shear, moment, deflection, and deflection from the span's own supports. (The slope is followed at a point only: `at`.) */
 type Response = 'V' | 'M' | 'Y' | 'C';
 const RESPONSES: Response[] = ['V', 'M', 'Y', 'C'];
 
@@ -75,6 +106,8 @@ const RESPONSES: Response[] = ['V', 'M', 'Y', 'C'];
 interface Case {
   solution: ContinuousCase;
   zero: Record<Response, number>[];
+  /** The same for its slope, which is followed at a point only: in each span. */
+  zeroSlope: number[];
   zeroAt: Record<'Rv' | 'M', number>[];
 }
 
@@ -114,6 +147,8 @@ export function envelopeContinuous(model: ContinuousModel): EnvelopeOutcome {
     // In a span: against the largest of the response in it. (A live load settles no support: the deflection of
     // a span under one IS its deflection from its own supports.)
     const zero = solution.spans.map((p) => ({ V: top(p.Vmax.value, p.Vmin.value), M: top(p.Mmax.value, p.Mmin.value), Y: top(p.EIvChord.value), C: top(p.EIvChord.value) }));
+    // The slope: the engine names no largest slope of a span, so it is the largest of the case's own stations in it.
+    const zeroSlope = solution.spans.map((p) => ROUNDING * solution.stations.reduce((most, s) => (s.x >= p.from && s.x <= p.to ? Math.max(most, Math.abs(s.EItheta)) : most), 0));
     // At a joint: against the two spans that meet there — and, for the reaction, against itself: a load
     // standing on the support is in nothing else.
     let support = 0;
@@ -122,7 +157,7 @@ export function envelopeContinuous(model: ContinuousModel): EnvelopeOutcome {
       const Rv = joint.support ? solution.reactions[support++].Rv : 0;
       return { Rv: Math.max(top(Rv), ...beside.map((z) => z.V)), M: Math.max(0, ...beside.map((z) => z.M)) };
     });
-    cases.push({ solution, zero, zeroAt });
+    cases.push({ solution, zero, zeroSlope, zeroAt });
   }
   const [base, ...lives] = cases;
 
@@ -154,7 +189,7 @@ export function envelopeContinuous(model: ContinuousModel): EnvelopeOutcome {
   const at = (x: number, side?: Side): EnvelopeState => {
     const index = all.spanOf(x, side);
     const b = base.solution.at(x, side);
-    const state: EnvelopeState = { x: b.x, V: { max: b.V, min: b.V }, M: { max: b.M, min: b.M }, EIv: { max: b.EIv, min: b.EIv } };
+    const state: EnvelopeState = { x: b.x, V: { max: b.V, min: b.V }, M: { max: b.M, min: b.M }, EItheta: { max: b.EItheta, min: b.EItheta }, EIv: { max: b.EIv, min: b.EIv } };
     for (const c of lives) {
       const s: BeamState = c.solution.at(x, side);
       const add = (range: { max: number; min: number }, effect: number) => {
@@ -163,9 +198,28 @@ export function envelopeContinuous(model: ContinuousModel): EnvelopeOutcome {
       };
       add(state.V, settle(s.V, c.zero[index].V));
       add(state.M, settle(s.M, c.zero[index].M));
+      add(state.EItheta, settle(s.EItheta, c.zeroSlope[index]));
       add(state.EIv, settle(s.EIv, c.zero[index].Y));
     }
     return state;
+  };
+
+  /* The moment nearest to zero at a point: the header says why it cannot be read off the range. Each arrangement
+     is the base and the effects of some of the spans, as `at` has them and in its order — so the two ends of the
+     range are two of these sums, to the last figure, and the least is never past either. 256 sums of nine numbers
+     at most for the eight spans a form holds. */
+  const leastMoment = (x: number, side?: Side): number => {
+    const index = all.spanOf(x, side);
+    const always = base.solution.at(x, side).M;
+    // (A span whose live load does nothing there is in no sum: with it or without it is the same arrangement.)
+    const effects = lives.map((c) => settle(c.solution.at(x, side).M, c.zero[index].M)).filter((effect) => effect !== 0);
+    let least = Infinity;
+    for (let mask = 0; mask < 2 ** effects.length; mask++) {
+      let m = always;
+      for (let k = 0; k < effects.length; k++) if ((mask >> k) & 1) m += effects[k];
+      least = Math.min(least, Math.abs(m));
+    }
+    return least;
   };
 
   /* ── Span by span, stretch by stretch ──────────────────────────────── */
@@ -236,7 +290,7 @@ export function envelopeContinuous(model: ContinuousModel): EnvelopeOutcome {
   });
   const finite = (r: { max: number; min: number }) => Number.isFinite(r.max) && Number.isFinite(r.min);
   // Each case is made of numbers; their sum, at the engine's limits, may not be. As there: no solution, and it is the length that took it there.
-  if (!stations.every((s) => Number.isFinite(s.x) && finite(s.V) && finite(s.M) && finite(s.EIv))) return { ok: false, issues: [{ code: 'length' }] };
+  if (!stations.every((s) => Number.isFinite(s.x) && finite(s.V) && finite(s.M) && finite(s.EItheta) && finite(s.EIv))) return { ok: false, issues: [{ code: 'length' }] };
 
   /* ── What a page asks of it ────────────────────────────────────────── */
   /** Every span has both, once a stretch of it has been walked. */
@@ -291,6 +345,7 @@ export function envelopeContinuous(model: ContinuousModel): EnvelopeOutcome {
     L: all.L,
     breaks,
     at,
+    leastMoment,
     stations,
     extremes: {
       Vmax: overall((i) => spans[i].Vmax, 1),
