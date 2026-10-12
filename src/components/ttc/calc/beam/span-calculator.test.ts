@@ -641,24 +641,49 @@ describe('single-span calculator: what its script carries, and its styles', () =
   // Every place that wrote "#b=" writes the page's own key now: the address
   // as it follows the form, the copied link, the printed sheet's line. What
   // is left of the literal is the first calculator's key where it is meant:
-  // its own address, a beam of its own read here, and the link that leads
-  // to it. (That the address is in fact written so, only a browser shows.)
+  // a beam of its own read here, and the link that leads to it. (That the
+  // address is in fact written so, only a browser shows.)
+  //
+  // The writing itself is the shell's since the third calculator
+  // (shell/address.ts): one copy for every calculator, which is GIVEN its
+  // key and has none of its own. Each pin below is on the line where it is
+  // now — the calculator's, or the shell's.
   it('the page’s own address is written under the page’s own key', () => {
     const calculator = code('components/ttc/calc/beam/BeamCalculator.tsx');
-    expect(calculator.match(/\$\{prefix\}\$\{codeOf\(form\)\}/g)).toHaveLength(2);
-    expect(calculator).toContain("const prefix = `#${single ? SPAN_KEY : 'b'}=`;");
-    expect(calculator).toContain('const want = code === example ? \'\' : `${prefix}${code}`;');
-    // One thing in the component has that name. It was first called `mark`,
-    // as the function that stamps the printed sheet is: inside that function
-    // the name was the function, and the sheet gave its source for an address.
-    expect(calculator.match(/\b(const|let|var|function) prefix\b/g)).toHaveLength(1);
-    expect(calculator).not.toMatch(/pathname\}#b=/);
-    expect([...calculator.matchAll(/#b=/g)]).toHaveLength(3);
+    const address = code('components/ttc/calc/shell/address.ts');
+    const shell = ['address.ts', 'sheet.tsx', 'Actions.tsx', 'SectionGroup.tsx', 'steel.ts', 'fields.tsx', 'layout.ts', 'results.ts'].map((f) => code(`components/ttc/calc/shell/${f}`));
+    // The key is the page's, handed to the one place that writes an address, which makes its prefix of that and of nothing else.
+    expect(calculator).toContain("key: single ? SPAN_KEY : 'b',");
+    expect(calculator.match(/\buseAddress(<\w+>)?\(/g)).toHaveLength(1);
+    expect(address).toContain('const { key, example, code: current } = given;');
+    expect(address).toContain('const prefix = `#${key}=`;');
+    expect(address).toContain('const want = code === example ? \'\' : `${prefix}${code}`;');
+    // The copied link and the printed sheet's line: one line of the shell makes both, with that
+    // prefix, and the calculator asks for it twice — each time for the case on screen.
+    expect(address.match(/\$\{window\.location\.origin\}\$\{window\.location\.pathname\}\$\{prefix\}\$\{code\}/g)).toHaveLength(1);
+    expect(calculator.match(/address\.link\(codeOf\(form\)\)/g)).toHaveLength(2);
+    expect(calculator).toContain('const { stamp, onPaper } = useSheet({ locale: t.sheet.locale, url: () => address.link(codeOf(form)) });');
+    expect(calculator).toMatch(/copy=\{\(\) => \{\s*address\.take\(codeOf\(form\)\);\s*return address\.link\(codeOf\(form\)\);\s*\}\}/);
+    // One thing has that name, where addresses are written. It was first
+    // called `mark`, as the function that stamps the printed sheet is: inside
+    // that function the name was the function, and the sheet gave its source
+    // for an address. (The stamp is in another file now, and is handed its address.)
+    expect(address.match(/\b(const|let|var|function) prefix\b/g)).toHaveLength(1);
+    expect(calculator).not.toMatch(/\bprefix\b/);
+    expect(code('components/ttc/calc/shell/sheet.tsx')).not.toMatch(/\bprefix\b|window\.location/);
+    for (const file of [calculator, ...shell]) expect(file).not.toMatch(/pathname\}#b=/);
+    // The literal: the two links that lead to the first calculator. The shell has no key written in it, the first calculator's or any other.
+    expect([...calculator.matchAll(/#b=/g)]).toHaveLength(2);
     expect(calculator.match(/\$\{generalPath\}#b=\$\{encodeBeam\(/g)).toHaveLength(2);
-    expect(calculator).toContain("window.location.hash.startsWith('#b=')");
+    for (const file of shell) expect(file).not.toMatch(/#[a-z]=/);
+    // Which fragment is the page's to rewrite or remove: one that begins with its own key — and, on
+    // this page, one under the first calculator's too (a beam brought over is written again under `#s=`).
+    expect(address).toContain('const mine = latest.current.owns ? latest.current.owns(window.location.hash) : window.location.hash.startsWith(prefix);');
+    expect(calculator).toContain('owns: single ? (hash) => /^#[sb]=/.test(hash) : undefined,');
     // Start over is the example's address, which is the bare one — the limits with it.
     expect(calculator).toMatch(/setLimit\(DEFAULT_LIMIT\);\s*setStress\(0\);/);
-    expect(calculator).toContain('write(example);');
+    expect(calculator).toContain('address.take(example);');
+    expect(address).toMatch(/take: \(code\) => \{\s*unread\.current = false;\s*setLinkError\(false\);\s*pending\.current = null;\s*put\(code\);\s*\},/);
     // Two things of the mode run only in a browser, where no test of this file can follow them
     // (span-check.mjs does): the stress typed goes with the units — 24 left as it was under "MPa"
     // asked for a section modulus seven times too large — and a beam brought over under the first

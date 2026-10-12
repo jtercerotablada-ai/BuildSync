@@ -20,6 +20,12 @@ import { round4 } from '@/lib/calc/beam/model';
  * The largest and smallest values are labelled where they occur; the value
  * under the pointer is the parent's to show (it moves a marker on all three
  * diagrams at once and prints the numbers in a table).
+ *
+ * A BAND, for the continuous beam under every arrangement of its live load
+ * (`band`): the diagram is then not a line but everything between two — the
+ * highest and the lowest value at each point. Both edges are drawn, what is
+ * between them is tinted (and not what is between a line and the axis), and
+ * the pointer has a dot on each. Without the prop, nothing of it.
  */
 
 /** Blank pixels left and right of the beam, in every diagram and in the schematic. */
@@ -52,9 +58,11 @@ export function BeamPlot({
   onProbe,
   summary,
   group = ',',
+  band,
 }: {
   title: string;
   unit: string;
+  /** The line of the diagram — the upper edge of the band, when it is one. */
   points: PlotPoint[];
   /** Values to label on the diagram: the extremes. */
   marks: PlotPoint[];
@@ -71,6 +79,8 @@ export function BeamPlot({
   summary: string;
   /** What sets the thousands apart in the values labelled: the page's, as in its tables. */
   group?: string;
+  /** The diagram is a band: the points of its lower edge (`points` are then the upper one's), and that edge's value under the pointer. */
+  band?: { points: PlotPoint[]; probe: number | null };
 }) {
   const top = 22;
   const bottom = 20;
@@ -79,9 +89,10 @@ export function BeamPlot({
   // diagram NaN, and a station of NaN was written into the line as "NaN".
   const finite = (p: PlotPoint) => Number.isFinite(p.x) && Number.isFinite(p.y);
   const stations = points.filter(finite);
+  const under = band ? band.points.filter(finite) : [];
   let lo = 0;
   let hi = 0;
-  for (const p of stations) {
+  for (const p of band ? [...stations, ...under] : stations) {
     if (p.y < lo) lo = p.y;
     if (p.y > hi) hi = p.y;
   }
@@ -93,8 +104,15 @@ export function BeamPlot({
   const px = (x: number) => xToPx(x, L, width);
   const zero = y(0);
 
-  const line = stations.map((p, i) => `${i ? 'L' : 'M'}${px(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`).join(' ');
-  const area = stations.length ? `M${px(stations[0].x).toFixed(1)} ${zero.toFixed(1)} ${line.replace(/^M/, 'L')} L${px(stations[stations.length - 1].x).toFixed(1)} ${zero.toFixed(1)} Z` : '';
+  const path = (list: PlotPoint[]) => list.map((p, i) => `${i ? 'L' : 'M'}${px(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`).join(' ');
+  const line = path(stations);
+  // The other edge of a band, and what is tinted then: along the upper edge and back along the lower one.
+  const lower = path(under);
+  const area = !stations.length
+    ? ''
+    : band
+      ? lower && `${line} ${path([...under].reverse()).replace(/^M/, 'L')} Z`
+      : `M${px(stations[0].x).toFixed(1)} ${zero.toFixed(1)} ${line.replace(/^M/, 'L')} L${px(stations[stations.length - 1].x).toFixed(1)} ${zero.toFixed(1)} Z`;
 
   const move = (e: React.PointerEvent<SVGRectElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
@@ -114,6 +132,7 @@ export function BeamPlot({
         {area ? <path className="mp-plot__area" d={area} /> : null}
         <line className="mp-plot__axis" x1={px(0)} x2={px(L)} y1={zero} y2={zero} />
         {line ? <path className="mp-plot__line" d={line} /> : null}
+        {lower ? <path className="mp-plot__line" d={lower} /> : null}
         {marks.map((m, i) => {
           if (!finite(m)) return null;
           const at = px(m.x);
@@ -133,6 +152,7 @@ export function BeamPlot({
             <line x1={px(probe.x)} x2={px(probe.x)} y1={top - 6} y2={height - bottom + 6} />
             {/* The place is marked whatever the value there; the dot only where the value is a number. */}
             {Number.isFinite(probe.y) ? <circle cx={px(probe.x)} cy={y(probe.y)} r={4} /> : null}
+            {band && band.probe !== null && Number.isFinite(band.probe) ? <circle cx={px(probe.x)} cy={y(band.probe)} r={4} /> : null}
           </g>
         ) : null}
         <rect

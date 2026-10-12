@@ -33,6 +33,10 @@ import { xToPx } from './BeamPlot';
  * decorative, and every number on it is in the tables beside it too — so the
  * SVG is described in one sentence (`summary`) rather than read out shape by
  * shape.
+ *
+ * WHAT IS WRITTEN BY A LOAD is its value and its unit — unless the page has
+ * more to say of its loads than a size (`label`: the continuous beam's are
+ * dead or live). The text is then that page's, and is placed as any other.
  */
 
 const H = 216;
@@ -128,6 +132,7 @@ export function BeamSchematic({
   probeX,
   summary,
   group = ',',
+  label,
 }: {
   form: BeamForm;
   reactions: BeamReaction[] | null;
@@ -138,6 +143,8 @@ export function BeamSchematic({
   summary: string;
   /** What sets the thousands apart in every number of the drawing: the page's, as in its tables. */
   group?: string;
+  /** What to write by a point or a distributed load of the form, given its id and the value and unit that would be written. */
+  label?: (load: { kind: 'point' | 'dist'; id: number; text: string }) => string;
 }) {
   const u = UNITS[form.units];
   const L = form.L > 0 && Number.isFinite(form.L) ? form.L : 1;
@@ -158,10 +165,10 @@ export function BeamSchematic({
       .map((d) => {
         const [a, b, wa, wb] = d.x1 < d.x2 ? [d.x1, d.x2, d.w1, d.w2] : [d.x2, d.x1, d.w2, d.w1];
         const sign = d.dir === 'down' ? 1 : -1;
-        return { id: String(d.id), a, b, wa: sign * wa, wb: sign * wb, own: false };
+        return { id: String(d.id), row: d.id as number | null, a, b, wa: sign * wa, wb: sign * wb, own: false };
       }),
     // The beam's own weight is a load like the others, and is drawn as one.
-    ...(ownWeight > 0 ? [{ id: 'own', a: 0, b: L, wa: ownWeight, wb: ownWeight, own: true }] : []),
+    ...(ownWeight > 0 ? [{ id: 'own', row: null, a: 0, b: L, wa: ownWeight, wb: ownWeight, own: true }] : []),
   ].map((d) => {
     const ha = hOf(d.wa);
     const hb = hOf(d.wb);
@@ -170,7 +177,8 @@ export function BeamSchematic({
     const heightAt = (t: number) => (t0 === null ? ha + (hb - ha) * t : t <= t0 ? ha * (1 - t / t0) : (hb * (t - t0)) / (1 - t0));
     const way = (w: number) => (w > 0 ? '↓' : '↑');
     const value = t0 !== null ? `${typed(d.wa)} ${way(d.wa)} – ${typed(d.wb)} ${way(d.wb)}` : d.wa === d.wb ? typed(d.wa) : `${typed(d.wa)} – ${typed(d.wb)}`;
-    return { ...d, ha, hb, t0, heightAt, xa: px(d.a), xb: px(d.b), text: `${value} ${u.line}` };
+    const text = `${value} ${u.line}`;
+    return { ...d, ha, hb, t0, heightAt, xa: px(d.a), xb: px(d.b), text: label && d.row !== null ? label({ kind: 'dist', id: d.row, text }) : text };
   });
   const points = form.points.filter((p) => on(p.x) && Number.isFinite(p.P) && p.P !== 0).map((p) => ({ ...p, at: px(p.x) }));
   const couples = form.couples.filter((c) => on(c.x) && Number.isFinite(c.M) && c.M !== 0).map((c) => ({ ...c, at: px(c.x) }));
@@ -231,7 +239,7 @@ export function BeamSchematic({
     arranged([
       ...over('couple', couples.map((c) => ({ key: `c${c.id}`, at: c.at, text: `${typed(c.M)} ${u.moment}` })), Y - C_R - 8, Y - C_R - 3),
       ...along,
-      ...over('point', points.map((p) => ({ key: `p${p.id}`, at: p.at, text: `${typed(p.P)} ${u.force}` })), P_TOP - 7, P_TOP, turned),
+      ...over('point', points.map((p) => ({ key: `p${p.id}`, at: p.at, text: label ? label({ kind: 'point', id: p.id, text: `${typed(p.P)} ${u.force}` }) : `${typed(p.P)} ${u.force}` })), P_TOP - 7, P_TOP, turned),
     ]);
   // A value that went up is tied back to its load by a thin line from the
   // load to it. Behind a value written before it, on its way, the line is

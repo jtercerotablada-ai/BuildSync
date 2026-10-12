@@ -12,6 +12,7 @@ import { AboutView } from './AboutView';
 import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
 import { SPAN_PATH, SingleSpanView } from './SingleSpanView';
 import { CalculatorsView } from './CalculatorsView';
+import { CONTINUOUS_PATH, ContinuousBeamView } from './ContinuousBeamView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -55,10 +56,11 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     ['/terms', h(LegalView, { lang, kind: 'terms' })],
     ['/public-not-found', h(NotFoundView, { lang })],
     // The calculators catalogue and the calculators that are open
-    // (calculators.test.ts and beam-calculator.test.ts have their own rules).
+    // (calculators.test.ts and each calculator's own test have their own rules).
     ['/resources', h(CalculatorsView, { lang })],
     [BEAM_PATH, h(BeamCalculatorView, { lang })],
     [SPAN_PATH, h(SingleSpanView, { lang })],
+    [CONTINUOUS_PATH, h(ContinuousBeamView, { lang })],
     ...getContent(lang).services.map(
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,

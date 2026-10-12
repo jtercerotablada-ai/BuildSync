@@ -1318,3 +1318,176 @@ select.mp-num__input {
     letter-spacing: 0.02em;
   }
 }
+
+/* THE CONTINUOUS BEAM (.mp-cont) — the third calculator
+   (continuous/ContinuousCalculator.tsx). It is laid out by the rules above,
+   as the first two are; what follows is only what a beam entered span by
+   span adds, and every rule of it begins with a class of its own: nothing
+   here reaches the other two pages.
+
+   — In the form: a span is four fields, two to a line, under its number; a
+     load names its span and whether it is dead or live in two short lists.
+   — WHICH SPANS ARE LOADED (.mp-cont__pattern): the beam in miniature, a
+     gold block over each span whose live load is on — the colour of a load
+     in the drawing above it.
+   — The two tables, "Supports" and "Span by span" (.mp-cont__table), have up
+     to six columns. On a phone a row is laid out two cells to a line, each
+     cell under its own head: as a table it was 500px wide in a card of 350. */
+.mp-cont__name {
+  margin: 0 0 var(--mp-1);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--mp-ink-2);
+}
+/* On a SCREEN: paper sizes a field by what is in it (the print rules above),
+   and these would take that back. */
+@media screen {
+  .mp-cont .mp-app__fields.mp-cont__span > .mp-num {
+    flex-basis: 9rem;
+  }
+  .mp-cont .mp-app__fields > .mp-num.mp-cont__which {
+    flex-basis: 5.5rem;
+  }
+}
+/* The settlements, one field to a support: in columns, so that the last
+   line of them is not stretched across the form (four supports were three
+   fields and then one as wide as all three). A field's own line about its
+   text takes the whole width, as in a row. On a screen: on paper they are a
+   row like any other, each as wide as what is in it. */
+@media screen {
+  .mp-cont .mp-cont__settle {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.25rem, 1fr));
+  }
+  .mp-cont__settle > .mp-num__hint {
+    grid-column: 1 / -1;
+  }
+}
+/* "at x = 11.08 ft" is one thing: a line never ends inside it. */
+.mp-cont__where {
+  white-space: nowrap;
+}
+/* A beam has a span: the button that would remove the last one is there, and does nothing. */
+.mp-cont .mp-app__remove:disabled {
+  border-color: var(--mp-line);
+  color: var(--mp-ink-faint);
+  cursor: default;
+}
+.mp-cont__pattern {
+  display: inline-block;
+  overflow: visible;
+  vertical-align: -1px;
+}
+.mp-cont__pattern rect {
+  fill: var(--mp-gold-ink);
+}
+.mp-cont__pattern line {
+  stroke: var(--mp-ink);
+  stroke-width: 1;
+}
+/* In the card of largest values, under the value: the miniature and its sentence. */
+.mp-cont__loaded {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--mp-ink-3);
+}
+/* A value with the sentence of its arrangement can be wider than what is
+   left of the line beside its name (eight spans: "live load on spans 1, 3,
+   5, 7 and 8"). It then goes under the name — and still stands at the
+   right, where the values of a card are: it stood at the left, as wide as
+   its sentence, with its number in the middle of the card. */
+.mp-cont .mp-app__dl dd {
+  margin-inline-start: auto;
+}
+.mp-cont__key .mp-cont__pattern {
+  margin-inline: 0.15em;
+}
+/* A table of six columns stops at a width a row can still be read across. */
+.mp-cont__table {
+  max-width: 60rem;
+}
+/* A value and the miniature beside it are on one line where the column has
+   room for both; where it has not, the miniature goes under its value. A
+   cell is never held to one line: on a tablet, six columns of a value, a
+   word and the miniature of eight spans are wider than the card, and each
+   miniature was drawn over the number of the next column. */
+.mp-cont__table td {
+  white-space: normal;
+}
+@media screen and (max-width: 640px) {
+  .mp-cont .mp-app__fields.mp-cont__span > .mp-num {
+    flex-basis: 6.5rem;
+  }
+  .mp-cont__table,
+  .mp-cont__table > tbody {
+    display: block;
+  }
+  /* The heads are said by each cell (below): kept for a screen reader, out of sight. */
+  .mp-cont__table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .mp-cont__table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    padding-block: 0.35rem;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-cont__table tbody th,
+  .mp-cont__table td {
+    flex: 0 0 50%;
+    min-width: 0;
+    padding-block: 0.3rem;
+    border-block-end: 0;
+    white-space: normal;
+  }
+  .mp-cont__table tbody tr > :nth-child(2n) {
+    padding-inline-end: 0;
+  }
+  .mp-cont__table tbody th::before,
+  .mp-cont__table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mp-ink-3);
+  }
+}
+@media print {
+  .mp-cont__name {
+    margin: 0;
+    font-size: 6.5pt;
+    font-weight: 600;
+    color: #000;
+  }
+  /* A support that does not settle has an empty field on screen, which on
+     paper is a unit after nothing. The sheet says what the field means: 0. */
+  .mp-cont .mp-cont__unset .mp-num__input {
+    display: none;
+  }
+  .mp-cont__unset .mp-num__box::before {
+    content: '0';
+    font-size: 8.5pt;
+    line-height: 1.3;
+  }
+  .mp-cont__pattern rect {
+    fill: #000;
+  }
+  .mp-cont__pattern line {
+    stroke: #000;
+  }
+  .mp-cont__loaded {
+    font-size: 6.75pt;
+    color: #333;
+  }
+  .mp-cont__table {
+    max-width: none;
+  }
+}

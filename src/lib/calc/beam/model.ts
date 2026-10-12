@@ -120,7 +120,7 @@ const round6 = (v: number): number => (v === 0 || !Number.isFinite(v) ? v : Numb
  * 88.9 in³ came back as 88.91.) Six parts in a million is the most one
  * six-figure rounding can move a number.
  */
-function tidy(v: number): number {
+export function tidy(v: number): number {
   if (v === 0 || !Number.isFinite(v)) return v;
   for (let figures = 1; figures < 6; figures++) {
     const short = Number(v.toPrecision(figures));
@@ -294,7 +294,7 @@ export interface SectionProps {
 /** A positive, finite number, or zero. */
 const pos = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
 
-export function sectionProps(form: BeamForm, shape?: SteelShape | null): SectionProps {
+export function sectionProps(form: Pick<BeamForm, 'units' | 'section'>, shape?: SteelShape | null): SectionProps {
   const s = form.section;
   const si = form.units === 'si';
   if (s.mode === 'rect') {
@@ -501,25 +501,25 @@ export function encodeBeam(form: BeamForm): string {
  *
  * Links are kept by the people they were sent to: this must never change.
  */
-function checkOf(body: string): string {
+export function checkOf(body: string): string {
   let sum = 0;
   for (let i = 0; i < body.length; i++) sum = (sum * 31 + body.charCodeAt(i)) % 1296;
   // 1,296 is 36²: the sum is the last two characters, the length the ones before.
   return (body.length * 1296 + sum).toString(36);
 }
 
-const NUMBER = /^-?\d+(\.\d+)?(e-?\d+)?$/;
+export const NUMBER = /^-?\d+(\.\d+)?(e-?\d+)?$/;
 /* What is not a number has a name. A field can be left holding one: a value
    near the largest a number can be overflows when the units are switched. */
-const NAMED = new Map<string, number>([['inf', Infinity], ['-inf', -Infinity], ['nan', Number.NaN]]);
+export const NAMED = new Map<string, number>([['inf', Infinity], ['-inf', -Infinity], ['nan', Number.NaN]]);
 /** A number as an address carries it: the eight figures its field shows, with no `+` in an exponent. */
-const written = (v: number): string => (Number.isFinite(v) ? fieldNumber(v).replace('e+', 'e') : v > 0 ? 'inf' : v < 0 ? '-inf' : 'nan');
+export const written = (v: number): string => (Number.isFinite(v) ? fieldNumber(v).replace('e+', 'e') : v > 0 ? 'inf' : v < 0 ? '-inf' : 'nan');
 /**
  * A size and its direction as one signed number. A zero keeps its direction
  * too, as −0: an upward load whose size is being retyped is still upward
  * after a reload.
  */
-const signed = (v: number, reversed: boolean): string => (v === 0 ? (reversed ? '-0' : '0') : written(reversed ? -v : v));
+export const signed = (v: number, reversed: boolean): string => (v === 0 ? (reversed ? '-0' : '0') : written(reversed ? -v : v));
 
 const KINDS: Record<string, SupportKind> = { p: 'pin', r: 'roller', f: 'fixed' };
 /* 'custom' is written u (the visitor's own): c is concrete. */

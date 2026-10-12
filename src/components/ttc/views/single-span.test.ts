@@ -727,7 +727,8 @@ describe('single-span beam: what its script carries', () => {
     walk(SRC);
     expect(importers.sort()).toEqual(['app/(public)/(site)/resources/single-span-beam/page.tsx', 'app/(public-es)/(site)/es/resources/single-span-beam/page.tsx', 'components/ttc/views/SingleSpanView.tsx']);
     for (const f of importers) expect(readFileSync(join(SRC, f), 'utf8'), f).not.toMatch(/^['"]use client['"]/m);
-  });
+    // It reads every source file: a second and a half alone, past the default five beside the rest of the suite.
+  }, 30_000);
 });
 
 describe('the language link carries the case of any calculator', () => {

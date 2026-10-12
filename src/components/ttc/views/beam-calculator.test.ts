@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -155,7 +155,11 @@ describe('beam calculator: the words', () => {
   it('promises that nothing is sent, and the calculator has no way to send', () => {
     expect(beamStrings.en.ui.results.privacy).toMatch(/Nothing you enter is sent/);
     expect(beamStrings.es.ui.results.privacy).toMatch(/Nada de lo que introduce se nos envía/);
-    for (const f of ['components/ttc/calc/beam/BeamCalculator.tsx', 'components/ttc/calc/beam/BeamPlot.tsx', 'components/ttc/calc/beam/BeamSchematic.tsx', 'components/ttc/calc/NumField.tsx', 'lib/calc/beam/model.ts', 'lib/calc/beam/solver.ts']) {
+    // Its own files — and the shell's, every one of them (components/ttc/calc/shell): the address, the
+    // printed sheet's line, the shape table and the section's fields were this component's own lines, and are its still.
+    const shell = readdirSync(join(SRC, 'components/ttc/calc/shell')).filter((f) => /\.tsx?$/.test(f) && !/\.test\.ts$/.test(f)).map((f) => `components/ttc/calc/shell/${f}`);
+    expect(shell).toEqual(expect.arrayContaining(['address.ts', 'sheet.tsx', 'steel.ts', 'SectionGroup.tsx', 'Actions.tsx'].map((f) => `components/ttc/calc/shell/${f}`)));
+    for (const f of ['components/ttc/calc/beam/BeamCalculator.tsx', 'components/ttc/calc/beam/BeamPlot.tsx', 'components/ttc/calc/beam/BeamSchematic.tsx', 'components/ttc/calc/NumField.tsx', 'lib/calc/beam/model.ts', 'lib/calc/beam/solver.ts', ...shell]) {
       const code = readFileSync(join(SRC, f), 'utf8');
       expect(code, f).not.toMatch(/\bfetch\(|sendBeacon|XMLHttpRequest|new WebSocket|\baction=|localStorage|sessionStorage|document\.cookie/);
     }
@@ -821,10 +825,20 @@ describe('beam calculator: what its script carries', () => {
     expect(files.filter((f) => /^components\/ttc\/(beam|advanced-beam|steel)\//.test(f))).toEqual([]);
   });
 
+  // The asking is the shell's now (shell/steel.ts), one copy for every
+  // calculator that has a section: the calculator goes through it, and no
+  // file its script reaches brings the table with the page.
   it('the shape table is fetched when asked for, not with the page', () => {
     const code = readFileSync(join(SRC, 'components/ttc/calc/beam/BeamCalculator.tsx'), 'utf8');
-    expect(code).toMatch(/import\('@\/lib\/steel\/aisc-shapes\.json'\)/);
-    expect(code).not.toMatch(/^import .*aisc-shapes\.json/m);
+    expect(code).toContain("import { useSteelShapes } from '../shell/steel';");
+    expect(code).toContain("const steel = useSteelShapes({ wanted: wantsShapes, name: form.section.shape, onName: respell });");
+    const steel = readFileSync(join(SRC, 'components/ttc/calc/shell/steel.ts'), 'utf8');
+    expect(steel).toMatch(/import\('@\/lib\/steel\/aisc-shapes\.json'\)/);
+    // …and only once it is wanted: the effect that asks leaves at once otherwise.
+    expect(steel).toMatch(/if \(!wanted \|\| shapes \|\| failed\) return;\s*let live = true;\s*void import\('@\/lib\/steel\/aisc-shapes\.json'\)/);
+    const reached = reach(join(SRC, 'components/ttc/calc/beam/BeamCalculator.tsx')).filter((f) => !f.endsWith('.json'));
+    expect(reached).toContain('components/ttc/calc/shell/steel.ts');
+    for (const f of reached) expect(readFileSync(join(SRC, f), 'utf8'), f).not.toMatch(/^import .*aisc-shapes\.json/m);
   });
 });
 
@@ -935,13 +949,21 @@ describe('beam calculator: the site around it', () => {
     expect(header).toContain('altPath(pathname, search) + carried');
     // The calculator rewrites its own address and tells the window so, under a
     // name the header's store listens for (by name: the calculator's script
-    // must not import lang.tsx, which reads the site's whole copy).
+    // must not import lang.tsx, which reads the site's whole copy). It does
+    // both through the shell, where every calculator's address is written
+    // (shell/address.ts): the line that tells the window is there, once.
     const calculator = source('components/ttc/calc/beam/BeamCalculator.tsx');
-    const event = calculator.match(/const ADDRESS_EVENT = '([^']+)';/)?.[1];
+    expect(calculator).toContain("import { useAddress } from '../shell/address';");
+    expect(calculator).not.toMatch(/history\.(replaceState|pushState)|ADDRESS_EVENT/);
+    const address = source('components/ttc/calc/shell/address.ts');
+    const event = address.match(/const ADDRESS_EVENT = '([^']+)';/)?.[1];
     expect(event).toBeTruthy();
     expect(lang).toContain(`const ADDRESS_EVENT = '${event}';`);
     expect(lang).toContain('window.addEventListener(ADDRESS_EVENT, notify);');
-    expect(calculator).toContain('window.dispatchEvent(new Event(ADDRESS_EVENT));');
+    expect(address).toContain('window.dispatchEvent(new Event(ADDRESS_EVENT));');
+    // …right after the one place the address is rewritten, whether or not the browser let it be.
+    expect(address).toMatch(/window\.history\.replaceState\([^)]*\);\s*\} catch \{[^}]*\}\s*window\.dispatchEvent\(new Event\(ADDRESS_EVENT\)\);/);
+    expect(address.match(/history\.(replaceState|pushState)\(/g)).toHaveLength(1);
     // …and the link reads the address once more at the click, and goes where it says.
     expect(header).toMatch(/onClick=\{\(e\) => \{\s*const now = addressNow\(\);\s*const fresh = altPath\(pathname, now\.search\) \+ now\.carried;/);
     expect(header).toContain('window.location.assign(fresh);');

@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import React, { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { agree, formatNumber } from '@/lib/calc/format';
 import {
   LAYOUTS,
-  MATERIALS,
   MAX_ROWS,
   UNITS,
   analyse,
@@ -17,10 +15,7 @@ import {
   round4,
   shearStress,
   type BeamForm,
-  type MaterialKey,
   type RowList,
-  type SectionMode,
-  type SteelShape,
   type SupportLayout,
 } from '@/lib/calc/beam/model';
 import type { BeamState, SupportKind } from '@/lib/calc/beam/solver';
@@ -28,6 +23,14 @@ import { DEFAULT_LIMIT, SPAN_KEY, adoptBeam, byLoad, convertStress, decodeSpan, 
 import type { SpanUi } from '@/lib/calc/beam/span-strings';
 import type { BeamUi } from '@/lib/calc/beam/strings';
 import { NumField } from '../NumField';
+import { Actions } from '../shell/Actions';
+import { useAddress } from '../shell/address';
+import { off, select } from '../shell/fields';
+import { PAPER_PLOT, PAPER_WIDTH, usePlotHeight, useTooTall, useWidth } from '../shell/layout';
+import { arrow, larger, peak, settle, two, type Peak } from '../shell/results';
+import { SectionGroup } from '../shell/SectionGroup';
+import { SheetStamp, useSheet } from '../shell/sheet';
+import { useSteelShapes } from '../shell/steel';
 import { BeamPlot, type PlotPoint } from './BeamPlot';
 import { BeamSchematic } from './BeamSchematic';
 
@@ -42,6 +45,14 @@ import { BeamSchematic } from './BeamSchematic';
  * All the arithmetic is in lib/calc/beam (`model.ts`: units, section,
  * checks, the link, and what each edit does to the form; `solver.ts`: the
  * beam). This file is the form, the tables and the wiring.
+ *
+ * WHAT IS NOT A BEAM'S IS THE SHELL'S (../shell): the address following the
+ * case, the printed sheet's moment, the table of steel shapes, the "Section
+ * and material" group, the row of actions, how wide and how tall the
+ * drawings are, what a table asks of a value before printing it. One copy
+ * for every calculator of the catalogue. What is special to this one — the
+ * Length field while it is being typed in, the single-span page reading the
+ * first calculator's key — stays here, and is handed to it.
  *
  * NOTHING LEAVES THE BROWSER. No request is made with what is typed; the
  * steel shape table is a static file fetched the first time "Steel shape"
@@ -103,104 +114,6 @@ function caseIn(hash: string, single: boolean): SpanCase | null | undefined {
   return beam && { form: beam, limit: DEFAULT_LIMIT, stress: 0 };
 }
 
-/*
- * Sent to the window each time this page rewrites its own address: nothing
- * else tells the header, whose language link is built from the address
- * (mp/lang.tsx listens, under the same name). An event and not an import:
- * that file reads the site's whole copy, which this script must not carry.
- */
-const ADDRESS_EVENT = 'mp:address';
-
-/** A value that is rounding, not a result, is zero. */
-const settle = (value: number, floor: number) => (Math.abs(value) <= floor ? 0 : value);
-
-/** A largest value and where it occurs — or zero, nowhere, when it is rounding. */
-type Peak = { value: number; x: number | null };
-const peak = (p: { value: number; x: number }, floor: number): Peak => (Math.abs(p.value) <= floor ? { value: 0, x: null } : p);
-const larger = (p: Peak, q: Peak) => (Math.abs(p.value) >= Math.abs(q.value) ? p : q);
-
-/* A layout effect in the browser (the drawings must be at their real width
-   before the first paint), a plain effect where there is no layout. */
-const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
-
-/** The width of an element, as it is laid out — 720 until it has been measured. */
-function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
-  const ref = useRef<T>(null);
-  const [width, setWidth] = useState(720);
-  useIsoLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => setWidth(Math.max(280, Math.round(el.clientWidth)));
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, width];
-}
-
-/**
- * How tall each of the three diagrams is. On a desktop the drawings follow
- * the form down the page (calc.css, .mp-app__out is sticky), which only
- * helps if all four fit under the header: 150px each on a tall window, less
- * on a laptop, never under 96. At 96 they need a window some 790px tall;
- * in a shorter one they do not fit at any size worth drawing, and the sheet
- * lets the column scroll with the page instead of pinning it half out of
- * sight.
- */
-/** A diagram as it is drawn for paper: the shortest the page uses, so four drawings share a sheet with the input. */
-const PAPER_PLOT = 96;
-/** …and as wide as the sheet's column of type: 191 mm of a Letter page, in the drawing's own pixels. Drawn for THAT width, whatever the window's — a phone's drawing blown up to a page was all letters. */
-const PAPER_WIDTH = 724;
-
-function usePlotHeight(): number {
-  const [h, setH] = useState(150);
-  useEffect(() => {
-    // 500px is everything else in the column: the header above it, the
-    // schematic, four captions and the note on signs.
-    const fit = () => setH(Math.round(Math.min(150, Math.max(96, (window.innerHeight - 500) / 3))));
-    fit();
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
-  }, []);
-  return h;
-}
-
-/**
- * Whether the drawings' column is taller than the window has room for under
- * the header — in which case the sheet does not pin it (.mp-app__out--tall).
- * The heights above are reckoned for a drawing of the beam at its plain
- * size. It grows with what is on the beam (twelve loads close together, their
- * values stacked), and a notice may stand over it: pinned then, the foot of
- * the deflection diagram stayed under the fold for as long as the form was
- * on screen. So the column is measured, each time its size or the window's
- * changes. Not on the server, and not before the first measure: the page
- * arrives pinned, as the sheet has it. Being let go does not change the
- * column's height, so the measure cannot chase itself.
- */
-function useTooTall<T extends HTMLElement>(): [React.RefObject<T | null>, boolean] {
-  const ref = useRef<T>(null);
-  const [tooTall, setTooTall] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    // Where the sheet pins it: its `top`, which is a length whether or not it is pinned now.
-    const measure = () => setTooTall(el.getBoundingClientRect().height + (parseFloat(getComputedStyle(el).top) || 0) > window.innerHeight);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    window.addEventListener('resize', measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, []);
-  return [ref, tooTall];
-}
-
-const arrow = (v: number, up: string, down: string) => (v < 0 ? down : up);
-
 /**
  * `span`: the words of the single-span page, which is this calculator in
  * that mode; `generalPath`: the first calculator's address in the page's
@@ -232,18 +145,12 @@ export function BeamCalculator({
   // copied link, on the printed sheet; back to the example's with the beam.
   const [limit, setLimit] = useState(initialLimits?.limit ?? DEFAULT_LIMIT);
   const [stress, setStress] = useState(initialLimits?.stress ?? 0);
-  // What the address carries after the #: this page's key, and the case on
-  // screen as that page writes it.
-  const prefix = `#${single ? SPAN_KEY : 'b'}=`;
+  // What the address carries after the #: this page's key (given to the
+  // shell, below), and the case on screen as that page writes it.
   const example = single ? EXAMPLE_SPAN : EXAMPLE;
   const codeOf = useCallback((beam: BeamForm) => (single ? encodeSpan(beam, limit, stress) : encodeBeam(beam)), [single, limit, stress]);
-  const [shapes, setShapes] = useState<SteelShape[] | null>(null);
-  const [shapesFailed, setShapesFailed] = useState(false);
-  const [shapeFilter, setShapeFilter] = useState('');
   const [probeX, setProbeX] = useState<number | null>(null);
   const [typedX, setTypedX] = useState<number | null>(null);
-  const [copied, setCopied] = useState<'' | 'ok' | 'failed'>('');
-  const [linkError, setLinkError] = useState(false);
   // On the single-span page, a link whose beam held what this span has not —
   // other supports, hinges, applied moments (span.ts, `lost`): the span shown
   // is not that beam, and the results box says so. A state of its own, not
@@ -251,37 +158,6 @@ export function BeamCalculator({
   // again, which for a beam brought over is 300 ms after it opens. This one
   // stays through the edits that follow, until another link or Start over.
   const [lost, setLost] = useState(false);
-  // The printed sheet says when it was printed and gives the address that
-  // opens this very beam. Written at the moment of printing — `beforeprint`
-  // is the button and the browser's own Print alike — and put on the page
-  // at once, before the browser lays it out for paper.
-  //
-  // The three diagrams are drawn at their shortest for paper, so that the
-  // beam and all three share the first sheet under the input; on screen
-  // their height is the window's to give (usePlotHeight).
-  const [stamp, setStamp] = useState<{ when: string; url: string } | null>(null);
-  const [onPaper, setOnPaper] = useState(false);
-  useEffect(() => {
-    const mark = () => {
-      const when = new Intl.DateTimeFormat(t.sheet.locale, { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
-      const url = `${window.location.origin}${window.location.pathname}${prefix}${codeOf(form)}`;
-      flushSync(() => {
-        setStamp({ when, url });
-        setOnPaper(true);
-      });
-    };
-    const back = () => setOnPaper(false);
-    window.addEventListener('beforeprint', mark);
-    window.addEventListener('afterprint', back);
-    return () => {
-      window.removeEventListener('beforeprint', mark);
-      window.removeEventListener('afterprint', back);
-    };
-  }, [form, codeOf, prefix, t.sheet.locale]);
-  // A link that could not be read is left in the address, for the visitor to look at.
-  const unread = useRef(false);
-  // The address still to be written, if the beam has changed since the last time.
-  const pending = useRef<(() => void) | null>(null);
   const [plotRef, windowWidth] = useWidth<HTMLDivElement>();
   const [outRef, tooTall] = useTooTall<HTMLElement>();
   // The last length the visitor settled on, for carrying the end support along.
@@ -292,72 +168,16 @@ export function BeamCalculator({
     if (!editingL.current && form.L > 0 && Number.isFinite(form.L)) settledL.current = form.L;
   }, [form.L]);
   const windowPlotHeight = usePlotHeight();
-  const plotHeight = onPaper ? PAPER_PLOT : windowPlotHeight;
-  const width = onPaper ? PAPER_WIDTH : windowWidth;
   const u = UNITS[form.units];
   // What the ids of this form's messages begin with.
   const uid = useId();
 
-  // A beam in the address opens as that beam.
-  useEffect(() => {
-    const open = (found: SpanCase, failed: boolean) => {
-      dispatch({ type: 'load', form: found.form });
-      setLimit(found.limit);
-      setStress(found.stress);
-      setLost(Boolean(found.lost));
-      // What was waiting to be written is the beam of before: it is not to
-      // land on the address this one came from.
-      pending.current = null;
-      unread.current = failed;
-      setLinkError(failed);
-      // A place pointed at on the beam before is not a place on this one.
-      setProbeX(null);
-      setTypedX(null);
-    };
-    const blank = (): SpanCase => ({ form: single ? defaultSpan() : defaultBeam(), limit: DEFAULT_LIMIT, stress: 0 });
-    const read = (changed?: Event) => {
-      const found = caseIn(window.location.hash, single);
-      if (found === undefined) {
-        // Back to the bare address is back to the example beam: that is what
-        // a bare address opens. Any other fragment (`#main`) is a place on
-        // this page, reached from the beam on screen: the beam stays.
-        if (changed && window.location.hash === '') open(blank(), false);
-        return;
-      }
-      // Not a beam: the example is shown, and the page says so — a recipient
-      // must not take the example for the beam that was sent.
-      open(found ?? blank(), !found);
-    };
-    read();
-    window.addEventListener('hashchange', read);
-    return () => window.removeEventListener('hashchange', read);
-  }, [single]);
-
-  // The address follows the beam.
-  const write = useCallback((code: string) => {
-    const want = code === example ? '' : `${prefix}${code}`;
-    if (want) {
-      unread.current = false;
-      setLinkError(false);
-    }
-    // Only a fragment that is this calculator's: `#main` is a place on the
-    // page, and is nobody's to remove. (On the single-span page a beam
-    // brought over under the first calculator's key is this page's too: once
-    // read, it is written again under the page's own.)
-    const have = (single ? /^#[sb]=/.test(window.location.hash) : window.location.hash.startsWith('#b=')) ? window.location.hash : '';
-    if (have === want || (!want && unread.current)) return;
-    try {
-      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search + want);
-    } catch {
-      /* the address is a convenience; the calculator works without it */
-    }
-    window.dispatchEvent(new Event(ADDRESS_EVENT));
-  }, [example, prefix, single]);
-  // Waited for, not written on every keystroke: Safari refuses more than a
-  // hundred history changes in thirty seconds, and a field being typed in
-  // passes through values nobody meant.
+  // THE ADDRESS FOLLOWS THE BEAM: read on load and whenever it changes,
+  // written 300 ms after the beam last changed and at once when the visitor
+  // reaches for something else (../shell/address.ts). What that is given of
+  // this calculator's own:
   //
-  // The Length field most of all. Until it is left, what sat on the right
+  // The Length field, most of all. Until it is left, what sat on the right
   // end has not been carried along (`carry-end`): a 20 ft span being made 27
   // has its roller at 20 still. That beam is never written. What is written
   // meanwhile, by the timer or at once if the visitor reaches for something
@@ -368,80 +188,49 @@ export function BeamCalculator({
     () => (editingL.current && form.L > 0 && Number.isFinite(form.L) ? reduce(form, { type: 'carry-end', from: settledL.current, to: form.L }) : form),
     [form, reduce],
   );
-  useEffect(() => {
-    const now = () => {
-      pending.current = null;
-      write(codeOf(leaving()));
-    };
-    pending.current = now;
-    const id = window.setTimeout(() => {
-      // Still the one waiting: not written already, not overtaken by a link.
-      if (pending.current === now) now();
-    }, 300);
-    return () => window.clearTimeout(id);
-  }, [codeOf, leaving, write]);
-  // …and is brought up to date at once when the visitor reaches for something
-  // else: the language link is built from the address (lang.tsx,
-  // useCarriedHash) and must not open the beam of a moment ago; a phone may
-  // discard a tab that is put away, and reloads it from its address. On the
-  // click as well as the press: not every browser moves the focus to a link
-  // that is clicked, and a tap need not take it from the field.
-  useEffect(() => {
-    const flush = (e?: Event) => {
-      // A press inside the Length field is part of typing in it.
-      if (editingL.current && e?.target instanceof Node && lengthRow.current?.contains(e.target)) return;
-      pending.current?.();
-    };
-    const hidden = () => {
-      if (document.visibilityState === 'hidden') flush();
-    };
-    window.addEventListener('pointerdown', flush, true);
-    window.addEventListener('focusin', flush, true);
-    window.addEventListener('click', flush, true);
-    document.addEventListener('visibilitychange', hidden);
-    return () => {
-      window.removeEventListener('pointerdown', flush, true);
-      window.removeEventListener('focusin', flush, true);
-      window.removeEventListener('click', flush, true);
-      document.removeEventListener('visibilitychange', hidden);
-    };
-  }, []);
+  // The case as the address is to write it, at the moment it is written. The
+  // same function for as long as the beam and the limits are the same: the
+  // address waits 300 ms from the last time this changed.
+  const code = useCallback(() => codeOf(leaving()), [codeOf, leaving]);
+  const address = useAddress<SpanCase>({
+    key: single ? SPAN_KEY : 'b',
+    example,
+    code,
+    read: (hash) => caseIn(hash, single),
+    blank: () => ({ form: single ? defaultSpan() : defaultBeam(), limit: DEFAULT_LIMIT, stress: 0 }),
+    // A beam in the address opens as that beam.
+    open: (found) => {
+      dispatch({ type: 'load', form: found.form });
+      setLimit(found.limit);
+      setStress(found.stress);
+      setLost(Boolean(found.lost));
+      // A place pointed at on the beam before is not a place on this one.
+      setProbeX(null);
+      setTypedX(null);
+    },
+    // On the single-span page a beam brought over under the first
+    // calculator's key is this page's too: once read, it is written again
+    // under the page's own.
+    owns: single ? (hash) => /^#[sb]=/.test(hash) : undefined,
+    // A press inside the Length field is part of typing in it.
+    typing: (press) => Boolean(editingL.current && press.target instanceof Node && lengthRow.current?.contains(press.target)),
+  });
+  const { linkError } = address;
+  // The printed sheet gives the address that opens this very beam, and while
+  // it prints the drawings are the sheet's size, not the window's
+  // (../shell/sheet.tsx).
+  const { stamp, onPaper } = useSheet({ locale: t.sheet.locale, url: () => address.link(codeOf(form)) });
+  const plotHeight = onPaper ? PAPER_PLOT : windowPlotHeight;
+  const width = onPaper ? PAPER_WIDTH : windowWidth;
 
-  // The shape table, the first time it is wanted.
+  // The shape table, the first time it is wanted, and the shape in use — as
+  // the table spells it, which the form then holds too (../shell/steel.ts).
   const wantsShapes = form.section.mode === 'shape';
-  useEffect(() => {
-    if (!wantsShapes || shapes || shapesFailed) return;
-    let live = true;
-    void import('@/lib/steel/aisc-shapes.json').then(
-      (m) => {
-        if (live) setShapes((m.default ?? m).shapes as SteelShape[]);
-      },
-      // The table is a piece of the page's script, and a piece that did not
-      // arrive is not asked for a second time: the page has to be loaded
-      // again, and has to say so. Left alone, "Loading…" stayed for the visit.
-      () => {
-        if (live) setShapesFailed(true);
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [wantsShapes, shapes, shapesFailed]);
-
-  // The shape in use: as the table spells it, or in any case — a link typed
-  // by hand says w18x50.
-  const shape = useMemo(() => {
-    if (!wantsShapes || !shapes) return null;
-    const name = form.section.shape;
-    return shapes.find((s) => s.designation === name) ?? shapes.find((s) => s.designation.toUpperCase() === name.toUpperCase()) ?? null;
-  }, [wantsShapes, shapes, form.section.shape]);
-  // The form then holds the table's spelling, and so does the address. (Not
-  // capitals: the table has Pipe1/2STD.)
-  useEffect(() => {
-    if (shape && shape.designation !== form.section.shape) dispatch({ type: 'section', patch: { shape: shape.designation } });
-  }, [shape, form.section.shape]);
+  const respell = useCallback((designation: string) => dispatch({ type: 'section', patch: { shape: designation } }), []);
+  const steel = useSteelShapes({ wanted: wantsShapes, name: form.section.shape, onName: respell });
+  const { shapes, shape } = steel;
   // A name the table does not have: no section, and the page says which name.
-  const unknownShape = wantsShapes && shapes !== null && !shape;
+  const unknownShape = steel.unknown;
   const a = useMemo(() => analyse(form, shape), [form, shape]);
   const sol = a.solution;
 
@@ -543,11 +332,16 @@ export function BeamCalculator({
   const asked = probeX ?? typedX;
   const x0 = sol ? (asked === null ? round4(sol.L / 2) : Math.min(sol.L, Math.max(0, asked))) : null;
   const here = sol && x0 !== null ? { left: sol.at(x0, 'left'), right: sol.at(x0, 'right') } : null;
-  const two = (l: number, r: number) => Math.abs(l - r) > 1e-9 * Math.max(1, Math.abs(l), Math.abs(r));
 
-  const vMax = peaks ? larger(peaks.Vmax, peaks.Vmin) : null;
-  const mAbs = peaks ? larger(peaks.Mmax, peaks.Mmin) : null;
-  const dAbs = peaks && a.toDeflection ? larger(peaks.EIvMax, peaks.EIvMin) : null;
+  // Each held as the memo that made it holds it: two memos below depend on
+  // them, and a value a memo depends on must be one that nothing touches
+  // again. (The same values as worked out afresh at every draw — one of the
+  // two peaks, itself. The lint's rule for memos asks for it, and reads this
+  // component since the shape table's `import()` went to the shell: with one
+  // in a component, it gave the component up unread.)
+  const vMax = useMemo(() => (peaks ? larger(peaks.Vmax, peaks.Vmin) : null), [peaks]);
+  const mAbs = useMemo(() => (peaks ? larger(peaks.Mmax, peaks.Mmin) : null), [peaks]);
+  const dAbs = useMemo(() => (peaks && a.toDeflection ? larger(peaks.EIvMax, peaks.EIvMin) : null), [peaks, a.toDeflection]);
   const sigma = mAbs ? bendingStress(form.units, a.section, Math.abs(mAbs.value)) : null;
   const tau = vMax ? shearStress(form.units, a.section, Math.abs(vMax.value)) : null;
 
@@ -581,7 +375,7 @@ export function BeamCalculator({
   // What is missing for a result, in the fields the chosen kind of section
   // has: "enter the section modulus" is no help beside a list of shapes.
   // With the shape table on its way, or lost, that is what is missing.
-  const need = (what: 'deflection' | 'bending' | 'shear') => (wantsShapes && !shapes ? (shapesFailed ? t.section.loadFailed : t.section.loading) : t.results.need[form.section.mode][what]);
+  const need = (what: 'deflection' | 'bending' | 'shear') => (wantsShapes && !shapes ? (steel.failed ? t.section.loadFailed : t.section.loading) : t.results.need[form.section.mode][what]);
 
   // The reactions add up to the load, or the page does not say they do: it
   // asks (`agree`, against the largest of the forces added up), and then
@@ -603,44 +397,13 @@ export function BeamCalculator({
     D: dAbs ? (dAbs.x === null ? `${t.results.deflection}: ${t.plot.zero}.` : `${t.results.deflection}: ${num(dAbs.value * a.toDeflection)} ${u.deflection} ${where(dAbs.x)}.`) : '',
   };
 
-  const copyLink = async () => {
-    // The page and the beam, and nothing else: not the query string the
-    // visitor arrived with (an ad's click identifier, a campaign tag), which
-    // would travel to everyone the link is sent to.
-    const link = `${window.location.origin}${window.location.pathname}${prefix}${codeOf(form)}`;
-    // The address is brought to this beam too — which for the example beam
-    // is the bare address — and a link that could not be read has nothing
-    // left to say: the one being copied is the beam on screen.
-    unread.current = false;
-    setLinkError(false);
-    pending.current = null;
-    write(codeOf(form));
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied('ok');
-    } catch {
-      // No clipboard (an old browser, a page not served over https): the address bar has it.
-      setCopied('failed');
-    }
-    window.setTimeout(() => setCopied(''), 4000);
-  };
-
   // The single-span page's link to the first calculator: given the beam that
   // leaving the Length field makes, at the moment it is used.
   const aim = (e: { currentTarget: HTMLAnchorElement }) => {
     e.currentTarget.href = `${generalPath}#b=${encodeBeam(leaving())}`;
   };
 
-  const filtered = useMemo(() => {
-    if (!shapes) return [];
-    const q = shapeFilter.trim().toUpperCase().replace(/\s+/g, '');
-    const list = q ? shapes.filter((s) => s.designation.toUpperCase().includes(q)) : shapes;
-    return list.slice(0, 120);
-  }, [shapes, shapeFilter]);
-
   const sec = form.section;
-  // A value of the section that cannot be one.
-  const off = (v: number) => !Number.isFinite(v) || v < 0;
   // What the results box says, each thing once: the problems that are no
   // row's, then those of the rows, then a shape the table does not have.
   const unknownText = unknownShape ? t.section.unknownShape.replace('{shape}', sec.shape) : '';
@@ -673,20 +436,6 @@ export function BeamCalculator({
     <button type="button" className="mp-app__add" onClick={() => dispatch({ type: 'add', list })} disabled={full(list)} title={full(list) ? t.row.limit : undefined}>
       <span aria-hidden="true">+</span> {label}
     </button>
-  );
-  const select = <T extends string>(label: string, value: T, options: [T, string][], onChange: (v: T) => void, kind = '') => (
-    <label className={`mp-num mp-num--select ${kind}`.trim()}>
-      <span className="mp-num__label">{label}</span>
-      <span className="mp-num__box">
-        <select className="mp-num__input" value={value} onChange={(e) => onChange(e.target.value as T)}>
-          {options.map(([v, text]) => (
-            <option key={v} value={v}>
-              {text}
-            </option>
-          ))}
-        </select>
-      </span>
-    </label>
   );
 
   return (
@@ -759,12 +508,11 @@ export function BeamCalculator({
                 // The edit is final: the end is carried, and the address is
                 // written now. Whatever reads it next — the language link, a
                 // reload — must find this beam, not wait 300 ms for it.
-                pending.current = null;
-                if (!(form.L > 0) || !Number.isFinite(form.L)) return write(codeOf(form));
+                if (!(form.L > 0) || !Number.isFinite(form.L)) return address.write(codeOf(form));
                 const carry = { type: 'carry-end', from: settledL.current, to: form.L } as const;
                 dispatch(carry);
                 settledL.current = form.L;
-                write(codeOf(reduce(form, carry)));
+                address.write(codeOf(reduce(form, carry)));
               }}
             />
           </div>
@@ -891,176 +639,42 @@ export function BeamCalculator({
         </fieldset>
         )}
 
-        <fieldset className="mp-app__group">
-          <legend>{t.section.title}</legend>
-          <p className="mp-app__note">{t.section.intro}</p>
-          <fieldset className="mp-seg">
-            <legend className="mp-num__label">{t.section.mode}</legend>
-            {(['props', 'rect', 'shape'] as SectionMode[]).map((key) => (
-              <label key={key} className="mp-seg__item">
-                <input type="radio" name="beam-section" checked={sec.mode === key} onChange={() => dispatch({ type: 'section', patch: { mode: key } })} />
-                <span>{t.section.modes[key]}</span>
-              </label>
-            ))}
-          </fieldset>
+        <SectionGroup
+          t={t.section}
+          numbers={t.numbers}
+          units={form.units}
+          section={sec}
+          worked={a.section}
+          steel={steel}
+          uid={uid}
+          describedBy={said('section', true)}
+          unknownText={unknownText}
+          onSection={(patch) => dispatch({ type: 'section', patch })}
+          onMaterial={(material) => dispatch({ type: 'material', material })}
+          flush={address.flush}
+        />
 
-          {sec.mode !== 'shape' ? (
-            <div className="mp-app__row mp-app__row--two">
-              {select<MaterialKey>(
-                t.section.material,
-                sec.material,
-                (['steel', 'aluminum', 'concrete', 'wood', 'custom'] as MaterialKey[]).map((key) => [key, t.section.materials[key]] as [MaterialKey, string]),
-                (material) => dispatch({ type: 'material', material }),
-              )}
-              <NumField
-                numbers={t.numbers}
-                label={t.section.E}
-                unit={u.E}
-                value={sec.E}
-                onChange={(E) => dispatch({ type: 'section', patch: { E, material: sec.material !== 'custom' && E !== MATERIALS[sec.material][form.units] ? 'custom' : sec.material } })}
-                invalid={off(sec.E)}
-                describedBy={said('section', off(sec.E))}
-              />
-            </div>
-          ) : null}
-          {/* What a listed modulus assumes, while it is the one in use. Under
-              the fields, not in the list: a closed list cuts a long name off,
-              on screen and on paper. */}
-          {sec.mode !== 'shape' && (sec.material === 'concrete' || sec.material === 'wood') && sec.E === MATERIALS[sec.material][form.units] ? <p className="mp-app__note">{t.section.materialNote[sec.material]}</p> : null}
-
-          {sec.mode === 'props' ? (
-            <div className="mp-app__row mp-app__row--three">
-              <NumField numbers={t.numbers} label={t.section.I} unit={u.I} value={sec.I} onChange={(I) => dispatch({ type: 'section', patch: { I } })} invalid={off(sec.I)} describedBy={said('section', off(sec.I))} />
-              <NumField numbers={t.numbers} label={t.section.S} unit={u.S} value={sec.S} onChange={(S) => dispatch({ type: 'section', patch: { S } })} optional={t.section.optional} invalid={off(sec.S)} describedBy={said('section', off(sec.S))} />
-              <NumField numbers={t.numbers} label={t.section.Av} unit={u.A} value={sec.Av} onChange={(Av) => dispatch({ type: 'section', patch: { Av } })} optional={t.section.optional} invalid={off(sec.Av)} describedBy={said('section', off(sec.Av))} />
-            </div>
-          ) : null}
-
-          {sec.mode === 'rect' ? (
-            <>
-              <div className="mp-app__row mp-app__row--two">
-                <NumField numbers={t.numbers} label={t.section.b} unit={u.dim} value={sec.b} onChange={(b) => dispatch({ type: 'section', patch: { b } })} invalid={off(sec.b)} describedBy={said('section', off(sec.b))} />
-                <NumField numbers={t.numbers} label={t.section.h} unit={u.dim} value={sec.h} onChange={(h) => dispatch({ type: 'section', patch: { h } })} invalid={off(sec.h)} describedBy={said('section', off(sec.h))} />
-              </div>
-              <p className="mp-app__computed">
-                {t.section.computed}: I = {num(a.section.I, 6)} {u.I}, S = {num(a.section.S, 6)} {u.S}
-              </p>
-            </>
-          ) : null}
-
-          {sec.mode === 'shape' ? (
-            shapes ? (
-              <>
-                <div className="mp-app__row mp-app__row--two">
-                  {/* A tool for finding a shape, not a value of the beam: left off the printed sheet (calc.css). */}
-                  <label className="mp-num mp-num--filter">
-                    <span className="mp-num__label">{t.section.filter}</span>
-                    <span className="mp-num__box">
-                      <input className="mp-num__input" type="text" value={shapeFilter} onChange={(e) => setShapeFilter(e.target.value)} placeholder={t.section.filterHint} autoComplete="off" spellCheck={false} />
-                    </span>
-                  </label>
-                  <label className="mp-num mp-num--select" data-invalid={unknownShape ? 'true' : undefined}>
-                    <span className="mp-num__label">{t.section.shape}</span>
-                    <span className="mp-num__box">
-                      <select
-                        className="mp-num__input"
-                        value={sec.shape}
-                        onChange={(e) => dispatch({ type: 'section', patch: { shape: e.target.value } })}
-                        aria-invalid={unknownShape ? true : undefined}
-                        aria-describedby={unknownShape ? `${uid}shape` : undefined}
-                      >
-                        {/* A name the table does not have is shown as it came, and can only be left:
-                            without it the list fell on its first shape, which then looked chosen. */}
-                        {unknownShape ? (
-                          <option value={sec.shape} disabled>
-                            {sec.shape}
-                          </option>
-                        ) : null}
-                        {/* The shape in use stays listed while the filter narrows the rest. */}
-                        {shape && !filtered.includes(shape) ? <option value={shape.designation}>{shape.designation}</option> : null}
-                        {filtered.map((s) => (
-                          <option key={s.designation} value={s.designation}>
-                            {s.designation}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                  </label>
-                </div>
-                {unknownShape ? (
-                  <p className="mp-app__row-error" id={`${uid}shape`}>
-                    {unknownText}
-                  </p>
-                ) : null}
-                {filtered.length === 0 ? <p className="mp-app__none">{t.section.noMatch}</p> : null}
-                {shape ? (
-                  <p className="mp-app__computed">
-                    {shape.designation}: E = {num(a.section.E, 6)} {u.E}, I = {num(a.section.I, 6)} {u.I}, S = {num(a.section.S, 6)} {u.S}
-                  </p>
-                ) : null}
-                {/* Without a shape there is no weight to include: the box is not shown ticked for one. */}
-                <label className="mp-app__check">
-                  <input type="checkbox" checked={sec.selfWeight && shape !== null} disabled={!shape} onChange={(e) => dispatch({ type: 'section', patch: { selfWeight: e.target.checked } })} />
-                  <span>
-                    {t.section.selfWeight}
-                    {shape ? ` (${num(form.units === 'us' ? shape.weight : shape.weight * 1.48816394, 4)} ${u.weight})` : ''}
-                  </span>
-                </label>
-              </>
-            ) : (
-              <>
-                <p className="mp-app__none" role="status">
-                  {shapesFailed ? t.section.loadFailed : t.section.loading}
-                </p>
-                {shapesFailed ? (
-                  <button
-                    type="button"
-                    className="mp-app__btn"
-                    onClick={() => {
-                      // The beam and "Steel shape" are in the address: the page comes back to both.
-                      pending.current?.();
-                      window.location.reload();
-                    }}
-                  >
-                    {t.section.reload}
-                  </button>
-                ) : null}
-              </>
-            )
-          ) : null}
-        </fieldset>
-
-        <div className="mp-app__actions">
-          <button type="button" className="mp-app__btn" onClick={copyLink}>
-            {t.toolbar.copy}
-          </button>
-          <button type="button" className="mp-app__btn" onClick={() => window.print()}>
-            {t.toolbar.print}
-          </button>
-          <button
-            type="button"
-            className="mp-app__btn mp-app__btn--quiet"
-            onClick={() => {
-              dispatch({ type: 'load', form: single ? defaultSpan() : defaultBeam() });
-              setLimit(DEFAULT_LIMIT);
-              setStress(0);
-              setLost(false);
-              setShapeFilter('');
-              setTypedX(null);
-              setProbeX(null);
-              unread.current = false;
-              setLinkError(false);
-              // The address goes bare — if what is after the # is a beam.
-              pending.current = null;
-              write(example);
-            }}
-          >
-            {t.toolbar.reset}
-          </button>
-          <p className="mp-app__copied" role="status" aria-live="polite">
-            {copied === 'ok' ? t.toolbar.copied : copied === 'failed' ? t.toolbar.copyFailed : ''}
-          </p>
-        </div>
+        <Actions
+          t={t.toolbar}
+          copy={() => {
+            // The address is brought to this beam too — which for the example beam
+            // is the bare address — and a link that could not be read has nothing
+            // left to say: the one being copied is the beam on screen.
+            address.take(codeOf(form));
+            return address.link(codeOf(form));
+          }}
+          reset={() => {
+            dispatch({ type: 'load', form: single ? defaultSpan() : defaultBeam() });
+            setLimit(DEFAULT_LIMIT);
+            setStress(0);
+            setLost(false);
+            steel.setFilter('');
+            setTypedX(null);
+            setProbeX(null);
+            // The address goes bare — if what is after the # is a beam.
+            address.take(example);
+          }}
+        />
       </form>
 
       {/* ── the answer ───────────────────────────────────────────────── */}
@@ -1453,11 +1067,7 @@ export function BeamCalculator({
 
       <p className="mp-app__privacy">{t.results.privacy}</p>
       {/* On paper only: when the sheet was printed, and the address that opens this very beam again. */}
-      {stamp ? (
-        <p className="mp-sheet mp-sheet__stamp">
-          {t.sheet.printed.replace('{when}', stamp.when)} · {t.sheet.link.replace('{url}', stamp.url)}
-        </p>
-      ) : null}
+      <SheetStamp stamp={stamp} t={t.sheet} />
     </div>
   );
 }
