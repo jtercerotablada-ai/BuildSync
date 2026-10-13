@@ -3,6 +3,7 @@ import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { absoluteUrl } from '@/lib/ttc/site';
 import '@/components/ttc/calc/calc.css';
+import { ToolFrame } from '@/components/ttc/calc/ToolFrame';
 import type { BeamPage } from '@/lib/calc/beam/strings';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { TextLink } from '@/components/ttc/mp/primitives';
@@ -23,7 +24,11 @@ import { breadcrumbLd, JsonLd } from './meta';
  * The tool comes in as `children`: a client component rendered with its
  * example case, so the server HTML already has a solved example, drawings
  * and all. Without JavaScript that example is what shows, with a line
- * saying why it does not respond.
+ * saying why it does not respond. Under an address that holds another case
+ * the example is NOT shown while the script is on its way: the tool stands
+ * in a frame that says so instead (calc/ToolFrame.tsx), in the words the
+ * view hands over — one of the form's own, beside its line for a link that
+ * cannot be read.
  *
  * Headings: the h1, an h2 over the tool (visually hidden — the tool is the
  * page), h3s for its result tables, then an h2 and h3s for the notes.
@@ -50,12 +55,15 @@ export function CalculatorPage({
   lang,
   path,
   page: s,
+  opening,
   children,
 }: {
   lang: Lang;
   /** The calculator's address, the same in both languages (the Spanish page is /es + this). */
   path: string;
   page: CalculatorText;
+  /** The line shown in place of the tool while the address holds a case the script has not opened yet: the form's own `linkOpening`. */
+  opening: string;
   /** The tool, with this language's words already in it. */
   children: React.ReactNode;
 }) {
@@ -106,7 +114,7 @@ export function CalculatorPage({
           <noscript>
             <p className="mp-app__noscript">{s.noscript}</p>
           </noscript>
-          {children}
+          <ToolFrame opening={opening}>{children}</ToolFrame>
         </div>
       </section>
 

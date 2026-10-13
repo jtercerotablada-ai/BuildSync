@@ -61,7 +61,8 @@ const mainOf = (html: string) => html.match(/<main\b[\s\S]*<\/main>/)?.[0] ?? ''
 /** A calculator's page WITHOUT its tool: the words that are the page's own. */
 const around = (lang: Lang, path: string, page: CalculatorText) => {
   route.pathname = localePath(path, lang);
-  return renderToStaticMarkup(h(CalculatorPage, { lang, path, page, children: null }));
+  // The line of the tool's frame is the form's (`linkOpening`), not the page's: left empty here.
+  return renderToStaticMarkup(h(CalculatorPage, { lang, path, page, opening: '', children: null }));
 };
 
 /* The cards of numbers, read as a visitor reads them (see beam-calculator.test.ts). */
@@ -525,6 +526,10 @@ describe('single-span beam: the page', () => {
       expect(html).toContain(`<noscript><p class="mp-app__noscript">${esc(s.noscript)}</p></noscript>`);
       // The form's own promise is the first calculator's, and holds here: the same component prints it.
       expect(body).toContain(ui.results.privacy);
+      // The line for a link still to be opened is NOT among the page's words as it is sent: an attribute of an empty
+      // paragraph, which the stylesheet writes out only while the tool's frame is marked (calc/ToolFrame.tsx).
+      expect(body).not.toContain(ui.linkOpening);
+      expect(main).toContain(`<p class="mp-app__opening" data-line="${esc(ui.linkOpening)}"></p>`);
     });
 
     // "One span only" would be a dead end. The form's link opens the first

@@ -65,6 +65,10 @@
  *       read: caseIn,
  *       blank: defaultCase,
  *       open: (found) => {
+ *         // A case from the address while a field has the focus: the field is left FIRST, or it goes on
+ *         // showing the value of the case before and commits it onto this one (BeamCalculator.tsx, `open`).
+ *         const focused = document.activeElement;
+ *         if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();
  *         dispatch({ type: 'load', form: found });
  *         setProbeX(null);
  *       },
@@ -115,7 +119,11 @@
  *               …the problems, each once — the section's at the id `${uid}section`, a shape the table has not (unknownText);
  *                 or, with none, `address.linkError ? t.linkError : null`…
  *             </div>
- *             <div className="mp-app__plots" ref={plotRef}>…the drawings, at `width` and `plotHeight`…</div>
+ *             <div className="mp-app__plots" ref={plotRef} onPointerDownCapture={leaveX}>
+ *               …the drawings, at `width` and `plotHeight`, each with `onProbe={probe}`: while a position is being typed
+ *                 the pointer does not move the values, and a press on a drawing leaves the field first
+ *                 (BeamCalculator.tsx: `typingX`, `probe`, `leaveX`)…
+ *             </div>
  *           </section>
  *         </div>
  *         <div className="mp-app__tables">…the cards…</div>
@@ -128,7 +136,10 @@
  * What a calculator must still do itself, because it is about its own case:
  * render with its example on the server (the page is not an empty box before
  * the script arrives); say `linkError` in its results box; drop a place
- * pointed at when another case opens (`open`) or the units change.
+ * pointed at when another case opens (`open`) or the units change. And its
+ * server view hands CalculatorPage the form's `linkOpening` as `opening`:
+ * the line that stands in place of the tool while a case in the address is
+ * still to be opened (calc/ToolFrame.tsx).
  *
  * ONE THING THE LINT ASKS of a component built this way. With the shape
  * table's `import()` in steel.ts and no longer in the component, the lint's

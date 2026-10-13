@@ -33,8 +33,12 @@ type Ui = {
    * `refused` is the line left under a field whose text was not a number
    * when the field was left: {text} is that text, {value} the value that
    * stands.
+   *
+   * `emptied` is that line for a field left with no text at all, where the
+   * field may not be empty: there is no text to name, only the {value} that
+   * stands.
    */
-  numbers: { group: string; ambiguous: string; refused: string };
+  numbers: { group: string; ambiguous: string; refused: string; emptied: string };
   /**
    * The printed sheet's own line, written when it is printed: {when} is the
    * date and time in `locale`, {url} the address that opens this very beam.
@@ -153,6 +157,12 @@ type Ui = {
   issuesSection: string;
   /** A beam was in the address and could not be read. */
   linkError: string;
+  /**
+   * A beam is in the address and the script has not opened it yet: shown in
+   * place of the tool until it has (calc/ToolFrame.tsx). True for as long
+   * as it shows — also if the script never arrives.
+   */
+  linkOpening: string;
   /** Read out when the results change. */
   solved: string;
   plot: { zero: string; max: string; min: string };
@@ -191,6 +201,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         group: ',',
         ambiguous: 'With one comma this reads two ways. For thousands, write {grouped}. If the comma is the decimal mark, write {padded} or, with a point, {decimal}: here a point is always the decimal mark.',
         refused: '“{text}” is not a number: the value is still {value}.',
+        emptied: 'The field was left empty: the value is still {value}.',
       },
       sheet: { locale: 'en-US', printed: 'Printed {when}', link: 'To open this beam again: {url}' },
       toolbar: {
@@ -370,6 +381,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       issuesTitle: 'This beam cannot be solved yet',
       issuesSection: 'Check the section',
       linkError: 'The beam in this link could not be read. The example beam is shown instead.',
+      linkOpening: 'This link carries a beam of its own, which the page reads once it has finished loading. Until then nothing is shown here, so that the example is not taken for it.',
       solved: 'Results updated.',
       plot: { zero: 'zero', max: 'max', min: 'min' },
     },
@@ -446,6 +458,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
         group: '\u202f',
         ambiguous: 'Con una sola coma se lee de dos maneras. Si son miles, escriba {grouped}. Si la coma es el decimal, escriba {padded} o, con punto, {decimal}: aquí el punto es siempre el decimal.',
         refused: '«{text}» no es un número: el valor sigue siendo {value}.',
+        emptied: 'El campo quedó vacío: el valor sigue siendo {value}.',
       },
       sheet: { locale: 'es-US', printed: 'Impreso el {when}', link: 'Para abrir esta viga de nuevo: {url}' },
       toolbar: {
@@ -625,6 +638,7 @@ export const beamStrings: Record<Lang, { ui: Ui; page: Page }> = {
       issuesTitle: 'Esta viga todavía no se puede resolver',
       issuesSection: 'Revise la sección',
       linkError: 'No se pudo leer la viga de este enlace. Se muestra la viga de ejemplo.',
+      linkOpening: 'Este enlace trae su propia viga, que la página lee cuando termina de cargar. Hasta entonces no se muestra nada aquí, para que el ejemplo no se tome por ella.',
       solved: 'Resultados actualizados.',
       plot: { zero: 'cero', max: 'máx.', min: 'mín.' },
     },

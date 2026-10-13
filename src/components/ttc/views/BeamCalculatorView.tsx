@@ -22,7 +22,7 @@ export const BEAM_PATH = '/resources/beam';
 export function BeamCalculatorView({ lang }: { lang: Lang }) {
   const { page, ui } = beamStrings[lang];
   return (
-    <CalculatorPage lang={lang} path={BEAM_PATH} page={page}>
+    <CalculatorPage lang={lang} path={BEAM_PATH} page={page} opening={ui.linkOpening}>
       {/* The form's words go in as a prop: this language's, and only the form's. */}
       <BeamCalculator t={ui} />
     </CalculatorPage>

@@ -11,6 +11,7 @@ import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { absoluteUrl } from '@/lib/ttc/site';
 import { BeamCalculator } from '@/components/ttc/calc/beam/BeamCalculator';
+import { BeamSchematic } from '@/components/ttc/calc/beam/BeamSchematic';
 import { addressNow } from '@/components/ttc/mp/lang';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
@@ -113,6 +114,10 @@ describe('beam calculator: the words', () => {
     // A text left in a field that was not a number: named, with the value that stands.
     expect(e.ui.numbers.refused).toBe('“{text}” is not a number: the value is still {value}.');
     expect(s.ui.numbers.refused).toBe('«{text}» no es un número: el valor sigue siendo {value}.');
+    // A field emptied and left has no text to name, and a line of its own: its value stands, and it says which.
+    expect(e.ui.numbers.emptied).toBe('The field was left empty: the value is still {value}.');
+    expect(s.ui.numbers.emptied).toBe('El campo quedó vacío: el valor sigue siendo {value}.');
+    for (const lang of LANGS) expect(beamStrings[lang].ui.numbers.emptied, lang).not.toContain('{text}');
   });
 
   // The engine refuses two supports under a thousandth of the length apart,
@@ -476,6 +481,10 @@ describe('beam calculator: the page', () => {
         expect(body, p.slice(0, 50)).toContain(text(esc(p)));
       }
       expect(html).toContain(`<noscript><p class="mp-app__noscript">${esc(s.noscript)}</p></noscript>`);
+      // The line for a link still to be opened is NOT among the page's words as it is sent: an attribute of an empty
+      // paragraph, which the stylesheet writes out only while the tool's frame is marked (calc/ToolFrame.tsx).
+      expect(body).not.toContain(ui.linkOpening);
+      expect(main).toContain(`<p class="mp-app__opening" data-line="${esc(ui.linkOpening)}"></p>`);
     });
 
     it(`${lang}: leads back to the catalogue, and nowhere outside the site`, () => {
@@ -782,6 +791,41 @@ describe('beam calculator: beams other than the example', () => {
     expect(pairsOf(cardsOf(shape)[1]).slice(3).map(([, v]) => v)).toEqual(Array(3).fill(beamStrings.en.ui.section.loading));
     for (const line of [...Object.values(need.props), ...Object.values(need.shape)]) expect(text(shape)).not.toContain(line);
   });
+
+  // A W18X50 weighs 50 lb/ft, and that is in the shape table. Without the table the beam that can be solved is
+  // the one without that weight: 15.2 and 16.8 kip on the example's supports, where this beam has 15.7 and 17.3.
+  it('a steel shape with its own weight asked for, and no shape table yet: no results — another beam’s are not shown', () => {
+    const weighed = beam({ section: section({ mode: 'shape', shape: 'W18X50', selfWeight: true }) });
+    const box = (html: string) => text(html.match(/<div class="mp-app__issues"[\s\S]*?<\/div>/)?.[0] ?? '?');
+    for (const lang of LANGS) {
+      const ui = beamStrings[lang].ui;
+      const html = show(lang, weighed);
+      expect(cardsOf(html)).toEqual([]);
+      expect(html).not.toContain('mp-app__tables');
+      // While the table is on its way nothing is wrong, and nothing is announced: the results wait, and the section group says what for.
+      expect(box(html)).toBe('');
+      expect(text(html)).toContain(ui.results.waiting);
+      expect(text(html)).toContain(ui.section.loading);
+      expect(text(html)).not.toMatch(/15\.2|16\.8/);
+      // The beam is still drawn, without reactions; no diagram of the lighter beam beside it.
+      expect(drawingsOf(html)).toHaveLength(1);
+      expect(html).toContain('<figure class="mp-plot mp-beam">');
+      expect(html).not.toContain('mp-beam__reaction');
+    }
+    // Without its own weight the shape is not one of the loads: shear and moment do not wait for the table.
+    const light = show('en', beam({ section: section({ mode: 'shape', shape: 'W18X50', selfWeight: false }) }));
+    expect(cardsOf(light)).toHaveLength(3);
+    expect(rowsOf(cardsOf(light)[0]).map((r) => r[2])).toEqual(['15.2 upward', '16.8 upward']);
+    expect(box(light)).toBe('');
+    // The table LOST is said in the results box, under the line for a beam that cannot be solved yet — a state a
+    // server render cannot reach (the browser scripts hold it): here, the lines of the source that say it.
+    const tool = readFileSync(join(SRC, 'components/ttc/calc/beam/BeamCalculator.tsx'), 'utf8');
+    expect(tool).toContain('const awaited = wantsShapes && !shapes ? (steel.failed ? t.section.loadFailed : t.section.loading) : null;');
+    expect(tool).toContain('const unweighed = awaited !== null && form.section.selfWeight;');
+    expect(tool).toContain('const sol = unweighed ? null : a.solution;');
+    expect(tool).toContain('...(unweighed && steel.failed ? [{ id: undefined, text: t.section.loadFailed }] : []),');
+    expect(tool).toContain("const need = (what: 'deflection' | 'bending' | 'shear') => awaited ?? t.results.need[form.section.mode][what];");
+  });
 });
 
 describe('beam calculator: what its script carries', () => {
@@ -1047,5 +1091,82 @@ describe('beam calculator: on paper it is a calculation sheet', () => {
     expect(page).toContain('counter(page)');
     // The disclaimer's box is never split between two pages.
     expect(print).toMatch(/\.mp-appnotes__terms\s*\{[^}]*break-inside:\s*avoid/);
+  });
+});
+
+describe('beam calculator: what only its source can show of the wiring (the browser scripts hold what it does)', () => {
+  const source = readFileSync(join(SRC, 'components/ttc/calc/beam/BeamCalculator.tsx'), 'utf8');
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  // A beam arriving in the address (Back, Forward, a pasted link) while a
+  // field has the focus: the field kept the text and the fall-back value of
+  // the beam before, and the Length field's commit carried the new beam's
+  // end from the old length and wrote the result over the new address.
+  it('a beam opened from the address ends the edit in progress first: the length being typed is forgotten, then the field is left, then the beam is put on screen', () => {
+    const open = code.slice(code.indexOf('open: (found) => {'), code.indexOf('owns: single'));
+    const steps = ['editingL.current = false;', 'settledL.current = found.form.L;', 'if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();', "dispatch({ type: 'load', form: found.form });"];
+    const at = steps.map((s) => open.indexOf(s));
+    expect(at.every((i) => i >= 0), JSON.stringify(at)).toBe(true);
+    expect([...at].sort((p, q) => p - q)).toEqual(at);
+    // The commit of a Length field whose edit was ended that way does nothing: it carries nothing and writes no address.
+    expect(code).toMatch(/onCommit=\{\(\) => \{\s*if \(!editingL\.current\) return;\s*editingL\.current = false;/);
+    expect(code).toContain('<div className="mp-app" ref={root}>');
+  });
+
+  // "Values at a point": with the focus in x, a pointer resting on a diagram gave the values under it beside the x typed.
+  it('while x is being typed the pointer does not move the position; a press on a drawing leaves the field first', () => {
+    expect(code).toMatch(/const probe = useCallback\(\(x: number \| null\) => \{\s*if \(!typingX\.current\) setProbeX\(x\);\s*\}, \[\]\);/);
+    expect(code.match(/onProbe=\{probe\}/g)).toHaveLength(3);
+    expect(code).not.toContain('onProbe={setProbeX}');
+    expect(code).toMatch(/const leaveX = \(\) => \{\s*const focused = document\.activeElement;\s*if \(typingX\.current && focused instanceof HTMLElement\) focused\.blur\(\);\s*\};/);
+    expect(code).toContain('<div className="mp-app__plots" ref={plotRef} onPointerDownCapture={leaveX}>');
+    expect(code).toMatch(/onEdit=\{\(\) => \{\s*typingX\.current = true;\s*setTypedX\(x0\);\s*setProbeX\(null\);\s*\}\}\s*onCommit=\{\(\) => \{\s*typingX\.current = false;\s*\}\}/);
+    // The x field goes with the results. Gone with the focus still in it (a support removed by a tap that does not
+    // take the focus) it is never left: the flag is put down for it, or the diagrams answer nothing from then on.
+    expect(code).toMatch(/const sol = unweighed \? null : a\.solution;\s*useEffect\(\(\) => \{\s*if \(!sol\) typingX\.current = false;\s*\}, \[sol\]\);/);
+    // (The field's card is drawn where there are values at a point, and there are none without a solution.)
+    expect(code).toContain("const here = sol && x0 !== null ? { left: sol.at(x0, 'left'), right: sol.at(x0, 'right') } : null;");
+    expect(code).toContain('{here && x0 !== null ? (');
+  });
+
+  // "102.3ft", with the 3 half under the unit's halo: the unit stands at the edge of the drawing whatever is written
+  // before it. The drawing keeps the beam's length clear of it when it is asked to, and this calculator asks.
+  it('the beam’s length on the dimension line is kept clear of its unit: 102.25 ft is written 4 px from "ft", still under its tick', () => {
+    expect(code).toMatch(/<BeamSchematic [^>]*group=\{t\.numbers\.group\} clearUnit \/>/);
+    const line = (L: number) =>
+      [...show('en', beam({ L, supports: [{ id: 1, kind: 'pin', x: 0 }, { id: 2, kind: 'roller', x: L }], points: [], dists: [{ id: 4, x1: 0, x2: L, w1: 0.9, w2: 0.9, dir: 'down' }] })).match(/<g class="mp-beam__dim">[\s\S]*?<\/g>/)![0].matchAll(/<text( class="mp-beam__unit")? x="([\d.]+)"[^>]*>([^<]*)<\/text>/g)].map((m) => ({
+        unit: Boolean(m[1]),
+        x: Number(m[2]),
+        text: m[3],
+      }));
+    // As the server draws it, 720 px wide: the end's tick is at 690, the unit ends at 718. 6.8 px to a character of this line.
+    const far = line(102.25);
+    const [length, unit] = [far.filter((t) => !t.unit).at(-1)!, far.find((t) => t.unit)!];
+    expect([length.text, unit.text]).toEqual(['102.3', 'ft']);
+    expect(unit.x - unit.text.length * 6.8 - (length.x + (length.text.length * 6.8) / 2)).toBeGreaterThanOrEqual(4 - 1e-9);
+    expect(690 - length.x).toBeGreaterThan(0);
+    expect(690 - length.x).toBeLessThan((length.text.length * 6.8) / 2);
+    // A length that was clear of its unit is where it always was, centred under its tick: the example's 20 ft, and 100.
+    for (const L of [20, 100]) expect(line(L).filter((t) => !t.unit).at(-1)!.x, String(L)).toBe(690);
+  });
+
+  // What that costs, said here so that it is known: to its neighbours the length so moved is a label like any other,
+  // and one that stood just clear of it gives way (BeamSchematic, `spaced`: 8 px between two labels). A 22.25 ft
+  // beam with its roller at 20.6925 ft was drawn "0 … 20.69 … 22.25ft", the length touching its unit; the length now
+  // stands 6.6 px to the left, 7.6 px from where 20.69 would end, and the line reads "0 … 22.25 ft". (Of 232 beams
+  // drawn at eleven widths, 48 drawings in 5,082.) The support's position is not lost: it is in the form and in the
+  // table of reactions.
+  it('a support that comes within 8 px of the length so moved leaves the dimension line, and stays in the table of reactions', () => {
+    const form = beam({ L: 22.25, supports: [{ id: 1, kind: 'pin', x: 0 }, { id: 2, kind: 'roller', x: 20.6925 }], points: [{ id: 3, x: 13.35, P: 8, dir: 'down' }], dists: [{ id: 4, x1: 0, x2: 22.25, w1: 1.2, w2: 1.2, dir: 'down' }] });
+    const written = (markup: string) => [...markup.match(/<g class="mp-beam__dim">[\s\S]*?<\/g>/)![0].matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+    const html = show('en', form);
+    expect(written(html)).toEqual(['0', '22.25', 'ft']);
+    expect(rowsOf(cardsOf(html)[0]).map((r) => r[1])).toEqual(['0', '20.69']);
+    // The drawing alone, not asked to keep the length clear, is the drawing as it was: the support is on the line.
+    const drawn = (clearUnit: boolean) => written(renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width: 720, probeX: null, summary: 'a beam', clearUnit })));
+    expect(drawn(false)).toEqual(['0', '20.69', '22.25', 'ft']);
+    expect(drawn(true)).toEqual(['0', '22.25', 'ft']);
+    // A support further off keeps its place beside the moved length: at 20 ft, 38 px from it.
+    expect(written(show('en', { ...form, supports: [form.supports[0], { ...form.supports[1], x: 20 }] }))).toEqual(['0', '20', '22.25', 'ft']);
   });
 });

@@ -593,6 +593,31 @@ describe('single-span calculator: spans other than the example', () => {
       expect(attr(tag, 'role'), tag).toBe(want);
     }
   });
+
+  // The example's W16X40 weighs 40 lb/ft, and that is in the shape table. Without the table the span that can be
+  // solved is the one without that weight: 13.6 and 11.6 kip, where this one has 14.08 and 12.08. Neither its
+  // reactions nor what this page adds to them — each load alone, the section needed — are shown as this span's.
+  it('a steel shape with its own weight asked for, and no shape table yet: no results, and neither of the page’s two cards', () => {
+    const box = (html: string) => text(html.match(/<div class="mp-app__issues"[\s\S]*?<\/div>/)?.[0] ?? '?');
+    for (const lang of LANGS) {
+      const ui = beamStrings[lang].ui;
+      const html = show(lang, span({ section: section({ mode: 'shape', shape: 'W16X40', selfWeight: true }) }));
+      expect(cardsOf(html).titles).toEqual([]);
+      expect(html).not.toContain('mp-app__tables');
+      // While the table is on its way nothing is wrong, and nothing is announced.
+      expect(box(html)).toBe('');
+      expect(text(html)).toContain(ui.results.waiting);
+      expect(text(html)).toContain(ui.section.loading);
+      expect(text(html)).not.toMatch(/13\.6|11\.6/);
+      expect(drawingsOf(html)).toHaveLength(1);
+      expect(html).not.toContain('mp-beam__reaction');
+    }
+    // Without its own weight the shape is not one of the loads: the reactions and the table of loads do not wait for it.
+    const light = show('en', span({ section: section({ mode: 'shape', shape: 'W16X40', selfWeight: false }) }));
+    expect(rowsOf(cardsOf(light).of('Reactions')).map((r) => r[2])).toEqual(['13.6 upward', '11.6 upward']);
+    expect(cardsOf(light).titles).toContain(spanUi.en.loads.title);
+    expect(box(light)).toBe('');
+  });
 });
 
 describe('single-span calculator: without the prop it is the first calculator', () => {
@@ -762,6 +787,18 @@ describe('single-span calculator: what its script carries, and its styles', () =
     // …and a text that was not a number, dropped from a field that is empty again, leaves no line
     // naming "the value 0" under a field that shows none.
     expect(numfield).toContain('const lost = left !== null && !hint && numbers && !(canBeEmpty && Object.is(value, emptyIs)) ?');
+  });
+  // A field that may NOT be empty, emptied and left: its value stands, as with any text that is not a number — and
+  // it is said, in a line of its own that names no text. (Emptying a load to take it off put the old load back
+  // without a word.) A field that may be empty is its empty value, as above, and says nothing.
+  it('a field emptied and left, where it may not be empty, says that its value stands', () => {
+    const numfield = code('components/ttc/calc/NumField.tsx');
+    expect(numfield).toContain("const untaken = text === '' ? draft !== null && !canBeEmpty : parseNumber(text, group) === null;");
+    // (…unless it is the page that left the field, a case having arrived in the address: shell/shell.test.ts.)
+    expect(numfield).toContain('setDropped(untaken && Number.isFinite(value) && e.currentTarget.dataset.ended === undefined ? { text, value } : null);');
+    expect(numfield).toContain("fill(left === '' ? (numbers.emptied ?? '') : numbers.refused, {");
+    // Nothing of it reaches the page as the server sends it: the line is about an edit.
+    expect(field({ numbers: { group: ',', ambiguous: 'a', refused: 'r', emptied: 'e' }, value: 0.9 })).not.toContain('mp-num__hint');
   });
 
   it('every class the mode adds is styled in the calculator’s own sheet, on screen and on paper', () => {

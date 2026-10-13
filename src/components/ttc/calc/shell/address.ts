@@ -30,14 +30,27 @@ import { useIsoLayoutEffect } from './layout';
 const ADDRESS_EVENT = 'mp:address';
 
 /*
- * The mark on the frame around a calculator, put there before any script of
- * the site runs when the address holds a case: while it is there the page
- * does not show the example the server sent, which is not the case in the
- * link. It comes off here, once the address has been read — in the commit
- * that puts on screen what it held. Where a page has no such frame there is
- * no mark, and nothing is done.
+ * The mark on the frame around a calculator (calc/ToolFrame.tsx, under the
+ * same name: the shell reaches for nothing outside itself), put there by
+ * the page's own first script, before any script of the site runs, when the
+ * address holds a case: while it is there the page does not show the example
+ * the server sent, which is not the case in the link. It comes off here,
+ * once the address has been read — in the commit that puts on screen what
+ * it held. Where the frame is not marked — a bare address, a page reached
+ * without a new document — nothing is done.
  */
 const OPENING = 'data-opening';
+
+/*
+ * The mark on the field that has the focus, for the moment a case from the
+ * address is put on screen: `data-ended` (calc/NumField.tsx reads it, under
+ * the same name). An edit in progress is an edit of the case before, and the
+ * calculator ends it — its `open` leaves that field. A field left that way
+ * has not been left by the visitor, and must not speak of the text it held:
+ * a Length emptied on one beam said "the field was left empty: the value is
+ * still 20" under the beam Back had brought, where nobody had emptied it.
+ */
+const ENDED = 'ended';
 
 export interface AddressOptions<C> {
   /** What this calculator's case is called in its address: one lower-case letter, `#<key>=…`. */
@@ -66,7 +79,9 @@ export interface AddressOptions<C> {
   /**
    * Puts a case on screen: the form, and whatever else is part of the case.
    * A place pointed at on the case before is not a place on this one:
-   * forgotten here too.
+   * forgotten here too. So is an edit in progress: the field that has the
+   * focus is left here, before the case is loaded — and while this runs
+   * that field is marked as left by the page (`ENDED`).
    */
   open: (found: C) => void;
   /**
@@ -140,7 +155,15 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
   // A case in the address opens as that case.
   useEffect(() => {
     const show = (found: C, failed: boolean) => {
-      latest.current.open(found);
+      // The field with the focus is `open`'s to leave, not the visitor's: marked so while it is done.
+      const focused = document.activeElement;
+      const field = focused instanceof HTMLInputElement ? focused : null;
+      if (field) field.dataset[ENDED] = '';
+      try {
+        latest.current.open(found);
+      } finally {
+        if (field) delete field.dataset[ENDED];
+      }
       // What was waiting to be written is the case of before: it is not to
       // land on the address this one came from.
       pending.current = null;

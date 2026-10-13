@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { solveCase, solveContinuous, type ContinuousCase } from './engine';
 import { envelopeContinuous } from './envelope';
 import type { ContinuousEnvelope, ContinuousModel, EndKind, Governing } from './types';
+
+// These tests are arithmetic from end to end and never wait for anything: run back to back they hold the
+// worker for a minute beside the rest of the suite, and the runner, unable to hear its own messages answered
+// in all that time, reports a timeout of its own ("onTaskUpdate") over a run in which every test passed.
+// A turn of the event loop between two tests is all it needs.
+afterEach(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 /**
  * EVERY ARRANGEMENT OF THE LIVE LOAD, against every arrangement.

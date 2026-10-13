@@ -3127,7 +3127,10 @@ export const legal = {
          case in the fragment of the address, which no browser sends
          (calc/shell/address.ts). Read against the code at c78e06f, the third
          calculator included; a calculator that saves or sends anything makes
-         this false. */
+         this false. Read again when each tool was stood in a frame whose own
+         script looks at that fragment before the page's script has run
+         (calc/ToolFrame.tsx): it asks only whether a case is there, marks the
+         frame, and sends and keeps nothing. */
       { h: 'Calculators', p: 'The calculators under Resources do their work in your browser. The values you enter are not sent to us and are not stored by us. A calculator keeps them in the address of the page, after the # sign, which is the part of an address a browser does not send: that is how a reload, or a link you copy, opens the same case. Whoever you give that link to sees the values in it.' },
       { h: 'Your choices', p: 'You can ask us what we hold about you, ask for it to be corrected, or ask for it to be deleted. Write to the address below and we will respond. Tell us the email address you used on the form and, if you kept it, the reference from the confirmation: that is how we find your request.' },
       { h: 'Changes', p: 'If this policy changes we will update it on this page.' },

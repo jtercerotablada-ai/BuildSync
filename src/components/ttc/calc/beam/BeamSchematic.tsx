@@ -39,8 +39,9 @@ import { xToPx } from './BeamPlot';
  * dead or live). The text is then that page's, and is placed as any other.
  *
  * THREE THINGS A PAGE MAY ASK FOR, each by a prop of its own. Without them
- * the drawing is, to the byte, what it was: the first two calculators ask
- * for none.
+ * the drawing is, to the byte, what it was. The first two calculators ask
+ * for the last of the three and for nothing else: a length that was clear
+ * of its unit is drawn where it always was.
  *
  * — THE DIMENSION LINE writes each position to four figures, as the tables
  *   beside the drawing write one — unless the page writes its positions with
@@ -63,7 +64,15 @@ import { xToPx } from './BeamPlot';
  *   before it, and a length of five characters ran into it: "102.3ft", with
  *   the 3 half under the unit's halo. Asked for, the length is written as far
  *   to the left as keeps it 4 px from the unit, still under its tick. A beam
- *   of several spans is past 100 ft as a matter of course.
+ *   of several spans is past 100 ft as a matter of course — and one span may
+ *   be 12.5 ft: every calculator asks for it.
+ *   To its neighbours the length so moved is a label like any other: one
+ *   that now stands within 8 px of it gives way to it (`spaced`). A support
+ *   at 20.69 ft of a 22.25 ft beam was written on the line while the length
+ *   stood 6.6 px further right, and is not now: "0 … 22.25 ft". Of 232
+ *   beams drawn at eleven widths, 48 drawings in 5,082 lost a support's or
+ *   a hinge's position that way. It is still in the form, and a support's
+ *   in the table of reactions.
  */
 
 const H = 216;

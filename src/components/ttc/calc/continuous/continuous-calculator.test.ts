@@ -1109,7 +1109,8 @@ describe('continuous beam calculator: what it borrows from the first calculator 
         expect(last.text, `${L} ft at ${width} px`).toBe(written);
         expect(width - 30 - last.x, `${L} ft at ${width} px`).toBeGreaterThan(0);
         expect(width - 30 - last.x, `${L} ft at ${width} px`).toBeLessThan((last.text.length * 6.8) / 2);
-        // Not asked for — the first two calculators — the length is where it always was, to the byte of the drawing.
+        // Not asked for, the length is where it always was, to the byte of the drawing. (The first two calculators
+        // ask for it too: views/beam-calculator.test.ts.)
         expect(end(form, width).x, `${L} ft at ${width} px, not asked`).toBe(width - 30);
         expect(renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width, probeX: null, summary: 'a beam', clearUnit: false }))).toBe(renderToStaticMarkup(h(BeamSchematic, { form, reactions: null, width, probeX: null, summary: 'a beam' })));
       }

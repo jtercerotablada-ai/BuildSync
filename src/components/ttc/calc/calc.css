@@ -78,6 +78,38 @@
   border: 1px solid var(--mp-line-strong);
   font-size: var(--mp-t-small);
 }
+/* The page arrives with its example solved, whatever its address holds after
+   the #. When that is a case, the page's first script marks the frame
+   (ToolFrame.tsx) before anything is drawn, and until the calculator has
+   read the address the example is not shown: a line stands where the tool
+   will be. The tool keeps its room meanwhile (hidden, not removed) and the
+   line is laid over it, so nothing moves when the case appears. On paper
+   too: a sheet printed before the script has run has no beam to show.
+   The line's sentence is not the paragraph's text: it is written out here,
+   from `data-line`, by the marked frame alone. With this sheet lost on its
+   way, or the page read as markup, an unmarked page then says nothing of a
+   link — as text, the sentence stood above the example under a bare address. */
+.mp-app__frame {
+  position: relative;
+}
+.mp-app__opening {
+  display: none;
+}
+.mp-app__frame[data-opening] > .mp-app__opening {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  margin: 0;
+  padding: var(--mp-4);
+  border: 1px solid var(--mp-line-strong);
+  font-size: var(--mp-t-small);
+}
+.mp-app__frame[data-opening] > .mp-app__opening::before {
+  content: attr(data-line);
+}
+.mp-app__frame[data-opening] > .mp-app {
+  visibility: hidden;
+}
 
 /* ── the form ── */
 .mp-app__bar {

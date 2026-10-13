@@ -35,7 +35,7 @@ export const CONTINUOUS_PATH = '/resources/continuous-beam';
  */
 export function ContinuousBeamView({ lang }: { lang: Lang }) {
   return (
-    <CalculatorPage lang={lang} path={CONTINUOUS_PATH} page={continuousPage[lang]}>
+    <CalculatorPage lang={lang} path={CONTINUOUS_PATH} page={continuousPage[lang]} opening={beamStrings[lang].ui.linkOpening}>
       <ContinuousCalculator t={beamStrings[lang].ui} c={continuousUi[lang]} generalPath={localePath(BEAM_PATH, lang)} />
     </CalculatorPage>
   );

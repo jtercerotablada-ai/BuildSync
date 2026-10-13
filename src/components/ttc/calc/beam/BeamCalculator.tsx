@@ -151,6 +151,20 @@ export function BeamCalculator({
   const codeOf = useCallback((beam: BeamForm) => (single ? encodeSpan(beam, limit, stress) : encodeBeam(beam)), [single, limit, stress]);
   const [probeX, setProbeX] = useState<number | null>(null);
   const [typedX, setTypedX] = useState<number | null>(null);
+  // The x field of "Values at a point" has the focus: until it is left, the
+  // position is the one in the field. A pointer resting on a diagram gave
+  // the card the values under it, beside the x that had been typed.
+  const typingX = useRef(false);
+  const probe = useCallback((x: number | null) => {
+    if (!typingX.current) setProbeX(x);
+  }, []);
+  // A press on a drawing is the visitor reaching for it: the x field is left
+  // first (the capture runs before the diagram's own handler), and the
+  // place pressed is then the position — in the field too.
+  const leaveX = () => {
+    const focused = document.activeElement;
+    if (typingX.current && focused instanceof HTMLElement) focused.blur();
+  };
   // On the single-span page, a link whose beam held what this span has not —
   // other supports, hinges, applied moments (span.ts, `lost`): the span shown
   // is not that beam, and the results box says so. A state of its own, not
@@ -164,6 +178,8 @@ export function BeamCalculator({
   const settledL = useRef(form.L);
   const editingL = useRef(false);
   const lengthRow = useRef<HTMLDivElement>(null);
+  // The calculator itself: a beam opened from the address asks whether the focus is in one of its fields.
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!editingL.current && form.L > 0 && Number.isFinite(form.L)) settledL.current = form.L;
   }, [form.L]);
@@ -200,6 +216,18 @@ export function BeamCalculator({
     blank: () => ({ form: single ? defaultSpan() : defaultBeam(), limit: DEFAULT_LIMIT, stress: 0 }),
     // A beam in the address opens as that beam.
     open: (found) => {
+      // An edit in progress is an edit of the beam before, and ends here. The
+      // field with the focus is left: it would go on showing what was typed
+      // into that beam, and fall back on that beam's value at the first key
+      // that is not a number (NumField). And the length being typed is
+      // forgotten BEFORE the field is left, the length settled on being this
+      // beam's: the field's commit (below) would carry this beam's end from
+      // the old length, and write the beam of before over the address this
+      // one came from.
+      editingL.current = false;
+      settledL.current = found.form.L;
+      const focused = document.activeElement;
+      if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();
       dispatch({ type: 'load', form: found.form });
       setLimit(found.limit);
       setStress(found.stress);
@@ -232,7 +260,20 @@ export function BeamCalculator({
   // A name the table does not have: no section, and the page says which name.
   const unknownShape = steel.unknown;
   const a = useMemo(() => analyse(form, shape), [form, shape]);
-  const sol = a.solution;
+  // What is missing while the shape table is on its way, or lost: the table's own line.
+  const awaited = wantsShapes && !shapes ? (steel.failed ? t.section.loadFailed : t.section.loading) : null;
+  // A shape's own weight is one of the loads, and it is in the table. Asked for, and the table not here: the beam
+  // that could be solved meanwhile is another beam, lighter by that weight: its results are not shown as this one's.
+  // No results until the table arrives — and if it is lost, the results box says so.
+  const unweighed = awaited !== null && form.section.selfWeight;
+  const sol = unweighed ? null : a.solution;
+  // The x field goes with the results: nobody is typing in a field that is
+  // not there. Gone with the focus still in it — a support removed by a tap
+  // that does not take the focus — it is never left, and its flag stood: the
+  // diagrams then answered neither the pointer nor a finger.
+  useEffect(() => {
+    if (!sol) typingX.current = false;
+  }, [sol]);
 
   const issueOf = (list: RowList, id: number) => a.issues.find((i) => i.row?.list === list && i.row.id === id);
   const invalid = (list: RowList, id: number) => Boolean(issueOf(list, id));
@@ -375,7 +416,7 @@ export function BeamCalculator({
   // What is missing for a result, in the fields the chosen kind of section
   // has: "enter the section modulus" is no help beside a list of shapes.
   // With the shape table on its way, or lost, that is what is missing.
-  const need = (what: 'deflection' | 'bending' | 'shear') => (wantsShapes && !shapes ? (steel.failed ? t.section.loadFailed : t.section.loading) : t.results.need[form.section.mode][what]);
+  const need = (what: 'deflection' | 'bending' | 'shear') => awaited ?? t.results.need[form.section.mode][what];
 
   // The reactions add up to the load, or the page does not say they do: it
   // asks (`agree`, against the largest of the forces added up), and then
@@ -410,6 +451,7 @@ export function BeamCalculator({
   const notices = [
     ...a.issues.filter((i) => !i.row).map((i) => ({ id: `${uid}${i.code}`, text: t.issues[i.code] })),
     ...a.issues.filter((i) => i.row).map((i) => ({ id: undefined, text: t.issues[i.code] })),
+    ...(unweighed && steel.failed ? [{ id: undefined, text: t.section.loadFailed }] : []),
     ...(unknownShape ? [{ id: undefined, text: unknownText }] : []),
   ].filter((n, i, all) => all.findIndex((m) => m.text === n.text) === i);
   // The id of a problem that is no row's, for the field it is about — when it is on screen.
@@ -439,7 +481,7 @@ export function BeamCalculator({
   );
 
   return (
-    <div className="mp-app">
+    <div className="mp-app" ref={root}>
       <div className="mp-app__top">
       {/* ── the form ─────────────────────────────────────────────────── */}
       <form className="mp-app__form" onSubmit={(e) => e.preventDefault()} noValidate>
@@ -504,6 +546,8 @@ export function BeamCalculator({
                 editingL.current = true;
               }}
               onCommit={() => {
+                // Not this field's edit to end: a beam opened from the address has ended it (`open`).
+                if (!editingL.current) return;
                 editingL.current = false;
                 // The edit is final: the end is carried, and the address is
                 // written now. Whatever reads it next — the language link, a
@@ -698,7 +742,7 @@ export function BeamCalculator({
           ) : null}
         </div>
 
-        <div className="mp-app__plots" ref={plotRef}>
+        <div className="mp-app__plots" ref={plotRef} onPointerDownCapture={leaveX}>
           <p className="mp-plot__title mp-plot__title--first">
             {t.results.schematic}
             {/* The band of small arrows along the whole beam, when the shape's weight is one of the loads. */}
@@ -709,14 +753,15 @@ export function BeamCalculator({
               </span>
             ) : null}
           </p>
-          {/* The marker is drawn where the values are read (x0): on the beam, which may have got shorter under it. */}
-          <BeamSchematic form={form} reactions={reactions} ownWeight={a.section.selfWeight} width={width} probeX={probeX !== null ? x0 : null} summary={says.beam} group={t.numbers.group} />
+          {/* The marker is drawn where the values are read (x0): on the beam, which may have got shorter under it.
+              And the beam's length is kept clear of the unit written after it (`clearUnit`): 102.3 ft read "102.3ft". */}
+          <BeamSchematic form={form} reactions={reactions} ownWeight={a.section.selfWeight} width={width} probeX={probeX !== null ? x0 : null} summary={says.beam} group={t.numbers.group} clearUnit />
           {sol && series ? (
             <>
-              <BeamPlot title={t.results.shear} unit={u.force} points={series.V} marks={series.marksV} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here && x0 !== null ? { x: x0, y: here.right.V } : null} onProbe={setProbeX} summary={says.V} group={t.numbers.group} />
-              <BeamPlot title={t.results.moment} unit={u.moment} points={series.M} marks={series.marksM} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here && x0 !== null ? { x: x0, y: here.right.M } : null} onProbe={setProbeX} summary={says.M} group={t.numbers.group} />
+              <BeamPlot title={t.results.shear} unit={u.force} points={series.V} marks={series.marksV} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here && x0 !== null ? { x: x0, y: here.right.V } : null} onProbe={probe} summary={says.V} group={t.numbers.group} />
+              <BeamPlot title={t.results.moment} unit={u.moment} points={series.M} marks={series.marksM} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here && x0 !== null ? { x: x0, y: here.right.M } : null} onProbe={probe} summary={says.M} group={t.numbers.group} />
               {series.D ? (
-                <BeamPlot title={t.results.deflection} unit={u.deflection} points={series.D} marks={series.marksD} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here && x0 !== null ? { x: x0, y: here.right.EIv * a.toDeflection } : null} onProbe={setProbeX} summary={says.D} group={t.numbers.group} />
+                <BeamPlot title={t.results.deflection} unit={u.deflection} points={series.D} marks={series.marksD} breaks={sol.breaks} L={sol.L} width={width} height={plotHeight} probe={probeX !== null && here && x0 !== null ? { x: x0, y: here.right.EIv * a.toDeflection } : null} onProbe={probe} summary={says.D} group={t.numbers.group} />
               ) : (
                 <p className="mp-app__need">{need('deflection')}</p>
               )}
@@ -1000,8 +1045,12 @@ export function BeamCalculator({
                     // Taking the field holds the position where it is: the pointer
                     // leaving a diagram on its way here must not move it.
                     onEdit={() => {
+                      typingX.current = true;
                       setTypedX(x0);
                       setProbeX(null);
+                    }}
+                    onCommit={() => {
+                      typingX.current = false;
                     }}
                     onChange={(x) => {
                       setProbeX(null);

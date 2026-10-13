@@ -1152,7 +1152,8 @@ const mainOf = (html: string) => html.match(/<main\b[\s\S]*<\/main>/)?.[0] ?? ''
 /** A calculator's page WITHOUT its tool: the words that are the page's own. */
 const around = (lang: Lang, path: string, page: CalculatorText) => {
   route.pathname = localePath(path, lang);
-  return renderToStaticMarkup(h(CalculatorPage, { lang, path, page, children: null }));
+  // The line of the tool's frame is the form's (`linkOpening`), not the page's: left empty here.
+  return renderToStaticMarkup(h(CalculatorPage, { lang, path, page, opening: '', children: null }));
 };
 /** This calculator's row of the catalogue. */
 const ROW = calculatorFamilies.flatMap((f) => f.items).filter((x) => x.href === CONTINUOUS_PATH);
@@ -1752,5 +1753,38 @@ describe('continuous beam: the language link carries its case', () => {
     // The first calculator's link is not this page's, and this page's is not the first's.
     expect(decodeContinuous(encodeBeam(toBeamForm(edited)))).toBeNull();
     expect(decodeBeam(encodeContinuous(edited))).toBeNull();
+  });
+});
+
+describe('continuous beam: a page sent with its example, under an address that holds another beam', () => {
+  // A server never sees what is after the #. Until the script has read it,
+  // the example must not stand for the beam of a link: the tool is in a
+  // frame that the page's own first script marks (calc/ToolFrame.tsx; what
+  // a browser then shows is held in the regression script).
+  for (const lang of LANGS) {
+    it(`${lang}: the tool stands in its frame, after the frame's script and the form's own line for a link still to be opened`, () => {
+      const html = mainOf(render(lang));
+      const said = beamStrings[lang].ui.linkOpening;
+      expect(html.match(/<div class="mp-app__frame">/g)).toHaveLength(1);
+      // The script is the text of a holder, not an element of React's (ToolFrame.tsx says why): the frame is the holder's parent.
+      expect(html).toContain(`<div class="mp-app__frame"><span hidden=""><script>(function(s){if(/^#[a-z]=./.test(location.hash))s.parentNode.parentNode.setAttribute('data-opening','')})(document.currentScript)</script></span><p class="mp-app__opening" data-line="${esc(said)}"></p><div class="mp-app mp-cont">`);
+      // As served nothing is marked: the example is the page.
+      expect(html).not.toMatch(/data-opening=/);
+      // …and the line is not among its words: the sentence is an attribute of an empty paragraph, which the
+      // stylesheet writes out only while the frame is marked. As text, one rule of that stylesheet was all that
+      // kept it off the page, and without the rule it stood above the example under a bare address.
+      expect(text(html)).not.toContain(said);
+      expect(html.split(esc(said))).toHaveLength(2);
+      // One sentence for the three calculators, in the form's words; true for as long as it shows, the script arriving or not.
+      expect(said).toBe(lang === 'en' ? 'This link carries a beam of its own, which the page reads once it has finished loading. Until then nothing is shown here, so that the example is not taken for it.' : 'Este enlace trae su propia viga, que la página lee cuando termina de cargar. Hasta entonces no se muestra nada aquí, para que el ejemplo no se tome por ella.');
+    });
+  }
+
+  it('each of the three views hands the page that line', () => {
+    const source = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
+    expect(source('components/ttc/views/BeamCalculatorView.tsx')).toContain('<CalculatorPage lang={lang} path={BEAM_PATH} page={page} opening={ui.linkOpening}>');
+    expect(source('components/ttc/views/SingleSpanView.tsx')).toContain('<CalculatorPage lang={lang} path={SPAN_PATH} page={spanPage[lang]} opening={beamStrings[lang].ui.linkOpening}>');
+    expect(source('components/ttc/views/ContinuousBeamView.tsx')).toContain('<CalculatorPage lang={lang} path={CONTINUOUS_PATH} page={continuousPage[lang]} opening={beamStrings[lang].ui.linkOpening}>');
+    expect(source('components/ttc/views/CalculatorPage.tsx')).toContain('<ToolFrame opening={opening}>{children}</ToolFrame>');
   });
 });

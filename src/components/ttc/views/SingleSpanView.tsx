@@ -27,7 +27,7 @@ export const SPAN_PATH = '/resources/single-span-beam';
  */
 export function SingleSpanView({ lang }: { lang: Lang }) {
   return (
-    <CalculatorPage lang={lang} path={SPAN_PATH} page={spanPage[lang]}>
+    <CalculatorPage lang={lang} path={SPAN_PATH} page={spanPage[lang]} opening={beamStrings[lang].ui.linkOpening}>
       {/* The form's words go in as props: this language's, and only the form's. */}
       <BeamCalculator t={beamStrings[lang].ui} span={spanUi[lang]} generalPath={localePath(BEAM_PATH, lang)} />
     </CalculatorPage>

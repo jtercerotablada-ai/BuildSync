@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { solveBeam, type BeamModel, type BeamState } from '../beam/solver';
 import { SHORT, STIFF, placedLoads, polyAt, polyRoots, solveCase, solveContinuous, stretchOf, type ContinuousCase } from './engine';
 import type { ContinuousModel, ContinuousSolution, EndKind } from './types';
+
+// As in envelope.test.ts: arithmetic that never waits. A turn of the event loop between two tests lets the
+// runner hear from this worker, which it otherwise reports as a timeout of its own over a passing run.
+afterEach(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 /**
  * THE CONTINUOUS-BEAM ENGINE, against what is known.
