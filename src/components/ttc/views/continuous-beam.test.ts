@@ -29,6 +29,7 @@ import { continuousPage } from '@/lib/calc/continuous/page-strings';
 import { continuousUi } from '@/lib/calc/continuous/strings';
 import type { ContinuousEnvelope, ContinuousModel, ContinuousSolution, Governing, SpanDistLoad } from '@/lib/calc/continuous/types';
 import { calculatorFamilies } from '@/lib/ttc/calculators';
+import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { DESCRIPTION_LIMIT_PX, TITLE_BUDGET_PX, descriptionPx, repeatedWords, titlePx, unmeasured } from '@/lib/ttc/serp';
@@ -1364,7 +1365,10 @@ describe('continuous beam: the page', () => {
     it(`${lang}: its line in the catalogue is not printed here, nor six words running of it — nor another calculator’s`, () => {
       const body = text(main);
       const rows = calculatorFamilies.flatMap((f) => f.items).filter((x) => x.href);
-      expect(rows.map((x) => x.href)).toEqual([BEAM_PATH, SPAN_PATH, CONTINUOUS_PATH]);
+      // Every open row, whichever calculators they are: the site keeps that list once (calculator-paths.ts), and
+      // a calculator opened later is held off this page without this test being touched.
+      expect(rows.map((x) => x.href)).toEqual([...openCalculatorPaths]);
+      expect(rows.map((x) => x.href)).toEqual(expect.arrayContaining([BEAM_PATH, SPAN_PATH, CONTINUOUS_PATH]));
       for (const row of rows) {
         expect(wordsOf(row.does[lang]).length, row.name.en).toBeGreaterThan(6);
         expect(body, row.name.en).not.toContain(row.does[lang]);

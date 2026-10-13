@@ -27,6 +27,8 @@ import { spanPage } from '@/lib/calc/beam/span-page-strings';
 import { SPAN_PATH, SingleSpanView } from './SingleSpanView';
 import { continuousPage } from '@/lib/calc/continuous/page-strings';
 import { CONTINUOUS_PATH, ContinuousBeamView } from './ContinuousBeamView';
+import { shaftPage } from '@/lib/calc/shaft/page-strings';
+import { SHAFT_PATH, ShaftView } from './ShaftView';
 import { CalculatorsView } from './CalculatorsView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
@@ -95,6 +97,7 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     [BEAM_PATH, { title: beamStrings[lang].page.title, description: beamStrings[lang].page.description }] as const,
     [SPAN_PATH, { title: spanPage[lang].title, description: spanPage[lang].description }] as const,
     [CONTINUOUS_PATH, { title: continuousPage[lang].title, description: continuousPage[lang].description }] as const,
+    [SHAFT_PATH, { title: shaftPage[lang].title, description: shaftPage[lang].description }] as const,
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -380,6 +383,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [BEAM_PATH, h(BeamCalculatorView, { lang })],
     [SPAN_PATH, h(SingleSpanView, { lang })],
     [CONTINUOUS_PATH, h(ContinuousBeamView, { lang })],
+    [SHAFT_PATH, h(ShaftView, { lang })],
   ];
 }
 

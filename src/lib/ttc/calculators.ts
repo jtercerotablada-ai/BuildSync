@@ -22,7 +22,11 @@ import type { Lang } from './i18n';
  * "Continuous beam" (/resources/continuous-beam), has an engine of its own —
  * direct stiffness, one element per span — for what the first cannot do: a
  * stiffness for each span, supports that settle, and the live load in every
- * arrangement, span by span.
+ * arrangement, span by span. The fourth, "Shaft on bearings"
+ * (/resources/shaft-on-bearings), is the first that is not a beam's: a round
+ * shaft turned in steps, on two bearings, loaded in two planes at once —
+ * each plane's reactions and moments by the first calculator's engine, the
+ * slopes and deflections of the stepped shaft by its own.
  *
  * THE FAMILIES AND THEIR ICONS. The owner drew sixteen icons, one per
  * general subject ("los 16 iconos corresponden a temas generales; varios
@@ -214,7 +218,7 @@ export const calculatorFamilies: CalculatorFamily[] = [
       { name: { en: 'Beam reactions and diagrams', es: 'Reacciones y diagramas de vigas' }, does: { en: 'Reactions, shear and moment diagrams, deflection and stress of a beam under any set of loads.', es: 'Reacciones, diagramas de cortante y de momento, deflexión y esfuerzos de una viga con cualquier combinación de cargas.' }, href: '/resources/beam' },
       { name: { en: 'Single-span beam', es: 'Viga de un solo vano' }, does: { en: 'The simply supported case, under point and distributed loads.', es: 'El caso simplemente apoyado, con cargas puntuales y distribuidas.' }, href: '/resources/single-span-beam' },
       { name: { en: 'Continuous beam', es: 'Viga continua' }, does: { en: 'A beam over several supports, solved by finite elements.', es: 'Una viga sobre varios apoyos, resuelta por elementos finitos.' }, href: '/resources/continuous-beam' },
-      { name: { en: 'Shaft on bearings', es: 'Eje sobre cojinetes' }, does: { en: 'Reactions, bending and deflection of a mechanical shaft.', es: 'Reacciones, flexión y deflexión de un eje mecánico.' } },
+      { name: { en: 'Shaft on bearings', es: 'Eje sobre cojinetes' }, does: { en: 'Reactions, bending and deflection of a mechanical shaft.', es: 'Reacciones, flexión y deflexión de un eje mecánico.' }, href: '/resources/shaft-on-bearings' },
     ],
   },
   {

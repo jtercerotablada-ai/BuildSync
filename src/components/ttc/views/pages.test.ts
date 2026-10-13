@@ -21,6 +21,7 @@ import { LegalView } from './LegalView';
 import { NotFoundView } from './NotFoundView';
 import { ServiceDetailView } from './ServiceDetailView';
 import { ServicesView } from './ServicesView';
+import { SHAFT_PATH, ShaftView } from './ShaftView';
 import { WorkView } from './WorkView';
 
 /**
@@ -61,6 +62,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [BEAM_PATH, h(BeamCalculatorView, { lang })],
     [SPAN_PATH, h(SingleSpanView, { lang })],
     [CONTINUOUS_PATH, h(ContinuousBeamView, { lang })],
+    [SHAFT_PATH, h(ShaftView, { lang })],
     ...getContent(lang).services.map(
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,

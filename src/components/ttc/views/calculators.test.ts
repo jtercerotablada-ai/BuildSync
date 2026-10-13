@@ -8,6 +8,7 @@ import sitemap from '@/app/sitemap';
 import { spanPage } from '@/lib/calc/beam/span-page-strings';
 import { beamStrings } from '@/lib/calc/beam/strings';
 import { continuousPage } from '@/lib/calc/continuous/page-strings';
+import { shaftPage } from '@/lib/calc/shaft/page-strings';
 import {
   CALCULATOR_ICON_PX,
   calculatorCount,
@@ -132,8 +133,8 @@ describe('calculators: the list', () => {
     // Each of them a page of its own: a second calculator is not a second row that opens the first.
     expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(openCalculatorCount).toBe(hrefs.length);
-    // Three are open — the general beam, the single span and the continuous beam — and the loop below is run for each.
-    expect(openCalculatorCount).toBeGreaterThanOrEqual(3);
+    // Four are open — the general beam, the single span, the continuous beam and the shaft on bearings — and the loop below is run for each.
+    expect(openCalculatorCount).toBeGreaterThanOrEqual(4);
     for (const href of hrefs) {
       expect(href).toMatch(/^\/resources\/[a-z-]+$/);
       expect(EN_PUBLIC_PAGES).toContain(href);
@@ -374,7 +375,7 @@ describe('calculators: where the page is', () => {
     expect(publicNotFoundTarget('/resources')).toBeNull();
     expect(publicNotFoundTarget('/es/resources')).toBeNull();
     // Beside each open calculator's address — one segment deeper, one letter longer — there is nothing.
-    for (const path of ['/resources/truss', '/resources/steel-member', '/resources/load-gen', '/resources/a/b', '/resources/single-span', '/resources/continuous', ...openCalculatorPaths.flatMap((open) => [`${open}/x`, `${open}s`])]) {
+    for (const path of ['/resources/truss', '/resources/steel-member', '/resources/load-gen', '/resources/a/b', '/resources/single-span', '/resources/continuous', '/resources/shaft', '/resources/shaft-on-bearing', ...openCalculatorPaths.flatMap((open) => [`${open}/x`, `${open}s`])]) {
       expect(publicNotFoundTarget(path), path).toBe(PUBLIC_NOT_FOUND);
       expect(publicNotFoundTarget(`/es${path}`), path).toBe(PUBLIC_NOT_FOUND_ES);
     }
@@ -405,6 +406,7 @@ describe('calculators: where the page is', () => {
       '/resources/beam': { en: beamStrings.en.page.h1, es: beamStrings.es.page.h1 },
       '/resources/single-span-beam': { en: spanPage.en.h1, es: spanPage.es.h1 },
       '/resources/continuous-beam': { en: continuousPage.en.h1, es: continuousPage.es.h1 },
+      '/resources/shaft-on-bearings': { en: shaftPage.en.h1, es: shaftPage.es.h1 },
     };
     expect(Object.keys(h1)).toEqual([...openCalculatorPaths]);
     // Each calculator is a page of its own: no address, no title and no h1 is said by two of them.
@@ -435,7 +437,7 @@ describe('calculators: where the page is', () => {
         expect([...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => text(m[1])), where).toEqual([h1[href][lang]]);
       }
     }
-    // Six routes are imported and each page rendered with its example solved: two seconds alone, more than the default five beside the other suites.
+    // Eight routes are imported and each page rendered with its example solved: seconds alone, more than the default five beside the other suites.
   }, 30_000);
 
   it('neither route keeps a calculator-less page’s noindex', () => {

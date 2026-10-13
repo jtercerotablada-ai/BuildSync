@@ -1351,6 +1351,446 @@ select.mp-num__input {
   }
 }
 
+/* SHAFT ON BEARINGS (/resources/shaft-on-bearings) — THE DRAWING OF THE SHAFT
+   (shaft/ShaftSchematic.tsx): its profile, its two bearings, the loads of
+   the view shown and the reaction under each bearing.
+
+   Its classes are its own, every one (.mp-shaft-fig__*). The beam's drawing
+   (.mp-beam__*) is another calculator's: a rule of that one bent to fit a
+   shaft would be a rule this page could break. It is the same hand, though,
+   and the same few things: ink for the member and for what acts on it, the
+   page's colour inside a support, gold for what the calculator found (a
+   reaction) and for the weight the shaft has of its own, the mono of every
+   number, and behind each number a halo of the page's colour.
+
+   WHERE IT STANDS: before the third calculator's rules, though it is the
+   fourth. That calculator's tests read this sheet from their own heading to
+   its last line: they hold every rule they find there to be their own, and
+   the sheet's last rules for paper to be theirs
+   (continuous/continuous-calculator.test.ts). These rules are about this
+   drawing's own classes and nothing else, so where they stand changes
+   nothing they do. */
+.mp-shaft-fig__label,
+.mp-shaft-fig__reaction text,
+.mp-shaft-fig__dim text {
+  font-family: var(--mp-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink);
+  /* A line that passes a number goes behind it. */
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+/* The profile is an outline, and full of the page's colour: the triangle of
+   a bearing is drawn behind it, and a shoulder that reaches lower than the
+   journal beside it hides the corner of the triangle it would cross. */
+.mp-shaft-fig__seg {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+/* The bore of a hollow segment: dashed, as an edge that cannot be seen is drawn. */
+.mp-shaft-fig__bore {
+  stroke: var(--mp-ink-3);
+  stroke-width: 1;
+  stroke-dasharray: 5 3;
+}
+/* The axis: a chain line, the thinnest of the drawing. */
+.mp-shaft-fig__axis {
+  stroke: var(--mp-ink-faint);
+  stroke-width: 0.75;
+  stroke-dasharray: 14 3 2 3;
+}
+.mp-shaft-fig__bearing line,
+.mp-shaft-fig__pin {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+/* The shaft's own weight: a light band along its top. */
+.mp-shaft-fig__weight rect {
+  fill: rgba(201, 154, 56, 0.16);
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1;
+}
+.mp-shaft-fig__weight line {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1;
+}
+.mp-shaft-fig__weight .mp-shaft-fig__head {
+  fill: var(--mp-gold-ink);
+}
+.mp-shaft-fig__force line,
+.mp-shaft-fig__couple path {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+}
+/* Each couple's arc in the page's colour, wider, under where the ink one is
+   drawn: the band of the shaft's own weight does not run through an arc. It
+   lies under the shaft too, whose outline is not to be rubbed out by it. */
+.mp-shaft-fig__halo path {
+  fill: none;
+  stroke: var(--mp-paper);
+  stroke-width: 6;
+}
+.mp-shaft-fig__force .mp-shaft-fig__head,
+.mp-shaft-fig__couple .mp-shaft-fig__head,
+.mp-shaft-fig__dot {
+  fill: var(--mp-ink);
+}
+/* The line from a value that went up a line back to its load. */
+.mp-shaft-fig__ties path {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 1;
+}
+/* A reaction: its arrow on the bearing's own line, in the colour of its value. */
+.mp-shaft-fig__reaction text {
+  font-weight: 500;
+  fill: var(--mp-gold-ink);
+}
+.mp-shaft-fig__reaction line {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1.5;
+}
+.mp-shaft-fig__reaction .mp-shaft-fig__head {
+  fill: var(--mp-gold-ink);
+}
+.mp-shaft-fig__dim line {
+  stroke: var(--mp-ink-faint);
+  stroke-width: 1;
+}
+.mp-shaft-fig__dim text {
+  font-size: 11px;
+  fill: var(--mp-ink-3);
+}
+@media print {
+  /* On paper a number is its letters and nothing else, as on the beam's drawing: the halo is the page's colour,
+     which a screen has and paper does not. */
+  .mp-shaft-fig__label,
+  .mp-shaft-fig__reaction text,
+  .mp-shaft-fig__dim text {
+    stroke: none !important;
+  }
+  /* …and what was the page's colour is the paper's. */
+  .mp-shaft-fig__halo path {
+    stroke: #fff;
+  }
+  .mp-shaft-fig__seg,
+  .mp-shaft-fig__pin {
+    fill: #fff;
+  }
+}
+
+/* SHAFT ON BEARINGS (.mp-shaft) — THE FORM AND THE TABLES of the fourth
+   calculator (shaft/ShaftCalculator.tsx). It is laid out by the rules of
+   every calculator, above; what follows is only what a shaft entered segment
+   by segment and loaded in two planes adds, and every rule of it begins with
+   a class of its own: nothing here reaches the other three pages. (It stands
+   before the third calculator's rules for the reason the drawing's do.)
+
+   — In the form: a segment is three fields on one line under its number; a
+     force or an applied moment is its place and then A LINE TO A PLANE — the
+     size in that plane beside the way it acts — so the two planes are read
+     one under the other. On a phone the button that removes a row stands
+     beside the row's number, and the fields have the whole width. A value
+     too long for its field ends in "…": a number cut short reads as another
+     number.
+   — The tables (.mp-shaft__table) have up to seven columns. On a phone a row
+     is laid out two cells to a line, each cell under its own head: as a
+     table the widest was twice the width of its card. */
+.mp-shaft__name {
+  margin: 0 0 var(--mp-1);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--mp-ink-2);
+}
+/* On a SCREEN: paper sizes a field by what is in it (the print rules above),
+   and these would take that back. */
+@media screen {
+  /* A load's five fields: its place; then the vertical size and its
+     direction; then, under those two, the horizontal ones. The direction has
+     the widest share: "Counter-clockwise" and "Hacia el observador" are read
+     in the closed list. */
+  .mp-shaft .mp-app__fields.mp-shaft__load {
+    display: grid;
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.95fr) minmax(0, 1.35fr);
+  }
+  .mp-shaft .mp-shaft__load > .mp-shaft__second {
+    grid-column-start: 2;
+  }
+  /* What a field says of its own text takes the whole width, under all five (it comes last: `order`, above). */
+  .mp-shaft .mp-shaft__load > .mp-num__hint {
+    grid-column: 1 / -1;
+  }
+  /* The list of materials is read closed, so it is as wide as its longest word: "Otro (introduzca E)" beside
+     the modulus on a phone 344 to 360px wide read "Otro (introduzca…". Asking for that width, it takes a line
+     of its own where the two do not fit on one. */
+  .mp-shaft .mp-shaft__material > .mp-num--select {
+    flex-basis: 11rem;
+  }
+  /* The density keeps the width of a field that stands alone at every width of screen. Its unit, "lb/in³", is the
+     longest of the form: in the 5.5rem a phone gives a field of a row, steel's own density, 0.2836, read "0.2…". */
+  .mp-shaft .mp-shaft__density > .mp-num {
+    flex-basis: 12rem;
+  }
+  /* A value longer than its field shows that it is: 4448.2216 N, which is what 1,000 lbf becomes, read
+     "4448.22" beside its unit — a whole-looking number that was not the one in use. */
+  .mp-shaft .mp-num__input {
+    text-overflow: ellipsis;
+  }
+}
+/* A list at its limit: its "add" button is still there, to keep the focus of whoever just added the last row,
+   and does nothing — drawn as a disabled one, and not underlined under the pointer. */
+.mp-shaft .mp-app__add[aria-disabled='true'] {
+  color: var(--mp-ink-faint);
+  cursor: default;
+  text-decoration: none;
+}
+/* …and the limit is said under it, in the type of a note of the form. */
+.mp-shaft__limit {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+/* A shaft has a segment: the button that would remove the last one is there, and does nothing. */
+.mp-shaft .mp-app__remove:disabled {
+  border-color: var(--mp-line);
+  color: var(--mp-ink-faint);
+  cursor: default;
+}
+/* "at x = 11.08 in" is one thing: a line never ends inside it. */
+.mp-shaft__where {
+  white-space: nowrap;
+}
+/* A value with its place can be wider than what is left of the line beside its name ("6.258 ksi at x = 18 in,
+   segment 4"). It then goes under the name — and still stands at the right, where the values of a card are. */
+.mp-shaft .mp-app__dl dd {
+  margin-inline-start: auto;
+}
+/* A table of seven columns stops at a width a row can still be read across; a cell is never held to one line. */
+.mp-shaft__table {
+  max-width: 64rem;
+}
+.mp-shaft__table td {
+  white-space: normal;
+}
+/* The unit after the name of a row ("Shear, V (lbf)") is set as the unit of a column's head is: small, and light. */
+.mp-shaft__table tbody th .mp-plot__unit {
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+/* A cell's own head, which a phone shows over it (below): out of sight on a wider screen and on paper, where
+   the table has its heads. */
+.mp-shaft__head {
+  display: none;
+}
+/* THE LAST TWO CARDS, "Largest values" and "Values at a point", are this page's to place: the second is a table of
+   four columns that does not go under 346px, and the sheet's own columns of cards are as narrow as 304. Left to
+   them it was wider than its card wherever two or three columns were that narrow — from 700 to 790px, and at
+   1,100 — and past the window's edge at 700. So: one card to a row on a screen under 1024px; from there the two
+   side by side, the table with two thirds of the row (at 1024px, 300 and 601px). On a SCREEN: paper has its own
+   two columns. */
+@media screen and (max-width: 1023px) {
+  .mp-shaft .mp-app__tables {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media screen and (min-width: 1024px) {
+  .mp-shaft .mp-app__tables {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+}
+@media screen and (max-width: 640px) {
+  /* A segment's three fields share one line at every width of a phone. */
+  .mp-shaft .mp-app__fields.mp-shaft__segment > .mp-num {
+    flex: 1 1 calc(33.333% - var(--mp-4));
+  }
+  /* A load: its place on a line of its own, then each plane's two fields - the way it acts the wider of the two. */
+  .mp-shaft .mp-app__fields.mp-shaft__load {
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  }
+  /* An applied moment's size has a unit twice as long as a force's ("lbf·in"), and its direction shorter words
+     than "Hacia el observador": the size has more of the line. At a force's share a size of seven characters
+     had 60px of the 61 it needs on a phone 360px wide, and read "12345…". */
+  .mp-shaft .mp-app__fields.mp-shaft__load--moment {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+  .mp-shaft .mp-shaft__load > :first-child {
+    grid-column: 1 / -1;
+  }
+  .mp-shaft .mp-shaft__load > .mp-shaft__second {
+    grid-column-start: 1;
+  }
+  /* The whole width of the form for the fields: the button that removes a row stands on the line of the row's
+     number, not in a column of its own beside them. The row that held fields and button gives its two children
+     to the item's own grid. */
+  .mp-shaft .mp-app__item:has(> .mp-shaft__name) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: center;
+    column-gap: var(--mp-4);
+  }
+  .mp-shaft .mp-shaft__name {
+    margin: 0;
+  }
+  .mp-shaft .mp-shaft__name + .mp-app__row--rm {
+    display: contents;
+  }
+  .mp-shaft .mp-shaft__name + .mp-app__row--rm > .mp-app__remove {
+    grid-area: 1 / 2;
+  }
+  .mp-shaft .mp-shaft__name + .mp-app__row--rm > .mp-app__fields,
+  .mp-shaft .mp-app__item:has(> .mp-shaft__name) > .mp-app__row-error {
+    grid-column: 1 / -1;
+  }
+  .mp-shaft__table,
+  .mp-shaft__table > tbody {
+    display: block;
+  }
+  /* The heads are said by each cell (below): kept for a screen reader, out of sight. */
+  .mp-shaft__table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* The cells of a line stand on one foot: a head that takes two lines ("Horizontal reaction (lbf)") does not
+     push its value below the value beside it. */
+  .mp-shaft__table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding-block: 0.35rem;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-shaft__table tbody th,
+  .mp-shaft__table td {
+    flex: 0 0 50%;
+    min-width: 0;
+    padding-block: 0.3rem;
+    border-block-end: 0;
+    white-space: normal;
+  }
+  .mp-shaft__table tbody tr > :nth-child(2n) {
+    padding-inline-end: 0;
+  }
+  /* Each cell under its own head, set as a table's head is. Its unit keeps its own letters (.mp-plot__unit). */
+  .mp-shaft__table .mp-shaft__head {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mp-ink-3);
+  }
+  /* "Values at a point": what a row is has the whole line, and its three values stand under it — each a third
+     of the line, and never narrower than the number in it: a value written with a power of ten is wider than a
+     third of a narrow phone, and where the three do not fit on a line the last goes under the first, whole and
+     still under its own head. (Held to a third, it was written over the value beside it.) */
+  .mp-shaft__table--point tbody th {
+    flex-basis: 100%;
+    padding-block-end: 0;
+  }
+  .mp-shaft__table--point tbody td {
+    flex-basis: 33.333%;
+    min-width: auto;
+  }
+  .mp-shaft__table--point tbody tr > :nth-child(2n) {
+    padding-inline-end: 0.75rem;
+  }
+}
+/* The narrowest phones: under 340px a line does not hold a moment's size of seven characters with "lbf·in" after
+   it and "Counter-clockwise" beside it whole. There each field of an applied moment has a line to itself, the way
+   it turns still right under the size it is of. */
+@media screen and (max-width: 339px) {
+  .mp-shaft .mp-app__fields.mp-shaft__load--moment {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media print {
+  .mp-shaft__name {
+    margin: 0;
+    font-size: 6.5pt;
+    font-weight: 600;
+    color: #000;
+  }
+  /* A LOAD ON THE SHEET is three lines of two columns: its name and its place; then A LINE TO A PLANE — the size
+     and, right after it, the way it acts. As a row that wraps where it will (the sheet's own way with a row of
+     fields) the second "Direction" stood alone on the next line, under "Position", with nothing but its order to
+     say which size it was of. The row and its fields give their children to the load's own grid, as on a phone;
+     the name stands at the head of the first column, so a load is no taller than it was.
+     Where the browser sizes a field by what is in it, the first column is as wide as the widest thing in it and
+     each field as wide as its value, its unit right after it. */
+  .mp-shaft .mp-app__item:has(> .mp-app__row--rm > .mp-shaft__load) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 0.5mm 2.5mm;
+    align-items: end;
+  }
+  .mp-shaft .mp-app__item:has(> .mp-app__row--rm > .mp-shaft__load) > .mp-app__row--rm,
+  .mp-shaft .mp-app__fields.mp-shaft__load {
+    display: contents;
+  }
+  .mp-shaft .mp-app__item:has(> .mp-app__row--rm > .mp-shaft__load) > .mp-shaft__name {
+    align-self: start;
+  }
+  .mp-shaft .mp-app__item:has(> .mp-app__row--rm > .mp-shaft__load) > .mp-app__row-error {
+    grid-column: 1 / -1;
+  }
+  @supports (field-sizing: content) {
+    .mp-shaft .mp-app__item:has(> .mp-app__row--rm > .mp-shaft__load) {
+      grid-template-columns: max-content minmax(0, 1fr);
+      column-gap: 4mm;
+      justify-items: start;
+    }
+  }
+  /* A solid segment has an empty bore field on screen, which on paper is a unit after nothing: left out. */
+  .mp-shaft .mp-shaft__solid {
+    display: none;
+  }
+  .mp-shaft__table {
+    max-width: none;
+  }
+  .mp-shaft__table tbody th .mp-plot__unit {
+    font-size: 6pt;
+  }
+  /* THE SHAFT AND ITS THREE DIAGRAMS are read as one column, on one scale — the positions are written on the
+     shaft's own dimension line and nowhere else — so they are held together on one sheet, as the continuous
+     beam's are. That is possible because the calculator puts its CARDS UNDER THE FORM for paper
+     (ShaftCalculator.tsx, `cards`), and marks itself when it has (.mp-shaft--sheet): a shaft's form is short and
+     its drawing tall, and with the cards last the four drawings went overleaf whole and left the first sheet
+     half empty under the input.
+     Printed before the script has run, the page is not marked and its cards are last: there the drawings are
+     let part between two sheets, each of them whole (the sheet's own rule for a drawing). */
+  .mp-shaft .mp-app__plots {
+    break-inside: auto;
+  }
+  .mp-shaft.mp-shaft--sheet .mp-app__plots {
+    break-inside: avoid;
+  }
+  /* The limit of a list is said to whoever is adding rows, not on the sheet. */
+  .mp-shaft__limit {
+    display: none;
+  }
+  /* A group of the input is whole in its column of the sheet — until it has five rows or more. Twelve forces are
+     taller than what is left of the first sheet beside eight segments: whole, they went overleaf and left two
+     of the sheet's three columns empty. A long list runs on into the next column, row by row (a row is never
+     split: the sheet's own rule), its title staying with its first row. */
+  .mp-shaft .mp-app__group:has(> .mp-app__item:nth-of-type(5)) {
+    break-inside: auto;
+  }
+  .mp-shaft .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend {
+    break-after: avoid;
+  }
+}
+
 /* THE CONTINUOUS BEAM (.mp-cont) — the third calculator
    (continuous/ContinuousCalculator.tsx). It is laid out by the rules above,
    as the first two are; what follows is only what a beam entered span by
