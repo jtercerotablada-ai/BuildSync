@@ -1188,6 +1188,9 @@ describe('continuous beam calculator: what only its source can show of the wirin
     expect(code).toMatch(/const leaveX = \(\) => \{\s*const focused = document\.activeElement;\s*if \(typingX\.current && focused instanceof HTMLElement\) focused\.blur\(\);\s*\};/);
     expect(code).toContain('<div className="mp-app__plots" ref={plotRef} onPointerDownCapture={leaveX}>');
     expect(code).toMatch(/onEdit=\{\(\) => \{\s*typingX\.current = true;\s*setTypedX\(x0\);\s*setProbeX\(null\);\s*\}\}\s*onCommit=\{\(\) => \{\s*typingX\.current = false;\s*\}\}/);
+    // The x field is in a card of the results: when they go with the focus still in it, it is never left, and
+    // the flag is dropped with them — or the diagrams would stop answering for the rest of the visit.
+    expect(code).toMatch(/const r = unweighed \? null : a\.results;\s*useEffect\(\(\) => \{\s*if \(!r\) typingX\.current = false;\s*\}, \[r\]\);/);
   });
 
   // The beam is solved a moment after a key, not inside it — but only while numbers alone change, never on paper, and never for a beam opened whole.

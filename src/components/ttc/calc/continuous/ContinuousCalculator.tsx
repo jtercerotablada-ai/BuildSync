@@ -259,6 +259,13 @@ export function ContinuousCalculator({ t, c, generalPath, initial }: { t: BeamUi
   // shown as this one's. No results until the table arrives — and if it is lost, the results box says so.
   const unweighed = awaited !== null && form.section.selfWeight;
   const r = unweighed ? null : a.results;
+  // The x field goes with the results: nobody is typing in a field that is
+  // not there. Gone with the focus still in it — a span removed by a tap
+  // that does not take the focus — it is never left, and its flag stood: the
+  // diagrams then answered neither the pointer nor a finger.
+  useEffect(() => {
+    if (!r) typingX.current = false;
+  }, [r]);
   // The same beam as the first calculator's drawing takes one, and what is written by its loads.
   const drawing = useMemo(() => drawingOf(solved), [solved]);
   const beam = drawing.beam;
