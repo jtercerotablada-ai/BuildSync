@@ -1,5 +1,5 @@
 import { formatNumber } from '../format';
-import { NAMED, NUMBER, checkOf, round4, signed, tidy, written, type Direction, type Rotation, type UnitSystem } from '../beam/model';
+import { NAMED, NUMBER, checkOf, checked, round4, signed, tidy, written, type Direction, type Rotation, type UnitSystem } from '../beam/model';
 import type { ShaftBearing, ShaftDrawing, ShaftIssue, ShaftIssueCode, ShaftModel, ShaftSegment } from './types';
 
 /**
@@ -788,7 +788,7 @@ const MATERIAL_LETTER: Record<ShaftMaterial, string> = { steel: 's', stainless: 
 /*
  * No form writes a longer address: eight hollow segments and twelve loads of
  * each kind, with every number at its longest (22 characters, as in
- * beam/model.ts), come to 2,312 characters. model.test.ts writes it.
+ * beam/model.ts), come to 2,319 characters. model.test.ts writes it.
  */
 const MAX_LINK = 2500;
 
@@ -828,7 +828,8 @@ const sized = (v: number, reversed: boolean): string => (Number.isNaN(v) && reve
  * they are the visitor's own.
  *
  * IT BEGINS WITH A CHECK of the rest, the first calculator's (`checkOf`): a
- * link that lost a character on its way is not a link to another shaft.
+ * link cut short, or with a character more, less or changed on its way — or
+ * two — is not a link to another shaft.
  */
 export function encodeShaft(form: ShaftForm): string {
   const n = written;
@@ -845,19 +846,19 @@ export function encodeShaft(form: ShaftForm): string {
 
 /**
  * The case a string from `encodeShaft` describes, or `null` if it is
- * anything else: a check that is not the rest's, not six fields, a number in
- * any notation but the page's own, a shaft of no segment or of more than
- * eight, bearings that are not two, more loads than the form lists, a
- * material that is none of the four. The string comes back from wherever a
- * link was pasted.
+ * anything else: a check that is not the rest's (as it is written now, or as
+ * it was before 14 October 2026: beam/model.ts, `checked`), not six fields,
+ * a number in any notation but the page's own, a shaft of no segment or of
+ * more than eight, bearings that are not two, more loads than the form
+ * lists, a material that is none of the four. The string comes back from
+ * wherever a link was pasted.
  *
  * The rows are numbered again, the segments first: a link carries no ids.
  */
 export function decodeShaft(text: string): ShaftForm | null {
   if (text.length > MAX_LINK) return null;
-  const cut = text.indexOf(';');
-  const body = text.slice(cut + 1);
-  if (cut < 1 || text.slice(0, cut) !== checkOf(body)) return null;
+  const body = checked(text);
+  if (body === null) return null;
   const parts = body.split(';');
   if (parts.length !== 6) return null;
   const [units, bearings, segments, forces, couples, material] = parts;

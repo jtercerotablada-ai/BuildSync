@@ -497,7 +497,7 @@ describe('shaft analysis: the example, number by number', () => {
     expect(pulley.deflection.horizontal).toBeGreaterThan(0);
     // The horizontal plane is symmetrical about the gear: no slope there, to the last figure the page would print.
     expect(gear.slope.horizontal).toBe(0);
-    expect([printed(gear.deflection.both), printed(gear.slope.both)]).toEqual(['0.001667', '7.316 × 10^-5']);
+    expect([printed(gear.deflection.both), printed(gear.slope.both)]).toEqual(['0.001667', '7.316 × 10^−5']);
     expect([printed(pulley.deflection.both), printed(pulley.slope.both)]).toEqual(['0.003573', '0.001093']);
   });
 

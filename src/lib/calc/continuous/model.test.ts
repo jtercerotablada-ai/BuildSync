@@ -126,16 +126,38 @@ const carriedBeam = (f: BeamForm) => ({
 });
 
 /* The check a link begins with, worked out here a second time from its
-   description in beam/model.ts: the length of the rest and a sum of its
-   characters, in base 36. People keep the links they were sent, so the rule
-   may not drift — and a test that asked the model for it could not tell. */
+   description in beam/model.ts — as a sum of powers, where the model
+   multiplies as it goes: the mark K; the codes of the rest's characters, the
+   last weighted by A, the one before by A², and so on, added up modulo the
+   prime P; the same with the powers of A²; each sum in four characters of
+   base 36; and the length of the rest in base 36. People keep the links they
+   were sent, so the rule may not drift — and a test that asked the model for
+   it could not tell. */
+const P = 1679609;
+const A = 1038055;
 const checkOf = (body: string) => {
+  const A2 = (A * A) % P;
+  let [a, b, wa, wb] = [0, 0, 1, 1];
+  for (let i = body.length - 1; i >= 0; i--) {
+    [wa, wb] = [(wa * A) % P, (wb * A2) % P];
+    a = (a + body.charCodeAt(i) * wa) % P;
+    b = (b + body.charCodeAt(i) * wb) % P;
+  }
+  const four = (v: number) => v.toString(36).padStart(4, '0');
+  return `K${four(a)}${four(b)}${body.length.toString(36)}`;
+};
+/** These seven fields as the page would write them: behind their check. */
+const sealed = (body: string) => `${checkOf(body)};${body}`;
+/* The check of the links written before 14 October 2026, from ITS
+   description: the length of the rest and a sum of its characters, in base
+   36. Kept here to write such links, which must still open. */
+const oldCheckOf = (body: string) => {
   let sum = 0;
   for (const ch of body) sum = (sum * 31 + ch.charCodeAt(0)) % 1296;
   return (body.length * 1296 + sum).toString(36);
 };
-/** These seven fields as the page would write them: behind their check. */
-const sealed = (body: string) => `${checkOf(body)};${body}`;
+/** These seven fields as the page wrote them before 14 October 2026. */
+const oldSealed = (body: string) => `${oldCheckOf(body)};${body}`;
 /** The seven fields of a link, without its check. */
 const bodyOf = (link: string) => link.slice(link.indexOf(';') + 1);
 
@@ -149,6 +171,43 @@ const dice = (seed: number) => {
   const pick = <T>(list: readonly T[]): T => list[Math.floor(rnd() * list.length)];
   return { rnd, pick };
 };
+
+/** A beam not chosen: any ends, one to eight spans, loads on any of them, settlements, any number a field can show, each kind of section, both systems. */
+function randomContinuous(rnd: () => number, pick: <T>(list: readonly T[]) => T): ContinuousForm {
+  // Any number, as a field holds it once it has been shown: to eight figures.
+  const any = () => Number(fieldNumber(pick([0, 20, 12.5, -3, 1e21, 1e-7, 2e12, 123456789012, 5e-324, (rnd() - 0.3) * 100, (rnd() - 0.5) * 10 ** Math.round((rnd() - 0.5) * 600)])));
+  const size = () => Math.abs(any());
+  const units = pick(['us', 'si'] as const);
+  const material = pick(['steel', 'aluminum', 'concrete', 'wood', 'custom'] as const);
+  let id = 1;
+  const spans = Array.from({ length: 1 + Math.floor(rnd() * MAX_SPANS) }, () => span(id++, any(), pick([1, 1, any()]), pick([0, any()]), pick([0, any()])));
+  const on = () => Math.floor(rnd() * spans.length);
+  const some = <T>(row: () => T): T[] => Array.from({ length: pick([0, 0, 1, 2, 3, MAX_ROWS]) }, row);
+  return {
+    units,
+    spans,
+    left: pick(['pin', 'fixed', 'free'] as const),
+    right: pick(['pin', 'fixed', 'free'] as const),
+    settlements: rnd() < 0.5 ? zeros(spans.length + 1) : Array.from({ length: spans.length + 1 }, () => pick([0, any()])),
+    points: some(() => point(id++, on(), any(), size(), pick(['down', 'up'] as const), rnd() < 0.5)),
+    dists: some(() => dist(id++, on(), any(), any(), size(), size(), pick(['down', 'up'] as const), rnd() < 0.5)),
+    everyArrangement: rnd() < 0.5,
+    section: {
+      ...defaultContinuous().section,
+      mode: pick(['props', 'rect', 'shape'] as const),
+      material,
+      E: material === 'custom' ? size() : MATERIALS[material][units],
+      I: size(),
+      S: size(),
+      Av: size(),
+      b: size(),
+      h: size(),
+      shape: pick(['W21X44', 'HSS6X4X3/8', 'Pipe5XS']),
+      selfWeight: rnd() < 0.5,
+    },
+    nextId: id,
+  };
+}
 
 /** A form nothing can write on: an edit that changed its form in place, instead of returning another, would throw. */
 const frozen = <T>(value: T): T => {
@@ -1066,7 +1125,7 @@ describe('continuous form: the same beam, as the first calculator holds one', ()
     const code = generalCode(d)!;
     expect(code).toBe(encodeBeam(toBeamForm(d)));
     // Written out: three spans end to end, their two loads each, the section.
-    expect(code).toBe('3m6o;us;78;p0_r24_r54_r78;;;0,24,0.9,0.9_0,24,1.2,1.2_24,54,0.9,0.9_24,54,1.2,1.2_54,78,0.9,0.9_54,78,1.2,1.2;;p,s,29000,843,81.6,7.245');
+    expect(code).toBe('K71e57yx83m;us;78;p0_r24_r54_r78;;;0,24,0.9,0.9_0,24,1.2,1.2_24,54,0.9,0.9_24,54,1.2,1.2_54,78,0.9,0.9_54,78,1.2,1.2;;p,s,29000,843,81.6,7.245');
     const opened = decodeBeam(code)!;
     expect(carriedBeam(opened)).toEqual(carriedBeam(toBeamForm(d)));
     expect(opened.section).toMatchObject({ mode: 'props', material: 'steel', E: 29000, I: 843, S: 81.6, Av: 7.245 });
@@ -1184,17 +1243,24 @@ describe('continuous form: a beam in an address', () => {
   });
 
   // Written out, so that the rule is pinned by something other than itself:
-  // 73 characters is 21 in base 36 (2 × 36 + 1), and their sum is 393: ax.
+  // the two sums of the example's 73 characters are 716,775 and 367,755 —
+  // fd2f and 7vrf in base 36 — and 73 is 21 (2 × 36 + 1).
   it('the address of the example is short, and is this', () => {
-    expect(encodeContinuous(d)).toBe('21ax;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;p,s,29000,843,81.6,7.245');
-    expect(encodeContinuous(d).length).toBeLessThan(80);
-    expect(encodeContinuous(beam({ section: section({ mode: 'rect' }) }))).toBe('1s64;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;r,s,29000,12,24');
-    expect(encodeContinuous(beam({ section: section({ mode: 'shape' }) }))).toBe('1n8a;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;s,W21X44,0');
-    expect(encodeContinuous(beam({ section: section({ mode: 'shape', selfWeight: true }) }))).toBe('1n8b;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;s,W21X44,1');
+    expect(encodeContinuous(d)).toBe('Kfd2f7vrf21;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;p,s,29000,843,81.6,7.245');
+    expect(encodeContinuous(d).length).toBeLessThan(90);
+    expect(encodeContinuous(beam({ section: section({ mode: 'rect' }) }))).toBe('Knpg8xv411s;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;r,s,29000,12,24');
+    expect(encodeContinuous(beam({ section: section({ mode: 'shape' }) }))).toBe('Krpf19x1j1n;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;s,W21X44,0');
+    expect(encodeContinuous(beam({ section: section({ mode: 'shape', selfWeight: true }) }))).toBe('Kdye39pin1n;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;s,W21X44,1');
     // One of everything: the ends, each span, the settlements, a live and a dead load of each kind, up and down.
     expect(encodeContinuous(worked())).toBe(sealed('us;fn1;20,1,0.5,0_30,2,0,1.5_10,0.5,0.8,1;0_0.6_0_0.3;l2,12,9_d3,10,-4;d1,5,15,-1,-2_l2,0,30,0.4,0;p,s,29000,1000,81.6,7.245'));
     for (const f of [d, worked(), convertContinuous(worked(), 'si')]) expect(encodeContinuous(f)).toBe(sealed(bodyOf(encodeContinuous(f))));
-    expect(carried(decodeContinuous('21ax;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;p,s,29000,843,81.6,7.245')!)).toEqual(carried(d));
+    expect(carried(decodeContinuous('Kfd2f7vrf21;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;p,s,29000,843,81.6,7.245')!)).toEqual(carried(d));
+    // The page's address before 14 October 2026, with the check of that day — 73 characters is 21, and their sum
+    // was 393: ax. Links written then have been sent, and open as the same beam.
+    expect(decodeContinuous('21ax;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;p,s,29000,843,81.6,7.245')).toEqual(decodeContinuous(encodeContinuous(d)));
+    expect(decodeContinuous('1s64;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;r,s,29000,12,24')).toEqual(decodeContinuous(encodeContinuous(beam({ section: section({ mode: 'rect' }) }))));
+    expect(decodeContinuous('1n8b;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;s,W21X44,1')).toEqual(decodeContinuous(encodeContinuous(beam({ section: section({ mode: 'shape', selfWeight: true }) }))));
+    expect(decodeContinuous('21ay;us;pp1;24,1,0.9,1.2_30,1,0.9,1.2_24,1,0.9,1.2;;;;p,s,29000,843,81.6,7.245')).toBeNull();
     // The page's key is its own: c, where the first calculator's is b and the second's s.
     expect(CONTINUOUS_KEY).toBe('c');
     expect(SPAN_KEY).not.toBe(CONTINUOUS_KEY);
@@ -1358,41 +1424,10 @@ describe('continuous form: a beam in an address', () => {
   // kind of section, both systems.
   it('four hundred random forms each reopen as themselves', () => {
     const { rnd, pick } = dice(20261013);
-    // Any number, as a field holds it once it has been shown: to eight figures.
-    const any = () => Number(fieldNumber(pick([0, 20, 12.5, -3, 1e21, 1e-7, 2e12, 123456789012, 5e-324, (rnd() - 0.3) * 100, (rnd() - 0.5) * 10 ** Math.round((rnd() - 0.5) * 600)])));
-    const size = () => Math.abs(any());
     const seen = { spans: new Set<number>(), settled: 0, loads: 0, ends: new Set<string>(), sections: new Set<string>() };
     for (let i = 0; i < 400; i++) {
-      const units = pick(['us', 'si'] as const);
-      const material = pick(['steel', 'aluminum', 'concrete', 'wood', 'custom'] as const);
-      let id = 1;
-      const spans = Array.from({ length: 1 + Math.floor(rnd() * MAX_SPANS) }, () => span(id++, any(), pick([1, 1, any()]), pick([0, any()]), pick([0, any()])));
-      const on = () => Math.floor(rnd() * spans.length);
-      const some = <T>(row: () => T): T[] => Array.from({ length: pick([0, 0, 1, 2, 3, MAX_ROWS]) }, row);
-      const form: ContinuousForm = {
-        units,
-        spans,
-        left: pick(['pin', 'fixed', 'free'] as const),
-        right: pick(['pin', 'fixed', 'free'] as const),
-        settlements: rnd() < 0.5 ? zeros(spans.length + 1) : Array.from({ length: spans.length + 1 }, () => pick([0, any()])),
-        points: some(() => point(id++, on(), any(), size(), pick(['down', 'up'] as const), rnd() < 0.5)),
-        dists: some(() => dist(id++, on(), any(), any(), size(), size(), pick(['down', 'up'] as const), rnd() < 0.5)),
-        everyArrangement: rnd() < 0.5,
-        section: {
-          ...d.section,
-          mode: pick(['props', 'rect', 'shape'] as const),
-          material,
-          E: material === 'custom' ? size() : MATERIALS[material][units],
-          I: size(),
-          S: size(),
-          Av: size(),
-          b: size(),
-          h: size(),
-          shape: pick(['W21X44', 'HSS6X4X3/8', 'Pipe5XS']),
-          selfWeight: rnd() < 0.5,
-        },
-        nextId: id,
-      };
+      const form = randomContinuous(rnd, pick);
+      const { spans } = form;
       const link = encodeContinuous(form);
       expect(link).toMatch(/^[A-Za-z0-9.,;_/-]+$/);
       const back = decodeContinuous(link)!;
@@ -1582,7 +1617,7 @@ describe('continuous form: a beam in an address', () => {
       nextId: 100,
     };
     const link = encodeContinuous(worst);
-    expect(link).toHaveLength(2779);
+    expect(link).toHaveLength(2786);
     expect(carried(decodeContinuous(link)!)).toEqual(carried(worst));
     // Zeros after a decimal point are still the number, so a link can be
     // padded to any length with every field in order: it is the length that
@@ -1649,6 +1684,129 @@ describe('continuous form: a link that lost part of itself', () => {
         expect(decodeContinuous(`${other};${body}`), `${name}: "${other}"`).toBeNull();
       }
       expect(decodeContinuous(body), name).toBeNull();
+    }
+  });
+});
+
+/* ── The check, put to the test (beam/model.test.ts holds the check itself; these are this page's links) ── */
+
+/** Printable ASCII: what a link typed over, or garbled on its way, is likeliest to hold. */
+const PRINTABLE = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join('');
+/** What an address is written in, and a few characters it is not. */
+const WRITTEN = '0123456789.,;_-/~abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ %';
+
+/** Every text one character away from `link` — changed, added, taken away, at every place, the check included — with every character of `alphabet`, or `per` drawn at each place. */
+function* oneAway(link: string, alphabet: string, draw?: { rnd: () => number; per: number }): Generator<string> {
+  for (let i = 0; i <= link.length; i++) {
+    const chars = draw ? Array.from({ length: draw.per }, () => alphabet[Math.floor(draw.rnd() * alphabet.length)]) : [...alphabet];
+    for (const ch of chars) {
+      yield link.slice(0, i) + ch + link.slice(i);
+      if (i < link.length && ch !== link[i]) yield link.slice(0, i) + ch + link.slice(i + 1);
+    }
+    if (i < link.length) yield link.slice(0, i) + link.slice(i + 1);
+  }
+}
+
+/** `link` with two of its characters, drawn at random anywhere in it, changed to others of `alphabet`. */
+const twoChanged = (link: string, alphabet: string, rnd: () => number): string => {
+  const chars = [...link];
+  const i = Math.floor(rnd() * chars.length);
+  let j = Math.floor(rnd() * (chars.length - 1));
+  if (j >= i) j += 1;
+  for (const at of [i, j]) {
+    const was = chars[at];
+    while (chars[at] === was) chars[at] = alphabet[Math.floor(rnd() * alphabet.length)];
+  }
+  return chars.join('');
+};
+
+/** Every pair of characters 54 apart in `body`, one moved a code up and the other down: what the check of before let through every time. */
+function* apart54(body: string): Generator<string> {
+  const printable = (c: number) => c >= 32 && c <= 126;
+  for (let i = 0; i + 54 < body.length; i++) {
+    const [p, q] = [body.charCodeAt(i), body.charCodeAt(i + 54)];
+    const d = printable(p + 1) && printable(q - 1) ? 1 : printable(p - 1) && printable(q + 1) ? -1 : 0;
+    if (d) yield body.slice(0, i) + String.fromCharCode(p + d) + body.slice(i + 1, i + 54) + String.fromCharCode(q - d) + body.slice(i + 55);
+  }
+}
+
+describe('continuous form: the check of its address, put to the test', () => {
+  const d = defaultContinuous();
+  const examples: ContinuousForm[] = [
+    d,
+    convertContinuous(d, 'si'),
+    beam({ section: section({ mode: 'rect' }) }),
+    beam({ section: section({ mode: 'shape', selfWeight: true }) }),
+    worked(),
+    convertContinuous(worked(), 'si'),
+    beam({ spans: [span(1, 20)], settlements: [0, 0], left: 'fixed', right: 'free' }),
+  ];
+  /** Three hundred beams not chosen, from the generator the round trip is held to. */
+  const drawn = (() => {
+    const { rnd, pick } = dice(20261014);
+    return { rnd, forms: Array.from({ length: 300 }, () => randomContinuous(rnd, pick)) };
+  })();
+  const links = [...examples, ...drawn.forms].map(encodeContinuous);
+
+  it('every beam opens as itself, behind the check described, and writes the same address again', () => {
+    for (const form of [...examples, ...drawn.forms]) {
+      const link = encodeContinuous(form);
+      expect(link).toBe(sealed(bodyOf(link)));
+      const back = decodeContinuous(link)!;
+      expect(back, link).not.toBeNull();
+      expect(carried(back), link).toEqual(carried(form));
+      expect(encodeContinuous(back), link).toBe(link);
+    }
+  });
+
+  it('one character changed, added or taken away anywhere — the check included — is no link: the examples with every printable character, the random beams with characters drawn at every place', () => {
+    let tried = 0;
+    for (const [n, link] of links.entries()) {
+      for (const text of n < examples.length ? oneAway(link, PRINTABLE) : oneAway(link, WRITTEN, { rnd: drawn.rnd, per: 1 })) {
+        tried += 1;
+        if (decodeContinuous(text) !== null) expect.fail(`opened: ${text}`);
+      }
+    }
+    expect(tried).toBeGreaterThan(350000);
+  }, 30_000);
+
+  it('two characters changed are no link: twenty thousand drawn anywhere, and every pair 54 apart — each of which the check of before let through', () => {
+    for (let n = 0; n < 20000; n++) {
+      const text = twoChanged(links[n % links.length], n % 2 ? PRINTABLE : WRITTEN, drawn.rnd);
+      if (decodeContinuous(text) !== null) expect.fail(`opened: ${text}`);
+    }
+    // The longest link a form writes: eight spans, nine settlements, twelve loads of each kind, every number at its longest.
+    const big = -1.2345678e20;
+    const longest = encodeContinuous({
+      units: 'us',
+      spans: Array.from({ length: MAX_SPANS }, (_, i) => span(i + 1, big, big, big, big)),
+      left: 'fixed',
+      right: 'free',
+      settlements: Array.from({ length: MAX_SPANS + 1 }, () => big),
+      points: Array.from({ length: MAX_ROWS }, (_, i) => point(20 + i, 7, big, -big, 'up', true)),
+      dists: Array.from({ length: MAX_ROWS }, (_, i) => dist(40 + i, 7, big, big, -big, -big, 'up', true)),
+      everyArrangement: true,
+      section: section({ material: 'custom', E: big, I: big, S: big, Av: big }),
+      nextId: 100,
+    });
+    let pairs = 0;
+    for (const link of [longest, ...links.slice(0, examples.length)]) {
+      const body = bodyOf(link);
+      for (const changed of apart54(body)) {
+        pairs += 1;
+        // The check of before could not tell this body from the one written; this one can.
+        expect(oldCheckOf(changed)).toBe(oldCheckOf(body));
+        if (decodeContinuous(`${link.slice(0, link.indexOf(';'))};${changed}`) !== null) expect.fail(`opened: ${changed}`);
+      }
+    }
+    expect(pairs).toBeGreaterThan(2700);
+  });
+
+  it('every one of those beams opens from a link with the check of before 14 October 2026, as the same beam', () => {
+    for (const link of links) {
+      const old = oldSealed(bodyOf(link));
+      expect(old, link).not.toBe(link);
+      expect(decodeContinuous(old), old).toEqual(decodeContinuous(link));
     }
   });
 });

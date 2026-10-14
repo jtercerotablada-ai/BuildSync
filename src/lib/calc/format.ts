@@ -27,6 +27,34 @@ function plain(significant: number): Intl.NumberFormat {
  * What sets the thousands apart is the page's to say (`group`). A comma on
  * the English page: 53,670. On the Spanish page a narrow space, 53 670: a
  * reader who writes decimals with a comma took "53,670" for 53.67.
+ *
+ * A power of ten is "7.316 × 10^−5". The exponent's minus is a true one,
+ * "−", as an engineer writes it. The value's own sign stays the hyphen every
+ * negative here is printed with, the one a field reads back (`parseNumber`);
+ * a power of ten is never read back.
+ *
+ * The spaces round its × are plain ones, which a line may end at. A page
+ * that holds such a number on one line sets them so itself, and makes room
+ * for it (ShaftCalculator.tsx, `num`: its cards that are a table move
+ * sideways, calc.css). Set here, for every page, they held it whole in cards
+ * that have no such room: on a phone the first two calculators' "Reactions"
+ * ran past its card — 56 px at 320 px wide and 16 px at 360 in Spanish, for
+ * a reaction of four figures — and its Moment column was cut at the edge of
+ * the screen.
+ *
+ * Not raised, "10⁻⁵": the page has nothing to draw that with. Geist and Geist
+ * Mono, as the site loads them (next/font, Google's latin subset), have a
+ * raised ¹, ² and ³ and no other raised figure, and no raised minus. The
+ * browser took ⁰ and ⁴ to ⁹ from Arial, at 105 % of its size beside Geist
+ * and 135 % beside the drawings' mono, and the ⁻ from a third font — another
+ * on every machine. In a card's 14 px the raised figures were six or seven
+ * pixels tall, four or five on paper: "10⁻¹¹" was a smudge on an ordinary
+ * screen, and a drawing's label set a small ¹ beside a large, heavy ⁰.
+ * Windows' own speech read "7.316 × 10⁻⁵" as "seven point three one six
+ * times one zero". The caret is in the type, reads "to the power" to any
+ * engineer, and a line cannot end at it, nor at the minus after it. (A
+ * unit's raised figure, in⁴, is set up by markup where it is printed:
+ * ShaftCalculator.tsx, `raised`.)
  */
 export function formatNumber(value: number, significant = 4, group = ','): string {
   if (!Number.isFinite(value)) return '—';
@@ -34,7 +62,7 @@ export function formatNumber(value: number, significant = 4, group = ','): strin
   if (abs < 1e-12) return '0';
   if (abs >= 1e7 || abs < 1e-4) {
     const [mantissa, exponent] = value.toExponential(Math.max(0, significant - 1)).split('e');
-    return `${Number(mantissa)} × 10^${Number(exponent)}`;
+    return `${Number(mantissa)} × 10^${String(Number(exponent)).replace('-', '−')}`;
   }
   // By figures, not by decimals: six decimals cut 0.0001192 to 0.000119.
   const text = plain(significant).format(Number(value.toPrecision(significant)));
@@ -88,8 +116,9 @@ export function ambiguousNumber(text: string, group = ','): { grouped: string; d
  * a plain number a page prints can be typed back on it. So can whatever a
  * field shows (`fieldNumber`), which writes a value of 10²¹ or more with an
  * exponent and its sign, "1e+21" — a spreadsheet's spelling too. The tables'
- * "4 × 10^20" is not read: pasted into a field it is refused, not taken for
- * another number.
+ * "4 × 10^20" and "7.316 × 10^−5" are not read, nor the same with raised
+ * figures, "7.316 × 10⁻⁵": pasted into a field they are refused, not taken
+ * for another number.
  *
  * Commas. The English page prints 29,000 — so a number typed that way, with
  * commas every three digits, is that number (read as a decimal comma it was

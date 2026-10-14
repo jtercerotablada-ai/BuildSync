@@ -39,6 +39,37 @@ const foreign = (): BeamForm => ({
 });
 const supportsOf = (f: BeamForm) => f.supports.map((s) => [s.kind, s.x]);
 
+/* The check a link begins with, worked out here a second time from its
+   description in model.ts (as model.test.ts does): the mark K, two sums of
+   the character codes of the rest — weighted by the powers of A from the
+   last character back, and by those of A² — modulo the prime P, four
+   characters each in base 36, and the length of the rest in base 36. */
+const P = 1679609;
+const A = 1038055;
+const checkOf = (body: string) => {
+  const A2 = (A * A) % P;
+  let [a, b, wa, wb] = [0, 0, 1, 1];
+  for (let i = body.length - 1; i >= 0; i--) {
+    [wa, wb] = [(wa * A) % P, (wb * A2) % P];
+    a = (a + body.charCodeAt(i) * wa) % P;
+    b = (b + body.charCodeAt(i) * wb) % P;
+  }
+  const four = (v: number) => v.toString(36).padStart(4, '0');
+  return `K${four(a)}${four(b)}${body.length.toString(36)}`;
+};
+/** The check of the links written before 14 October 2026 (model.test.ts has it from its description too). */
+const oldCheckOf = (body: string) => {
+  let sum = 0;
+  for (const ch of body) sum = (sum * 31 + ch.charCodeAt(0)) % 1296;
+  return (body.length * 1296 + sum).toString(36);
+};
+/** What follows the first `;` of a link: its fields, without the check. */
+const bodyOf = (link: string) => link.slice(link.indexOf(';') + 1);
+/** The limits and the beam's fields as this page writes them now: behind one check of the whole. */
+const sealed = (rest: string) => `${checkOf(rest)};${rest}`;
+/** The same case as this page wrote it before 14 October 2026: the limits, then the beam behind the check of that day. */
+const oldLink = (limits: string, body: string) => `${limits}~${oldCheckOf(body)};${body}`;
+
 /** The same numbers in the same order, every time: a test that fails must fail again. */
 const dice = (seed: number) => {
   let s = seed;
@@ -592,6 +623,8 @@ describe('single span: the stress limit goes with the units', () => {
 
 describe('single span: its case in an address', () => {
   const beamOf = (link: string) => link.split('~')[2];
+  /** The first calculator's fields of a beam, without its check. */
+  const fieldsOf = (beam: BeamForm) => bodyOf(encodeBeam(beam));
 
   it('the key is s, and the limit the page opens with is L/360', () => {
     expect(SPAN_KEY).toBe('s');
@@ -599,10 +632,28 @@ describe('single span: its case in an address', () => {
   });
 
   // People keep the links they are sent: this string may not drift.
-  it('the limit, the stress or nothing, then the beam as the first calculator writes it', () => {
-    expect(encodeSpan(defaultSpan(), 360, 0)).toBe('360~~1j4z;us;24;p0_r24;;8,6;0,24,0.8,0.8;;p,s,29000,518,64.7,4.88');
-    expect(encodeSpan(defaultSpan(), 240, 21.6)).toBe('240~21.6~1j4z;us;24;p0_r24;;8,6;0,24,0.8,0.8;;p,s,29000,518,64.7,4.88');
-    expect(beamOf(encodeSpan(defaultSpan(), 360, 0))).toBe(encodeBeam(defaultSpan()));
+  it('a check of the whole, then the limit, the stress or nothing, and the beam’s fields as the first calculator writes them', () => {
+    expect(encodeSpan(defaultSpan(), 360, 0)).toBe('K11uo1kkw1o;360~~us;24;p0_r24;;8,6;0,24,0.8,0.8;;p,s,29000,518,64.7,4.88');
+    expect(encodeSpan(defaultSpan(), 240, 21.6)).toBe('Krmio6enw1s;240~21.6~us;24;p0_r24;;8,6;0,24,0.8,0.8;;p,s,29000,518,64.7,4.88');
+    expect(beamOf(encodeSpan(defaultSpan(), 360, 0))).toBe(fieldsOf(defaultSpan()));
+    // The check is of all of it, the limits included: worked out here from its description.
+    for (const [limit, stress] of [[360, 0], [240, 21.6], [0, 0], [Infinity, Number.NaN]]) {
+      const link = encodeSpan(defaultSpan(), limit, stress);
+      expect(link).toBe(sealed(bodyOf(link)));
+    }
+  });
+
+  // Written by the page before 14 October 2026 — the limits first, then the
+  // beam behind the check of that day, which did not count the limits. Such
+  // links have been sent, and open as they did.
+  it('a link written before 14 October 2026 opens as the same case', () => {
+    expect(decodeSpan('360~~1j4z;us;24;p0_r24;;8,6;0,24,0.8,0.8;;p,s,29000,518,64.7,4.88')).toEqual({ form: defaultSpan(), limit: 360, stress: 0 });
+    expect(decodeSpan('240~21.6~1j4z;us;24;p0_r24;;8,6;0,24,0.8,0.8;;p,s,29000,518,64.7,4.88')).toEqual({ form: defaultSpan(), limit: 240, stress: 21.6 });
+    expect(oldLink('360~', fieldsOf(defaultSpan()))).toBe('360~~1j4z;us;24;p0_r24;;8,6;0,24,0.8,0.8;;p,s,29000,518,64.7,4.88');
+    // …and before the first calculator's links had a check, a beam behind none.
+    expect(decodeSpan(`480~24~${fieldsOf(foreign())}`)).toEqual(decodeSpan(encodeSpan(foreign(), 480, 24)));
+    // A beam behind a check of today after the limits is no link anybody wrote: its limits would be checked by nothing.
+    expect(decodeSpan(`360~~${encodeBeam(defaultSpan())}`)).toBeNull();
   });
 
   it('the example read back from its own address is the example, id for id', () => {
@@ -640,15 +691,18 @@ describe('single span: its case in an address', () => {
       [Number.NaN, Number.NaN, 'nan~nan~', [Number.NaN, Number.NaN]],
     ] as const) {
       const link = encodeSpan(defaultSpan(), limit, stress);
-      expect(link.startsWith(head), link).toBe(true);
+      expect(bodyOf(link).startsWith(head), link).toBe(true);
       const read = decodeSpan(link)!;
       expect([read.limit, read.stress], link).toEqual(back);
       expect(encodeSpan(read.form, read.limit, read.stress)).toBe(link);
     }
-    // A zero written with a minus is a plain zero.
-    expect(Object.is(decodeSpan(`-0~-0~${encodeBeam(defaultSpan())}`)!.limit, 0)).toBe(true);
+    // A zero written with a minus is a plain zero — in a link of either day.
+    const fields = fieldsOf(defaultSpan());
+    expect(Object.is(decodeSpan(sealed(`-0~-0~${fields}`))!.limit, 0)).toBe(true);
+    expect(Object.is(decodeSpan(oldLink('-0~-0', fields))!.limit, 0)).toBe(true);
     // A stress of 0 written out is no stress, the same case as nothing there.
-    expect(decodeSpan(`360~0~${encodeBeam(defaultSpan())}`)).toEqual(decodeSpan(`360~~${encodeBeam(defaultSpan())}`));
+    expect(decodeSpan(sealed(`360~0~${fields}`))).toEqual(decodeSpan(sealed(`360~~${fields}`)));
+    expect(decodeSpan(oldLink('360~0', fields))).toEqual(decodeSpan(sealed(`360~~${fields}`)));
   });
 
   // The two limits come first because the beam's own check counts what is
@@ -675,33 +729,35 @@ describe('single span: its case in an address', () => {
 
   it('refuses anything that is not two limits and a beam', () => {
     const beam = encodeBeam(defaultSpan());
+    const fields = fieldsOf(defaultSpan());
+    const old = `${oldCheckOf(fields)};${fields}`;
     for (const bad of [
       '',
       '360',
       '360~',
       '360~~',
       beam,
-      `~~${beam}`,
-      `~24~${beam}`,
-      `abc~~${beam}`,
-      `360~x~${beam}`,
-      `360~24~7~${beam}`,
-      `360 ~~${beam}`,
-      `+360~~${beam}`,
-      `3,60~~${beam}`,
-      `1e999~~${beam}`,
-      `360~1e999~${beam}`,
-      `0x10~~${beam}`,
-      `360~~${beam.slice(1)}`,
-      `360~~${beam.replace(';24;', ';25;')}`,
+      sealed(fields),
+      sealed('360~~'),
+      sealed(`360~~${beam}`),
+      // The limits wrong, the check of the whole right: it is the limits that are refused.
+      ...['~~', '~24~', 'abc~~', '360~x~', '360~24~7~', '360 ~~', '+360~~', '3,60~~', '1e999~~', '360~1e999~', '0x10~~'].map((limits) => sealed(`${limits}${fields}`)),
+      // …and in a link of before, behind the beam's own check of that day.
+      ...['~~', '~24~', 'abc~~', '360~x~', '360~24~7~', '360 ~~', '+360~~', '3,60~~', '1e999~~', '360~1e999~', '0x10~~'].map((limits) => `${limits}${old}`),
+      `360~~${old.slice(1)}`,
+      `360~~${old.replace(';24;', ';25;')}`,
+      sealed(`360~~${fields.replace(';24;', ';24;;')}`),
       '360~~us;24;p0_r24;;8,6;;;p,s,29000,518,64.7',
-      `360;;${beam}`,
+      sealed('360~~us;24;p0_r24;;8,6;;;p,s,29000,518,64.7'),
+      `360;;${old}`,
+      sealed(`360;;${fields}`),
     ]) {
       expect(decodeSpan(bad), bad).toBeNull();
     }
     expect(adoptBeam('')).toBeNull();
     expect(adoptBeam(beam.slice(0, -1))).toBeNull();
     expect(adoptBeam(`360~~${beam}`)).toBeNull();
+    expect(adoptBeam(encodeSpan(defaultSpan(), 360, 0))).toBeNull();
   });
 
   // What stands between the fields is in no beam's own string: a beam is
@@ -712,7 +768,7 @@ describe('single span: its case in an address', () => {
     for (let i = 0; i < 100; i++) expect(encodeBeam(randomSpan(rnd, pick))).not.toContain('~');
     for (const s of shapes) expect(s.designation).not.toContain('~');
     expect(encodeBeam(span({ section: section({ mode: 'shape', shape: 'W~16' }) }))).not.toContain('~');
-    expect(decodeSpan(`360~~${encodeBeam(defaultSpan()).replace('p,s,', 's~,')}`)).toBeNull();
+    expect(decodeSpan(sealed(`360~~${fieldsOf(defaultSpan()).replace('p,s,', 's~,')}`))).toBeNull();
   });
 
   // The first calculator's beams have walls, hinges and moments this page has
@@ -721,8 +777,10 @@ describe('single span: its case in an address', () => {
   it('a beam of the first calculator opens as the pinned span with its loads', () => {
     const f = foreign();
     for (const [how, opened] of [
-      ['in a link of this page', decodeSpan(`480~24~${encodeBeam(f)}`)],
+      ['in a link of this page', decodeSpan(encodeSpan(f, 480, 24))],
+      ['in a link this page wrote before 14 October 2026', decodeSpan(oldLink('480~24', fieldsOf(f)))],
       ['as that calculator’s own link', adoptBeam(encodeBeam(f))],
+      ['as that calculator’s own link of before 14 October 2026', adoptBeam(`${oldCheckOf(fieldsOf(f))};${fieldsOf(f)}`)],
     ] as const) {
       expect(opened, how).not.toBeNull();
       expect(supportsOf(opened!.form), how).toEqual([['pin', 0], ['roller', 20]]);
@@ -734,7 +792,7 @@ describe('single span: its case in an address', () => {
       near(analyse(opened!.form).solution!.reactions[0].Rv, 15.2);
       near(analyse(opened!.form).solution!.reactions[1].Rv, 16.8);
     }
-    expect([decodeSpan(`480~24~${encodeBeam(f)}`)!.limit, decodeSpan(`480~24~${encodeBeam(f)}`)!.stress]).toEqual([480, 24]);
+    expect([decodeSpan(encodeSpan(f, 480, 24))!.limit, decodeSpan(encodeSpan(f, 480, 24))!.stress]).toEqual([480, 24]);
     // Brought over by its own address it has no limits of its own: the page's.
     expect([adoptBeam(encodeBeam(f))!.limit, adoptBeam(encodeBeam(f))!.stress]).toEqual([DEFAULT_LIMIT, 0]);
     // A link from before the first calculator's links had a check opens too, as it does there.
@@ -742,7 +800,7 @@ describe('single span: its case in an address', () => {
     expect(supportsOf(old.form)).toEqual([['pin', 0], ['roller', 30]]);
     near(analyse(old.form).solution!.reactions[0].Rv, 2.5);
     // And once open it is this page's case: its address is written under this page's key, pinned.
-    expect(beamOf(encodeSpan(old.form, old.limit, old.stress))).toContain(';us;30;p0_r30;;15,5;;;');
+    expect(beamOf(encodeSpan(old.form, old.limit, old.stress))).toMatch(/^us;30;p0_r30;;15,5;;;/);
   });
 
   // …but not in silence. An applied moment is a load, and a wall carries what
@@ -765,7 +823,8 @@ describe('single span: its case in an address', () => {
     for (const [what, beam] of more) {
       expect(beyondSpan(decodeBeam(beam)!), what).toBe(true);
       expect(adoptBeam(beam)!.lost, what).toBe(true);
-      expect(decodeSpan(`480~24~${beam}`)!.lost, what).toBe(true);
+      expect(decodeSpan(sealed(`480~24~${bodyOf(beam)}`))!.lost, what).toBe(true);
+      expect(decodeSpan(oldLink('480~24', bodyOf(beam)))!.lost, what).toBe(true);
     }
     // The same loads on a pin and a roller at the two ends are this page's span: nothing was left out, and nothing is said.
     const same: [string, string][] = [
@@ -777,7 +836,8 @@ describe('single span: its case in an address', () => {
     for (const [what, beam] of same) {
       expect(beyondSpan(decodeBeam(beam)!), what).toBe(false);
       expect('lost' in adoptBeam(beam)!, what).toBe(false);
-      expect('lost' in decodeSpan(`480~24~${beam}`)!, what).toBe(false);
+      expect('lost' in decodeSpan(sealed(`480~24~${bodyOf(beam)}`))!, what).toBe(false);
+      expect('lost' in decodeSpan(oldLink('480~24', bodyOf(beam)))!, what).toBe(false);
     }
   });
 
@@ -796,5 +856,128 @@ describe('single span: its case in an address', () => {
     const inSi = decodeSpan(encodeSpan({ ...si, section: { ...si.section, mode: 'rect' } }, 360, 0))!.form.section;
     expect([inSi.I, inSi.S, inSi.Av, inSi.shape]).toEqual([si.section.I, si.section.S, si.section.Av, 'W16X40']);
     expect(inSi.I).toBeCloseTo(518 * US_TO_SI.I, 2);
+  });
+});
+
+/* ── The check, put to the test (model.test.ts holds the check itself; these are this page's links) ── */
+
+/** Printable ASCII: what a link typed over, or garbled on its way, is likeliest to hold. */
+const PRINTABLE = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join('');
+/** What an address is written in, and a few characters it is not. */
+const WRITTEN = '0123456789.,;_-/~abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ %';
+
+/** Every text one character away from `link` — changed, added, taken away, at every place, the check included — with every character of `alphabet`, or `per` drawn at each place. */
+function* oneAway(link: string, alphabet: string, draw?: { rnd: () => number; per: number }): Generator<string> {
+  for (let i = 0; i <= link.length; i++) {
+    const chars = draw ? Array.from({ length: draw.per }, () => alphabet[Math.floor(draw.rnd() * alphabet.length)]) : [...alphabet];
+    for (const ch of chars) {
+      yield link.slice(0, i) + ch + link.slice(i);
+      if (i < link.length && ch !== link[i]) yield link.slice(0, i) + ch + link.slice(i + 1);
+    }
+    if (i < link.length) yield link.slice(0, i) + link.slice(i + 1);
+  }
+}
+
+/** `link` with two of its characters, drawn at random anywhere in it, changed to others of `alphabet`. */
+const twoChanged = (link: string, alphabet: string, rnd: () => number): string => {
+  const chars = [...link];
+  const i = Math.floor(rnd() * chars.length);
+  let j = Math.floor(rnd() * (chars.length - 1));
+  if (j >= i) j += 1;
+  for (const at of [i, j]) {
+    const was = chars[at];
+    while (chars[at] === was) chars[at] = alphabet[Math.floor(rnd() * alphabet.length)];
+  }
+  return chars.join('');
+};
+
+/** Every pair of characters 54 apart in `body`, one moved a code up and the other down: what the check of before let through every time. */
+function* apart54(body: string): Generator<string> {
+  const printable = (c: number) => c >= 32 && c <= 126;
+  for (let i = 0; i + 54 < body.length; i++) {
+    const [p, q] = [body.charCodeAt(i), body.charCodeAt(i + 54)];
+    const d = printable(p + 1) && printable(q - 1) ? 1 : printable(p - 1) && printable(q + 1) ? -1 : 0;
+    if (d) yield body.slice(0, i) + String.fromCharCode(p + d) + body.slice(i + 1, i + 54) + String.fromCharCode(q - d) + body.slice(i + 55);
+  }
+}
+
+describe('single span: the check of its address, put to the test', () => {
+  const si = convertUnits(defaultSpan(), 'si');
+  const examples: [BeamForm, number, number][] = [
+    [defaultSpan(), 360, 0],
+    [defaultSpan(), 240, 21.6],
+    [si, 250, 165.474],
+    [span({ section: section({ mode: 'rect' }) }), 360, 24],
+    [span({ section: section({ mode: 'shape', selfWeight: true }) }), 600, 0],
+  ];
+  /** Three hundred cases not chosen: the spans of this file's generator, with limits of every kind. */
+  const drawn = (() => {
+    const { rnd, pick } = dice(20261014);
+    const cases = Array.from({ length: 300 }, (): [BeamForm, number, number] => {
+      const form = randomSpan(rnd, pick);
+      const limit = Number(fieldNumber(pick([360, 240, 0, -5, 0.5, 1e21, rnd() * 1000])));
+      const stress = Number(fieldNumber(pick([0, 24, 165.474, -3, 1e-7, rnd() * 50])));
+      return [form, limit, stress];
+    });
+    return { rnd, cases };
+  })();
+  const links = [...examples, ...drawn.cases].map(([form, limit, stress]) => encodeSpan(form, limit, stress));
+
+  it('every case opens as itself, and writes the same address again', () => {
+    for (const [form, limit, stress] of [...examples, ...drawn.cases]) {
+      const link = encodeSpan(form, limit, stress);
+      expect(link).toBe(sealed(bodyOf(link)));
+      const back = decodeSpan(link)!;
+      expect(back, link).not.toBeNull();
+      expect([back.limit, back.stress], link).toEqual([limit, stress]);
+      expect(encodeSpan(back.form, back.limit, back.stress), link).toBe(link);
+    }
+  });
+
+  it('one character changed, added or taken away anywhere — a limit, the beam or the check — is no link: the examples with every printable character, the random cases with characters drawn at every place', () => {
+    let tried = 0;
+    for (const [n, link] of links.entries()) {
+      for (const text of n < examples.length ? oneAway(link, PRINTABLE) : oneAway(link, WRITTEN, { rnd: drawn.rnd, per: 1 })) {
+        tried += 1;
+        if (decodeSpan(text) !== null) expect.fail(`opened: ${text}`);
+      }
+    }
+    expect(tried).toBeGreaterThan(100000);
+  }, 30_000);
+
+  it('two characters changed are no link: twenty thousand drawn anywhere, and every pair 54 apart — each of which the check of before let through', () => {
+    for (let n = 0; n < 20000; n++) {
+      const text = twoChanged(links[n % links.length], n % 2 ? PRINTABLE : WRITTEN, drawn.rnd);
+      if (decodeSpan(text) !== null) expect.fail(`opened: ${text}`);
+    }
+    // A long one: twelve point loads and twelve distributed, every number long.
+    const long = encodeSpan(
+      span({
+        points: Array.from({ length: 12 }, (_, i) => point(1.2345678 + i, 123.45678 + i, i % 2 ? 'up' : 'down', 30 + i)),
+        dists: Array.from({ length: 12 }, (_, i) => dist(0.12345678 * i, 23.456789 - i, 1.2345678 + i, 2.3456789 + i, 'down', 50 + i)),
+      }),
+      1234.5678,
+      21.234567,
+    );
+    let pairs = 0;
+    for (const link of [long, ...links.slice(0, examples.length)]) {
+      const rest = bodyOf(link);
+      for (const changed of apart54(rest)) {
+        pairs += 1;
+        expect(oldCheckOf(changed)).toBe(oldCheckOf(rest));
+        if (decodeSpan(`${link.slice(0, link.indexOf(';'))};${changed}`) !== null) expect.fail(`opened: ${changed}`);
+      }
+    }
+    expect(pairs).toBeGreaterThan(700);
+  });
+
+  it('every one of those cases opens from a link of before 14 October 2026, as the same case', () => {
+    for (const [form, limit, stress] of [...examples, ...drawn.cases]) {
+      const link = encodeSpan(form, limit, stress);
+      const [limits, fields] = [bodyOf(link).split('~').slice(0, 2).join('~'), bodyOf(link).split('~')[2]];
+      const old = oldLink(limits, fields);
+      expect(old.startsWith('K'), old).toBe(false);
+      expect(decodeSpan(old), old).toEqual(decodeSpan(link));
+    }
   });
 });

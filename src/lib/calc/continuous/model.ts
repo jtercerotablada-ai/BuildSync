@@ -4,6 +4,7 @@ import {
   NUMBER,
   US_TO_SI,
   checkOf,
+  checked,
   convertUnits,
   decodeBeam,
   deflectionFactor,
@@ -542,7 +543,7 @@ const END_LETTER: Record<EndKind, string> = { pin: 'p', fixed: 'f', free: 'n' };
 /*
  * No form writes a longer address: eight spans, twelve loads of each kind
  * and nine settlements, with every number at its longest (22 characters, as
- * in beam/model.ts), come to 2,779 characters. model.test.ts writes it.
+ * in beam/model.ts), come to 2,786 characters. model.test.ts writes it.
  */
 const MAX_LINK = 3000;
 
@@ -577,7 +578,8 @@ const sectionField = (form: Pick<ContinuousForm, 'units' | 'section'>): string =
  * not to the example.
  *
  * IT BEGINS WITH A CHECK of the rest, the first calculator's (`checkOf`): a
- * link that lost a character on its way is not a link to another beam.
+ * link cut short, or with a character more, less or changed on its way — or
+ * two — is not a link to another beam.
  */
 export function encodeContinuous(form: ContinuousForm): string {
   const n = written;
@@ -597,19 +599,19 @@ export function encodeContinuous(form: ContinuousForm): string {
 
 /**
  * The case a string from `encodeContinuous` describes, or `null` if it is
- * anything else: a check that is not the rest's, not seven fields, a number
- * in any notation but the page's own, a beam of no span or of more than
- * eight, a list of settlements that is not one per joint, a load on a span
- * that is not there, a section the first calculator refuses. The string
- * comes back from wherever a link was pasted.
+ * anything else: a check that is not the rest's (as it is written now, or as
+ * it was before 14 October 2026: beam/model.ts, `checked`), not seven
+ * fields, a number in any notation but the page's own, a beam of no span or
+ * of more than eight, a list of settlements that is not one per joint, a
+ * load on a span that is not there, a section the first calculator refuses.
+ * The string comes back from wherever a link was pasted.
  *
  * The rows are numbered again, the spans first: a link carries no ids.
  */
 export function decodeContinuous(text: string): ContinuousForm | null {
   if (text.length > MAX_LINK) return null;
-  const cut = text.indexOf(';');
-  const body = text.slice(cut + 1);
-  if (cut < 1 || text.slice(0, cut) !== checkOf(body)) return null;
+  const body = checked(text);
+  if (body === null) return null;
   const parts = body.split(';');
   if (parts.length !== 7) return null;
   const [units, ends, spans, settlements, points, dists, section] = parts;

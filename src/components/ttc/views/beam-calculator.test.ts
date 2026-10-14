@@ -62,6 +62,11 @@ const pairsOf = (card: string) => [...card.matchAll(/<dt>([\s\S]*?)<\/dt><dd>([\
 /** The drawings, each with its summary for a screen reader and its markup. */
 const drawingsOf = (html: string) => [...html.matchAll(/<svg\b[^>]*role="img"[^>]*>[\s\S]*?<\/svg>/g)].map((m) => ({ label: attr(m[0], 'aria-label') ?? '', svg: m[0] }));
 const numberOf = (tag: string, name: string) => Number(attr(tag, name));
+/**
+ * A number written with a power of ten, as the formatter writes one: "7.316 × 10^−5". The spaces round its × are
+ * plain ones, and no-break ones on a page that holds the number on one line (the shaft's): either is a space here.
+ */
+const POWER = /\d\s×\s10\^/;
 
 /** The example beam with other supports, loads or section. */
 const beam = (over: Partial<BeamForm>): BeamForm => ({ ...defaultBeam(), ...over });
@@ -220,8 +225,33 @@ describe('beam calculator: numbers as they are printed and typed', () => {
     expect(formatNumber(-1e-15)).toBe('0');
     expect(formatNumber(Number.NaN)).toBe('—');
     expect(formatNumber(Number.POSITIVE_INFINITY)).toBe('—');
-    expect(formatNumber(0.0000123)).toBe('1.23 × 10^-5');
+    expect(formatNumber(0.0000123)).toBe('1.23 × 10^−5');
     expect(formatNumber(123456789)).toBe('1.235 × 10^8');
+  });
+
+  // A power of ten has the true minus in its exponent; the value's own sign is the hyphen every negative is printed,
+  // and typed, with. Not raised: the site's type has a raised ¹, ² and ³ and nothing else of the kind (format.ts says
+  // what was seen). The spaces round its × are plain ones, which a line may end at: set no-break for every page, they
+  // ran the first calculator's "Reactions" past its card on a phone. The page that holds the number on one line sets
+  // them itself, and makes room for it (the shaft's: shaft-calculator.test.ts).
+  it('a power of ten has a true minus in its exponent, in the characters the site’s type has, and plain spaces round its ×', () => {
+    expect(formatNumber(7.316e-5)).toBe('7.316 × 10^−5');
+    expect(formatNumber(4.2e7)).toBe('4.2 × 10^7');
+    expect(formatNumber(-5.571e-6)).toBe('-5.571 × 10^−6');
+    // From the smallest that is not 0 to the largest a number can be, and what rounds up to the next power.
+    for (const v of [1.0001e-12, -2.5e-11, 9.99999e-5, 1e7, -4e20, Number.MAX_VALUE]) {
+      for (const group of [',', '\u202f']) {
+        const printed = formatNumber(v, 4, group);
+        expect(printed, `${v}`).toMatch(/^-?\d(\.\d+)?\u0020×\u002010\^−?[1-9]\d*$/);
+        expect(printed, `${v}`).toMatch(POWER);
+        expect(printed, `${v}`).not.toContain('\u00a0');
+        // Pasted into a field it is refused, not taken for another number — and so is the raised spelling.
+        expect(parseNumber(printed, group), printed).toBeNull();
+      }
+    }
+    expect(formatNumber(9.99999e-5)).toBe('1 × 10^−4');
+    expect(formatNumber(Number.MAX_VALUE)).toBe('1.798 × 10^308');
+    for (const pasted of ['7.316 × 10⁻⁵', '7.316 × 10^-5', '7.316 × 10^−5', '4 × 10^20', '7.316×10^-5']) expect(parseNumber(pasted), pasted).toBeNull();
   });
 
   it('reads what an engineer types — a comma for the point included — and nothing else', () => {
@@ -550,10 +580,10 @@ describe('beam calculator: beams other than the example', () => {
     expect(text(cards[0])).toContain('The reactions add up to the load: 0 = 0 kN.');
     // At midspan, over the middle support: no moment, and so no stress.
     expect(pairsOf(cards[3]).filter(([k]) => /Bending/.test(k))).toEqual([['Bending moment, M', '0 kN·m'], ['Bending stress', '0 MPa']]);
-    expect(html).not.toContain('× 10^');
+    expect(html).not.toMatch(POWER);
 
     const wall = show('en', CANTILEVER);
-    expect(wall).not.toContain('× 10^');
+    expect(wall).not.toMatch(POWER);
     expect(pairsOf(cardsOf(wall)[1]).slice(0, 3)).toEqual([['Shear', '378 kip at x = 0 ft'], ['Sagging moment', 'none'], ['Hogging moment', '1,015 kip·ft at x = 0 ft']]);
     // A largest value that is zero is said without a place: the place was where the rounding happened to peak.
     expect(drawingsOf(wall).map((d) => d.label).slice(1, 3)).toEqual(['Shear, V: max 378 kip at x = 0 ft; min 0 kip.', 'Bending moment, M: max 0 kip·ft; min -1,015 kip·ft at x = 0 ft.']);
@@ -573,7 +603,7 @@ describe('beam calculator: beams other than the example', () => {
     const pair = beam({ L: 100, supports: [{ id: 1, kind: 'fixed', x: 50 }, { id: 2, kind: 'roller', x: 50.11 }], points: [{ id: 3, x: 20, P: 10, dir: 'down' }], dists: [] });
     const html = show('en', pair);
     expect(rowsOf(cardsOf(html)[0])).toEqual([['Fixed', '50', '10 upward', '300 clockwise'], ['Roller', '50.11', '0', '—']]);
-    expect(html).not.toContain('× 10^');
+    expect(html).not.toMatch(POWER);
   });
 
   // The floor of a reaction is a millionth of the largest one. 10 kip a hair
@@ -614,7 +644,7 @@ describe('beam calculator: beams other than the example', () => {
   // length's. Between the two supports of that pair the beam rises two
   // ten-millionths of an inch, and that is printed.
   it('a deflection is measured against the loads, not against the reactions', () => {
-    expect(rowsOf(cardsOf(show('en', CLAMPED))[2])[0]).toEqual(['0 – 0.02', '2.022 × 10^-7 upward', '> 99,999']);
+    expect(rowsOf(cardsOf(show('en', CLAMPED))[2])[0]).toEqual(['0 – 0.02', '2.022 × 10^−7 upward', '> 99,999']);
   });
 
   // The one place a ten-thousandth of the largest reaction is the floor: the

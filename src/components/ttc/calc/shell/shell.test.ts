@@ -460,6 +460,28 @@ describe('calculator shell: what it carries, and what it cannot do', () => {
     expect(address).toContain("if (document.visibilityState === 'hidden') flush();");
   });
 
+  // A key, then the browser's reload key inside the 300 ms wait: the reload came back to the address of before that
+  // key ("1234" typed, "123" on screen), on every calculator. The page hears the key before the browser acts on it,
+  // so what is waiting is written at the key — F5, Ctrl+R or Cmd+R, with Shift or Ctrl for the hard reload — and at no
+  // other: the wait stays for every key that is not a reload (Safari refuses many history writes). Not held back for
+  // the first calculator's Length field either (`typing`): the reload must find the beam that leaving it makes.
+  // What it does is held in a browser, a key and the reload key within 50 ms on each of the four pages.
+  it('what is waiting is written at the reload key, and at no other key', () => {
+    const address = code('address.ts');
+    expect(address).toMatch(
+      /const reloading = \(press: KeyboardEvent\) => \{\s*if \(press\.key === 'F5' \|\| \(\(press\.ctrlKey \|\| press\.metaKey\) && !press\.altKey && \(press\.key === 'r' \|\| press\.key === 'R'\)\)\) pending\.current\?\.\(\);\s*\};/,
+    );
+    expect(address).toContain("window.addEventListener('keydown', reloading, true);");
+    expect(address).toContain("window.removeEventListener('keydown', reloading, true);");
+    // One listener for keys, in the effect set up once with the others.
+    expect(address.match(/addEventListener\('keydown'/g)).toHaveLength(1);
+    expect(address).toMatch(/window\.addEventListener\('click', flush, true\);\s*window\.addEventListener\('keydown', reloading, true\);\s*document\.addEventListener\('visibilitychange', hidden\);/);
+    // No calculator keeps a listener of its own for it: the shell's is the one.
+    for (const page of ['beam/BeamCalculator.tsx', 'continuous/ContinuousCalculator.tsx', 'shaft/ShaftCalculator.tsx']) {
+      expect(readFileSync(join(SRC, 'components/ttc/calc', page), 'utf8'), page).not.toMatch(/'F5'|addEventListener\('keydown'/);
+    }
+  });
+
   // The page is sent with its example, and stands its calculator in a frame that its own first script marks when
   // the address holds a case (calc/ToolFrame.tsx), so that the example is not shown as that case while the scripts
   // are on their way. The mark is the frame's; taking it off is this hook's, in the commit that puts on screen what

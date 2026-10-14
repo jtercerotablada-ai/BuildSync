@@ -241,24 +241,6 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
     },
   });
   const { linkError } = address;
-  // A RELOAD FROM THE KEYBOARD. The shell writes the address 300 ms after the last change, and a reload comes back
-  // to the address as it stood when the browser began it: a key, then F5 inside that wait, and the shaft came back
-  // without that key - "1234" typed, "123" on screen - and so with a choice in a list, a row added, the units. The
-  // page hears the reload key before the browser acts on it (F5, Ctrl+R or Cmd+R, with Shift or Ctrl for the hard
-  // one), so what is waiting is written at that key: the shell's own `flush`, which is there for a page about to
-  // be loaded again. Where a browser does not hand the key to the page, nothing changes. (The wait is the shell's,
-  // and the same on every calculator: when the shell writes at this key itself, these lines go.)
-  const flushAddress = useRef(address.flush);
-  useEffect(() => {
-    flushAddress.current = address.flush;
-  });
-  useEffect(() => {
-    const reloading = (press: KeyboardEvent) => {
-      if (press.key === 'F5' || ((press.ctrlKey || press.metaKey) && !press.altKey && (press.key === 'r' || press.key === 'R'))) flushAddress.current();
-    };
-    window.addEventListener('keydown', reloading, true);
-    return () => window.removeEventListener('keydown', reloading, true);
-  }, []);
   // The printed sheet gives the address that opens this very shaft, and while
   // it prints the drawings are the sheet's size (../shell/sheet.tsx).
   const { stamp, onPaper } = useSheet({ locale: t.sheet.locale, url: () => address.link(encodeShaft(form)) });
@@ -308,9 +290,9 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
   const shown = r ? r.views[view] : null;
 
   // Every number this page prints, with the page's own mark between thousands. One written with a power of ten
-  // ("7.316 × 10^-5": any slope under a ten-thousandth of a radian, and the example has one) is ONE number: the
+  // ("7.316 × 10^−5": any slope under a ten-thousandth of a radian, and the example has one) is ONE number: the
   // spaces round its × are set as spaces a line cannot end at. With plain ones a narrow cell ended its line inside
-  // the number, and "7.316 ×" over "10^-5" reads as two.
+  // the number, and "7.316 ×" over "10^−5" reads as two.
   const num = (v: number, sig = 4) => formatNumber(v, sig, group).replace(' × ', ' × ');
   // A PLACE THAT WAS ENTERED - an end of a segment, a bearing, a load: the lengths typed, added up - is written
   // as it was entered, to six figures, like every typed value on the drawing: a bearing at 16.4375 in stands at

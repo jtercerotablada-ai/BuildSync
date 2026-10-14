@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  CHECK_A,
+  CHECK_MARK,
+  CHECK_P,
   LAYOUTS,
   MATERIALS,
   MAX_ROWS,
@@ -60,18 +63,72 @@ const carried = (f: BeamForm) => ({
 });
 
 /* The check a link begins with, worked out here a second time from its
-   description in model.ts: the length of the rest and a sum of its
-   characters, in base 36. People keep the links they were sent, so the rule
-   may not drift — and a test that asked model.ts for it could not tell. */
+   description in model.ts — as a sum of powers, where model.ts multiplies as
+   it goes: the mark K; the codes of the rest's characters, the last weighted
+   by A, the one before by A², and so on, added up modulo the prime P; the
+   same with the powers of A²; each sum in four characters of base 36; and the
+   length of the rest in base 36. People keep the links they were sent, so the
+   rule may not drift — and a test that asked model.ts for it could not tell. */
+const P = 1679609;
+const A = 1038055;
 const checkOf = (body: string) => {
+  const A2 = (A * A) % P;
+  let [a, b, wa, wb] = [0, 0, 1, 1];
+  for (let i = body.length - 1; i >= 0; i--) {
+    [wa, wb] = [(wa * A) % P, (wb * A2) % P];
+    a = (a + body.charCodeAt(i) * wa) % P;
+    b = (b + body.charCodeAt(i) * wb) % P;
+  }
+  const four = (v: number) => v.toString(36).padStart(4, '0');
+  return `K${four(a)}${four(b)}${body.length.toString(36)}`;
+};
+/** These eight fields as the page would write them: behind their check. */
+const sealed = (body: string) => `${checkOf(body)};${body}`;
+/* The check of the links written before 14 October 2026, from ITS
+   description: the length of the rest and a sum of its characters, in base
+   36. Kept here to write such links, which must still open. */
+const oldCheckOf = (body: string) => {
   let sum = 0;
   for (const ch of body) sum = (sum * 31 + ch.charCodeAt(0)) % 1296;
   return (body.length * 1296 + sum).toString(36);
 };
-/** These eight fields as the page would write them: behind their check. */
-const sealed = (body: string) => `${checkOf(body)};${body}`;
+/** These eight fields as the page wrote them before 14 October 2026. */
+const oldSealed = (body: string) => `${oldCheckOf(body)};${body}`;
 /** The eight fields of a link, without its check. */
 const bodyOf = (link: string) => link.slice(link.indexOf(';') + 1);
+
+/** A beam not chosen: every kind of row, any number a field can show, either direction, each kind of section, both systems. */
+function randomBeam(rnd: () => number, pick: <T>(list: readonly T[]) => T): BeamForm {
+  // Any number, as a field holds it once it has been shown: to eight figures.
+  const any = () => Number(fieldNumber(pick([0, 20, 12.5, -3, 1e21, 1e-7, 2e12, 123456789012, 5e-324, (rnd() - 0.3) * 100, (rnd() - 0.5) * 10 ** Math.round((rnd() - 0.5) * 600)])));
+  const size = () => Math.abs(any());
+  const some = <T>(row: (id: number) => T): T[] => Array.from({ length: Math.floor(rnd() * 4) }, (_, i) => row(i + 1));
+  const units = pick(['us', 'si'] as const);
+  const material = pick(['steel', 'aluminum', 'concrete', 'wood', 'custom'] as const);
+  return {
+    units,
+    L: any(),
+    supports: some((id) => ({ id, kind: pick(['pin', 'roller', 'fixed'] as const), x: any() })),
+    hinges: some((id) => ({ id, x: any() })),
+    points: some((id) => ({ id, x: any(), P: size(), dir: pick(['down', 'up'] as const) })),
+    dists: some((id) => ({ id, x1: any(), x2: any(), w1: size(), w2: size(), dir: pick(['down', 'up'] as const) })),
+    couples: some((id) => ({ id, x: any(), M: size(), dir: pick(['cw', 'ccw'] as const) })),
+    section: {
+      ...defaultBeam().section,
+      mode: pick(['props', 'rect', 'shape'] as const),
+      material,
+      E: material === 'custom' ? size() : MATERIALS[material][units],
+      I: size(),
+      S: size(),
+      Av: size(),
+      b: size(),
+      h: size(),
+      shape: pick(['W18X50', 'HSS6X4X3/8', 'Pipe5XS']),
+      selfWeight: rnd() < 0.5,
+    },
+    nextId: 9,
+  };
+}
 
 describe('beam form: a worked example, by hand', () => {
   // w = 1.2 kip/ft = 0.1 kip/in, L = 240 in, E = 29,000 ksi, I = 800 in⁴, S = 88.9 in³.
@@ -596,36 +653,8 @@ describe('beam form: a beam in an address', () => {
       return seed / 2 ** 32;
     };
     const pick = <T>(list: readonly T[]): T => list[Math.floor(rnd() * list.length)];
-    // Any number, as a field holds it once it has been shown: to eight figures.
-    const any = () => Number(fieldNumber(pick([0, 20, 12.5, -3, 1e21, 1e-7, 2e12, 123456789012, 5e-324, (rnd() - 0.3) * 100, (rnd() - 0.5) * 10 ** Math.round((rnd() - 0.5) * 600)])));
-    const size = () => Math.abs(any());
-    const some = <T>(row: (id: number) => T): T[] => Array.from({ length: Math.floor(rnd() * 4) }, (_, i) => row(i + 1));
     for (let i = 0; i < 300; i++) {
-      const units = pick(['us', 'si'] as const);
-      const material = pick(['steel', 'aluminum', 'concrete', 'wood', 'custom'] as const);
-      const form: BeamForm = {
-        units,
-        L: any(),
-        supports: some((id) => ({ id, kind: pick(['pin', 'roller', 'fixed'] as const), x: any() })),
-        hinges: some((id) => ({ id, x: any() })),
-        points: some((id) => ({ id, x: any(), P: size(), dir: pick(['down', 'up'] as const) })),
-        dists: some((id) => ({ id, x1: any(), x2: any(), w1: size(), w2: size(), dir: pick(['down', 'up'] as const) })),
-        couples: some((id) => ({ id, x: any(), M: size(), dir: pick(['cw', 'ccw'] as const) })),
-        section: {
-          ...defaultBeam().section,
-          mode: pick(['props', 'rect', 'shape'] as const),
-          material,
-          E: material === 'custom' ? size() : MATERIALS[material][units],
-          I: size(),
-          S: size(),
-          Av: size(),
-          b: size(),
-          h: size(),
-          shape: pick(['W18X50', 'HSS6X4X3/8', 'Pipe5XS']),
-          selfWeight: rnd() < 0.5,
-        },
-        nextId: 9,
-      };
+      const form = randomBeam(rnd, pick);
       const link = encodeBeam(form);
       const back = decodeBeam(link)!;
       expect(carried(back), link).toEqual(carried(form));
@@ -776,7 +805,7 @@ describe('beam form: a beam in an address', () => {
       nextId: 100,
     };
     const link = encodeBeam(worst);
-    expect(link).toHaveLength(2899);
+    expect(link).toHaveLength(2906);
     expect(decodeBeam(link)).not.toBeNull();
     // Zeros after a decimal point are still the number, so a link can be
     // padded to any length with every field in order: it is the length that
@@ -885,14 +914,222 @@ describe('beam form: a link that lost part of itself', () => {
   });
 
   // Written out, so that the rule is pinned by something other than itself:
-  // 56 characters is 1k in base 36, and their sum is 1,018, which is sa.
-  it('the check of the example beam is 1ksa', () => {
-    expect(encodeBeam(d)).toBe('1ksa;us;20;p0_r20;;12,8;0,20,1.2,1.2;;p,s,29000,800,88.9,6.39');
-    expect(encodeBeam(withSection(d, { mode: 'rect' }))).toBe('1cse;us;20;p0_r20;;12,8;0,20,1.2,1.2;;r,s,29000,12,24');
-    expect(encodeBeam(withSection(d, { mode: 'shape', selfWeight: true }))).toBe('1730;us;20;p0_r20;;12,8;0,20,1.2,1.2;;s,W18X50,1');
+  // the two sums of the example's 56 characters are 168,539 and 986,312 —
+  // 3m1n and l51k in base 36 — and 56 is 1k.
+  it('the check of the example beam is K3m1nl51k1k', () => {
+    expect(encodeBeam(d)).toBe('K3m1nl51k1k;us;20;p0_r20;;12,8;0,20,1.2,1.2;;p,s,29000,800,88.9,6.39');
+    expect(encodeBeam(withSection(d, { mode: 'rect' }))).toBe('Kbprwcptj1c;us;20;p0_r20;;12,8;0,20,1.2,1.2;;r,s,29000,12,24');
+    expect(encodeBeam(withSection(d, { mode: 'shape', selfWeight: true }))).toBe('Kcncfrr6917;us;20;p0_r20;;12,8;0,20,1.2,1.2;;s,W18X50,1');
+    expect(carried(decodeBeam('K3m1nl51k1k;us;20;p0_r20;;12,8;0,20,1.2,1.2;;p,s,29000,800,88.9,6.39')!)).toEqual(carried(d));
+    // Never the two letters an older link begins with, and never a check of before: the mark, which base 36 in lower case never writes.
+    for (const [name, form] of forms) expect(encodeBeam(form).split(';')[0], name).toMatch(/^K[0-9a-z]{9,11}$/);
+  });
+
+  // The links the page wrote before 14 October 2026, with the check of that
+  // day: 56 characters is 1k in base 36, and their sum was 1,018, which is sa.
+  it('a link with the check of before 14 October 2026 still opens, as the same beam', () => {
     expect(carried(decodeBeam('1ksa;us;20;p0_r20;;12,8;0,20,1.2,1.2;;p,s,29000,800,88.9,6.39')!)).toEqual(carried(d));
-    // Never the two letters an older link begins with.
-    for (const [name, form] of forms) expect(encodeBeam(form).split(';')[0].length, name).toBeGreaterThanOrEqual(3);
+    expect(decodeBeam('1ksa;us;20;p0_r20;;12,8;0,20,1.2,1.2;;p,s,29000,800,88.9,6.39')).toEqual(decodeBeam(encodeBeam(d)));
+    expect(decodeBeam('1cse;us;20;p0_r20;;12,8;0,20,1.2,1.2;;r,s,29000,12,24')).toEqual(decodeBeam(encodeBeam(withSection(d, { mode: 'rect' }))));
+    expect(decodeBeam('1730;us;20;p0_r20;;12,8;0,20,1.2,1.2;;s,W18X50,1')).toEqual(decodeBeam(encodeBeam(withSection(d, { mode: 'shape', selfWeight: true }))));
+    for (const [name, form] of forms) expect(decodeBeam(oldSealed(bodyOf(encodeBeam(form)))), name).toEqual(decodeBeam(encodeBeam(form)));
+    // …and the check of before is held to itself: one character off is no link.
+    expect(decodeBeam('1ksb;us;20;p0_r20;;12,8;0,20,1.2,1.2;;p,s,29000,800,88.9,6.39')).toBeNull();
+    expect(decodeBeam('1ksa;us;20;p0_r20;;12,8;0,20,1.2,1.2;;p,s,29000,800,88.9,6.3')).toBeNull();
+  });
+});
+
+/* ── The check, put to the test ──────────────────────────────────────── */
+
+/** Printable ASCII: what a link typed over, or garbled on its way, is likeliest to hold. */
+const PRINTABLE = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join('');
+/** What an address is written in, and a few characters it is not. */
+const WRITTEN = '0123456789.,;_-/~abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ %';
+
+/**
+ * Every text one character away from `link` — one changed, one added, one
+ * taken away, at every place, the check included — with every character of
+ * `alphabet`, or with `per` of them drawn at each place.
+ */
+function* oneAway(link: string, alphabet: string, draw?: { rnd: () => number; per: number }): Generator<string> {
+  for (let i = 0; i <= link.length; i++) {
+    const chars = draw ? Array.from({ length: draw.per }, () => alphabet[Math.floor(draw.rnd() * alphabet.length)]) : [...alphabet];
+    for (const ch of chars) {
+      yield link.slice(0, i) + ch + link.slice(i);
+      if (i < link.length && ch !== link[i]) yield link.slice(0, i) + ch + link.slice(i + 1);
+    }
+    if (i < link.length) yield link.slice(0, i) + link.slice(i + 1);
+  }
+}
+
+/** `link` with two of its characters, drawn at random anywhere in it, changed to others of `alphabet`. */
+const twoChanged = (link: string, alphabet: string, rnd: () => number): string => {
+  const chars = [...link];
+  const i = Math.floor(rnd() * chars.length);
+  let j = Math.floor(rnd() * (chars.length - 1));
+  if (j >= i) j += 1;
+  for (const at of [i, j]) {
+    const was = chars[at];
+    while (chars[at] === was) chars[at] = alphabet[Math.floor(rnd() * alphabet.length)];
+  }
+  return chars.join('');
+};
+
+/**
+ * Every pair of characters 54 apart in `body`, the first moved one code up
+ * and the second one down (or the other way, to stay printable): the change
+ * the check of before let through every time, 31 coming round to 1 modulo
+ * 1,296 at its 54th power.
+ */
+function* apart54(body: string): Generator<string> {
+  const printable = (c: number) => c >= 32 && c <= 126;
+  for (let i = 0; i + 54 < body.length; i++) {
+    const [p, q] = [body.charCodeAt(i), body.charCodeAt(i + 54)];
+    const d = printable(p + 1) && printable(q - 1) ? 1 : printable(p - 1) && printable(q + 1) ? -1 : 0;
+    if (d) yield body.slice(0, i) + String.fromCharCode(p + d) + body.slice(i + 1, i + 54) + String.fromCharCode(q - d) + body.slice(i + 55);
+  }
+}
+
+describe('beam form: the check of an address, put to the test', () => {
+  const d = defaultBeam();
+  const si = convertUnits(d, 'si');
+  const withSection = (f: BeamForm, patch: Partial<BeamForm['section']>): BeamForm => ({ ...f, section: { ...f.section, ...patch } });
+  const examples: BeamForm[] = [d, si, withSection(d, { mode: 'rect' }), withSection(si, { mode: 'shape', shape: 'HSS6X4X3/8', selfWeight: true }), { ...d, supports: [{ id: 1, kind: 'fixed', x: 0 }], points: [], dists: [] }];
+  /** Three hundred beams not chosen, from the generator the round trip above is held to. */
+  const drawn = (() => {
+    let seed = 20261014;
+    const rnd = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 2 ** 32;
+    };
+    const pick = <T>(list: readonly T[]): T => list[Math.floor(rnd() * list.length)];
+    return { rnd, forms: Array.from({ length: 300 }, () => randomBeam(rnd, pick)) };
+  })();
+  const mul = (x: number, y: number) => (x * y) % P;
+  const pow = (x: number, e: number): number => (e === 0 ? 1 : e % 2 ? mul(x, pow(x, e - 1)) : pow(mul(x, x), e / 2));
+
+  it('is the one described: P the largest prime under 36⁴, A a primitive root of it — no power of A comes back to another within a link', () => {
+    expect([CHECK_MARK, CHECK_P, CHECK_A]).toEqual(['K', P, A]);
+    const prime = (n: number) => n > 1 && Array.from({ length: Math.floor(Math.sqrt(n)) - 1 }, (_, i) => i + 2).every((q) => n % q !== 0);
+    expect(prime(P)).toBe(true);
+    for (let n = P + 1; n < 36 ** 4; n++) expect(prime(n), String(n)).toBe(false);
+    // Past every code a character can have: two different characters never differ by a multiple of P.
+    expect(P).toBeGreaterThan(0xffff);
+    // P − 1 = 2³ · 7 · 89 · 337, and A to the power of (P − 1) over each of those primes is not 1: A goes round all of P − 1.
+    expect(2 ** 3 * 7 * 89 * 337).toBe(P - 1);
+    for (const q of [2, 7, 89, 337]) expect(pow(A, (P - 1) / q), String(q)).not.toBe(1);
+    // So among the powers a link can weigh its characters by — at most 3,000 of them — no two are the same.
+    const powers = new Set<number>();
+    for (let k = 1, w = A; k <= 3000; k++, w = mul(w, A)) powers.add(w);
+    expect(powers.size).toBe(3000);
+    // The page's check is the one worked out here, for every beam it writes.
+    for (const form of [...examples, ...drawn.forms]) {
+      const link = encodeBeam(form);
+      expect(link).toBe(sealed(bodyOf(link)));
+    }
+  });
+
+  it('one character changed, added or taken away anywhere — the check included — is no link: the examples, with every printable character', () => {
+    let tried = 0;
+    for (const form of examples) {
+      const link = encodeBeam(form);
+      expect(carried(decodeBeam(link)!)).toEqual(carried(form));
+      for (const text of oneAway(link, PRINTABLE)) {
+        tried += 1;
+        if (decodeBeam(text) !== null) expect.fail(`opened: ${text}`);
+      }
+    }
+    expect(tried).toBeGreaterThan(60000);
+  });
+
+  it('…and three hundred random beams, with characters drawn at every place', () => {
+    let tried = 0;
+    for (const form of drawn.forms) {
+      const link = encodeBeam(form);
+      // Each of them is a link, to the beam it was written from.
+      expect(carried(decodeBeam(link)!), link).toEqual(carried(form));
+      for (const text of oneAway(link, WRITTEN, { rnd: drawn.rnd, per: 1 })) {
+        tried += 1;
+        if (decodeBeam(text) !== null) expect.fail(`opened: ${text}`);
+      }
+    }
+    expect(tried).toBeGreaterThan(100000);
+  }, 30_000);
+
+  it('two characters changed are no link: twenty thousand drawn anywhere, and every pair 54 apart — each of which the check of before let through', () => {
+    const links = [...examples, ...drawn.forms].map(encodeBeam);
+    for (let n = 0; n < 20000; n++) {
+      const link = links[n % links.length];
+      const text = twoChanged(link, n % 2 ? PRINTABLE : WRITTEN, drawn.rnd);
+      if (decodeBeam(text) !== null) expect.fail(`opened: ${text}`);
+    }
+    // The longest link a form writes: twelve rows of every kind, every number at its longest.
+    const big = -1.2345678e20;
+    const twelve = <T>(row: (id: number) => T) => Array.from({ length: MAX_ROWS }, (_, i) => row(i + 1));
+    const longest = encodeBeam({
+      units: 'us',
+      L: big,
+      supports: twelve((id) => ({ id, kind: 'roller' as const, x: big })),
+      hinges: twelve((id) => ({ id, x: big })),
+      points: twelve((id) => ({ id, x: big, P: big, dir: 'down' as const })),
+      dists: twelve((id) => ({ id, x1: big, x2: big, w1: big, w2: big, dir: 'down' as const })),
+      couples: twelve((id) => ({ id, x: big, M: big, dir: 'ccw' as const })),
+      section: { ...defaultBeam().section, material: 'custom', E: big, I: big, S: big, Av: big },
+      nextId: 100,
+    });
+    let pairs = 0;
+    for (const link of [longest, ...links.slice(0, 5)]) {
+      const body = bodyOf(link);
+      for (const changed of apart54(body)) {
+        pairs += 1;
+        // The check of before could not tell this body from the one written…
+        expect(oldCheckOf(changed)).toBe(oldCheckOf(body));
+        // …this one can.
+        if (decodeBeam(`${link.slice(0, link.indexOf(';'))};${changed}`) !== null) expect.fail(`opened: ${changed}`);
+      }
+    }
+    expect(pairs).toBeGreaterThan(2800);
+  });
+
+  // Not asked of it, but why A is large: with a small one, three neighbours
+  // changed in the right proportions leave both sums as they were.
+  it('no three characters within 400 places of each other, changed by what can separate two printable characters, leave both sums as they were', () => {
+    const inv = (x: number) => pow(x, P - 2);
+    const centred = (x: number) => {
+      const r = ((x % P) + P) % P;
+      return r > P / 2 ? r - P : r;
+    };
+    const passing = (a: number, within: number) => {
+      const found: number[][] = [];
+      const powers = [1];
+      for (let k = 1; k <= within; k++) powers.push(mul(powers[k - 1], a));
+      for (let d1 = 1; d1 < within; d1++) {
+        for (let d2 = 1; d1 + d2 <= within; d2++) {
+          // Changes e1, e2, e3 at places 0, d1, d1 + d2 leave both sums alone when e1 + e2·u + e3·v = 0 and e1 + e2·u² + e3·v² = 0.
+          const [u, v] = [powers[d1], powers[d1 + d2]];
+          const ratio = mul((mul(v, v) - v + P) % P, inv((mul(u, u) - u + P) % P));
+          for (let e3 = 1; e3 <= 94; e3++) {
+            const e2 = centred(-mul(e3, ratio));
+            if (e2 === 0 || Math.abs(e2) > 94) continue;
+            const e1 = centred(-(mul((e2 + P) % P, u) + mul(e3, v)));
+            if (e1 !== 0 && Math.abs(e1) <= 94) found.push([d1, d2, e1, e2, e3]);
+          }
+        }
+      }
+      return found;
+    };
+    expect(passing(A, 400)).toEqual([]);
+    // With 3 for A: +27, −12 and +1 on three neighbours, among others.
+    expect(passing(3, 8)).toContainEqual([1, 1, 27, -12, 1]);
+  });
+
+  it('every one of those beams opens from a link with the check of before 14 October 2026, as the same beam', () => {
+    for (const form of [...examples, ...drawn.forms]) {
+      const link = encodeBeam(form);
+      const old = oldSealed(bodyOf(link));
+      expect(old, link).not.toBe(link);
+      expect(decodeBeam(old), old).toEqual(decodeBeam(link));
+    }
   });
 });
 

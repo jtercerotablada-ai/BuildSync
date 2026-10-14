@@ -271,6 +271,16 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
   // discard a tab that is put away, and reloads it from its address. On the
   // click as well as the press: not every browser moves the focus to a link
   // that is clicked, and a tap need not take it from the field.
+  //
+  // AND AT THE RELOAD KEY. A reload comes back to the address as it stands
+  // when the browser begins it: a key, then F5 inside the wait, and the case
+  // came back without that key — "1234" typed, "123" on screen — and so with
+  // a choice in a list, a row added, the units. The page hears the reload key
+  // before the browser acts on it (F5, Ctrl+R or Cmd+R, with Shift or Ctrl for
+  // the hard one), so what is waiting is written at that key — the Length
+  // field's edit too, as leaving the field makes it (`code`). Where a browser
+  // does not hand the key to the page, nothing changes; the wait stays for
+  // every other key.
   useEffect(() => {
     const flush = (press?: Event) => {
       if (press && latest.current.typing?.(press)) return;
@@ -279,14 +289,19 @@ export function useAddress<C>(given: AddressOptions<C>): Address {
     const hidden = () => {
       if (document.visibilityState === 'hidden') flush();
     };
+    const reloading = (press: KeyboardEvent) => {
+      if (press.key === 'F5' || ((press.ctrlKey || press.metaKey) && !press.altKey && (press.key === 'r' || press.key === 'R'))) pending.current?.();
+    };
     window.addEventListener('pointerdown', flush, true);
     window.addEventListener('focusin', flush, true);
     window.addEventListener('click', flush, true);
+    window.addEventListener('keydown', reloading, true);
     document.addEventListener('visibilitychange', hidden);
     return () => {
       window.removeEventListener('pointerdown', flush, true);
       window.removeEventListener('focusin', flush, true);
       window.removeEventListener('click', flush, true);
+      window.removeEventListener('keydown', reloading, true);
       document.removeEventListener('visibilitychange', hidden);
     };
   }, []);

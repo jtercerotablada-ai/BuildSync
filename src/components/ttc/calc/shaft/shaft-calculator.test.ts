@@ -730,11 +730,12 @@ describe('shaft calculator: the example, cell by cell', () => {
       expect(under(bodyOf(card)[0])).toEqual(headOf(card));
       expect(rowsOf(card)).toEqual(s.forces.map((f, i) => [String(i + 1), n(f.x, 6), n(f.deflection.both), pointed(lang, 'vertical', f.deflection.vertical), pointed(lang, 'horizontal', f.deflection.horizontal), n(f.slope.both)]));
       // The gear goes down and towards the viewer, as it is pushed; the pulley, past the second bearing, down and away.
-      if (lang === 'en') expect(rowsOf(card)).toEqual([['1', '9', '0.001667', '0.001371 downward', '0.0009491 towards viewer', '7.316 × 10^-5'], ['2', '21', '0.003573', '0.003386 downward', '0.001139 away from viewer', '0.001093']]);
+      if (lang === 'en') expect(rowsOf(card)).toEqual([['1', '9', '0.001667', '0.001371 downward', '0.0009491 towards viewer', '7.316 × 10^−5'], ['2', '21', '0.003573', '0.003386 downward', '0.001139 away from viewer', '0.001093']]);
       // The gear's slope is the one number of the example written with a power of ten, and it is ONE number: in a
-      // narrow cell a line ended after its "×" while the spaces round it were plain ones.
-      expect(rowsOf(card)[0][5]).toMatch(/^7\.316 × 10\^-5$/);
-      expect(card).not.toMatch(/\d × 10\^/);
+      // narrow cell a line ended after its "×" while the spaces round it were plain ones. Its exponent's minus is a
+      // true one.
+      expect(rowsOf(card)[0][5]).toMatch(/^7\.316 × 10\^−5$/);
+      expect(card).not.toMatch(/\d ×|× 10/);
     });
 
     // A cell may end a line between a value and its place, never inside either: the place is one piece that does
@@ -1369,13 +1370,13 @@ describe('shaft calculator: what only its source can show of the wiring (the bro
   });
 
   // A key, then the browser's reload key inside the shell's 300 ms wait: the reload came back to the address of
-  // before that key ("1234" typed, "123" on screen). The wait is the shell's; this calculator writes at the key.
-  it('a reload from the keyboard finds the address written: what was waiting is written at the reload key', () => {
-    expect(code).toContain('const flushAddress = useRef(address.flush);');
-    expect(code).toMatch(/useEffect\(\(\) => \{\s*flushAddress\.current = address\.flush;\s*\}\);/);
-    expect(code).toMatch(
-      /useEffect\(\(\) => \{\s*const reloading = \(press: KeyboardEvent\) => \{\s*if \(press\.key === 'F5' \|\| \(\(press\.ctrlKey \|\| press\.metaKey\) && !press\.altKey && \(press\.key === 'r' \|\| press\.key === 'R'\)\)\) flushAddress\.current\(\);\s*\};\s*window\.addEventListener\('keydown', reloading, true\);\s*return \(\) => window\.removeEventListener\('keydown', reloading, true\);\s*\}, \[\]\);/,
-    );
+  // before that key ("1234" typed, "123" on screen). This calculator once wrote at the key itself; the shell does
+  // now, for all four (../shell/address.ts, held in shell.test.ts), and a second listener here would only write twice.
+  it('a reload from the keyboard finds the address written: the shell writes at the reload key, and this file has no listener of its own', () => {
+    expect(code).not.toMatch(/flushAddress|reloading|addEventListener\('keydown'/);
+    expect(code).not.toContain("press.key === 'F5'");
+    const shell = readFileSync(join(SRC, 'components', 'ttc', 'calc', 'shell', 'address.ts'), 'utf8');
+    expect(shell).toContain("window.addEventListener('keydown', reloading, true);");
     // It writes through the shell's own door and nowhere else: no address is written from this file. (The one entry
     // this file adds to the history, Start over's, carries the address already in the bar: held in its own test.)
     expect(code).not.toMatch(/replaceState|location\.hash\s*=/);

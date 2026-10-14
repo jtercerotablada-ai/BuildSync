@@ -1,11 +1,16 @@
 import { fieldNumber } from '../format';
 import {
+  CHECK_MARK,
+  MAX_LINK,
   bendingStress,
+  checkOf,
+  checked,
   convertUnits,
   decodeBeam,
   defaultBeam,
   deflectionFactor,
   encodeBeam,
+  readBeam,
   reduceBeam,
   sectionProps,
   stiffness,
@@ -265,18 +270,27 @@ const read = (s: string): number | null => {
 /**
  * The case as a string for the page's address, after `#s=`:
  *
- *     limit ~ stress, or nothing ~ the beam, as `encodeBeam` writes it
+ *     check ; limit ~ stress, or nothing ~ the beam's eight fields
  *
- * THE TWO LIMITS GO FIRST. The beam's string begins with a check of
- * everything after it (model.ts, `checkOf`), and that is what a link cut
- * short on its way fails: with the limits at the end, a link that lost its
- * tail would still open — on another stress, with no notice.
+ * — the beam's fields as `encodeBeam` writes them behind its check.
+ *
+ * THE CHECK HEADS THE WHOLE CASE, the two limits with the beam (model.ts,
+ * `checkOf`), as it heads the case of every other calculator: a limit
+ * changed on its way is refused as a figure of the beam is, and so is a link
+ * cut short anywhere.
+ *
+ * Until 14 October 2026 the check was the beam's own, after the limits, and
+ * counted only what stood behind it — a limit changed on its way opened, on
+ * another limit, with no notice. Those links begin with their limit and
+ * still open (`decodeSpan`).
  *
  * Whatever the fields hold is written, as for a beam: a limit of 0 on the
  * way to 240 comes back from a reload as 0, with its mark.
  */
 export function encodeSpan(form: BeamForm, limit: number, stress: number): string {
-  return [written(limit), stress === 0 ? '' : written(stress), encodeBeam(form)].join(SEP);
+  const beam = encodeBeam(form);
+  const rest = [written(limit), stress === 0 ? '' : written(stress), beam.slice(beam.indexOf(';') + 1)].join(SEP);
+  return `${checkOf(rest)};${rest}`;
 }
 
 /**
@@ -314,8 +328,15 @@ export function beyondSpan(beam: BeamForm): boolean {
 
 /**
  * The case a string from `encodeSpan` describes, or `null` if it is anything
- * else: not three fields, a limit that is not a number, a beam `decodeBeam`
- * refuses. A link cut short is always one of those.
+ * else: a check that is not the rest's, not three fields, a limit that is not
+ * a number, a beam the first calculator refuses. A link cut short is always
+ * one of those.
+ *
+ * A link written before 14 October 2026 begins with its limit, and its beam
+ * is the first calculator's link, behind that link's own check of that day
+ * — or of none, before there was one (model.ts, `decodeBeam`): it opens as
+ * it did. A beam behind a check of today in that place is no link anybody
+ * wrote, and is refused: its limits would be checked by nothing.
  *
  * The beam may be any beam the first calculator writes. Its supports, hinges
  * and applied moments are not this page's: it opens as the pinned span under
@@ -324,11 +345,15 @@ export function beyondSpan(beam: BeamForm): boolean {
  * not the beam the link was made for. The case says so (`lost`).
  */
 export function decodeSpan(text: string): SpanCase | null {
-  const parts = text.split(SEP);
+  // Begun with the check: a link of today. Begun with a limit: one written before it.
+  const whole = text.startsWith(CHECK_MARK);
+  const rest = !whole ? text : text.length > MAX_LINK ? null : checked(text);
+  if (rest === null) return null;
+  const parts = rest.split(SEP);
   if (parts.length !== 3) return null;
   const limit = read(parts[0]);
   const stress = parts[1] === '' ? 0 : read(parts[1]);
-  const beam = decodeBeam(parts[2]);
+  const beam = whole ? readBeam(parts[2]) : parts[2].startsWith(CHECK_MARK) ? null : decodeBeam(parts[2]);
   if (limit === null || stress === null || !beam) return null;
   return { form: ownSection(pinEnds(beam)), limit, stress, ...(beyondSpan(beam) ? { lost: true as const } : {}) };
 }

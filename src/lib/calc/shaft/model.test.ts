@@ -116,16 +116,40 @@ const carried = (f: ShaftForm) => ({
 });
 
 /* The check a link begins with, worked out here a second time from its
-   description in beam/model.ts: the length of the rest and a sum of its
-   characters, in base 36. People keep the links they were sent, so the rule
-   may not drift — and a test that asked the model for it could not tell. */
+   description in beam/model.ts — as a sum of powers, where the model
+   multiplies as it goes: the mark K; the codes of the rest's characters, the
+   last weighted by A, the one before by A², and so on, added up modulo the
+   prime P; the same with the powers of A²; each sum in four characters of
+   base 36; and the length of the rest in base 36. People keep the links they
+   were sent, so the rule may not drift — and a test that asked the model for
+   it could not tell. */
+const P = 1679609;
+const A = 1038055;
 const checkOf = (body: string) => {
+  const A2 = (A * A) % P;
+  let [a, b, wa, wb] = [0, 0, 1, 1];
+  for (let i = body.length - 1; i >= 0; i--) {
+    [wa, wb] = [(wa * A) % P, (wb * A2) % P];
+    a = (a + body.charCodeAt(i) * wa) % P;
+    b = (b + body.charCodeAt(i) * wb) % P;
+  }
+  const four = (v: number) => v.toString(36).padStart(4, '0');
+  return `K${four(a)}${four(b)}${body.length.toString(36)}`;
+};
+/** These six fields as the page would write them: behind their check. */
+const sealed = (body: string) => `${checkOf(body)};${body}`;
+/* The check of the links written before 14 October 2026, from ITS
+   description: the length of the rest and a sum of its characters, in base
+   36. Kept here to write such links, which must still open. */
+const oldCheckOf = (body: string) => {
   let sum = 0;
   for (const ch of body) sum = (sum * 31 + ch.charCodeAt(0)) % 1296;
   return (body.length * 1296 + sum).toString(36);
 };
-/** These six fields as the page would write them: behind their check. */
-const sealed = (body: string) => `${checkOf(body)};${body}`;
+/** These six fields as the page wrote them before 14 October 2026. */
+const oldSealed = (body: string) => `${oldCheckOf(body)};${body}`;
+/** What an address of this page is written in: the check — its mark, then base 36 — and the fields, in lower case. */
+const WRITTEN_IN = /^K[a-z0-9]+;[a-z0-9.,;_-]+$/;
 /** The six fields of a link, without its check. */
 const bodyOf = (link: string) => link.slice(link.indexOf(';') + 1);
 
@@ -139,6 +163,30 @@ const dice = (seed: number) => {
   const pick = <T>(list: readonly T[]): T => list[Math.floor(rnd() * list.length)];
   return { rnd, pick };
 };
+
+/** A shaft not chosen: one to eight segments, hollow or not, bearings anywhere, loads in every direction, any number a field can show, each material, both systems. */
+function randomShaft(rnd: () => number, pick: <T>(list: readonly T[]) => T): ShaftForm {
+  // Any number, as a field holds it once it has been shown: to eight figures.
+  const any = () => Number(fieldNumber(pick([0, 20, 12.5, -3, 1e21, 1e-7, 2e12, 123456789012, 5e-324, (rnd() - 0.3) * 100, (rnd() - 0.5) * 10 ** Math.round((rnd() - 0.5) * 600)])));
+  const size = () => pick([Math.abs(any()), Math.abs(any()), Math.abs(any()), Math.abs(any()), 0, Infinity, Number.NaN]);
+  const units = pick(['us', 'si'] as const);
+  const material = pick(['steel', 'stainless', 'aluminum', 'custom'] as const);
+  let id = 1;
+  const segments = Array.from({ length: 1 + Math.floor(rnd() * MAX_SEGMENTS) }, () => seg(id++, any(), any(), pick([0, 0, any()])));
+  const some = <T>(row: () => T): T[] => Array.from({ length: pick([0, 0, 1, 2, 3, MAX_ROWS]) }, row);
+  return {
+    units,
+    segments,
+    bearings: [any(), any()],
+    forces: some(() => force(id++, any(), size(), pick(['down', 'up'] as const), size(), pick(['towards', 'away'] as const))),
+    couples: some(() => couple(id++, any(), size(), pick(['ccw', 'cw'] as const), size(), pick(['ccw', 'cw'] as const))),
+    material,
+    E: material === 'custom' ? size() : SHAFT_MATERIALS[material][units].E,
+    density: material === 'custom' ? size() : SHAFT_MATERIALS[material][units].density,
+    ownWeight: rnd() < 0.5,
+    nextId: id,
+  };
+}
 
 /** A form nothing can write on: an edit that changed its form in place, instead of returning another, would throw. */
 const frozen = <T>(value: T): T => {
@@ -1768,7 +1816,7 @@ describe('shaft form: a shaft in an address', () => {
 
   it('opens the same shaft', () => {
     const text = encodeShaft(worked());
-    expect(text).toMatch(/^[a-z0-9.,;_-]+$/);
+    expect(text).toMatch(WRITTEN_IN);
     const back = decodeShaft(text)!;
     expect(back).not.toBeNull();
     expect(carried(back)).toEqual(carried(worked()));
@@ -1782,16 +1830,22 @@ describe('shaft form: a shaft in an address', () => {
   });
 
   // Written out, so that the rule is pinned by something other than itself:
-  // 69 characters is 1x in base 36 (36 + 33), and their sum is 1,013: s5.
+  // the two sums of the example's 69 characters are 322,976 and 1,357,902 —
+  // 6x7k and t3ri in base 36 — and 69 is 1x (36 + 33).
   it('the address of the example is short, and is this', () => {
-    expect(encodeShaft(d)).toBe('1xs5;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,0');
-    expect(encodeShaft(d).length).toBeLessThan(80);
-    expect(encodeShaft(shaft({ ownWeight: true }))).toBe('1xs6;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,1');
+    expect(encodeShaft(d)).toBe('K6x7kt3ri1x;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,0');
+    expect(encodeShaft(d).length).toBeLessThan(90);
+    expect(encodeShaft(shaft({ ownWeight: true }))).toBe('Kt66fsw8m1x;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,1');
     // One of everything: a bore, an upward force, one away from the viewer, a couple each way, a material of the visitor's own.
     expect(encodeShaft(worked())).toBe(sealed('us;3,16;6,2_8,3,1.5_4,1;10,500,-200_18,-150,0;10,-300,120;u,30000,0.3,1'));
     expect(encodeShaft(metric())).toBe(sealed('si;0,300;150,50_200,80,40;150,2000,500;250,40,-15;s,200000,7850,1'));
     for (const f of [d, worked(), metric(), convertShaft(worked(), 'si')]) expect(encodeShaft(f)).toBe(sealed(bodyOf(encodeShaft(f))));
-    expect(carried(decodeShaft('1xs5;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,0')!)).toEqual(carried(d));
+    expect(carried(decodeShaft('K6x7kt3ri1x;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,0')!)).toEqual(carried(d));
+    // The page's address before 14 October 2026, with the check of that day — 69 characters is 1x, and their sum
+    // was 1,013: s5. Links written then have been sent, and open as the same shaft.
+    expect(decodeShaft('1xs5;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,0')).toEqual(decodeShaft(encodeShaft(d)));
+    expect(decodeShaft('1xs6;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,1')).toEqual(decodeShaft(encodeShaft(shaft({ ownWeight: true }))));
+    expect(decodeShaft('1xs6;us;2,16;4,1.5_10,2_4,1.5_5,1.25;9,1000,360_21,400,0;;s,29000,0.2836,0')).toBeNull();
     // The page's key is its own: h, where the other calculators' are b, s and c.
     expect(SHAFT_KEY).toBe('h');
     expect([SPAN_KEY, CONTINUOUS_KEY, 'b']).not.toContain(SHAFT_KEY);
@@ -1899,7 +1953,7 @@ describe('shaft form: a shaft in an address', () => {
       for (const over of [{ L: v }, { d: v }, { bore: v }]) {
         const form = { ...worked(), segments: worked().segments.map((s, i) => (i === 1 ? { ...s, ...over } : s)) };
         const link = encodeShaft(form);
-        expect(link, JSON.stringify(over)).toMatch(/^[a-z0-9.,;_-]+$/);
+        expect(link, JSON.stringify(over)).toMatch(WRITTEN_IN);
         const back = decodeShaft(link)!;
         expect(carried(back), JSON.stringify(over)).toEqual(carried(form));
         // What the form says is wrong with itself, it says again after the reload — on the row it is now.
@@ -1949,7 +2003,7 @@ describe('shaft form: a shaft in an address', () => {
     const huge = convertShaft(shaft({ segments: [seg(1, 1e308, 2)], forces: [force(4, 9, 1e308, 'up', 1e308, 'away')], couples: [couple(5, 9, 1e308, 'cw')] }), 'si');
     expect([huge.segments[0].L, huge.forces[0].v, huge.forces[0].h]).toEqual([Infinity, Infinity, Infinity]);
     const link = encodeShaft(huge);
-    expect(link).toMatch(/^[a-z0-9.,;_-]+$/);
+    expect(link).toMatch(WRITTEN_IN);
     expect(carried(decodeShaft(link)!)).toEqual(carried(huge));
     for (const v of [Infinity, Number.NaN]) {
       for (const [vDir, hDir] of [['down', 'towards'], ['up', 'away'], ['up', 'towards']] as const) {
@@ -1970,30 +2024,12 @@ describe('shaft form: a shaft in an address', () => {
   // field can show, each material, both systems.
   it('four hundred random forms each reopen as themselves', () => {
     const { rnd, pick } = dice(20261014);
-    // Any number, as a field holds it once it has been shown: to eight figures.
-    const any = () => Number(fieldNumber(pick([0, 20, 12.5, -3, 1e21, 1e-7, 2e12, 123456789012, 5e-324, (rnd() - 0.3) * 100, (rnd() - 0.5) * 10 ** Math.round((rnd() - 0.5) * 600)])));
-    const size = () => pick([Math.abs(any()), Math.abs(any()), Math.abs(any()), Math.abs(any()), 0, Infinity, Number.NaN]);
     const seen = { segments: new Set<number>(), hollow: 0, loads: 0, materials: new Set<string>(), weighed: 0, lost: 0 };
     for (let i = 0; i < 400; i++) {
-      const units = pick(['us', 'si'] as const);
-      const material = pick(['steel', 'stainless', 'aluminum', 'custom'] as const);
-      let id = 1;
-      const segments = Array.from({ length: 1 + Math.floor(rnd() * MAX_SEGMENTS) }, () => seg(id++, any(), any(), pick([0, 0, any()])));
-      const some = <T>(row: () => T): T[] => Array.from({ length: pick([0, 0, 1, 2, 3, MAX_ROWS]) }, row);
-      const form: ShaftForm = {
-        units,
-        segments,
-        bearings: [any(), any()],
-        forces: some(() => force(id++, any(), size(), pick(['down', 'up'] as const), size(), pick(['towards', 'away'] as const))),
-        couples: some(() => couple(id++, any(), size(), pick(['ccw', 'cw'] as const), size(), pick(['ccw', 'cw'] as const))),
-        material,
-        E: material === 'custom' ? size() : SHAFT_MATERIALS[material][units].E,
-        density: material === 'custom' ? size() : SHAFT_MATERIALS[material][units].density,
-        ownWeight: rnd() < 0.5,
-        nextId: id,
-      };
+      const form = randomShaft(rnd, pick);
+      const { units, material, segments } = form;
       const link = encodeShaft(form);
-      expect(link).toMatch(/^[a-z0-9.,;_-]+$/);
+      expect(link).toMatch(WRITTEN_IN);
       const back = decodeShaft(link)!;
       expect(back, link).not.toBeNull();
       expect(carried(back), link).toEqual(carried(form));
@@ -2188,7 +2224,7 @@ describe('shaft form: a shaft in an address', () => {
       nextId: 100,
     };
     const link = encodeShaft(worst);
-    expect(link).toHaveLength(2312);
+    expect(link).toHaveLength(2319);
     expect(carried(decodeShaft(link)!)).toEqual(carried(worst));
     // Zeros after a decimal point are still the number, so a link can be
     // padded to any length with every field in order: it is the length that
@@ -2270,6 +2306,129 @@ describe('shaft form: a link that lost part of itself', () => {
         expect(decodeShaft(`${other};${body}`), `${name}: "${other}"`).toBeNull();
       }
       expect(decodeShaft(body), name).toBeNull();
+    }
+  });
+});
+
+/* ── The check, put to the test (beam/model.test.ts holds the check itself; these are this page's links) ── */
+
+/** Printable ASCII: what a link typed over, or garbled on its way, is likeliest to hold. */
+const PRINTABLE = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join('');
+/** What an address is written in, and a few characters it is not. */
+const WRITTEN = '0123456789.,;_-/~abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ %';
+
+/** Every text one character away from `link` — changed, added, taken away, at every place, the check included — with every character of `alphabet`, or `per` drawn at each place. */
+function* oneAway(link: string, alphabet: string, draw?: { rnd: () => number; per: number }): Generator<string> {
+  for (let i = 0; i <= link.length; i++) {
+    const chars = draw ? Array.from({ length: draw.per }, () => alphabet[Math.floor(draw.rnd() * alphabet.length)]) : [...alphabet];
+    for (const ch of chars) {
+      yield link.slice(0, i) + ch + link.slice(i);
+      if (i < link.length && ch !== link[i]) yield link.slice(0, i) + ch + link.slice(i + 1);
+    }
+    if (i < link.length) yield link.slice(0, i) + link.slice(i + 1);
+  }
+}
+
+/** `link` with two of its characters, drawn at random anywhere in it, changed to others of `alphabet`. */
+const twoChanged = (link: string, alphabet: string, rnd: () => number): string => {
+  const chars = [...link];
+  const i = Math.floor(rnd() * chars.length);
+  let j = Math.floor(rnd() * (chars.length - 1));
+  if (j >= i) j += 1;
+  for (const at of [i, j]) {
+    const was = chars[at];
+    while (chars[at] === was) chars[at] = alphabet[Math.floor(rnd() * alphabet.length)];
+  }
+  return chars.join('');
+};
+
+/** Every pair of characters 54 apart in `body`, one moved a code up and the other down: what the check of before let through every time. */
+function* apart54(body: string): Generator<string> {
+  const printable = (c: number) => c >= 32 && c <= 126;
+  for (let i = 0; i + 54 < body.length; i++) {
+    const [p, q] = [body.charCodeAt(i), body.charCodeAt(i + 54)];
+    const d = printable(p + 1) && printable(q - 1) ? 1 : printable(p - 1) && printable(q + 1) ? -1 : 0;
+    if (d) yield body.slice(0, i) + String.fromCharCode(p + d) + body.slice(i + 1, i + 54) + String.fromCharCode(q - d) + body.slice(i + 55);
+  }
+}
+
+describe('shaft form: the check of its address, put to the test', () => {
+  const d = defaultShaft();
+  const examples: ShaftForm[] = [
+    d,
+    convertShaft(d, 'si'),
+    shaft({ ownWeight: true }),
+    worked(),
+    convertShaft(worked(), 'si'),
+    metric(),
+    shaft({ segments: [seg(1, 20, 2)], forces: [], couples: [], material: 'aluminum', E: 10100, density: 0.0975 }),
+  ];
+  /** Three hundred shafts not chosen, from the generator the round trip is held to. */
+  const drawn = (() => {
+    const { rnd, pick } = dice(20261015);
+    return { rnd, forms: Array.from({ length: 300 }, () => randomShaft(rnd, pick)) };
+  })();
+  const links = [...examples, ...drawn.forms].map(encodeShaft);
+
+  it('every shaft opens as itself, behind the check described, and writes the same address again', () => {
+    for (const form of [...examples, ...drawn.forms]) {
+      const link = encodeShaft(form);
+      expect(link).toBe(sealed(bodyOf(link)));
+      const back = decodeShaft(link)!;
+      expect(back, link).not.toBeNull();
+      expect(carried(back), link).toEqual(carried(form));
+      expect(encodeShaft(back), link).toBe(link);
+    }
+  });
+
+  it('one character changed, added or taken away anywhere — the check included — is no link: the examples with every printable character, the random shafts with characters drawn at every place', () => {
+    let tried = 0;
+    for (const [n, link] of links.entries()) {
+      for (const text of n < examples.length ? oneAway(link, PRINTABLE) : oneAway(link, WRITTEN, { rnd: drawn.rnd, per: 1 })) {
+        tried += 1;
+        if (decodeShaft(text) !== null) expect.fail(`opened: ${text}`);
+      }
+    }
+    expect(tried).toBeGreaterThan(250000);
+  }, 30_000);
+
+  it('two characters changed are no link: twenty thousand drawn anywhere, and every pair 54 apart — each of which the check of before let through', () => {
+    for (let n = 0; n < 20000; n++) {
+      const text = twoChanged(links[n % links.length], n % 2 ? PRINTABLE : WRITTEN, drawn.rnd);
+      if (decodeShaft(text) !== null) expect.fail(`opened: ${text}`);
+    }
+    // The longest link a form writes: eight hollow segments, twelve loads of each kind, every number at its longest.
+    const big = -1.2345678e20;
+    const longest = encodeShaft({
+      units: 'us',
+      segments: Array.from({ length: MAX_SEGMENTS }, (_, i) => seg(i + 1, big, big, big)),
+      bearings: [big, big],
+      forces: Array.from({ length: MAX_ROWS }, (_, i) => force(20 + i, big, -big, 'up', -big, 'away')),
+      couples: Array.from({ length: MAX_ROWS }, (_, i) => couple(40 + i, big, -big, 'cw', -big, 'cw')),
+      material: 'custom',
+      E: big,
+      density: big,
+      ownWeight: true,
+      nextId: 100,
+    });
+    let pairs = 0;
+    for (const link of [longest, ...links.slice(0, examples.length)]) {
+      const body = bodyOf(link);
+      for (const changed of apart54(body)) {
+        pairs += 1;
+        // The check of before could not tell this body from the one written; this one can.
+        expect(oldCheckOf(changed)).toBe(oldCheckOf(body));
+        if (decodeShaft(`${link.slice(0, link.indexOf(';'))};${changed}`) !== null) expect.fail(`opened: ${changed}`);
+      }
+    }
+    expect(pairs).toBeGreaterThan(2300);
+  });
+
+  it('every one of those shafts opens from a link with the check of before 14 October 2026, as the same shaft', () => {
+    for (const link of links) {
+      const old = oldSealed(bodyOf(link));
+      expect(old, link).not.toBe(link);
+      expect(decodeShaft(old), old).toEqual(decodeShaft(link));
     }
   });
 });

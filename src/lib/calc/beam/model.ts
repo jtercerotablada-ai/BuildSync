@@ -492,20 +492,88 @@ export function encodeBeam(form: BeamForm): string {
   return `${checkOf(body)};${body}`;
 }
 
+/** What a check of `checkOf`'s begins with, and no check before it did. */
+export const CHECK_MARK = 'K';
+/** The largest prime under 36⁴ = 1,679,616. */
+export const CHECK_P = 1679609;
+/** A primitive root of `CHECK_P`, and a large one (`checkOf` says why): the whole part of P·(√5 − 1)/2, which is one. */
+export const CHECK_A = 1038055;
+const CHECK_A2 = (CHECK_A * CHECK_A) % CHECK_P;
+
 /**
- * The check an address begins with: the length of the rest and a sum of its
- * characters, as one number in base 36. A link that lost its tail has
- * another length, so no shortened link passes. One changed character, or two
- * neighbours swapped, always changes the sum: 31 shares no factor with
- * 1,296, and no two characters of a link are 216 apart.
+ * The check an address begins with, since 14 October 2026: the mark `K`, two
+ * sums of the rest — four characters each, in base 36 — and the length of the
+ * rest, in base 36. The sums are of the characters' codes c₀ … cₙ₋₁, each
+ * weighted by a power of A, the last character by A and the first by Aⁿ, and
+ * then by the powers of A², all modulo the prime P:
+ *
+ *     a = Σ cᵢ·A^(n−i)  mod P,      b = Σ cᵢ·A^(2(n−i))  mod P
+ *
+ * P is the largest prime under 36⁴, so that each sum is four characters, and
+ * A is a primitive root of P: no power of it comes back to another before
+ * P − 1 = 1,679,608 places, and a link has 3,000 at most.
+ *
+ * WHAT IT CATCHES, BY ITS MAKING AND NOT BY CHANCE. A link cut short, or with
+ * a character more or less anywhere, has another length. One character
+ * changed changes both sums: its weight is never zero modulo P, nor is the
+ * difference of two characters (P is past 65,535, the largest code a
+ * character has). TWO characters changed, wherever they are, cannot leave
+ * both sums as they were: that would take A^k = A^l at two places k ≠ l. Nor
+ * can one character of the check with one of the rest: a character of the
+ * check is in one sum, or in the length, and one of the rest changes both
+ * sums. Anything more passes about once in P², 2.8 × 10¹². (A is large on
+ * purpose: with a small one, three neighbours changed in the right
+ * proportions — with 3, by +27, −12 and +1 — would leave both sums as they
+ * were. With this one no three characters within 400 places of each other
+ * do, by any amount that keeps them printable.)
+ *
+ * The check before it (`oldCheckOf`) let two characters changed through about
+ * once in 1,250, and ALWAYS when they stood 54 apart, one up and the other
+ * down by as much: a link altered on its way opened as another case, with
+ * nothing said. Links written with it are kept by the people they were sent
+ * to, and open as they did (`checked`): the `K`, which base 36 in lower case
+ * never writes, says which of the two a link carries.
  *
  * Links are kept by the people they were sent to: this must never change.
  */
 export function checkOf(body: string): string {
+  let a = 0;
+  let b = 0;
+  // Each step stays under 2⁴², and a double is exact to 2⁵³.
+  for (let i = 0; i < body.length; i++) {
+    const c = body.charCodeAt(i);
+    a = ((a + c) * CHECK_A) % CHECK_P;
+    b = ((b + c) * CHECK_A2) % CHECK_P;
+  }
+  return `${CHECK_MARK}${a.toString(36).padStart(4, '0')}${b.toString(36).padStart(4, '0')}${body.length.toString(36)}`;
+}
+
+/**
+ * The check of the links written before 14 October 2026: the length of the
+ * rest and a sum of its characters, as one number in base 36. Kept to open
+ * those links, and written no more (`checkOf` says why).
+ *
+ * Links are kept by the people they were sent to: this must never change.
+ */
+export function oldCheckOf(body: string): string {
   let sum = 0;
   for (let i = 0; i < body.length; i++) sum = (sum * 31 + body.charCodeAt(i)) % 1296;
   // 1,296 is 36²: the sum is the last two characters, the length the ones before.
   return (body.length * 1296 + sum).toString(36);
+}
+
+/**
+ * The rest of an address that begins with its own check and a `;` — the
+ * check written now, or the one of a link written before it — or `null`. The
+ * mark says which of the two the link carries, and it is held to that one
+ * alone: a check is never taken for the other kind.
+ */
+export function checked(text: string): string | null {
+  const cut = text.indexOf(';');
+  if (cut < 1) return null;
+  const check = text.slice(0, cut);
+  const body = text.slice(cut + 1);
+  return check === (check.startsWith(CHECK_MARK) ? checkOf(body) : oldCheckOf(body)) ? body : null;
 }
 
 export const NUMBER = /^-?\d+(\.\d+)?(e-?\d+)?$/;
@@ -528,24 +596,24 @@ const MATERIAL_LETTER: Record<MaterialKey, string> = { steel: 's', aluminum: 'a'
 /*
  * No form writes a longer address: twelve rows of every kind with every
  * number at its longest (22 characters: −1.2345678 × 10²⁰ is written out in
- * full) come to 2,899 characters.
+ * full) come to 2,906 characters. The single-span page's longest, its two
+ * limits and its span, is 1,809 (span.ts reads it against the same bound).
  */
-const MAX_LINK = 3000;
+export const MAX_LINK = 3000;
 
 /** The beam a string from `encodeBeam` describes, or `null` if it is anything else. */
 export function decodeBeam(text: string): BeamForm | null {
   if (text.length > MAX_LINK) return null;
-  const cut = text.indexOf(';');
-  const first = text.slice(0, Math.max(cut, 0));
+  const first = text.slice(0, Math.max(text.indexOf(';'), 0));
   // A link from before the check existed begins with its units. Those have
   // been sent to people, and open as they always did.
   if (first === 'us' || first === 'si') return readBeam(text);
-  const body = text.slice(cut + 1);
-  return first !== '' && first === checkOf(body) ? readBeam(body) : null;
+  const body = checked(text);
+  return body === null ? null : readBeam(body);
 }
 
-/** The eight fields of an address, without its check. */
-function readBeam(text: string): BeamForm | null {
+/** The eight fields of an address, without its check (the single-span page's checks them with its two limits: span.ts). */
+export function readBeam(text: string): BeamForm | null {
   const parts = text.split(';');
   if (parts.length !== 8) return null;
   const [units, L, supports, hinges, points, dists, couples, section] = parts;

@@ -72,6 +72,11 @@ const pairsOf = (card: string) => [...card.matchAll(/<dt>([\s\S]*?)<\/dt><dd>([\
 const notesOf = (card: string) => [...card.matchAll(/<p class="mp-app__note">([\s\S]*?)<\/p>/g)].map((m) => text(m[1]));
 const legendsOf = (html: string) => [...html.matchAll(/<fieldset class="mp-app__group"><legend>([\s\S]*?)<\/legend>/g)].map((m) => text(m[1]));
 const drawingsOf = (html: string) => [...html.matchAll(/<svg\b[^>]*role="img"[^>]*>/g)].map((m) => attr(m[0], 'aria-label') ?? '');
+/**
+ * A number written with a power of ten, as the formatter writes one: "7.316 × 10^−5". The spaces round its × are
+ * plain ones, and no-break ones on a page that holds the number on one line (the shaft's): either is a space here.
+ */
+const POWER = /\d\s×\s10\^/;
 
 /** The example span with other loads, length or section. */
 const span = (over: Partial<BeamForm>): BeamForm => ({ ...defaultSpan(), ...over });
@@ -392,7 +397,7 @@ describe('single-span calculator: spans other than the example', () => {
     expect(headOf(loads(html)).slice(3)).toEqual(['Moment at x = 12 ft (kip·ft)', 'Deflection at x = 12 ft (in)']);
     expect(rowsOf(loads(html))).toEqual([['Point load 1', '4', '2', '24', '-0.1693'], ['Point load 2', '-4', '-2', '-24', '0.1693'], ['All loads', '0', '0', '0', '0']]);
     expect(pairsOf(sizing(html))).toEqual([['Moment of inertia needed', '0 in⁴ the section entered has 518 in⁴'], ['Section modulus needed', '0 in³ the section entered has 64.7 in³']]);
-    expect(html).not.toContain('× 10^');
+    expect(html).not.toMatch(POWER);
   });
 
   // What is not a share is 0. 6 kip standing on the left support goes into
@@ -411,9 +416,9 @@ describe('single-span calculator: spans other than the example', () => {
       ['Distributed load 2', '9.6', '9.6', '57.6', '-0.3975'],
       ['All loads', '15.6', '9.6', '57.6', '-0.3975'],
     ]);
-    // The drawing writes that load's value as it was typed, 1 × 10^-9 kip. No card has such a number.
-    expect(html.slice(0, html.indexOf('<div class="mp-app__tables">'))).toContain('× 10^-9');
-    expect(html.slice(html.indexOf('<div class="mp-app__tables">'))).not.toContain('× 10^');
+    // The drawing writes that load's value as it was typed, 1 × 10^−9 kip. No card has such a number.
+    expect(html.slice(0, html.indexOf('<div class="mp-app__tables">'))).toContain('1 × 10^−9');
+    expect(html.slice(html.indexOf('<div class="mp-app__tables">'))).not.toMatch(POWER);
     // With no load at all the table is its last row, and the span asks for no section.
     const bare = show('en', span({ points: [], dists: [] }), { limit: 360, stress: 24 });
     expect(rowsOf(loads(bare))).toEqual([['All loads', '0', '0', '0', '0']]);
@@ -449,10 +454,10 @@ describe('single-span calculator: spans other than the example', () => {
   it('a load whose reactions are rounding has no deflection either: its row is all zeros', () => {
     const html = show('en', span({ L: 40, points: [{ id: 3, x: 20, P: 0.00003, dir: 'down' }], dists: [{ id: 4, x1: 0, x2: 40, w1: 2, w2: 2, dir: 'down' }] }));
     expect(rowsOf(loads(html))).toEqual([['Point load 1', '0', '0', '0', '0'], ['Distributed load 1', '40', '40', '400', '-7.669'], ['All loads', '40', '40', '400', '-7.669']]);
-    expect(html.slice(html.indexOf('<div class="mp-app__tables">'))).not.toContain('× 10^');
+    expect(html.slice(html.indexOf('<div class="mp-app__tables">'))).not.toMatch(POWER);
     // The same small load alone is a load like any other, deflection and all: P/2, PL/4, PL³/48EI.
     const alone = rowsOf(loads(show('en', span({ L: 40, points: [{ id: 3, x: 20, P: 0.00003, dir: 'down' }], dists: [] }))));
-    expect(alone[0]).toEqual(['Point load 1', '1.5 × 10^-5', '1.5 × 10^-5', '0.0003', '-4.601 × 10^-6']);
+    expect(alone[0]).toEqual(['Point load 1', '1.5 × 10^−5', '1.5 × 10^−5', '0.0003', '-4.601 × 10^−6']);
   });
 
   // Which way is positive is said under the table, and the table must agree
