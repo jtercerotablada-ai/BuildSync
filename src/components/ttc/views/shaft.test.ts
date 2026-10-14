@@ -40,6 +40,7 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { DESCRIPTION_LIMIT_PX, TITLE_BUDGET_PX, descriptionPx, repeatedWords, titlePx, unmeasured } from '@/lib/ttc/serp';
 import { absoluteUrl } from '@/lib/ttc/site';
 import { ShaftCalculator } from '@/components/ttc/calc/shaft/ShaftCalculator';
+import { shaftHeight } from '@/components/ttc/calc/shaft/ShaftSchematic';
 import { addressNow } from '@/components/ttc/mp/lang';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { BEAM_PATH } from './BeamCalculatorView';
@@ -443,8 +444,9 @@ describe('shaft on bearings: the closed forms it gives to check it by', () => {
     const [en, es] = LANGS.map((lang) => shaftPage[lang].method.paragraphs.slice(-4));
     expect(en[0]).toContain('each reaction P/2; deflection under the force PL³/(48EI); slope at each bearing PL²/(16EI).');
     expect(es[0]).toContain('cada reacción P/2; deflexión bajo la fuerza PL³/(48EI); giro en cada cojinete PL²/(16EI).');
-    expect(en[1]).toContain('a force P on an overhang, a beyond one bearing: that bearing carries P(L + a)/L, the other Pa/L the opposite way; moment Pa at the near bearing; deflection under the force Pa²(L + a)/(3EI).');
-    expect(es[1]).toContain('una fuerza P en un voladizo, separada a de un cojinete: ese cojinete recibe P(L + a)/L y el otro Pa/L en sentido contrario; momento Pa en el cojinete cercano; deflexión bajo la fuerza Pa²(L + a)/(3EI).');
+    // The length a is named before its letter ("at a distance a"): alone, it read as the English article and the Spanish preposition.
+    expect(en[1]).toContain('a force P on an overhang, at a distance a beyond one bearing: that bearing carries P(L + a)/L, the other Pa/L the opposite way; moment Pa at the near bearing; deflection under the force Pa²(L + a)/(3EI).');
+    expect(es[1]).toContain('una fuerza P en voladizo, a una distancia a de un cojinete: ese cojinete recibe P(L + a)/L y el otro Pa/L en sentido contrario; momento Pa en el cojinete cercano; deflexión bajo la fuerza Pa²(L + a)/(3EI).');
     expect(en[2]).toContain('each plane carries P/√2 and gives 1/√2 of that deflection and slope; the resultants are the first case’s, whole.');
     expect(es[2]).toContain('cada plano recibe P/√2 y da 1/√2 de aquella deflexión y de aquel giro; las resultantes son las del primer caso, enteras.');
     expect(en[3]).toContain('its middle half of stiffness nEI and its two end quarters of EI: deflection under the force PL³(1 + 7/n)/(384EI); slope at each bearing PL²(1 + 3/n)/(64EI).');
@@ -728,10 +730,10 @@ describe('shaft on bearings: what the method says, the engine does', () => {
   });
 
   // "The bending stress is the resultant moment over the section modulus of
-  // the segment the section is in … At a shoulder the moment is one value
-  // and the section is two, so the stress there is two values, the higher on
-  // the side of the smaller modulus."
-  it('the stress at a point is the resultant moment over that segment’s Z; at a shoulder it is two values, the higher on the side of the smaller modulus', () => {
+  // the segment the section is in … At a shoulder with no applied moment on
+  // it, the moment is one value and the section is two, so the stress there
+  // is two values, the higher on the side of the smaller modulus."
+  it('the stress at a point is the resultant moment over that segment’s Z; at a shoulder with no applied moment on it, it is two values, the higher on the side of the smaller modulus', () => {
     const Z = EXAMPLE.segments.map((s) => modulus(s.d));
     for (const x of [1, 3, 6.5, 9, 12, 15, 17, 20]) {
       const here = example.at(x);
@@ -750,8 +752,26 @@ describe('shaft on bearings: what the method says, the engine does', () => {
       const [l, r] = [example.at(x, 'left'), example.at(x, 'right')];
       expect(l.sigma! > r.sigma!, `at ${x}`).toBe(Z[l.segment] < Z[r.segment]);
     }
+    // WITH NO APPLIED MOMENT ON IT — the sentence's own condition, and not a manner of speaking. 15 in of 2 in and then 5 in of
+    // 1.5 in, on bearings at the two ends, with 1,000 lbf·in counter-clockwise ON the shoulder: 1,000 ÷ 20 = 50 lbf at each
+    // bearing, so 50 × 15 = 750 lbf·in just left of the shoulder and 750 − 1,000 = −250 just right of it. The moment is two
+    // values there, and the higher stress is beside the LARGER modulus: 750 ÷ 0.7854 = 954.9 lbf/in² against 250 ÷ 0.3313 = 754.5.
+    const turned = solvedForm({ ...formOf([[15, 2], [5, 1.5]], [0, 20]), couples: [{ id: 3, x: 15, v: 1000, vDir: 'ccw', h: 0, hDir: 'ccw' }], nextId: 4 });
+    const [before, after] = [turned.at(15, 'left'), turned.at(15, 'right')];
+    expect([before.segment, after.segment]).toEqual([0, 1]);
+    expect([before.vertical.M, after.vertical.M]).toEqual([expect.closeTo(750, 9), expect.closeTo(-250, 9)]);
+    expect([before.M, after.M]).toEqual([expect.closeTo(750, 9), expect.closeTo(250, 9)]);
+    expect([printed(modulus(2)), printed(modulus(1.5))]).toEqual(['0.7854', '0.3313']);
+    expect([printed(before.sigma!), printed(after.sigma!)]).toEqual(['954.9', '754.5']);
+    expect(before.sigma!).toBeGreaterThan(after.sigma!);
+    // Each segment is still given the moment of its own side: 750 lbf·in for the first, 250 for the second.
+    expect(turned.segments.map((s) => [printed(s.M.value), s.M.x])).toEqual([['750', 15], ['250', 15]]);
     for (const lang of LANGS) {
-      expect(shaftPage[lang].method.paragraphs[3]).toContain(lang === 'en' ? 'so the stress there is two values, the higher on the side of the smaller modulus.' : 'así que el esfuerzo tiene allí dos valores, el mayor del lado del módulo menor.');
+      expect(shaftPage[lang].method.paragraphs[3]).toContain(
+        lang === 'en'
+          ? 'At a shoulder with no applied moment on it, the moment is one value and the section is two, so the stress there is two values, the higher on the side of the smaller modulus.'
+          : 'En un hombro donde no hay un momento aplicado, el momento es un solo valor y la sección son dos, así que el esfuerzo tiene allí dos valores, el mayor del lado del módulo menor.',
+      );
     }
   });
 
@@ -905,7 +925,7 @@ describe('shaft on bearings: what the notes say of the tool, the tool does', () 
       expect(shaftPage[lang].assumes.items[2]).toBe(
         lang === 'en'
           ? 'Two bearings, each a simple support at one point of the axis: it holds the shaft against moving across its axis and does not give, and it lets the shaft turn there.'
-          : 'Dos cojinetes, cada uno un apoyo simple en un punto del eje: impide que el eje se desplace de través y no cede, y lo deja girar allí.',
+          : 'Dos cojinetes, cada uno un apoyo simple en un punto del eje: impide que el eje se desplace transversalmente y no cede, y lo deja girar allí.',
       );
     }
   });
@@ -1131,6 +1151,31 @@ describe('shaft on bearings: what the notes say of the tool, the tool does', () 
     expect(shaftPage.es.signs.items.at(-2)).toBe('Longitudes, diámetros y deflexiones en pulgadas o milímetros; fuerzas en libras-fuerza o newtons; momentos en lbf·in o N·m; el módulo E y cada esfuerzo en ksi o MPa; giros en radianes en ambos sistemas.');
   });
 
+  // HOW THE DRAWING IS SCALED. Along the shaft it is on the diagrams' scale; across, the largest diameter is drawn
+  // between 24 and 52 px (ShaftSchematic.tsx, `shaftHeight`) and the others by the same ratio. A shaft 6 in long
+  // with a 4 in body is drawn eight times thinner than it is, and the drawing cannot say so: the page does.
+  it('says how the drawing of the shaft is scaled: lengths with the diagrams, diameters among themselves — a stub is drawn more slender than it is', () => {
+    expect(shaftPage.en.signs.items[7]).toBe(
+      'In the drawing of the shaft, lengths are to the scale of the diagrams under it. Diameters keep their proportions to one another but are not always to that scale: a short, thick shaft is drawn more slender than it is, and a long, thin one thicker.',
+    );
+    expect(shaftPage.es.signs.items[7]).toBe(
+      'En el dibujo del eje, las longitudes están a la escala de los diagramas que tiene debajo. Los diámetros guardan su proporción entre sí, pero no siempre están a esa escala: un eje corto y grueso se dibuja más esbelto de lo que es, y uno largo y delgado, más grueso.',
+    );
+    // Pixels to a unit of length along a shaft L long, in a drawing `width` wide (30 px clear at each end).
+    const along = (L: number, width: number) => (width - 60) / L;
+    // Short and thick, in a laptop's column: 432 px to scale, drawn 52.
+    expect(shaftHeight(4, 6, 708)).toBe(52);
+    expect(4 * along(6, 708)).toBeGreaterThan(8 * 52);
+    // Long and thin: 9 px to scale, drawn 24.
+    expect(shaftHeight(1, 70, 708)).toBe(24);
+    expect(2.5 * along(70, 708)).toBeLessThan(24);
+    // Between the two the drawing is to one scale both ways, to the pixel — "not always". The example on a phone.
+    expect(Math.abs(shaftHeight(2, 23, 350) - 2 * along(23, 350))).toBeLessThanOrEqual(1);
+    // The words are the ones "What it does not do" has for the shaft this matters to.
+    expect(shaftPage.en.limits.items.join(' ')).toContain('a short, thick shaft');
+    expect(shaftPage.es.limits.items.join(' ')).toContain('un eje corto y grueso');
+  });
+
   // The case travels after `#h=`: the first calculator keeps its beam after
   // `#b=`, the second after `#s=`, the third after `#c=`.
   it('the page’s case is kept after #h=, and comes back as the shaft that was sent', () => {
@@ -1176,17 +1221,31 @@ describe('shaft on bearings: the words of its page', () => {
 
   // Mechanics only. The page gives reactions, moments, slopes, deflections
   // and a nominal stress; whether they will do is the engineer's to say.
-  it('gives numbers and no verdict, and quotes no limit as a rule', () => {
+  //
+  // WHAT A PATTERN CAN HOLD OF THAT: a word of verdict, the name of a
+  // standard, and a FIGURE. Every figure the page writes is listed below, so
+  // a limit that comes with a number is a figure too many whatever its unit:
+  // radians, degrees or minutes of arc ("3°", "10′"), thousandths of an inch,
+  // microns, a ratio. A limit said wholly in words ("under a thousandth of a
+  // radian") is caught by nothing here — a pattern cannot tell it from the
+  // page's own "a thousandth of that length": that one is the reader's to find.
+  it('gives numbers and no verdict, names no standard, and writes no figure but those of its formulas', () => {
     for (const [path, s] of [...en, ...es].filter(([p]) => !LEGAL.test(p))) {
       expect(s, path).not.toMatch(/\b(ok|okay|pass|passes|passed|fail|fails|failed|adequate|inadequate|sufficient|insufficient|enough|acceptable|complies|satisf\w*|safe|unsafe|allowable|permissible|recommended)\b/i);
       expect(s, path).not.toMatch(/\b(cumple|cumplen|no cumple|falla|fallan|aprobad\w*|suficiente|insuficiente|adecuad\w*|inadecuad\w*|aceptable|basta|segur[oa]|satisf\w*|verifica|admisible|permisible|recomendad\w*)\b/i);
       expect(s, path).not.toMatch(/[✓✔✗✘]/);
     }
-    // No slope a kind of bearing tolerates and no deflection a mesh allows is printed: the only small numbers on the page are its own two limits and g.
-    const notes = (lang: Lang) => [...shaftPage[lang].method.paragraphs, ...shaftPage[lang].assumes.items, ...shaftPage[lang].limits.items, ...shaftPage[lang].signs.items].join(' ');
+    // No standard is named: not in the page's own words, and not in the legal ones it borrows. (The list is the tool's: calc/shaft/shaft-calculator.test.ts.)
+    for (const [path, s] of [...en, ...es]) expect(s, path).not.toMatch(/\b(ACI|AISC|ASCE|ASME|AGMA|ANSI|ABMA|ISO|DIN|IBC|Eurocode|Eurocódigo|LRFD|ASD)\b/);
+    // No slope a kind of bearing tolerates and no deflection a mesh allows is printed. These are the figures of the page — its search result, its hero and
+    // its notes — in the order it writes them, the same in both languages: π(D⁴ − d⁴)/64 and π(D⁴ − d⁴)/(32D); πD⁴/64; P/2, 48EI and 16EI; 3EI; 45°, P/√2 and
+    // 1/√2; 1 + 7/n over 384EI and 1 + 3/n over 64EI; and standard gravity, the one number with a decimal point. Its own three limits are in words.
+    const FIGURES = ['64', '32', '64', '2', '48', '16', '3', '45', '2', '1', '2', '1', '7', '384', '1', '3', '64', '9.80665'];
+    const written = (lang: Lang) => leaves(shaftPage[lang]).filter(([path]) => !LEGAL.test(path)).map(([, s]) => s).join(' ');
     for (const lang of LANGS) {
-      expect(notes(lang)).not.toMatch(/\b0\.0\d+\b|\b\d+(\.\d+)?\s*(rad|mrad|°|′|arc|minutes?|minutos?)\b/);
-      expect(notes(lang).match(/\d+\.\d+/g)).toEqual(['9.80665']);
+      expect(written(lang).match(/\d+(\.\d+)?/g), lang).toEqual(FIGURES);
+      // The one angle is the third shaft's, between the two planes: no other figure stands before a sign of degrees, minutes or seconds of arc.
+      expect(written(lang).match(/\d+\s*[°′″]/g), lang).toEqual(['45°']);
     }
   });
 
@@ -1281,6 +1340,9 @@ describe('shaft on bearings: the words of its page', () => {
       const low = (x: string) => x.toLowerCase();
       // The hero's three facts are the form's own names: the shaft's group, its two kinds of load, and what its first card gives for each bearing.
       expect(s.facts[0].k).toBe(w.shaft.title);
+      // One word: with "solid or hollow" after it, which the line above the facts already says, the Spanish page's third fact
+      // fell to a row of its own from 1024 to 1440 px (the browser script counts the rows).
+      expect(s.facts[0].v).toBe(lang === 'en' ? 'Stepped' : 'Escalonado');
       expect(s.facts[1].v.startsWith(`${w.forces.title} ${and} ${low(t.loads.couple)}, `)).toBe(true);
       expect(low(s.facts[2].k)).toContain(low(w.bearings.name));
       expect(s.facts[2].v).toBe(`${w.results.radial} ${and} ${low(t.results.slope)}`);
@@ -1295,6 +1357,9 @@ describe('shaft on bearings: the words of its page', () => {
       expect(notes).not.toMatch(lang === 'en' ? /\bcouples?\b/ : /(?<!\p{L})par(es)?(?!\p{L})(?! de torsión)/u);
     }
     expect(shaftPage.es.limits.items.join(' ')).toContain('par de torsión');
+    // A fillet is one word on the page and in the tool: “fillet”, «radio de acuerdo».
+    expect([shaftPage.en.assumes.items[0], shaftUi.en.results.nominal].map((x) => /\bfillet\b/.test(x))).toEqual([true, true]);
+    expect([shaftPage.es.assumes.items[0], shaftUi.es.results.nominal].map((x) => x.includes('radio de acuerdo'))).toEqual([true, true]);
   });
 
   // Neither says the other's sentences: what the form prints beside a field
@@ -1307,6 +1372,56 @@ describe('shaft on bearings: the words of its page', () => {
       for (const [path, s] of ours) expect(sharedRuns([s], form), `${lang} ${path}`).toEqual([]);
     }
   });
+
+  // A SENTENCE TURNED ROUND IS STILL A SENTENCE. What the engine and the form DO is held above, test by test. Each clause below says,
+  // of the tool or of the mechanics it rests on, a direction, a sign, a plane, an end, a unit or what is NOT done — words that can be
+  // changed into their opposite with every one of those tests still green: "from above" into "from below", "is not entered" into
+  // "is entered", "in radians" into "in degrees". So each is read here by the very words that carry it, in BOTH languages, at its own
+  // place on the page (the path is `leaves`' own). A clause that is reworded is reworded here too, on purpose: that is the point.
+  // Not said again here: what this file already reads by its words elsewhere — the four closed forms, the shoulder's sentence
+  // (method.paragraphs[3]), the three limits (limits.items[7]), Values at a point's (signs.items[3]), the drawing's scale
+  // (signs.items[7]), the units (signs.items[8]).
+  const HELD: [at: string, en: string, es: string][] = [
+    ['method.paragraphs[0]', 'in the vertical plane, the shaft’s own weight where it is counted', 'en el plano vertical, el peso propio del eje cuando se cuenta'],
+    ['method.paragraphs[0]', 'Two simple supports leave nothing indeterminate: the two reactions follow from the two equations of equilibrium', 'Con dos apoyos simples nada queda indeterminado: las dos reacciones salen de las dos ecuaciones de equilibrio'],
+    ['method.paragraphs[1]', 'a straight line, or a parabola under the shaft’s own weight', 'una recta, o una parábola bajo el peso propio del eje'],
+    ['method.paragraphs[1]', 'with no numerical integration and no interpolation', 'sin integración numérica y sin interpolación'],
+    ['method.paragraphs[1]', 'Slope and deflection carry over unbroken from one piece into the next, across a shoulder as across an applied moment', 'El giro y la deflexión pasan sin salto de un trozo al siguiente, lo mismo por un hombro que por un momento aplicado'],
+    ['method.paragraphs[1]', 'fixed by the deflection being zero at the two bearings', 'quedan fijadas porque la deflexión es cero en los dos cojinetes'],
+    ['method.paragraphs[2]', 'the square root of the sum of the squares of the two components', 'la raíz cuadrada de la suma de los cuadrados de las dos componentes'],
+    ['method.paragraphs[2]', 'For a round section that is exact', 'En una sección redonda eso es exacto'],
+    ['method.paragraphs[2]', 'a bearing’s radial load is the resultant of its two reactions', 'la carga radial de un cojinete es la resultante de sus dos reacciones'],
+    ['method.paragraphs[3]', 'Each segment is given the largest moment within its own length over its own modulus', 'A cada tramo se le da el momento máximo dentro de su propia longitud entre su propio módulo'],
+    ['method.paragraphs[4]', 'The largest resultant is not, in general, where either plane’s own diagram peaks.', 'La resultante máxima no está, en general, donde alcanza su máximo el diagrama de uno u otro plano.'],
+    ['assumes.items[0]', 'with no taper and no fillet', 'sin conicidad y sin radio de acuerdo'],
+    ['assumes.items[1]', 'with a single modulus E for every segment', 'con un mismo módulo E en todos los tramos'],
+    ['assumes.items[4]', 'No axial force and no torque is carried; a gear’s axial force is entered as the moment it makes at the gear’s radius.', 'No se admite fuerza axial ni par de torsión; la fuerza axial que recibe un engranaje se introduce como el momento que produce al actuar en su radio.'],
+    ['assumes.items[5]', 'with nothing of the rotation in it', 'sin nada de la rotación'],
+    ['limits.items[1]', 'A torque is not entered, the shear stress it would cause is not worked out, and nothing is combined with the bending stress.', 'No se introduce un par de torsión, no se calcula el esfuerzo cortante que produciría, y nada se combina con el esfuerzo de flexión.'],
+    ['limits.items[2]', 'it reverses with every turn', 'se invierte en cada vuelta'],
+    ['limits.items[4]', 'no bearing is chosen or rated here', 'aquí no se elige ni se dimensiona ningún cojinete'],
+    ['limits.items[5]', 'On three the shaft is statically indeterminate, and it is not solved here', 'Con tres el eje es hiperestático, y aquí no se resuelve'],
+    ['limits.items[6]', 'which a short, thick shaft has more of', 'que es mayor en un eje corto y grueso'],
+    ['limits.items[8]', 'Each segment then weighs its density times its area of metal, a uniform load in the vertical plane: the weight of a shaft that lies horizontal.', 'Cada tramo pesa entonces su densidad por su área de metal, una carga uniforme en el plano vertical: el peso de un eje que está horizontal.'],
+    ['signs.items[0]', 'Every position is measured along the shaft from its left end', 'Toda posición es una distancia desde el extremo izquierdo del eje'],
+    ['signs.items[1]', 'The vertical plane is the shaft seen from the side, and the horizontal plane the shaft seen from above, its left end at the left in both.', 'El plano vertical es el eje visto de lado, y el plano horizontal el eje visto desde arriba, con su extremo izquierdo a la izquierda en ambos.'],
+    ['signs.items[4]', 'every value there is of the two planes together and never negative', 'todo valor es allí el de los dos planos juntos y nunca negativo'],
+    ['signs.items[5]', 'The radial load of a bearing is its two reactions taken together as one size; the slope there is its two slopes taken the same way, in radians.', 'La carga radial de un cojinete son sus dos reacciones tomadas juntas como una sola magnitud; el giro allí son sus dos giros tomados del mismo modo, en radianes.'],
+    ['signs.items[6]', 'A deflection is the movement of the axis off the line that joins the two bearings, and they do not move.', 'Una deflexión se mide desde la recta que pasa por los dos cojinetes, que no se mueven.'],
+    ['signs.items[9]', 'one in kg/m³ is multiplied by standard gravity', 'una en kg/m³ se multiplica por la gravedad estándar'],
+    ['noscript', 'the shaft is worked out by your own browser and no number you type is sent', 'el eje lo calcula su propio navegador y no se envía ningún número que usted escriba'],
+  ];
+
+  it('each clause that says a direction, a sign, a plane, an end, a unit or what is not done is on the page as it is written here, in both languages', () => {
+    const missing = LANGS.flatMap((lang) => {
+      const said = Object.fromEntries(leaves(shaftPage[lang]));
+      return HELD.filter(([at, en, es]) => !(said[at] ?? '').includes(lang === 'en' ? en : es)).map(([at, en, es]) => `${lang} ${at}: ${lang === 'en' ? en : es}`);
+    });
+    expect(missing).toEqual([]);
+    // Every row is a clause of its own, in each language's own words.
+    expect(new Set(HELD.map(([at, en]) => `${at}|${en}`)).size).toBe(HELD.length);
+    for (const [at, en, es] of HELD) expect(es, at).not.toBe(en);
+  });
 });
 
 /* The page, rendered. */
@@ -1317,6 +1432,9 @@ const text = (html: string) =>
   html
     .replace(/<(script|style|noscript)\b[\s\S]*?<\/\1>/g, ' ')
     .replace(/<!-- -->/g, '')
+    // A figure set up after a unit (<sup>) is read as what it is: "in" and a raised 3 is in³.
+    .replace(/<sup>3<\/sup>/g, '³')
+    .replace(/<sup>4<\/sup>/g, '⁴')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -1347,7 +1465,7 @@ const ROW = calculatorFamilies.flatMap((f) => f.items).filter((x) => x.href === 
 
 /* The cards of numbers, read as a visitor reads them. A cell of the shaft's tables carries its column's head a second
    time, for a phone, out of sight and silent (`mp-shaft__head`, aria-hidden): it is taken out before the cell is read. */
-const silent = (cell: string) => cell.replace(/<span class="mp-shaft__head" aria-hidden="true">(?:[^<]|<!-- -->|<span class="mp-plot__unit">(?:[^<]|<!-- -->)*<\/span>)*<\/span>/g, '');
+const silent = (cell: string) => cell.replace(/<span class="mp-shaft__head" aria-hidden="true">(?:[^<]|<!-- -->|<span class="mp-plot__unit">(?:[^<]|<!-- -->|<sup>[34]<\/sup>)*<\/span>)*<\/span>/g, '');
 const cardsOf = (html: string) => html.split(/<div class="mp-app__card(?: [^"]*)?">/).slice(1);
 const cardOf = (html: string, title: string) => cardsOf(html).find((card) => card.includes(`<h3 class="mp-app__h">${esc(title)}</h3>`)) ?? '';
 const titlesOf = (html: string) => [...html.matchAll(/<h3 class="mp-app__h">([\s\S]*?)<\/h3>/g)].map((m) => text(m[1]));
@@ -1411,6 +1529,9 @@ describe('shaft on bearings: what a search result shows', () => {
       const h1s = html.match(/<h1\b[\s\S]*?<\/h1>/g) ?? [];
       expect(h1s.map((x) => text(x))).toEqual([s.h1]);
       expect(s.h1.length).toBeGreaterThanOrEqual(H1_MIN);
+      // …and short enough for two lines of the hero on a laptop (34 characters, the Spanish one): on three, the tool began 67 px lower
+      // than with two at 1366 px, lower than on any other calculator's page (the browser script counts the lines).
+      expect(s.h1.length).toBeLessThanOrEqual(34);
       const body = new Set(words(text(html.replace(/<h1\b[\s\S]*?<\/h1>/g, ' '))));
       expect(words(s.h1).filter((w) => !body.has(w))).toEqual([]);
       // …and not only in the breadcrumb and the letterhead, which repeat it whole.
@@ -1459,7 +1580,8 @@ describe('shaft on bearings: the page', () => {
       const planes = planesOf(toEngine(EXAMPLE).model);
       const [vertical, horizontal] = [staticsOf(planes.vertical), staticsOf(planes.horizontal)];
       const rows = tableOf(cardOf(main, w.bearings.title));
-      const col = { x: `${t.results.position} (in)`, v: `${w.results.reactionV} (lbf)`, h: `${w.results.reactionH} (lbf)`, radial: `${w.results.radial} (lbf)`, slope: `${t.results.slope} (rad)` };
+      // The slope is of the two planes together, and its head says so in the words of the switch of views: "Slope, both planes".
+      const col = { x: `${t.results.position} (in)`, v: `${w.results.reactionV} (lbf)`, h: `${w.results.reactionH} (lbf)`, radial: `${w.results.radial} (lbf)`, slope: `${t.results.slope}, ${w.planes.both.toLowerCase()} (rad)` };
       expect(rows).toHaveLength(2);
       [
         { x: 2, RV: vertical.RA, RH: horizontal.RA },
@@ -1476,7 +1598,7 @@ describe('shaft on bearings: the page', () => {
       // By hand: 357.1 and 1,043 lbf upward, 180 lbf each away from the viewer; radial loads 399.9 and 1,058 lbf; slopes 0.000442 and 0.0002519 rad.
       expect(rows.map((r) => r[col.radial])).toEqual([num(399.9), num(1058)]);
       expect(rows.map((r) => r[col.slope])).toEqual(['0.000442', '0.0002519']);
-      // The line under them: each plane's loads, which its two reactions carry.
+      // The line under them: each plane's forces, which its two reactions carry.
       expect(text(cardOf(main, w.bearings.title))).toContain(said(w.results.balance.replace('{vertical}', `${num(1400)} lbf ${t.results.downward}`).replace('{horizontal}', `${num(360)} lbf ${w.results.towards}`).replace(/\{unit\}/g, 'lbf')));
       // No problem is announced for the example.
       expect(main).toMatch(/<div class="mp-app__issues" role="alert" aria-live="assertive"><\/div>/);
@@ -1732,11 +1854,14 @@ describe('shaft on bearings: what the notes say the form does, it does on screen
       expect(rows.map((r) => r[`${w.results.reactionV} (lbf)`])).toEqual([`${num(600 + 600 / 14)} ${t.results.upward}`, `${num(600 / 14)} ${t.results.downward}`]);
     });
 
-    // "Under Values at a point each plane keeps its signs: for shear, moment
-    // and deflection those written under the diagrams when that plane is the
-    // view, and for a slope, positive counter-clockwise as that plane is
-    // drawn."
-    it(`${lang}: under Values at a point each plane keeps its signs — those written under the diagrams of that plane — and a slope is positive counter-clockwise`, () => {
+    // "Under Values at a point each plane keeps its signs. In the vertical
+    // plane, shear is positive where the shaft left of the section is pushed
+    // up, moment where the shaft sags, and deflection where the shaft has moved
+    // up. In the horizontal plane, … pushed away from the viewer, … bows
+    // towards the viewer, … moved away from the viewer. For a slope, positive
+    // is counter-clockwise as its plane is drawn." The note says the rule
+    // itself: the sheet of two of the three views carries no other line that does.
+    it(`${lang}: under Values at a point each plane keeps its signs — the note says what is positive in each plane, as the line under that plane’s diagrams does — and a slope is positive counter-clockwise`, () => {
       // The line under the diagrams is the view's own, one for each of the three.
       for (const view of ['vertical', 'horizontal', 'both'] as const) {
         const html = tool(lang, EXAMPLE, view);
@@ -1771,9 +1896,13 @@ describe('shaft on bearings: what the notes say the form does, it does on screen
       expect(shaftPage[lang].signs.items.filter((x) => x.includes(t.results.point))).toHaveLength(1);
       expect(shaftPage[lang].signs.items[3]).toBe(
         lang === 'en'
-          ? 'Under Values at a point each plane keeps its signs: for shear, moment and deflection those written under the diagrams when that plane is the view, and for a slope, positive counter-clockwise as that plane is drawn.'
-          : 'En Valores en un punto cada plano conserva sus signos: para el cortante, el momento y la deflexión, los que se leen bajo los diagramas cuando ese plano es la vista; para un giro, positivo en sentido antihorario tal como se dibuja ese plano.',
+          ? 'Under Values at a point each plane keeps its signs. In the vertical plane, shear is positive where the shaft left of the section is pushed up, moment where the shaft sags, and deflection where the shaft has moved up. In the horizontal plane, shear is positive where the shaft left of the section is pushed away from the viewer, moment where the shaft bows towards the viewer, and deflection where the shaft has moved away from the viewer. For a slope, positive is counter-clockwise as its plane is drawn.'
+          : 'En Valores en un punto cada plano conserva sus signos. En el plano vertical, el cortante es positivo donde el eje a la izquierda de la sección es empujado hacia arriba, el momento donde el eje se comba hacia abajo y la deflexión donde el eje ha subido. En el plano horizontal, el cortante es positivo donde el eje a la izquierda de la sección es empujado hacia el fondo, el momento donde el eje se comba hacia el observador y la deflexión donde el eje se ha movido hacia el fondo. Para un giro, positivo es el sentido antihorario tal como se dibuja su plano.',
       );
+      // The rule is in the note itself, and so on the sheet of EVERY view. It does not send the reader to the line under the diagrams:
+      // with both planes together — the view the page opens in, and prints in — that line says nothing of what is positive.
+      expect(shaftPage[lang].signs.items[3]).not.toMatch(lang === 'en' ? /under the diagrams/ : /bajo los diagramas/);
+      expect(w.results.signs.both).not.toMatch(lang === 'en' ? /positive/i : /positiv/i);
     });
 
     // "At a shoulder … the stress there is two values, the higher on the side
@@ -1784,8 +1913,17 @@ describe('shaft on bearings: what the notes say the form does, it does on screen
       const at = pairsOf(cardOf(html, t.results.point));
       // 1,000 lbf at 5 in of 20: 250 lbf at the right bearing, and 250 × 10 = 2,500 lbf·in at the shoulder. Over π × 2³ ÷ 32 that is 3.183 ksi; over π × 1.5³ ÷ 32, 7.545 ksi.
       expect(at[w.shaft.diameter]).toBe(`2 in ${t.results.left}, 1.5 in ${t.results.right}`);
-      expect(at[w.results.stress]).toBe(`${num(2500 / modulus(2) / 1000)} ${t.results.left}, ${num(2500 / modulus(1.5) / 1000)} ${t.results.right} ksi`);
+      // Each value with its unit and then its side, as the line of the diameters above it: written once, after the words, the unit belonged to neither number.
+      expect(at[w.results.stress]).toBe(`${num(2500 / modulus(2) / 1000)} ksi ${t.results.left}, ${num(2500 / modulus(1.5) / 1000)} ksi ${t.results.right}`);
       expect([num(2500 / modulus(2) / 1000), num(2500 / modulus(1.5) / 1000)]).toEqual(['3.183', '7.545']);
+      // With an applied moment ON that shoulder the card gives two moments as well, and the stress of each side is its own moment
+      // over its own modulus — the higher one beside the LARGER diameter here. Bearings at 0 and 12 in, 1,000 lbf·in counter-clockwise
+      // at 10 in: 1,000 ÷ 12 = 83.33 lbf at each bearing, so 833.3 lbf·in just left of the shoulder and 833.3 − 1,000 = −166.7 just right.
+      const turned = cardOf(tool(lang, { ...formOf([[10, 2], [10, 1.5]], [0, 12]), couples: [{ id: 90, x: 10, v: 1000, vDir: 'ccw', h: 0, hDir: 'ccw' }] }), t.results.point);
+      const moment = tableOf(turned).find((r) => Object.values(r)[0] === `${t.results.moment} (lbf·in)`)!;
+      expect(moment[w.planes.vertical].replace(/\s+,/g, ',')).toBe(`${num(10000 / 12)} ${t.results.left}, ${num(10000 / 12 - 1000)} ${t.results.right}`);
+      expect(pairsOf(turned)[w.results.stress]).toBe(`${num(10000 / 12 / modulus(2) / 1000)} ksi ${t.results.left}, ${num((1000 - 10000 / 12) / modulus(1.5) / 1000)} ksi ${t.results.right}`);
+      expect([num(10000 / 12), num(10000 / 12 - 1000), num(10000 / 12 / modulus(2) / 1000), num((1000 - 10000 / 12) / modulus(1.5) / 1000)]).toEqual(['833.3', '-166.7', '1.061', '0.503']);
     });
   }
 });

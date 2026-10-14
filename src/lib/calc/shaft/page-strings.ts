@@ -40,6 +40,20 @@ import { beamStrings, type BeamPage } from '../beam/strings';
  * deflection a gear mesh allows: those are the bearing maker's and the
  * designer's numbers, and they differ.
  *
+ * THE H1 IS SHORT ON PURPOSE: the catalogue's name and four words. With the
+ * results listed after it, it took three lines of the hero on a laptop and
+ * the tool began lower than on any other calculator's page; the first fact
+ * is one word for the same reason (the Spanish three then stand on one row).
+ * What a search needs — reactions, slope, deflection, stress — is in the
+ * title, the description and the line under the H1.
+ *
+ * WHAT IS POSITIVE IS SAID IN THE NOTES THEMSELVES ("Signs and units", the
+ * item about Values at a point), for both planes: the notes are on the sheet
+ * of every view, and the line under the diagrams is not — with both planes
+ * together, the view the page opens and prints in, it speaks of sizes only.
+ * And one item says how the drawing of the shaft is scaled, which the
+ * drawing cannot say of itself.
+ *
  * Spanish as the first calculator writes it: "cortante", "momento flector",
  * "deflexión", "giro" for a slope, formal "usted". And a shaft's own words:
  * "eje", "cojinete" (the catalogue's name for this page), "tramo" for a
@@ -54,11 +68,11 @@ export const shaftPage: Record<Lang, ShaftPage> = {
     title: 'Stepped Shaft Deflection Calculator: Bearing Loads and Slope',
     description:
       'A stepped round shaft on two bearings, loaded in two planes: the radial load and the slope at each bearing, bending moment, nominal stress and deflection.',
-    h1: 'Shaft on bearings: reactions, bending and deflection',
+    h1: 'Shaft on bearings, in two planes',
     eyebrow: 'Calculator',
     sub: 'A round shaft turned in steps, solid or bored, on two bearings, under forces and applied moments that act in two planes at once. At each bearing, its radial load and the slope of the shaft; in each segment, the largest bending moment and its nominal stress; and the deflection anywhere, in either plane or as the two together.',
     facts: [
-      { k: 'Shaft', v: 'Stepped, solid or hollow' },
+      { k: 'Shaft', v: 'Stepped' },
       { k: 'Loads', v: 'Forces and applied moments, in two planes' },
       { k: 'At each bearing', v: 'Radial load and slope' },
     ],
@@ -70,11 +84,11 @@ export const shaftPage: Record<Lang, ShaftPage> = {
         'The shaft is solved in two planes, the vertical and the horizontal, one at a time. In each, the two bearings are simple supports and the loads are that plane’s components: of every force, of every applied moment and, in the vertical plane, the shaft’s own weight where it is counted. Two simple supports leave nothing indeterminate: the two reactions follow from the two equations of equilibrium, and the shear and the bending moment at a section from the forces on one side of it. The diameters do not enter any of these, except through the weight of the shaft.',
         'Slope and deflection are where the diameters count. The shaft is cut at every shoulder, bearing, force and applied moment, and on each piece a plane’s bending moment is one polynomial — a straight line, or a parabola under the shaft’s own weight — over one flexural stiffness EI, with I = π(D⁴ − d⁴)/64 for an outer diameter D and a bore d. Integrating M/EI once gives the slope, a cubic at most, and once more the deflection, a quartic at most: closed forms, written out term by term and evaluated where they are asked for, with no numerical integration and no interpolation. Slope and deflection carry over unbroken from one piece into the next, across a shoulder as across an applied moment, and the two constants of integration are fixed by the deflection being zero at the two bearings.',
         'A section feels the two planes together. The resultant — the square root of the sum of the squares of the two components — is taken of the shear, the bending moment, the slope and the deflection alike. For a round section that is exact: its moment of inertia is the same about every diameter, so the moments of the two planes are one moment about one diameter. The resultant deflection is how far the centre of the section has moved, and the resultant slope the angle its axis has turned through, whatever the direction of either; a bearing’s radial load is the resultant of its two reactions.',
-        'The bending stress is the resultant moment over the section modulus of the segment the section is in, Z = π(D⁴ − d⁴)/(32D). At a shoulder the moment is one value and the section is two, so the stress there is two values, the higher on the side of the smaller modulus. Each segment is given the largest moment within its own length over its own modulus, and the largest stress on the shaft is the largest of those: it may be at a shoulder, far from the largest moment, as in the example the page opens with.',
+        'The bending stress is the resultant moment over the section modulus of the segment the section is in, Z = π(D⁴ − d⁴)/(32D). At a shoulder with no applied moment on it, the moment is one value and the section is two, so the stress there is two values, the higher on the side of the smaller modulus. Each segment is given the largest moment within its own length over its own modulus, and the largest stress on the shaft is the largest of those: it may be at a shoulder, far from the largest moment, as in the example the page opens with.',
         'The largest resultant is not, in general, where either plane’s own diagram peaks. On each piece the sum of the squares of the two planes’ values is a polynomial, and the largest moment, slope and deflection are looked for at the sign changes of its derivative, and at the ends of the pieces: each is the value at the place it is printed with, not the largest of the points plotted.',
         'To check the page by hand, four shafts with a closed form. L is the distance between the two bearings, and a shaft of one solid diameter D has I = πD⁴/64.',
         'One diameter, a force P midway between the bearings: each reaction P/2; deflection under the force PL³/(48EI); slope at each bearing PL²/(16EI).',
-        'One diameter, a force P on an overhang, a beyond one bearing: that bearing carries P(L + a)/L, the other Pa/L the opposite way; moment Pa at the near bearing; deflection under the force Pa²(L + a)/(3EI).',
+        'One diameter, a force P on an overhang, at a distance a beyond one bearing: that bearing carries P(L + a)/L, the other Pa/L the opposite way; moment Pa at the near bearing; deflection under the force Pa²(L + a)/(3EI).',
         'The first case with P at 45° between the two planes: each plane carries P/√2 and gives 1/√2 of that deflection and slope; the resultants are the first case’s, whole.',
         'The first case on a stepped shaft, its middle half of stiffness nEI and its two end quarters of EI: deflection under the force PL³(1 + 7/n)/(384EI); slope at each bearing PL²(1 + 3/n)/(64EI).',
       ],
@@ -110,10 +124,11 @@ export const shaftPage: Record<Lang, ShaftPage> = {
         'Every position is measured along the shaft from its left end: a bearing’s, a force’s, an applied moment’s.',
         'The vertical plane is the shaft seen from the side, and the horizontal plane the shaft seen from above, its left end at the left in both. A force is a size in each plane with the way it points: down or up; towards the viewer, who stands beside the shaft, or away from the viewer.',
         'An applied moment is a size in each plane with the way it turns, counter-clockwise or clockwise, as that plane is drawn. A size entered with a minus sign acts the other way, for a force as for a moment.',
-        'Under Values at a point each plane keeps its signs: for shear, moment and deflection those written under the diagrams when that plane is the view, and for a slope, positive counter-clockwise as that plane is drawn.',
+        'Under Values at a point each plane keeps its signs. In the vertical plane, shear is positive where the shaft left of the section is pushed up, moment where the shaft sags, and deflection where the shaft has moved up. In the horizontal plane, shear is positive where the shaft left of the section is pushed away from the viewer, moment where the shaft bows towards the viewer, and deflection where the shaft has moved away from the viewer. For a slope, positive is counter-clockwise as its plane is drawn.',
         'Both planes shows sizes: every value there is of the two planes together and never negative, because the direction of a resultant turns along the shaft and it has no sign to carry.',
         'The radial load of a bearing is its two reactions taken together as one size; the slope there is its two slopes taken the same way, in radians.',
         'A deflection is the movement of the axis off the line that joins the two bearings, and they do not move.',
+        'In the drawing of the shaft, lengths are to the scale of the diagrams under it. Diameters keep their proportions to one another but are not always to that scale: a short, thick shaft is drawn more slender than it is, and a long, thin one thicker.',
         'Lengths, diameters and deflections in inches or millimetres; forces in pounds-force or newtons; moments in lbf·in or N·m; the modulus E and every stress in ksi or MPa; slopes in radians in both systems.',
         'A density in lb/in³ is read as a weight, lbf/in³; one in kg/m³ is multiplied by standard gravity, 9.80665 m/s².',
       ],
@@ -131,11 +146,11 @@ export const shaftPage: Record<Lang, ShaftPage> = {
     title: 'Calculadora de ejes escalonados: giro, deflexión y cojinetes',
     description:
       'Un eje escalonado sobre dos cojinetes, cargado en dos planos: carga radial y giro en cada cojinete, momento flector, esfuerzo nominal y deflexión.',
-    h1: 'Eje sobre cojinetes: reacciones, flexión y deflexión',
+    h1: 'Eje sobre cojinetes, en dos planos',
     eyebrow: 'Calculadora',
     sub: 'Un eje redondo torneado en escalones, macizo o hueco, sobre dos cojinetes, con fuerzas y momentos aplicados que actúan en dos planos a la vez. En cada cojinete, su carga radial y el giro del eje; en cada tramo, el momento flector máximo y su esfuerzo nominal; y la deflexión en cualquier punto, en uno u otro plano o en los dos juntos.',
     facts: [
-      { k: 'Eje', v: 'Escalonado, macizo o hueco' },
+      { k: 'Eje', v: 'Escalonado' },
       { k: 'Cargas', v: 'Fuerzas y momentos aplicados, en dos planos' },
       { k: 'En cada cojinete', v: 'Carga radial y giro' },
     ],
@@ -144,14 +159,14 @@ export const shaftPage: Record<Lang, ShaftPage> = {
       label: 'Método',
       title: 'Cómo se resuelve el eje',
       paragraphs: [
-        'El eje se resuelve en dos planos, el vertical y el horizontal, uno cada vez. En cada uno, los dos cojinetes son apoyos simples y las cargas son las componentes de ese plano: la de cada fuerza, la de cada momento aplicado y, en el plano vertical, el peso propio del eje cuando se cuenta. Con dos apoyos simples nada queda indeterminado: las dos reacciones salen de las dos ecuaciones de equilibrio, y el cortante y el momento flector en una sección, de las fuerzas que quedan a un lado de ella. Los diámetros no entran en nada de esto, salvo por el peso del eje.',
+        'El eje se resuelve en dos planos, el vertical y el horizontal, cada uno por separado. En cada uno, los dos cojinetes son apoyos simples y las cargas son las componentes de ese plano: la de cada fuerza, la de cada momento aplicado y, en el plano vertical, el peso propio del eje cuando se cuenta. Con dos apoyos simples nada queda indeterminado: las dos reacciones salen de las dos ecuaciones de equilibrio, y el cortante y el momento flector en una sección, de las fuerzas que quedan a un lado de ella. Los diámetros no entran en nada de esto, salvo por el peso del eje.',
         'En el giro y en la deflexión es donde cuentan los diámetros. El eje se corta en cada hombro, cojinete, fuerza y momento aplicado, y en cada trozo el momento flector de un plano es un solo polinomio — una recta, o una parábola bajo el peso propio del eje — sobre una sola rigidez a flexión EI, con I = π(D⁴ − d⁴)/64 para un diámetro exterior D y un diámetro interior d. Integrar M/EI una vez da el giro, a lo sumo una cúbica, y otra vez la deflexión, a lo sumo de cuarto grado: fórmulas cerradas, escritas término a término y evaluadas donde se piden, sin integración numérica y sin interpolación. El giro y la deflexión pasan sin salto de un trozo al siguiente, lo mismo por un hombro que por un momento aplicado, y las dos constantes de integración quedan fijadas porque la deflexión es cero en los dos cojinetes.',
         'Una sección siente los dos planos a la vez. La resultante — la raíz cuadrada de la suma de los cuadrados de las dos componentes — se toma por igual del cortante, del momento flector, del giro y de la deflexión. En una sección redonda eso es exacto: su momento de inercia es el mismo respecto a cualquier diámetro, de modo que los momentos de los dos planos son un solo momento respecto a un solo diámetro. La deflexión resultante es cuánto se ha desplazado el centro de la sección, y el giro resultante, el ángulo que ha girado su eje, sea cual sea la dirección de una y de otro; la carga radial de un cojinete es la resultante de sus dos reacciones.',
-        'El esfuerzo de flexión es el momento resultante entre el módulo de sección del tramo en que está la sección, Z = π(D⁴ − d⁴)/(32D). En un hombro el momento es un solo valor y la sección son dos, así que el esfuerzo tiene allí dos valores, el mayor del lado del módulo menor. A cada tramo se le da el momento máximo dentro de su propia longitud entre su propio módulo, y el esfuerzo máximo del eje es el mayor de esos: puede estar en un hombro, lejos del momento máximo, como en el ejemplo con que se abre la página.',
+        'El esfuerzo de flexión es el momento resultante entre el módulo de sección del tramo en que está la sección, Z = π(D⁴ − d⁴)/(32D). En un hombro donde no hay un momento aplicado, el momento es un solo valor y la sección son dos, así que el esfuerzo tiene allí dos valores, el mayor del lado del módulo menor. A cada tramo se le da el momento máximo dentro de su propia longitud entre su propio módulo, y el esfuerzo máximo del eje es el mayor de esos: puede estar en un hombro, lejos del momento máximo, como en el ejemplo con que se abre la página.',
         'La resultante máxima no está, en general, donde alcanza su máximo el diagrama de uno u otro plano. En cada trozo la suma de los cuadrados de lo que vale cada plano es un polinomio, y los máximos del momento, del giro y de la deflexión se buscan en los cambios de signo de su derivada, y en los extremos de los trozos: cada uno es el valor en el punto con que se da, no el mayor de los puntos dibujados.',
         'Para comprobar la página a mano, cuatro ejes con fórmula cerrada. L es la distancia entre los dos cojinetes, y un eje de un solo diámetro macizo D tiene I = πD⁴/64.',
         'Un solo diámetro, una fuerza P a media distancia entre los cojinetes: cada reacción P/2; deflexión bajo la fuerza PL³/(48EI); giro en cada cojinete PL²/(16EI).',
-        'Un solo diámetro, una fuerza P en un voladizo, separada a de un cojinete: ese cojinete recibe P(L + a)/L y el otro Pa/L en sentido contrario; momento Pa en el cojinete cercano; deflexión bajo la fuerza Pa²(L + a)/(3EI).',
+        'Un solo diámetro, una fuerza P en voladizo, a una distancia a de un cojinete: ese cojinete recibe P(L + a)/L y el otro Pa/L en sentido contrario; momento Pa en el cojinete cercano; deflexión bajo la fuerza Pa²(L + a)/(3EI).',
         'El primer caso con P a 45° entre los dos planos: cada plano recibe P/√2 y da 1/√2 de aquella deflexión y de aquel giro; las resultantes son las del primer caso, enteras.',
         'El primer caso en un eje escalonado, con rigidez nEI en su mitad central y EI en sus dos cuartos extremos: deflexión bajo la fuerza PL³(1 + 7/n)/(384EI); giro en cada cojinete PL²(1 + 3/n)/(64EI).',
       ],
@@ -161,9 +176,9 @@ export const shaftPage: Record<Lang, ShaftPage> = {
       items: [
         'Un eje recto de sección redonda, maciza o hueca, con su diámetro interior concéntrico. Sus diámetros cambian en un punto: cada tramo tiene una sola sección de un extremo al otro, sin conicidad y sin radio de acuerdo.',
         'Un solo material, elástico lineal, con un mismo módulo E en todos los tramos.',
-        'Dos cojinetes, cada uno un apoyo simple en un punto del eje: impide que el eje se desplace de través y no cede, y lo deja girar allí.',
+        'Dos cojinetes, cada uno un apoyo simple en un punto del eje: impide que el eje se desplace transversalmente y no cede, y lo deja girar allí.',
         'Deflexiones pequeñas, y solo flexión (Euler–Bernoulli): la fuerza cortante no añade nada a la deflexión.',
-        'Solo cargas transversales al eje: fuerzas y momentos aplicados en puntos, y el peso del eje cuando se cuenta. No se lleva fuerza axial ni par de torsión; la fuerza axial que recibe un engranaje se introduce como el momento que hace a su radio.',
+        'Solo cargas transversales al eje: fuerzas y momentos aplicados en puntos, y el peso del eje cuando se cuenta. No se admite fuerza axial ni par de torsión; la fuerza axial que recibe un engranaje se introduce como el momento que produce al actuar en su radio.',
         'Un cálculo estático: las cargas de un instante, sin nada de la rotación.',
       ],
     },
@@ -174,7 +189,7 @@ export const shaftPage: Record<Lang, ShaftPage> = {
         'Sin torsión. No se introduce un par de torsión, no se calcula el esfuerzo cortante que produciría, y nada se combina con el esfuerzo de flexión.',
         'Sin fatiga. El esfuerzo de flexión es el estático, aunque en un eje que gira bajo cargas de dirección fija se invierte en cada vuelta.',
         'Sin concentración de esfuerzos. El esfuerzo es nominal — el momento entre el módulo de la sección lisa — en un hombro, un chavetero, una ranura o un ajuste a presión igual que en cualquier otro punto.',
-        'Sin velocidad crítica ni vibraciones; y sin vida de cojinetes: aquí no se elige ni se dimensiona ningún cojinete. La carga radial y el giro en cada uno son los números que se llevan a los datos del propio cojinete.',
+        'Sin velocidad crítica ni vibraciones; y sin vida de cojinetes: aquí no se elige ni se dimensiona ningún cojinete. La carga radial y el giro en cada uno son los valores con los que se consultan los datos del propio cojinete.',
         'Dos cojinetes y no más. Con tres el eje es hiperestático, y aquí no se resuelve; tampoco un cojinete que impide el giro, como un casquillo largo o dos cojinetes montados muy juntos.',
         'Sin deformación por cortante, que es mayor en un eje corto y grueso; sin conicidad; y sin la rigidez que añade un cubo, un engranaje o un aro montado a presión.',
         'Un tramo de menos de una millonésima de la longitud del eje, un tramo con más de un millón de veces la rigidez de otro y dos cojinetes separados menos de una milésima de lo que mide el eje no se resuelven: el dato queda señalado en el formulario y los resultados no se dan.',
@@ -187,10 +202,11 @@ export const shaftPage: Record<Lang, ShaftPage> = {
         'Toda posición es una distancia desde el extremo izquierdo del eje: la de un cojinete, la de una fuerza, la de un momento aplicado.',
         'El plano vertical es el eje visto de lado, y el plano horizontal el eje visto desde arriba, con su extremo izquierdo a la izquierda en ambos. Una fuerza es una magnitud en cada plano con el sentido en que actúa: hacia abajo o hacia arriba; hacia el observador, que está junto al eje, o hacia el fondo.',
         'Un momento aplicado es una magnitud en cada plano con el sentido en que gira, antihorario u horario, tal como se dibuja ese plano. Una magnitud escrita con signo menos actúa en el sentido contrario, tanto en una fuerza como en un momento.',
-        'En Valores en un punto cada plano conserva sus signos: para el cortante, el momento y la deflexión, los que se leen bajo los diagramas cuando ese plano es la vista; para un giro, positivo en sentido antihorario tal como se dibuja ese plano.',
-        'Ambos planos muestra magnitudes: todo valor es allí el de los dos planos juntos y nunca negativo, porque la dirección de una resultante va cambiando a lo largo del eje y no tiene signo que llevar.',
+        'En Valores en un punto cada plano conserva sus signos. En el plano vertical, el cortante es positivo donde el eje a la izquierda de la sección es empujado hacia arriba, el momento donde el eje se comba hacia abajo y la deflexión donde el eje ha subido. En el plano horizontal, el cortante es positivo donde el eje a la izquierda de la sección es empujado hacia el fondo, el momento donde el eje se comba hacia el observador y la deflexión donde el eje se ha movido hacia el fondo. Para un giro, positivo es el sentido antihorario tal como se dibuja su plano.',
+        'Ambos planos muestra magnitudes: todo valor es allí el de los dos planos juntos y nunca negativo, porque la dirección de una resultante va cambiando a lo largo del eje y no tiene signo.',
         'La carga radial de un cojinete son sus dos reacciones tomadas juntas como una sola magnitud; el giro allí son sus dos giros tomados del mismo modo, en radianes.',
         'Una deflexión se mide desde la recta que pasa por los dos cojinetes, que no se mueven.',
+        'En el dibujo del eje, las longitudes están a la escala de los diagramas que tiene debajo. Los diámetros guardan su proporción entre sí, pero no siempre están a esa escala: un eje corto y grueso se dibuja más esbelto de lo que es, y uno largo y delgado, más grueso.',
         'Longitudes, diámetros y deflexiones en pulgadas o milímetros; fuerzas en libras-fuerza o newtons; momentos en lbf·in o N·m; el módulo E y cada esfuerzo en ksi o MPa; giros en radianes en ambos sistemas.',
         'Una densidad en lb/in³ se lee como un peso, lbf/in³; una en kg/m³ se multiplica por la gravedad estándar, 9.80665 m/s².',
       ],

@@ -147,13 +147,26 @@ export type ShaftUi = {
     seen: Record<ShaftView, string>;
     /** Under the three diagrams: what is positive in the view shown — or, with both planes together, that every value is a size. */
     signs: Record<ShaftView, string>;
+    /**
+     * The three diagrams' titles when the view is both planes. Each is then
+     * the resultant of the two planes' values — a size, never under its axis —
+     * and the title is where a diagram is read: under the plain "Deflection" a
+     * shaft pushed down is drawn humped upward. (In one plane the titles are
+     * the first calculator's, from `t`.)
+     */
+    resultant: { shear: string; moment: string; deflection: string };
     /** Heads of the "Bearings" card, and the two ways of a horizontal value. */
     reactionV: string;
     reactionH: string;
     radial: string;
     towards: string;
     away: string;
-    /** Under that card: {vertical} and {horizontal} are each plane's loads added up - a size, its unit and the way it points. */
+    /**
+     * Under that card: {vertical} and {horizontal} are each plane's FORCES added up - those entered and, in the
+     * vertical plane, the shaft's weight when it is a load - a size, its unit and the way it points. "Forces", not
+     * "loads": an applied moment is a load and adds nothing to them (its two reactions are a pair), so a shaft
+     * under applied moments alone has "0 lbf" here, under two reactions that are not zero.
+     */
     balance: string;
     /** The "Segment by segment" card, its heads, and the note that says what a nominal stress is. */
     bySegment: string;
@@ -220,7 +233,7 @@ export const shaftUi: Record<Lang, ShaftUi> = {
       note: 'A force is entered by its two components. The viewer stands beside the shaft, with its left end on the left.',
     },
     couples: {
-      note: 'An applied moment bends the shaft: an axial force on a gear, acting at its radius, is one. Each sense is as its plane is drawn — the vertical plane from the side, the horizontal plane from above. Torque about the shaft’s axis is not entered.',
+      note: 'An applied moment bends the shaft: an axial force on a gear, acting at its radius, makes one. Each sense is as its plane is drawn — the vertical plane from the side, the horizontal plane from above. Torque about the shaft’s axis is not entered.',
     },
     planes: { vertical: 'Vertical plane', horizontal: 'Horizontal plane', both: 'Both planes' },
     material: {
@@ -241,15 +254,16 @@ export const shaftUi: Record<Lang, ShaftUi> = {
       },
       signs: {
         vertical: 'Vertical plane: a positive shear pushes the part left of the cut upward, a positive moment sags the shaft, and a positive deflection is upward.',
-        horizontal: 'Horizontal plane, drawn from above with the viewer at the foot of the drawing: the vertical plane’s signs, with “away from the viewer” where that plane has “upward”.',
+        horizontal: 'Horizontal plane: a positive shear pushes the part left of the cut away from the viewer, a positive moment bows the shaft towards the viewer, and a positive deflection is away from the viewer.',
         both: 'Both planes: each diagram is the size of the two planes’ values at that point, √(vertical² + horizontal²). A size is never negative.',
       },
+      resultant: { shear: 'Resultant shear', moment: 'Resultant bending moment', deflection: 'Resultant deflection' },
       reactionV: 'Vertical reaction',
       reactionH: 'Horizontal reaction',
       radial: 'Radial load',
       towards: 'towards viewer',
       away: 'away from viewer',
-      balance: 'The reactions balance the loads in each plane: {vertical} in the vertical one, {horizontal} in the horizontal one.',
+      balance: 'The reactions balance the forces in each plane: {vertical} in the vertical one, {horizontal} in the horizontal one.',
       bySegment: 'Segment by segment',
       modulus: 'Section modulus, Z',
       weight: 'Weight per length',
@@ -291,12 +305,12 @@ export const shaftUi: Record<Lang, ShaftUi> = {
       add: 'Añadir un tramo',
       limit: 'Ocho como máximo.',
       total: 'Longitud del eje: {length}',
-      note: 'Los tramos van uno tras otro desde el extremo izquierdo. Un diámetro interior vacío es un tramo macizo. Toda posición de más abajo es una distancia a ese extremo izquierdo, y queda como se escribió cuando un tramo cambia.',
+      note: 'Los tramos van uno tras otro desde el extremo izquierdo. Si el diámetro interior se deja vacío, el tramo es macizo. Toda posición de más abajo es una distancia a ese extremo izquierdo, y queda como se escribió cuando un tramo cambia.',
     },
     bearings: {
       title: 'Cojinetes',
       name: 'Cojinete',
-      note: 'Cada cojinete se toma como un apoyo simple: lleva carga radial y ningún momento, de modo que el eje puede inclinarse en él.',
+      note: 'Cada cojinete se toma como un apoyo simple: soporta carga radial y ningún momento, de modo que el eje puede inclinarse en él.',
     },
     forces: {
       title: 'Fuerzas',
@@ -309,7 +323,7 @@ export const shaftUi: Record<Lang, ShaftUi> = {
       note: 'Una fuerza se introduce por sus dos componentes. El observador está junto al eje, con el extremo izquierdo de este a su izquierda; «hacia el fondo» es alejándose de él.',
     },
     couples: {
-      note: 'Un momento aplicado flexiona el eje: lo es la fuerza axial de un engranaje, que actúa en su radio. Cada sentido es el del dibujo de su plano: el vertical, visto de lado; el horizontal, desde arriba. El par de torsión en torno al eje no se introduce.',
+      note: 'Un momento aplicado flexiona el eje: lo produce la fuerza axial de un engranaje, que actúa en su radio. Cada sentido es el del dibujo de su plano: el vertical, visto de lado; el horizontal, desde arriba. El par de torsión en torno al eje no se introduce.',
     },
     planes: { vertical: 'Plano vertical', horizontal: 'Plano horizontal', both: 'Ambos planos' },
     material: {
@@ -330,21 +344,22 @@ export const shaftUi: Record<Lang, ShaftUi> = {
       },
       signs: {
         vertical: 'Plano vertical: un cortante positivo empuja hacia arriba la parte a la izquierda del corte, un momento positivo comba el eje hacia abajo y una deflexión positiva es hacia arriba.',
-        horizontal: 'Plano horizontal, dibujado desde arriba con el observador al pie del dibujo: los signos del plano vertical, con «hacia el fondo» donde ese plano tiene «hacia arriba».',
+        horizontal: 'Plano horizontal: un cortante positivo empuja hacia el fondo la parte a la izquierda del corte, un momento positivo comba el eje hacia el observador y una deflexión positiva es hacia el fondo.',
         both: 'Ambos planos: cada diagrama es la magnitud de los valores de los dos planos en ese punto, √(vertical² + horizontal²). Una magnitud nunca es negativa.',
       },
+      resultant: { shear: 'Cortante resultante', moment: 'Momento flector resultante', deflection: 'Deflexión resultante' },
       reactionV: 'Reacción vertical',
       reactionH: 'Reacción horizontal',
       radial: 'Carga radial',
       towards: 'hacia el observador',
       away: 'hacia el fondo',
-      balance: 'Las reacciones equilibran las cargas en cada plano: {vertical} en el vertical y {horizontal} en el horizontal.',
+      balance: 'Las reacciones equilibran las fuerzas en cada plano: {vertical} en el vertical y {horizontal} en el horizontal.',
       bySegment: 'Tramo por tramo',
       modulus: 'Módulo de sección, Z',
-      weight: 'Peso por longitud',
+      weight: 'Peso por unidad de longitud',
       largestMoment: 'Momento flector máximo',
       stress: 'Esfuerzo nominal de flexión',
-      nominal: 'Esfuerzo nominal: el mayor momento de un tramo entre el módulo de sección, Z, de ese mismo tramo. No incluye ningún concentrador de esfuerzos: ni el radio de un hombro, ni una ranura, ni un chavetero.',
+      nominal: 'Esfuerzo nominal: el mayor momento de un tramo entre el módulo de sección, Z, de ese mismo tramo. No incluye ningún concentrador de esfuerzos: ni el radio de acuerdo de un hombro, ni una ranura, ni un chavetero.',
       atForces: 'En cada fuerza',
       deflectionV: 'Deflexión vertical',
       deflectionH: 'Deflexión horizontal',

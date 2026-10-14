@@ -92,10 +92,12 @@ import { PLOT_PAD, xToPx } from '../beam/BeamPlot';
  * anybody's. One with no such place is not written: the drawing has its
  * arrow, and the number is the page's to show in its tables.
  *
- * THE DIMENSION LINE has a tick at every place where something is, and
- * writes the two ends, the bearings and the steps - in that order of who
- * keeps its place where two would run together. The length is kept clear of
- * the unit written after it.
+ * THE DIMENSION LINE has a tick at every place where something is - one
+ * tick where two places are drawn within a tenth of a pixel of each other,
+ * as a load typed on a shoulder and the sum of the lengths that makes the
+ * shoulder can be - and writes the two ends, the bearings and the steps, in
+ * that order of who keeps its place where two would run together. The length
+ * is kept clear of the unit written after it.
  *
  * A drawing of the visitor's own data: every number on it is in the tables
  * beside it too, so the SVG is described in one sentence (`summary`) and its
@@ -255,7 +257,7 @@ export interface ShaftLayout {
   ties: { key: string; x: number; pieces: [number, number][] }[];
   /** Each bearing's reaction: its arrow from `top`, 24 px long, up (1), down (-1) or none (0); its value, and where, if it is written. */
   reactions: { at: number; top: number; dir: number; text: string; shown: boolean; x: number; y: number; anchor: 'start' | 'middle' | 'end' }[];
-  /** The dimension line: a tick at each of these, and each of these numbers. */
+  /** The dimension line: a tick at each of these - no two of them within a tenth of a pixel - and each of these numbers. */
   ticks: number[];
   positions: { at: number; text: string }[];
   unit: string;
@@ -272,10 +274,14 @@ export function shaftLayout(drawing: ShaftDrawing, { resultants, width, group = 
   const round = stretches.filter((s) => Number.isFinite(s.d) && s.d > 0);
   const dMax = Math.max(0, ...round.map((s) => s.d));
   const R = dMax > 0 ? shaftHeight(dMax, L, width) / 2 : D_MIN / 2; // half the largest diameter, as drawn
-  const across = dMax > 0 ? (2 * R) / dMax : 0; // px to a unit of diameter: one for the whole shaft
+  // One scale across for the whole shaft, taken as each diameter's SHARE of the largest (0 to 1) times R - not as
+  // px to a unit of diameter: 2R / dMax is past the largest number there is for a largest diameter under 3e-307,
+  // and d * d for a diameter of 1.4e154 or more. Such a diameter is no shaft's and its row says so; the drawing
+  // is still made of numbers.
+  const share = (d: number) => (dMax > 0 ? d / dMax : 0);
   const body = round.map((s) => {
     const bore = Number.isFinite(s.bore) && s.bore > 0 && s.bore < s.d ? s.bore : 0;
-    return { from: s.from, to: s.to, a: px(s.from), b: px(s.to), r: (s.d * across) / 2, bore: (bore * across) / 2, metal: s.d * s.d - bore * bore };
+    return { from: s.from, to: s.to, a: px(s.from), b: px(s.to), r: share(s.d) * R, bore: share(bore) * R, metal: share(s.d) ** 2 - share(bore) ** 2 };
   });
 
   /* Down the drawing: the axis, the arcs, the line the couples' values stand on, the lowest the shaft reaches, the dimension line. */
@@ -578,7 +584,15 @@ export function shaftLayout(drawing: ShaftDrawing, { resultants, width, group = 
         return { at: x === L ? Math.min(px(x), clear) : px(x), place: px(x), rank, text };
       }),
   );
-  const ticks = [0, L, ...steps, ...places([...drawing.bearings, ...drawing.forces, ...drawing.couples].map((p) => p.x))].filter((x, i, all) => all.indexOf(x) === i).map(px);
+  // One tick to a place AS DRAWN. Two places can be two numbers and one position on the line: a shoulder that is
+  // the sum 12.7 + 25.4 (38.099999999999994) and a bearing typed at 38.1. Told apart by their numbers they were
+  // two ticks at one pixel - and two lines with one name for React, which then left one of them on the drawing
+  // at every later change of it, on screen and on the sheet. So: each place where it is drawn, and no tick
+  // within a tenth of a pixel of one that is there already.
+  const ticks: number[] = [];
+  for (const at of [0, L, ...steps, ...places([...drawing.bearings, ...drawing.forces, ...drawing.couples].map((p) => p.x))].map(px)) {
+    if (!ticks.some((t) => Math.abs(t - at) < 0.1)) ticks.push(at);
+  }
 
   /* The shaft's own weight: a band on its top, as tall over each segment as the metal in its section. */
   const metalMax = Math.max(0, ...body.map((s) => s.metal));
@@ -789,8 +803,9 @@ export function ShaftSchematic({
           {/* positions */}
           <g className="mp-shaft-fig__dim">
             <line x1={g.from} x2={g.to} y1={g.dim} y2={g.dim} />
-            {g.ticks.map((x) => (
-              <line key={x} x1={x} x2={x} y1={g.dim - 4} y2={g.dim + 4} />
+            {/* By its number in the row, never by where it is: see `ticks`. */}
+            {g.ticks.map((x, i) => (
+              <line key={i} x1={x} x2={x} y1={g.dim - 4} y2={g.dim + 4} />
             ))}
             {g.positions.map((p) => (
               <text key={p.at} x={p.at} y={g.dim + 17} textAnchor="middle">

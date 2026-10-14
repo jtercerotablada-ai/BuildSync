@@ -132,9 +132,11 @@ import type { PlaneState, ShaftDrawing, ShaftSolution, ShaftState } from './type
  * the section modulus of the segment the section is in — the engine's own
  * division, made here of the moment as it is printed, so that the two
  * cannot disagree and a stress is nothing exactly where its moment is. At a
- * shoulder the moment is one value and the section two, so the stress is
- * two: a segment's largest is on its own side, and the largest of the shaft
- * is the largest of those — the small side of a shoulder governs.
+ * shoulder with no applied moment on it the moment is one value and the
+ * section two, so the stress is two: a segment's largest is on its own side,
+ * and the largest of the shaft is the largest of those — there the small
+ * side of the shoulder governs. (With an applied moment ON the shoulder the
+ * moment is two values as well: each segment still has its own side's.)
  *
  * UNITS as model.ts shows them (`SHAFT_UNITS`): positions, diameters and
  * deflections in in or mm; forces in lbf or N; moments in lbf·in or N·m;
@@ -251,7 +253,7 @@ export interface ForceResult {
   /** Its row of the form, and its place among the forces, from 0. */
   id: number;
   index: number;
-  /** Where it stands (kept on the shaft). */
+  /** Where it stands, as the engine was given it: kept on the shaft, and on the end of a segment it stands within a rounding of (model.ts, `seatOf`). */
   x: number;
   /** The deflection of the shaft there (in, mm): by planes, and its size. */
   deflection: ByPlanes;
@@ -267,8 +269,9 @@ export interface ShaftLargest {
   moment: ShaftValue;
   /**
    * Nominal bending stress (ksi, MPa): the largest of the segments' own
-   * (`SegmentResult.stress`) — at a shoulder the small side governs — and
-   * `segment`, the one it is in (from 0; null with the value zero).
+   * (`SegmentResult.stress`) — at a shoulder with no applied moment on it
+   * the small side governs — and `segment`, the one it is in (from 0; null
+   * with the value zero).
    */
   stress: ShaftValue & { segment: number | null };
   /** Resultant deflection (in, mm). */
@@ -642,7 +645,7 @@ export function analyseShaft(form: ShaftForm, group = ','): ShaftAnalysis {
     const section = sectionOf(row);
     // (Never, of a shaft that was solved: the engine was given this section's EI.)
     if (!section) throw new Error('a solved shaft with a segment of no section');
-    // At a shoulder the moment is one value and belongs to both segments; inside, a couple makes it two, and the larger is the segment's.
+    // At a shoulder the moment is read on the segment's own side: one value for both segments unless a couple stands on the shoulder; inside, a couple makes it two, and the larger is the segment's.
     const side: Side | undefined = s.M.x <= s.from ? 'right' : s.M.x >= s.to ? 'left' : undefined;
     const moment = largestSize(s.M, M, floorM, within[i], side);
     sigmas.push(sigmaIn(i, moment.value));
@@ -664,7 +667,8 @@ export function analyseShaft(form: ShaftForm, group = ','): ShaftAnalysis {
 
   /* ── At each force ──────────────────────────────────────────────────── */
   const forces: ForceResult[] = form.forces.map((f, index) => {
-    const s = sol.at(f.x);
+    // Where the engine was given it (model.ts, `seatOf`): on the end of a segment, when it stands within a rounding of one.
+    const s = sol.at(input.model.forces?.[index]?.x ?? f.x);
     return { id: f.id, index, x: s.x, deflection: planes(s.vertical.v, s.horizontal.v, floorD), slope: planes(s.vertical.theta, s.horizontal.theta, floorT) };
   });
 

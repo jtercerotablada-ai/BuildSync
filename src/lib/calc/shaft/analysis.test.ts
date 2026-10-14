@@ -6,7 +6,7 @@ import type { Direction, Rotation } from '../beam/model';
 import type { Side } from '../beam/solver';
 import { analyseSafely, analyseShaft, type ByPlanes, type ShaftAnalysis, type ShaftAnalysisIssue, type ShaftResults, type ShaftSide, type ShaftValue } from './analysis';
 import { CLOSE, SHORT, STIFF, solveShaft } from './engine';
-import { SHAFT_US_TO_SI, convertShaft, defaultShaft, toEngine, type CoupleRow, type ForceRow, type SegmentRow, type ShaftForm, type ShaftView, type Sideways } from './model';
+import { SEAT, SHAFT_US_TO_SI, convertShaft, decodeShaft, defaultShaft, encodeShaft, toEngine, type CoupleRow, type ForceRow, type SegmentRow, type ShaftForm, type ShaftView, type Sideways } from './model';
 import type { ShaftModel, ShaftSolution, ShaftState } from './types';
 
 // As in continuous/engine.test.ts: arithmetic that never waits. A turn of the event loop between two tests lets the
@@ -862,6 +862,136 @@ describe('shaft analysis: millimetres and newtons', () => {
     near(r.bearings[0].slope.vertical, (-150000 * 600) / (24 * EI));
     near(r.bearings[1].slope.vertical, (-150000 * 600) / (24 * EI));
     expect(at.deflection.vertical).toBe(0);
+  });
+});
+
+/* ── The same shaft after the units are switched ──────────────────────── */
+
+describe('shaft analysis: a shaft whose bearing or load stands on an end of a segment, after the units are switched', () => {
+  // A length is converted to the eight figures a field shows, each on its own (model.ts, `tidyLength`): the lengths then
+  // add up a rounding away from the converted place of what stood on their end. The page answered "This position is off
+  // the shaft" to a shaft it had just solved, and gave a segment the moment of the far side of a shoulder.
+  const lbf = 4.4482216152605;
+  const [inch, lbfin, ksi] = [25.4, 0.1129848290276167, 6.894757293168361];
+  const metric = (over: Partial<ShaftForm>): ShaftForm => shaft({ units: 'si', material: 'steel', E: 200000, density: 7850, couples: [], ...over });
+
+  it('120 + 300 + 80 mm on a bearing at each end, 1,000 N at the middle: solved in inches too — 112.4 lbf on each', () => {
+    const si = metric({ segments: [seg(1, 120, 40), seg(2, 300, 50), seg(3, 80, 40)], bearings: [0, 500], forces: [force(4, 250, 1000)], nextId: 5 });
+    const us = convertShaft(si, 'us');
+    // The bearing is held past the sum of the lengths, and is on the end of the shaft all the same.
+    expect(us.bearings[1]).toBeGreaterThan(us.segments.reduce((sum, s) => sum + s.L, 0));
+    const [a, b] = [solved(si), solved(us)];
+    nearPlanes(a.bearings[1].reaction, 500, 0);
+    // (224.81 lbf is what the field holds for 1,000 N: half of it on each bearing.)
+    expect(us.forces[0].v).toBe(224.81);
+    nearPlanes(b.bearings[0].reaction, 112.405, 0, 112.405, 1e-7);
+    nearPlanes(b.bearings[1].reaction, 112.405, 0, 112.405, 1e-7);
+    expect(printed(b.bearings[1].reaction.both)).toBe('112.4');
+    expect(b.bearings[1].x).toBe(b.L);
+    near(b.L, 500 / inch, 500 / inch, 1e-7);
+    // Every segment's largest moment and stress: the metric ones, in lbf·in and ksi (to the six figures the force was converted to).
+    a.segments.forEach((s, i) => {
+      near(b.segments[i].moment.value, (s.moment.value / lbfin) * ((224.81 * lbf) / 1000), s.moment.value / lbfin, 1e-6);
+      near(b.segments[i].stress.value, (s.stress.value / ksi) * ((224.81 * lbf) / 1000), s.stress.value / ksi, 1e-6);
+    });
+    // And the drawing has its two bearings, each with what it carries.
+    expect(analyseShaft(us).drawings.vertical.bearings.map((p) => [p.x, printed(p.reaction!)])).toEqual([[0, '112.4'], [b.L, '112.4']]);
+    // There and back: the shaft that was typed.
+    expect(convertShaft(us, 'si')).toEqual(si);
+  });
+
+  it('an applied moment ON a shoulder: each segment keeps the moment of its own side of it, in either system', () => {
+    // 250 × 30, 105 × 50, 155 × 20, 250 × 25, 188 × 35 mm on bearings at 95 and 853 mm; 2,676 N down and 1,490 N sideways at
+    // 304 mm; 418 N·m clockwise at 510 mm, the shoulder between the third segment and the fourth. By hand, the vertical
+    // plane: the right bearing carries (2,676 × 209 + 418,000) ÷ 758 = 1,289.3 N and the left one 1,386.7 N; at the
+    // shoulder, from the left, 1,386.7 × 415 − 2,676 × 206 = 24,227 N·mm, and 418,000 more past the applied moment. The
+    // horizontal plane: 1,490 × 209 ÷ 758 = 410.83 N on the right bearing, which is 410.83 × 343 = 140,915 N·mm there.
+    // Together: 143.0 N·m on the third segment's side of the shoulder, 464.1 N·m on the fourth's.
+    const si = metric({ segments: [seg(1, 250, 30), seg(2, 105, 50), seg(3, 155, 20), seg(4, 250, 25), seg(5, 188, 35)], bearings: [95, 853], forces: [force(6, 304, 2676, 1490)], couples: [couple(7, 510, 418, 0, 'cw')], nextId: 8 });
+    const a = solved(si);
+    const Rb = (2676 * 209 + 418000) / 758;
+    const [before, after] = [Math.hypot((2676 - Rb) * 415 - 2676 * 206, 410.83113 * 343) / 1000, Math.hypot((2676 - Rb) * 415 - 2676 * 206 + 418000, 410.83113 * 343) / 1000];
+    near(before, 142.98, 142.98, 1e-4);
+    near(after, 464.14, 464.14, 1e-4);
+    const at = a.at(510);
+    near(at.left.moment.both, before, before, 1e-7);
+    near(at.right.moment.both, after, after, 1e-7);
+    // The third segment's largest is at its other end, 355 mm: 303.4 N·m, 386.3 MPa on its 20 mm — the largest stress of the shaft.
+    expect([printed(a.segments[2].moment.value), a.segments[2].moment.x, printed(a.segments[2].stress.value)]).toEqual(['303.4', 355, '386.3']);
+    expect([printed(a.segments[3].moment.value), a.segments[3].moment.x]).toEqual(['464.1', 510]);
+    expect([printed(a.largest.stress.value), a.largest.stress.segment]).toEqual(['386.3', 2]);
+
+    const us = convertShaft(si, 'us');
+    // The applied moment is held a hair INSIDE the third segment: 20.07874 in, where the lengths add up to 20.0787403.
+    expect(us.couples[0].x).toBe(20.07874);
+    expect(us.couples[0].x).toBeLessThan(us.segments.slice(0, 3).reduce((sum, s) => sum + s.L, 0));
+    const b = solved(us);
+    // The same shaft: every segment's largest moment and its stress, and where — 2,686 lbf·in and 56.03 ksi in the third, not the 4,108 lbf·in of the far side of the shoulder.
+    a.segments.forEach((s, i) => {
+      near(b.segments[i].moment.value, s.moment.value / lbfin, s.moment.value / lbfin, 1e-5);
+      near(b.segments[i].stress.value, s.stress.value / ksi, s.stress.value / ksi, 1e-5);
+      near(b.segments[i].moment.x!, s.moment.x! / inch, a.L / inch, 1e-7);
+    });
+    expect([printed(b.segments[2].moment.value), printed(b.segments[2].stress.value)]).toEqual(['2,686', '56.03']);
+    expect([printed(b.segments[3].moment.value), b.segments[3].moment.x]).toEqual(['4,108', b.segments[3].from]);
+    expect([printed(b.largest.stress.value), b.largest.stress.segment]).toEqual(['56.03', 2]);
+    // The values at the shoulder are two, one for each segment, as in millimetres.
+    const there = b.at(b.segments[3].from);
+    expect(there.jumps).toMatchObject({ moment: true, section: true });
+    near(there.left.moment.both, before / lbfin, before / lbfin, 1e-5);
+    near(there.right.moment.both, after / lbfin, after / lbfin, 1e-5);
+    // And back in millimetres it is the shaft that was typed.
+    expect(convertShaft(us, 'si')).toEqual(si);
+  });
+
+  it('a force on the end of the shaft is read where the engine has it: on that end', () => {
+    const si = metric({ segments: [seg(1, 100, 40), seg(2, 250, 50), seg(3, 100, 40), seg(4, 120, 30)], bearings: [50, 400], forces: [force(5, 225, 4500, 1600), force(6, 570, 1800)], nextId: 7 });
+    const us = convertShaft(si, 'us');
+    const [a, b] = [solved(si), solved(us)];
+    expect(us.forces[1].x).not.toBe(b.L);
+    expect(b.forces.map((f) => f.x)).toEqual([us.forces[0].x, b.L]);
+    near(b.forces[1].deflection.both, a.forces[1].deflection.both / inch, a.forces[1].deflection.both / inch, 1e-3);
+    expect(analyseShaft(us).drawings.vertical.forces.map((p) => p.x)).toEqual([us.forces[0].x, b.L]);
+  });
+
+  it('a shaft in sixty-fourths of an inch read from its link, switched and switched back: still solved, with the same reactions', () => {
+    // 179 27/64 in in seven segments, a bearing on each end. Its link holds the second bearing at 179.42188, the eight
+    // figures of 179.421875; there and back the lengths add up to 179.421871 and the bearing is held at 179.4219 —
+    // 1.6 × 10⁻⁷ of the shaft past its end, where one switch of a shaft as typed leaves 1.2 × 10⁻⁷ at the most.
+    const typed = shaft({ segments: [17.234375, 31.359375, 10.921875, 39.03125, 21.984375, 32.46875, 26.421875].map((L, i) => seg(i + 1, L, 2)), bearings: [0, 179.421875], forces: [force(9, 59.8, 500)], nextId: 10 });
+    const link = decodeShaft(encodeShaft(typed))!;
+    expect(link.bearings[1]).toBe(179.42188);
+    const back = convertShaft(convertShaft(link, 'si'), 'us');
+    const L = back.segments.reduce((sum, s) => sum + s.L, 0);
+    expect(back.bearings[1]).toBe(179.4219);
+    expect((back.bearings[1] - L) / L).toBeGreaterThan(1.6e-7);
+    // As typed, as its link holds it, and there and back: one shaft, 333.4 lbf and 166.6 lbf on its bearings.
+    const [a, b, c] = [typed, link, back].map((f) => solved(f).bearings.map((p) => p.reaction.vertical));
+    expect([a, b, c].map((r) => r.map(printed))).toEqual([['333.4', '166.6'], ['333.4', '166.6'], ['333.4', '166.6']]);
+    near(c[1], a[1], 500, 1e-6);
+  });
+
+  it('further from an end than a rounding, a place is off the shaft as before — past the end, and before the start', () => {
+    // 145 + 225 mm on a bearing at each end, 2,000 N down and 800 N sideways on the shoulder. In inches the lengths are
+    // 5.7086614 and 8.858268, which add up to 14.5669294, and the bearing at 370 mm is held at 14.56693: solved, on the end.
+    const us = convertShaft(metric({ segments: [seg(1, 145, 40), seg(2, 225, 50)], bearings: [0, 370], forces: [force(3, 145, 2000, 800)], nextId: 4 }), 'us');
+    const L = 5.7086614 + 8.858268;
+    expect(us.bearings).toEqual([0, 14.56693]);
+    expect(us.bearings[1]).toBeGreaterThan(L * (1 + 1e-9));
+    const b = solved(us);
+    expect(b.bearings.map((p) => [p.index, p.x])).toEqual([[0, 0], [1, L]]);
+    // By hand, in inches and pounds: 449.62 lbf and 179.847 lbf, 5.7086614 in along 14.5669294 in.
+    nearPlanes(b.bearings[1].reaction, (449.62 * 5.7086614) / L, (179.847 * 5.7086614) / L);
+    // What `SEAT` takes for an end is four ten-millionths of the shaft's length, either side of it, and no more: a place
+    // further off is said to be off the shaft, on its row — a bearing, a force and an applied moment alike.
+    expect(SEAT).toBe(4e-7);
+    expect(faults(analyseShaft({ ...us, bearings: [0, L * (1 + 3.9e-7)] }).issues)).toEqual([]);
+    expect(faults(analyseShaft({ ...us, bearings: [0, L * (1 + 4.1e-7)] }).issues)).toEqual([['outside', { list: 'bearings', index: 1 }]]);
+    expect(faults(analyseShaft({ ...us, bearings: [0, L * (1 + 1e-6)] }).issues)).toEqual([['outside', { list: 'bearings', index: 1 }]]);
+    expect(faults(analyseShaft({ ...us, bearings: [-3.9e-7 * L, L] }).issues)).toEqual([]);
+    expect(faults(analyseShaft({ ...us, bearings: [-4.1e-7 * L, L] }).issues)).toEqual([['outside', { list: 'bearings', index: 0 }]]);
+    expect(faults(analyseShaft({ ...us, forces: [force(3, L * (1 + 4.1e-7), 10)] }).issues)).toEqual([['outside', { list: 'forces', id: 3 }]]);
+    expect(faults(analyseShaft({ ...us, couples: [couple(5, L * (1 + 4.1e-7), 10)] }).issues)).toEqual([['outside', { list: 'couples', id: 5 }]]);
   });
 });
 

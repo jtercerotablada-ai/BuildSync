@@ -6,6 +6,7 @@ import { CONTINUOUS_KEY, decodeContinuous, defaultContinuous, encodeContinuous }
 import {
   MAX_ROWS,
   MAX_SEGMENTS,
+  SEAT,
   SHAFT_KEY,
   SHAFT_MATERIALS,
   SHAFT_UNITS,
@@ -20,6 +21,7 @@ import {
   formIssues,
   issueOnRow,
   reduceShaft,
+  seatOf,
   sectionOf,
   segmentEnds,
   shaftLength,
@@ -569,6 +571,136 @@ describe('shaft form: the units', () => {
     expect(shownStress('us', 6258)).toBe(6.258);
     expect(shownStress('si', 43.15)).toBe(43.15);
   });
+});
+
+/* ── A position on an end of a segment ────────────────────────────────── */
+
+describe('shaft form: a position on an end of a segment', () => {
+  // The two shafts the page got wrong when its units were switched: 120 + 300 + 80 mm with a bearing on each end, and
+  // 250 + 105 + 155 + 250 + 188 mm with an applied moment on the shoulder at 510 mm.
+  const onEnds = (): ShaftForm => ({ ...metric(), segments: [seg(1, 120, 40), seg(2, 300, 50), seg(3, 80, 40)], bearings: [0, 500], forces: [force(4, 250, 1000)], couples: [], ownWeight: false, nextId: 5 });
+  const onShoulder = (): ShaftForm => ({ ...metric(), segments: [seg(1, 250, 30), seg(2, 105, 50), seg(3, 155, 20), seg(4, 250, 25), seg(5, 188, 35)], bearings: [95, 853], forces: [force(6, 304, 2676, 'down', 1490)], couples: [couple(7, 510, 418, 'cw')], ownWeight: false, nextId: 8 });
+
+  it('the units switched, each length is written to its own eight figures: they no longer add up to the place that stood on their end', () => {
+    const us = convertShaft(onEnds(), 'us');
+    expect(us.segments.map((s) => s.L)).toEqual([4.7244094, 11.811024, 3.1496063]);
+    expect(us.bearings).toEqual([0, 19.68504]);
+    // 19.6850397 in. The bearing is held 3 × 10⁻⁷ in past it: fifteen billionths of the shaft, where an engine takes one.
+    near(shaftLength(us), 19.6850397, 1e-12);
+    expect((us.bearings[1] - shaftLength(us)) / shaftLength(us)).toBeGreaterThan(1.5e-8);
+    // And the applied moment that stood on the shoulder stands 2.6 × 10⁻⁷ in inside the segment before it.
+    const stepped = convertShaft(onShoulder(), 'us');
+    expect(stepped.couples[0].x).toBe(20.07874);
+    near(segmentEnds(stepped)[3], 20.0787403, 1e-12);
+    expect((segmentEnds(stepped)[3] - stepped.couples[0].x) / shaftLength(stepped)).toBeGreaterThan(5e-9);
+  });
+
+  it('the engine is given each ON its end: the end of the shaft, the shoulder', () => {
+    const us = convertShaft(onEnds(), 'us');
+    expect(toEngine(us).model.bearings).toEqual([0, shaftLength(us)]);
+    const stepped = convertShaft(onShoulder(), 'us');
+    expect(toEngine(stepped).model.couples![0].x).toBe(segmentEnds(stepped)[3]);
+    // What stands on no end is sent as it is held.
+    expect(toEngine(stepped).model.bearings).toEqual([3.7401575, 33.582677]);
+    expect(toEngine(stepped).model.forces![0].x).toBe(11.968504);
+    // The form is not written on: its fields and its link are what they were.
+    const held = frozen(convertShaft(onShoulder(), 'us'));
+    toEngine(held);
+    drawingOf(held, 'vertical');
+    expect([held.couples[0].x, held.bearings[1]]).toEqual([20.07874, 33.582677]);
+    // The link the page wrote for the switched shaft opens on the same shaft, given to the engine the same way.
+    const again = decodeShaft(encodeShaft(us))!;
+    expect(again.bearings).toEqual([0, 19.68504]);
+    expect(toEngine(again).model.bearings).toEqual([0, shaftLength(again)]);
+    // In the units it was typed in nothing was moved, and nothing is.
+    expect(toEngine(onEnds()).model.bearings).toEqual([0, 500]);
+    expect(toEngine(onShoulder()).model.couples![0].x).toBe(510);
+  });
+
+  it('and the drawing has each there: the bearing on the end of the shaft, the applied moment on its shoulder', () => {
+    const us = convertShaft(onEnds(), 'us');
+    expect(drawingOf(us, 'vertical').bearings.map((b) => b.x)).toEqual([0, shaftLength(us)]);
+    const stepped = convertShaft(onShoulder(), 'us');
+    expect(drawingOf(stepped, 'vertical').couples.map((c) => c.x)).toEqual([segmentEnds(stepped)[3]]);
+    // A force on the end of the shaft: 570 mm of 100 + 250 + 100 + 120.
+    const tip = convertShaft({ ...metric(), segments: [seg(1, 100, 40), seg(2, 250, 50), seg(3, 100, 40), seg(4, 120, 30)], bearings: [50, 400], forces: [force(5, 570, 1800)], couples: [], nextId: 6 }, 'us');
+    expect(tip.forces[0].x).not.toBe(shaftLength(tip));
+    expect(drawingOf(tip, 'vertical').forces.map((p) => p.x)).toEqual([shaftLength(tip)]);
+    expect(toEngine(tip).model.forces![0].x).toBe(shaftLength(tip));
+  });
+
+  it('seatOf: the nearest end within SEAT of the shaft’s length, and nothing else', () => {
+    expect(SEAT).toBe(4e-7);
+    // The example: ends at 0, 4, 14, 18 and 23 in. Four ten-millionths of 23 in are 9.2 × 10⁻⁶ in.
+    const seat = seatOf(defaultShaft());
+    // On an end, and anywhere that is near none: itself.
+    expect([0, 4, 14, 18, 23, 2, 9, 16, 21, 30, -1].map(seat)).toEqual([0, 4, 14, 18, 23, 2, 9, 16, 21, 30, -1]);
+    // Within that of an end, either side of it: that end.
+    expect([4 + 9e-6, 4 - 9e-6, 14 + 1e-9, 18 - 3e-7, 23 + 9e-6, 23 - 9e-6, 9e-6, -9e-6].map(seat)).toEqual([4, 4, 14, 18, 23, 23, 0, 0]);
+    // Past it, it is where it is — off the shaft, when that is past an end of it.
+    const far = [4 + 9.5e-6, 4 - 9.5e-6, 23 + 9.5e-6, -9.5e-6];
+    expect(far.map(seat)).toEqual(far);
+    // What is not a number stays what it is.
+    expect([Number.NaN, Infinity, -Infinity].map(seat)).toEqual([Number.NaN, Infinity, -Infinity]);
+    // Of two ends that near one another (no engine solves a segment that short), the nearer.
+    const pair = seatOf({ segments: [seg(1, 10, 1), seg(2, 2e-6, 1), seg(3, 10, 1)] });
+    expect([pair(10 + 0.5e-6), pair(10 + 1.5e-6), pair(10)]).toEqual([10, 10 + 2e-6, 10]);
+    // A length that is none counts for nothing (`segmentEnds`); on a shaft with no length, or with one past every number, nothing is moved.
+    expect(seatOf({ segments: [seg(1, 6, 1), seg(2, Number.NaN, 1), seg(3, 4, 1)] })(6 + 1e-6)).toBe(6);
+    expect(seatOf({ segments: [seg(1, 0, 1), seg(2, Number.NaN, 1)] })(1e-300)).toBe(1e-300);
+    expect(seatOf({ segments: [seg(1, 1e308, 1), seg(2, 1e308, 1)] })(5)).toBe(5);
+    // It is under half the shortest segment the engine solves, a millionth of the shaft: no position is within it of two ends of a shaft that is solved.
+    expect(SEAT).toBeLessThan(1e-6 / 2);
+  });
+
+  // How far the units leave a position from the end it stood on. One rounding of a length is at most 6 × 10⁻⁸ of it
+  // (`tidyLength`); a position has its own, and the lengths before it theirs: 1.2 × 10⁻⁷ of the shaft after one switch.
+  // One read from a link was the eight figures of their sum to begin with, 5 × 10⁻⁸ more; and lengths of eight figures
+  // do not all come back to the number typed, so there and back is further than there.
+  it(
+    'counted: a bearing on each end and an applied moment on every shoulder, the units switched one to four times — each is given to the engine on its end',
+    () => {
+      const { rnd } = dice(20261013);
+      const families: [string, 'us' | 'si', () => number][] = [
+        ['whole millimetres', 'si', () => 10 + Math.floor(rnd() * 400)],
+        ['sixty-fourths of an inch', 'us', () => (32 + Math.floor(rnd() * 64 * 14)) / 64],
+        ['sixty-fourths, 10 in and more', 'us', () => (640 + Math.floor(rnd() * 64 * 30)) / 64],
+        ['eight figures, in inches', 'us', () => Number((2 + rnd() * 38).toPrecision(8))],
+        ['eight figures, in millimetres', 'si', () => Number((20 + rnd() * 900).toPrecision(8))],
+      ];
+      const same = (p: number[], q: number[]) => p.length === q.length && p.every((v, i) => v === q[i]);
+      const wrong: string[] = [];
+      let [forms, moved, furthest] = [0, 0, 0];
+      for (const [name, units, length] of families) {
+        for (let i = 0; i < 300; i++) {
+          const segments = Array.from({ length: 2 + Math.floor(rnd() * 7) }, (_, k) => seg(k + 1, length(), 1));
+          const ends = segmentEnds({ segments });
+          // As a link holds it: every number to the eight figures a field shows.
+          let form = decodeShaft(encodeShaft({ ...(units === 'us' ? worked() : metric()), segments, bearings: [0, ends[ends.length - 1]], forces: [], couples: ends.slice(1, -1).map((x, k) => couple(20 + k, x, 10)) }))!;
+          for (let turn = 0; turn <= 4; turn++) {
+            if (turn > 0) form = convertShaft(form, form.units === 'us' ? 'si' : 'us');
+            const at = segmentEnds(form);
+            const L = at[at.length - 1];
+            const off = [form.bearings[1] - L, ...form.couples.map((c, k) => c.x - at[k + 1])].map((d) => Math.abs(d) / L);
+            forms += 1;
+            furthest = Math.max(furthest, ...off);
+            // (More than a billionth of the shaft from its end: what the engine would have taken for another place.)
+            moved += Number(off.some((d) => d > 1e-9));
+            const { model } = toEngine(form);
+            if (!same(model.bearings, [0, L]) || !same(model.couples!.map((c) => c.x), at.slice(1, -1))) wrong.push(`${name} ${i}, switched ${turn} times: ${encodeShaft(form)}`);
+          }
+        }
+      }
+      expect(wrong).toEqual([]);
+      // Of the 7,500 forms, those with a position off its end by more than the engine takes: without `seatOf`, each a
+      // shaft refused or a shoulder's applied moment given to the segment beside it.
+      expect([forms, moved]).toEqual([7500, 5475]);
+      // The furthest of them, of the shaft's length: past what one switch of a shaft as typed can do, and well under SEAT.
+      expect(furthest).toBeGreaterThan(1.5e-7);
+      expect(furthest).toBeLessThan(2.5e-7);
+    },
+    30_000,
+  );
 });
 
 describe('shaft form: what each edit does', () => {
@@ -1556,6 +1688,35 @@ describe('shaft form: the shaft as it is drawn', () => {
     const start = drawingOf(shaft({ bearings: [-1e-11, 16], forces: [force(5, -2e-8, 10), force(6, 23 * (1 + 1e-10), 10), force(7, 23 * (1 + 1e-6), 10), force(8, -23e-6, 10)] }), 'vertical');
     expect(start.bearings.map((p) => p.x)).toEqual([0, 16]);
     expect(start.forces.map((p) => [p.id, p.x])).toEqual([['5', 0], ['6', 23]]);
+  });
+
+  // Lengths typed as 21.7, 20.9 and 5.61 add up to 48.209999999999994, and
+  // 1.1 and 2.2 to 3.3000000000000003. What is typed at 48.21 or at 3.3 is
+  // typed on that shoulder, or at that end: the engine solves it there, and
+  // a drawing that kept the number typed stood a bearing beside its
+  // shoulder — on the thinner part, half behind the thicker. Each is SEATED
+  // (`seatOf`), for the engine and for the drawing alike.
+  it('a place a hair from a step is the step, and a hair short of the end is the end, as the engine is given them; a place further off is where it was typed', () => {
+    const f = shaft({ segments: [seg(1, 21.7, 2), seg(2, 20.9, 2), seg(3, 5.61, 4), seg(4, 1.74, 1.5), seg(5, 2.59, 1.5)], bearings: [10, 48.21], forces: [force(6, 48.21, 10), force(7, 42.6, 10), force(8, 48.2, 10)], couples: [couple(9, 48.21, 3)] });
+    const step = segmentEnds(f)[3];
+    expect(step).not.toBe(48.21);
+    expect(Math.abs(step - 48.21)).toBeLessThan(1e-13);
+    expect(segmentEnds(f)[2]).not.toBe(42.6);
+    const drawing = drawingOf(f, 'vertical');
+    expect(drawing.bearings.map((p) => p.x)).toEqual([10, step]);
+    expect(drawing.forces.map((p) => [p.id, p.x])).toEqual([['6', step], ['7', segmentEnds(f)[2]], ['8', 48.2]]);
+    expect(drawing.couples.map((p) => [p.id, p.x])).toEqual([['9', step]]);
+    // What is drawn on the step is solved on it: the engine is given the very same places.
+    const { model } = toEngine(f);
+    expect([model.bearings, model.forces!.map((p) => p.x), model.couples!.map((p) => p.x)]).toEqual([[10, step], [step, segmentEnds(f)[2], 48.2], [step]]);
+    // A hair short of the end.
+    const short = shaft({ segments: [seg(1, 1.1, 2), seg(2, 2.2, 2)], bearings: [0, 3.3], forces: [force(5, 3.3, 10), force(6, 1.1 * (1 + 1e-10), 10), force(7, 1.1 * (1 + 1e-5), 10)], couples: [] });
+    const L = shaftLength(short);
+    expect(L).toBeGreaterThan(3.3);
+    expect(drawingOf(short, 'vertical').bearings.map((p) => p.x)).toEqual([0, L]);
+    // …and eleven millionths of an inch on this shaft are not a hair: past `SEAT` of its length, a place is where it was typed.
+    expect(1.1 * (1 + 1e-5) - 1.1).toBeGreaterThan(SEAT * L);
+    expect(drawingOf(short, 'vertical').forces.map((p) => [p.id, p.x])).toEqual([['5', L], ['6', 1.1], ['7', 1.1 * (1 + 1e-5)]]);
   });
 
   it('a segment with no length has no place; a diameter that is none is drawn as none, a bore that is no bore as solid', () => {

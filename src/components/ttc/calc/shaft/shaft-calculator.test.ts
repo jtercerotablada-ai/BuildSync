@@ -16,6 +16,7 @@ import { shaftPage } from '@/lib/calc/shaft/page-strings';
 import { shaftUi, sharedWords } from '@/lib/calc/shaft/strings';
 import { calculatorFamilies } from '@/lib/ttc/calculators';
 import type { Lang } from '@/lib/ttc/i18n';
+import { select } from '../shell/fields';
 import { ShaftCalculator } from './ShaftCalculator';
 
 // A turn of the event loop between two tests: every test here solves a shaft or several, and never waits. It
@@ -47,6 +48,9 @@ const SRC = resolve(__dirname, '..', '..', '..', '..');
 const text = (html: string) =>
   html
     .replace(/<(script|style|noscript)\b[\s\S]*?<\/\1>/g, ' ')
+    // A figure set up after a unit (<sup>) is read as what it is: "in" and a raised 4 is in⁴.
+    .replace(/<sup>3<\/sup>/g, '³')
+    .replace(/<sup>4<\/sup>/g, '⁴')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -70,7 +74,7 @@ const show = (lang: Lang, initial?: ShaftForm, initialView?: ShaftView) => rende
  * A cell of a table carries its column's head a second time, for a phone,
  * out of sight and silent (`mp-shaft__head`): taken out before it is read.
  */
-const HEAD = /<span class="mp-shaft__head" aria-hidden="true">(?:[^<]|<span class="mp-plot__unit">[^<]*<\/span>)*<\/span>/g;
+const HEAD = /<span class="mp-shaft__head" aria-hidden="true">(?:[^<]|<span class="mp-plot__unit">(?:[^<]|<sup>[34]<\/sup>)*<\/span>)*<\/span>/g;
 const cardsOf = (html: string) => {
   const cards = html.split(/<div class="mp-app__card(?: mp-app__card--wide| mp-shaft__point)?">/).slice(1);
   const title = (c: string) => text(c.match(/<h3\b[^>]*>([\s\S]*?)<\/h3>/)?.[1] ?? '');
@@ -97,12 +101,16 @@ const fieldsOf = (part: string) =>
       return { label: text(m[2].match(/<span class="mp-num__label">([\s\S]*?)<\/span><span class="mp-num__box">/)?.[1] ?? ''), value: attr(input, 'value') ?? '', unit: text(m[2].match(/<span class="mp-num__unit">([\s\S]*?)<\/span>/)?.[1] ?? ''), invalid: attr(input, 'aria-invalid') === 'true', describedBy: attr(input, 'aria-describedby') };
     });
 const selectsOf = (part: string) => [...part.matchAll(/<label class="mp-num mp-num--select[^"]*">([\s\S]*?)<\/label>/g)].map((m) => ({ label: text(m[1].match(/<span class="mp-num__label">([\s\S]*?)<\/span>/)?.[1] ?? ''), chosen: text(m[1].match(/<option[^>]* selected=""[^>]*>([\s\S]*?)<\/option>/)?.[1] ?? ''), options: [...m[1].matchAll(/<option[^>]*>([\s\S]*?)<\/option>/g)].map((o) => text(o[1])) }));
+/** What each list of a piece of the form is HEARD as: its own name where it has one, else the word over it. */
+const heardOf = (part: string) => [...part.matchAll(/<label class="mp-num mp-num--select[^"]*">([\s\S]*?)<\/label>/g)].map((m) => attr(m[1].match(/<select\b[^>]*>/)?.[0] ?? '', 'aria-label') ?? text(m[1].match(/<span class="mp-num__label">([\s\S]*?)<\/span>/)?.[1] ?? ''));
 const itemsOf = (part: string) => [...part.matchAll(/<div class="mp-app__item" role="group" aria-label="([^"]*)"( data-invalid="true")?>/g)].map((m) => ({ name: m[1], invalid: Boolean(m[2]) }));
 /** The line under a row that a field is tied to. */
 const lineOf = (html: string, id: string | undefined) => text(html.match(new RegExp(`<p class="mp-app__row-error" id="${id}">([\\s\\S]*?)</p>`))?.[1] ?? '');
 /** Which of the three views is chosen, as the switch says it. */
 const viewOf = (html: string) => text(html.match(/<input type="radio" name="shaft-view" checked=""\/><span>([\s\S]*?)<\/span>/)?.[1] ?? '');
 const titleOf = (html: string) => text(html.match(/<p class="mp-plot__title mp-plot__title--first">([\s\S]*?)<\/p>/)?.[1] ?? '');
+/** The titles of the three diagrams, each with its unit, as they stand over them. */
+const captionsOf = (html: string) => [...html.matchAll(/<figcaption class="mp-plot__title">([\s\S]*?)<\/figcaption>/g)].map((m) => text(m[1]));
 
 /** The example with something else in it. */
 const shaft = (over: Partial<ShaftForm>): ShaftForm => ({ ...defaultShaft(), ...over });
@@ -344,8 +352,11 @@ describe('shaft calculator: its words', () => {
       expect(s, path).not.toMatch(/\b(ok|okay|pass|passes|passed|fail|fails|failed|adequate|inadequate|sufficient|insufficient|enough|acceptable|allowable|permissible|complies|satisf\w*|safe|unsafe|should not exceed|must not exceed|limit)\b/i);
       expect(s, path).not.toMatch(/\b(cumple|cumplen|no cumple|falla|fallan|aprobad\w*|suficiente|insuficiente|adecuad\w*|inadecuad\w*|aceptable|admisible|basta|segur[oa]|satisf\w*|verifica|límite|no debe exceder)\b/i);
       expect(s, path).not.toMatch(/[✓✔✗✘]/);
-      expect(s, path).not.toMatch(/\b(ACI|AISC|ASCE|ASME|AGMA|ISO|DIN|IBC|Eurocode|Eurocódigo|LRFD|ASD)\b/);
+      expect(s, path).not.toMatch(/\b(ACI|AISC|ASCE|ASME|AGMA|ANSI|ABMA|ISO|DIN|IBC|Eurocode|Eurocódigo|LRFD|ASD)\b/);
     }
+    // The figures of the tool's words are those of one line — a stiffness a million times another is "about 32 diameters to 1" — and they are counted: a
+    // limit that came with a number would be a figure more, whatever its unit. One said wholly in words no pattern can catch.
+    for (const set of [en, es]) expect(set.map(([, s]) => s).join(' ').match(/\d+(\.\d+)?/g)).toEqual(['32', '1']);
   });
 
   it('names no other company’s product, no price, no date', () => {
@@ -419,6 +430,47 @@ describe('shaft calculator: its words', () => {
     expect(shaftUi.es.linkError).toMatch(/no se ha podido leer: lo que se muestra es el ejemplo/);
   });
 
+  // A SENTENCE TURNED ROUND IS STILL A SENTENCE. What the tool DOES is held below, card by card and view by view — and almost always
+  // through these words by their KEY, so that a line changed into its opposite ("from above" into "from below", "smaller" into
+  // "larger", "upward" into "downward") is compared with itself and passes. Each clause here says a direction, a sign, a plane, an
+  // end, a unit or what must be: read by the very words that carry it, in BOTH languages, at its own key (the path is `leaves`' own).
+  // A clause that is reworded is reworded here too, on purpose.
+  const HELD: [at: string, en: string, es: string][] = [
+    ['toolbar.us', 'US (in, lbf)', 'EE. UU. (in, lbf)'],
+    ['toolbar.si', 'SI (mm, N)', 'SI (mm, N)'],
+    ['shaft.note', 'Segments follow one another from the left end.', 'Los tramos van uno tras otro desde el extremo izquierdo.'],
+    ['shaft.note', 'Every position below is a distance from that left end, and stays as typed when a segment changes.', 'Toda posición de más abajo es una distancia a ese extremo izquierdo, y queda como se escribió cuando un tramo cambia.'],
+    ['bearings.note', 'so the shaft can tilt in it', 'de modo que el eje puede inclinarse en él'],
+    ['forces.note', 'The viewer stands beside the shaft, with its left end on the left.', 'con el extremo izquierdo de este a su izquierda; «hacia el fondo» es alejándose de él.'],
+    ['couples.note', 'an axial force on a gear, acting at its radius, makes one', 'lo produce la fuerza axial de un engranaje, que actúa en su radio'],
+    ['couples.note', 'the vertical plane from the side, the horizontal plane from above', 'el vertical, visto de lado; el horizontal, desde arriba'],
+    ['material.weight', 'a load spread along it, in the vertical plane', 'una carga repartida a lo largo de él, en el plano vertical'],
+    ['material.note', 'reactions, shears and moments do not depend on it', 'las reacciones, los cortantes y los momentos no dependen de él'],
+    ['results.seen.vertical', 'seen from the side', 'visto de lado'],
+    ['results.seen.horizontal', 'seen from above: down the page is towards the viewer', 'visto desde arriba: hacia abajo en el dibujo es hacia el observador'],
+    ['results.seen.both', 'as one size each, with no direction', 'como una sola magnitud cada una, sin dirección'],
+    ['results.signs.vertical', 'Vertical plane: a positive shear pushes the part left of the cut upward, a positive moment sags the shaft, and a positive deflection is upward.', 'Plano vertical: un cortante positivo empuja hacia arriba la parte a la izquierda del corte, un momento positivo comba el eje hacia abajo y una deflexión positiva es hacia arriba.'],
+    ['results.signs.both', 'the size of the two planes’ values at that point, √(vertical² + horizontal²)', 'la magnitud de los valores de los dos planos en ese punto, √(vertical² + horizontal²)'],
+    ['results.towards', 'towards viewer', 'hacia el observador'],
+    ['results.away', 'away from viewer', 'hacia el fondo'],
+    ['results.nominal', 'a segment’s largest moment over that segment’s own section modulus', 'el mayor momento de un tramo entre el módulo de sección, Z, de ese mismo tramo'],
+    ['results.sizes', 'Each is the size of the two planes together.', 'Cada uno es la magnitud de los dos planos juntos.'],
+    ['issues.length', 'must be a positive number', 'debe ser un número positivo'],
+    ['issues.diameter', 'must be a positive number', 'debe ser un número positivo'],
+    ['issues.bore', 'The bore must be smaller than the diameter, and not negative.', 'El diámetro interior debe ser menor que el diámetro, y no negativo.'],
+    ['issues.modulus', 'must be a positive number', 'debe ser un número positivo'],
+    ['issues.density', 'the density must be a positive number', 'la densidad debe ser un número positivo'],
+  ];
+
+  it('each clause that says a direction, a sign, a plane, an end, a unit or what must be is in the tool’s words as it is written here, in both languages', () => {
+    const missing = LANGS.flatMap((lang) => {
+      const said = Object.fromEntries(leaves(shaftUi[lang]));
+      return HELD.filter(([at, en, es]) => !(said[at] ?? '').includes(lang === 'en' ? en : es)).map(([at, en, es]) => `${lang} ${at}: ${lang === 'en' ? en : es}`);
+    });
+    expect(missing).toEqual([]);
+    expect(new Set(HELD.map(([at, en]) => `${at}|${en}`)).size).toBe(HELD.length);
+  });
+
   // The words reach the tool as a prop from the server view. Imported by the component — or by anything it
   // imports — both languages would be in the script every visitor downloads.
   it('are a prop: the component imports neither set of words, only their types', () => {
@@ -465,8 +517,16 @@ describe('shaft calculator: the form', () => {
       expect([...part.matchAll(/<button\b[^>]*class="mp-app__remove"[^>]*>/g)].map((m) => [attr(m[0], 'aria-label'), / disabled=""/.test(m[0])])).toEqual(rows.map((r) => [`${t.row.remove}: ${r}`, false]));
       // The segments end to end, said under them — and what an empty bore is.
       expect(text(part)).toContain(w.shaft.total.replace('{length}', '23 in'));
+      // …to the eight figures a field holds, not the six of a place: 10 1/64 + 13 5/32 in is 23.171875 in, and "23.1719" typed back as a bearing's place was past the end of that shaft.
+      const long = groupsOf(show(lang, shaft({ segments: [segment(1, 10.015625, 1.5), segment(2, 13.15625, 2)] })))[0].html;
+      expect(text(long)).toContain(w.shaft.total.replace('{length}', '23.171875 in'));
+      expect(text(long)).not.toContain('23.1719 in');
+      // In millimetres, with the page's own mark between thousands: 1,397 mm, and 588.56562 mm.
+      const metric = (lengths: number[]) => text(groupsOf(show(lang, shaft({ units: 'si', segments: lengths.map((L, i) => segment(i + 1, L, 40)), bearings: [0, 100], forces: [], E: 200000, density: 7850 })))[0].html);
+      expect(metric([347, 198, 156, 157, 358, 181])).toContain(w.shaft.total.replace('{length}', `${lang === 'en' ? '1,397' : '1\u202f397'} mm`));
+      expect(metric([254.39687, 334.16875])).toContain(w.shaft.total.replace('{length}', '588.56562 mm'));
       expect(notesOf(part)).toEqual([w.shaft.note]);
-      expect(w.shaft.note).toMatch(lang === 'en' ? /A bore left empty is a solid segment\./ : /Un diámetro interior vacío es un tramo macizo\./);
+      expect(w.shaft.note).toMatch(lang === 'en' ? /A bore left empty is a solid segment\./ : /Si el diámetro interior se deja vacío, el tramo es macizo\./);
       expect(text(part)).toContain(w.shaft.add);
       // A solid segment's bore is named for the printed sheet, which leaves an empty field out; a hollow one's is not.
       expect(part.match(/<label class="mp-num mp-shaft__solid">/g)).toHaveLength(4);
@@ -509,8 +569,21 @@ describe('shaft calculator: the form', () => {
         { label: t.loads.direction, chosen: up[0], options: up }, { label: t.loads.direction, chosen: side[0], options: side },
         { label: t.loads.direction, chosen: up[0], options: up }, { label: t.loads.direction, chosen: side[0], options: side },
       ]);
+      // Each of the two is HEARD by a name of its own — the word on screen, then the plane it is of: two lists both
+      // called "Direction" in one row cannot be told apart by whoever hears the form, and which is which is the sign of the load.
+      const heard = [`${t.loads.direction}, ${w.forces.vertical.toLowerCase()}`, `${t.loads.direction}, ${w.forces.horizontal.toLowerCase()}`];
+      expect(heardOf(part)).toEqual([...heard, ...heard]);
+      expect(heard).toEqual(lang === 'en' ? ['Direction, vertical', 'Direction, horizontal'] : ['Sentido, vertical', 'Sentido, horizontal']);
+      // To the eye it is the shell's own list, mark for mark: the name is all this page adds to it.
+      const first = part.match(/<label class="mp-num mp-num--select[^"]*">[\s\S]*?<\/label>/)?.[0] ?? '';
+      expect(first).toContain(` aria-label="${heard[0]}"`);
+      expect(first.replace(/ aria-label="[^"]*"/, '')).toBe(renderToStaticMarkup(select(t.loads.direction, 'down', [['down', t.loads.down], ['up', t.loads.up]], () => {}, 'mp-num--dir')));
       expect(notesOf(part)).toEqual([w.forces.note]);
-      // Where the viewer stands is said: "towards" and "away" mean nothing without it.
+      // Where the viewer stands is said: "towards" and "away" mean nothing without it. And it is said OVER the rows,
+      // straight under the group's title: the first row offers "Towards viewer", and under twelve forces the line
+      // stood three windows further down.
+      expect(part.startsWith('<p class="mp-app__note">')).toBe(true);
+      expect(part.indexOf('<p class="mp-app__note">')).toBeLessThan(part.indexOf('<div class="mp-app__item"'));
       expect(w.forces.note).toMatch(lang === 'en' ? /The viewer stands beside the shaft, with its left end on the left\./ : /El observador está junto al eje, con el extremo izquierdo de este a su izquierda/);
       const other = groupsOf(show(lang, shaft({ forces: [force(5, 3.5, 250, 75, 'up', 'away')], nextId: 6 })))[2].html;
       expect(selectsOf(other).map((s) => s.chosen)).toEqual([up[1], side[1]]);
@@ -519,21 +592,39 @@ describe('shaft calculator: the form', () => {
 
     it(`${lang}: an applied moment likewise — none in the example, and each sense as its plane is drawn`, () => {
       const part = group(t.loads.couple);
-      expect(text(part).startsWith(t.loads.noneCouple)).toBe(true);
+      // The note first, over the rows (how a sense is read, before a row asks for one), then the line that says there is none.
+      expect(part.startsWith('<p class="mp-app__note">')).toBe(true);
+      expect(text(part).startsWith(`${text(w.couples.note)} ${t.loads.noneCouple} `)).toBe(true);
       expect(text(part)).toContain(t.loads.addCouple);
       expect(notesOf(part)).toEqual([w.couples.note]);
       // Torque is not a load of this page, and the form says so where a "moment" is entered.
       expect(w.couples.note).toMatch(lang === 'en' ? /Torque about the shaft’s axis is not entered\.$/ : /El par de torsión en torno al eje no se introduce\.$/);
       const some = groupsOf(show(lang, shaft({ couples: [couple(7, 9, 1500, 600, 'cw', 'ccw')], nextId: 8 })))[3].html;
       expect(itemsOf(some).map((i) => i.name)).toEqual([`${t.row.names.couples} 1`]);
+      expect(some.indexOf('<p class="mp-app__note">')).toBeLessThan(some.indexOf('<div class="mp-app__item"'));
       expect(fieldsOf(some).map((f) => [f.label, f.value, f.unit])).toEqual([[t.results.position, '9', 'in'], [w.planes.vertical, '1500', 'lbf·in'], [w.planes.horizontal, '600', 'lbf·in']]);
       const turn = [t.loads.ccw, t.loads.cw];
       expect(selectsOf(some)).toEqual([{ label: t.loads.direction, chosen: turn[1], options: turn }, { label: t.loads.direction, chosen: turn[0], options: turn }]);
+      // The same word over both and the same two choices in both: only its name says which plane a list is of.
+      expect(heardOf(some)).toEqual([`${t.loads.direction}, ${w.planes.vertical.toLowerCase()}`, `${t.loads.direction}, ${w.planes.horizontal.toLowerCase()}`]);
+      expect(heardOf(some)).toEqual(lang === 'en' ? ['Direction, vertical plane', 'Direction, horizontal plane'] : ['Sentido, plano vertical', 'Sentido, plano horizontal']);
+    });
+
+    it(`${lang}: in a row of the form no two controls are heard by one name`, () => {
+      const html = show(lang, shaft({ couples: [couple(7, 9, 1500, 600, 'cw', 'ccw')], nextId: 8 }));
+      const rows = html.split('<div class="mp-app__item" role="group"').slice(1).map((row) => row.slice(0, row.indexOf('class="mp-app__remove"')));
+      expect(rows).toHaveLength(7);
+      for (const row of rows) {
+        const names = [...fieldsOf(row).map((f) => `${f.label} ${f.unit}`), ...heardOf(row)];
+        expect(names.length, names.join(' | ')).toBeGreaterThanOrEqual(3);
+        expect(new Set(names).size, names.join(' | ')).toBe(names.length);
+      }
     });
 
     it(`${lang}: the material, its modulus, and the shaft’s own weight with the density it takes`, () => {
       const part = group(w.material.title);
       expect(selectsOf(part)).toEqual([{ label: t.section.material, chosen: t.section.materials.steel, options: [t.section.materials.steel, w.material.stainless, t.section.materials.aluminum, t.section.materials.custom] }]);
+      expect(heardOf(part)).toEqual([t.section.material]);
       expect(fieldsOf(part).map((f) => [f.label, f.value, f.unit])).toEqual([[t.section.E, '29000', 'ksi']]);
       expect(notesOf(part)).toEqual([w.material.note]);
       expect(part).toMatch(new RegExp(`<label class="mp-app__check"><input type="checkbox"/><span>${w.material.ownWeight.replace('’', '’')}</span></label>`));
@@ -596,7 +687,9 @@ describe('shaft calculator: the example, cell by cell', () => {
 
     it(`${lang}: the bearings — where, the reaction in each plane, the radial load, the slope there`, () => {
       const card = cards.of(w.bearings.title);
-      expect(headOf(card)).toEqual([w.bearings.name, `${t.results.position} (in)`, `${w.results.reactionV} (lbf)`, `${w.results.reactionH} (lbf)`, `${w.results.radial} (lbf)`, `${t.results.slope} (rad)`]);
+      // The slope is of the two planes together, and its head says so in the switch's own words: "Slope, both planes".
+      expect(headOf(card)).toEqual([w.bearings.name, `${t.results.position} (in)`, `${w.results.reactionV} (lbf)`, `${w.results.reactionH} (lbf)`, `${w.results.radial} (lbf)`, `${t.results.slope}, ${w.planes.both.toLowerCase()} (rad)`]);
+      expect(headOf(card)[5]).toBe(lang === 'en' ? 'Slope, both planes (rad)' : 'Giro, ambos planos (rad)');
       expect(rowsOf(card)).toEqual(s.bearings.map((b, i) => [String(i + 1), n(b.x, 6), pointed(lang, 'vertical', b.reaction.vertical), pointed(lang, 'horizontal', b.reaction.horizontal), n(b.reaction.both), n(b.slope.both)]));
       // …which are the numbers worked by hand: upward, and away from the viewer, against a gear that pushes down and towards.
       if (lang === 'en') expect(rowsOf(card).map((r) => r.slice(2, 5))).toEqual(BY_HAND.bearings.map(([v, hz, r]) => [`${v} upward`, `${hz} away from viewer`, r]));
@@ -613,20 +706,28 @@ describe('shaft calculator: the example, cell by cell', () => {
       const card = cards.of(w.results.bySegment);
       expect(headOf(card)).toEqual([`${w.shaft.segment} (in)`, `${w.shaft.diameter} (in)`, `${t.section.I} (in⁴)`, `${w.results.modulus} (in³)`, `${w.results.largestMoment} (lbf·in)`, `${w.results.stress} (ksi)`]);
       expect(rowsOf(card)).toEqual(
-        s.segments.map((x, i) => [`${i + 1} ${n(x.from, 6)} – ${n(x.to, 6)}`, n(x.d, 6), n(x.I), n(x.Z), `${n(x.moment.value)} ${where(x.moment.x)}`, n(x.stress)]),
+        s.segments.map((x, i) => [`${i + 1}: ${n(x.from, 6)} – ${n(x.to, 6)}`, n(x.d, 6), n(x.I), n(x.Z), `${n(x.moment.value)} ${where(x.moment.x)}`, n(x.stress)]),
       );
+      // A segment is named by its number, a colon, then where it runs: with a space alone between them the two read as one run of digits ("2 4 – 14", "3 14 – 18").
+      expect(rowsOf(card).map((r) => r[0])).toEqual(['1: 0 – 4', '2: 4 – 14', '3: 14 – 18', '4: 18 – 23']);
+      // …the number and its colon in the weight of a row's name, the range in the lighter type of a qualifier.
+      expect(text(bodyOf(card)[2].match(/<\/span>([^<]*(?:<!-- -->[^<]*)*)<span class="mp-app__dir">/)?.[1] ?? '').trim()).toBe('3:');
       // At a shoulder the moment is one number and the stress is each side's own: 1,200 lbf·in at 18 in is 3.622 ksi in the 1.5 in journal and 6.258 in the 1.25 in end.
       expect(rowsOf(card).map((r) => r[4])).toEqual([4, 9, 16, 18].map((x, i) => `${n(Number(BY_HAND.moments[i].replace(',', '')))} ${where(x)}`));
       expect(rowsOf(card).map((r) => r[5])).toEqual(BY_HAND.stresses);
       expect(under(bodyOf(card)[0])).toEqual(headOf(card));
       // The stress is nominal, and the card says what is not in it.
       expect(notesOf(card)).toEqual([w.results.nominal]);
-      expect(w.results.nominal).toMatch(lang === 'en' ? /no stress raiser — not a shoulder’s fillet, a groove or a keyway/ : /ningún concentrador de esfuerzos: ni el radio de un hombro, ni una ranura, ni un chavetero/);
+      expect(w.results.nominal).toMatch(lang === 'en' ? /no stress raiser — not a shoulder’s fillet, a groove or a keyway/ : /ningún concentrador de esfuerzos: ni el radio de acuerdo de un hombro, ni una ranura, ni un chavetero/);
     });
 
     it(`${lang}: at each force — the deflection there, its size and by planes, and the slope there`, () => {
       const card = cards.of(w.results.atForces);
-      expect(headOf(card)).toEqual([w.forces.name, `${t.results.position} (in)`, `${t.results.deflection} (in)`, `${w.results.deflectionV} (in)`, `${w.results.deflectionH} (in)`, `${t.results.slope} (rad)`]);
+      // The two columns that are sizes are headed as of the two planes together; the two between them name their plane.
+      expect(headOf(card)).toEqual([w.forces.name, `${t.results.position} (in)`, `${t.results.deflection}, ${w.planes.both.toLowerCase()} (in)`, `${w.results.deflectionV} (in)`, `${w.results.deflectionH} (in)`, `${t.results.slope}, ${w.planes.both.toLowerCase()} (rad)`]);
+      expect([headOf(card)[2], headOf(card)[5]]).toEqual(lang === 'en' ? ['Deflection, both planes (in)', 'Slope, both planes (rad)'] : ['Deflexión, ambos planos (in)', 'Giro, ambos planos (rad)']);
+      // On a phone each cell stands under its own head, as in the card of the bearings.
+      expect(under(bodyOf(card)[0])).toEqual(headOf(card));
       expect(rowsOf(card)).toEqual(s.forces.map((f, i) => [String(i + 1), n(f.x, 6), n(f.deflection.both), pointed(lang, 'vertical', f.deflection.vertical), pointed(lang, 'horizontal', f.deflection.horizontal), n(f.slope.both)]));
       // The gear goes down and towards the viewer, as it is pushed; the pulley, past the second bearing, down and away.
       if (lang === 'en') expect(rowsOf(card)).toEqual([['1', '9', '0.001667', '0.001371 downward', '0.0009491 towards viewer', '7.316 × 10^-5'], ['2', '21', '0.003573', '0.003386 downward', '0.001139 away from viewer', '0.001093']]);
@@ -710,12 +811,25 @@ describe('shaft calculator: the three views', () => {
         expect(titleOf(page)).toBe(`${w.results.schematic} · ${w.results.seen[view]}`);
         expect(notesOf(page.slice(page.indexOf('mp-app__plots'), page.indexOf('mp-app__tables')))).toEqual([w.results.signs[view]]);
         expect(drawingsOf(page)).toHaveLength(4);
+        // A diagram is read by its title. In a plane it is the first calculator's name; of the two planes together
+        // it is a resultant — a size, drawn above its axis whichever way the shaft goes — and the title says so.
+        const names = view === 'both' ? w.results.resultant : t.results;
+        expect(captionsOf(page)).toEqual([`${names.shear} (lbf)`, `${names.moment} (lbf·in)`, `${names.deflection} (in)`]);
+        expect(drawingsOf(page).slice(1).map((said) => said.split(':')[0])).toEqual([names.shear, names.moment, names.deflection]);
         expect(drawingsOf(page)[0]).toBe(`${w.results.schematic}, ${w.planes[view]}: 23 in; ${w.bearings.name} x = 2 in, ${w.bearings.name} x = 16 in.`);
         // The cards are of both planes whatever the switch says.
         expect(cardsOf(page).of(w.bearings.title)).toBe(cardsOf(html).of(w.bearings.title));
       }
       // Seen from above, down the page is towards the viewer: the drawing cannot say it, so its title does.
       expect(w.results.seen.horizontal).toMatch(lang === 'en' ? /down the page is towards the viewer/ : /hacia abajo en el dibujo es hacia el observador/);
+      // The word for a diagram of both planes is the one this page's method uses for it, and no plane's title has it.
+      expect(w.results.resultant).toEqual(
+        lang === 'en'
+          ? { shear: 'Resultant shear', moment: 'Resultant bending moment', deflection: 'Resultant deflection' }
+          : { shear: 'Cortante resultante', moment: 'Momento flector resultante', deflection: 'Deflexión resultante' },
+      );
+      for (const plain of [t.results.shear, t.results.moment, t.results.deflection]) expect(plain).not.toMatch(/resultant/i);
+      expect(shaftPage[lang].method.paragraphs.join(' ')).toMatch(lang === 'en' ? /The resultant — the square root of the sum of the squares of the two components — is taken of the shear, the bending moment, the slope and the deflection alike/ : /La resultante — la raíz cuadrada de la suma de los cuadrados de las dos componentes — se toma por igual del cortante, del momento flector, del giro y de la deflexión/);
     });
 
     it(`${lang}: the vertical plane — its loads and reactions on the drawing, and each diagram’s highest and lowest`, () => {
@@ -737,6 +851,22 @@ describe('shaft calculator: the three views', () => {
       expect(drawn).not.toContain('400 lbf');
       expect(drawn.filter((x) => x === '180')).toHaveLength(2);
       expect(drawingsOf(page)[2]).toBe(`${t.results.moment}: ${t.plot.max} ${n(1260)} lbf·in ${where(9)}; ${t.plot.min} 0 lbf·in.`);
+      // What is positive in this plane is said under its diagrams WHOLE, in this plane's own words — not as another view's line with
+      // a word changed: whoever reads this view, or prints it, has no other view's line beside it. And it is what the diagrams show.
+      // The gear pushes 360 lbf towards the viewer and each bearing holds 180 lbf away from the viewer: left of a cut between the
+      // first bearing and the gear there is that bearing's 180 lbf alone, away from the viewer — a shear of +180 — and past the
+      // gear 180 − 360 = −180. Between the bearings the shaft bows towards the viewer: the moment is positive all along. Under
+      // the gear it has moved towards the viewer: the lowest deflection, a negative one, as the card "At each force" says in words.
+      expect(drawingsOf(page)[1]).toBe(`${t.results.shear}: ${t.plot.max} 180 lbf ${where(2)}; ${t.plot.min} -180 lbf ${where(9)}.`);
+      const lowest = s.peaks('horizontal').D[1];
+      expect([lowest.x, n(-lowest.value)]).toEqual([9, '-0.0009491']);
+      expect(drawingsOf(page)[3]).toContain(`${t.plot.min} -0.0009491 in ${where(9)}.`);
+      expect(rowsOf(cardsOf(page).of(w.results.atForces))[0][4]).toBe(`0.0009491 ${w.results.towards}`);
+      expect(w.results.signs.horizontal).toBe(
+        lang === 'en'
+          ? 'Horizontal plane: a positive shear pushes the part left of the cut away from the viewer, a positive moment bows the shaft towards the viewer, and a positive deflection is away from the viewer.'
+          : 'Plano horizontal: un cortante positivo empuja hacia el fondo la parte a la izquierda del corte, un momento positivo comba el eje hacia el observador y una deflexión positiva es hacia el fondo.',
+      );
     });
 
     it(`${lang}: both planes — sizes: the radial loads on the drawing, no arrow, no lowest value, no negative label`, () => {
@@ -747,7 +877,10 @@ describe('shaft calculator: the three views', () => {
       expect(first).not.toContain('mp-shaft-fig__head');
       expect(show(lang, undefined, 'vertical').match(/<svg class="mp-plot__svg"[\s\S]*?<\/svg>/)?.[0]).toContain('mp-shaft-fig__head');
       const said = (title: string, unit: string, top: { value: number; x: number }) => `${title}: ${t.plot.max} ${n(top.value)} ${unit} ${where(top.x)}.`;
-      expect(drawingsOf(page).slice(1)).toEqual([said(t.results.shear, 'lbf', { value: Math.hypot(642.857, 180), x: 9 }), said(t.results.moment, 'lbf·in', s.largest.moment), said(t.results.deflection, 'in', s.largest.deflection)]);
+      expect(drawingsOf(page).slice(1)).toEqual([said(w.results.resultant.shear, 'lbf', { value: Math.hypot(642.857, 180), x: 9 }), said(w.results.resultant.moment, 'lbf·in', s.largest.moment), said(w.results.resultant.deflection, 'in', s.largest.deflection)]);
+      // The page opens on this view, and under 1,400 lbf of downward load its third diagram rises: it is titled as what it is.
+      if (lang === 'en') expect(captionsOf(page)[2]).toBe('Resultant deflection (in)');
+      if (lang === 'en') expect(captionsOf(show(lang, undefined, 'vertical'))[2]).toBe('Deflection (in)');
       const plots = [...page.matchAll(/<svg class="mp-plot__svg"[\s\S]*?<\/svg>/g)].slice(1).map((m) => [...m[0].matchAll(/<text class="mp-plot__value"[^>]*>([\s\S]*?)<\/text>/g)].map((x) => text(x[1])));
       expect(plots.flat().length).toBe(3);
       for (const label of plots.flat()) expect(label).not.toMatch(/^-/);
@@ -768,7 +901,7 @@ describe('shaft calculator: other shafts', () => {
     const html = show('en', form);
     const rows = rowsOf(cardsOf(html).of(w.results.bySegment));
     // π(2⁴ − 1.25⁴)/64 = 0.6656 in⁴; over 1 in: 0.6656 in³.
-    expect(rows[1].slice(0, 4)).toEqual(['2 4 – 14', '2 bore 1.25', '0.6656', '0.6656']);
+    expect(rows[1].slice(0, 4)).toEqual(['2: 4 – 14', '2 bore 1.25', '0.6656', '0.6656']);
     expect([n((Math.PI * (2 ** 4 - 1.25 ** 4)) / 64), n(2800 / 1000 / 0.66555)]).toEqual(['0.6656', '4.207']);
     expect(rows.map((r) => r[5])).toEqual(s.segments.map((x) => n(x.stress)));
     expect(rows[1][5]).toBe('4.206');
@@ -852,7 +985,8 @@ describe('shaft calculator: other shafts', () => {
     // Deflection and slope are one value whichever side.
     expect(rows[2]).toEqual(['Deflection (in)', n(r.deflection.vertical), '0', n(r.deflection.both)]);
     expect(rows[3]).toEqual(['Slope (rad)', n(r.slope.vertical), '0', n(r.slope.both)]);
-    expect(pairsOf(card)).toEqual([[w.shaft.diameter, `2 in ${t.results.left}, 1.5 in ${t.results.right}`], [w.results.stress, `${two(l.stress, r.stress)} ksi`]]);
+    // Under the table each value has its unit after it, the stress as the diameter: in the table the unit is in the row's head, and a cell has none.
+    expect(pairsOf(card)).toEqual([[w.shaft.diameter, `2 in ${t.results.left}, 1.5 in ${t.results.right}`], [w.results.stress, `${n(l.stress)} ksi ${t.results.left}, ${n(r.stress)} ksi ${t.results.right}`]]);
     // 5,500 lbf·in over π·2³/32 and 2,500 over π·1.5³/32.
     expect([n(5.5 / ((Math.PI * 8) / 32)), n(2.5 / ((Math.PI * 3.375) / 32))]).toEqual([n(l.stress), n(r.stress)]);
     // A force all in one plane leaves the other plane's cells one number each.
@@ -866,18 +1000,31 @@ describe('shaft calculator: other shafts', () => {
     expect(rowsOf(cards.of(w.bearings.title)).map((r) => r.slice(2))).toEqual([['0', '0', '0', '0'], ['0', '0', '0', '0']]);
     expect(pairsOf(cards.of(t.results.maxima)).map((p) => p[1])).toEqual(['0 lbf·in', '0 ksi', '0 in', '0 rad']);
     expect(rowsOf(cards.of(w.results.bySegment)).map((r) => r.slice(4))).toEqual([['0', '0'], ['0', '0'], ['0', '0'], ['0', '0']]);
-    expect(drawingsOf(html).slice(1)).toEqual(['Shear, V: zero.', 'Bending moment, M: zero.', 'Deflection: zero.']);
+    expect(drawingsOf(html).slice(1)).toEqual(['Resultant shear: zero.', 'Resultant bending moment: zero.', 'Resultant deflection: zero.']);
+    expect(drawingsOf(show('en', shaft({ forces: [], couples: [] }), 'vertical')).slice(1)).toEqual(['Shear, V: zero.', 'Bending moment, M: zero.', 'Deflection: zero.']);
     expect(notesOf(cards.of(w.bearings.title))).toEqual([w.results.balance.replace('{vertical}', '0 lbf').replace('{horizontal}', '0 lbf')]);
     expect(text(html)).not.toMatch(/NaN|undefined|Infinity/);
     // No dash for a value that is not there: every cell is a number.
     for (const row of [...rowsOf(cards.of(w.bearings.title)), ...rowsOf(cards.of(w.results.bySegment)), ...rowsOf(cards.of(t.results.point))]) expect(row.join(' ')).not.toContain('—');
   });
 
+  // What the line under the bearings adds up is FORCES. An applied moment is carried by two reactions that are a pair:
+  // they add up to nothing, and so do the forces — which is not to be said of the shaft's loads, for it has one.
+  it('applied moments only: the two reactions are equal and opposite, and the line under them speaks of forces, which are none', () => {
+    const form = shaft({ forces: [], couples: [couple(1, 9, 2500)], nextId: 2 });
+    const card = cardsOf(show('en', form)).of(w.bearings.title);
+    // 2,500 lbf·in over the 14 in between the bearings: 178.6 lbf, up at one and down at the other.
+    expect(n(2500 / 14)).toBe('178.6');
+    expect(rowsOf(card).map((r) => r[2])).toEqual(['178.6 upward', '178.6 downward']);
+    expect(notesOf(card)).toEqual(['The reactions balance the forces in each plane: 0 lbf in the vertical one, 0 lbf in the horizontal one.']);
+    expect(notesOf(cardsOf(show('es', form)).of(shaftUi.es.bearings.title))).toEqual(['Las reacciones equilibran las fuerzas en cada plano: 0 lbf en el vertical y 0 lbf en el horizontal.']);
+  });
+
   it('a place that was entered is written as entered: a bearing at 16.4375 in is not at 16.44, and a step at 21.3125 is not at 21.31', () => {
     const form = shaft({ segments: [segment(1, 5.3125, 1.5), segment(2, 16, 2), segment(3, 4.6875, 1.25)], bearings: [2.125, 16.4375], forces: [force(4, 9.0625, 500)], nextId: 5 });
     const html = show('en', form);
     expect(rowsOf(cardsOf(html).of(w.bearings.title)).map((r) => r[1])).toEqual(['2.125', '16.4375']);
-    expect(rowsOf(cardsOf(html).of(w.results.bySegment)).map((r) => r[0])).toEqual(['1 0 – 5.3125', '2 5.3125 – 21.3125', '3 21.3125 – 26']);
+    expect(rowsOf(cardsOf(html).of(w.results.bySegment)).map((r) => r[0])).toEqual(['1: 0 – 5.3125', '2: 5.3125 – 21.3125', '3: 21.3125 – 26']);
     expect(rowsOf(cardsOf(html).of(w.results.atForces))[0][1]).toBe('9.0625');
     expect(pairsOf(cardsOf(html).of(t.results.maxima))[0][1]).toMatch(/ at x = 9\.0625 in$/);
   });
@@ -1019,7 +1166,7 @@ describe('shaft calculator: its rules of the shared sheet', () => {
     const source = readFileSync(join(SRC, 'components', 'ttc', 'calc', 'shaft', 'ShaftCalculator.tsx'), 'utf8');
     const used = [...new Set([...source.matchAll(/mp-shaft(?:__[a-z]+(?:--[a-z]+)?)?/g)].map((m) => m[0]))];
     expect(used.sort()).toEqual(['mp-shaft', 'mp-shaft__density', 'mp-shaft__head', 'mp-shaft__limit', 'mp-shaft__load', 'mp-shaft__load--moment', 'mp-shaft__material', 'mp-shaft__name', 'mp-shaft__second', 'mp-shaft__segment', 'mp-shaft__solid', 'mp-shaft__table', 'mp-shaft__table--point', 'mp-shaft__view', 'mp-shaft__where']);
-    for (const name of used.filter((u) => u !== 'mp-shaft__view')) expect(mine, name).toMatch(new RegExp(`\\.${name}(?![\\w-])`));
+    for (const name of used) expect(mine, name).toMatch(new RegExp(`\\.${name}(?![\\w-])`));
   });
 
   // What these rules do is held in a browser (the regression script measures every field and prints the sheet).
@@ -1040,8 +1187,41 @@ describe('shaft calculator: its rules of the shared sheet', () => {
     // on a page printed before its script ran they may part, each of them whole by the sheet's own rule.
     expect(paper).toMatch(/\.mp-shaft \.mp-app__plots \{\s*break-inside: auto;\s*\}\s*\.mp-shaft\.mp-shaft--sheet \.mp-app__plots \{\s*break-inside: avoid;\s*\}/);
     expect(css).toMatch(/@media print \{[\s\S]*?\n  \.mp-plot \{\s*break-inside: avoid;/);
+    // The name of the view is the heading of the drawings: on paper it is not left at the foot of one sheet with the
+    // drawings overleaf — it is not parted from what follows it, and on the sheet laid out for paper the answer is one block.
+    expect(paper).toMatch(/\.mp-shaft \.mp-shaft__view \{\s*break-after: avoid;\s*\}\s*\.mp-shaft\.mp-shaft--sheet \.mp-app__out \{\s*break-inside: avoid;\s*\}/);
+    // The markup those two rules are written for: in the answer, the switch of views and, right after it, the drawings.
+    for (const lang of LANGS) expect(show(lang)).toMatch(/<section class="mp-app__out"[^>]*>(?:(?!<\/section>)[\s\S])*<fieldset class="mp-seg mp-shaft__view">(?:(?!<\/fieldset>)[\s\S])*<\/fieldset><div class="mp-app__plots">/);
     expect(paper).toMatch(/\.mp-shaft \.mp-shaft__solid \{\s*display: none;\s*\}/);
+    // A list of five rows or more runs on from column to column. Its title goes with its first row — and with the note
+    // that stands between them in the forces' and the applied moments' groups, which is never cut by the foot of a column.
+    expect(paper).toMatch(
+      /\.mp-shaft \.mp-app__group:has\(> \.mp-app__item:nth-of-type\(5\)\) > legend \{\s*break-after: avoid;\s*\}\s*\.mp-shaft \.mp-app__group:has\(> \.mp-app__item:nth-of-type\(5\)\) > legend \+ \.mp-app__note \{\s*break-inside: avoid;\s*break-after: avoid;\s*\}/,
+    );
     expect(paper).not.toMatch(/text-overflow/);
+  });
+
+  // On a desktop the form is a column of 30rem at every width, and the type of a field grows with the window. With
+  // the row's button in a column of its own a load's place had 70px for its value at each of them: eight characters
+  // were cut from 1101px, the Spanish example's own "Hacia el observador" from 1500, a place of seven from 2210.
+  it('from 1101px a row’s button stands by its number, as on a phone, and a load’s three fields share the whole column — a force’s and a moment’s by their own shares', () => {
+    const desktop = mine.slice(mine.indexOf('@media screen and (min-width: 1101px)'), mine.indexOf('@media screen and (max-width: 640px)'));
+    expect(desktop).toMatch(/^@media screen and \(min-width: 1101px\) \{/);
+    expect(desktop).toMatch(/\.mp-shaft \.mp-app__item:has\(> \.mp-shaft__name\) \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) 44px;\s*align-items: center;\s*column-gap: var\(--mp-4\);\s*\}/);
+    expect(desktop).toMatch(/\.mp-shaft \.mp-shaft__name \{\s*margin: 0;\s*\}/);
+    expect(desktop).toMatch(/\.mp-shaft \.mp-shaft__name \+ \.mp-app__row--rm \{\s*display: contents;\s*\}/);
+    expect(desktop).toMatch(/\.mp-shaft \.mp-shaft__name \+ \.mp-app__row--rm > \.mp-app__remove \{\s*grid-area: 1 \/ 2;\s*\}/);
+    expect(desktop).toMatch(/\.mp-shaft \.mp-shaft__name \+ \.mp-app__row--rm > \.mp-app__fields,\s*\.mp-shaft \.mp-app__item:has\(> \.mp-shaft__name\) > \.mp-app__row-error \{\s*grid-column: 1 \/ -1;\s*\}/);
+    expect(desktop).toMatch(/\.mp-shaft \.mp-app__fields\.mp-shaft__load \{\s*grid-template-columns: minmax\(0, 0\.8fr\) minmax\(0, 0\.87fr\) minmax\(0, 1\.53fr\);\s*\}/);
+    expect(desktop).toMatch(/\.mp-shaft \.mp-app__fields\.mp-shaft__load--moment \{\s*grid-template-columns: minmax\(0, 0\.78fr\) minmax\(0, 1\.02fr\) minmax\(0, 1\.4fr\);\s*\}/);
+    // Seven rules and no more: nothing else of the page changes at that width.
+    expect(desktop.match(/\{/g)).toHaveLength(8);
+    // The width is the sheet's own: where the form stops being as wide as the page and becomes a column of 30rem.
+    expect(css).toMatch(/\.mp-app__top \{\s*display: grid;\s*grid-template-columns: minmax\(0, 30rem\) minmax\(0, 1fr\);/);
+    expect(css).toMatch(/@media \(max-width: 1100px\) \{\s*\.mp-app \{[^}]*\}\s*\.mp-app__top \{\s*grid-template-columns: minmax\(0, 1fr\);\s*\}/);
+    // Between a phone and a desktop the button keeps its column: these rules are in no other block of a screen but the phone's.
+    const between = mine.slice(mine.indexOf('@media screen {'), mine.indexOf('@media screen and (min-width: 1101px)'));
+    expect(between).not.toMatch(/mp-app__row--rm|:has\(> \.mp-shaft__name\)/);
   });
 
   // Five faults of layout the browser script found on the finished screen (a value cut in its field, a number on
@@ -1082,6 +1262,25 @@ describe('shaft calculator: its rules of the shared sheet', () => {
     for (const lang of LANGS) expect(show(lang).match(/<div class="mp-app__item" role="group" aria-label="[^"]*"><p class="mp-shaft__name" aria-hidden="true">[^<]*<\/p><div class="mp-app__row mp-app__row--rm"><div class="mp-app__fields mp-shaft__load">/g)).toHaveLength(2);
   });
 
+  // A number is never on two lines, so a table has a least width - and with every value a power of ten that was wider
+  // than a card between 641 and some 745px: the last column stood past the window's edge, which does not scroll.
+  it('a table wider than its card is reached by moving the card sideways: the three cards that are a table, on a screen', () => {
+    expect(mine).toMatch(/\n@media screen \{\s*\.mp-shaft \.mp-app__card--wide \{\s*overflow-x: auto;\s*\}\s*\}/);
+    // Not on paper, and not the two cards that are not all table: "Values at a point" holds a field.
+    expect(mine.slice(mine.lastIndexOf('@media print'))).not.toMatch(/overflow/);
+    expect(mine.match(/overflow-x: auto/g)).toHaveLength(1);
+    for (const lang of LANGS) {
+      const html = show(lang);
+      const wide = html.split('<div class="mp-app__card mp-app__card--wide">').slice(1);
+      expect(wide).toHaveLength(3);
+      // Each of the three is a title, a table and at most a line under it: nothing in it takes the focus, so nothing has an outline to cut.
+      for (const card of wide.map((c) => c.split('<div class="mp-app__card')[0])) {
+        expect(card).toMatch(/^<h3 class="mp-app__h">[^<]*<\/h3><table class="mp-app__table mp-shaft__table" role="table">/);
+        expect(card).not.toMatch(/<(input|select|button|a)\b/);
+      }
+    }
+  });
+
   it('a unit in a head keeps its own letters: “MPa” and “N·m” are never set in capitals', () => {
     // The unit of a head is the sheet's own class for a unit, which sets no capitals; on a phone the head a cell carries is that same markup.
     expect(css).toMatch(/\.mp-plot__unit \{[^}]*text-transform: none;/);
@@ -1089,6 +1288,31 @@ describe('shaft calculator: its rules of the shared sheet', () => {
     expect(html).toContain('<th scope="col" role="columnheader">Largest bending moment<span class="mp-plot__unit"> (N·m)</span></th>');
     expect(html).toContain('<span class="mp-shaft__head" aria-hidden="true">Nominal bending stress<span class="mp-plot__unit"> (MPa)</span></span>');
     expect(html).not.toMatch(/data-label=/);
+  });
+
+  // The mono the page sets its units in has "²" and "³" and no "⁴": written as that character, the 4 of "in⁴" was
+  // drawn by a font of the system's, larger and heavier than the "³" of the next head (the browser script asks the
+  // browser which font drew each). A head writes the raised figure of a unit as a figure of its own type, set up.
+  it('the raised figure of a unit in a head is a figure of the page’s own type, set up - both “³” and “⁴”, so that two heads match', () => {
+    for (const lang of LANGS) {
+      for (const [form, length] of [
+        [shaft({ ownWeight: true }), 'in'],
+        [convertShaft(shaft({ ownWeight: true }), 'si'), 'mm'],
+      ] as const) {
+        const html = show(lang, form);
+        const card = cardsOf(html).of(shaftUi[lang].results.bySegment);
+        // In the head of the table and, for a phone, in the head each cell carries: once and once a row.
+        expect(card.split(`<span class="mp-plot__unit"> (${length}<sup>4</sup>)</span>`)).toHaveLength(2 + form.segments.length);
+        expect(card.split(`<span class="mp-plot__unit"> (${length}<sup>3</sup>)</span>`)).toHaveLength(2 + form.segments.length);
+        expect(html.split('<sup>')).toHaveLength(1 + 2 * (1 + form.segments.length));
+        // Read, the heads say what they said.
+        expect(headOf(card).slice(2, 4)).toEqual([`${sharedWords(beamStrings[lang].ui).section.I} (${length}⁴)`, `${shaftUi[lang].results.modulus} (${length}³)`]);
+        // The character the page's type does not have is nowhere in the tool; the "³" it does have is the density's, in its field.
+        expect(html).not.toMatch(/[⁰⁴-⁹]/);
+        expect(html.match(/³/g)).toHaveLength(1);
+        expect(fieldsOf(html).map((f) => f.unit).filter((u) => u.includes('³'))).toEqual([length === 'in' ? 'lb/in³' : 'kg/m³']);
+      }
+    }
   });
 });
 
@@ -1129,6 +1353,35 @@ describe('shaft calculator: what only its source can show of the wiring (the bro
     expect(code).toMatch(/\) : linkError \? \(\s*<p className="mp-app__issues-title">\{w\.linkError\}<\/p>\s*\) : null\}/);
   });
 
+  // The keyboard. A row removed with a key hands the focus to the row that takes its place; a row added with one,
+  // to its own first field: left on the button, nothing said that a row had come. Neither after a click or a tap
+  // (`detail` is 0 for a key alone): a phone would open its keyboard on a field nobody touched.
+  it('a row added with a key is put on screen and given the focus; a row removed with one hands it on; a click moves none', () => {
+    expect(code).toContain("import { flushSync } from 'react-dom';");
+    expect(code).toMatch(
+      /const addRow = \(list: ShaftList\) => \(press: React\.MouseEvent<HTMLButtonElement>\) => \{\s*if \(press\.detail !== 0\) \{\s*dispatch\(\{ type: 'add', list \}\);\s*return;\s*\}\s*const group = press\.currentTarget\.closest\('fieldset'\);\s*flushSync\(\(\) => dispatch\(\{ type: 'add', list \}\)\);\s*const rows = group\?\.querySelectorAll\('\.mp-app__item'\);\s*const added = rows\?\.\[rows\.length - 1\]\?\.querySelector<HTMLElement>\('input, select'\);\s*added\?\.focus\(\);\s*\};/,
+    );
+    // At its limit the button is still there and still does nothing.
+    expect(code).toContain('onClick={full ? undefined : addRow(list)}');
+    expect(code.match(/type: 'add'/g)).toHaveLength(2);
+    expect(code).toMatch(/const next = press\.detail === 0 \? \(near\?\.querySelector<HTMLElement>\('input, select'\) \?\? /);
+    expect(code).toMatch(/dispatch\(\{ type: 'remove', list, id \}\);\s*next\?\.focus\(\);/);
+  });
+
+  // A key, then the browser's reload key inside the shell's 300 ms wait: the reload came back to the address of
+  // before that key ("1234" typed, "123" on screen). The wait is the shell's; this calculator writes at the key.
+  it('a reload from the keyboard finds the address written: what was waiting is written at the reload key', () => {
+    expect(code).toContain('const flushAddress = useRef(address.flush);');
+    expect(code).toMatch(/useEffect\(\(\) => \{\s*flushAddress\.current = address\.flush;\s*\}\);/);
+    expect(code).toMatch(
+      /useEffect\(\(\) => \{\s*const reloading = \(press: KeyboardEvent\) => \{\s*if \(press\.key === 'F5' \|\| \(\(press\.ctrlKey \|\| press\.metaKey\) && !press\.altKey && \(press\.key === 'r' \|\| press\.key === 'R'\)\)\) flushAddress\.current\(\);\s*\};\s*window\.addEventListener\('keydown', reloading, true\);\s*return \(\) => window\.removeEventListener\('keydown', reloading, true\);\s*\}, \[\]\);/,
+    );
+    // It writes through the shell's own door and nowhere else: no address is written from this file. (The one entry
+    // this file adds to the history, Start over's, carries the address already in the bar: held in its own test.)
+    expect(code).not.toMatch(/replaceState|location\.hash\s*=/);
+    expect(code.match(/\bpushState\b/g)).toHaveLength(1);
+  });
+
   // "Values at a point": with the focus in x, a pointer resting on a diagram gave the values under it beside the x typed.
   it('while x is being typed the pointer does not move the position; a press on a drawing leaves the field first; the flag goes with the results', () => {
     expect(code).toMatch(/const probe = useCallback\(\(x: number \| null\) => \{\s*if \(!typingX\.current\) setProbeX\(x\);\s*\}, \[\]\);/);
@@ -1159,12 +1412,43 @@ describe('shaft calculator: what only its source can show of the wiring (the bro
     for (const lang of LANGS) expect(show(lang)).not.toContain('aria-busy');
   });
 
+  // "Start over" throws the shaft on screen away at one press, and asks nothing. Unless it is the example, the shaft
+  // is left one step behind in the browser's history, so that Back brings it back (the browser script presses both).
+  it('Start over leaves the shaft it throws away one step Back — never the example — and starts over whether or not the browser takes the entry', () => {
+    expect(code).toMatch(/reset=\{\(\) => \{\s*const thrown = encodeShaft\(form\);\s*if \(thrown !== EXAMPLE\) \{\s*address\.take\(thrown\);\s*try \{\s*window\.history\.pushState\(window\.history\.state, '', window\.location\.href\);\s*\} catch \{\s*\}\s*\}\s*const example = defaultShaft\(\);/);
+    // The one place this file touches the history, and all it does there is add an entry for the address as it stands: the address itself is the shell's to write.
+    expect(code.match(/\bhistory\.\w+/g)).toEqual(['history.pushState', 'history.state']);
+    expect(code).not.toMatch(/replaceState|location\.(assign|replace|reload)\(|location\.(hash|href|search|pathname)\s*=[^=]/);
+  });
+
+  // A key draws the calculator again before the shaft is solved again: the four drawings are then handed what they
+  // were handed the time before, and are not drawn again - a third of the key's own work with the form at its fullest.
+  // Kept by `memo`, which compares everything a drawing is given: nothing can be kept that should have changed.
+  // (That a drawing is never of the shaft before is the browser script's to see, frame by frame.)
+  it('the three diagrams and the drawing of the shaft are kept while everything they are given is the same', () => {
+    expect(code).toMatch(/import React, \{ memo, /);
+    expect(code).toContain('const Plot = memo(BeamPlot);');
+    expect(code).toContain('const Schematic = memo(ShaftSchematic);');
+    // No comparison of this file's own: one would say what a drawing depends on, and could leave something out.
+    expect(code.match(/\bmemo\(/g)).toHaveLength(2);
+    expect(code.match(/<Plot\b/g)).toHaveLength(1);
+    expect(code.match(/<Schematic\b/g)).toHaveLength(1);
+    expect(code).not.toMatch(/<BeamPlot\b|<ShaftSchematic\b/);
+    // What a diagram is given is the same from one draw to the next while the answer is: the analysis is kept (above),
+    // there is no dot while the pointer is nowhere, and what tells of the pointer is one function for the life of the page.
+    expect(code).toContain('probe={probeX !== null && read !== null && x0 !== null ? { x: x0, y: read } : null}');
+    expect(code).toMatch(/const probe = useCallback\(\(x: number \| null\) => \{\s*if \(!typingX\.current\) setProbeX\(x\);\s*\}, \[\]\);/);
+    // As the server sends it the page is what it was: the shaft and its three diagrams.
+    for (const lang of LANGS) expect(drawingsOf(show(lang))).toHaveLength(4);
+  });
+
   // A shaft's form is short and its drawing tall. With the cards last on paper, as on screen, the four drawings
   // went overleaf together and left the first sheet half empty, or parted and left a diagram alone overleaf.
   it('on paper the cards stand under the form, before the drawings, and the calculator says it has laid itself out so; on screen they are last', () => {
-    expect(code).toMatch(/<\/form>\s*(\{\}\s*)*\{onPaper \? cards : null\}\s*(\{\}\s*)*<section className=\{tooTall/);
+    expect(code).toMatch(/<\/form>\s*(\{\}\s*)*\{boxFirst \? box : null\}\s*\{onPaper \? cards : null\}\s*(\{\}\s*)*<section className=\{tooTall/);
     expect(code).toMatch(/\{onPaper \? null : cards\}\s*<p className="mp-app__privacy">/);
-    expect(code.match(/\bcards\b/g)).toHaveLength(3);
+    // (The fourth is in `boxFirst`, below: whether there are cards for the box to stand before.)
+    expect(code.match(/\bcards\b/g)).toHaveLength(4);
     expect(code).toMatch(/const cards =\s*r && here && x0 !== null \? \(\s*<div className="mp-app__tables" aria-busy=\{catching \? true : undefined\}>/);
     // As the server sends it — and so on a page printed before its script ran — the cards are last and the page is not marked.
     for (const lang of LANGS) {
@@ -1173,6 +1457,20 @@ describe('shaft calculator: what only its source can show of the wiring (the bro
       expect(html.indexOf('<div class="mp-app__tables">')).toBeGreaterThan(html.indexOf('</section></div>'));
       expect(html).not.toContain('mp-shaft--sheet');
     }
+  });
+
+  // A link that could not be read shows the example, solved: on paper its five cards stood before the line that says
+  // they are not the shaft that was sent - three of them on the first sheet, the line on the second.
+  it('on paper what the box of notices says stands over the cards, when there are cards and it says something; there is one box, and on screen it is at the head of the answer', () => {
+    expect(code).toContain('const boxFirst = onPaper && cards !== null && (notices.length > 0 || linkError);');
+    expect(code).toMatch(/const box = \(\s*<div className="mp-app__issues" role="alert" aria-live="assertive">/);
+    // One box, in one of two places: before the cards, or first in the answer.
+    expect(code.match(/className="mp-app__issues"/g)).toHaveLength(1);
+    expect(code.match(/\bbox\b/g)).toHaveLength(3);
+    expect(code.match(/\bboxFirst\b/g)).toHaveLength(3);
+    expect(code).toMatch(/<section className=\{tooTall[^\n]*>\s*\{boxFirst \? null : box\}\s*(\{\}\s*)*<fieldset className="mp-seg mp-shaft__view">/);
+    // As the server sends it, the box is the first thing in the answer, and empty.
+    for (const lang of LANGS) expect(show(lang)).toMatch(/<section class="mp-app__out"[^>]*><div class="mp-app__issues" role="alert" aria-live="assertive"><\/div><fieldset class="mp-seg mp-shaft__view">/);
   });
 
   it('two forms that differ by a number are the same choices; by a unit, a row, a direction, a material, the weight’s box, they are not', () => {

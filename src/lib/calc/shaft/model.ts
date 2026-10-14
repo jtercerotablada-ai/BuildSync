@@ -51,6 +51,15 @@ import type { ShaftBearing, ShaftDrawing, ShaftIssue, ShaftIssueCode, ShaftModel
  * load: each keeps the distance that was typed for it, and one that is then
  * off the shaft is said to be (the engine's 'outside'), not moved.
  *
+ * ON AN END OF A SEGMENT. A field and a link hold eight figures, and a sum of
+ * eight-figure lengths is not an eight-figure number: the bearing that stands
+ * on the end of the shaft, and the applied moment that stands on a shoulder,
+ * are held a rounding beside the place the lengths add up to — at once after
+ * the units are switched, where every length is rounded on its own. So what
+ * the engine and the drawing are given is the position SEATED (`seatOf`):
+ * within `SEAT` of the shaft's length of an end of a segment, it is that
+ * end. The form keeps what was typed.
+ *
  * SIZES AND DIRECTIONS. A force is two sizes, one in each plane, each with
  * the way it points: down or up; towards the viewer or away (the viewer
  * stands beside the shaft, its left end to the left). A couple is two sizes,
@@ -307,6 +316,75 @@ export function convertShaft(form: ShaftForm, to: UnitSystem): ShaftForm {
   };
 }
 
+/* ── A position on an end of a segment ────────────────────────────────── */
+
+/**
+ * How near an end of a segment a position is ON it, as a fraction of the
+ * shaft's length: four ten-millionths (0.4 µm on a metre of shaft).
+ *
+ * WHY THERE IS SUCH A NUMBER. A bearing at the end of a 500 mm shaft of
+ * 120 + 300 + 80 mm is at 500. In inches each of the four is written to the
+ * eight figures a field shows (`tidyLength`), on its own: 4.7244094 +
+ * 11.811024 + 3.1496063 add up to 19.6850397, and the bearing is held at
+ * 19.68504 — 3 × 10⁻⁷ in past the end of the shaft, fifteen times what an
+ * engine takes for one place. The page answered "This position is off the
+ * shaft" to a shaft it had just solved in millimetres; and an applied moment
+ * that stood on a shoulder stood a hair inside one of the two segments, which
+ * was then given the moment of BOTH sides of the jump as its largest — and
+ * its stress with it. Nothing the conversion writes can mend that: the sum
+ * of eight-figure lengths has more figures than a field or a link keeps, so
+ * a position put exactly on it is a rounding off it again at the next reload.
+ *
+ * WHAT IT COVERS. One rounding of a length is at most 6 × 10⁻⁸ of it
+ * (`tidyLength`). After one switch a position that stood on an end has its
+ * own, and the lengths before it theirs: 1.2 × 10⁻⁷ of the shaft between
+ * the two, at the most. Read from a link, it was the eight figures of their
+ * sum to begin with: 5 × 10⁻⁸ more. And a length of eight figures does not
+ * always come back to the number typed: switched again and again, a number
+ * settles within 1.7 × 10⁻⁷ of itself of what was typed (measured: 2.4
+ * million lengths, ten switches each), so with every number of a form at
+ * its worst at once a position is 5 × 10⁻⁸ + 2 × 1.7 × 10⁻⁷ = 3.9 × 10⁻⁷ of
+ * the shaft from its end. The furthest counted is 1.8 × 10⁻⁷
+ * (model.test.ts: 7,500 forms).
+ *
+ * AND WHAT IT CANNOT TAKE FOR AN END. The shortest segment the engine solves
+ * is a millionth of the shaft (engine.ts, SHORT): two ends are never closer
+ * than that, so no position is within this of two of them, and the middle
+ * of the shortest segment there is stays inside it.
+ *
+ * IT ALSO TAKES IN WHAT THE ENGINE TOOK ALREADY: a place typed on a shoulder
+ * whose lengths add up a last binary figure away from it — 21.7 + 20.9 + 5.61
+ * is 48.209999999999994, and the bearing is typed at 48.21 — is one place to
+ * the engine (its billionth). Seated, it is that shoulder in the drawing too:
+ * left as typed, the bearing was drawn beside its step — on the thinner part
+ * where the rounding fell that way, half of it behind the thicker.
+ */
+export const SEAT = 4e-7;
+
+/**
+ * A position as the engine and the drawing take it: the end of a segment it
+ * stands within `SEAT` of the shaft's length of — an end of the shaft, a
+ * shoulder —, the nearest; and itself anywhere else. What is not a number
+ * stays what it is, and on a shaft with no length, or with one past every
+ * number, nothing is moved.
+ */
+export function seatOf(form: Pick<ShaftForm, 'segments'>): (x: number) => number {
+  const ends = segmentEnds(form);
+  const L = ends[ends.length - 1];
+  const reach = Number.isFinite(L) ? SEAT * L : 0;
+  return (x) => {
+    if (!Number.isFinite(x)) return x;
+    let seat = x;
+    let gap = reach;
+    for (const end of ends) {
+      const off = Math.abs(x - end);
+      if (off === 0) return x;
+      if (off <= gap) [seat, gap] = [end, off];
+    }
+    return seat;
+  };
+}
+
 /* ── What each edit does to the form ──────────────────────────────────── */
 
 export type ShaftAction =
@@ -460,7 +538,9 @@ const signedBy = (size: number, plus: boolean): number => (plus ? size : -size) 
  *   — when the shaft's own weight is asked for, each segment's weight per
  *     length `w`: the density as a weight per volume (`TO_ENGINE`) times the
  *     area of metal. Not asked for, no segment has a `w` at all;
- *   — the two bearings where they were typed, in the order typed;
+ *   — the two bearings where they were typed, in the order typed — each ON
+ *     the end of a segment it stands within a rounding of (`seatOf`), as
+ *     every force and every couple is;
  *   — every force and every couple with its directions as signs: down,
  *     towards the viewer and counter-clockwise are positive. A couple is
  *     brought to the engine's moment (`TO_ENGINE`).
@@ -477,10 +557,12 @@ const signedBy = (size: number, plus: boolean): number => (plus ? size : -size) 
  * the engine names the segment.
  *
  * Whatever else the form holds is sent as it is, for the engine to refuse: a
- * length of zero, a force that is no number, a bearing off the shaft.
+ * length of zero, a force that is no number, a bearing off the shaft —
+ * further off it than a rounding (`SEAT`).
  */
 export function toEngine(form: ShaftForm): EngineInput {
   const k = TO_ENGINE[form.units];
+  const seat = seatOf(form);
   const E = positive(form.E) ? form.E * k.E : Number.NaN;
   const unitWeight = positive(form.density) ? form.density * k.density : Number.NaN;
   /** A value worked out here, or "not a number": infinity is no stiffness and no weight either. */
@@ -494,9 +576,9 @@ export function toEngine(form: ShaftForm): EngineInput {
   return {
     model: {
       segments,
-      bearings: [form.bearings[0], form.bearings[1]],
-      forces: form.forces.map((f) => ({ x: f.x, v: signedBy(f.v, f.vDir === 'down'), h: signedBy(f.h, f.hDir === 'towards') })),
-      couples: form.couples.map((c) => ({ x: c.x, v: signedBy(c.v * k.moment, c.vDir === 'ccw'), h: signedBy(c.h * k.moment, c.hDir === 'ccw') })),
+      bearings: [seat(form.bearings[0]), seat(form.bearings[1])],
+      forces: form.forces.map((f) => ({ x: seat(f.x), v: signedBy(f.v, f.vDir === 'down'), h: signedBy(f.h, f.hDir === 'towards') })),
+      couples: form.couples.map((c) => ({ x: seat(c.x), v: signedBy(c.v * k.moment, c.vDir === 'ccw'), h: signedBy(c.h * k.moment, c.hDir === 'ccw') })),
     },
     rows: {
       segments: form.segments.map((s) => ({ list: 'segments', id: s.id })),
@@ -631,8 +713,12 @@ const NEAR = 1e-9;
  * ON THE SHAFT is to within a billionth of its length, as an engine takes a
  * position (`NEAR`): two lengths typed as 0.1 and 0.7 add up to a hair
  * under 0.8, and a bearing typed at 0.8 is at the end of that shaft — it is
- * solved there, and it is drawn there. What is further off has no place in
- * the drawing and is left out; its row says so.
+ * solved there, and it is drawn there. And a position is SEATED first, as
+ * the engine is given it (`seatOf`): the bearing a units switch left a
+ * rounding past the end of the shaft is drawn on that end, where it is
+ * solved — and what is typed a hair from a step is drawn ON the step:
+ * beside it, half a bearing stood behind the thicker part. What is further
+ * off has no place in the drawing and is left out; its row says so.
  *
  * WHAT IS WRITTEN BY A LOAD (`label`) is its size and its unit, as the form
  * shows it: what was typed, as typed (to six figures, as the first
@@ -653,6 +739,7 @@ export function drawingOf(
   const u = SHAFT_UNITS[form.units];
   const ends = segmentEnds(form);
   const L = ends[ends.length - 1];
+  const seat = seatOf(form);
   const on = (x: number) => Number.isFinite(x) && x >= -NEAR * L && x <= L * (1 + NEAR);
   /** A place that is on the shaft, as a place of the drawing: an end, where it is a hair past one. */
   const placed = (x: number) => Math.min(L, Math.max(0, x));
@@ -686,9 +773,9 @@ export function drawingOf(
       const d = positive(s.d) ? s.d : 0;
       return [{ from: ends[i], to: ends[i + 1], d, bore: positive(s.bore) && s.bore < d ? s.bore : 0 }];
     }),
-    bearings: ([0, 1] as const).flatMap((index) => (on(form.bearings[index]) ? [{ x: placed(form.bearings[index]), reaction: reactionOf(index) }] : [])),
-    forces: drawn(form.forces.map((f) => ({ id: String(f.id), x: f.x, ...seen(signedBy(f.v, f.vDir === 'down'), signedBy(f.h, f.hDir === 'towards'), u.force) }))),
-    couples: drawn(form.couples.map((c) => ({ id: String(c.id), x: c.x, ...seen(signedBy(c.v, c.vDir === 'ccw'), signedBy(c.h, c.hDir === 'ccw'), u.moment) }))),
+    bearings: ([0, 1] as const).flatMap((index) => (on(seat(form.bearings[index])) ? [{ x: placed(seat(form.bearings[index])), reaction: reactionOf(index) }] : [])),
+    forces: drawn(form.forces.map((f) => ({ id: String(f.id), x: seat(f.x), ...seen(signedBy(f.v, f.vDir === 'down'), signedBy(f.h, f.hDir === 'towards'), u.force) }))),
+    couples: drawn(form.couples.map((c) => ({ id: String(c.id), x: seat(c.x), ...seen(signedBy(c.v, c.vDir === 'ccw'), signedBy(c.h, c.hDir === 'ccw'), u.moment) }))),
     ownWeight: view === 'vertical' && form.ownWeight && positive(form.density),
   };
 }

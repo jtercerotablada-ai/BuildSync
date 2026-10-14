@@ -1579,6 +1579,17 @@ select.mp-num__input {
 .mp-shaft__table td {
   white-space: normal;
 }
+/* A table wider than its card is reached by moving the card sideways - never cut by the edge of the window, which
+   does not scroll. A number is never broken across two lines, so a table of seven columns has a least width: for a
+   shaft whose values are all written with a power of ten (a watch's arbor in inches, a 40 m shaft in millimetres)
+   that is some 650 to 680px, in a card that is 583px in a window of 641 - the stress, its last column, stood past
+   the window's edge with no way to it, and read as a shorter number. On a SCREEN, and only for the three cards that
+   are a table: paper has the whole width of the sheet, and the last card holds a field, whose outline is not to be cut. */
+@media screen {
+  .mp-shaft .mp-app__card--wide {
+    overflow-x: auto;
+  }
+}
 /* The unit after the name of a row ("Shear, V (lbf)") is set as the unit of a column's head is: small, and light. */
 .mp-shaft__table tbody th .mp-plot__unit {
   font-size: 0.6875rem;
@@ -1603,6 +1614,45 @@ select.mp-num__input {
 @media screen and (min-width: 1024px) {
   .mp-shaft .mp-app__tables {
     grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+}
+/* ON A DESKTOP — from 1101px, where the form is a column of 30rem beside its drawings (the sheet's own breakpoint) —
+   a row is laid out as on a phone: the button that removes it stands on the line of the row's name, and its fields
+   have the whole width of the column. With the button in a column of its own beside them, a load's three fields
+   shared 388px: its place had 70px for its value, and one of eight characters — 12.03125 in; 225 mm looked at in
+   inches, 8.858268 — read "12.031…" and "8.8582…": the widest windows had the narrowest fields of the form.
+   And the column is 480px at every such width while the type of a field grows with the window (16px to 1499px,
+   17px from 1500, 19px from 2210): at 17px "Hacia el observador", the choice the Spanish example opens with,
+   read "Hacia el observad…", and at 19px "Counter-clockwise" and a place of seven characters were cut as well.
+   The shares below hold eight characters in every field of a load, and the longest choice of each of its lists,
+   at all three sizes of type. A moment's size has the longer unit ("lbf·in") and a force's direction the longer
+   words: each kind of load has its own. (The first five rules are the phone's, further down, written again:
+   between the two, from 641 to 1100px, the form is as wide as the page and the button keeps its column.) */
+@media screen and (min-width: 1101px) {
+  .mp-shaft .mp-app__item:has(> .mp-shaft__name) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: center;
+    column-gap: var(--mp-4);
+  }
+  .mp-shaft .mp-shaft__name {
+    margin: 0;
+  }
+  .mp-shaft .mp-shaft__name + .mp-app__row--rm {
+    display: contents;
+  }
+  .mp-shaft .mp-shaft__name + .mp-app__row--rm > .mp-app__remove {
+    grid-area: 1 / 2;
+  }
+  .mp-shaft .mp-shaft__name + .mp-app__row--rm > .mp-app__fields,
+  .mp-shaft .mp-app__item:has(> .mp-shaft__name) > .mp-app__row-error {
+    grid-column: 1 / -1;
+  }
+  .mp-shaft .mp-app__fields.mp-shaft__load {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.87fr) minmax(0, 1.53fr);
+  }
+  .mp-shaft .mp-app__fields.mp-shaft__load--moment {
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.02fr) minmax(0, 1.4fr);
   }
 }
 @media screen and (max-width: 640px) {
@@ -1775,6 +1825,17 @@ select.mp-num__input {
   .mp-shaft.mp-shaft--sheet .mp-app__plots {
     break-inside: avoid;
   }
+  /* THE NAME OF THE VIEW IS THE HEADING OF THE DRAWINGS, and goes where they go. Held together, the four drawings
+     do not always fit under the cards; they then went overleaf whole and left "View / Both planes" alone at the
+     foot of a sheet two thirds blank, naming drawings that were not on it. Said twice, for a browser that keeps a
+     block whole and does not yet keep a heading with what follows it: the name is not parted from what comes
+     after it, and on the sheet laid out for paper the answer — the name and the drawings — is one block. */
+  .mp-shaft .mp-shaft__view {
+    break-after: avoid;
+  }
+  .mp-shaft.mp-shaft--sheet .mp-app__out {
+    break-inside: avoid;
+  }
   /* The limit of a list is said to whoever is adding rows, not on the sheet. */
   .mp-shaft__limit {
     display: none;
@@ -1787,6 +1848,14 @@ select.mp-num__input {
     break-inside: auto;
   }
   .mp-shaft .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend {
+    break-after: avoid;
+  }
+  /* …and so does the note that stands between them, in the two lists that have theirs OVER the rows (the forces'
+     and the applied moments': ShaftCalculator.tsx). Without this the title and the note were left at the foot of
+     one column with the first row at the head of the next, and the note itself was cut in two by the foot of a
+     column. */
+  .mp-shaft .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend + .mp-app__note {
+    break-inside: avoid;
     break-after: avoid;
   }
 }

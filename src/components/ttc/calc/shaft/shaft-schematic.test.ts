@@ -304,6 +304,66 @@ describe('shaft drawing: the profile', () => {
   });
 });
 
+describe('shaft drawing: a diameter no shaft has', () => {
+  // A diameter can be a positive number and no shaft's: 1e200, or every diameter 1e-310. Its row says so (the
+  // engine takes no number of that size) and the drawing is handed it all the same. Scaled as px to a unit of
+  // diameter, 2R / dMax was past the largest number there is for a largest diameter under 3e-307, and d × d for a
+  // diameter of 1.4e154 or more: the drawing wrote Infinity and NaN into its SVG.
+  const unsound = (g: ShaftLayout) => JSON.stringify(g, (_, v) => (typeof v === 'number' && !Number.isFinite(v) ? 'NOT A NUMBER' : v)).split('NOT A NUMBER').length - 1;
+
+  it('one diameter of 1e200 beside ordinary ones, with the shaft’s own weight: every number of the drawing is one', () => {
+    const drawing = example({ ownWeight: true, segments: seg([4, 1.5], [10, 1e200], [4, 1.5], [5, 1.25]) });
+    for (const resultants of [false, true]) {
+      for (const width of WIDTHS) {
+        expect(unsound(shaftLayout(drawing, { resultants, width })), String(width)).toBe(0);
+        expect(draw(drawing, { resultants, width }), String(width)).not.toMatch(/NaN|Infinity|undefined/);
+      }
+    }
+    // Each diameter by its share of the largest: the 1e200 is the whole height, the others none of it; and the
+    // band of the weight is 10 px over it and 3 px over the rest.
+    const g = shaftLayout(drawing, { resultants: false, width: 724 });
+    expect(g.segments.map((s) => s.r)).toEqual([expect.closeTo(0, 12), shaftHeight(1e200, 23, 724) / 2, expect.closeTo(0, 12), expect.closeTo(0, 12)]);
+    expect(g.weight.map((w) => w.height)).toEqual([3, 10, 3, 3]);
+  });
+
+  it('every diameter 1e-310: the shaft is drawn 24 px tall, in numbers', () => {
+    const drawing = example({ segments: seg([4, 1e-310], [10, 1e-310, 4e-311], [4, 1e-310], [5, 1e-310]) });
+    for (const resultants of [false, true]) {
+      for (const width of WIDTHS) {
+        expect(unsound(shaftLayout(drawing, { resultants, width })), String(width)).toBe(0);
+        expect(draw(drawing, { resultants, width }), String(width)).not.toMatch(/NaN|Infinity|undefined/);
+      }
+    }
+    const g = shaftLayout(drawing, { resultants: false, width: 724 });
+    expect(g.segments.map((s) => s.r)).toEqual([12, 12, 12, 12]);
+    // The bore, by the same share: four tenths of the radius, each side of the axis.
+    expect(g.bores.filter((b) => b.y1 === b.y2).map((b) => Math.abs(b.y1 - g.axis))).toEqual([expect.closeTo(4.8, 9), expect.closeTo(4.8, 9)]);
+  });
+
+  it('at any size a number can have: one diameter of the four, or all of them, with the weight and with a bore', () => {
+    let drawings = 0;
+    for (let e = -322; e <= 308; e += 3) {
+      const d = Number(`1e${e}`);
+      if (!(d > 0)) continue;
+      for (const segments of [seg([4, 1.5], [10, d], [4, 1.5], [5, 1.25]), seg([4, d], [10, d], [4, d], [5, d]), seg([4, d, d / 2], [10, d], [4, d, d / 4], [5, d])]) {
+        for (const ownWeight of [false, true]) {
+          drawings += 1;
+          expect(unsound(shaftLayout(example({ segments, ownWeight }), { resultants: false, width: 724 })), `1e${e}`).toBe(0);
+        }
+      }
+    }
+    expect(drawings).toBeGreaterThan(1200);
+  });
+
+  it('an ordinary shaft is drawn as it was: a diameter half the largest is half as tall, to the last figure', () => {
+    const g = shaftLayout(example({ segments: seg([4, 1.5], [10, 2, 1], [4, 1], [5, 0.5]), ownWeight: true }), { resultants: false, width: 724 });
+    const R = shaftHeight(2, 23, 724) / 2;
+    expect(g.segments.map((s) => s.r)).toEqual([0.75 * R, R, 0.5 * R, 0.25 * R]);
+    // The band: by the metal in each section - d² less the bore's - over the most there is of it, 3 of 4.
+    expect(g.weight.map((w) => w.height)).toEqual([3 + 7 * (2.25 / 3), 10, 3 + 7 * (1 / 3), 3 + 7 * (0.25 / 3)].map((h) => expect.closeTo(h, 9)));
+  });
+});
+
 describe('shaft drawing: the bearings', () => {
   it('each is the triangle of a simple support, its tip on the under side of the shaft where the bearing stands', () => {
     for (const width of WIDTHS) {
@@ -627,6 +687,97 @@ describe('shaft drawing: the dimension line', () => {
     expect(shared.texts.map((t) => t.text)).toEqual(['0', '4', '14', '18', '23']);
   });
 
+  // A shoulder is the SUM of the lengths before it, and the sum is not always the number a person types for the
+  // same place: 12.7 + 25.4 is 38.099999999999994, and a bearing typed at 38.1 stands on that shoulder. Two
+  // numbers, one position on the line. Told apart by their numbers they were two ticks at one pixel - two lines
+  // with one key for React, which then left one of them on the drawing at every later draw of it: after an
+  // edit, after a turn of the window, and on the printed sheet.
+  it('two places that are one position on the line are one tick: no two ticks within a tenth of a pixel, at any width', () => {
+    /** Every place of a drawing has its tick, and no tick is within a tenth of a pixel of another. */
+    const held = (drawing: ShaftDrawing, what: string) => {
+      for (const width of WIDTHS) {
+        const g = shaftLayout(drawing, { resultants: false, width });
+        const sorted = [...g.ticks].sort((p, q) => p - q);
+        expect(new Set(g.ticks).size, `${what} at ${width}`).toBe(g.ticks.length);
+        expect(sorted.every((x, i) => i === 0 || x - sorted[i - 1] >= 0.1), `${what} at ${width}: ${sorted.join(' ')}`).toBe(true);
+        for (const x of [0, g.L, ...drawing.segments.flatMap((s) => [s.from, s.to]), ...[...drawing.bearings, ...drawing.forces, ...drawing.couples].map((p) => p.x)]) {
+          expect(g.ticks.some((t) => Math.abs(t - xToPx(x, g.L, width)) < 0.1), `${what} at ${width}: a tick for ${x}`).toBe(true);
+        }
+      }
+    };
+    const summed: ShaftDrawing = { L: 12.7 + 25.4 + 200, lengthUnit: 'mm', segments: seg([12.7, 25], [25.4, 40], [200, 30]), bearings: [{ x: 38.1, reaction: null }, { x: 200, reaction: null }], forces: [force(120, 5000, 'N')], couples: [], ownWeight: false };
+    expect(summed.segments[1].to).not.toBe(38.1);
+    held(summed, '12.7 + 25.4 mm and a bearing at 38.1');
+    // Six places - the two ends, the two shoulders, the force and the other bearing - and six ticks, in the markup too.
+    for (const width of WIDTHS) {
+      const d = dims(draw(summed, { width }));
+      expect(d.ticks, String(width)).toEqual(shaftLayout(summed, { resultants: false, width }).ticks);
+      expect(d.ticks, String(width)).toHaveLength(6);
+      expect(d.texts.map((t) => t.text)).toContain('38.1');
+    }
+    const inches: ShaftDrawing = { L: 0.1 + 0.7 + 10, lengthUnit: 'in', segments: seg([0.1, 1.5], [0.7, 2], [10, 1.5]), bearings: [{ x: 0.8, reaction: null }, { x: 8.8, reaction: null }], forces: [force(4.8, 1000)], couples: [couple(0.8, 50)], ownWeight: false };
+    held(inches, '0.1 + 0.7 in and a bearing at 0.8');
+    // It is no odd shaft: lengths by tenths of an inch, wherever the second shoulder is not the number typed for it.
+    let [shafts, was] = [0, 0];
+    for (let a = 1; a <= 60; a += 3) {
+      for (let b = 1; b <= 60; b += 2) {
+        const typed = Number((a / 10 + b / 10).toPrecision(12));
+        if (a / 10 + b / 10 === typed) continue;
+        shafts += 1;
+        const drawing: ShaftDrawing = { L: a / 10 + b / 10 + 10, lengthUnit: 'in', segments: seg([a / 10, 1.5], [b / 10, 2], [10, 1.5]), bearings: [{ x: typed, reaction: null }, { x: typed + 6, reaction: null }], forces: [force(typed, 100), force(typed + 3, 100)], couples: [], ownWeight: false };
+        held(drawing, `${a / 10} + ${b / 10} in`);
+        // (What it was: the two numbers at one pixel position, at one of the seven widths or more.)
+        was += Number(WIDTHS.some((width) => xToPx(typed, drawing.L, width) === xToPx(a / 10 + b / 10, drawing.L, width)));
+      }
+    }
+    expect(shafts).toBeGreaterThan(80);
+    expect(was).toBeGreaterThan(shafts / 2);
+    // Places that are apart keep a tick each: a tenth of a pixel is not a place.
+    const apart = shaftLayout(plain(20, 2, { forces: [force(10, 100), force(10.02, 100)] }), { resultants: false, width: 724 });
+    expect(apart.ticks).toHaveLength(4);
+  });
+
+  it('one tick for one place, though two numbers a rounding apart name it: a load or a bearing typed on a shoulder, a bearing typed at the end', () => {
+    // 21.7 + 20.9 + 5.61 is 48.209999999999994 as the lengths add up, and the shoulder is typed as 48.21.
+    const segments = seg([21.7, 2], [20.9, 2], [5.61, 2], [1.74, 2], [2.59, 2]);
+    const L = segments[4].to;
+    expect(segments[2].to).not.toBe(48.21);
+    expect(Math.abs(segments[2].to - 48.21)).toBeLessThan(1e-13);
+    // And 1.1 + 2.2 is 3.3000000000000003: a bearing typed at 3.3, the end of that shaft, is a rounding short of it.
+    const short = seg([1.1, 2], [2.2, 2]);
+    expect(short[1].to).toBeGreaterThan(3.3);
+    expect(short[1].to - 3.3).toBeLessThan(1e-14);
+    const between = [{ x: 38.98, reaction: null }, { x: 39.26, reaction: null }];
+    const shafts: [what: string, drawing: ShaftDrawing, places: number][] = [
+      ['a force typed on a shoulder', { ...example(), L, segments, bearings: between, forces: [force(48.21, 1000)] }, 8],
+      ['a couple typed on a shoulder', { ...example(), L, segments, bearings: between, forces: [], couples: [couple(48.21, 500)] }, 8],
+      ['a bearing typed on a shoulder', { ...example(), L, segments, bearings: [{ x: 10, reaction: null }, { x: 48.21, reaction: null }], forces: [] }, 7],
+      ['a bearing typed at the end', { ...example(), L: short[1].to, segments: short, bearings: [{ x: 0, reaction: null }, { x: 3.3, reaction: null }], forces: [] }, 3],
+    ];
+    for (const [what, drawing, places] of shafts) {
+      for (let width = 280; width <= 1100; width += 1) {
+        const { ticks } = shaftLayout(drawing, { resultants: false, width });
+        expect(ticks, `${what}, ${width} px`).toHaveLength(places);
+        // No two on one pixel: two lines there were one place drawn twice - and, keyed by their pixel, two lines under one key.
+        const along = [...ticks].sort((p, q) => p - q);
+        for (let i = 1; i < along.length; i += 1) expect(along[i] - along[i - 1], `${what}, ${width} px`).toBeGreaterThan(0.01);
+      }
+      // As it is drawn: as many lines as places, each at an x of its own - 708 px is the drawing of a 1366 px window,
+      // where the force's two numbers came to the very same pixel; 724 the sheet's; 350 a phone's.
+      for (const width of [350, 708, 724]) {
+        const drawn = dims(draw(drawing, { width })).ticks;
+        expect(drawn, `${what}, ${width} px`).toHaveLength(places);
+        expect(new Set(drawn).size, `${what}, ${width} px`).toBe(places);
+      }
+      // The numbers under the line were one to a place already: the step gives way to the bearing, the bearing to the end.
+      const written = dims(draw(drawing)).texts.map((t) => t.text);
+      expect(new Set(written).size, `${what}: ${written.join(' ')}`).toBe(written.length);
+    }
+    // The place keeps the pixel of the first that names it: an end before a step, a step before what stands on it.
+    expect(shaftLayout(shafts[0][1], { resultants: false, width: 724 }).ticks).toContain(xToPx(segments[2].to, L, 724));
+    expect(shaftLayout(shafts[3][1], { resultants: false, width: 724 }).ticks).toEqual([0, short[1].to, 1.1].map((x) => xToPx(x, short[1].to, 724)));
+  });
+
   it('the two ends are named at every width, whatever stands near them, and the places read left to right', () => {
     const shafts: [end: string, drawing: ShaftDrawing][] = [
       ['23', example()],
@@ -880,6 +1031,9 @@ function faults(p: Picture, loads: number): string[] {
     if (unit.l - texts[texts.length - 1].r < 4 - 1e-9) found.push(`the length "${texts[texts.length - 1].text}" runs into its unit`);
     if (texts[texts.length - 1].r + 4 < p.dim.to) found.push(`the length "${texts[texts.length - 1].text}" is not under its tick`);
   }
+  // Its ticks: one to a place - no two within a hundredth of a pixel, where they would be one place drawn twice.
+  const marks = [...p.dim.ticks].sort((a, b) => a - b);
+  for (let i = 1; i < marks.length; i += 1) if (marks[i] - marks[i - 1] < 0.01) found.push(`two ticks at ${marks[i]}`);
   return found;
 }
 

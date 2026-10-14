@@ -77,7 +77,8 @@ import type { PlaneState, ShaftBearing, ShaftIssue, ShaftModel, ShaftOutcome, Sh
  * squares of two straight lines is largest at an end. And the largest
  * stress is by segments — the largest moment IN the segment over that
  * segment's own Z, on its own side of a shoulder — and, for the shaft, the
- * largest of those: at a shoulder the small side governs.
+ * largest of those: at a shoulder with no applied moment on it the small
+ * side governs.
  *
  * WHAT THE FIRST ENGINE IS ASKED TWICE, AND WHAT IT IS NOT ASKED AT ALL. It
  * adds a shear and a moment up from the LEFT end, the reactions among the

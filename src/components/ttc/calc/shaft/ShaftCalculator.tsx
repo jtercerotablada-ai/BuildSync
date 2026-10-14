@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useDeferredValue, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
+import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { formatNumber } from '@/lib/calc/format';
 import { round4, type Direction, type Rotation } from '@/lib/calc/beam/model';
 import { analyseSafely, type ByPlanes, type ShaftAnalysisIssue, type ShaftDiagram, type ShaftPeaks, type ShaftSide, type ShaftValue } from '@/lib/calc/shaft/analysis';
@@ -43,7 +44,9 @@ import { ShaftSchematic } from './ShaftSchematic';
  * leaves the browser; its words are props; it renders on the server with its
  * example. What is the same from one calculator to the next is the shell's
  * (../shell), the number field and the three diagrams (../NumField,
- * ../beam/BeamPlot), used here as they are and not copied.
+ * ../beam/BeamPlot), used here as they are and not copied - but for one list,
+ * the way a load acts in a plane, which is the shell's with a name of its own
+ * for a screen reader (`sense`, below).
  *
  * WHAT IS THIS ONE'S. A round shaft entered SEGMENT BY SEGMENT - a length,
  * a diameter and, for a hollow one, a bore - on TWO BEARINGS, under forces
@@ -84,6 +87,37 @@ const VIEWS: ShaftView[] = ['vertical', 'horizontal', 'both'];
 /** The two planes a value is given in. */
 const PLANES = ['vertical', 'horizontal'] as const;
 
+/** The raised figures a unit of this page ends in, and the figure each of them is. */
+const RAISED: Record<string, string> = { '³': '3', '⁴': '4' };
+/**
+ * A unit as the head of a column sets it. One that ends in a raised figure - in⁴, in³, mm⁴, mm³ - has that figure
+ * as a figure of the page's own type, set up (<sup>), and not as the character: the mono every unit is set in has a
+ * "³" and no "⁴", and the browser took that one character from a font of the system's - larger and heavier than the
+ * "³" of the head beside it, and another on every machine. Both are written the same way, so that the two heads match.
+ */
+const raised = (unit: string) => {
+  const figure = RAISED[unit.slice(-1)];
+  return figure ? (
+    <>
+      {unit.slice(0, -1)}
+      <sup>{figure}</sup>
+    </>
+  ) : (
+    unit
+  );
+};
+
+/**
+ * THE FOUR DRAWINGS, KEPT FROM ONE DRAW TO THE NEXT. A key typed into the form draws the calculator again at once,
+ * and the shaft is solved a moment later (`solved`, below): until it is, the three diagrams and the drawing of the
+ * shaft are handed exactly what they were handed the time before, and drawing them again was a third of the key's
+ * own work with the form at its fullest - three lines of some eight hundred points each, written out again to say
+ * what they said. So each is kept for as long as EVERYTHING it is given is the same (`memo`, which compares all of
+ * it): nothing can be kept that should have changed, and nothing here says what a drawing depends on.
+ */
+const Plot = memo(BeamPlot);
+const Schematic = memo(ShaftSchematic);
+
 /**
  * What the fragment of an address opens. `undefined`: it is not this
  * calculator's (`#main` is a place on the page; `#b=...` is the first
@@ -112,6 +146,33 @@ const choicesOf = (form: ShaftForm) => JSON.stringify(form, (_key, value: unknow
 
 /** A row of the form as one word: two issues are on the same row when theirs are the same. (A segment's field is not part of it: the row has one message.) */
 const rowKey = (row: ShaftRow) => (row.list === 'bearings' ? `bearings${row.index}` : row.list === 'material' ? `material${row.field}` : `${row.list}${row.id}`);
+
+/**
+ * THE WAY A LOAD ACTS IN ONE PLANE: a list. To the eye it is the shell's list
+ * (../shell/fields.tsx, `select`), mark for mark, under the same word -
+ * "Direction". What it adds is A NAME OF ITS OWN for whoever hears the form
+ * and does not see it: a force and an applied moment each have two of these
+ * lists, and two lists both called "Direction" - of a moment, with the same
+ * two choices - cannot be told apart in a list of the form's controls, or
+ * coming to them backwards; and which is which is the sign of the load. The
+ * name begins with the word on screen and ends with the plane: "Direction,
+ * vertical". (The shell's list takes no name but its label; the test holds
+ * this one to it, mark for mark, so that the two cannot drift apart.)
+ */
+const sense = <T extends string>(label: string, plane: string, value: T, options: [T, string][], onChange: (v: T) => void) => (
+  <label className="mp-num mp-num--select mp-num--dir">
+    <span className="mp-num__label">{label}</span>
+    <span className="mp-num__box">
+      <select className="mp-num__input" aria-label={`${label}, ${plane.toLowerCase()}`} value={value} onChange={(e) => onChange(e.target.value as T)}>
+        {options.map(([v, text]) => (
+          <option key={v} value={v}>
+            {text}
+          </option>
+        ))}
+      </select>
+    </span>
+  </label>
+);
 
 /**
  * `initial`: the shaft it opens with, where that is not the example, and
@@ -180,6 +241,24 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
     },
   });
   const { linkError } = address;
+  // A RELOAD FROM THE KEYBOARD. The shell writes the address 300 ms after the last change, and a reload comes back
+  // to the address as it stood when the browser began it: a key, then F5 inside that wait, and the shaft came back
+  // without that key - "1234" typed, "123" on screen - and so with a choice in a list, a row added, the units. The
+  // page hears the reload key before the browser acts on it (F5, Ctrl+R or Cmd+R, with Shift or Ctrl for the hard
+  // one), so what is waiting is written at that key: the shell's own `flush`, which is there for a page about to
+  // be loaded again. Where a browser does not hand the key to the page, nothing changes. (The wait is the shell's,
+  // and the same on every calculator: when the shell writes at this key itself, these lines go.)
+  const flushAddress = useRef(address.flush);
+  useEffect(() => {
+    flushAddress.current = address.flush;
+  });
+  useEffect(() => {
+    const reloading = (press: KeyboardEvent) => {
+      if (press.key === 'F5' || ((press.ctrlKey || press.metaKey) && !press.altKey && (press.key === 'r' || press.key === 'R'))) flushAddress.current();
+    };
+    window.addEventListener('keydown', reloading, true);
+    return () => window.removeEventListener('keydown', reloading, true);
+  }, []);
   // The printed sheet gives the address that opens this very shaft, and while
   // it prints the drawings are the sheet's size (../shell/sheet.tsx).
   const { stamp, onPaper } = useSheet({ locale: t.sheet.locale, url: () => address.link(encodeShaft(form)) });
@@ -307,12 +386,28 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
       <span aria-hidden="true">×</span>
     </button>
   );
+  // A row added WITH THE KEYBOARD is handed the focus, in its first field - the rule of `removeRow`, the other way
+  // round. Left on the button, nothing said that a row had come (no field was entered, and no line of the page
+  // speaks of it), and its first field was four stops back for a segment and six for a load. The row is put on
+  // screen first (`flushSync`): until then there is no field to take the focus. Not after a click or a tap
+  // (`detail`, as above): a phone would open its keyboard on a field nobody touched.
+  const addRow = (list: ShaftList) => (press: React.MouseEvent<HTMLButtonElement>) => {
+    if (press.detail !== 0) {
+      dispatch({ type: 'add', list });
+      return;
+    }
+    const group = press.currentTarget.closest('fieldset');
+    flushSync(() => dispatch({ type: 'add', list }));
+    const rows = group?.querySelectorAll('.mp-app__item');
+    const added = rows?.[rows.length - 1]?.querySelector<HTMLElement>('input, select');
+    added?.focus();
+  };
   // A list at its limit: the button stays where it is and does nothing, and the limit is a line of the page under
   // it. `disabled`, it dropped the focus of whoever had just added the last row with a key, and said why only in a
   // tooltip that a finger, a keyboard and a screen reader cannot reach. (Not on the printed sheet: calc.css.)
   const addButton = (list: ShaftList, label: string, full: boolean, limit: string) => (
     <>
-      <button type="button" className="mp-app__add" onClick={() => (full ? undefined : dispatch({ type: 'add', list }))} aria-disabled={full || undefined} aria-describedby={full ? `${uid}${list}limit` : undefined}>
+      <button type="button" className="mp-app__add" onClick={full ? undefined : addRow(list)} aria-disabled={full || undefined} aria-describedby={full ? `${uid}${list}limit` : undefined}>
         <span aria-hidden="true">+</span> {label}
       </button>
       {full ? (
@@ -331,22 +426,31 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
   const here = useMemo(() => (r && x0 !== null ? r.at(x0) : null), [r, x0]);
   // A value that is two - just left of the point and just right of it - where the analysis says it jumps there
   // AND the two print differently: a force all in one plane leaves the other plane's shear one number.
-  const sided = (left: number, right: number, jumps: boolean) =>
-    jumps && num(left) !== num(right) ? (
+  // In a table the unit is in the row's head, and a cell has none. Outside one - the stress, under the table - the
+  // unit is handed in and follows EACH value, as it does in the line of the diameters above it: "3.622 ksi just
+  // left, 6.258 ksi just right". Written once, after the words, it belonged to neither number.
+  const sided = (left: number, right: number, jumps: boolean, unit?: string) => {
+    const one = (v: number) => (unit ? `${num(v)} ${unit}` : num(v));
+    return jumps && num(left) !== num(right) ? (
       <>
-        {num(left)} <span className="mp-app__dir">{t.results.left}</span>, {num(right)} <span className="mp-app__dir">{t.results.right}</span>
+        {one(left)} <span className="mp-app__dir">{t.results.left}</span>, {one(right)} <span className="mp-app__dir">{t.results.right}</span>
       </>
     ) : (
-      num(right)
+      one(right)
     );
+  };
   // A head of a table: what the column is and, after it, its unit - in the mono of every unit on the page and
   // never in capitals, which a head's own words are set in: "MPA" and "N·M" are not units.
   const head = (title: string, unit?: string) => (
     <>
       {title}
-      {unit ? <span className="mp-plot__unit"> ({unit})</span> : null}
+      {unit ? <span className="mp-plot__unit"> ({raised(unit)})</span> : null}
     </>
   );
+  // A head over values that are OF THE TWO PLANES TOGETHER - a bearing's slope, a force's deflection and its slope -
+  // says so, in the words of the switch of views and of the last column of "Values at a point". Beside a "Vertical
+  // reaction" or a "Vertical deflection" a bare "Slope" read as the vertical plane's, which it is not.
+  const together = (title: string) => `${title}, ${w.planes.both.toLowerCase()}`;
   // The same head inside a cell, for a phone: there a row is laid out as lines of its own and each cell stands
   // under its head (calc.css). Out of sight anywhere else, and silent everywhere: the table's own heads are read.
   const under = (title: string, unit?: string) => (
@@ -380,16 +484,20 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
     if (peaks.max.value === 0 && peaks.min.value === 0) return `${title}: ${t.plot.zero}.`;
     return view === 'both' ? `${title}: ${t.plot.max} ${one(peaks.max)}.` : `${title}: ${t.plot.max} ${one(peaks.max)}; ${t.plot.min} ${one(peaks.min)}.`;
   };
+  // What the three diagrams are called. In one plane, the first calculator's names. Of the two planes together
+  // each diagram is a RESULTANT - a size, never under its axis - and its title says so: under the plain
+  // "Deflection" a shaft pushed down was drawn humped upward, the mirror of the vertical plane's own diagram.
+  const titles: { shear: string; moment: string; deflection: string } = view === 'both' ? w.results.resultant : t.results;
   const summary = {
     shaft: `${w.results.schematic}, ${w.planes[view]}: ${placed(drawing.L)} ${u.length}; ${drawing.bearings.map((b) => `${w.bearings.name} x = ${placed(b.x)} ${u.length}`).join(', ')}.`,
-    V: shown ? spoken(t.results.shear, u.force, shown.peaks.V) : '',
-    M: shown ? spoken(t.results.moment, u.moment, shown.peaks.M) : '',
-    D: shown ? spoken(t.results.deflection, u.deflection, shown.peaks.D) : '',
+    V: shown ? spoken(titles.shear, u.force, shown.peaks.V) : '',
+    M: shown ? spoken(titles.moment, u.moment, shown.peaks.M) : '',
+    D: shown ? spoken(titles.deflection, u.deflection, shown.peaks.D) : '',
   };
   // One diagram of the view shown, and under the pointer its own value there.
   const plot = (title: string, unit: string, d: ShaftDiagram, text: string, read: number | null) =>
     r ? (
-      <BeamPlot
+      <Plot
         title={title}
         unit={unit}
         points={d.points}
@@ -439,7 +547,7 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                   {head(w.results.radial, u.force)}
                 </th>
                 <th scope="col" role="columnheader">
-                  {head(t.results.slope, u.slope)}
+                  {head(together(t.results.slope), u.slope)}
                 </th>
               </tr>
             </thead>
@@ -467,16 +575,17 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                     {num(b.reaction.both)}
                   </td>
                   <td role="cell">
-                    {under(t.results.slope, u.slope)}
+                    {under(together(t.results.slope), u.slope)}
                     {num(b.slope.both)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {/* Each plane's loads, added up, as a size and the way it points: a positive load is downward, and
-              towards the viewer. Said of both planes only when both do balance; where one does not, that is
-              what is said, in the first calculator's words. */}
+          {/* Each plane's forces, added up, as a size and the way it points: a positive one is downward, and
+              towards the viewer. (An applied moment adds nothing to them: lib/calc/shaft/strings.ts, `balance`.)
+              Said of both planes only when both do balance; where one does not, that is what is said, in the
+              first calculator's words. */}
           {PLANES.every((plane) => r.balance[plane].ok) ? (
             <p className="mp-app__note">
               {PLANES.reduce((line, plane) => {
@@ -529,7 +638,9 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                 <tr key={s.id} role="row">
                   <th scope="row" role="rowheader">
                     {under(w.shaft.segment, u.length)}
-                    {s.index + 1}{' '}
+                    {/* The segment's number, a colon, then where it runs. With a space alone between them a count and a
+                        length read as one run of digits — "2 4 – 14", "3 14 – 18" — on paper most of all, where both are black. */}
+                    {s.index + 1}:{' '}
                     <span className="mp-app__dir">
                       {placed(s.from)} – {placed(s.to)}
                     </span>
@@ -595,7 +706,7 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                     {head(t.results.position, u.length)}
                   </th>
                   <th scope="col" role="columnheader">
-                    {head(t.results.deflection, u.deflection)}
+                    {head(together(t.results.deflection), u.deflection)}
                   </th>
                   <th scope="col" role="columnheader">
                     {head(w.results.deflectionV, u.deflection)}
@@ -604,7 +715,7 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                     {head(w.results.deflectionH, u.deflection)}
                   </th>
                   <th scope="col" role="columnheader">
-                    {head(t.results.slope, u.slope)}
+                    {head(together(t.results.slope), u.slope)}
                   </th>
                 </tr>
               </thead>
@@ -620,7 +731,7 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                       {placed(f.x)}
                     </td>
                     <td role="cell">
-                      {under(t.results.deflection, u.deflection)}
+                      {under(together(t.results.deflection), u.deflection)}
                       {num(f.deflection.both)}
                     </td>
                     <td role="cell">
@@ -632,7 +743,7 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                       {pointed(f.deflection.horizontal, ...ways.horizontal)}
                     </td>
                     <td role="cell">
-                      {under(t.results.slope, u.slope)}
+                      {under(together(t.results.slope), u.slope)}
                       {num(f.slope.both)}
                     </td>
                   </tr>
@@ -740,7 +851,7 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
             <div>
               <dt>{w.results.stress}</dt>
               <dd>
-                {sided(here.left.stress, here.right.stress, here.jumps.stress)} {u.stress}
+                {sided(here.left.stress, here.right.stress, here.jumps.stress, u.stress)}
               </dd>
             </div>
           </dl>
@@ -748,6 +859,33 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
         </div>
       </div>
     ) : null;
+
+  // The box of notices. A value too, because of the one case in which it has cards to stand before: a link that
+  // could not be read, where the example is shown, solved. On screen the box is at the head of the answer, over
+  // the drawings. On paper the cards go under the form (above): left where it was, the box came after them - three
+  // cards of the example's numbers on the first sheet, and the line that says they are not the shaft that was sent
+  // on the second, where it also took the room the drawings needed and sent them a sheet further. So on paper,
+  // when it has something to say and there are cards, it stands over them (`boxFirst`). A shaft at fault has no
+  // cards, and a shaft with nothing to be said an empty box: both stay where they are.
+  const box = (
+    <div className="mp-app__issues" role="alert" aria-live="assertive">
+      {notices.length ? (
+        <>
+          <p className="mp-app__issues-title">{w.issuesTitle}</p>
+          <ul>
+            {notices.map((n) => (
+              <li key={n.text} id={n.id}>
+                {n.text}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : linkError ? (
+        <p className="mp-app__issues-title">{w.linkError}</p>
+      ) : null}
+    </div>
+  );
+  const boxFirst = onPaper && cards !== null && (notices.length > 0 || linkError);
 
   return (
     <div className={onPaper ? 'mp-app mp-shaft mp-shaft--sheet' : 'mp-app mp-shaft'} ref={root}>
@@ -811,7 +949,9 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
             })}
             {addButton('segments', w.shaft.add, form.segments.length >= MAX_SEGMENTS, w.shaft.limit)}
             {/* The segments end to end: what every position is measured along. */}
-            <p className="mp-app__computed">{w.shaft.total.replace('{length}', `${placed(a.L)} ${u.length}`)}</p>
+            {/* To the eight figures a field holds, not the six of a place: 10 1/64 + 13 5/32 in is 23.171875 in, and "23.1719"
+                typed back as the place of a bearing was past the end of that shaft. */}
+            <p className="mp-app__computed">{w.shaft.total.replace('{length}', `${num(a.L, 8)} ${u.length}`)}</p>
             <p className="mp-app__note">{w.shaft.note}</p>
           </fieldset>
 
@@ -838,6 +978,9 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
 
           <fieldset className="mp-app__group">
             <legend>{w.forces.title}</legend>
+            {/* Over the rows, not after them: the first row offers "Towards viewer", and this is the line that says
+                where the viewer stands. Under twelve forces it was three windows further down. */}
+            <p className="mp-app__note">{w.forces.note}</p>
             {form.forces.length === 0 ? <p className="mp-app__none">{t.loads.none}</p> : null}
             {form.forces.map((f, i) => {
               const row: ShaftRow = { list: 'forces', id: f.id };
@@ -852,9 +995,9 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                     <div className="mp-app__fields mp-shaft__load">
                       <NumField numbers={t.numbers} label={t.results.position} unit={u.length} value={f.x} onChange={(x) => patch('forces', f.id, { x })} {...fault(row, 'x')} />
                       <NumField numbers={t.numbers} label={w.forces.vertical} unit={u.force} value={f.v} onChange={(v) => patch('forces', f.id, { v })} {...fault(row, 'size')} />
-                      {select<Direction>(t.loads.direction, f.vDir, [['down', t.loads.down], ['up', t.loads.up]], (vDir) => patch('forces', f.id, { vDir }), 'mp-num--dir')}
+                      {sense<Direction>(t.loads.direction, w.forces.vertical, f.vDir, [['down', t.loads.down], ['up', t.loads.up]], (vDir) => patch('forces', f.id, { vDir }))}
                       <NumField numbers={t.numbers} label={w.forces.horizontal} unit={u.force} value={f.h} onChange={(h) => patch('forces', f.id, { h })} className="mp-shaft__second" {...fault(row, 'size')} />
-                      {select<Sideways>(t.loads.direction, f.hDir, [['towards', w.forces.towards], ['away', w.forces.away]], (hDir) => patch('forces', f.id, { hDir }), 'mp-num--dir')}
+                      {sense<Sideways>(t.loads.direction, w.forces.horizontal, f.hDir, [['towards', w.forces.towards], ['away', w.forces.away]], (hDir) => patch('forces', f.id, { hDir }))}
                     </div>
                     {removeButton('forces', f.id, forceName(i))}
                   </div>
@@ -863,11 +1006,12 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
               );
             })}
             {addButton('forces', w.forces.add, form.forces.length >= MAX_ROWS, t.row.limit)}
-            <p className="mp-app__note">{w.forces.note}</p>
           </fieldset>
 
           <fieldset className="mp-app__group">
             <legend>{t.loads.couple}</legend>
+            {/* Over the rows too: each row asks for a sense, and this is the line that says how a sense is read. */}
+            <p className="mp-app__note">{w.couples.note}</p>
             {form.couples.length === 0 ? <p className="mp-app__none">{t.loads.noneCouple}</p> : null}
             {form.couples.map((c, i) => {
               const row: ShaftRow = { list: 'couples', id: c.id };
@@ -882,9 +1026,9 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                     <div className="mp-app__fields mp-shaft__load mp-shaft__load--moment">
                       <NumField numbers={t.numbers} label={t.results.position} unit={u.length} value={c.x} onChange={(x) => patch('couples', c.id, { x })} {...fault(row, 'x')} />
                       <NumField numbers={t.numbers} label={w.planes.vertical} unit={u.moment} value={c.v} onChange={(v) => patch('couples', c.id, { v })} {...fault(row, 'size')} />
-                      {select<Rotation>(t.loads.direction, c.vDir, [['ccw', t.loads.ccw], ['cw', t.loads.cw]], (vDir) => patch('couples', c.id, { vDir }), 'mp-num--dir')}
+                      {sense<Rotation>(t.loads.direction, w.planes.vertical, c.vDir, [['ccw', t.loads.ccw], ['cw', t.loads.cw]], (vDir) => patch('couples', c.id, { vDir }))}
                       <NumField numbers={t.numbers} label={w.planes.horizontal} unit={u.moment} value={c.h} onChange={(h) => patch('couples', c.id, { h })} className="mp-shaft__second" {...fault(row, 'size')} />
-                      {select<Rotation>(t.loads.direction, c.hDir, [['ccw', t.loads.ccw], ['cw', t.loads.cw]], (hDir) => patch('couples', c.id, { hDir }), 'mp-num--dir')}
+                      {sense<Rotation>(t.loads.direction, w.planes.horizontal, c.hDir, [['ccw', t.loads.ccw], ['cw', t.loads.cw]], (hDir) => patch('couples', c.id, { hDir }))}
                     </div>
                     {removeButton('couples', c.id, coupleName(i))}
                   </div>
@@ -893,7 +1037,6 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
               );
             })}
             {addButton('couples', t.loads.addCouple, form.couples.length >= MAX_ROWS, t.row.limit)}
-            <p className="mp-app__note">{w.couples.note}</p>
           </fieldset>
 
           <fieldset className="mp-app__group">
@@ -941,6 +1084,20 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
               return address.link(encodeShaft(form));
             }}
             reset={() => {
+              // One press throws away whatever was typed, and nothing is asked. So the shaft that goes — unless it is the
+              // example — is left one step behind in the browser's history: Back brings it back, as the page opens any
+              // shaft its address holds (../shell/address.ts), and Forward returns to the example. The address is brought
+              // to that shaft first: the entry left behind is the one on screen. Where a browser refuses another entry
+              // (Safari, past a hundred changes in thirty seconds) Start over still starts over.
+              const thrown = encodeShaft(form);
+              if (thrown !== EXAMPLE) {
+                address.take(thrown);
+                try {
+                  window.history.pushState(window.history.state, '', window.location.href);
+                } catch {
+                  /* the way back is a convenience; the calculator works without it */
+                }
+              }
               const example = defaultShaft();
               dispatch({ type: 'load', form: example });
               setWhole(example);
@@ -954,27 +1111,13 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
           />
         </form>
 
-        {/* On paper only: the cards, between the input and the drawings (`cards`, above). */}
+        {/* On paper only: the cards, between the input and the drawings (`cards`, above) - and over them what the box says, when it says something (`box`, above). */}
+        {boxFirst ? box : null}
         {onPaper ? cards : null}
 
         {/* -- the answer -- */}
         <section className={tooTall ? 'mp-app__out mp-app__out--tall' : 'mp-app__out'} aria-label={t.results.title} ref={outRef} aria-busy={catching ? true : undefined}>
-          <div className="mp-app__issues" role="alert" aria-live="assertive">
-            {notices.length ? (
-              <>
-                <p className="mp-app__issues-title">{w.issuesTitle}</p>
-                <ul>
-                  {notices.map((n) => (
-                    <li key={n.text} id={n.id}>
-                      {n.text}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : linkError ? (
-              <p className="mp-app__issues-title">{w.linkError}</p>
-            ) : null}
-          </div>
+          {boxFirst ? null : box}
 
           {/* Which view the drawings below are of. Real radios, as the units are: on paper the one chosen is
               printed as its words, so a sheet says which plane its diagrams show. */}
@@ -1002,12 +1145,12 @@ export function ShaftCalculator({ t, w, initial, initialView }: { t: ShaftShared
                 </span>
               ) : null}
             </p>
-            <ShaftSchematic drawing={drawing} resultants={view === 'both'} width={width} probeX={probeX !== null ? x0 : null} summary={summary.shaft} group={group} />
+            <Schematic drawing={drawing} resultants={view === 'both'} width={width} probeX={probeX !== null ? x0 : null} summary={summary.shaft} group={group} />
             {r && shown ? (
               <>
-                {plot(t.results.shear, u.force, shown.diagrams.V, summary.V, here ? here.right.shear[view] : null)}
-                {plot(t.results.moment, u.moment, shown.diagrams.M, summary.M, here ? here.right.moment[view] : null)}
-                {plot(t.results.deflection, u.deflection, shown.diagrams.D, summary.D, here ? here.deflection[view] : null)}
+                {plot(titles.shear, u.force, shown.diagrams.V, summary.V, here ? here.right.shear[view] : null)}
+                {plot(titles.moment, u.moment, shown.diagrams.M, summary.M, here ? here.right.moment[view] : null)}
+                {plot(titles.deflection, u.deflection, shown.diagrams.D, summary.D, here ? here.deflection[view] : null)}
                 <p className="mp-app__note">{w.results.signs[view]}</p>
               </>
             ) : (
