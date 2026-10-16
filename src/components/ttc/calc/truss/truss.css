@@ -1,0 +1,523 @@
+/* TRUSS MEMBER FORCES (.mp-truss) — the fifth calculator
+   (truss/TrussCalculator.tsx) and its drawing (truss/TrussSchematic.tsx).
+
+   Imported by the calculator itself, so it travels with this page and no other.
+   The page lays the calculator out by the shared sheet (calc/calc.css: .mp-app,
+   .mp-num, .mp-seg, .mp-plot, the cards and the print rules); what follows is
+   only what a truss entered as four tables needs. Every rule here is written
+   with the weight of two classes (.mp-truss ...) so that it holds whichever of
+   the two sheets the browser reads last.
+
+   The drawing's classes are its own, every one (.mp-truss-fig__*): ink for what
+   is built, blue and red for a tension and a compression, gold for what the
+   calculator found (a reaction) and for what is being pointed at, the page's
+   colour inside a support and inside a compression. TENSION AND COMPRESSION
+   DIFFER BY THE PATTERN AS WELL AS THE COLOUR (a solid line, a hollow one) and
+   by the sign written with the value, so that a black-and-white sheet and a
+   reader who does not tell blue from red lose nothing. */
+.mp-truss {
+  --mp-truss-tension: #1f5a99;
+  --mp-truss-compression: #a63a2a;
+  --mp-truss-zero: #7d7f7a;
+}
+
+/* ── the form ─────────────────────────────────────────────────────────── */
+
+/* A row of a list: its name and the button that removes it on one line, and its fields under both, across the whole width of the form. */
+.mp-truss .mp-truss__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  column-gap: var(--mp-4);
+  row-gap: var(--mp-2);
+}
+.mp-truss .mp-truss__item > .mp-app__row--rm {
+  display: contents;
+}
+.mp-truss .mp-truss__item > .mp-app__row--rm > .mp-app__remove {
+  grid-area: 1 / 2;
+}
+.mp-truss .mp-truss__item > .mp-app__row--rm > .mp-truss__fields,
+.mp-truss .mp-truss__item > .mp-app__row-error {
+  grid-column: 1 / -1;
+}
+.mp-truss .mp-truss__name {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--mp-ink-2);
+}
+/* The fields of a row share its width: two for a node or a load, four for a member. */
+.mp-truss .mp-truss__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
+  gap: var(--mp-3) var(--mp-4);
+  align-items: end;
+  min-width: 0;
+}
+.mp-truss .mp-truss__fields > .mp-num__hint {
+  grid-column: 1 / -1;
+}
+/* A value longer than its field shows that it is: a number cut short reads as another number. */
+@media screen {
+  .mp-truss .mp-num__input {
+    text-overflow: ellipsis;
+  }
+}
+.mp-truss .mp-truss__material > .mp-num--select {
+  flex-basis: 11rem;
+}
+/* What the form tells whoever just did something: a node removed, a template that had to change a number, the limit of a list. */
+.mp-truss .mp-truss__notice,
+.mp-truss .mp-truss__limit {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.mp-truss .mp-truss__notice {
+  padding: var(--mp-2) var(--mp-3);
+  border-inline-start: 3px solid var(--mp-gold-ink);
+  color: var(--mp-ink-2);
+}
+.mp-truss .mp-truss__limit {
+  color: var(--mp-ink-3);
+}
+.mp-truss .mp-truss__said {
+  margin: 0;
+}
+.mp-truss .mp-app__add[aria-disabled='true'] {
+  color: var(--mp-ink-faint);
+  cursor: default;
+  text-decoration: none;
+}
+.mp-truss .mp-truss__template > .mp-app__btn {
+  justify-self: start;
+}
+
+/* ── the answer ───────────────────────────────────────────────────────── */
+
+/* Whether the truss is determinate: a line with a bar of its own colour, read before anything else. */
+.mp-truss .mp-truss__status {
+  display: grid;
+  gap: var(--mp-1);
+  padding: var(--mp-2) var(--mp-4);
+  border-inline-start: 3px solid var(--mp-ink);
+}
+.mp-truss .mp-truss__status--indeterminate {
+  border-inline-start-color: var(--mp-gold-ink);
+}
+.mp-truss .mp-truss__status--unstable {
+  border-inline-start-color: var(--mp-error);
+}
+.mp-truss .mp-truss__word {
+  margin: 0;
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mp-truss .mp-truss__warnings {
+  padding: var(--mp-4);
+  border: 1px solid var(--mp-gold-ink);
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-truss .mp-truss__warnings ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+}
+.mp-truss .mp-truss__warnings .mp-app__issues-title {
+  color: var(--mp-gold-ink);
+}
+.mp-truss .mp-truss__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--mp-6);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mp-truss .mp-truss__options > legend {
+  width: 100%;
+  padding: 0;
+}
+
+/* ── the numbers ──────────────────────────────────────────────────────── */
+
+.mp-truss .mp-truss__table {
+  max-width: 64rem;
+}
+.mp-truss .mp-truss__table td {
+  white-space: normal;
+}
+.mp-truss .mp-truss__table tbody th .mp-plot__unit {
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+.mp-truss .mp-truss__head {
+  display: none;
+}
+@media screen {
+  .mp-truss .mp-app__card--wide {
+    overflow-x: auto;
+  }
+}
+.mp-truss .mp-truss__order {
+  max-width: 16rem;
+  margin-block-end: var(--mp-2);
+}
+/* A member of a table is a button: it marks that member in the drawing, and the drawing marks it back. */
+.mp-truss .mp-truss__pick {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--mp-2);
+  border: 1px solid var(--mp-line-strong);
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--mp-ink);
+  cursor: pointer;
+}
+.mp-truss .mp-truss__pick[aria-pressed='true'] {
+  border-color: var(--mp-ink);
+  background: var(--mp-ink);
+  color: var(--mp-paper);
+}
+.mp-truss .mp-truss__pick:focus-visible {
+  outline: 2px solid var(--mp-gold-ink);
+  outline-offset: 2px;
+}
+.mp-truss [data-active='true'] {
+  background: var(--mp-gold-soft);
+}
+.mp-truss .mp-truss__force {
+  font-weight: 500;
+}
+.mp-truss .mp-truss__force--tension {
+  color: var(--mp-truss-tension);
+}
+.mp-truss .mp-truss__force--compression {
+  color: var(--mp-truss-compression);
+}
+.mp-truss .mp-truss__zero {
+  display: grid;
+  gap: var(--mp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mp-t-small);
+}
+.mp-truss .mp-truss__zero li {
+  padding-block: var(--mp-2);
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-truss .mp-truss__zero-name {
+  white-space: nowrap;
+}
+.mp-truss .mp-truss__zero .mp-truss__pick {
+  min-height: 32px;
+}
+.mp-truss .mp-truss__balanced {
+  color: var(--mp-ink-2);
+}
+
+/* On a phone a row is laid out two cells to a line, each under its own head: a table of seven columns was twice the width of its card. */
+@media screen and (max-width: 640px) {
+  .mp-truss .mp-truss__table,
+  .mp-truss .mp-truss__table > tbody {
+    display: block;
+  }
+  .mp-truss .mp-truss__table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .mp-truss .mp-truss__table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding-block: 0.35rem;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-truss .mp-truss__table tbody th,
+  .mp-truss .mp-truss__table td {
+    flex: 0 0 50%;
+    min-width: 0;
+    padding-block: 0.3rem;
+    border-block-end: 0;
+  }
+  .mp-truss .mp-truss__table tbody tr > :nth-child(2n) {
+    padding-inline-end: 0;
+  }
+  .mp-truss .mp-truss__table .mp-truss__head {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mp-ink-3);
+  }
+  .mp-truss .mp-truss__table .mp-truss__head .mp-plot__unit {
+    text-transform: none;
+  }
+}
+
+/* ── the drawing ──────────────────────────────────────────────────────── */
+
+.mp-truss .mp-truss-fig {
+  display: grid;
+  gap: var(--mp-3);
+  min-width: 0;
+  margin: 0;
+}
+.mp-truss .mp-truss-fig__svg {
+  height: auto;
+}
+.mp-truss-fig__bar {
+  fill: none;
+  stroke: var(--mp-ink-3);
+  stroke-linecap: butt;
+}
+.mp-truss-fig__member--tension .mp-truss-fig__bar {
+  stroke: var(--mp-truss-tension);
+}
+.mp-truss-fig__member--compression .mp-truss-fig__bar {
+  stroke: var(--mp-truss-compression);
+}
+/* A compression is hollow: the page shows through its middle. */
+.mp-truss-fig__core {
+  fill: none;
+  stroke: var(--mp-paper);
+  stroke-linecap: butt;
+}
+.mp-truss-fig__member--zero .mp-truss-fig__bar {
+  stroke: var(--mp-truss-zero);
+  stroke-dasharray: 5 4;
+}
+.mp-truss-fig__halo {
+  fill: none;
+  stroke: var(--mp-gold);
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+.mp-truss-fig__deformed {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 3;
+}
+.mp-truss-fig__node circle {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-truss-fig__node text {
+  font-family: var(--mp-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  fill: var(--mp-ink);
+  pointer-events: none;
+}
+.mp-truss-fig__node--active circle {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 2.5;
+}
+/* A node that is part of a problem: ringed, dashed. */
+.mp-truss-fig__node circle.mp-truss-fig__ring {
+  fill: none;
+  stroke: var(--mp-error);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+.mp-truss-fig__support polygon,
+.mp-truss-fig__support circle {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-truss-fig__ground {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-truss-fig__load line,
+.mp-truss-fig__reaction line {
+  stroke-width: 1.75;
+}
+.mp-truss-fig__load line {
+  stroke: var(--mp-ink);
+}
+.mp-truss-fig__load polygon {
+  fill: var(--mp-ink);
+}
+.mp-truss-fig__reaction line {
+  stroke: var(--mp-gold-ink);
+}
+.mp-truss-fig__reaction polygon {
+  fill: var(--mp-gold-ink);
+}
+.mp-truss-fig__load text,
+.mp-truss-fig__reaction text,
+.mp-truss-fig__value {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink);
+  /* A line that passes a number goes behind it. */
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.mp-truss-fig__reaction text {
+  fill: var(--mp-gold-ink);
+}
+.mp-truss-fig__hit {
+  stroke: transparent;
+  stroke-width: 14;
+  stroke-linecap: round;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.mp-truss-fig__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--mp-ink-2);
+}
+.mp-truss-fig__key {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-2);
+}
+.mp-truss-fig__swatch {
+  flex: none;
+  overflow: visible;
+}
+
+/* ── on paper ─────────────────────────────────────────────────────────── */
+
+@media print {
+  /* A template is a way to start, an order and a switch are ways to look: none of them is on the sheet. */
+  .mp-truss .mp-truss__template,
+  .mp-truss .mp-truss__options,
+  .mp-truss .mp-truss__order,
+  .mp-truss .mp-truss__limit,
+  .mp-truss .mp-truss-fig__hits {
+    display: none !important;
+  }
+  /* A row of the input: its name, then its fields on a line. */
+  .mp-truss .mp-truss__item {
+    display: block;
+  }
+  .mp-truss .mp-truss__item > .mp-app__row--rm {
+    display: block;
+  }
+  .mp-truss .mp-truss__fields {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .mp-truss .mp-truss__name {
+    font-size: 6.5pt;
+    font-weight: 600;
+    color: #000;
+  }
+  /* A long list runs on into the next column, row by row; its title stays with its first row. */
+  .mp-truss .mp-app__group:has(> .mp-app__item:nth-of-type(5)) {
+    break-inside: auto;
+  }
+  .mp-truss .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend,
+  .mp-truss .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend + .mp-app__note {
+    break-after: avoid;
+  }
+  .mp-truss .mp-truss__notice {
+    padding: 0.5mm 1.5mm;
+    font-size: 6.5pt;
+  }
+  .mp-truss .mp-truss__status,
+  .mp-truss .mp-truss__warnings {
+    padding: 1mm 2mm;
+    break-inside: avoid;
+    font-size: 8pt;
+  }
+  .mp-truss .mp-truss__word {
+    font-size: 9pt;
+  }
+  .mp-truss .mp-truss__table {
+    max-width: none;
+  }
+  .mp-truss .mp-truss__table tbody th .mp-plot__unit {
+    font-size: 6pt;
+  }
+  .mp-truss .mp-truss__table tbody tr {
+    break-inside: avoid;
+  }
+  /* A member is its number: a button has no place on paper. */
+  .mp-truss .mp-truss__pick {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #000;
+    font-weight: 600;
+  }
+  .mp-truss .mp-truss__pick[aria-pressed='true'] {
+    background: none;
+    color: #000;
+  }
+  .mp-truss [data-active='true'] {
+    background: none;
+  }
+  .mp-truss .mp-truss__force--tension,
+  .mp-truss .mp-truss__force--compression {
+    color: #000;
+  }
+  .mp-truss .mp-truss__zero {
+    font-size: 7pt;
+  }
+  .mp-truss .mp-truss__zero li {
+    padding-block: 0.6mm;
+  }
+  .mp-truss .mp-truss__zero .mp-truss__pick {
+    min-height: 0;
+  }
+  /* The drawing is held whole on one sheet. Tension and compression are told apart by the pattern, which paper keeps. */
+  .mp-truss .mp-app__plots {
+    break-inside: avoid;
+  }
+  .mp-truss {
+    --mp-truss-tension: #000;
+    --mp-truss-compression: #000;
+    --mp-truss-zero: #555;
+  }
+  .mp-truss-fig__halo {
+    display: none;
+  }
+  .mp-truss-fig__load text,
+  .mp-truss-fig__reaction text,
+  .mp-truss-fig__value {
+    stroke: none !important;
+  }
+  .mp-truss-fig__reaction text {
+    fill: #000;
+  }
+  .mp-truss-fig__reaction line {
+    stroke: #000;
+  }
+  .mp-truss-fig__reaction polygon {
+    fill: #000;
+  }
+  .mp-truss-fig__legend {
+    font-size: 6.5pt;
+    gap: 1mm 5mm;
+  }
+}

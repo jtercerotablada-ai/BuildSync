@@ -26,7 +26,10 @@ import type { Lang } from './i18n';
  * (/resources/shaft-on-bearings), is the first that is not a beam's: a round
  * shaft turned in steps, on two bearings, loaded in two planes at once —
  * each plane's reactions and moments by the first calculator's engine, the
- * slopes and deflections of the stepped shaft by its own.
+ * slopes and deflections of the stepped shaft by its own. The fifth, "Truss
+ * member forces" (/resources/truss-member-forces), is the first of the trusses:
+ * a plane truss of pinned members, solved by joint equilibrium or, when it is
+ * indeterminate, by direct stiffness.
  *
  * THE FAMILIES AND THEIR ICONS. The owner drew sixteen icons, one per
  * general subject ("los 16 iconos corresponden a temas generales; varios
@@ -226,7 +229,7 @@ export const calculatorFamilies: CalculatorFamily[] = [
     title: { en: 'Trusses and cables', es: 'Cerchas y cables' },
     icons: ['truss'],
     items: [
-      { name: { en: 'Truss member forces', es: 'Fuerzas en barras de cerchas' }, does: { en: 'Axial force in every member, tension or compression, and the reactions of a 2D truss.', es: 'Fuerza axial en cada barra, a tensión o a compresión, y reacciones de una cercha 2D.' } },
+      { name: { en: 'Truss member forces', es: 'Fuerzas en barras de cerchas' }, does: { en: 'Axial force in every member, tension or compression, and the reactions of a 2D truss.', es: 'Fuerza axial en cada barra, a tensión o a compresión, y reacciones de una cercha 2D.' }, href: '/resources/truss-member-forces' },
       { name: { en: 'Cable tension and elongation', es: 'Tensión y alargamiento de cables' }, does: { en: 'Tension, stress and elastic and thermal stretch of a cable; pulling a load against friction.', es: 'Tensión, esfuerzo y estiramiento elástico y térmico de un cable; arrastre de una carga con fricción.' } },
       { name: { en: 'Cable sag and pretension', es: 'Flecha y pretensión de cables' }, does: { en: 'The pretension a cable needs to hang with a given sag.', es: 'La pretensión que necesita un cable para colgar con una flecha dada.' } },
     ],
