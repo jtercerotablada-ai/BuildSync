@@ -93,6 +93,7 @@
  */
 
 import { ADS, ADS_COOKIE_DAYS } from './ads';
+import { browardMunicipalities, miamiDadeMunicipalities } from './municipalities';
 import { photo, video, type Photo, type Clip } from './media';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3329,19 +3330,19 @@ const pricing = {
   cta: 'Get a fixed-fee proposal',
   urgency: {
     eyebrow: 'What waiting can cost',
-    titleLines: ['A late report gets', 'more expensive every month.'],
-    accentWord: 'more expensive every month.',
-    lede: 'Counties enforce these programs. The same notice that is a few days of work today can become a penalty, a lien or an order to vacate.',
+    titleLines: ['Every month you wait', 'costs you more.'],
+    accentWord: 'costs you more.',
+    lede: 'A recertification notice that goes unanswered does not expire. It moves to enforcement, and enforcement has a price.',
     miamiDade: 'In Miami-Dade',
     broward: 'In Broward',
     items: [
       {
-        k: 'Penalties that accumulate',
-        v: 'After a citation, failing to correct the violation and pay the initial penalty on time can lead to accumulated penalties of up to $10,000 per violation.',
+        k: 'Penalties that add up',
+        v: 'Once a citation is issued, a violation left uncorrected and an initial penalty left unpaid can grow into accumulated penalties of up to $10,000 per violation.',
       },
       {
         k: 'Liens on the property',
-        v: 'Outstanding County fees can become a lien against the property.',
+        v: 'County fees that stay unpaid can be recorded as a lien against the building.',
       },
       {
         k: 'Orders to vacate',
@@ -3350,44 +3351,36 @@ const pricing = {
     ],
     browardLine: 'A report that is not filed on time goes to an enforcement hearing, and a building that stays unrepaired can be declared unsafe.',
     footnote: 'Miami-Dade County references: recertification penalties · enforcement process · unsafe structures (Section 8-5).',
+    resolveTitle: 'One team takes it from here',
+    resolve: [
+      {
+        k: 'One coordinated process',
+        v: 'We arrange the inspections and coordinate the structural and electrical reports, signed and sealed by the appropriate professionals.',
+      },
+      {
+        k: 'Less time with the County',
+        v: 'We handle the submissions, track the comments and follow up with the County offices on your behalf.',
+      },
+      {
+        k: 'Support through completion',
+        v: 'If repairs are required, we explain the findings, coordinate with your contractor and handle the reinspections and revised reports.',
+      },
+    ],
+    closing: 'Send us the notice. We review the available records and outline the next steps, with no obligation.',
     cta: 'Send us your notice',
-    letter: {
-      label: 'The letter we send owners with an open case',
-      redacted: 'Owner, address and case number removed',
-      lh1: 'Tercero Tablada Civil and Structural Engineering Inc.',
-      lh2: 'Precision Source Inc. · General and Electrical Contractor',
-      title: 'Building Recertification and Case Resolution',
-      salutation: 'Dear Property Owner,',
-      paras: [
-        'The County’s notice states that your recertification case was referred to the Consumer and Neighborhood Protection Division for failure to submit the initial report and/or required payment. If this matter remains unresolved, now is the time to act.',
-        'Delaying compliance can become expensive. After a citation is issued, failing to correct the violation and pay the initial penalty on time may lead to accumulated penalties of up to $10,000 per violation and liens for outstanding County fees.',
-      ],
-      bullets: [
-        'One coordinated process: inspections and the structural and electrical reports, signed and sealed by the appropriate professionals.',
-        'Less time dealing with County offices: submissions, comments and follow-up on your behalf.',
-        'Support through completion: findings explained, your contractor coordinated, reinspections and revised reports handled.',
-      ],
-      close: 'Take the next step today. Call or email us for a no-obligation proposal.',
-    },
   },
   jurisdictions: {
     eyebrow: 'Jurisdictions',
     title: 'The offices we file with.',
     lede: 'Your notice comes from one of these offices, or from a neighbour of theirs. The steps and the forms are theirs; the process is ours.',
-    more: 'And every other city in Miami-Dade and Broward.',
+    more: 'Every municipality in both counties.',
+    also: 'Also',
+    lists: [
+      { title: 'Miami-Dade County', names: miamiDadeMunicipalities },
+      { title: 'Broward County', names: browardMunicipalities },
+    ],
     disclaimer: 'Seals and logos belong to their governments and are shown only to identify the office. Tercero Tablada is an independent firm: not affiliated with, endorsed by or acting for any of them.',
     creditLabel: 'Image credits',
-    items: [
-      { name: 'Miami-Dade County', file: 'miami-dade', tone: 'light' },
-      { name: 'City of Miami', file: 'miami', tone: 'dark' },
-      { name: 'City of Hialeah', file: 'hialeah', tone: 'light' },
-      { name: 'Broward County', file: 'broward', tone: 'light' },
-      { name: 'City of Coral Gables', file: 'coral-gables', tone: 'dark' },
-      { name: 'City of Doral', file: 'doral', tone: 'light' },
-      { name: 'City of Fort Lauderdale', file: 'fort-lauderdale', tone: 'light' },
-      { name: 'City of Hollywood', file: 'hollywood', tone: 'light' },
-      { name: 'City of Pembroke Pines', file: 'pembroke-pines', tone: 'light' },
-    ],
   },
 };
 

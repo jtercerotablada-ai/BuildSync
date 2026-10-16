@@ -60,6 +60,7 @@
  */
 
 import { ADS, ADS_COOKIE_DAYS } from './ads';
+import { browardMunicipalities, miamiDadeMunicipalities } from './municipalities';
 import { photo } from './media';
 import type { SiteContent } from './site';
 
@@ -2003,19 +2004,19 @@ export const es: SiteContent = {
     cta: 'Solicitar propuesta a precio fijo',
     urgency: {
       eyebrow: 'Lo que puede costar esperar',
-      titleLines: ['Un reporte atrasado sale', 'más caro cada mes.'],
-      accentWord: 'más caro cada mes.',
-      lede: 'Los condados hacen cumplir estos programas. La misma notificación que hoy son unos días de trabajo puede convertirse en una multa, un gravamen o una orden de desalojo.',
+      titleLines: ['Cada mes que espera', 'le cuesta más.'],
+      accentWord: 'le cuesta más.',
+      lede: 'Una notificación de recertificación sin respuesta no caduca. Pasa a cumplimiento, y el cumplimiento tiene un precio.',
       miamiDade: 'En Miami-Dade',
       broward: 'En Broward',
       items: [
         {
           k: 'Multas que se acumulan',
-          v: 'Tras una citación, no corregir la violación ni pagar a tiempo la multa inicial puede llevar a multas acumuladas de hasta $10,000 por violación.',
+          v: 'Una vez emitida la citación, una violación sin corregir y una multa inicial sin pagar pueden convertirse en multas acumuladas de hasta $10,000 por violación.',
         },
         {
           k: 'Gravámenes sobre la propiedad',
-          v: 'Las tasas pendientes con el condado pueden convertirse en un gravamen sobre la propiedad.',
+          v: 'Las tasas del condado que siguen sin pagarse pueden quedar registradas como un gravamen contra el edificio.',
         },
         {
           k: 'Órdenes de desalojo',
@@ -2024,44 +2025,36 @@ export const es: SiteContent = {
       ],
       browardLine: 'Un reporte que no se presenta a tiempo pasa a una audiencia de cumplimiento, y un edificio sin reparar puede declararse inseguro.',
       footnote: 'Referencias del condado de Miami-Dade: multas de recertificación · proceso de cumplimiento · estructuras inseguras (Sección 8-5).',
+      resolveTitle: 'Un solo equipo se encarga',
+      resolve: [
+        {
+          k: 'Un proceso coordinado',
+          v: 'Organizamos las inspecciones y coordinamos los reportes estructural y eléctrico, firmados y sellados por los profesionales correspondientes.',
+        },
+        {
+          k: 'Menos tiempo con el condado',
+          v: 'Nos encargamos de las presentaciones, seguimos los comentarios y damos seguimiento ante las oficinas del condado en su nombre.',
+        },
+        {
+          k: 'Acompañamiento hasta el cierre',
+          v: 'Si hay que reparar, le explicamos los hallazgos, coordinamos con su contratista y nos encargamos de las reinspecciones y de los reportes revisados.',
+        },
+      ],
+      closing: 'Envíenos la notificación. Revisamos los registros disponibles y le indicamos los siguientes pasos, sin compromiso.',
       cta: 'Envíenos su notificación',
-      letter: {
-        label: 'La carta que enviamos a los dueños con un caso abierto',
-        redacted: 'Dueño, dirección y número de caso omitidos',
-        lh1: 'Tercero Tablada Civil and Structural Engineering Inc.',
-        lh2: 'Precision Source Inc. · Contratista general y eléctrico',
-        title: 'Recertificación del edificio y resolución del caso',
-        salutation: 'Estimado propietario:',
-        paras: [
-          'La notificación del condado indica que su caso de recertificación fue remitido a la División de Protección al Consumidor y al Vecindario por no presentar el reporte inicial o el pago requerido. Si el asunto sigue sin resolverse, este es el momento de actuar.',
-          'Demorar el cumplimiento puede salir caro. Tras una citación, no corregir la violación ni pagar a tiempo la multa inicial puede llevar a multas acumuladas de hasta $10,000 por violación y a gravámenes por tasas pendientes con el condado.',
-        ],
-        bullets: [
-          'Un proceso coordinado: las inspecciones y los reportes estructural y eléctrico, firmados y sellados por los profesionales correspondientes.',
-          'Menos tiempo en las oficinas del condado: presentaciones, comentarios y seguimiento en su nombre.',
-          'Acompañamiento hasta el cierre: le explicamos los hallazgos, coordinamos a su contratista y nos encargamos de las reinspecciones y los reportes revisados.',
-        ],
-        close: 'Dé el siguiente paso hoy. Llámenos o escríbanos para una propuesta sin compromiso.',
-      },
     },
     jurisdictions: {
       eyebrow: 'Jurisdicciones',
       title: 'Las oficinas ante las que presentamos.',
       lede: 'Su notificación viene de una de estas oficinas, o de una vecina. Los pasos y los formularios son de ellas; el proceso es nuestro.',
-      more: 'Y todas las demás ciudades de Miami-Dade y Broward.',
+      more: 'Todos los municipios de ambos condados.',
+    also: 'También',
+    lists: [
+      { title: 'Condado de Miami-Dade', names: miamiDadeMunicipalities },
+      { title: 'Condado de Broward', names: browardMunicipalities },
+    ],
       disclaimer: 'Los sellos y logotipos pertenecen a sus gobiernos y se muestran solo para identificar la oficina. Tercero Tablada es una firma independiente: no está afiliada a ninguna de ellas, ni cuenta con su aval, ni actúa en su nombre.',
       creditLabel: 'Créditos de imágenes',
-      items: [
-        { name: 'Miami-Dade County', file: 'miami-dade', tone: 'light' },
-        { name: 'City of Miami', file: 'miami', tone: 'dark' },
-        { name: 'City of Hialeah', file: 'hialeah', tone: 'light' },
-        { name: 'Broward County', file: 'broward', tone: 'light' },
-        { name: 'City of Coral Gables', file: 'coral-gables', tone: 'dark' },
-        { name: 'City of Doral', file: 'doral', tone: 'light' },
-        { name: 'City of Fort Lauderdale', file: 'fort-lauderdale', tone: 'light' },
-        { name: 'City of Hollywood', file: 'hollywood', tone: 'light' },
-        { name: 'City of Pembroke Pines', file: 'pembroke-pines', tone: 'light' },
-      ],
     },
   },
   legal: {

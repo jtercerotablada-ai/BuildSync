@@ -6164,6 +6164,7 @@ a.mp-menu__mail {
 /* Urgency: the risks on the left, the letter on the right (stacked on a phone,
    the action above the facts, as in the program sections). */
 .mp-cost__urgent-grid {
+  margin-block-start: clamp(2rem, 4vw, 3rem);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: clamp(2rem, 5vw, 4rem);
@@ -6201,80 +6202,45 @@ a.mp-menu__mail {
   line-height: 1.5;
   color: var(--mp-ink-3);
 }
-.mp-cost__letterlabel,
-.mp-cost__redacted {
-  margin: 0 0 var(--mp-3);
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-ink-3);
+.mp-cost__resolve-title {
+  margin: 0 0 var(--mp-4);
+  font-size: var(--mp-t-h3);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--mp-ink);
 }
-.mp-cost__redacted {
-  margin: var(--mp-3) 0 0;
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: var(--mp-t-small);
-}
-/* The letter: always a light sheet with dark ink, whatever surface it is on. */
-.mp-letter {
-  background: #fbfaf6;
-  color: #1a1b1c;
-  padding: clamp(1.25rem, 3vw, 2rem);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 18px 40px rgba(0, 0, 0, 0.35);
-  font-size: 0.9rem;
-  line-height: 1.55;
-  border-block-start: 3px solid var(--mp-gold);
-}
-.mp-letter p {
-  margin: 0 0 0.75rem;
-}
-.mp-letter__head {
-  display: grid;
-  gap: 0.15rem;
-  padding-block-end: 0.75rem;
-  margin-block-end: 1rem;
-  border-block-end: 1px solid rgba(0, 0, 0, 0.14);
-  font-size: 0.78rem;
-  color: #4a4c4a;
-}
-.mp-letter__head strong {
-  font-size: 0.85rem;
-  color: #1a1b1c;
-}
-.mp-letter__title {
-  margin: 0.25rem 0 0.4rem;
-  font-size: 1.15rem;
-  line-height: 1.2;
-  letter-spacing: -0.015em;
-  color: #1a1b1c;
-}
-.mp-letter ul {
-  margin: 0 0 0.75rem;
-  padding-inline-start: 1.1rem;
-  list-style: disc;
-}
-.mp-letter li {
-  margin-block-end: 0.35rem;
-}
-.mp-letter__close {
-  font-weight: 700;
+.mp-cost__steps {
+  list-style: none;
   margin: 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
 }
-.mp-letter__to,
-.mp-letter__case {
+.mp-cost__steps li {
   display: grid;
-  gap: 0.35rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0.25rem var(--mp-3);
+  padding-block: 1rem;
+  border-block-end: 1px solid var(--mp-line);
 }
-.mp-letter__bar {
-  display: block;
-  height: 0.7rem;
-  background: #1a1b1c;
-  border-radius: 1px;
+.mp-cost__steps .mp-secnum {
+  grid-row: 1 / span 2;
 }
-.mp-letter__bar--w40 { width: 40%; }
-.mp-letter__bar--w50 { width: 50%; }
-.mp-letter__bar--w60 { width: 60%; }
-.mp-letter__bar--w70 { width: 70%; }
+.mp-cost__steps strong {
+  font-size: var(--mp-t-h4);
+  letter-spacing: -0.01em;
+  color: var(--mp-ink);
+}
+.mp-cost__steps li > span:last-child {
+  font-size: var(--mp-t-body);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+.mp-cost__closing {
+  margin: var(--mp-6) 0 0;
+  font-size: var(--mp-t-lead);
+  line-height: 1.5;
+  color: var(--mp-ink);
+}
 
 /* Jurisdictions: a grid of marks, each with its name beneath. */
 .mp-cost__jtitle {
@@ -6286,12 +6252,24 @@ a.mp-menu__mail {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--mp-6) var(--mp-4);
+  gap: var(--mp-4) var(--mp-4);
+}
+.mp-cost__county {
+  margin-block-start: clamp(1.5rem, 3vw, 2.25rem);
+}
+.mp-cost__rest {
+  margin: var(--mp-4) 0 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.8;
+  color: var(--mp-ink-3);
+}
+.mp-cost__rest strong {
+  color: var(--mp-ink-2);
 }
 .mp-cost__seals li {
   display: grid;
-  grid-template-rows: 5rem auto;
-  gap: 0.5rem;
+  grid-template-rows: 4.5rem auto;
+  gap: 0.4rem;
   text-align: center;
 }
 /* No plate: the marks sit straight on the section. The two that the
@@ -6301,6 +6279,7 @@ a.mp-menu__mail {
   filter: brightness(0);
 }
 .mp-cost__seals img {
+  mix-blend-mode: multiply;
   grid-row: 1;
   grid-column: 1;
   place-self: center;
@@ -6318,12 +6297,14 @@ a.mp-menu__mail {
   color: var(--mp-ink-2);
 }
 .mp-cost__more {
-  margin: var(--mp-8) 0 0;
-  font-size: var(--mp-t-body);
+  margin: var(--mp-10, 3rem) 0 var(--mp-4);
+  font-size: var(--mp-t-h4);
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--mp-ink);
 }
 .mp-cost__disclaimer {
-  margin: var(--mp-3) 0 0;
+  margin: clamp(2rem, 4vw, 3rem) 0 0;
   max-width: 70ch;
   font-size: var(--mp-t-small);
   line-height: 1.6;
@@ -6336,14 +6317,6 @@ a.mp-menu__mail {
   .mp-cost__cards,
   .mp-cost__scope { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mp-cost__urgent-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
-  .mp-cost__letterwrap { position: sticky; top: 6rem; }
-  .mp-cost__seals { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-}
-@media print {
-  .mp-letter { box-shadow: none; border: 1px solid #000; }
-  .mp-letter__bar { background: #000 !important; }
+  .mp-cost__seals { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 
-.mp-cost__urgent-main .mp-prog__lede {
-  margin-block-end: var(--mp-8);
-}
