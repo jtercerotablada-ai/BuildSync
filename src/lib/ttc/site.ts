@@ -3278,6 +3278,119 @@ export const partner = {
   },
 };
 
+/* ── Fixed-fee ranges, the cost of waiting, and the offices we file with ──
+   One home section on the public home page (CostSection). The ranges are
+   fixed-fee ranges by building size; they are NOT regulatory facts and carry
+   no date. No age or day count belongs here (those live in the timing rows).
+   The penalty line quotes the firm's own owner letter. `items` of
+   `jurisdictions` are the current official marks of each office, shown only
+   to identify it; the files are in public/ttc/img/jurisdictions/. */
+const pricing = {
+  eyebrow: 'Fixed-fee pricing',
+  titleLines: ['Know the cost', 'before you commit.'],
+  accentWord: 'before you commit.',
+  lede: 'Every recertification and BSIP report is quoted as a fixed fee before any work starts. These are the ranges by building size; your proposal states the exact figure.',
+  programs: [
+    {
+      id: 'price-miami-dade',
+      slug: 'building-recertification',
+      name: 'Miami-Dade recertification',
+      tiers: [
+        { size: 'Small commercial or multifamily building', price: 'From $2,500' },
+        { size: '3–10 units, or a comparable commercial building', price: '$3,500 – $5,500' },
+        { size: '11–40 units, or a property with several buildings', price: '$5,500 – $9,500' },
+        { size: 'Large or complex property', price: 'Custom proposal' },
+      ],
+    },
+    {
+      id: 'price-broward',
+      slug: 'broward-bsip',
+      name: 'Broward BSIP',
+      tiers: [
+        { size: 'Small commercial or multifamily building', price: 'From $2,000' },
+        { size: '3–10 units, or a comparable commercial building', price: '$3,000 – $5,000' },
+        { size: '11–40 units, or a property with several buildings', price: '$5,000 – $9,000' },
+        { size: 'Large or complex property', price: 'Custom proposal' },
+      ],
+    },
+  ],
+  includesTitle: 'In the fixed fee',
+  includes: [
+    'Structural and electrical inspection of the building.',
+    'The structural report, signed and sealed, and the electrical report, signed by a professional qualified in electrical design.',
+    'Filing with the county and our answers to the review comments on that inspection.',
+  ],
+  excludesTitle: 'Quoted separately',
+  excludes: [
+    'Repairs, and the documents and permits they need, once the findings are known.',
+    'County, city and permit fees.',
+  ],
+  note: 'The price depends on the size of the building, the number of structures, the electrical service, the documents available and what the jurisdiction asks for. Several buildings: one proposal, a price for each.',
+  cta: 'Get a fixed-fee proposal',
+  urgency: {
+    eyebrow: 'What waiting can cost',
+    titleLines: ['A late report gets', 'more expensive every month.'],
+    accentWord: 'more expensive every month.',
+    lede: 'Counties enforce these programs. The same notice that is a few days of work today can become a penalty, a lien or an order to vacate.',
+    miamiDade: 'In Miami-Dade',
+    broward: 'In Broward',
+    items: [
+      {
+        k: 'Penalties that accumulate',
+        v: 'After a citation, failing to correct the violation and pay the initial penalty on time can lead to accumulated penalties of up to $10,000 per violation.',
+      },
+      {
+        k: 'Liens on the property',
+        v: 'Outstanding County fees can become a lien against the property.',
+      },
+      {
+        k: 'Orders to vacate',
+        v: 'Unsafe-structures proceedings can end in an order to vacate and, where ordered through that process, demolition.',
+      },
+    ],
+    browardLine: 'A report that is not filed on time goes to an enforcement hearing, and a building that stays unrepaired can be declared unsafe.',
+    footnote: 'Miami-Dade County references: recertification penalties · enforcement process · unsafe structures (Section 8-5).',
+    cta: 'Send us your notice',
+    letter: {
+      label: 'The letter we send owners with an open case',
+      redacted: 'Owner, address and case number removed',
+      lh1: 'Tercero Tablada Civil and Structural Engineering Inc.',
+      lh2: 'Precision Source Inc. · General and Electrical Contractor',
+      title: 'Building Recertification and Case Resolution',
+      salutation: 'Dear Property Owner,',
+      paras: [
+        'The County’s notice states that your recertification case was referred to the Consumer and Neighborhood Protection Division for failure to submit the initial report and/or required payment. If this matter remains unresolved, now is the time to act.',
+        'Delaying compliance can become expensive. After a citation is issued, failing to correct the violation and pay the initial penalty on time may lead to accumulated penalties of up to $10,000 per violation and liens for outstanding County fees.',
+      ],
+      bullets: [
+        'One coordinated process: inspections and the structural and electrical reports, signed and sealed by the appropriate professionals.',
+        'Less time dealing with County offices: submissions, comments and follow-up on your behalf.',
+        'Support through completion: findings explained, your contractor coordinated, reinspections and revised reports handled.',
+      ],
+      close: 'Take the next step today. Call or email us for a no-obligation proposal.',
+    },
+  },
+  jurisdictions: {
+    eyebrow: 'Jurisdictions',
+    title: 'The offices we file with.',
+    lede: 'Your notice comes from one of these offices, or from a neighbour of theirs. The steps and the forms are theirs; the process is ours.',
+    more: 'And every other city in Miami-Dade and Broward.',
+    disclaimer: 'Seals and logos belong to their governments and are shown only to identify the office. Tercero Tablada is an independent firm: not affiliated with, endorsed by or acting for any of them.',
+    creditLabel: 'Image credits',
+    items: [
+      { name: 'Miami-Dade County', file: 'miami-dade', tone: 'light' },
+      { name: 'City of Miami', file: 'miami', tone: 'dark' },
+      { name: 'City of Hialeah', file: 'hialeah', tone: 'light' },
+      { name: 'Broward County', file: 'broward', tone: 'light' },
+      { name: 'City of Coral Gables', file: 'coral-gables', tone: 'dark' },
+      { name: 'City of Doral', file: 'doral', tone: 'light' },
+      { name: 'City of Fort Lauderdale', file: 'fort-lauderdale', tone: 'light' },
+      { name: 'City of Hollywood', file: 'hollywood', tone: 'light' },
+      { name: 'City of Pembroke Pines', file: 'pembroke-pines', tone: 'light' },
+    ],
+  },
+};
+
 export const en = {
   company,
   contact,
@@ -3307,6 +3420,7 @@ export const en = {
   contactPage,
   serviceArea,
   closingCta,
+  pricing,
   legal,
 };
 

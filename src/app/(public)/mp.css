@@ -6058,3 +6058,292 @@ a.mp-menu__mail {
     min-height: clamp(640px, 92svh, 1320px);
   }
 }
+
+/* ── 20. Cost, urgency and jurisdictions (home) ─────────────────────────────
+   CostSection.tsx. Tokens only: every colour comes from the surface it sits
+   on, so the same rules read right on paper, concrete and graphite. */
+.mp-cost__cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-6);
+  margin-block-start: clamp(2rem, 4vw, 3rem);
+}
+.mp-cost__card {
+  background: var(--mp-card);
+  border: 1px solid var(--mp-line);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-4);
+  color: var(--mp-ink);
+}
+.mp-cost__name {
+  margin: 0;
+  font-size: var(--mp-t-h3);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.mp-cost__tiers {
+  margin: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-cost__tiers > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.25rem var(--mp-4);
+  padding-block: 0.85rem;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-cost__tiers dt {
+  flex: 1 1 14rem;
+  font-size: var(--mp-t-body);
+  line-height: 1.45;
+  color: var(--mp-ink-2);
+}
+.mp-cost__tiers dd {
+  margin: 0;
+  font-size: var(--mp-t-h4);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--mp-ink);
+  white-space: nowrap;
+}
+.mp-cost__scope {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-6);
+  margin-block-start: clamp(2rem, 4vw, 3rem);
+}
+.mp-cost__h {
+  margin: 0 0 var(--mp-3);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+  font-weight: 600;
+}
+.mp-cost__h--gap {
+  margin-block-start: var(--mp-8);
+}
+.mp-cost__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mp-3);
+}
+.mp-cost__list li {
+  position: relative;
+  padding-inline-start: 1.4rem;
+  font-size: var(--mp-t-body);
+  line-height: 1.55;
+  color: var(--mp-ink);
+}
+.mp-cost__list li::before {
+  content: "–";
+  position: absolute;
+  inset-inline-start: 0;
+  color: var(--mp-ink-3);
+}
+.mp-cost__list--yes li::before {
+  content: "✓";
+  color: var(--mp-gold-ink);
+  font-weight: 700;
+}
+.mp-cost__note {
+  margin: var(--mp-6) 0 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-3);
+  max-width: 60ch;
+}
+
+/* Urgency: the risks on the left, the letter on the right (stacked on a phone,
+   the action above the facts, as in the program sections). */
+.mp-cost__urgent-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
+}
+.mp-cost__risks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-cost__risks li {
+  display: grid;
+  gap: 0.3rem;
+  padding-block: 1rem;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-cost__risks strong {
+  font-size: var(--mp-t-h4);
+  letter-spacing: -0.01em;
+  color: var(--mp-gold-ink);
+}
+.mp-cost__risks span,
+.mp-cost__broward {
+  font-size: var(--mp-t-body);
+  line-height: 1.6;
+  color: var(--mp-ink);
+}
+.mp-cost__broward {
+  margin: 0;
+}
+.mp-cost__foot {
+  margin: var(--mp-3) 0 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.5;
+  color: var(--mp-ink-3);
+}
+.mp-cost__letterlabel,
+.mp-cost__redacted {
+  margin: 0 0 var(--mp-3);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-cost__redacted {
+  margin: var(--mp-3) 0 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--mp-t-small);
+}
+/* The letter: always a light sheet with dark ink, whatever surface it is on. */
+.mp-letter {
+  background: #fbfaf6;
+  color: #1a1b1c;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 18px 40px rgba(0, 0, 0, 0.35);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  border-block-start: 3px solid var(--mp-gold);
+}
+.mp-letter p {
+  margin: 0 0 0.75rem;
+}
+.mp-letter__head {
+  display: grid;
+  gap: 0.15rem;
+  padding-block-end: 0.75rem;
+  margin-block-end: 1rem;
+  border-block-end: 1px solid rgba(0, 0, 0, 0.14);
+  font-size: 0.78rem;
+  color: #4a4c4a;
+}
+.mp-letter__head strong {
+  font-size: 0.85rem;
+  color: #1a1b1c;
+}
+.mp-letter__title {
+  margin: 0.25rem 0 0.4rem;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: #1a1b1c;
+}
+.mp-letter ul {
+  margin: 0 0 0.75rem;
+  padding-inline-start: 1.1rem;
+  list-style: disc;
+}
+.mp-letter li {
+  margin-block-end: 0.35rem;
+}
+.mp-letter__close {
+  font-weight: 700;
+  margin: 0;
+}
+.mp-letter__to,
+.mp-letter__case {
+  display: grid;
+  gap: 0.35rem;
+}
+.mp-letter__bar {
+  display: block;
+  height: 0.7rem;
+  background: #1a1b1c;
+  border-radius: 1px;
+}
+.mp-letter__bar--w40 { width: 40%; }
+.mp-letter__bar--w50 { width: 50%; }
+.mp-letter__bar--w60 { width: 60%; }
+.mp-letter__bar--w70 { width: 70%; }
+
+/* Jurisdictions: a grid of marks, each with its name beneath. */
+.mp-cost__jtitle {
+  margin: 0 0 var(--mp-3);
+}
+.mp-cost__seals {
+  list-style: none;
+  margin: clamp(1.75rem, 4vw, 2.75rem) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mp-6) var(--mp-4);
+}
+.mp-cost__seals li {
+  display: grid;
+  grid-template-rows: 5rem auto;
+  gap: 0.5rem;
+  text-align: center;
+}
+/* No plate: the marks sit straight on the section. The two that the
+   governments publish only in white (Miami, Coral Gables) are drawn in dark
+   ink so they read on this surface; the rest keep their own colours. */
+.mp-cost__seals li[data-tone="dark"] img {
+  filter: brightness(0);
+}
+.mp-cost__seals img {
+  grid-row: 1;
+  grid-column: 1;
+  place-self: center;
+  width: auto;
+  height: auto;
+  max-width: 88%;
+  max-height: 3.75rem;
+  object-fit: contain;
+}
+.mp-cost__seals span {
+  grid-row: 2;
+  grid-column: 1;
+  font-size: var(--mp-t-small);
+  line-height: 1.35;
+  color: var(--mp-ink-2);
+}
+.mp-cost__more {
+  margin: var(--mp-8) 0 0;
+  font-size: var(--mp-t-body);
+  color: var(--mp-ink);
+}
+.mp-cost__disclaimer {
+  margin: var(--mp-3) 0 0;
+  max-width: 70ch;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-3);
+}
+@media (min-width: 640px) {
+  .mp-cost__seals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 901px) {
+  .mp-cost__cards,
+  .mp-cost__scope { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mp-cost__urgent-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
+  .mp-cost__letterwrap { position: sticky; top: 6rem; }
+  .mp-cost__seals { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media print {
+  .mp-letter { box-shadow: none; border: 1px solid #000; }
+  .mp-letter__bar { background: #000 !important; }
+}
+
+.mp-cost__urgent-main .mp-prog__lede {
+  margin-block-end: var(--mp-8);
+}

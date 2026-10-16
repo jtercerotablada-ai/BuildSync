@@ -1959,6 +1959,111 @@ export const es: SiteContent = {
     secondary: { href: '/about#engineer', label: 'Conozca al ingeniero' },
   },
 
+  pricing: {
+    eyebrow: 'Precio fijo',
+    titleLines: ['Conozca el costo', 'antes de comprometerse.'],
+    accentWord: 'antes de comprometerse.',
+    lede: 'Cada reporte de recertificación y de BSIP se cotiza a precio fijo antes de empezar. Estos son los rangos según el tamaño del edificio; su propuesta indica la cifra exacta.',
+    programs: [
+      {
+        id: 'price-miami-dade',
+        slug: 'building-recertification',
+        name: 'Recertificación de Miami-Dade',
+        tiers: [
+          { size: 'Edificio comercial o multifamiliar pequeño', price: 'Desde $2,500' },
+          { size: '3–10 unidades, o un edificio comercial comparable', price: '$3,500 – $5,500' },
+          { size: '11–40 unidades, o una propiedad con varios edificios', price: '$5,500 – $9,500' },
+          { size: 'Propiedad grande o compleja', price: 'Propuesta a medida' },
+        ],
+      },
+      {
+        id: 'price-broward',
+        slug: 'broward-bsip',
+        name: 'BSIP de Broward',
+        tiers: [
+          { size: 'Edificio comercial o multifamiliar pequeño', price: 'Desde $2,000' },
+          { size: '3–10 unidades, o un edificio comercial comparable', price: '$3,000 – $5,000' },
+          { size: '11–40 unidades, o una propiedad con varios edificios', price: '$5,000 – $9,000' },
+          { size: 'Propiedad grande o compleja', price: 'Propuesta a medida' },
+        ],
+      },
+    ],
+    includesTitle: 'Dentro del precio fijo',
+    includes: [
+      'Inspección estructural y eléctrica del edificio.',
+      'El reporte estructural, firmado y sellado, y el reporte eléctrico, firmado por un profesional calificado en diseño eléctrico.',
+      'La presentación ante el condado y nuestras respuestas a los comentarios de revisión de esa inspección.',
+    ],
+    excludesTitle: 'Se cotiza aparte',
+    excludes: [
+      'Las reparaciones, y los documentos y permisos que requieran, cuando ya se conozcan los hallazgos.',
+      'Las tasas del condado, de la ciudad y de los permisos.',
+    ],
+    note: 'El precio depende del tamaño del edificio, del número de estructuras, del servicio eléctrico, de los documentos disponibles y de lo que pida la jurisdicción. Varios edificios: una sola propuesta, con un precio para cada uno.',
+    cta: 'Solicitar propuesta a precio fijo',
+    urgency: {
+      eyebrow: 'Lo que puede costar esperar',
+      titleLines: ['Un reporte atrasado sale', 'más caro cada mes.'],
+      accentWord: 'más caro cada mes.',
+      lede: 'Los condados hacen cumplir estos programas. La misma notificación que hoy son unos días de trabajo puede convertirse en una multa, un gravamen o una orden de desalojo.',
+      miamiDade: 'En Miami-Dade',
+      broward: 'En Broward',
+      items: [
+        {
+          k: 'Multas que se acumulan',
+          v: 'Tras una citación, no corregir la violación ni pagar a tiempo la multa inicial puede llevar a multas acumuladas de hasta $10,000 por violación.',
+        },
+        {
+          k: 'Gravámenes sobre la propiedad',
+          v: 'Las tasas pendientes con el condado pueden convertirse en un gravamen sobre la propiedad.',
+        },
+        {
+          k: 'Órdenes de desalojo',
+          v: 'Los procesos de estructuras inseguras pueden terminar en una orden de desalojo y, cuando se ordene por esa vía, en la demolición.',
+        },
+      ],
+      browardLine: 'Un reporte que no se presenta a tiempo pasa a una audiencia de cumplimiento, y un edificio sin reparar puede declararse inseguro.',
+      footnote: 'Referencias del condado de Miami-Dade: multas de recertificación · proceso de cumplimiento · estructuras inseguras (Sección 8-5).',
+      cta: 'Envíenos su notificación',
+      letter: {
+        label: 'La carta que enviamos a los dueños con un caso abierto',
+        redacted: 'Dueño, dirección y número de caso omitidos',
+        lh1: 'Tercero Tablada Civil and Structural Engineering Inc.',
+        lh2: 'Precision Source Inc. · Contratista general y eléctrico',
+        title: 'Recertificación del edificio y resolución del caso',
+        salutation: 'Estimado propietario:',
+        paras: [
+          'La notificación del condado indica que su caso de recertificación fue remitido a la División de Protección al Consumidor y al Vecindario por no presentar el reporte inicial o el pago requerido. Si el asunto sigue sin resolverse, este es el momento de actuar.',
+          'Demorar el cumplimiento puede salir caro. Tras una citación, no corregir la violación ni pagar a tiempo la multa inicial puede llevar a multas acumuladas de hasta $10,000 por violación y a gravámenes por tasas pendientes con el condado.',
+        ],
+        bullets: [
+          'Un proceso coordinado: las inspecciones y los reportes estructural y eléctrico, firmados y sellados por los profesionales correspondientes.',
+          'Menos tiempo en las oficinas del condado: presentaciones, comentarios y seguimiento en su nombre.',
+          'Acompañamiento hasta el cierre: le explicamos los hallazgos, coordinamos a su contratista y nos encargamos de las reinspecciones y los reportes revisados.',
+        ],
+        close: 'Dé el siguiente paso hoy. Llámenos o escríbanos para una propuesta sin compromiso.',
+      },
+    },
+    jurisdictions: {
+      eyebrow: 'Jurisdicciones',
+      title: 'Las oficinas ante las que presentamos.',
+      lede: 'Su notificación viene de una de estas oficinas, o de una vecina. Los pasos y los formularios son de ellas; el proceso es nuestro.',
+      more: 'Y todas las demás ciudades de Miami-Dade y Broward.',
+      disclaimer: 'Los sellos y logotipos pertenecen a sus gobiernos y se muestran solo para identificar la oficina. Tercero Tablada es una firma independiente: no está afiliada a ninguna de ellas, ni cuenta con su aval, ni actúa en su nombre.',
+      creditLabel: 'Créditos de imágenes',
+      items: [
+        { name: 'Miami-Dade County', file: 'miami-dade', tone: 'light' },
+        { name: 'City of Miami', file: 'miami', tone: 'dark' },
+        { name: 'City of Hialeah', file: 'hialeah', tone: 'light' },
+        { name: 'Broward County', file: 'broward', tone: 'light' },
+        { name: 'City of Coral Gables', file: 'coral-gables', tone: 'dark' },
+        { name: 'City of Doral', file: 'doral', tone: 'light' },
+        { name: 'City of Fort Lauderdale', file: 'fort-lauderdale', tone: 'light' },
+        { name: 'City of Hollywood', file: 'hollywood', tone: 'light' },
+        { name: 'City of Pembroke Pines', file: 'pembroke-pines', tone: 'light' },
+      ],
+    },
+  },
   legal: {
     notice:
       'La información de este sitio es general y no constituye una opinión de ingeniería, un encargo profesional ni una declaración sobre un edificio específico. Los requisitos varían según la jurisdicción y el alcance.',

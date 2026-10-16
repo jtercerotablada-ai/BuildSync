@@ -2,6 +2,7 @@ import React from 'react';
 import type { Lang } from '@/lib/ttc/i18n';
 import { Hero } from '@/components/ttc/mp/Hero';
 import { ProgramSection } from '@/components/ttc/mp/ProgramSection';
+import { PricingSection, UrgencySection, JurisdictionsSection } from '@/components/ttc/mp/CostSection';
 import { NewBuildings } from '@/components/ttc/mp/NewBuildings';
 import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
@@ -47,11 +48,14 @@ export function HomeView({ lang }: { lang: Lang }) {
       <Hero />
       <ProgramSection slug="building-recertification" n="01" surface="paper" />
       <ProgramSection slug="broward-bsip" n="02" surface="concrete" mirrored />
-      <NewBuildings n="03" />
-      <EngineerSection n="04" variant="teaser" />
-      <PartnerSection n="05" lang={lang} />
-      <SouthFloridaMap n="06" />
-      <ContactCTA n="07" />
+      <PricingSection n="03" />
+      <UrgencySection n="04" />
+      <JurisdictionsSection n="05" />
+      <NewBuildings n="06" />
+      <EngineerSection n="07" variant="teaser" />
+      <PartnerSection n="08" lang={lang} />
+      <SouthFloridaMap n="09" />
+      <ContactCTA n="10" />
     </>
   );
 }

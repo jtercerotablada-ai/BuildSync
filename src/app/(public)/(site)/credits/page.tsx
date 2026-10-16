@@ -1,10 +1,25 @@
 import type { Metadata } from 'next';
-import { company, ui } from '@/lib/ttc/site';
+import { company, contact, ui } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { SectionHeading } from '@/components/ttc/mp/primitives';
 import { OG_IMAGE } from '@/components/ttc/views/meta';
 
 const TITLE = ui.footer.imageCredits;
+
+/* Where each mark was taken from: the government's own website, fetched
+   2026-10-16. Add a row here when a mark is added to the home page's
+   "Jurisdictions" strip (pricing.jurisdictions.items in site.ts). */
+const JURISDICTION_CREDITS = [
+  { name: 'Miami-Dade County', host: 'miamidade.gov', page: 'https://www.miamidade.gov/' },
+  { name: 'City of Miami', host: 'miami.gov', page: 'https://www.miami.gov/' },
+  { name: 'City of Hialeah', host: 'hialeahfl.gov', page: 'https://www.hialeahfl.gov/' },
+  { name: 'Broward County', host: 'broward.org', page: 'https://www.broward.org/' },
+  { name: 'City of Coral Gables', host: 'coralgables.com', page: 'https://www.coralgables.com/' },
+  { name: 'City of Doral', host: 'cityofdoral.com', page: 'https://www.cityofdoral.com/' },
+  { name: 'City of Fort Lauderdale', host: 'fortlauderdale.gov', page: 'https://www.fortlauderdale.gov/' },
+  { name: 'City of Hollywood', host: 'hollywoodfl.org', page: 'https://www.hollywoodfl.org/' },
+  { name: 'City of Pembroke Pines', host: 'ppines.com', page: 'https://www.ppines.com/' },
+];
 const DESCRIPTION = 'How the photography and video on this site are licensed.';
 
 export const metadata: Metadata = {
@@ -64,6 +79,32 @@ export default function CreditsPage() {
             <p>
               The photographs and video on this site are licensed from Pexels
               and Artgrid; neither license requires attribution.
+            </p>
+
+            <h2>Jurisdiction seals and logos</h2>
+            <p>
+              The marks shown on the home page under “Jurisdictions” belong to
+              the governments they identify. Each was taken from that
+              government’s own website, unaltered apart from cropping and
+              format conversion, and is shown only to say which office a
+              notice comes from. Tercero Tablada is an independent firm and is
+              not affiliated with, endorsed by or acting for any of them.
+            </p>
+            <ul>
+              {JURISDICTION_CREDITS.map((j) => (
+                <li key={j.name}>
+                  {j.name}: from{' '}
+                  <a href={j.page} rel="noopener noreferrer">
+                    {j.host}
+                  </a>
+                  .
+                </li>
+              ))}
+            </ul>
+            <p>
+              Each government may update its mark at any time. To have one
+              removed or replaced, write to {contact.email} and it
+              will be changed.
             </p>
 
             <h2>Software marks</h2>
