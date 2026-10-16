@@ -801,7 +801,7 @@ describe('the order of the member table', () => {
 });
 
 describe('the address, at component level', () => {
-  const source = readFileSync(join(SRC, 'components/ttc/calc/truss/TrussCalculator.tsx'), 'utf8');
+  const source = readFileSync(join(SRC, 'components/ttc/calc/truss/TrussCalculator.tsx'), 'utf8').replace(/\r\n/g, '\n');
 
   it('is written for this calculator’s key, read from the page’s address, and the example leaves it bare', () => {
     expect(source).toMatch(/useAddress<TrussForm>\(\{\s*key: TRUSS_KEY,\s*example: EXAMPLE,/);
@@ -860,9 +860,9 @@ describe('the address, at component level', () => {
 });
 
 describe('the rules of the tool, as they stand in its source', () => {
-  const source = readFileSync(join(SRC, 'components/ttc/calc/truss/TrussCalculator.tsx'), 'utf8');
-  const schematic = readFileSync(join(SRC, 'components/ttc/calc/truss/TrussSchematic.tsx'), 'utf8');
-  const css = readFileSync(join(SRC, 'components/ttc/calc/truss/truss.css'), 'utf8');
+  const source = readFileSync(join(SRC, 'components/ttc/calc/truss/TrussCalculator.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  const schematic = readFileSync(join(SRC, 'components/ttc/calc/truss/TrussSchematic.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  const css = readFileSync(join(SRC, 'components/ttc/calc/truss/truss.css'), 'utf8').replace(/\r\n/g, '\n');
 
   it('carries neither language: its words are props, and the strings are imported as types only', () => {
     for (const file of [source, schematic]) {
