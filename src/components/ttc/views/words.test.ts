@@ -116,7 +116,9 @@ describe('legal pages: each its own text, and only what the code does', () => {
       it(`${lang} /${kind}: the headings stay reasonable`, () => {
         const heads = html[kind].match(/<h[1-6]\b/g) ?? [];
         expect(heads.length).toBe(doc.sections.length + 2);
-        expect(heads.length).toBeLessThanOrEqual(14);
+        // The terms grew to fifteen sections on October 16, 2026 (the owner asked
+        // for them to cover the firm); the privacy policy stays under fourteen.
+        expect(heads.length).toBeLessThanOrEqual(kind === 'terms' ? 20 : 14);
       });
 
       it(`${lang} /${kind}: closes with its own line and the firm's address`, () => {
@@ -128,15 +130,24 @@ describe('legal pages: each its own text, and only what the code does', () => {
         expect(html[kind]).toContain(`href="mailto:${c.contact.email}"`);
       });
 
-      /* Positions only the owner can take. None of them is on these pages
-         today; a sentence that adds one has to come from him, not from a
-         template. Day counts included: a retention period or a deadline to
-         answer is a promise. */
+      /* Positions only the owner can take. The owner asked on October 16,
+         2026 for the terms to cover the firm, so the TERMS now carry a
+         governing law (Florida) and a limitation of liability — and still
+         no arbitration, no venue narrower than "the courts of Florida", no
+         indemnity, no dollar cap, no compliance claim, no day counts, no
+         statement of which language prevails. The PRIVACY policy still takes
+         none of these positions: it states what the code does. */
       it(`${lang} /${kind}: takes no legal position the owner has not taken`, () => {
         const all = [doc.h1, doc.sub, doc.contact, ...doc.sections.flatMap((s) => [s.h, ...paragraphsOf(s.p)])].join(' ');
         expect(all).not.toMatch(/GDPR|RGPD|CCPA|HIPAA|COPPA/);
-        expect(all).not.toMatch(/arbitra|governing law|venue|jurisdicción competente|ley aplicable|tribunal/i);
-        expect(all).not.toMatch(/liability|responsabilidad máxima|indemn/i);
+        expect(all).not.toMatch(/arbitra|indemn|\$\s?\d|USD|d[oó]lares/i);
+        if (kind === 'privacy') {
+          expect(all).not.toMatch(/governing law|venue|jurisdicción competente|ley aplicable|tribunal/i);
+          expect(all).not.toMatch(/liability|responsabilidad/i);
+        } else {
+          expect(all).toMatch(lang === 'es' ? /Ley aplicable/ : /Governing law/);
+          expect(all).toMatch(lang === 'es' ? /Limitación de responsabilidad/ : /Limitation of liability/);
+        }
         expect(all).not.toMatch(/\d+\s*(?:business |working )?(?:days?|hours?|months?|years?|d[ií]as?|horas?|meses|años?)/i);
         expect(all).not.toMatch(/prevails|prevalece/i);
       });

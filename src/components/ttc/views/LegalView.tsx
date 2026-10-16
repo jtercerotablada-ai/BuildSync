@@ -2,7 +2,7 @@ import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
-import { SectionHeading } from '@/components/ttc/mp/primitives';
+import { LegalDoc } from '@/components/ttc/mp/LegalDoc';
 
 /**
  * The privacy policy and the terms of use.
@@ -17,6 +17,11 @@ import { SectionHeading } from '@/components/ttc/mp/primitives';
  * list). The page closes with its OWN line under "Contact" (`doc.contact`):
  * the two documents used to end in the same block — the firm, its counties,
  * the address — and the on-page check counted it as text shared by two pages.
+ *
+ * The layout is LegalDoc's, shared with the image credits: contents on the
+ * left from 901px, numbered sections of justified text on the right. The
+ * contact block is the LAST section, so it stays the last block of the page,
+ * which the tests check.
  */
 export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms' }) {
   const c = getContent(lang);
@@ -29,29 +34,26 @@ export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms
         titleLines={[doc.h1]}
         sub={doc.sub}
       />
-      {/* Standard shell, so the body starts on the same left edge as the
-          hero title and breadcrumb; the measure is limited on the prose, not
-          by narrowing (and re-centering) the whole column. */}
-      <section className="mp-section mp-surface--paper">
-        <div className="mp-shell">
-          <SectionHeading n="01" label={doc.title} />
-          <div className="mp-prose mp-measure">
-            {doc.sections.map((s) => (
-              <React.Fragment key={s.h}>
-                <h2>{s.h}</h2>
-                {(typeof s.p === 'string' ? [s.p] : s.p).map((par) => (
-                  <p key={par}>{par}</p>
-                ))}
-              </React.Fragment>
-            ))}
-            <h2>{c.legal.contactHeading}</h2>
-            <p>
-              {doc.contact} <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>.{' '}
-              {c.company.legalName} — {c.contact.serviceAreaLabel}.
-            </p>
-          </div>
-        </div>
-      </section>
+      <LegalDoc
+        label={doc.title}
+        tocLabel={c.legal.toc}
+        updated={c.legal.updated}
+        sections={[
+          ...doc.sections.map((s) => ({
+            h: s.h,
+            body: (typeof s.p === 'string' ? [s.p] : s.p).map((par) => <p key={par}>{par}</p>),
+          })),
+          {
+            h: c.legal.contactHeading,
+            body: (
+              <p>
+                {doc.contact} <a href={`mailto:${c.contact.email}`}>{c.contact.email}</a>.{' '}
+                {c.company.legalName} — {c.contact.serviceAreaLabel}.
+              </p>
+            ),
+          },
+        ]}
+      />
     </>
   );
 }

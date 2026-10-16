@@ -3086,10 +3086,18 @@ export const legal = {
      scripts or advertising, and the Privacy text names Google's pages
      without linking them.
 
-     What is NOT here, because only the owner can decide it: a governing law
-     or venue, arbitration, a retention period in days, a deadline to answer
-     or delete, a named privacy officer, a claim of compliance with any
-     statute, a cap on liability, and which language version prevails. */
+     What is NOT here, because only the owner can decide it: arbitration,
+     a retention period in days, a deadline to answer or delete, a named
+     privacy officer, a claim of compliance with any statute, a cap on
+     liability in figures, an indemnity, and which language version prevails.
+
+     ADDED ON OCTOBER 16, 2026, AT THE OWNER'S REQUEST ("que me cubran y me
+     cuiden"): in the TERMS ONLY, a governing law (the State of Florida, its
+     courts), a limitation of liability with no figure, pricing ranges that are
+     not an offer, the government-marks clause, acceptable use, changes and
+     severability; in the PRIVACY policy only a "Children" section. The words
+     are the assistant's, not counsel's: a Florida attorney should read them.
+     The tests (words.test.ts) keep the privacy policy free of those positions.*/
   privacy: {
     title: 'Privacy Policy',
     h1: 'Privacy Policy for This Website',
@@ -3134,6 +3142,7 @@ export const legal = {
          frame, and sends and keeps nothing. */
       { h: 'Calculators', p: 'The calculators under Resources do their work in your browser. The values you enter are not sent to us and are not stored by us. A calculator keeps them in the address of the page, after the # sign, which is the part of an address a browser does not send: that is how a reload, or a link you copy, opens the same case. Whoever you give that link to sees the values in it.' },
       { h: 'Your choices', p: 'You can ask us what we hold about you, ask for it to be corrected, or ask for it to be deleted. Write to the address below and we will respond. Tell us the email address you used on the form and, if you kept it, the reference from the confirmation: that is how we find your request.' },
+      { h: 'Children', p: 'This website is not directed to children under the age of thirteen, and we do not knowingly collect information from them. If you believe a child has sent us a request, write to the address below and we will delete it.' },
       { h: 'Changes', p: 'If this policy changes we will update it on this page.' },
     ],
     contact: 'Questions about this policy, or a request about your own information, go to',
@@ -3168,10 +3177,21 @@ export const legal = {
       { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means: a decision rests on that check, not on the calculator. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project. They are offered as they are, with no warranty, and the firm accepts no responsibility for the results obtained with them or for how those results are used.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
       { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
+      { h: 'Pricing ranges', p: 'The fee ranges published on this website are indicative and are given by building size so that you can plan. They are not an offer. A fixed fee binds only when it is stated in a written proposal that you have accepted, for the scope that proposal describes. A building can fall outside a range because of its size, the number of structures, its electrical service or the documents available. Repairs, the permits they need and the fees charged by a county or a city are not part of a range unless the proposal says so.' },
+      { h: 'Government names and marks', p: 'The names, seals and logos of counties, cities and other government offices shown on this website belong to those governments. They appear only to identify the office that sends a notice, and each is credited on the Image Credits page. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm. It is not affiliated with, endorsed by or acting for any government office, and nothing on this website is an official publication of one. If a government asks for its mark to be changed or removed, we will do it.' },
+      { h: 'Limitation of liability', p: 'To the fullest extent the law allows, Tercero Tablada Civil and Structural Engineering Inc. and the people who work for it are not liable for any loss or damage, direct or indirect, that arises from the use of this website, from the information, calculators and links on it, or from not being able to use it. Nothing here limits a liability that the law does not allow to be limited, and nothing here changes what a written engagement agreement signed with you provides for that engagement.' },
+      { h: 'Governing law', p: 'These terms, and any dispute about this website, are governed by the laws of the State of Florida, and the courts of Florida have jurisdiction over them.' },
+      { h: 'General provisions', p: [
+        'Use this website lawfully. Do not try to disrupt it, to reach parts of it that are not public or to copy it in bulk by automated means, and do not send through the form anything that is unlawful, misleading or harmful. The form is for real requests about real buildings.',
+        'We may update these terms. The date at the top of the page shows the latest version, and using the website after a change means you accept the version then in force.',
+        'If a court finds part of these terms unenforceable, the rest stays in force.',
+      ] },
     ],
     contact: 'Questions about these terms go to',
   },
   contactHeading: 'Contact',
+  updated: 'Last updated: October 16, 2026',
+  toc: 'On this page',
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════

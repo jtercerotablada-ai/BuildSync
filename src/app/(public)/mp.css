@@ -6320,3 +6320,155 @@ a.mp-menu__mail {
   .mp-cost__seals { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 
+
+/* ── 21. Legal documents (LegalDoc.tsx) ─────────────────────────────────────
+   Privacy, terms and image credits. Two columns from 901px: contents that
+   stay in view, then numbered sections of justified text. Numbers come from
+   a counter so a heading's text is only the heading. */
+.mp-legal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-8);
+  margin-block-start: clamp(1.5rem, 3vw, 2.5rem);
+}
+.mp-legal__toc {
+  display: grid;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-legal__toc a {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: var(--mp-2, 0.5rem);
+  align-items: baseline;
+  padding-block: 0.6rem;
+  border-block-end: 1px solid var(--mp-line);
+  font-size: var(--mp-t-small);
+  line-height: 1.4;
+  color: var(--mp-ink-2);
+  text-decoration: none;
+}
+.mp-legal__toc a span {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  color: var(--mp-gold-ink);
+}
+.mp-legal__toc a:hover,
+.mp-legal__toc a:focus-visible {
+  color: var(--mp-ink);
+}
+.mp-legal__updated {
+  margin: var(--mp-4) 0 0;
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-faint);
+}
+.mp-legal__body {
+  counter-reset: mp-legal;
+  min-width: 0;
+}
+.mp-legal__sec {
+  counter-increment: mp-legal;
+  padding-block: clamp(1.5rem, 3vw, 2.25rem);
+  border-block-start: 1px solid var(--mp-line);
+  scroll-margin-top: 6.5rem;
+}
+.mp-legal__sec:first-child {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+.mp-legal__sec h2 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mp-4);
+  margin: 0 0 var(--mp-4);
+  font-size: var(--mp-t-h3);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.mp-legal__sec h2::before {
+  content: counter(mp-legal, decimal-leading-zero);
+  flex: none;
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  color: var(--mp-gold-ink);
+}
+.mp-legal__body p,
+.mp-legal__body li {
+  max-width: 74ch;
+  color: var(--mp-ink-2);
+  line-height: 1.75;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  overflow-wrap: break-word;
+}
+.mp-legal__body p + p {
+  margin-block-start: var(--mp-4);
+}
+.mp-legal__body ul {
+  margin: var(--mp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-legal__body li {
+  position: relative;
+  padding-inline-start: 1.4rem;
+  padding-block: 0.3rem;
+}
+.mp-legal__body li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.05em;
+  width: 6px;
+  height: 1px;
+  background: var(--mp-gold);
+}
+.mp-legal__body a {
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--mp-gold);
+}
+@media (min-width: 640px) {
+  .mp-legal__body p,
+  .mp-legal__body li {
+    text-align: justify;
+    text-justify: inter-word;
+  }
+}
+@media (min-width: 901px) {
+  .mp-legal {
+    grid-template-columns: 17rem minmax(0, 1fr);
+    gap: clamp(3rem, 6vw, 6rem);
+  }
+  .mp-legal__side {
+    position: sticky;
+    top: 6.5rem;
+    align-self: start;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+  }
+}
+@media print {
+  .mp-legal { display: block; }
+  .mp-legal__side { display: none; }
+  .mp-legal__sec { break-inside: avoid-page; }
+}
+
+/* Image credits: the long list of government websites in two columns. */
+.mp-legal__cols {
+  columns: 1;
+  column-gap: var(--mp-8);
+}
+.mp-legal__cols li {
+  break-inside: avoid;
+  text-align: left;
+}
+@media (min-width: 640px) {
+  .mp-legal__cols { columns: 2; }
+}
+.mp-legal__cols + p {
+  margin-block-start: var(--mp-6);
+}
