@@ -5,6 +5,7 @@ import { hasTranslation, langFromPathname, localePath } from "@/lib/ttc/i18n";
 import { legal, primaryNav, services } from "@/lib/ttc/site";
 import { citySlugs } from "@/lib/ttc/city-slugs";
 import { COST_PATH } from "@/lib/ttc/cost-path";
+import { GUIDES_PATH, guidePath, guideSlugs } from "@/lib/ttc/guides";
 import { openCalculatorPaths } from "@/lib/ttc/calculator-paths";
 import { isNonContributorRole } from "@/lib/workspace-roles";
 
@@ -32,6 +33,9 @@ const publicPrefixes = [
   // one public from the day it is built rather than behind the login wall.
   "/resources",
   "/api/load-gen",
+  // The owners' guides: /guides and /guides/<slug> (guides.ts). Safe as a
+  // prefix — the authenticated app has no /guides route.
+  GUIDES_PATH,
   // Marketing: /services and every /services/<slug> detail page.
   // Safe as a prefix — the authenticated app has no /services route.
   "/services",
@@ -302,6 +306,9 @@ export const EN_PUBLIC_PAGES: readonly string[] = [
   // The recertification cost page (cost-page.ts): a static page beside the
   // service pages, so it is not in `services`.
   COST_PATH,
+  // The guides (guides.ts): the slugs only, their text stays out of the
+  // proxy's bundle. The index, /guides, is in the nav.
+  ...guideSlugs.map(guidePath),
 ];
 
 /** The Spanish mirror: every English page that has a Spanish twin (all but
@@ -314,7 +321,7 @@ const knownPublicPages = new Set<string>([...EN_PUBLIC_PAGES, ...ES_PUBLIC_PAGES
 
 /** Prefixes whose every path is a marketing PAGE (unlike /api/contact). The
  *  app has no route under any of them. */
-const marketingPagePrefixes = ["/services", "/es", "/resources"];
+const marketingPagePrefixes = ["/services", "/es", "/resources", GUIDES_PATH];
 
 /**
  * Where an unknown public path is rewritten to, or null to carry on. A pure
@@ -433,7 +440,7 @@ const PUBLIC_HOST = (process.env.PUBLIC_HOST ?? "").trim().toLowerCase();
  *  host; the marketing surface is small, known, and already enumerated above.
  *  Note `publicExactRoutes` is exact-match, which is what keeps the marketing
  *  `/projects` index separate from the app's `/projects/all`. */
-const marketingPrefixes = ["/services", "/es", "/resources", "/api/contact", "/api/load-gen"];
+const marketingPrefixes = ["/services", "/es", "/resources", GUIDES_PATH, "/api/contact", "/api/load-gen"];
 
 /** Exported for tests — pure string matching. */
 export function isMarketingRoute(pathname: string): boolean {

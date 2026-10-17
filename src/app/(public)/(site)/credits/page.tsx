@@ -91,8 +91,8 @@ export default function CreditsPage() {
                   they identify. Each was taken from that government’s own website and is shown
                   only to say which office a notice comes from. They are unaltered apart from
                   cropping, format conversion and, for the marks their governments publish only in
-                  white, drawing them in dark ink so that they can be read. Tercero Tablada is an
-                  independent firm: it is not affiliated with, endorsed by or acting for any of
+                  white, drawing them in dark ink so that they can be read. Tercero Tablada Civil and
+                  Structural Engineering Inc. is an independent firm: it is not affiliated with, endorsed by or acting for any of
                   them, and nothing on this site is an official publication of any of them.
                 </p>
                 <ul className="mp-legal__cols">

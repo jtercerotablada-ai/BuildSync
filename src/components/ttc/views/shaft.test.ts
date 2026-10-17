@@ -1496,11 +1496,12 @@ describe('shaft on bearings: what a search result shows', () => {
     const title = (meta.title as { absolute: string }).absolute;
     const others = [beamStrings[lang].page, spanPage[lang], continuousPage[lang]];
 
-    it(`${lang}: the title fits a search result (${titlePx(title)} px of ${TITLE_BUDGET_PX}), and repeats no word`, () => {
+    it(`${lang}: the title fits a search result (${titlePx(s.title)} px of ${TITLE_BUDGET_PX}), and repeats no word`, () => {
       expect(unmeasured(title)).toEqual([]);
-      expect(titlePx(title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
-      expect(repeatedWords(title)).toEqual([]);
-      // What the page is called comes first and whole: the brand follows only where it fits.
+      // The page's own words fit by themselves; the firm's full name follows
+      // on every title (the owner's choice, October 17, 2026; meta.tsx).
+      expect(titlePx(s.title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
+      expect(repeatedWords(s.title)).toEqual([]);
       expect(title.startsWith(s.title)).toBe(true);
     });
 

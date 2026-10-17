@@ -358,8 +358,9 @@ describe('calculators: the page', () => {
       const meta = pageMeta(lang, '/resources', { title: t.title, description: t.description });
       const title = (meta.title as { absolute: string }).absolute;
       expect(unmeasured(title)).toEqual([]);
-      expect(titlePx(title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
-      expect(repeatedWords(title)).toEqual([]);
+      // The page's own words fit; the firm's full name follows (meta.tsx).
+      expect(titlePx(t.title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
+      expect(repeatedWords(t.title)).toEqual([]);
       expect(unmeasured(t.description)).toEqual([]);
       expect(descriptionPx(t.description)).toBeLessThanOrEqual(DESCRIPTION_LIMIT_PX);
     });

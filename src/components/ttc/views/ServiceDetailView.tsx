@@ -7,6 +7,8 @@ import { cityPagesOf } from '@/lib/ttc/city-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { serviceLd, webPageLd } from '@/lib/ttc/structured-data';
 import { COST_PATH } from '@/lib/ttc/cost-path';
+import { guidePath } from '@/lib/ttc/guides';
+import { getGuides, guideLabels } from '@/lib/ttc/guide-content';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
@@ -391,6 +393,22 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               <p className="mp-costp__late">
                 <TextLink href={localePath(COST_PATH, lang)}>{c.pricing.pageLink.replace('{name}', c.pricing.programs.find((p) => p.slug === service.slug)?.name ?? service.title)}</TextLink>
               </p>
+            ) : null}
+            {/* The owners' guides that lead to this program (guides.ts): by
+                name, as navigation — no heading, the page is at its ceiling. */}
+            {program ? (
+              <nav className="mp-guide__more mp-guide__more--svc" aria-label={guideLabels(lang).forProgram}>
+                <p className="mp-city__k">{guideLabels(lang).forProgram}</p>
+                <ul>
+                  {getGuides(lang)
+                    .filter((g) => (g.programs as string[]).includes(service.slug))
+                    .map((g) => (
+                      <li key={g.slug}>
+                        <Link href={localePath(guidePath(g.slug), lang)}>{g.name}</Link>
+                      </li>
+                    ))}
+                </ul>
+              </nav>
             ) : null}
           </div>
         </section>

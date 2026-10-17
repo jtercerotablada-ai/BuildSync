@@ -40,6 +40,9 @@ import { FRAME_PATH, FrameView } from './FrameView';
 import { CalculatorsView } from './CalculatorsView';
 import { CostView } from './CostView';
 import { COST_PATH, costPage } from '@/lib/ttc/cost-page';
+import { GUIDES_PATH, guidePath } from '@/lib/ttc/guides';
+import { getGuides, guidesIndex } from '@/lib/ttc/guide-content';
+import { GuideView, GuidesView } from './GuideView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -114,6 +117,9 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     [FRAME_PATH, { title: framePage[lang].title, description: framePage[lang].description }] as const,
     // The recertification cost page (cost-page.ts).
     [COST_PATH, { title: costPage(lang).seo.title, description: costPage(lang).seo.description }] as const,
+    // The owners' guides and their index (guides.ts).
+    [GUIDES_PATH, guidesIndex(lang).seo] as const,
+    ...getGuides(lang).map((g) => [guidePath(g.slug), g.seo] as const),
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -160,9 +166,8 @@ describe('the ruler: Arial, as the check measures it', () => {
     expect(descriptionPx(milestone)).toBe(1012);
   });
 
-  it('knows what the firm costs a title: the full name, and the short one', () => {
+  it('knows what the firm costs a title: its full name', () => {
     expect(titlePx(company.name)).toBe(469);
-    expect(titlePx(brandedTitle(''))).toBe(165);
   });
 
   it('counts a word twice only when it is the same word', () => {
@@ -181,7 +186,7 @@ describe('titles and descriptions: every page in the sitemap', () => {
     expect(pages.map((p) => p.url).sort()).toEqual(sitemap().map((e) => e.url).sort());
     // Sixteen pages in each language, one more for every city page, and the
     // calculators: their catalogue and each one that is open.
-    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length + 1 + openCalculatorPaths.length + 1));
+    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length + 1 + openCalculatorPaths.length + 1 + 1 + getGuides('en').length));
   });
 
   for (const p of pages) {
@@ -190,25 +195,22 @@ describe('titles and descriptions: every page in the sitemap', () => {
         expect(unmeasured(p.title), 'add these to the ARIAL table in serp.ts').toEqual([]);
       });
 
-      it(`title fits a search result (${titlePx(p.title)} px): ${p.title}`, () => {
-        expect(titlePx(p.title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
+      // The owner chose the full name after every title (October 17, 2026),
+      // knowing a result may cut it: the page's own words must fit alone.
+      it(`title's own words fit a search result (${titlePx(p.written)} px): ${p.written}`, () => {
+        expect(titlePx(p.written)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
       });
 
-      it('title repeats no word', () => {
-        expect(repeatedWords(p.title)).toEqual([]);
+      it('the title’s own words repeat no word', () => {
+        expect(repeatedWords(p.written)).toEqual([]);
       });
 
       // The short name, and only through pageTitle: typed into a title, the
       // firm would be there twice wherever the brand also fits.
-      it('title is written without the firm', () => {
+      it('title is written without the firm, and ends in its full name', () => {
         expect(p.written).not.toContain(company.shortName);
-        expect(p.title).not.toContain(company.name);
-      });
-
-      it('title ends in the short name where it fits, and only there', () => {
-        const branded = brandedTitle(p.written);
-        const fits = titlePx(branded) <= TITLE_BUDGET_PX && repeatedWords(branded).length === 0;
-        expect(p.title).toBe(fits ? branded : p.written);
+        expect(p.title).toBe(brandedTitle(p.written));
+        expect(p.title.split(company.name)).toHaveLength(2);
       });
 
       // A share card is not cut at 580 px: it keeps the full name.
@@ -231,8 +233,8 @@ describe('titles and descriptions: every page in the sitemap', () => {
 
   it('the home page keeps the approved tagline, with the brand after it', () => {
     const titles = pages.map((p) => p.title);
-    expect(titles).toContain('Structural Engineering for South Florida · Tercero Tablada');
-    expect(titles).toContain('Ingeniería estructural para el Sur de Florida · Tercero Tablada');
+    expect(titles).toContain(`Structural Engineering for South Florida · ${company.name}`);
+    expect(titles).toContain(`Ingeniería estructural para el Sur de Florida · ${company.name}`);
   });
 
   // The name people still type, as a former name — never dropped to save room.
@@ -249,7 +251,7 @@ describe('titles and descriptions: every page in the sitemap', () => {
     for (const lang of LANGS) {
       const ui = getContent(lang).ui;
       for (const title of [ui.notFound.metaTitle, ui.footer.imageCredits]) {
-        expect(titlePx(brandedTitle(title))).toBeLessThanOrEqual(TITLE_BUDGET_PX);
+        expect(titlePx(title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
       }
     }
   });
@@ -405,6 +407,8 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [CABLE_SAG_PATH, h(CableSagView, { lang })],
     [FRAME_PATH, h(FrameView, { lang })],
     [COST_PATH, h(CostView, { lang })],
+    [GUIDES_PATH, h(GuidesView, { lang })],
+    ...getGuides(lang).map((g): [string, ReactElement] => [guidePath(g.slug), h(GuideView, { lang, slug: g.slug })]),
   ];
 }
 

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { absoluteUrl, company } from '@/lib/ttc/site';
 import { hreflangFor, localePath, ogLocale, type Lang } from '@/lib/ttc/i18n';
-import { TITLE_BUDGET_PX, repeatedWords, titlePx } from '@/lib/ttc/serp';
 
 /**
  * The share card, one per language (1200×630, public/ttc/og/). A static file
@@ -32,25 +31,20 @@ export const OG_IMAGE: Record<
 };
 
 /**
- * A title followed by the firm's SHORT name. Titles are the one place the
- * full name does not go (see `company` in site.ts): it measures 469 px of
- * the 580 a search result shows. The public shell's title template is
+ * A title followed by the firm's FULL name. The owner, October 17, 2026:
+ * the firm is "Tercero Tablada Civil and Structural Engineering Inc." and is
+ * never called "Tercero Tablada" alone — titles included. Asked whether a
+ * title should carry the full name although a search result then cuts its
+ * end ("…"), he chose the full name. So the page's own words come first and
+ * must fit a search result by themselves (seo.test.ts); the name follows on
+ * every page, and a result may cut it. The public shell's title template is
  * this same function, for the few routes that do not go through pageMeta.
  */
-export const brandedTitle = (title: string) => `${title} · ${company.shortName}`;
+export const brandedTitle = (title: string) => `${title} · ${company.name}`;
 
-/**
- * The <title> of a page. What the page is about and where come first and
- * are never cut to make room: the brand follows only when the whole line
- * still fits a search result and repeats no word — a title that names the
- * engineer already says "Tercero". Where it does not fit, the title goes
- * out alone, and the brand is still on the result as the site name.
- */
+/** The <title> of a page: its own words, then the firm's full name. */
 export function pageTitle(title: string): string {
-  const branded = brandedTitle(title);
-  return titlePx(branded) <= TITLE_BUDGET_PX && repeatedWords(branded).length === 0
-    ? branded
-    : title;
+  return brandedTitle(title);
 }
 
 /**
@@ -112,9 +106,8 @@ export function pageMeta(
   // The two home pages print their own address (HomeAddress, above).
   const isHome = canonicalPath === '/';
   return {
-    // Absolute: pageTitle has already added the brand, or left it out. Through
-    // the layout's template it would print twice, or come back where it does
-    // not fit.
+    // Absolute: pageTitle has already added the firm. Through the layout's
+    // template it would print twice.
     title: { absolute: pageTitle(m.title) },
     description: m.description,
     keywords: m.keywords,

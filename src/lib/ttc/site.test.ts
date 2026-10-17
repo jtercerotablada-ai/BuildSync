@@ -365,7 +365,7 @@ describe('navigation: what the header leaves out', () => {
   // ServiceDetailView and CityView, ExistingView, WorkView, CalculatorsView,
   // AboutView, ContactView — in the header's order: Contact last, beside the
   // button it shares an address with.
-  const ORDER = ['/services', '/existing-buildings', '/projects', '/resources', '/about', '/contact'];
+  const ORDER = ['/services', '/existing-buildings', '/projects', '/guides', '/resources', '/about', '/contact'];
 
   for (const [lang, c] of bundles) {
     it(`${lang} lists the pages the views look up, in the header's order`, () => {

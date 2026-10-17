@@ -281,6 +281,7 @@ export const primaryNav: NavItem[] = [
   { href: '/services', label: 'Services' },
   { href: '/existing-buildings', label: 'Existing Buildings' },
   { href: '/projects', label: 'Typical Engagements', inHeader: false },
+  { href: '/guides', label: 'Guides' },
   { href: '/resources', label: 'Resources' },
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
@@ -295,6 +296,7 @@ export const footerNav: { title: string; items: NavItem[] }[] = [
       { href: '/services', label: 'Services' },
       { href: '/existing-buildings', label: 'Existing Buildings' },
       { href: '/projects', label: 'Typical Engagements' },
+      { href: '/guides', label: 'Guides' },
       { href: '/resources', label: 'Resources' },
       { href: '/about', label: 'About' },
       { href: '/about#engineer', label: 'Meet the Engineer' },
@@ -2746,8 +2748,8 @@ export const aboutPage = {
      said the same three words as the home page's headline and named neither
      the firm nor the engineer this page is about. The line under it opens
      with what is particular to the practice instead of repeating the H1. */
-  titleLines: ['Tercero Tablada: a structural', 'engineering practice in South Florida.'],
-  accentWord: 'Tercero Tablada',
+  titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., in South Florida.'],
+  accentWord: 'South Florida.',
   sub: 'Built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
   facts: [
     { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
@@ -3431,7 +3433,7 @@ const pricing = {
       { title: 'Miami-Dade County', names: miamiDadeMunicipalities },
       { title: 'Broward County', names: browardMunicipalities },
     ],
-    disclaimer: 'Seals and logos belong to their governments and are shown only to identify the office. Tercero Tablada is an independent firm: not affiliated with, endorsed by or acting for any of them.',
+    disclaimer: 'Seals and logos belong to their governments and are shown only to identify the office. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm: not affiliated with, endorsed by or acting for any of them.',
     creditLabel: 'Image credits',
   },
 };

@@ -6528,3 +6528,140 @@ a.mp-menu__mail {
   font-weight: 600;
   color: var(--mp-ink);
 }
+
+/* ── 23. The owners' guides (GuideView.tsx) ─────────────────────────────────
+   One reading column (.mp-prose), the county facts as hairline rows with
+   their source, and the links up to the programs and across to the other
+   guides. */
+.mp-guide {
+  max-width: 72ch;
+  margin-block-start: var(--mp-6);
+}
+.mp-guide > h2:first-of-type {
+  margin-block-start: var(--mp-6);
+}
+.mp-guide__reviewed {
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-faint) !important;
+}
+.mp-guide__facts {
+  margin: var(--mp-6) 0 var(--mp-8);
+  max-width: var(--mp-w-text);
+}
+.mp-guide .mp-guide__rows {
+  margin: 0 0 var(--mp-3);
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-guide .mp-guide__rows li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-1);
+  padding: 0.8rem 0;
+  border-block-start: 1px solid var(--mp-line);
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+.mp-guide .mp-guide__rows li::before {
+  content: none;
+}
+.mp-guide .mp-guide__rows b {
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+.mp-guide .mp-timing__src {
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+}
+@media (min-width: 640px) {
+  .mp-guide .mp-guide__rows li {
+    grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+    gap: var(--mp-4);
+  }
+}
+.mp-guide__more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-8);
+  margin-block-start: var(--mp-6);
+}
+.mp-guide__more ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-guide__more li {
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-guide__more a {
+  display: block;
+  padding: 0.85rem 0;
+  min-height: 44px;
+  color: var(--mp-ink);
+  text-decoration: none;
+  line-height: 1.4;
+}
+.mp-guide__more a:hover,
+.mp-guide__more a:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--mp-gold);
+  text-underline-offset: 3px;
+}
+.mp-guide__up a {
+  font-weight: 600;
+}
+@media (min-width: 901px) {
+  .mp-guide__more { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* /guides: the list. */
+.mp-guides {
+  list-style: none;
+  margin: clamp(2rem, 4vw, 3rem) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-6);
+}
+.mp-guides li {
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-guides h3 {
+  margin: var(--mp-3) 0 var(--mp-2, 0.5rem);
+  font-size: var(--mp-t-h4);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.mp-guides h3 a {
+  color: var(--mp-ink);
+  text-decoration: none;
+}
+.mp-guides h3 a:hover,
+.mp-guides h3 a:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--mp-gold);
+  text-underline-offset: 3px;
+}
+.mp-guides p {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+@media (min-width: 640px) {
+  .mp-guides { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 901px) {
+  .mp-guides { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* On a county program's page, under the cost link: one column. */
+.mp-guide__more--svc {
+  display: block;
+  margin-block-start: var(--mp-10, 2.5rem);
+  max-width: 40rem;
+}
+.mp-guide__more--svc ul {
+  margin-block-start: var(--mp-3);
+}

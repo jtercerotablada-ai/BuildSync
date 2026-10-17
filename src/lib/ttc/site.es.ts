@@ -1311,6 +1311,7 @@ export const es: SiteContent = {
     { href: '/services', label: 'Servicios' },
     { href: '/existing-buildings', label: 'Edificios existentes' },
     { href: '/projects', label: 'Trabajos típicos', inHeader: false },
+    { href: '/guides', label: 'Guías' },
     { href: '/resources', label: 'Recursos' },
     { href: '/about', label: 'Nosotros' },
     { href: '/contact', label: 'Contacto' },
@@ -1325,6 +1326,7 @@ export const es: SiteContent = {
         { href: '/services', label: 'Servicios' },
         { href: '/existing-buildings', label: 'Edificios existentes' },
         { href: '/projects', label: 'Trabajos típicos' },
+        { href: '/guides', label: 'Guías' },
         { href: '/resources', label: 'Recursos' },
         { href: '/about', label: 'Nosotros' },
         { href: '/about#engineer', label: 'Conozca al ingeniero' },
@@ -1805,8 +1807,8 @@ export const es: SiteContent = {
      short phrase (it does not wrap), and is never the two counties. */
   aboutPage: {
     eyebrow: 'Sobre la firma',
-    titleLines: ['Tercero Tablada: una firma de', 'ingeniería estructural del Sur de Florida.'],
-    accentWord: 'Tercero Tablada',
+    titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
+    accentWord: 'Sur de Florida.',
     sub: 'Construida alrededor de un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
     facts: [
       { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
@@ -2081,7 +2083,7 @@ export const es: SiteContent = {
       { title: 'Condado de Miami-Dade', names: miamiDadeMunicipalities },
       { title: 'Condado de Broward', names: browardMunicipalities },
     ],
-      disclaimer: 'Los sellos y logotipos pertenecen a sus gobiernos y se muestran solo para identificar la oficina. Tercero Tablada es una firma independiente: no está afiliada a ninguna de ellas, ni cuenta con su aval, ni actúa en su nombre.',
+      disclaimer: 'Los sellos y logotipos pertenecen a sus gobiernos y se muestran solo para identificar la oficina. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente: no está afiliada a ninguna de ellas, ni cuenta con su aval, ni actúa en su nombre.',
       creditLabel: 'Créditos de imágenes',
     },
   },

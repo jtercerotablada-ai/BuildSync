@@ -325,10 +325,11 @@ describe('city pages: title and description, on the search result’s ruler', ()
 
   for (const m of metas) {
     const name = `${m.lang} ${key(m.p)}`;
-    it(`${name}: title fits (${titlePx(m.title)} px), repeats no word and names the city — ${m.title}`, () => {
+    it(`${name}: title fits (${titlePx(m.seo.title)} px), repeats no word and names the city — ${m.title}`, () => {
       expect(unmeasured(m.title)).toEqual([]);
-      expect(titlePx(m.title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
-      expect(repeatedWords(m.title)).toEqual([]);
+      // The page's own words fit; the firm's full name follows (meta.tsx).
+      expect(titlePx(m.seo.title)).toBeLessThanOrEqual(TITLE_BUDGET_PX);
+      expect(repeatedWords(m.seo.title)).toEqual([]);
       expect(m.seo.title).toContain(m.p.city);
       expect(m.seo.title).not.toContain(company.shortName);
     });

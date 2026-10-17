@@ -27,6 +27,7 @@ import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 import { services } from "@/lib/ttc/site";
 import { citySlugs } from "@/lib/ttc/city-slugs";
 import { COST_PATH } from "@/lib/ttc/cost-path";
+import { GUIDES_PATH, guidePath, guideSlugs } from "@/lib/ttc/guides";
 import { openCalculatorPaths } from "@/lib/ttc/calculator-paths";
 
 /**
@@ -867,6 +868,7 @@ describe("publicNotFoundTarget", () => {
         "/es/about",
         "/es/contact",
         "/es/existing-buildings",
+        `/es${GUIDES_PATH}`,
         "/es/privacy",
         "/es/projects",
         // The calculators catalogue (src/lib/ttc/calculators.ts), and the
@@ -880,6 +882,8 @@ describe("publicNotFoundTarget", () => {
         ...citySlugs.map((c) => `/es/services/${c.program}/${c.slug}`),
         // The recertification cost page (cost-path.ts).
         `/es${COST_PATH}`,
+        // The guides (guides.ts); the index is in the nav.
+        ...guideSlugs.map((s) => `/es${guidePath(s)}`),
       ].sort(),
     );
   });
@@ -1032,6 +1036,8 @@ describe("public 404 — drift against the marketing route groups", () => {
   const slugRoutes = ["/services/[slug]", "/es/services/[slug]"];
   // The city pages: one per entry of city-slugs.ts, under its own program.
   const cityRoutes = ["/services/[slug]/[city]", "/es/services/[slug]/[city]"];
+  // The guides: one per entry of guides.ts.
+  const guideRoutes = ["/guides/[slug]", "/es/guides/[slug]"];
   const pages = routes
     .filter((r) => !isCatchAll(r))
     .flatMap((r) =>
@@ -1039,7 +1045,9 @@ describe("public 404 — drift against the marketing route groups", () => {
         ? services.map((s) => r.replace("[slug]", s.slug))
         : cityRoutes.includes(r)
           ? citySlugs.map((c) => r.replace("[slug]", c.program).replace("[city]", c.slug))
-          : [r],
+          : guideRoutes.includes(r)
+            ? guideSlugs.map((g) => r.replace("[slug]", g))
+            : [r],
     )
     .filter((r) => r !== PUBLIC_NOT_FOUND && r !== PUBLIC_NOT_FOUND_ES);
   const isEs = (r: string) => r === "/es" || r.startsWith("/es/");
@@ -1071,7 +1079,7 @@ describe("public 404 — drift against the marketing route groups", () => {
     // any other dynamic segment needs its own entry in the proxy before it
     // can be served.
     const dynamic = routes.filter((r) => r.includes("[") && !isCatchAll(r));
-    expect(dynamic.sort()).toEqual([...slugRoutes, ...cityRoutes].sort());
+    expect(dynamic.sort()).toEqual([...slugRoutes, ...cityRoutes, ...guideRoutes].sort());
   });
 
   it("keeps every catch-all a fallback the proxy answers first", () => {

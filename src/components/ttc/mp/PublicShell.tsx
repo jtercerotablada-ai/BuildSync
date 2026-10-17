@@ -63,11 +63,10 @@ const mpSerif = Instrument_Serif({
 
 export const publicMetadata: Metadata = {
   metadataBase: new URL(company.url),
-  /* The template appends the SHORT name: the full one is 469 px of the 580 a
-     search result shows, so it pushed every page's own words out of sight.
-     It serves only the routes that do not go through pageMeta (/credits, the
+  /* The template appends the firm's full name (brandedTitle, meta.tsx). It
+     serves only the routes that do not go through pageMeta (/credits, the
      404s) — pageMeta sets its titles whole. `default` is a page with no
-     title at all, and is the one title that is the full name. */
+     title at all: the name alone. */
   title: {
     default: company.name,
     template: brandedTitle('%s'),
