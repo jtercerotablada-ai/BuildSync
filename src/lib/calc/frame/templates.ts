@@ -274,3 +274,28 @@ export function buildTemplate(id: TemplateId, input: Partial<TemplateParams>, un
   }
   return out;
 }
+
+/** Which parameters each template asks for, and whether its feet can be chosen. */
+export const TEMPLATE_FIELDS: Record<TemplateId, { fields: (keyof TemplateParams)[]; base: 'choice' | 'fixed' | 'pinned'; hinge?: boolean }> = {
+  portal: { fields: ['bays', 'storeys', 'width', 'height', 'gravity', 'lateral'], base: 'choice' },
+  gable: { fields: ['width', 'height', 'rise', 'gravity', 'lateral'], base: 'choice', hinge: true },
+  'l-frame': { fields: ['width', 'height', 'gravity', 'lateral'], base: 'choice' },
+  'cantilever-column': { fields: ['height', 'lateral', 'axial'], base: 'fixed' },
+  'beam-on-columns': { fields: ['width', 'height', 'gravity', 'lateral'], base: 'fixed' },
+  'two-hinged': { fields: ['width', 'height', 'gravity', 'lateral'], base: 'pinned' },
+};
+
+/**
+ * What the template group holds when another shape is chosen: that shape's own starting numbers, except that a number the visitor TYPED for the
+ * shape before (one that is not that shape's starting number) is kept wherever the new shape has the same parameter - a width typed for a portal is
+ * the width of the gable, and is not lost in the change of shape. The counts of a portal's bays and storeys belong to it alone.
+ */
+export function carryParams(prev: { template: TemplateId; params: TemplateParams }, template: TemplateId, units: Units): { template: TemplateId; params: TemplateParams } {
+  const next = { template, params: { ...TEMPLATE_DEFAULTS[units][template] } };
+  const was = TEMPLATE_DEFAULTS[units][prev.template];
+  for (const key of TEMPLATE_FIELDS[template].fields) {
+    if (key === 'bays' || key === 'storeys' || !TEMPLATE_FIELDS[prev.template].fields.includes(key) || prev.params[key] === was[key]) continue;
+    (next.params as unknown as Record<string, number | boolean | string>)[key] = prev.params[key];
+  }
+  return next;
+}

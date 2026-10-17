@@ -159,6 +159,9 @@
   font-weight: 500;
   letter-spacing: -0.01em;
 }
+.mp-frame .mp-frame__warnings[data-empty] {
+  display: none;
+}
 .mp-frame .mp-frame__warnings {
   padding: var(--mp-4);
   border: 1px solid var(--mp-gold-ink);
@@ -638,7 +641,7 @@
 }
 .mp-frame-fig__hit {
   stroke: transparent;
-  stroke-width: 16;
+  stroke-width: 28;
   stroke-linecap: round;
   pointer-events: stroke;
   cursor: pointer;
@@ -808,5 +811,61 @@
   }
   .mp-frame-fig__note {
     font-size: 6.5pt;
+  }
+}
+
+/* Announced, not seen: the status region of a number field (FNum.tsx). */
+.mp-frame .mp-frame__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── the place being read, and the figure's own readout ───────────────── */
+
+.mp-frame .mp-frame-fig {
+  position: relative;
+}
+.mp-frame .mp-frame-fig__readout {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--mp-ink);
+  background: color-mix(in srgb, var(--mp-bg, #fff) 92%, transparent);
+  border: 1px solid var(--mp-line, #c9c4b8);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.mp-frame .mp-frame-fig__station circle:not(.mp-frame-fig__station-dot) {
+  fill: none;
+  stroke: var(--mp-ink, #1b1b1b);
+  stroke-width: 2;
+  paint-order: stroke;
+}
+.mp-frame .mp-frame-fig__station-dot {
+  fill: var(--mp-ink, #1b1b1b);
+}
+.mp-frame .mp-frame-fig__word--settle {
+  fill: var(--mp-ink, #1b1b1b);
+}
+@media print {
+  .mp-frame .mp-frame-fig__readout,
+  .mp-frame .mp-frame-fig__station {
+    display: none;
+  }
+  .mp-frame h3 {
+    break-after: avoid;
   }
 }

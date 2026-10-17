@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compare } from './compare.testlib';
 import { solveFrame } from './engine';
-import { randomFrame, stableFrame, staticsOf, toModel, type OSpec } from './oracle.testlib';
+import { randomFrame, stableFrame, staticsOf, stubFrame, toModel, type OSpec } from './oracle.testlib';
 
 // Heavy by design (exact arithmetic on a thousand generated frames): a loaded machine runs past the 5 s default.
 vi.setConfig({ testTimeout: 120_000 });
@@ -94,5 +94,57 @@ describe('a short member among long ones', () => {
     };
     expect(refused(2 ** -10)).toBe('ill-conditioned');
     expect(refused(2 ** -11)).toBe('short-member');
+  });
+});
+
+describe('a very short bar in a long frame (hinged at both ends it has no transverse stiffness at all)', () => {
+  it('stubs from 0.125 ft down to 0.0011 ft, hinged at both ends, at one end or at none, in frames 64 to 130 ft across: the oracle answer (to 1e-8 of the size when the bar is hinged at both ends, to 1e-5 when it is stiff), or a refusal that is never of a bar hinged at both ends', async () => {
+    let solved = 0;
+    let refused = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      if (seed % 50 === 0) await yieldNow();
+      const spec = stubFrame(seed);
+      const out = solveFrame(toModel(spec));
+      if (!out.ok) {
+        // A stub with a hinge at one end or none really is stiff (up to 12EI/L³ at a tenth of an inch) and may be refused; a stub hinged at both ends has no transverse stiffness and never is.
+        expect(spec.members[2].rs && spec.members[2].re, `#${seed} ${JSON.stringify(out.issues)}`).toBe(false);
+        refused++;
+        continue;
+      }
+      expect(compare(spec, `stub #${seed}`, spec.members[2].rs && spec.members[2].re ? 1e-8 : 1e-5), `#${seed}`).toBe('solved');
+      solved++;
+    }
+    expect(solved).toBeGreaterThan(150);
+    expect(refused).toBeLessThan(150);
+  });
+  it('a member 10^8 times stiffer than the rest, hinged stubs included: the oracle answer to ten millionths, or a refusal', async () => {
+    let solved = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      if (seed % 50 === 0) await yieldNow();
+      const spec = stubFrame(seed + 5000, { stiff: 8 });
+      const out = solveFrame(toModel(spec));
+      if (!out.ok) continue;
+      expect(compare(spec, `stiff #${seed}`, 1e-5), `#${seed}`).toBe('solved');
+      solved++;
+    }
+    expect(solved).toBeGreaterThan(100);
+  });
+  it('the reviewed case: a cantilever of 50 ft, a bar of 0.0011 ft hinged at both ends to a pin: tip 2.49441 ft down, base moment 250, no shear in the bar', () => {
+    const E = 4.176e6;
+    const out = solveFrame({
+      nodes: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50.0011, y: 0 }],
+      members: [{ i: 0, j: 1 }, { i: 1, j: 2, releases: { start: true, end: true } }],
+      supports: [{ node: 0, kind: 'fixed' }, { node: 2, kind: 'pin' }],
+      loads: [{ node: 1, fx: 0, fy: -5, m: 0 }],
+      memberLoads: [],
+      E,
+      A: 0.1,
+      I: 0.02,
+    });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.displacements![1].uy).toBeCloseTo(-(5 * 50 ** 3) / (3 * E * 0.02), 9);
+    expect(out.reactions[0].rm).toBeCloseTo(250, 9);
+    expect(out.members[1].forces[1]).toBe(0);
   });
 });

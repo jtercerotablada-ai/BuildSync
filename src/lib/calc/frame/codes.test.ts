@@ -84,7 +84,7 @@ describe('every code can be produced', () => {
     expect(g.issues.map((i) => i.code)).toContain('scale');
     expect(ISSUE_CODES).toHaveLength(ENGINE_ISSUE_CODES.length + 2);
   });
-  it('the warnings: no-load, no-stiffness, bar, free-rotation', () => {
+  it('the warnings: no-load, no-stiffness, bar, free-rotation, no-expansion', () => {
     const seen = new Set<string>();
     const note = (m: FrameModel) => {
       const out = solveFrame(m);
@@ -96,6 +96,11 @@ describe('every code can be produced', () => {
     note({ ...arch({ loads: [{ node: 1, fx: 0, fy: -10, m: 0 }] }), E: undefined });
     const bar = note(portal({ members: [{ i: 0, j: 2 }, { i: 1, j: 3 }, { i: 2, j: 3, releases: { start: true } }, { i: 0, j: 3, releases: { start: true, end: true } }] }));
     expect(bar.ok && bar.warnings.find((w) => w.code === 'bar')).toEqual({ code: 'bar', members: [3] });
+    // A temperature change with α = 0 does nothing, and says so (a member load drawn is not a load that acts).
+    const cold = note(portal({ memberLoads: [{ kind: 'temperature', member: 2, dT: 50, dTg: 0, alpha: 0 }, { kind: 'udl', member: 2, dir: 'global-y', w: -1 }] }));
+    expect(cold.ok && cold.warnings.find((w) => w.code === 'no-expansion')).toEqual({ code: 'no-expansion', members: [2] });
+    const warm = solveFrame(portal({ memberLoads: [{ kind: 'temperature', member: 2, dT: 50, dTg: 0, alpha: 6.5e-6 }] }));
+    expect(warm.ok && warm.warnings.some((w) => w.code === 'no-expansion')).toBe(false);
     expect([...seen].sort()).toEqual([...WARNING_CODES].sort());
   });
   it('the notices and the clamps are the lists the page holds', () => {

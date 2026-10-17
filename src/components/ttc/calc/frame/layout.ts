@@ -1,5 +1,5 @@
 import { formatNumber } from '@/lib/calc/format';
-import type { Diagram, DiagramMember, DiagramPoint, DrawingMemberLoad, FrameDrawing, Pt } from '@/lib/calc/frame/analysis';
+import type { Diagram, DiagramMember, DiagramPoint, DrawingMember, DrawingMemberLoad, FrameDrawing, Pt } from '@/lib/calc/frame/analysis';
 import type { FrameSupportKind } from '@/lib/calc/frame/types';
 import { signed } from './text';
 
@@ -70,6 +70,8 @@ export interface Looks {
   flagged?: readonly number[];
   /** The node displacements, in the units shown, for the totals written beside the deformed shape. */
   displacements?: readonly { node: number; magnitude: number }[] | null;
+  /** The words written before a value that is the largest or the smallest inside its member ("max", "min"); without them the value is written alone. */
+  extremes?: { max: string; min: string };
 }
 
 export interface LayoutOptions extends Looks {
@@ -202,6 +204,9 @@ export type LegendKey =
   | 'positive'
   | 'direction'
   | 'deformed'
+  | 'ghost'
+  | 'displacement'
+  | 'station'
   | 'flagged';
 
 export interface Layout {
@@ -217,7 +222,8 @@ export interface Layout {
   nodes: NodeShape[];
   hinges: HingeShape[];
   supports: SupportShape[];
-  loads: { label: number; arrow: ArrowShape | null; arc: ArcShape | null }[];
+  /** A load at a node is drawn as its components, as a reaction is: one arrow for Fx and one for Fy, each with its own size. */
+  loads: { label: number; arrows: ArrowShape[]; arc: ArcShape | null }[];
   memberLoads: MemberLoadShape[];
   reactions: { label: number; arrows: ArrowShape[]; arc: ArcShape | null }[];
   diagram: DiagramShape | null;
@@ -226,11 +232,15 @@ export interface Layout {
   empty: boolean;
   /** The value of one length unit of the diagram's height at the scale drawn (clean number over amp); null without a diagram. */
   scaleValue: number | null;
+  /** How many times taller than the standard scale the diagram is drawn: the size asked for, held to what the frame's bays allow. */
+  ampUsed: number;
   /** The exaggeration of the deformed shape; null when there is none. */
   factor: number | null;
   legend: LegendKey[];
   /** How many words that were asked for have no place on the drawing. */
   thinned: number;
+  /** The drawing could not be built for these numbers (a coordinate that is not a finite number, or a frame so large that its parts cannot be told apart): it is empty. */
+  broken: boolean;
   /** Every word placed, as the rectangles they take: for the checks of clearance. */
   placed: Rect[];
   /** Every line and box a word must stay clear of. */
@@ -340,6 +350,8 @@ const widthOf = (value: string, char = CHAR, pad = 4): number => value.length * 
 /* ── The obstacles, indexed ─────────────────────────────────────────────── */
 
 const CELL = 48;
+/** How far from the page's corner an obstacle is indexed: the widest drawing is 6,000 px (EVERY_MAX), and nothing is drawn outside it. */
+const REACH = 8000;
 const cellKey = (cx: number, cy: number) => cx * 4099 + cy;
 
 /** The lines and boxes a word must stay clear of, in a grid, so that a word is tested against what is near it and not against the whole drawing. */
@@ -358,7 +370,14 @@ class Obstacles {
   }
   /** Indexes everything added. Items are 0..segs.length-1 for lines, then boxes. */
   build() {
-    const put = (id: number, x0: number, y0: number, x1: number, y1: number) => {
+    // Whatever an item's coordinates, the cells it is put in are those of the page's reach: an item outside it is put at the edge, and a
+    // list can never be longer than the drawing is large (a coordinate of 10^17 once asked for 10^15 cells).
+    const reach = (v: number) => Math.max(-REACH, Math.min(REACH, Number.isFinite(v) ? v : 0));
+    const put = (id: number, ax0: number, ay0: number, ax1: number, ay1: number) => {
+      const x0 = reach(ax0);
+      const y0 = reach(ay0);
+      const x1 = reach(ax1);
+      const y1 = reach(ay1);
       for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
         for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
           const k = cellKey(cx, cy);
@@ -379,6 +398,8 @@ class Obstacles {
     this.round++;
     const margin = 4 + FROM_LINE;
     let hits = 0;
+    // A word outside the page's reach touches nothing here (and its cells are not counted: a loop over cells beyond 2^53 never ends).
+    if (!(Math.abs(rect.x0) <= REACH && Math.abs(rect.x1) <= REACH && Math.abs(rect.y0) <= REACH && Math.abs(rect.y1) <= REACH)) return ceiling;
     for (let cx = Math.floor((rect.x0 - margin) / CELL); cx <= Math.floor((rect.x1 + margin) / CELL); cx++) {
       for (let cy = Math.floor((rect.y0 - margin) / CELL); cy <= Math.floor((rect.y1 + margin) / CELL); cy++) {
         const list = this.cells.get(cellKey(cx, cy));
@@ -388,6 +409,40 @@ class Obstacles {
           this.stamp[id] = this.round;
           const near = id < this.segs.length ? segNear(this.segs[id], rect, FROM_LINE) : rectsNear(rect, this.boxes[id - this.segs.length], FROM_BOX);
           if (near && ++hits >= ceiling) return hits;
+        }
+      }
+    }
+    return hits;
+  }
+}
+
+/** The words already placed, in a grid: a new word is tested against those near it and not against all of them (a 49-node frame has hundreds). */
+class PlacedIndex {
+  private cells = new Map<number, { r: Rect; stamp: number }[]>();
+  private round = 0;
+  add(r: Rect) {
+    const entry = { r, stamp: 0 };
+    for (let cx = Math.floor(r.x0 / CELL); cx <= Math.floor(r.x1 / CELL); cx++) {
+      for (let cy = Math.floor(r.y0 / CELL); cy <= Math.floor(r.y1 / CELL); cy++) {
+        const k = cellKey(cx, cy);
+        const list = this.cells.get(k);
+        if (list) list.push(entry);
+        else this.cells.set(k, [entry]);
+      }
+    }
+  }
+  /** How many words are within `pad` of the rectangle, counting up to `ceiling`. */
+  near(rect: Rect, pad: number, ceiling: number): number {
+    this.round++;
+    let hits = 0;
+    for (let cx = Math.floor((rect.x0 - pad) / CELL); cx <= Math.floor((rect.x1 + pad) / CELL); cx++) {
+      for (let cy = Math.floor((rect.y0 - pad) / CELL); cy <= Math.floor((rect.y1 + pad) / CELL); cy++) {
+        const list = this.cells.get(cellKey(cx, cy));
+        if (!list) continue;
+        for (const e of list) {
+          if (e.stamp === this.round) continue;
+          e.stamp = this.round;
+          if (rectsNear(rect, e.r, pad) && ++hits >= ceiling) return hits;
         }
       }
     }
@@ -452,19 +507,139 @@ function extentOf(d: FrameDrawing, mode: DiagramMode, amp: number): Extent {
 /** Which directions the members leave a node in, on the page. */
 type Around = (node: number) => Point[];
 
+/** The least width of a bay on the page, px: narrower and the loads, labels and hatching of neighbouring bays run into each other. */
+const MIN_BAY_PX = 64;
+/** The least height of a storey on the page, px: a load's arrow and its number need this much between one floor and the next. */
+const MIN_STOREY_PX = 54;
+/** The widest a drawing is made for the sake of its bays; past it the bays are as they are. */
+const BAY_WIDTH_MAX = 1400;
+
+/** The gaps between the distinct x of the nodes, and between the distinct y, each as long as 2 % of the frame (a sliver is a node that is nearly on another). */
+function gapsOf(drawing: FrameDrawing): { x: number; y: number } {
+  const gap = (values: number[], side: number): number => {
+    const sorted = [...new Set(values.map((v) => Math.round(v / Math.max(side * 1e-6, 1e-300))))].sort((a, b) => a - b);
+    let least = Infinity;
+    for (let k = 1; k < sorted.length; k++) {
+      const g = (sorted[k] - sorted[k - 1]) * Math.max(side * 1e-6, 1e-300);
+      if (g >= 0.02 * side) least = Math.min(least, g);
+    }
+    return least;
+  };
+  const side = Math.max(drawing.side, 1e-300);
+  return { x: gap(drawing.nodes.map((n) => n.x), side), y: gap(drawing.nodes.map((n) => n.y), side) };
+}
+
+/**
+ * The width a drawing has to be for its bays to read: the narrowest bay (the least gap between the nodes' x) at 64 px, up to 1,400 px.
+ * A drawing that is wider than the column it sits in scrolls sideways, and says so; the smaller of the two is what a drawing in a narrow
+ * column is given. 0 when the drawing has no width to speak of.
+ */
+export function roomWanted(drawing: FrameDrawing, mode: DiagramMode, amp: number): number {
+  const e = extentOf(drawing, mode, amp > 0 ? amp : 1);
+  const ew = e.x1 - e.x0;
+  const eh = e.y1 - e.y0;
+  const { x, y } = gapsOf(drawing);
+  if (!(ew > 0) || !Number.isFinite(ew) || !Number.isFinite(eh)) return 0;
+  // Pixels per unit of length the bays and the storeys ask for; the drawing is as wide as that makes the frame, but never so wide that it
+  // would be taller than it is allowed to be (the height limit would scale it back down).
+  let need = Math.max(Number.isFinite(x) ? MIN_BAY_PX / x : 0, Number.isFinite(y) ? MIN_STOREY_PX / y : 0);
+  if (eh > 0) need = Math.min(need, (MAX_HEIGHT - 2 * 70) / eh);
+  return need > 0 ? Math.round(Math.min(BAY_WIDTH_MAX, need * ew + 2 * 70)) : 0;
+}
+
+/**
+ * How tall a diagram may be drawn before it runs over a neighbour: two members that run side by side (parallel, overlapping along their
+ * length) at a distance d have diagrams that must together stay within 0.9 d - so a frame of six bays does not draw each bay's moment over
+ * the next one's. The size the visitor asks for (`amp`) is held to this, never below a third of the standard. Infinity where no two
+ * members run side by side (a gable, an L, a single column: nothing to run over).
+ */
+export function ampLimit(drawing: FrameDrawing, mode: DiagramMode): number {
+  const diagram = diagramOf(drawing, mode);
+  if (!diagram || !diagram.scale) return Infinity;
+  // How far each member's diagram stands off its axis, in the length unit, at the standard scale.
+  const off = new Map<number, number>();
+  for (const m of diagram.members) {
+    const len = Math.hypot(m.x2 - m.x1, m.y2 - m.y1);
+    if (!(len > 0)) continue;
+    let far = 0;
+    for (const p of m.outline) {
+      const t = Math.min(len, Math.max(0, p.s));
+      far = Math.max(far, Math.hypot(p.x - (m.x1 + ((m.x2 - m.x1) / len) * t), p.y - (m.y1 + ((m.y2 - m.y1) / len) * t)));
+    }
+    off.set(m.member, far);
+  }
+  const ms = drawing.members.filter((m) => Math.hypot(m.x2 - m.x1, m.y2 - m.y1) > 0 && (off.get(m.label) ?? 0) > 0);
+  let cap = Infinity;
+  for (let a = 0; a < ms.length; a++) {
+    const p = ms[a];
+    const la = Math.hypot(p.x2 - p.x1, p.y2 - p.y1);
+    const ua = { x: (p.x2 - p.x1) / la, y: (p.y2 - p.y1) / la };
+    for (let b = a + 1; b < ms.length; b++) {
+      const q = ms[b];
+      const lb = Math.hypot(q.x2 - q.x1, q.y2 - q.y1);
+      const ub = { x: (q.x2 - q.x1) / lb, y: (q.y2 - q.y1) / lb };
+      if (Math.abs(ua.x * ub.y - ua.y * ub.x) > 0.05) continue;
+      // The distance between the two lines, and whether the members overlap along them.
+      const d = Math.abs(ua.x * (q.y1 - p.y1) - ua.y * (q.x1 - p.x1));
+      if (!(d > 1e-6 * Math.max(drawing.side, 1e-300))) continue;
+      const along = (x: number, y: number) => (x - p.x1) * ua.x + (y - p.y1) * ua.y;
+      const [b0, b1] = [along(q.x1, q.y1), along(q.x2, q.y2)].sort((u, v) => u - v);
+      if (Math.min(la, b1) - Math.max(0, b0) <= 1e-6 * la) continue;
+      cap = Math.min(cap, (0.9 * d) / ((off.get(p.label) ?? 0) + (off.get(q.label) ?? 0)));
+    }
+  }
+  return Number.isFinite(cap) ? Math.max(1 / 3, cap) : Infinity;
+}
+
+/** The layout of a drawing that cannot be drawn: nothing in it, the room of a margin all round, and `broken` set. */
+function brokenLayout(W: number): Layout {
+  const side = Math.max(1, Number.isFinite(W) ? W : 1);
+  return {
+    width: side,
+    height: Math.min(side, 120),
+    scale: 1,
+    fontSize: BASE_SIZE,
+    widthBound: true,
+    members: [],
+    nodes: [],
+    hinges: [],
+    supports: [],
+    loads: [],
+    memberLoads: [],
+    reactions: [],
+    diagram: null,
+    deformed: null,
+    empty: true,
+    scaleValue: null,
+    ampUsed: 1,
+    factor: null,
+    legend: [],
+    thinned: 0,
+    broken: true,
+    placed: [],
+    obstacles: { segs: [], boxes: [] },
+  };
+}
+
 export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
   const W = o.width;
+  // TOTAL: whatever numbers the drawing is made of, this returns, and fast. A width that is not a width, or an extent that is not a finite
+  // size, is not drawn (the page says so); everything else is scaled to the page, so every pixel below is within it.
+  if (!(W > 0) || !Number.isFinite(W)) return brokenLayout(300);
   const maxHeight = o.maxHeight ?? MAX_HEIGHT;
   const M = marginFor(W);
-  const amp = o.amp > 0 ? o.amp : 1;
   const mode = o.mode;
+  const asked = o.amp > 0 && Number.isFinite(o.amp) ? o.amp : 1;
+  const amp = Math.min(asked, ampLimit(drawing, mode));
   const diagram = diagramOf(drawing, mode);
   const e = extentOf(drawing, mode, amp);
   const ew = e.x1 - e.x0;
   const eh = e.y1 - e.y0;
+  if (![e.x0, e.y0, e.x1, e.y1, ew, eh].every(Number.isFinite)) return brokenLayout(W);
   const sx = ew > 0 ? (W - 2 * M) / ew : Infinity;
   const sy = eh > 0 ? (maxHeight - 2 * M) / eh : Infinity;
-  const scale = ew > 0 || eh > 0 ? Math.max(1e-9, Math.min(sx, sy)) : 1;
+  const scale = ew > 0 || eh > 0 ? Math.min(sx, sy) : 1;
+  if (!(scale > 0) || !Number.isFinite(scale)) return brokenLayout(W);
   const drawnW = ew * scale;
   const offX = (W - drawnW) / 2;
   const H = clean(Math.max(eh * scale + 2 * M, 2 * M));
@@ -482,6 +657,19 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
   const members: MemberShape[] = drawing.members.map((m) => ({ label: m.label, i: m.i, j: m.j, x1: clean(X(m.x1)), y1: clean(Y(m.y1)), x2: clean(X(m.x2)), y2: clean(Y(m.y2)), tag: null }));
   for (const m of members) obstacles.addSeg({ x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2, pad: MEMBER_W / 2 });
   const nodes: NodeShape[] = drawing.nodes.map((n) => ({ label: n.label, x: clean(X(n.x)), y: clean(Y(n.y)), r: nodeR, numbered: o.nodeNumbers, flagged: flagged.has(n.label) }));
+  // Nodes that fall on one place (a node typed twice) are set side by side, so that each number can be read and each ringed.
+  {
+    const stacks = new Map<string, NodeShape[]>();
+    for (const n of nodes) {
+      const key = `${Math.round(n.x / 3)},${Math.round(n.y / 3)}`;
+      stacks.set(key, [...(stacks.get(key) ?? []), n]);
+    }
+    for (const stack of stacks.values()) {
+      if (stack.length < 2) continue;
+      const step = 2 * nodeR + 3;
+      stack.sort((p, q) => p.label - q.label).forEach((n, k) => (n.x = clean(n.x + (k - (stack.length - 1) / 2) * step)));
+    }
+  }
   for (const n of nodes) {
     const rr = n.r + (n.flagged ? 4 : 0) + 0.75;
     obstacles.addBox(boxOf(n.x, n.y, rr, rr));
@@ -642,7 +830,7 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
   };
 
   /* Nodal loads. */
-  const maxLoad = Math.max(0, ...drawing.loads.map((l) => l.magnitude));
+  const maxLoad = Math.max(0, ...drawing.loads.flatMap((l) => [Math.abs(l.fx), Math.abs(l.fy)]));
   type Pending = { owner: 'load' | 'reaction' | 'mload' | 'sign'; text: string; anchor: Point; prefer: Point; set: (box: LabelBox) => void };
   const mandatory: Pending[] = [];
   const loads: Layout['loads'] = [];
@@ -650,17 +838,19 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
     for (const l of drawing.loads) {
       const p = nodePos.get(l.node);
       if (!p) continue;
-      let arrow: ArrowShape | null = null;
+      const arrows: ArrowShape[] = [];
       let arc: ArcShape | null = null;
-      if (l.magnitude > 0) {
-        const dir = { x: l.dx, y: -l.dy };
-        const len = 18 + 18 * (maxLoad > 0 ? l.magnitude / maxLoad : 0);
+      // Each component on its own, as a reaction is drawn (a load of 5 right and 20 down is two arrows, 5 and 20, not one of 20.6).
+      for (const [cx, cy, size] of [[Math.sign(l.fx), 0, Math.abs(l.fx)], [0, Math.sign(l.fy), Math.abs(l.fy)]] as const) {
+        if (!(size > 0)) continue;
+        const dir = { x: cx, y: -cy };
+        const len = 18 + 18 * (maxLoad > 0 ? size / maxLoad : 0);
         const tip = { x: clean(p.x - dir.x * (nodeR + 2)), y: clean(p.y - dir.y * (nodeR + 2)) };
         const tail = { x: clean(tip.x - dir.x * len), y: clean(tip.y - dir.y * len) };
-        arrow = { tail, tip, text: null };
+        const arrow: ArrowShape = { tail, tip, text: null };
+        arrows.push(arrow);
         arrowObstacle(tail, tip);
-        const target = arrow;
-        mandatory.push({ owner: 'load', text: plain(l.magnitude, o.group), anchor: tail, prefer: { x: -dir.x, y: -dir.y }, set: (b) => (target.text = b) });
+        mandatory.push({ owner: 'load', text: plain(size, o.group), anchor: tail, prefer: { x: -dir.x, y: -dir.y }, set: (b) => (arrow.text = b) });
       }
       if (l.m !== 0) {
         const gap = openSide(l.node);
@@ -670,7 +860,7 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
         const target = arc;
         mandatory.push({ owner: 'load', text: plain(l.m, o.group), anchor: a.mid, prefer: { x: Math.cos((gap * Math.PI) / 180), y: -Math.sin((gap * Math.PI) / 180) }, set: (b) => (target.text = b) });
       }
-      loads.push({ label: l.label, arrow, arc });
+      loads.push({ label: l.label, arrows, arc });
     }
   }
 
@@ -737,6 +927,44 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
   /* Member loads. */
   const memberAt = new Map(drawing.members.map((m, k) => [m.label, { m, s: members[k] }]));
   const memberLoads: MemberLoadShape[] = [];
+  // A RUN OF EQUAL LOADS IS NAMED ONCE. The beams of a storey that all carry 1.2 kip/ft, end to end on one line, are one load to the eye: each
+  // beam has its arrows, and the number is written on one of them (the middle one of the run). Without this a frame of six bays has six
+  // floating "1.2" on every floor.
+  const quiet = new Set<number>();
+  {
+    const plainLines = drawing.memberLoads.filter((l) => l.kind === 'udl' || l.kind === 'udl-projected');
+    const parent = plainLines.map((_, k) => k);
+    const root = (k: number): number => (parent[k] === k ? k : (parent[k] = root(parent[k])));
+    const cross = (a: DrawingMember, b: DrawingMember) => {
+      const ua = unit(a.x2 - a.x1, a.y2 - a.y1);
+      const ub = unit(b.x2 - b.x1, b.y2 - b.y1);
+      return Math.abs(ua.x * ub.y - ua.y * ub.x);
+    };
+    for (let a = 0; a < plainLines.length; a++) {
+      for (let b = a + 1; b < plainLines.length; b++) {
+        const p = plainLines[a];
+        const q = plainLines[b];
+        if (p.member === q.member || p.kind !== q.kind || p.dx !== q.dx || p.dy !== q.dy || p.v1 !== q.v1) continue;
+        const ma = drawing.members.find((m) => m.label === p.member);
+        const mb = drawing.members.find((m) => m.label === q.member);
+        if (!ma || !mb || ![ma.i, ma.j].some((n) => n === mb.i || n === mb.j) || cross(ma, mb) > 1e-6) continue;
+        parent[root(a)] = root(b);
+      }
+    }
+    const runs = new Map<number, number[]>();
+    plainLines.forEach((_, k) => runs.set(root(k), [...(runs.get(root(k)) ?? []), k]));
+    for (const run of runs.values()) {
+      if (run.length < 2) continue;
+      const mid = (k: number) => {
+        const m = drawing.members.find((r) => r.label === plainLines[k].member)!;
+        return { x: (m.x1 + m.x2) / 2, y: (m.y1 + m.y2) / 2 };
+      };
+      const cx = run.reduce((s, k) => s + mid(k).x, 0) / run.length;
+      const cy = run.reduce((s, k) => s + mid(k).y, 0) / run.length;
+      const keep = [...run].sort((p, q) => Math.hypot(mid(p).x - cx, mid(p).y - cy) - Math.hypot(mid(q).x - cx, mid(q).y - cy))[0];
+      for (const k of run) if (k !== keep) quiet.add(plainLines[k].label);
+    }
+  }
   if (o.loads) {
     for (const l of drawing.memberLoads) {
       const found = memberAt.get(l.member);
@@ -748,7 +976,11 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
       const t = unit(ms.x2 - ms.x1, ms.y2 - ms.y1);
       const nrm = { x: t.y, y: -t.x };
       const Lpx = Math.hypot(ms.x2 - ms.x1, ms.y2 - ms.y1);
-      const at = (pos: number): Point => ({ x: a0.x + t.x * Lpx * (pos / Lw), y: a0.y + t.y * Lpx * (pos / Lw) });
+      // A load placed past an end of its member (which is a fault the page names) is drawn at that end: nothing is drawn off the page.
+      const at = (pos: number): Point => {
+        const share = Number.isFinite(pos) ? Math.min(1, Math.max(0, pos / Lw)) : 0;
+        return { x: a0.x + t.x * Lpx * share, y: a0.y + t.y * Lpx * share };
+      };
       const shape: MemberLoadShape = { label: l.label, member: l.member, kind: l.kind, arrows: [], line: null, heat: [], arc: null, text: null };
       const push = { x: l.dx, y: -l.dy };
       const dn = push.x * nrm.x + push.y * nrm.y;
@@ -801,7 +1033,7 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
         const w2 = Math.abs(l.signed.w2);
         const mixed = l.signed.w1 * l.signed.w2 < 0;
         const textValue = l.kind === 'trapezoid' && l.signed.w1 !== l.signed.w2 ? (mixed ? `${withSign(l.signed.w1, o.group)} → ${withSign(l.signed.w2, o.group)}` : `${plain(w1, o.group)} → ${plain(w2, o.group)}`) : plain(heavy, o.group);
-        if (textAt) {
+        if (textAt && !quiet.has(l.label)) {
           const target = shape;
           mandatory.push({ owner: 'mload', text: textValue, anchor: textAt, prefer: textPrefer, set: (b) => (target.text = b) });
         }
@@ -861,9 +1093,12 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
     anchor: Point;
     prefer: Point;
     weight: number;
+    /** A value of a diagram belongs to a member: it is not written inside the band another member's diagram makes. */
+    owner?: number;
     keep: (box: LabelBox) => void;
   }
   const wanted: Wanted[] = [];
+  const bands: { member: number; px: Point[]; box: Rect }[] = [];
   const signSpots: { polygon: { points: string; sign: 1 | -1 }; px: Point[]; spine: Point[]; index: number }[] = [];
   if (diagram && (mode === 'M' || mode === 'V' || mode === 'N')) {
     if (!diagram.scale) empty = true;
@@ -873,6 +1108,7 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
       for (const dm of diagram.members) {
         const poly0 = dm.polygons.map((g) => ({ sign: g.sign, px: g.points.map((q) => P(ampedAny(dm, q, amp))) }));
         for (const g of poly0) {
+          if (g.px.length > 0) bands.push({ member: dm.member, px: g.px, box: { x0: Math.min(...g.px.map((q) => q.x)), y0: Math.min(...g.px.map((q) => q.y)), x1: Math.max(...g.px.map((q) => q.x)), y1: Math.max(...g.px.map((q) => q.y)) } });
           const pxs = g.px.map(pt);
           shape.polygons.push({ points: poly(pxs), sign: g.sign });
         }
@@ -908,6 +1144,8 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
           for (const lab of dm.labels) {
             if (lab.share < MIN_SHARE || lab.value === 0) continue;
             const text = withSign(lab.value, o.group);
+            // The largest or smallest inside a member is told from the values at its ends (at a ridge the end moment and the member's own maximum are two numbers).
+            const shownText = o.extremes && (lab.kind === 'max' || lab.kind === 'min') ? `${o.extremes[lab.kind]} ${text}` : text;
             // At a rigid corner the two members' end moments are one number: written once.
             if (mode === 'M' && wm && (lab.kind === 'start' || lab.kind === 'end')) {
               const node = lab.kind === 'start' ? wm.i : wm.j;
@@ -921,7 +1159,7 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
             const prefer = off.x === 0 && off.y === 0 ? { x: -(Y(dm.y2) - Y(dm.y1)), y: X(dm.x2) - X(dm.x1) } : off;
             const kindBonus = lab.kind === 'max' || lab.kind === 'min' ? 0.5 : 0;
             const entry: DiagramShape['labels'][number] = { value: text, x: 0, y: 0, anchor: 'middle', rect: { x0: 0, y0: 0, x1: 0, y1: 0 }, member: dm.member, kind: lab.kind };
-            wanted.push({ text, anchor: tip, prefer: unit(prefer.x, prefer.y), weight: lab.share + kindBonus, keep: (box) => shape.labels.push({ ...entry, ...box }) });
+            wanted.push({ text: shownText, anchor: tip, prefer: unit(prefer.x, prefer.y), weight: lab.share + kindBonus, owner: dm.member, keep: (box) => shape.labels.push({ ...entry, ...box }) });
           }
         }
       }
@@ -965,29 +1203,44 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
 
   obstacles.build();
   const placed: Rect[] = [];
-  const touches = (rect: Rect, ceiling = Infinity): number => {
-    let hits = inside(rect) ? 0 : 1000;
-    if (hits >= ceiling) return hits;
-    hits += obstacles.touches(rect, ceiling - hits);
-    if (hits >= ceiling) return hits;
-    for (const p of placed) {
-      if (rectsNear(rect, p, FROM_LABEL)) hits++;
-      if (hits >= ceiling) return hits;
+  // The words that are always written are indexed once; the optional ones (and the signs) in an index of their own, begun again by each size tried.
+  const fixedWords = new PlacedIndex();
+  let optionalWords = new PlacedIndex();
+  /** Whether a word of member `owner` would stand inside the band another member's diagram makes: it would be read as that member's. */
+  const inOtherBand = (rect: Rect, owner: number): boolean => {
+    const corners: Point[] = [{ x: (rect.x0 + rect.x1) / 2, y: (rect.y0 + rect.y1) / 2 }, { x: rect.x0, y: rect.y0 }, { x: rect.x1, y: rect.y0 }, { x: rect.x0, y: rect.y1 }, { x: rect.x1, y: rect.y1 }];
+    for (const b of bands) {
+      if (b.member === owner || !rectsNear(rect, b.box, 0)) continue;
+      if (corners.some((c) => insidePolygon(c, b.px))) return true;
     }
-    return hits;
+    return false;
+  };
+  let fixedPhase = true;
+  const put = (r: Rect) => {
+    placed.push(r);
+    if (fixedPhase) fixedWords.add(r);
+    else optionalWords.add(r);
+  };
+  const touches = (rect: Rect, ceiling = Infinity): number => {
+    if (!inside(rect)) return 1000;
+    let hits = obstacles.touches(rect, ceiling);
+    if (hits >= ceiling) return hits;
+    hits += fixedWords.near(rect, FROM_LABEL, ceiling - hits);
+    if (hits >= ceiling) return hits;
+    return hits + optionalWords.near(rect, FROM_LABEL, ceiling - hits);
   };
   /** Searches outwards from a point for a clear place, preferring the directions nearest `prefer`; the least bad one when none is clear. */
-  const search = (p: Point, prefer: Point, w: number, h: number, gaps: readonly number[]): { rect: Rect; hits: number } => {
+  const search = (p: Point, prefer: Point, w: number, h: number, gaps: readonly number[], blocked?: (r: Rect) => boolean): { rect: Rect; hits: number } => {
     const ranked = [...DIRS].sort((a, b) => b.v.x * prefer.x + b.v.y * prefer.y - (a.v.x * prefer.x + a.v.y * prefer.y));
     const spots = gaps.flatMap((g) => ranked.map((d, i) => ({ g, dir: d.dir, cost: g + 9 * i }))).sort((a, b) => a.cost - b.cost);
-    let best: { rect: Rect; hits: number } | null = null;
+    // A word is written only where NOTHING is touched, so a place is clear or it is not: the count stops at the first thing it touches.
+    let first: Rect | null = null;
     for (const sp of spots) {
       const rect = spot(sp.dir, p, sp.g, w, h);
-      const hits = touches(rect, best ? best.hits : Infinity);
-      if (!best || hits < best.hits) best = { rect, hits };
-      if (hits === 0) break;
+      if (touches(rect, 1) === 0 && !(blocked && blocked(rect))) return { rect, hits: 0 };
+      first ??= rect;
     }
-    return best!;
+    return { rect: first!, hits: 1 };
   };
   // The words that are always written: a load's, a reaction's, a member load's.
   // One that finds no clear place on a crowded drawing is not written on it (never on a line "because there was no room"): it is counted, and it is in the tables.
@@ -998,14 +1251,16 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
       mandatoryLeft++;
       continue;
     }
-    placed.push(found.rect);
+    put(found.rect);
     m.set(labelAt(m.text, found.rect));
   }
   const keptPlaced = placed.length;
+  fixedPhase = false;
   wanted.sort((p, q) => q.weight - p.weight);
   // Takes back what a size placed: the words it set in the drawing's shapes are written again by the next.
   const reset = () => {
     placed.length = keptPlaced;
+    optionalWords = new PlacedIndex();
     if (diagramShape) diagramShape.labels.length = 0;
     if (deformed) deformed.totals.length = 0;
     for (const ms of members) ms.tag = null;
@@ -1015,9 +1270,10 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
     reset();
     let left = 0;
     for (const w of wanted) {
-      const found = search(w.anchor, w.prefer, widthOf(w.text, CHAR * f, 4 * f), LABEL_H * f, GAPS_OPTIONAL);
+      const owner = w.owner;
+      const found = search(w.anchor, w.prefer, widthOf(w.text, CHAR * f, 4 * f), LABEL_H * f, GAPS_OPTIONAL, owner === undefined ? undefined : (r) => inOtherBand(r, owner));
       if (found.hits === 0) {
-        placed.push(found.rect);
+        put(found.rect);
         w.keep(labelAt(w.text, found.rect, f));
       } else {
         left++;
@@ -1064,7 +1320,7 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
         const rect = boxOf(c.x, c.y, 5.5, 6);
         if (!insidePolygon(c, s.px) || !insidePolygon({ x: rect.x0, y: rect.y0 }, s.px) || !insidePolygon({ x: rect.x1, y: rect.y0 }, s.px) || !insidePolygon({ x: rect.x0, y: rect.y1 }, s.px) || !insidePolygon({ x: rect.x1, y: rect.y1 }, s.px)) continue;
         if (touches(rect, 1) === 0) {
-          placed.push(rect);
+          put(rect);
           diagramShape.signs.push({ x: clean(c.x), y: clean(c.y + 4), glyph });
           break;
         }
@@ -1075,13 +1331,14 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
   /* What the legend has to explain: only what is drawn. */
   const legend: LegendKey[] = [];
   const kinds = new Set(supports.map((s) => s.kind));
-  if (members.length > 0) legend.push('member');
+  if (members.length > 0 && !deformed) legend.push('member');
+  if (members.length > 0 && deformed) legend.push('ghost');
   if (nodes.length > 0) legend.push('node');
   if (hinges.length > 0) legend.push('hinge');
   for (const k of ['fixed', 'pin', 'roller', 'guide', 'spring'] as const) if (kinds.has(k)) legend.push(k);
   if (supports.some((s) => s.badges.some((b) => b.glyph === 'k'))) legend.push('springBadge');
   if (supports.some((s) => s.badges.some((b) => b.glyph === 'd'))) legend.push('settle');
-  if (loads.some((l) => l.arrow) || memberLoads.some((l) => l.kind === 'point')) legend.push('load');
+  if (loads.some((l) => l.arrows.length > 0) || memberLoads.some((l) => l.kind === 'point')) legend.push('load');
   if (loads.some((l) => l.arc) || memberLoads.some((l) => l.kind === 'moment')) legend.push('loadMoment');
   if (memberLoads.some((l) => l.kind === 'udl' || l.kind === 'udl-projected' || l.kind === 'trapezoid')) legend.push('distributed');
   if (memberLoads.some((l) => l.kind === 'temperature')) legend.push('temperature');
@@ -1093,6 +1350,7 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
     if (diagramShape.chevrons.length > 0) legend.push('direction');
   }
   if (deformed) legend.push('deformed');
+  if (deformed && deformed.totals.length > 0) legend.push('displacement');
   if (nodes.some((n) => n.flagged)) legend.push('flagged');
 
   return {
@@ -1112,9 +1370,11 @@ export function frameLayout(drawing: FrameDrawing, o: LayoutOptions): Layout {
     deformed,
     empty,
     scaleValue,
+    ampUsed: amp,
     factor,
     legend,
     thinned,
+    broken: false,
     placed,
     obstacles: { segs: obstacles.segs, boxes: obstacles.boxes },
   };
@@ -1174,8 +1434,23 @@ export function everyWidth(drawing: FrameDrawing, o: Looks, base: number): { wid
   return { width: hi, complete: true };
 }
 
-/** How many words the drawing, as drawn at the column's width, leaves off, and whether widening it would put them all on (`every`: only then is the switch offered). */
-export function drawingFacts(drawing: FrameDrawing, o: Looks, avail: number): { omitted: number; every: boolean } {
-  const omitted = layoutFor(drawing, { ...o, width: avail }).thinned;
-  return { omitted, every: omitted > 0 && everyWidth(drawing, o, avail).complete };
+/**
+ * The width a drawing is made at: the column's own, or the room its bays want when that is more (it then scrolls sideways), or - with
+ * "Show every value" on - the width that puts every word on it. `room` is the width before that switch.
+ */
+export function figureWidth(drawing: FrameDrawing, o: Looks, column: number, every: boolean): { drawn: number; room: number; widened: boolean } {
+  const room = Math.max(column, roomWanted(drawing, o.mode, o.amp));
+  const drawn = every ? Math.max(room, everyWidth(drawing, o, room).width) : room;
+  return { drawn, room, widened: drawn > room };
+}
+
+/**
+ * How many words the drawing, as drawn at the column's width, leaves off, and whether widening it would put them all on (`every`: only then is
+ * the switch offered). The second answer costs a search over widths: `every` false is given where `wantEvery` is false, and the page asks
+ * for it after a pause and not inside a keystroke.
+ */
+export function drawingFacts(drawing: FrameDrawing, o: Looks, avail: number, wantEvery = true): { omitted: number; every: boolean } {
+  const room = Math.max(avail, roomWanted(drawing, o.mode, o.amp));
+  const omitted = layoutFor(drawing, { ...o, width: room }).thinned;
+  return { omitted, every: wantEvery && omitted > 0 && everyWidth(drawing, o, room).complete };
 }

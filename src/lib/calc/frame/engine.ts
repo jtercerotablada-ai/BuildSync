@@ -70,9 +70,11 @@ import {
  *     thousand times that of a typical one; refused rather than solved badly.
  *   MECH = 1e-9, on the eigenvalues of the scaled GᵀG (entries O(1); rounding of the eigenvalues is
  *     1e-15). The measured stable frames have 1e-4 (a three-hinged gable with a rise of a hundredth of the
- *     span) and more; a stable frame is never refused as a mechanism.
+ *     span) and more; a stable frame is never refused as a mechanism, except a hinged arch whose rise is under about
+ *     3·10⁻⁵ of its span (arch.ts of the reviews): that one is a mechanism to first order, to the eigenvalue limit.
  *   RIGID = 1e-6, on the share of a null vector that is not a rigid motion.
  *   RESIDUAL = 1e-6 of the problem's force scale; past it, 'ill-conditioned'.
+ *   CONTRAST = 1e12 between the stiffest and the softest member (EA/L or the transverse stiffness, whichever is larger): 'ill-conditioned' before the solve.
  *   FRAME_ZERO = 1e-9 (types.ts): the relative size under which a result is rounding. The
  *     engine uses it only for its roots (a V that is rounding has no zero); analysis.ts settles.
  *   POSITION = 1e-7 of a member's length: a load's position that far past an end (a length rounded to the eight figures a field holds) is the end.
@@ -84,6 +86,8 @@ export const SHORT = 1e-5;
 export const MECH = 1e-9;
 export const RIGID = 1e-6;
 export const RESIDUAL = 1e-6;
+/** The ratio of the stiffest member's stiffness to the softest's past which a frame is refused (before the solve). */
+export const CONTRAST = 1e12;
 export const LIMIT = 1e30;
 /** How far past an end of a member (a ten-millionth of its length) a load's position may be and be taken for the end: a field holds eight figures. */
 export const POSITION = 1e-7;
@@ -540,7 +544,10 @@ function run(model: FrameModel): FrameOutcome {
   const comps = counts.reactions;
   const found: FrameIssue[] = [];
   if (comps < 3) found.push({ code: 'few-supports', count: comps });
-  for (const l of p.loads) if (inert.has(l.node) && l.m !== 0 && !found.some((f) => f.code === 'hinged-joint-moment' && f.nodes![0] === l.node)) found.push({ code: 'hinged-joint-moment', nodes: [l.node] });
+  // Loads at one node add up: two couples of +5 and −5 at an all-hinged node are no couple.
+  const couple = new Map<number, number>();
+  for (const l of p.loads) couple.set(l.node, (couple.get(l.node) ?? 0) + l.m);
+  for (const [node, m] of couple) if (inert.has(node) && m !== 0) found.push({ code: 'hinged-joint-moment', nodes: [node] });
   /* Stability. */
   const st = stability(nodes, mem, rest, basis, off, nf, inert, size);
   if (st.rigid > 0 && comps >= 3) found.push({ code: 'unrestrained', count: st.rigid });
@@ -552,6 +559,21 @@ function run(model: FrameModel): FrameOutcome {
   const absolute = missing === 0;
   if (!absolute && counts.degree > 0) return { ok: false, issues: [{ code: 'sections', count: missing }] };
   const dummy = !absolute;
+
+  /* Stiffness contrast. A member's stiffness is the larger of EA/L and its transverse stiffness (12EI/L³, 3EI/L³ with one hinge,
+     none with two: a bar hinged at both ends only pulls); frames whose members differ by CONTRAST or more are refused before any
+     solve, as the 'ill-conditioned' message says. */
+  if (absolute && mem.length > 1) {
+    let hi = 0;
+    let lo = Infinity;
+    for (const m of mem) {
+      const transverse = m.rs && m.re ? 0 : ((m.rs || m.re ? 3 : 12) * m.EI) / (m.L * m.L * m.L);
+      const k = Math.max(m.EA / m.L, transverse);
+      hi = Math.max(hi, k);
+      lo = Math.min(lo, k);
+    }
+    if (!(hi <= CONTRAST * lo)) return { ok: false, issues: [{ code: 'ill-conditioned' }] };
+  }
 
   /* Assembly. */
   const N3 = 3 * n;
@@ -799,6 +821,9 @@ function run(model: FrameModel): FrameOutcome {
   const bars = mem.flatMap((m, k) => (m.rs && m.re ? [k] : []));
   if (bars.length > 0) warnings.push({ code: 'bar', members: bars });
   if (counts.inert.length > 0) warnings.push({ code: 'free-rotation', nodes: counts.inert });
+  // A temperature change with an expansion coefficient of 0 does nothing: said, so that a load that is drawn is not taken for one that acts.
+  const cold = [...new Set(p.memberLoads.flatMap((l) => (l.kind === 'temperature' && l.alpha === 0 && (l.dT !== 0 || l.dTg !== 0) ? [l.member] : [])))].sort((a, b) => a - b);
+  if (cold.length > 0) warnings.push({ code: 'no-expansion', members: cold });
 
   const determinacy: Determinacy = {
     joints: counts.joints,

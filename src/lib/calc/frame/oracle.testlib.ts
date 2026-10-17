@@ -731,6 +731,41 @@ export function stableFrame(seed: number, opt: GenOptions = {}): OSpec {
   return spec;
 }
 
+/**
+ * A portal with a very short bar in its beam (and sometimes a column or the beam made very stiff): the class that a
+ * condensation by subtraction broke (a bar hinged at both ends has NO transverse stiffness, and 12EI/L³ minus an almost
+ * equal number is not 0). The gap is 0.0011 to 0.125 ft (its decimal is exact in the oracle, which reads the double) in a frame 64 to 130 ft
+ * across; the bar's hinges are both, one (either end) or none; the EI of one member is up to 10^`stiff` times the rest.
+ */
+export function stubFrame(seed: number, opt: { stiff?: number } = {}): OSpec {
+  const r = rng(seed * 7919 + 13);
+  const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)];
+  // Not a power of two: a gap of 1/512 ft makes every product exact in floating point and hides the very rounding being looked for.
+  const g = pick([0.0011, 0.0013, 0.0021, 0.0037, 0.0069, 0.011, 0.033, 0.1, 0.125]);
+  const a = pick([32, 40, 50]);
+  const b = pick([32, 40, 50]);
+  const h = pick([12, 16, 20]);
+  const nodes = [{ x: 0, y: 0 }, { x: 0, y: h }, { x: a, y: h }, { x: a + g, y: h }, { x: a + g + b, y: h }, { x: a + g + b, y: 0 }];
+  const kind = pick(['both', 'both', 'start', 'end', 'none'] as const);
+  const sec = () => ({ E: pick([1000, 29000]), A: pick([5, 40, 200]), I: pick([100, 1000, 3000]) });
+  const members: OMember[] = [
+    { i: 0, j: 1, ...sec(), rs: false, re: false },
+    { i: 1, j: 2, ...sec(), rs: false, re: false },
+    { i: 2, j: 3, ...sec(), rs: kind === 'both' || kind === 'start', re: kind === 'both' || kind === 'end' },
+    { i: 3, j: 4, ...sec(), rs: false, re: false },
+    { i: 4, j: 5, ...sec(), rs: false, re: false },
+  ];
+  if (opt.stiff) {
+    const m = members[Math.floor(r() * members.length)];
+    m.I *= 10 ** Math.floor(r() * (opt.stiff + 1));
+  }
+  const supports: OSupport[] = [{ node: 0, kind: 'fixed' }, { node: 5, kind: pick(['fixed', 'pin'] as const) }];
+  const loads: OSpec['loads'] = [{ node: pick([1, 2, 3, 4]), fx: pick([0, 3, -5]), fy: pick([-4, -10, 6]), m: pick([0, 12]) }];
+  const memberLoads: FrameMemberLoad[] = [{ kind: 'udl', member: pick([1, 3]), dir: 'global-y', w: pick([-1, -2.5]) }];
+  if (r() < 0.5) memberLoads.push({ kind: 'point', member: 2, dir: 'global-y', a: g / 2, P: pick([-3, 2]) });
+  return { nodes, members, supports, loads, memberLoads };
+}
+
 /* ── Counting by rank ─────────────────────────────────────────────────── */
 
 /** The rank of a matrix of fractions (Gauss–Jordan with exact fractions). */

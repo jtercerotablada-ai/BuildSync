@@ -89,14 +89,25 @@ export function issueSentence(issue: AnalysisIssue, w: FrameUi, how: { number?: 
   vars.b = pair[1] ?? 0;
   if (issue.code === 'disconnected') vars.groups = (issue.groups ?? []).map((g) => `${w.words.nodes} ${listOf(g, w.words.and)}`).join('; ');
   if (issue.code === 'duplicate-nodes') vars.list = listOf(issue.nodes ?? [], w.words.and);
+  if (issue.code === 'node-unconnected') {
+    vars.nodes = nodesOf(issue.nodes ?? [], w.words);
+    vars.count = new Set(issue.nodes ?? []).size;
+  }
   if (issue.code === 'mechanism') {
     const kind = issue.kind ?? 'sway';
     vars.nodes = nodesOf(issue.nodes ?? [], w.words);
     vars.move = fill(w.mechanism[kind].move, { n: (issue.nodes ?? []).length });
-    vars.fix = w.mechanism[kind].fix;
+    vars.fix = mechanismFix(w, kind, issue.hinges);
     vars.more = (issue.count ?? 1) > 1 ? fill(w.mechanism.more, { count: issue.count ?? 0 }) : '';
   }
   return fill(w.issues[issue.code], vars).trim();
+}
+
+/** What to do about a mechanism: for a part that swings, the hinge that lets it (at the node it sits at) when it is known. */
+function mechanismFix(w: FrameUi, kind: 'sway' | 'rotation', hinges?: number[]): string {
+  const entry = w.mechanism[kind];
+  if (kind === 'rotation' && hinges && hinges.length > 0) return fill(entry.fix, { hinges: nodesOf(hinges, w.words) });
+  return 'fixAny' in entry ? entry.fixAny : entry.fix;
 }
 
 /** The sentence for one warning the analysis reports (the frame is solved all the same). */
@@ -203,7 +214,7 @@ export function largestNode(a: FrameAnalysis): { node: number; magnitude: number
 /** The nodes ringed on the drawing: those a problem is about. */
 export function flaggedNodes(a: FrameAnalysis): number[] {
   const ring = new Set<number>();
-  for (const i of a.issues) if (i.code === 'mechanism' || i.code === 'node-unconnected' || i.code === 'duplicate-node' || i.code === 'duplicate-nodes' || i.code === 'scale' || i.code === 'duplicate-support' || i.code === 'hinged-joint-moment') for (const n of i.nodes ?? []) ring.add(n);
+  for (const i of a.issues) if (i.code === 'mechanism' || i.code === 'node-unconnected' || i.code === 'duplicate-node' || i.code === 'duplicate-nodes' || i.code === 'scale' || i.code === 'duplicate-support' || i.code === 'hinged-joint-moment' || i.code === 'zero-length') for (const n of i.nodes ?? []) ring.add(n);
   return [...ring].sort((p, q) => p - q);
 }
 
@@ -220,7 +231,9 @@ export function readingSentence(a: FrameAnalysis, mode: DiagramMode, w: FrameUi,
     const mech = a.issues.find((i) => i.code === 'mechanism');
     if (mech) {
       const kind = mech.kind ?? 'sway';
-      return fill(reading.mechanism, { nodes: nodesOf(mech.nodes ?? [], w.words), move: fill(w.mechanism[kind].move, { n: (mech.nodes ?? []).length }), fix: w.mechanism[kind].fix }).trim();
+      // The nodes begin a sentence here.
+      const nodes = nodesOf(mech.nodes ?? [], w.words);
+      return fill(reading.mechanism, { nodes: nodes.charAt(0).toUpperCase() + nodes.slice(1), move: fill(w.mechanism[kind].move, { n: (mech.nodes ?? []).length }), fix: mechanismFix(w, kind, mech.hinges) }).trim();
     }
     if (a.determinacy.word === 'unstable') return fill(reading.unstable, { fix: w.mechanism.supportFix }).trim();
     return reading.unsolved;
@@ -289,6 +302,20 @@ export const choicesOf = (form: unknown): string => JSON.stringify(form, (key, v
 export function formToSolve<T>(o: { form: T; behind: T; whole: T | null; onPaper: boolean }): T {
   return o.onPaper || o.form === o.whole || choicesOf(o.behind) !== choicesOf(o.form) ? o.form : o.behind;
 }
+
+/**
+ * The members a steel shape's DEPTH goes into when the shape is applied: a temperature gradient asks for the depth of the member it is on, and the
+ * shape table has it (d). `target` is 'frame' (the members that take the frame's section, have no depth and carry a gradient) or one member's id
+ * (that member, when it carries a gradient).
+ */
+export function membersNeedingDepth(form: Pick<FrameForm, 'members' | 'memberLoads'>, target: 'frame' | number): number[] {
+  const gradient = (id: number) => form.memberLoads.some((l) => l.member === id && l.kind === 'temperature' && l.dTg !== 0);
+  if (target === 'frame') return form.members.filter((m) => m.A === null && m.h === null && gradient(m.id)).map((m) => m.id);
+  return gradient(target) ? [target] : [];
+}
+
+/** Whether an action replaces the rows (a template, a start over, an opened link, a cleared frame): the rows are numbered from 1 again, and an id stands for another row than before. */
+export const restartsRows = (type: string): boolean => type === 'template' || type === 'reset' || type === 'load' || type === 'clear';
 
 /** Whether an action keeps the member marks: a number typed does, anything that can renumber a member does not. */
 export const keepsMarks = (type: string): boolean => type === 'patch' || type === 'section' || type === 'material' || type === 'preset';

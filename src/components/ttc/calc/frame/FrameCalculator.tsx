@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useCallback, useDeferredValue, useId, useMemo, useReducer, useRef, useState } from 'react';
+import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { formatNumber } from '@/lib/calc/format';
 import { analyseSafely, memberValuesAt, type AnalysisIssue } from '@/lib/calc/frame/analysis';
@@ -18,13 +18,9 @@ import {
   type FrameForm,
   type FrameList,
   type FrameMaterial,
-  type FrameRow,
-  type MemberLoadRow,
-  type SupportRow,
 } from '@/lib/calc/frame/model';
 import type { FrameShared, FrameUi } from '@/lib/calc/frame/strings';
-import { TEMPLATE_DEFAULTS, TEMPLATE_IDS, type TemplateId, type TemplateParams } from '@/lib/calc/frame/templates';
-import { NumField } from '../NumField';
+import { TEMPLATE_DEFAULTS, TEMPLATE_FIELDS, TEMPLATE_IDS, carryParams, type TemplateId, type TemplateParams } from '@/lib/calc/frame/templates';
 import { Actions } from '../shell/Actions';
 import { useAddress } from '../shell/address';
 import { select } from '../shell/fields';
@@ -32,14 +28,15 @@ import { PAPER_WIDTH, useTooTall, useWidth } from '../shell/layout';
 import { SheetStamp, useSheet } from '../shell/sheet';
 import { useSteelShapes } from '../shell/steel';
 import { FNum } from './FNum';
+import { LoadRowView, MemberLoadRowView, MemberRowView, NodeRowView, SupportRowView, type RowEnv } from './FrameRows';
 import { FrameResults } from './FrameResults';
-import { FrameSchematic } from './FrameSchematic';
-import { AMPS, drawingFacts, type DiagramMode, type Looks } from './layout';
-import { fill, flaggedNodes, focusAddedRow, formToSolve, issueSentence, keepsMarks, largerExtreme, leaveBehind as leaveBehindWith, noticeText, openWhole, readingSentence, readoutSentence, signed, warningSentence, type Fmt, type Order } from './text';
+import { FigureGuard, FrameSchematic } from './FrameSchematic';
+import { AMPS, ampLimit, drawingFacts, type DiagramMode, type Looks } from './layout';
+import { fill, flaggedNodes, membersNeedingDepth, restartsRows, focusAddedRow, formToSolve, issueSentence, keepsMarks, largerExtreme, leaveBehind as leaveBehindWith, noticeText, openWhole, readingSentence, readoutSentence, signed, warningSentence, type Fmt, type Order } from './text';
 import './frame.css';
 
 /**
- * PLANE FRAME ANALYSIS - the calculator (/resources/frame).
+ * PLANE FRAME ANALYSIS - the calculator (/resources/plane-frame-analysis).
  *
  * The eighth calculator of the catalogue, and the fifth one's sibling (truss/TrussCalculator.tsx): the form on the left, the answer
  * on the right and nothing between them - every keystroke that leaves a number in a field solves the frame again, a moment after
@@ -86,9 +83,6 @@ function caseIn(hash: string): FrameForm | null | undefined {
   return decodeFrame(text);
 }
 
-/** A row of the form as one word: two issues are on the same row when theirs are the same. */
-const rowKey = (row: FrameRow) => (row.list === 'model' ? `model${row.field}` : `${row.list}${row.id}`);
-
 /** What the template group holds: not part of the case, a few numbers for the next template to load. */
 interface TemplateState {
   template: TemplateId;
@@ -97,19 +91,6 @@ interface TemplateState {
 const templateDefaults = (template: TemplateId, units: FrameForm['units']): TemplateState => ({ template, params: { ...TEMPLATE_DEFAULTS[units][template] } });
 const FIRST_TEMPLATE: TemplateId = 'portal';
 
-/** Which parameters each template asks for, and whether its feet can be chosen. */
-const TEMPLATE_FIELDS: Record<TemplateId, { fields: (keyof TemplateParams)[]; base: 'choice' | 'fixed' | 'pinned'; hinge?: boolean }> = {
-  portal: { fields: ['bays', 'storeys', 'width', 'height', 'gravity', 'lateral'], base: 'choice' },
-  gable: { fields: ['width', 'height', 'rise', 'gravity', 'lateral'], base: 'choice', hinge: true },
-  'l-frame': { fields: ['width', 'height', 'gravity', 'lateral'], base: 'choice' },
-  'cantilever-column': { fields: ['height', 'lateral', 'axial'], base: 'fixed' },
-  'beam-on-columns': { fields: ['width', 'height', 'gravity', 'lateral'], base: 'fixed' },
-  'two-hinged': { fields: ['width', 'height', 'gravity', 'lateral'], base: 'pinned' },
-};
-
-/** The member loads whose direction is the visitor's to choose, and the four directions. */
-const DIRECTED = new Set(['udl', 'udl-projected', 'trapezoid', 'point']);
-const DIRS = ['local-y', 'local-x', 'global-x', 'global-y'] as const;
 /** The issues that are about a node's place and are shown on its row. */
 const NODE_CODES = new Set(['duplicate-node', 'duplicate-nodes', 'scale', 'node-unconnected']);
 
@@ -132,7 +113,7 @@ interface Show {
   every: boolean;
   amp: number;
 }
-const SHOW: Show = { mode: 'M', loads: true, reactions: true, values: true, nodeNumbers: true, memberNumbers: false, every: false, amp: 1 };
+const SHOW: Show = { mode: 'M', loads: true, reactions: true, values: true, nodeNumbers: true, memberNumbers: true, every: false, amp: 1 };
 
 /**
  * `initial`: the frame it opens with, where that is not the example - for the tests, which can neither type nor press.
@@ -175,6 +156,8 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
   const dispatch = useCallback((action: FrameAction) => {
     setSaid('');
     setFilled('');
+    // A support's id is only its own within one frame: a template, a start over or an opened link numbers its rows from 1 again.
+    if (restartsRows(action.type)) setMore(new Set());
     if (!keepsMarks(action.type)) {
       setPicked(null);
       setHover(null);
@@ -202,7 +185,10 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
           const focused = document.activeElement;
           if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();
         },
-        load: (opened) => dispatch({ type: 'load', form: opened }),
+        load: (opened) => {
+          dispatch({ type: 'load', form: opened });
+          setShow((s) => ({ ...s, memberNumbers: opened.members.length <= 12 }));
+        },
         remember: setWhole,
         template: (opened) => setTpl(templateDefaults(FIRST_TEMPLATE, opened.units)),
       }),
@@ -263,10 +249,32 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
       group,
       flagged,
       displacements: r?.displacements ? r.displacements.map((d) => ({ node: d.node, magnitude: d.magnitude })) : null,
+      extremes: w.results.drawing.extremes,
     }),
-    [r, show.mode, show.loads, show.reactions, show.values, show.nodeNumbers, show.memberNumbers, show.amp, group, flagged],
+    [r, w, show.mode, show.loads, show.reactions, show.values, show.nodeNumbers, show.memberNumbers, show.amp, group, flagged],
   );
-  const facts = useMemo(() => (onPaper ? { omitted: 0, every: false } : drawingFacts(a.drawing, looks, width)), [a.drawing, looks, width, onPaper]);
+  // The words the drawing leaves off at this width: found from the layout the figure draws anyway (kept by `layoutFor`). Whether widening
+  // the drawing would put them on is a search over widths, and is asked for a moment after the last key and not inside it (`everyOk`):
+  // until it is known the switch is offered, and the note under the drawing says no more than the layout does.
+  // How many words the drawing on screen leaves off: told by the figure when it has been drawn (it is drawn a moment after the key).
+  const [omittedNow, setOmitted] = useState(0);
+  const omitted = onPaper ? 0 : omittedNow;
+  const [everyOk, setEveryOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (onPaper || omitted === 0) {
+      setEveryOk(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        setEveryOk(drawingFacts(a.drawing, looks, width).every);
+      } catch {
+        setEveryOk(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [a.drawing, looks, width, onPaper, omitted]);
+  const facts = { omitted, every: omitted > 0 && everyOk !== false };
 
   /* -- The faults, by row -- */
   const listName: Record<FrameList, string> = { nodes: w.nodes.name, members: w.members.name, supports: w.supports.name, loads: w.loads.name, memberLoads: w.memberLoads.name };
@@ -287,14 +295,6 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
   };
   const sectionIssues = (field: 'E' | 'A' | 'I') => a.issues.filter((i) => (i.row?.list === 'model' && i.row.field === field) || (i.code === 'sections' && form[field] === null));
   const idOf = (key: string) => `${uid}${key}`;
-  // A field of a row at fault: marked, and tied to the row's message. The field the fault is about - every field, when it names none.
-  const fault = (list: FrameList, id: number, ...fields: string[]) => {
-    const mine = issuesOf(list, id).filter((i) => {
-      if (i.code === 'depth') return list === 'members' ? fields.includes('h') : fields.includes('dTg');
-      return !i.row?.field || fields.length === 0 || fields.includes(i.row.field);
-    });
-    return mine.length ? { invalid: true, describedBy: idOf(rowKey({ list, id })) } : {};
-  };
   const sectionFault = (field: 'E' | 'A' | 'I') => (sectionIssues(field).length ? { invalid: true, describedBy: idOf('modelsection') } : {});
   const rowIssue = (key: string, issues: AnalysisIssue[]) => {
     const texts = [...new Set(issues.map((i) => says(i)))];
@@ -305,26 +305,13 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
     ) : null;
   };
   // What the results box says, each thing once.
-  const notices = a.issues.map((i) => ({ text: says(i, true) })).filter((n, i, all) => all.findIndex((m) => m.text === n.text) === i);
+  // Nodes that no member reaches are one problem, said once (ten nodes added in a row were ten lines).
+  const loose = a.issues.filter((i) => i.code === 'node-unconnected');
+  const listed: AnalysisIssue[] = loose.length > 1 ? [{ code: 'node-unconnected', nodes: loose.flatMap((i) => i.nodes ?? []) }, ...a.issues.filter((i) => i.code !== 'node-unconnected')] : a.issues;
+  const notices = listed.map((i) => ({ text: says(i, true) })).filter((n, i, all) => all.findIndex((m) => m.text === n.text) === i);
   const formatIt = (v: number) => num(v, 6);
 
   /* -- The rows of the form -- */
-  const patch = (list: FrameList, id: number, p: Record<string, unknown>) => dispatch({ type: 'patch', list, id, patch: p });
-  // A row removed WITH THE KEYBOARD took the focus away with it, and the browser left it on nothing. It is given to the
-  // first control of the row that takes the place - the next one, else the one before - or to the group's "add" button
-  // when no row is left. Not after a click or a tap (`detail` counts them, and is 0 for a key).
-  const removeRow = (list: FrameList, id: number) => (press: React.MouseEvent<HTMLButtonElement>) => {
-    const row = press.currentTarget.closest('.mp-app__item');
-    const near = [row?.nextElementSibling, row?.previousElementSibling].find((el) => el?.classList.contains('mp-app__item'));
-    const next = press.detail === 0 ? (near?.querySelector<HTMLElement>('input, select') ?? press.currentTarget.closest('fieldset')?.querySelector<HTMLElement>('.mp-app__add')) : null;
-    dispatch({ type: 'remove', list, id });
-    next?.focus();
-  };
-  const removeButton = (list: FrameList, id: number, what: string) => (
-    <button type="button" className="mp-app__remove" onClick={removeRow(list, id)} aria-label={`${t.row.remove}: ${what}`} title={t.row.remove}>
-      <span aria-hidden="true">×</span>
-    </button>
-  );
   // A row added WITH THE KEYBOARD is handed the focus, in its first field. The row is put on screen first (`flushSync`).
   const addRow = (list: FrameList) => (press: React.MouseEvent<HTMLButtonElement>) => {
     if (press.detail !== 0) {
@@ -354,93 +341,72 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
     );
   };
 
-  const nodeOptions = form.nodes.map((n, k) => (
-    <option key={n.id} value={n.id}>
-      {k + 1}
-    </option>
-  ));
-  // A list of nodes, read by label. Named with its row, since a form has dozens of lists of "Node".
-  const nodePick = (label: string, rowName: string, value: number, onChange: (id: number) => void, extra: { invalid?: boolean; describedBy?: string } = {}) => (
-    <label className="mp-num mp-num--select" data-invalid={extra.invalid ? 'true' : undefined}>
-      <span className="mp-num__label">{label}</span>
-      <span className="mp-num__box">
-        <select className="mp-num__input" aria-label={`${label}, ${rowName}`} aria-invalid={extra.invalid ? true : undefined} aria-describedby={extra.describedBy} value={value} onChange={(e) => onChange(Number(e.target.value))}>
-          {nodeOptions}
-        </select>
-      </span>
-    </label>
-  );
-  const memberPick = (rowName: string, value: number, onChange: (id: number) => void, extra: { invalid?: boolean; describedBy?: string } = {}) => (
-    <label className="mp-num mp-num--select" data-invalid={extra.invalid ? 'true' : undefined}>
-      <span className="mp-num__label">{w.memberLoads.member}</span>
-      <span className="mp-num__box">
-        <select className="mp-num__input" aria-label={`${w.memberLoads.member}, ${rowName}`} aria-invalid={extra.invalid ? true : undefined} aria-describedby={extra.describedBy} value={value} onChange={(e) => onChange(Number(e.target.value))}>
-          {form.members.map((m, k) => (
-            <option key={m.id} value={m.id}>
+  // The rows of the five tables are components of their own (FrameRows.tsx), made again only when the row they are of changes.
+  const nodeKey = form.nodes.map((n) => n.id).join(',');
+  const memberKey = form.members.map((m) => m.id).join(',');
+  const nodeOptions = useMemo(
+    () =>
+      nodeKey === ''
+        ? null
+        : nodeKey.split(',').map((id, k) => (
+            <option key={id} value={id}>
               {k + 1}
             </option>
-          ))}
-        </select>
-      </span>
-    </label>
+          )),
+    [nodeKey],
   );
-  const choose = <T extends string>(label: string, rowName: string, value: T, options: [T, string][], onChange: (v: T) => void, kind = '') => (
-    <label className={`mp-num mp-num--select ${kind}`.trim()}>
-      <span className="mp-num__label">{label}</span>
-      <span className="mp-num__box">
-        <select className="mp-num__input" aria-label={`${label}, ${rowName}`} value={value} onChange={(e) => onChange(e.target.value as T)}>
-          {options.map(([v, text]) => (
-            <option key={v} value={v}>
-              {text}
+  const memberOptions = useMemo(
+    () =>
+      memberKey === ''
+        ? null
+        : memberKey.split(',').map((id, k) => (
+            <option key={id} value={id}>
+              {k + 1}
             </option>
-          ))}
-        </select>
-      </span>
-    </label>
+          )),
+    [memberKey],
   );
-  const checkbox = (label: string, rowName: string, checked: boolean, onChange: (v: boolean) => void) => (
-    <label className="mp-app__check mp-frame__check">
-      <input type="checkbox" checked={checked} aria-label={`${label}, ${rowName}`} onChange={(e) => onChange(e.target.checked)} />
-      <span>{label}</span>
-    </label>
+  const patch = useCallback((list: FrameList, id: number, p: Record<string, unknown>) => dispatch({ type: 'patch', list, id, patch: p }), [dispatch]);
+  // A row removed WITH THE KEYBOARD took the focus away with it, and the browser left it on nothing. It is given to the
+  // first control of the row that takes the place - the next one, else the one before - or to the group's "add" button
+  // when no row is left. Not after a click or a tap (`detail` counts them, and is 0 for a key).
+  const removeRow = useCallback(
+    (list: FrameList, id: number) => (press: React.MouseEvent<HTMLButtonElement>) => {
+      const row = press.currentTarget.closest('.mp-app__item');
+      const near = [row?.nextElementSibling, row?.previousElementSibling].find((el) => el?.classList.contains('mp-app__item'));
+      const next = press.detail === 0 ? (near?.querySelector<HTMLElement>('input, select') ?? press.currentTarget.closest('fieldset')?.querySelector<HTMLElement>('.mp-app__add')) : null;
+      dispatch({ type: 'remove', list, id });
+      next?.focus();
+    },
+    [dispatch],
+  );
+  const rowEnv: RowEnv = useMemo(
+    () => ({ t, w, u, uid, format: formatIt, nodeOptions, memberOptions, patch, remove: removeRow, listName }),
+    // `formatIt` follows the number format, which follows the page's group mark.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t, w, u, uid, group, nodeOptions, memberOptions, patch, removeRow],
+  );
+  const toggleMore = useCallback(
+    (id: number) =>
+      setMore((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    [],
   );
   // An optional number: an empty field is "not given" (null), which the field knows as a value that is not a number.
   const optionalNumber = (value: number | null) => value ?? Number.NaN;
   const fromField = (v: number) => (Number.isNaN(v) ? null : v);
+  // A number of the section group (the rows of the tables are FrameRows.tsx's).
   const field = (label: string, unit: string | undefined, value: number, onChange: (v: number) => void, extra: { invalid?: boolean; describedBy?: string } = {}) => (
-    <FNum numbers={t.numbers} format={formatIt} label={label} unit={unit} value={value} onChange={onChange} {...extra} />
+    <FNum numbers={t.numbers} words={w.fieldWords} format={formatIt} label={label} unit={unit} value={value} onChange={onChange} {...extra} />
   );
-  const optionalField = (label: string, unit: string, value: number | null, onChange: (v: number | null) => void, extra: { invalid?: boolean; describedBy?: string } = {}) => (
-    <FNum
-      numbers={t.numbers}
-      format={formatIt}
-      label={label}
-      unit={unit}
-      optional={t.section.optional}
-      placeholder={w.members.sameAsFrame}
-      value={optionalNumber(value)}
-      emptyIs={Number.NaN}
-      onChange={(v) => onChange(fromField(v))}
-      {...extra}
-    />
-  );
-
-  // One row of a list: its name for the eye, its fields, the button that removes it and what is wrong with it.
-  const item = (list: FrameList, id: number, index: number, fields: React.ReactNode) => {
-    const name = `${listName[list]} ${index + 1}`;
+  // What goes with a row: the faults that name it, and the sentence of each.
+  const rowProps = (list: FrameList, id: number, index: number) => {
     const issues = issuesOf(list, id);
-    return (
-      <div key={id} className="mp-app__item mp-frame__item" role="group" aria-label={name} data-invalid={issues.length ? 'true' : undefined}>
-        <p className="mp-frame__name" aria-hidden="true">
-          {name}
-        </p>
-        <div className="mp-app__row mp-app__row--rm">
-          <div className="mp-app__fields mp-frame__fields">{fields}</div>
-          {removeButton(list, id, name)}
-        </div>
-        {rowIssue(rowKey({ list, id } as FrameRow), issues)}
-      </div>
-    );
+    return { env: rowEnv, index: index + 1, issues, texts: [...new Set(issues.map((i) => says(i)))] };
   };
 
   /* -- The notices of the form -- */
@@ -454,7 +420,8 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
 
   /* -- The template group -- */
   const spec = TEMPLATE_FIELDS[tpl.template];
-  const setTemplate = (template: TemplateId) => setTpl(templateDefaults(template, form.units));
+  // Another shape keeps the numbers typed for the one before wherever it has the same parameter (a width typed for a portal is the width of the gable).
+  const setTemplate = (template: TemplateId) => setTpl((prev) => carryParams(prev, template, form.units));
   const setParam = (key: keyof TemplateParams, value: number | boolean | string) => setTpl({ ...tpl, params: { ...tpl.params, [key]: value } });
   // A frame that is about to be thrown away - by "Start over" or by "Load template" - is left one step behind in the browser's history,
   // so that Back brings it back. The address is brought to that frame first: the entry left behind is the one on screen.
@@ -474,6 +441,8 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
     const built = reduceFrame(form, action);
     const left = leaveBehind(built);
     dispatch(action);
+    // A frame of many members has no room for a number on each: its tags start switched off (the switch is the visitor's).
+    setShow((s) => ({ ...s, memberNumbers: built.members.length <= 12 }));
     setSaid(
       [
         fill(w.template.done, { template: w.template.names[tpl.template], nodes: built.nodes.length, members: built.members.length, supports: built.supports.length, loads: built.loads.length, memberLoads: built.memberLoads.length }),
@@ -492,17 +461,31 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
   const shown = chosenShape ? shapeValues(chosenShape, form.units) : null;
   const useShape = () => {
     if (!chosenShape || !shown) return;
+    // The section depth comes with the shape (the table has d): a temperature gradient asks for it, and a member that needs it has it at once.
+    const depth = Number((form.units === 'us' ? chosenShape.d : chosenShape.d * FRAME_US_TO_SI.depth).toPrecision(6));
+    const depthFor = membersNeedingDepth(form, target);
     if (target === 'frame') dispatch({ type: 'section', patch: { A: shown.A, I: shown.I } });
     else dispatch({ type: 'patch', list: 'members', id: target, patch: { A: shown.A, I: shown.I } });
+    for (const id of depthFor) dispatch({ type: 'patch', list: 'members', id, patch: { h: depth } });
     const label = target === 'frame' ? w.section.frameTarget : fill(w.section.memberTarget, { member: form.members.findIndex((m) => m.id === target) + 1 });
-    setFilled(fill(w.section.filled, { shape: chosenShape.designation, target: label }));
+    const depthLine = depthFor.length ? fill(w.section.filledDepth, { h: num(depth, 6), unit: u.depth, count: depthFor.length, list: depthFor.map((id) => form.members.findIndex((m) => m.id === id) + 1).join(', ') }) : '';
+    setFilled([fill(w.section.filled, { shape: chosenShape.designation, target: label }), depthLine].filter(Boolean).join(' '));
   };
 
   /* -- The drawing in words -- */
   const mode = looks.mode;
   const reading = readingSentence(a, mode, w, { ...fmt, length: u.length });
+  // How far each support that settles moves: said in a line under the drawing (the badge on the drawing says which support).
+  const settleLine = (() => {
+    const parts = a.drawing.supports.flatMap((s) => {
+      if (!s.settle) return [];
+      const bits = [s.settle.dx !== 0 ? `x ${val(s.settle.dx, 3)} ${ru.displacement}` : '', s.settle.dy !== 0 ? `y ${val(s.settle.dy, 3)} ${ru.displacement}` : '', s.settle.dr !== 0 ? `${val(s.settle.dr, 3)} rad` : ''].filter(Boolean);
+      return [fill(w.results.drawing.settlement, { n: s.node, parts: bits.join(', ') })];
+    });
+    return parts.length ? fill(w.results.drawing.settlements, { list: parts.join('; ') }) : '';
+  })();
   const reactionsLine = r && r.reactions.length ? fill(w.results.drawing.reactions, { list: r.reactions.map((x) => `${w.results.reactions.node} ${x.node}: ${num(x.magnitude)} ${ru.force}`).join('; ') }) : '';
-  const summary = a.drawing.nodes.length === 0 ? w.results.drawing.empty : [fill(w.results.drawing.frame, { nodes: solved.nodes.length, members: solved.members.length, supports: solved.supports.length, loads: solved.loads.length, memberLoads: solved.memberLoads.length }), reading, reactionsLine].filter(Boolean).join(' ');
+  const summary = a.drawing.nodes.length === 0 ? w.results.drawing.empty : [fill(w.results.drawing.frame, { nodes: solved.nodes.length, members: solved.members.length, supports: solved.supports.length, loads: solved.loads.length, memberLoads: solved.memberLoads.length }), reading, reactionsLine, settleLine].filter(Boolean).join(' ');
   // A link that goes to a place on this page and leaves the address alone (a fragment would replace the frame in it).
   const goTo = (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
     const el = document.getElementById(id);
@@ -557,14 +540,24 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
       <span>{w.results.options.diagrams[key]}</span>
     </label>
   );
+  // The size of a diagram is held to the bays of the frame: a larger one would run over the next bay.
+  const ampCap = useMemo(() => {
+    try {
+      return ampLimit(a.drawing, mode);
+    } catch {
+      return Infinity;
+    }
+  }, [a.drawing, mode]);
   const stepAmp = (dir: -1 | 1) => {
     const at = AMPS.indexOf(show.amp as (typeof AMPS)[number]);
     const next = AMPS[Math.min(AMPS.length - 1, Math.max(0, (at < 0 ? 1 : at) + dir))];
+    if (dir === 1 && next > ampCap) return;
     setShow({ ...show, amp: next });
   };
   const ampIndex = Math.max(0, AMPS.indexOf(show.amp as (typeof AMPS)[number]));
+  const ampAtLimit = ampIndex === AMPS.length - 1 || AMPS[Math.min(AMPS.length - 1, ampIndex + 1)] > ampCap;
   const diagrammed = r !== null && (mode === 'M' || mode === 'V' || mode === 'N');
-  const words = useMemo(() => ({ legend: w.results.legend, notes: w.results.drawingNotes, scaleLine: w.results.scaleLine, zeroDiagram: w.results.zeroDiagram }), [w]);
+  const words = useMemo(() => ({ legend: w.results.legend, notes: w.results.drawingNotes, scaleLine: w.results.scaleLine, zeroDiagram: w.results.zeroDiagram, broken: w.results.drawing.broken, limited: w.results.options.limited }), [w]);
   const figureUnits = useMemo(() => ({ length: ru.length, moment: ru.moment, force: ru.force, displacement: ru.displacement }), [ru.length, ru.moment, ru.force, ru.displacement]);
   const paperLooks = (m: DiagramMode, rest: Partial<Looks> = {}): Looks => ({ ...looks, mode: m, loads: false, reactions: false, values: true, nodeNumbers: true, memberNumbers: false, amp: 1, ...rest });
 
@@ -616,7 +609,7 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
             {forcedBase ? <p className="mp-app__note">{w.template.forced[forcedBase === 'fixed' ? 'fixed' : 'pinned']}</p> : null}
             <div className="mp-app__row mp-app__row--two">
               {spec.fields.map((key) => (
-                <NumField key={`${tpl.template}${key}`} numbers={t.numbers} label={w.template.params[key]} unit={paramUnit(key)} value={tpl.params[key] as number} onChange={(v) => setParam(key, v)} />
+                <FNum key={`${tpl.template}${key}`} numbers={t.numbers} words={w.fieldWords} format={formatIt} label={w.template.params[key]} unit={paramUnit(key)} value={tpl.params[key] as number} onChange={(v) => setParam(key, v)} />
               ))}
             </div>
             {spec.hinge ? (
@@ -639,17 +632,9 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
             <legend>{w.nodes.title}</legend>
             <p className="mp-app__note">{w.nodes.note}</p>
             {form.nodes.length === 0 ? <p className="mp-app__none">{w.empty.nodes}</p> : null}
-            {form.nodes.map((n, i) =>
-              item(
-                'nodes',
-                n.id,
-                i,
-                <>
-                  {field(w.nodes.x, u.length, n.x, (x) => patch('nodes', n.id, { x }), fault('nodes', n.id, 'x'))}
-                  {field(w.nodes.y, u.length, n.y, (y) => patch('nodes', n.id, { y }), fault('nodes', n.id, 'y'))}
-                </>,
-              ),
-            )}
+            {form.nodes.map((n, i) => (
+              <NodeRowView key={n.id} {...rowProps('nodes', n.id, i)} row={n} />
+            ))}
             {addButton('nodes', w.nodes.add)}
             {status('nodes', 'mp-frame__notice')}
           </fieldset>
@@ -658,25 +643,9 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
             <legend>{w.members.title}</legend>
             <p className="mp-app__note">{w.members.note}</p>
             {form.members.length === 0 ? <p className="mp-app__none">{w.empty.members}</p> : null}
-            {form.members.map((m, i) => {
-              const name = `${w.members.name} ${i + 1}`;
-              const needsDepth = issuesOf('members', m.id).some((x) => x.code === 'depth');
-              return item(
-                'members',
-                m.id,
-                i,
-                <>
-                  {nodePick(w.members.from, name, m.i, (id) => patch('members', m.id, { i: id }), fault('members', m.id, 'i'))}
-                  {nodePick(w.members.to, name, m.j, (id) => patch('members', m.id, { j: id }), fault('members', m.id, 'j'))}
-                  {checkbox(w.members.hingeStart, name, m.hingeStart, (hingeStart) => patch('members', m.id, { hingeStart }))}
-                  {checkbox(w.members.hingeEnd, name, m.hingeEnd, (hingeEnd) => patch('members', m.id, { hingeEnd }))}
-                  {optionalField(w.members.A, u.area, m.A, (A) => patch('members', m.id, { A }), fault('members', m.id, 'A'))}
-                  {optionalField(w.members.I, u.inertia, m.I, (I) => patch('members', m.id, { I }), fault('members', m.id, 'I'))}
-                  {optionalField(w.members.E, u.E, m.E, (E) => patch('members', m.id, { E }), fault('members', m.id, 'E'))}
-                  {m.h !== null || needsDepth ? optionalField(w.members.h, u.depth, m.h, (h) => patch('members', m.id, { h }), fault('members', m.id, 'h')) : null}
-                </>,
-              );
-            })}
+            {form.members.map((m, i) => (
+              <MemberRowView key={m.id} {...rowProps('members', m.id, i)} row={m} />
+            ))}
             {addButton('members', w.members.add)}
             {status('members', 'mp-frame__notice')}
           </fieldset>
@@ -686,58 +655,9 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
             <p className="mp-app__note">{w.supports.note}</p>
             {form.supports.length === 0 ? <p className="mp-app__none">{w.empty.supports}</p> : null}
             {form.supports.map((s, i) => {
-              const name = `${w.supports.name} ${i + 1}`;
-              const isSpring = s.kind === 'spring';
-              const settles = s.dx !== 0 || s.dy !== 0 || s.dr !== 0;
-              const forced = settles || (!isSpring && (s.kx !== 0 || s.ky !== 0 || s.kr !== 0));
-              const open = more.has(s.id) || forced;
-              return item(
-                'supports',
-                s.id,
-                i,
-                <>
-                  {nodePick(w.supports.node, name, s.node, (id) => patch('supports', s.id, { node: id }), fault('supports', s.id, 'node'))}
-                  {choose<SupportRow['kind']>(
-                    w.supports.kind,
-                    name,
-                    s.kind,
-                    (['fixed', 'pin', 'roller', 'guide', 'spring'] as const).map((k) => [k, w.supports.kinds[k]] as [SupportRow['kind'], string]),
-                    (kind) => patch('supports', s.id, { kind }),
-                  )}
-                  {s.kind === 'roller' || s.kind === 'guide' ? field(w.supports.angle, '°', s.angle, (angle) => patch('supports', s.id, { angle }), fault('supports', s.id, 'angle')) : null}
-                  {isSpring || open ? (
-                    <>
-                      {field(w.supports.kx, u.spring, s.kx, (kx) => patch('supports', s.id, { kx }), fault('supports', s.id, 'kx'))}
-                      {field(w.supports.ky, u.spring, s.ky, (ky) => patch('supports', s.id, { ky }), fault('supports', s.id, 'ky'))}
-                      {field(w.supports.kr, u.rotationalSpring, s.kr, (kr) => patch('supports', s.id, { kr }), fault('supports', s.id, 'kr'))}
-                    </>
-                  ) : null}
-                  {open ? (
-                    <>
-                      {field(w.supports.dx, u.depth, s.dx, (dx) => patch('supports', s.id, { dx }), fault('supports', s.id, 'dx'))}
-                      {field(w.supports.dy, u.depth, s.dy, (dy) => patch('supports', s.id, { dy }), fault('supports', s.id, 'dy'))}
-                      {s.kind === 'roller' || s.kind === 'pin' ? null : field(w.supports.dr, 'rad', s.dr, (dr) => patch('supports', s.id, { dr }), fault('supports', s.id, 'dr'))}
-                    </>
-                  ) : null}
-                  {forced ? null : (
-                    <button
-                      type="button"
-                      className="mp-app__btn mp-app__btn--quiet mp-frame__more"
-                      aria-expanded={open}
-                      onClick={() =>
-                        setMore((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(s.id)) next.delete(s.id);
-                          else next.add(s.id);
-                          return next;
-                        })
-                      }
-                    >
-                      {open ? w.supports.less : w.supports.more}
-                    </button>
-                  )}
-                </>,
-              );
+              const settles = s.dx !== 0 || s.dy !== 0 || (s.kind !== 'roller' && s.kind !== 'pin' && s.dr !== 0);
+              const forced = settles || (s.kind !== 'spring' && (s.kx !== 0 || s.ky !== 0 || s.kr !== 0));
+              return <SupportRowView key={s.id} {...rowProps('supports', s.id, i)} row={s} open={more.has(s.id) || forced} forced={forced} toggle={toggleMore} />;
             })}
             {addButton('supports', w.supports.add)}
             {status('supports', 'mp-frame__notice')}
@@ -747,19 +667,9 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
             <legend>{w.loads.title}</legend>
             <p className="mp-app__note">{w.loads.note}</p>
             {form.loads.length === 0 ? <p className="mp-app__none">{w.empty.loads}</p> : null}
-            {form.loads.map((l, i) =>
-              item(
-                'loads',
-                l.id,
-                i,
-                <>
-                  {nodePick(w.loads.node, `${w.loads.name} ${i + 1}`, l.node, (id) => patch('loads', l.id, { node: id }), fault('loads', l.id, 'node'))}
-                  {field(w.loads.fx, u.force, l.fx, (fx) => patch('loads', l.id, { fx }), fault('loads', l.id, 'fx'))}
-                  {field(w.loads.fy, u.force, l.fy, (fy) => patch('loads', l.id, { fy }), fault('loads', l.id, 'fy'))}
-                  {field(w.loads.m, u.moment, l.m, (m) => patch('loads', l.id, { m }), fault('loads', l.id, 'm'))}
-                </>,
-              ),
-            )}
+            {form.loads.map((l, i) => (
+              <LoadRowView key={l.id} {...rowProps('loads', l.id, i)} row={l} />
+            ))}
             {addButton('loads', w.loads.add)}
             {status('loads', 'mp-frame__notice')}
           </fieldset>
@@ -768,56 +678,9 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
             <legend>{w.memberLoads.title}</legend>
             <p className="mp-app__note">{w.memberLoads.note}</p>
             {form.memberLoads.length === 0 ? <p className="mp-app__none">{w.empty.memberLoads}</p> : null}
-            {form.memberLoads.map((l, i) => {
-              const name = `${w.memberLoads.name} ${i + 1}`;
-              const f = (key: keyof MemberLoadRow, label: string, unit: string, ...engine: string[]) =>
-                field(label, unit, l[key] as number, (v) => patch('memberLoads', l.id, { [key]: v }), fault('memberLoads', l.id, key as string, ...engine));
-              const dirs = l.kind === 'udl-projected' ? DIRS.filter((d) => d.startsWith('global')) : DIRS;
-              return item(
-                'memberLoads',
-                l.id,
-                i,
-                <>
-                  {memberPick(name, l.member, (id) => patch('memberLoads', l.id, { member: id }), fault('memberLoads', l.id, 'member'))}
-                  {choose<MemberLoadRow['kind']>(
-                    w.memberLoads.kind,
-                    name,
-                    l.kind,
-                    (['udl', 'udl-projected', 'trapezoid', 'point', 'moment', 'temperature'] as const).map((k) => [k, w.memberLoads.kinds[k]] as [MemberLoadRow['kind'], string]),
-                    (kind) => patch('memberLoads', l.id, { kind }),
-                  )}
-                  {DIRECTED.has(l.kind) ? choose<MemberLoadRow['dir']>(w.memberLoads.dir, name, l.dir, dirs.map((d) => [d, w.memberLoads.dirs[d]] as [MemberLoadRow['dir'], string]), (dir) => patch('memberLoads', l.id, { dir }), 'mp-num--dir') : null}
-                  {l.kind === 'udl' || l.kind === 'udl-projected' ? f('w', w.memberLoads.w, u.line, 'w1') : null}
-                  {l.kind === 'trapezoid' ? (
-                    <>
-                      {f('w', w.memberLoads.w1, u.line, 'w1')}
-                      {f('w2', w.memberLoads.w2, u.line)}
-                      {f('a', w.memberLoads.a, u.length)}
-                      {f('b', w.memberLoads.b, u.length)}
-                    </>
-                  ) : null}
-                  {l.kind === 'point' ? (
-                    <>
-                      {f('P', w.memberLoads.P, u.force)}
-                      {f('a', w.memberLoads.a, u.length)}
-                    </>
-                  ) : null}
-                  {l.kind === 'moment' ? (
-                    <>
-                      {f('M', w.memberLoads.M, u.moment)}
-                      {f('a', w.memberLoads.a, u.length)}
-                    </>
-                  ) : null}
-                  {l.kind === 'temperature' ? (
-                    <>
-                      {f('dT', w.memberLoads.dT, u.temperature)}
-                      {f('dTg', w.memberLoads.dTg, u.temperature)}
-                      {f('alpha', w.memberLoads.alpha, u.alpha)}
-                    </>
-                  ) : null}
-                </>,
-              );
-            })}
+            {form.memberLoads.map((l, i) => (
+              <MemberLoadRowView key={l.id} {...rowProps('memberLoads', l.id, i)} row={l} />
+            ))}
             {addButton('memberLoads', w.memberLoads.add)}
             {status('memberLoads', 'mp-frame__notice')}
           </fieldset>
@@ -898,9 +761,7 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
                   </>
                 ) : (
                   <>
-                    <p className="mp-app__none" role="status">
-                      {steel.failed ? t.section.loadFailed : t.section.loading}
-                    </p>
+                    <p className="mp-app__none">{steel.failed ? t.section.loadFailed : t.section.loading}</p>
                     {steel.failed ? (
                       <button
                         type="button"
@@ -922,8 +783,9 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
                 {w.section.steelTitle}
               </button>
             )}
+            {/* Mounted with the group, empty: the table's arrival, its failure and the shape put in are announced when they fill it. */}
             <p className="mp-frame__filled" role="status">
-              {filled}
+              {filled || (picking && !steel.shapes ? (steel.failed ? t.section.loadFailed : t.section.loading) : '')}
             </p>
           </fieldset>
 
@@ -940,8 +802,10 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
               // example - is left one step behind in the browser's history: Back brings it back, as the page opens any
               // frame its address holds (../shell/address.ts), and Forward returns to the example.
               const example = defaultFrame();
-              leaveBehind(example);
+              const left = leaveBehind(example);
               dispatch({ type: 'load', form: example });
+              // Where the way back is said (the line under "Load template").
+              if (left) setSaid(w.template.back);
               setWhole(example);
               setTpl(templateDefaults(FIRST_TEMPLATE, 'us'));
               setOrder('member');
@@ -956,16 +820,19 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
         <section className={tooTall ? 'mp-app__out mp-app__out--tall' : 'mp-app__out'} aria-label={t.results.title} ref={outRef} aria-busy={catching ? true : undefined}>
           {box}
 
-          {a.warnings.length ? (
-            <div className="mp-frame__warnings" role="status">
-              <p className="mp-app__issues-title">{w.results.warningsTitle}</p>
-              <ul>
-                {a.warnings.map((x) => (
-                  <li key={x.code}>{warningSentence(x, w)}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          {/* Mounted before it has anything to say, so that a reader who cannot see it is told when it fills. */}
+          <div className="mp-frame__warnings" role="status" data-empty={a.warnings.length ? undefined : 'true'}>
+            {a.warnings.length ? (
+              <>
+                <p className="mp-app__issues-title">{w.results.warningsTitle}</p>
+                <ul>
+                  {a.warnings.map((x) => (
+                    <li key={x.code}>{warningSentence(x, w)}</li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
 
           {word ? (
             <div className={`mp-frame__status mp-frame__status--${word}`} data-word={word}>
@@ -1039,7 +906,7 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
                 <span className="mp-app__computed" aria-hidden="true">
                   {fill(w.results.options.sizeNow, { amp: String(show.amp) })}
                 </span>
-                <button type="button" className="mp-app__btn mp-app__btn--quiet" aria-disabled={ampIndex === AMPS.length - 1 || undefined} onClick={() => stepAmp(1)}>
+                <button type="button" className="mp-app__btn mp-app__btn--quiet" aria-disabled={ampAtLimit || undefined} onClick={() => stepAmp(1)}>
                   {w.results.options.larger}
                 </button>
               </div>
@@ -1067,23 +934,30 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
                 ) : null}
               </div>
             ) : (
-              <Schematic
-                id={drawingId}
-                drawing={a.drawing}
-                width={width}
-                widen
-                every={show.every && facts.every}
-                looks={looks}
-                summary={summary}
-                active={active}
-                onActive={onActive}
-                onPick={onPick}
-                onProbe={onProbe}
-                words={words}
-                units={figureUnits}
-              />
+              <FigureGuard message={w.results.drawing.failed} reset={a.drawing}>
+                <Schematic
+                  id={drawingId}
+                  drawing={a.drawing}
+                  width={width}
+                  widen
+                  every={show.every && facts.every}
+                  canWiden={omitted === 0 ? null : everyOk}
+                  probe={readLine && readValues ? { member: readLine.label, share } : null}
+                  readout={readText}
+                  onThinned={setOmitted}
+                  looks={looks}
+                  summary={summary}
+                  active={active}
+                  onActive={onActive}
+                  onPick={onPick}
+                  onProbe={onProbe}
+                  words={words}
+                  units={figureUnits}
+                />
+              </FigureGuard>
             )}
             {reading ? <p className="mp-frame__reading">{reading}</p> : null}
+            {settleLine ? <p className="mp-frame__reading mp-frame__settle">{settleLine}</p> : null}
             {r && !onPaper ? (
               <div className="mp-frame__readout">
                 <label className="mp-num mp-num--select">
@@ -1114,11 +988,11 @@ export function FrameCalculator({ t, w, initial }: { t: FrameShared; w: FrameUi;
                       <input
                         type="range"
                         min={0}
-                        max={1000}
+                        max={100}
                         step={1}
-                        value={Math.round(share * 1000)}
+                        value={Math.round(share * 100)}
                         aria-valuetext={readAria}
-                        onChange={(e) => setProbe({ member: readLine.label, share: Number(e.target.value) / 1000 })}
+                        onChange={(e) => setProbe({ member: readLine.label, share: Number(e.target.value) / 100 })}
                       />
                     </label>
                     <p className="mp-app__computed mp-frame__readline">{readText}</p>

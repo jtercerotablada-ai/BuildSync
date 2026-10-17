@@ -249,19 +249,57 @@ export function condense(k: Mat, p: number[], released: { start: boolean; end: b
   });
   const pp0 = p;
   if (C.length === 0) return apply(k, p);
-  const R = [0, 1, 2, 3, 4, 5].filter((i) => !C.includes(i));
-  const kcc = C.map((c) => C.map((e) => k[c][e]));
-  // kStar = kRR − kRC kCC⁻¹ kCR, one column of kCC⁻¹ at a time.
+  // CLOSED FORM. The hinge condensation of a prismatic member is exact and needs no solve: a member hinged at both ends keeps
+  // only its axial stiffness EA/L (its transverse and rotation blocks are exactly 0, never "12EI/L³ minus almost the same
+  // number", which for a short or very stiff bar left a remainder of 1e-16·12EI/L³ that could be negative); a member hinged at
+  // one end keeps 3EI/L³, 3EI/L², 3EI/L. The equivalent loads condense the same way (the simple-beam and the propped-cantilever
+  // fixed-end forces); EI cancels out of all of them. 1/L is read back from the matrix (k[1][2] / k[2][2] = 3/(2L)).
   const kStar = zeros(6);
-  const pStar = [0, 0, 0, 0, 0, 0];
-  const cols = R.map((r) => solveSmall(kcc, C.map((c) => k[c][r])));
-  const pc = solveSmall(kcc, C.map((c) => p[c]));
-  for (const r of R) {
-    for (const s of R) {
-      const col = cols[R.indexOf(s)];
-      kStar[r][s] = k[r][s] - C.reduce((acc, c, n) => acc + k[r][c] * col[n], 0);
-    }
-    pStar[r] = p[r] - C.reduce((acc, c, n) => acc + k[r][c] * pc[n], 0);
+  const pStar = p.slice();
+  kStar[0][0] = k[0][0];
+  kStar[0][3] = k[0][3];
+  kStar[3][0] = k[3][0];
+  kStar[3][3] = k[3][3];
+  const both = released.start && released.end;
+  if (both) {
+    const half = (p[2] + p[5]) * ((2 / 3) * (k[1][2] / k[2][2]));
+    pStar[1] = p[1] - half;
+    pStar[4] = p[4] + half;
+    pStar[2] = 0;
+    pStar[5] = 0;
+    return apply(kStar, pStar);
+  }
+  // One hinge: the far end keeps (3B, 3BL, 3BL²) with B = EI/L³; the sign pattern follows the end that is hinged.
+  const t = k[1][1] / 4; // 3EI/L³
+  const u = k[1][2] / 2; // 3EI/L²
+  const w = (3 * k[2][2]) / 4; // 3EI/L
+  const c = (2 / 3) * (k[1][2] / k[2][2]); // 1/L
+  kStar[1][1] = t;
+  kStar[1][4] = -t;
+  kStar[4][1] = -t;
+  kStar[4][4] = t;
+  if (released.start) {
+    // Hinge at the start: the end rotation (5) stays.
+    kStar[1][5] = u;
+    kStar[5][1] = u;
+    kStar[4][5] = -u;
+    kStar[5][4] = -u;
+    kStar[5][5] = w;
+    pStar[1] = p[1] - 1.5 * c * p[2];
+    pStar[4] = p[4] + 1.5 * c * p[2];
+    pStar[5] = p[5] - 0.5 * p[2];
+    pStar[2] = 0;
+  } else {
+    // Hinge at the end: the start rotation (2) stays.
+    kStar[1][2] = u;
+    kStar[2][1] = u;
+    kStar[4][2] = -u;
+    kStar[2][4] = -u;
+    kStar[2][2] = w;
+    pStar[1] = p[1] - 1.5 * c * p[5];
+    pStar[4] = p[4] + 1.5 * c * p[5];
+    pStar[2] = p[2] - 0.5 * p[5];
+    pStar[5] = 0;
   }
   return apply(kStar, pStar);
 }
@@ -373,7 +411,8 @@ export function pieceAt(pieces: readonly MemberPiece[], x: number, side?: 'left'
   const end = pieces[pieces.length - 1].x1;
   const want = side ?? (x >= end ? 'left' : 'right');
   let k = pieces.findIndex((p) => (want === 'right' ? x >= p.x0 && x < p.x1 : x > p.x0 && x <= p.x1));
-  if (k < 0) k = want === 'right' ? pieces.length - 1 : 0;
+  // Past the last end (one ulp past it) is the last piece, before the first end the first: whatever the side asked for.
+  if (k < 0) k = x >= end ? pieces.length - 1 : x <= pieces[0].x0 ? 0 : want === 'right' ? pieces.length - 1 : 0;
   const p = pieces[k];
   const t = Math.min(Math.max(x, p.x0), p.x1) - p.x0;
   return {

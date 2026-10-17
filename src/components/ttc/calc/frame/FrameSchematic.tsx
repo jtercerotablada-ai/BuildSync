@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useId, useMemo } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Component, type ReactNode } from 'react';
 import { formatNumber } from '@/lib/calc/format';
 import type { FrameDrawing } from '@/lib/calc/frame/analysis';
 import type { FrameUi } from '@/lib/calc/frame/strings';
-import { everyWidth, layoutFor, type ArcShape, type ArrowShape, type Layout, type LegendKey, type Looks, type MemberLoadShape, type SupportShape } from './layout';
+import { figureWidth, layoutFor, type ArcShape, type ArrowShape, type Layout, type LegendKey, type Looks, type MemberLoadShape, type SupportShape } from './layout';
 import { fill } from './text';
 
 /**
@@ -28,6 +29,36 @@ export interface FrameSchematicWords {
   notes: FrameUi['results']['drawingNotes'];
   scaleLine: FrameUi['results']['scaleLine'];
   zeroDiagram: FrameUi['results']['zeroDiagram'];
+  /** The drawing that cannot be made to scale, and the diagram held to the size of its bays. */
+  broken: string;
+  limited: string;
+}
+
+/**
+ * THE FIGURE CANNOT TAKE THE PAGE DOWN. The drawing is built from numbers a visitor typed; whatever they are, a fault in building it is
+ * said in a line and the form, the problems and the tables stay (a number of forty digits once ended the page with "This page could not
+ * be shown" and the visitor's frame was lost). It tries again when the drawing it is given changes.
+ */
+export class FigureGuard extends Component<{ children: ReactNode; message: string; reset: unknown }, { failed: boolean; at: unknown }> {
+  state = { failed: false, at: this.props.reset };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  static getDerivedStateFromProps(props: { reset: unknown }, state: { failed: boolean; at: unknown }) {
+    return props.reset !== state.at ? { failed: false, at: props.reset } : null;
+  }
+  componentDidCatch() {
+    /* said in the line below; nothing else to do */
+  }
+  render() {
+    return this.state.failed ? (
+      <p className="mp-app__need" role="status">
+        {this.props.message}
+      </p>
+    ) : (
+      this.props.children
+    );
+  }
 }
 
 export interface FrameSchematicProps {
@@ -40,6 +71,18 @@ export interface FrameSchematicProps {
   paper?: boolean;
   /** Widen the drawing until every word is written on it. */
   every?: boolean;
+  /**
+   * Whether widening the drawing would put every left-off word on it: true when the page offers "Show every value", false when it has
+   * found that nothing would (then the note names the tables and the readout, not a switch there is not), null while that is being found out
+   * (the note then says what it said before the question was asked).
+   */
+  canWiden?: boolean | null;
+  /** The place being read: the member and the share of its length from its first node. Marked on the drawing. */
+  probe?: { member: number; share: number } | null;
+  /** The sentence the reading says, written in the corner of the drawing as well as under it. */
+  readout?: string;
+  /** How many words the drawing leaves off, told whenever the drawing that is shown changes (the page offers its switch by it). */
+  onThinned?: (count: number) => void;
   looks: Looks;
   /** The tallest the drawing may be, px. */
   maxHeight?: number;
@@ -208,16 +251,44 @@ const Word = ({ box, className, size }: { box: { value: string; x: number; y: nu
   </text>
 );
 
-export function FrameSchematic({ drawing, width, widen = true, paper = false, every = false, looks, maxHeight, summary, active = null, onActive, onPick, onProbe, words, units, id, caption }: FrameSchematicProps) {
+export function FrameSchematic({ drawing, width, widen = true, paper = false, every = false, canWiden = null, probe = null, readout = '', onThinned, looks, maxHeight, summary, active = null, onActive, onPick, onProbe, words, units, id, caption }: FrameSchematicProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const { drawn, layout, widened } = useMemo(() => {
-    const wide = widen && every ? everyWidth(drawing, looks, width).width : width;
-    return { drawn: wide, widened: wide > width, layout: layoutFor(drawing, { ...looks, width: wide, maxHeight }) };
-  }, [drawing, width, widen, every, looks, maxHeight]);
+  // The bays have a width of their own below which the loads and words of neighbouring bays run into each other: a drawing in a narrow
+  // column is made that wide and scrolls, and says so. Paper cannot scroll, and keeps its width.
+  const make = () => {
+    const f = widen ? figureWidth(drawing, looks, width, every) : { drawn: width, room: width, widened: false };
+    return { drawn: f.drawn, widened: f.widened, roomy: f.drawn > width, layout: layoutFor(drawing, { ...looks, width: f.drawn, maxHeight }) };
+  };
+  // THE LAYOUT IS NOT RECKONED INSIDE THE KEYSTROKE. Finding a clear place for every word of a frame of fifty nodes is the largest single
+  // piece of arithmetic of a key (tens of milliseconds; the next key waits for it). The first drawing - the server's, and the one the
+  // page opens with - is made at once; after it, a change of the frame, the width or the looks is drawn a moment later, a task of its own,
+  // and until then the drawing on screen is the one before (the results say they are behind, `aria-busy`). Paper is made at once.
+  const [held, setHeld] = useState(make);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (paper) return;
+    const timer = setTimeout(() => setHeld(make()), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawing, width, widen, every, looks, maxHeight, paper]);
+  const sync = useMemo(() => (paper ? make() : null), // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paper, drawing, width, widen, every, looks, maxHeight]);
+  const { drawn, layout, widened } = sync ?? held;
+  useEffect(() => {
+    onThinned?.(layout.thinned);
+  }, [layout, onThinned]);
   const ends = active === null ? null : layout.members.find((m) => m.label === active);
   const wide = drawn > width;
+  // The place being read, on the member it is on.
+  const station = !paper && probe !== null && !layout.deformed ? layout.members.find((m) => m.label === probe.member) : undefined;
   const noteText = scaleNote(layout, looks.mode, words, units, looks.group, drawing.deflected?.maxDisplacement ?? null);
-  const thinnedNote = layout.thinned > 0 ? fill(paper ? words.notes.thinnedPaper : words.notes.thinned, { count: layout.thinned }) : '';
+  // What the note about the words left off tells the reader to do must be possible: the switch is named only where there is one.
+  const thinnedNote = layout.thinned > 0 ? fill(paper ? words.notes.thinnedPaper : canWiden === false ? words.notes.thinnedRead : words.notes.thinned, { count: layout.thinned }) : '';
+  const limitedNote = !paper && looks.amp > layout.ampUsed + 1e-9 && layout.diagram !== null ? words.limited : '';
   const mode = looks.mode;
   const hit = (m: Layout['members'][number]) => (e: React.PointerEvent<SVGLineElement>) => {
     if (paper) return;
@@ -239,6 +310,12 @@ export function FrameSchematic({ drawing, width, widen = true, paper = false, ev
   return (
     <figure className="mp-frame-fig mp-frame__target" id={id} tabIndex={id ? -1 : undefined}>
       {caption ? <figcaption className="mp-frame-fig__caption">{caption}</figcaption> : null}
+      {/* What the pointer reads, in the corner of the drawing itself (the same sentence is under it, for whoever does not see it). */}
+      {!paper && readout && station ? (
+        <div className="mp-frame-fig__readout" aria-hidden="true">
+          {readout}
+        </div>
+      ) : null}
       <div className={wide ? 'mp-frame-fig__scroll mp-frame-fig__scroll--wide' : 'mp-frame-fig__scroll'} role={wide ? 'group' : undefined} aria-label={wide ? words.notes.region : undefined} tabIndex={wide ? 0 : undefined}>
         <svg className="mp-plot__svg mp-frame-fig__svg" role="img" aria-label={summary} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
           <defs>
@@ -278,7 +355,9 @@ export function FrameSchematic({ drawing, width, widen = true, paper = false, ev
             {layout.deformed ? layout.members.map((m) => <line key={`m${m.label}`} className={`mp-frame-fig__member mp-frame-fig__member--thin${active === m.label ? ' mp-frame-fig__member--active' : ''}`} x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} data-member={m.label} />) : null}
             {layout.loads.map((l) => (
               <g key={`l${l.label}`}>
-                {l.arrow ? <ArrowMark a={l.arrow} className="mp-frame-fig__load" /> : null}
+                {l.arrows.map((a, k) => (
+                  <ArrowMark key={k} a={a} className="mp-frame-fig__load" />
+                ))}
                 {l.arc ? <ArcMark a={l.arc} className="mp-frame-fig__load" /> : null}
               </g>
             ))}
@@ -311,7 +390,7 @@ export function FrameSchematic({ drawing, width, widen = true, paper = false, ev
             ))}
             {layout.loads.map((l) => (
               <g key={`lt${l.label}`}>
-                {l.arrow?.text ? <Word box={l.arrow.text} className="mp-frame-fig__word mp-frame-fig__word--load" /> : null}
+                {l.arrows.map((a, k) => (a.text ? <Word key={k} box={a.text} className="mp-frame-fig__word mp-frame-fig__word--load" /> : null))}
                 {l.arc?.text ? <Word box={l.arc.text} className="mp-frame-fig__word mp-frame-fig__word--load" /> : null}
               </g>
             ))}
@@ -333,6 +412,7 @@ export function FrameSchematic({ drawing, width, widen = true, paper = false, ev
                 ))
               : null}
             {layout.deformed ? layout.deformed.totals.map((b) => <Word key={`t${b.node}`} box={b} className="mp-frame-fig__word mp-frame-fig__word--deformed" size={layout.fontSize} />) : null}
+            {station && probe ? <StationMark m={station} share={probe.share} /> : null}
             {layout.members.map((m) => (m.tag ? (
               <g key={`tag${m.label}`} className="mp-frame-fig__tag">
                 <rect x={m.tag.rect.x0} y={m.tag.rect.y0} width={m.tag.rect.x1 - m.tag.rect.x0} height={m.tag.rect.y1 - m.tag.rect.y0} rx="2" />
@@ -364,20 +444,34 @@ export function FrameSchematic({ drawing, width, widen = true, paper = false, ev
           </g>
         </svg>
       </div>
+      {layout.broken ? <p className="mp-frame-fig__note mp-frame-fig__note--broken">{words.broken}</p> : null}
       {wide ? <p className="mp-frame-fig__note mp-frame-fig__note--scroll">{widened ? words.notes.every : words.notes.scroll}</p> : null}
+      {limitedNote ? <p className="mp-frame-fig__note mp-frame-fig__note--limited">{limitedNote}</p> : null}
       {noteText ? <p className="mp-frame-fig__note mp-frame-fig__note--scale">{noteText}</p> : null}
       {thinnedNote ? <p className="mp-frame-fig__note mp-frame-fig__note--thinned">{thinnedNote}</p> : null}
-      {layout.legend.length > 0 ? (
+      {layout.legend.length > 0 || station ? (
         <ul className="mp-frame-fig__legend">
-          {layout.legend.map((key) => (
+          {[...layout.legend, ...(station ? (['station'] as LegendKey[]) : [])].map((key) => (
             <li key={key} className={`mp-frame-fig__key mp-frame-fig__key--${key}`}>
               <LegendSwatch kind={key} />
-              <span>{key === 'deformed' && layout.factor !== null ? fill(words.legend.deformed, { factor: formatNumber(layout.factor, 3, looks.group) }) : words.legend[key]}</span>
+              <span>{fill(words.legend[key], { factor: layout.factor !== null ? formatNumber(layout.factor, 3, looks.group) : '', unit: units.displacement })}</span>
             </li>
           ))}
         </ul>
       ) : null}
     </figure>
+  );
+}
+
+/** The place being read: a ring on the member, with a short tick across it. */
+function StationMark({ m, share }: { m: Layout['members'][number]; share: number }) {
+  const x = m.x1 + (m.x2 - m.x1) * share;
+  const y = m.y1 + (m.y2 - m.y1) * share;
+  return (
+    <g className="mp-frame-fig__station">
+      <circle cx={x} cy={y} r="7" />
+      <circle className="mp-frame-fig__station-dot" cx={x} cy={y} r="2.6" />
+    </g>
   );
 }
 
@@ -482,6 +576,18 @@ export function LegendSwatch({ kind }: { kind: LegendKey }) {
         </>
       ) : kind === 'deformed' ? (
         <line className="mp-frame-fig__deformed" x1="1" y1="8" x2="29" y2="8" />
+      ) : kind === 'ghost' ? (
+        <line className="mp-frame-fig__ghost" x1="1" y1="8" x2="29" y2="8" />
+      ) : kind === 'displacement' ? (
+        <text className="mp-frame-fig__word mp-frame-fig__word--deformed" x="15" y="11" textAnchor="middle">
+          0.12
+        </text>
+      ) : kind === 'station' ? (
+        <g className="mp-frame-fig__station">
+          <line className="mp-frame-fig__member" x1="1" y1="8" x2="29" y2="8" />
+          <circle cx="15" cy="8" r="6" />
+          <circle className="mp-frame-fig__station-dot" cx="15" cy="8" r="2.4" />
+        </g>
       ) : (
         <g className="mp-frame-fig__node mp-frame-fig__node--flagged">
           <circle cx="15" cy="8" r="5" />

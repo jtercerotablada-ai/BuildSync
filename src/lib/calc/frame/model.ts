@@ -17,7 +17,7 @@ import {
  * ─────────────────────────────────────────────────────────────────────────────
  * PLANE FRAME ANALYSIS — what the visitor edits, and what the engine is given
  * ─────────────────────────────────────────────────────────────────────────────
- * Between the form of the eighth calculator ("Plane frame analysis", /resources/frame) and its engine
+ * Between the form of the eighth calculator ("Plane frame analysis", /resources/plane-frame-analysis) and its engine
  * (types.ts is the agreement between the two). Pure functions, no React: the frame as entered (`FrameForm`),
  * what each edit does to it (`reduceFrame`), the model the engine takes and which row of the form each of its
  * entries is (`toEngine`, `issueRow`), the same frame in the other unit system (`convertFrame`), and the
@@ -223,8 +223,8 @@ export type FrameNotice =
   | { code: 'node-removed'; node: number; members: number[]; supports: number; loads: number; memberLoads: number; renumbered: boolean; membersRenumbered: boolean }
   | { code: 'member-removed'; member: number; memberLoads: number; renumbered: boolean }
   | { code: 'limit'; list: FrameList; max: number }
-  /** An "add" that had nothing to add: every pair of nodes already has a member ('pairs'), every node already has a support ('nodes'), there is no node ('no-node') or no member ('no-member') to put it on. */
-  | { code: 'nothing-to-add'; list: FrameList; why: 'pairs' | 'nodes' | 'no-node' | 'no-member' }
+  /** An "add" that had nothing to add: every pair of nodes already has a member ('pairs'), there are fewer than two nodes ('few-nodes'), every pair that has no member is at one place ('coincident'), every node already has a support ('nodes'), there is no node ('no-node') or no member ('no-member') to put it on. */
+  | { code: 'nothing-to-add'; list: FrameList; why: 'pairs' | 'few-nodes' | 'coincident' | 'nodes' | 'no-node' | 'no-member' }
   | { code: 'template'; template: TemplateId; clamped: Clamp[] };
 
 export interface FrameForm {
@@ -554,10 +554,15 @@ function add(form: FrameForm, list: FrameList, seed: Record<string, unknown>): F
           const others = ids.filter((b) => b !== ids[a] && !joined(ids[a], b) && apart(ids[a], b)).sort((p, r) => Math.hypot(at(p).x - at(ids[a]).x, at(p).y - at(ids[a]).y) - Math.hypot(at(r).x - at(ids[a]).x, at(r).y - at(ids[a]).y));
           if (others.length > 0) found = [ids[a], others[0]];
         }
-        if (!found) return { ...form, notice: { code: 'nothing-to-add', list: 'members', why: 'pairs' } };
+        if (!found) {
+          // Why there is nothing: fewer than two nodes, or every pair that has no member is at one place, or every pair has one.
+          const free = ids.some((a) => ids.some((b) => a < b && !joined(a, b)));
+          const why = form.nodes.length < 2 ? 'few-nodes' : free ? 'coincident' : 'pairs';
+          return { ...form, notice: { code: 'nothing-to-add', list: 'members', why } };
+        }
         [i, j] = found;
       }
-      if (i === j || joined(i, j)) return { ...form, notice: { code: 'nothing-to-add', list: 'members', why: 'pairs' } };
+      if (i === j || joined(i, j)) return { ...form, notice: { code: 'nothing-to-add', list: 'members', why: i === j ? 'coincident' : 'pairs' } };
       return { ...form, notice: null, members: [...form.members, { id, i, j, A: null, I: null, E: null, hingeStart: false, hingeEnd: false, h: null }], nextId: id + 1 };
     }
     case 'supports': {
@@ -717,10 +722,52 @@ function patch(form: FrameForm, list: FrameList, id: number, change: Record<stri
       const row = { ...r, ...clean } as unknown as MemberLoadRow;
       // A projected load can only be global.
       if (list === 'memberLoads' && row.kind === 'udl-projected' && !row.dir.startsWith('global')) row.dir = 'global-y';
+      if (list === 'memberLoads' && 'kind' in clean && clean.kind !== (r as MemberLoadRow).kind) return startKind(form, row);
       return row;
     }),
   };
 }
+
+/**
+ * A member load whose KIND has just been changed: the fields the new kind uses that hold nothing (0) are given what a new row of that kind starts with, so that the
+ * load is not silently zero (a point load of 0, a gradient with no α, a trapezoid from 0 to 0). What the visitor typed in them before is kept (the address keeps the fields
+ * a kind does not use, so that changing back finds them): only a field that is still 0 is filled. The intensity carries over between the line kinds.
+ */
+function startKind(form: FrameForm, row: MemberLoadRow): MemberLoadRow {
+  const us = form.units === 'us';
+  const m = form.members.find((r) => r.id === row.member);
+  const L = m ? memberLength(form, m) : 0;
+  const out = { ...row };
+  const gravity = us ? -1 : -10;
+  const line = row.w !== 0 ? row.w : row.w2 !== 0 ? row.w2 : gravity;
+  switch (row.kind) {
+    case 'udl':
+    case 'udl-projected':
+      if (out.w === 0) out.w = line;
+      break;
+    case 'trapezoid':
+      if (out.w === 0) out.w = line;
+      if (out.w2 === 0) out.w2 = out.w;
+      if (out.a === 0 && out.b === 0) out.b = eight(L);
+      break;
+    case 'point':
+      if (out.P === 0) out.P = us ? -10 : -40;
+      if (out.a === 0) out.a = eight(L / 2);
+      break;
+    case 'moment':
+      if (out.M === 0) out.M = us ? 10 : 15;
+      if (out.a === 0) out.a = eight(L / 2);
+      break;
+    case 'temperature':
+      if (out.dT === 0 && out.dTg === 0) out.dT = us ? 50 : 30;
+      if (out.alpha === 0) out.alpha = FRAME_MATERIALS[form.material === 'aluminum' ? 'aluminum' : 'steel'].alpha[form.units];
+      break;
+  }
+  return out;
+}
+
+/** A support's settlement as the engine takes it: a pin and a roller leave the rotation free, so a rotation settlement typed there (and hidden by the form) is nothing. */
+export const settlementOf = (s: Pick<SupportRow, 'kind' | 'dx' | 'dy' | 'dr'>): { dx: number; dy: number; dr: number } => ({ dx: s.dx, dy: s.dy, dr: s.kind === 'pin' || s.kind === 'roller' ? 0 : s.dr });
 
 /* ── From the form to the engine ──────────────────────────────────────── */
 
@@ -763,7 +810,7 @@ export function toEngine(form: FrameForm): EngineInput {
       ...(s.kr !== 0 ? { kr: s.kr } : {}),
       ...(s.dx !== 0 ? { dx: s.dx * k.depth } : {}),
       ...(s.dy !== 0 ? { dy: s.dy * k.depth } : {}),
-      ...(s.dr !== 0 ? { dr: s.dr } : {}),
+      ...(settlementOf(s).dr !== 0 ? { dr: s.dr } : {}),
     })),
     loads: form.loads.map((l) => ({ node: at(l.node), fx: l.fx, fy: l.fy, m: l.m })),
     memberLoads: form.memberLoads.map((l): FrameMemberLoad => {

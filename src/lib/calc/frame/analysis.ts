@@ -1,6 +1,6 @@
 import { RESIDUAL, countOf, directionOf, solveFrame } from './engine';
 import { derivPoly, evalPoly, rootsOn } from './element';
-import { FRAME_UNITS, FROM_ENGINE, issueRow, toEngine, type FrameForm, type FrameList, type FrameRow, type FrameUnitNames } from './model';
+import { FRAME_UNITS, FROM_ENGINE, issueRow, settlementOf, toEngine, type FrameForm, type FrameList, type FrameRow, type FrameUnitNames } from './model';
 import { FRAME_ZERO, type Determinacy, type FrameIssueCode, type FrameSolution, type FrameSupportKind, type FrameWarningCode, type MemberResult, type StationKind } from './types';
 
 /**
@@ -22,7 +22,7 @@ import { FRAME_ZERO, type Determinacy, type FrameIssueCode, type FrameSolution, 
  *   issues.code     FrameIssueCode (types.ts lists every one with its numbers) plus 'duplicate-nodes' (three or more nodes at one
  *                   place: one issue for the lot) and 'scale' (two nodes the engine took for one because the frame is vastly
  *                   bigger than the gap between them: they are NOT at one place).
- *   warnings.code   'no-load' | 'no-stiffness' | 'bar' | 'free-rotation' (types.ts)
+ *   warnings.code   'no-load' | 'no-stiffness' | 'bar' | 'free-rotation' | 'no-expansion' (types.ts)
  *   determinacy.word   'determinate' | 'indeterminate' | 'unstable' | null
  *   station.kind    'end' | 'load' | 'zero-shear' | 'zero-moment' | 'zero-axial'
  *   support.kind    'fixed' | 'pin' | 'roller' | 'guide' | 'spring'
@@ -72,6 +72,8 @@ export interface AnalysisIssue {
   /** 'few-nodes', 'few-supports', 'unrestrained', 'mechanism', 'sections', 'too-big': the number the sentence needs. */
   count?: number;
   kind?: 'sway' | 'rotation';
+  /** 'mechanism' of kind 'rotation': the nodes (labels) at which a hinge lets the part swing: the hinge to take out. */
+  hinges?: number[];
   /** 'load-position': the member's length. 'scale': how far apart the two nodes are, and how big the frame is across (length unit). */
   length?: number;
   distance?: number;
@@ -245,6 +247,8 @@ export interface DrawingSupport {
   springs: { x: boolean; y: boolean; r: boolean };
   /** It settles (any of dx, dy, dr ≠ 0). */
   settles: boolean;
+  /** The settlement that counts (a pin and a roller have no rotation to settle), in the units shown (in, mm; radians), or null. */
+  settle: { dx: number; dy: number; dr: number } | null;
 }
 export interface DrawingHinge {
   member: number;
@@ -488,7 +492,8 @@ function drawingOf(form: FrameForm, solution: FrameSolution | null, scale: Scale
       kind: s.kind,
       angle: directional && Number.isFinite(s.angle) ? directionOf(s.angle).angle : null,
       springs: { x: s.kx > 0, y: s.ky > 0, r: s.kr > 0 },
-      settles: s.dx !== 0 || s.dy !== 0 || s.dr !== 0,
+      settles: (({ dx, dy, dr }) => dx !== 0 || dy !== 0 || dr !== 0)(settlementOf(s)),
+      settle: (({ dx, dy, dr }) => (dx !== 0 || dy !== 0 || dr !== 0 ? { dx, dy, dr } : null))(settlementOf(s)),
     });
   });
 
@@ -747,17 +752,39 @@ function deflectedOf(sol: FrameSolution, drawing: FrameDrawing, convert: number)
       if (!p.u || !p.v) continue;
       const ell = p.x1 - p.x0;
       const steps = Math.max(4, Math.ceil(CURVED / 2));
+      // Local displacement (u along the member, v to its left) in global axes.
+      const size = (t: number): number => {
+        const u = evalPoly(p.u!, t);
+        const v = evalPoly(p.v!, t);
+        return Math.hypot(u * m.cx - v * m.cy, u * m.cy + v * m.cx);
+      };
+      let bestT = 0;
+      let best = -1;
       for (let q = pts.length === 0 ? 0 : 1; q <= steps; q++) {
         const t = (ell * q) / steps;
         const u = evalPoly(p.u, t);
         const v = evalPoly(p.v, t);
-        // Local displacement (u along the member, v to its left) in global axes.
         const dx = u * m.cx - v * m.cy;
         const dy = u * m.cy + v * m.cx;
         const x = p.x0 + t;
         pts.push({ x: a.x + m.cx * x, y: a.y + m.cy * x, dx, dy });
-        maxDisp = Math.max(maxDisp, Math.hypot(dx, dy));
+        if (Math.hypot(dx, dy) > best) {
+          best = Math.hypot(dx, dy);
+          bestT = t;
+        }
       }
+      // The largest sample is not the largest displacement: the true maximum lies between its neighbours (a golden-section search
+      // there), so the largest displacement printed under the deformed shape is the table's and not 0.5 % under it.
+      let lo = Math.max(0, bestT - ell / steps);
+      let hi = Math.min(ell, bestT + ell / steps);
+      const phi = (Math.sqrt(5) - 1) / 2;
+      for (let it = 0; it < 60 && hi - lo > 1e-14 * ell; it++) {
+        const c = hi - phi * (hi - lo);
+        const d = lo + phi * (hi - lo);
+        if (size(c) < size(d)) lo = c;
+        else hi = d;
+      }
+      maxDisp = Math.max(maxDisp, best, size(0.5 * (lo + hi)));
     }
     samples.push({ member: m.index + 1, pts });
   }
@@ -791,7 +818,7 @@ export function memberValuesAt(results: FrameResults, member: number, x: number,
   const end = m.pieces[m.pieces.length - 1].x1;
   const want = side ?? (x >= end ? 'left' : 'right');
   let k = m.pieces.findIndex((p) => (want === 'right' ? x >= p.x0 && x < p.x1 : x > p.x0 && x <= p.x1));
-  if (k < 0) k = want === 'right' ? m.pieces.length - 1 : 0;
+  if (k < 0) k = x >= end ? m.pieces.length - 1 : x <= m.pieces[0].x0 ? 0 : want === 'right' ? m.pieces.length - 1 : 0;
   const p = m.pieces[k];
   const t = Math.min(Math.max(x, p.x0), p.x1) - p.x0;
   const floor = results.equilibrium.floor;
@@ -881,6 +908,21 @@ export function analyseFrame(form: FrameForm): FrameAnalysis {
       if (i.groups) out.groups = i.groups.map((g) => g.map((n) => n + 1));
       if (i.count !== undefined) out.count = i.count;
       if (i.kind) out.kind = i.kind;
+      // A member with no length (both ends on one node) is not drawn: its node is ringed in its place.
+      if (i.code === 'zero-length' && i.where?.list === 'members') {
+        const m = model.members[i.where.index];
+        if (m) out.nodes = [...new Set([m.i + 1, m.j + 1])].filter((n) => n >= 1);
+      }
+      // The part that swings swings about a hinge: the node where one sits on a member that reaches a node that moves.
+      if (i.code === 'mechanism' && i.kind === 'rotation' && i.nodes) {
+        const moving = new Set(i.nodes);
+        const at = new Set<number>();
+        model.members.forEach((m) => {
+          if (m.releases?.start && (moving.has(m.i) || moving.has(m.j))) at.add(m.i);
+          if (m.releases?.end && (moving.has(m.i) || moving.has(m.j))) at.add(m.j);
+        });
+        if (at.size > 0) out.hinges = [...at].sort((p, q) => p - q).map((n) => n + 1);
+      }
       if (i.length !== undefined) out.length = i.length;
       if (i.code === 'too-big' && i.where && i.where.list !== 'model') {
         out.list = i.where.list;

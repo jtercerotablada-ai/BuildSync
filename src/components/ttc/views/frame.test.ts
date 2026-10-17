@@ -472,3 +472,67 @@ describe('frame page: the words', () => {
     }
   });
 });
+
+describe('frame page: the claims of the review of 2026-10-17, each solved with the engine', () => {
+  it('A2: the gable thrust is wL²/(8f) with f the crown above the FEET: the template has an eave and a ridge rise, and f is their sum', () => {
+    const L = 40;
+    const eave = 15;
+    const rise = 8;
+    const w = 0.8;
+    const out = solved(
+      model({
+        nodes: [{ x: 0, y: 0 }, { x: L, y: 0 }, { x: 0, y: eave }, { x: L, y: eave }, { x: L / 2, y: eave + rise }],
+        members: [{ i: 0, j: 2 }, { i: 1, j: 3 }, { i: 2, j: 4, releases: { end: true } }, { i: 4, j: 3, releases: { start: true } }],
+        supports: [{ node: 0, kind: 'pin' }, { node: 1, kind: 'pin' }],
+        memberLoads: [{ kind: 'udl-projected', member: 2, dir: 'global-y', w: -w }, { kind: 'udl-projected', member: 3, dir: 'global-y', w: -w }],
+      }),
+    );
+    near(Math.abs(out.reactions[0].rx), (w * L * L) / (8 * (eave + rise)));
+    // With f read as the rise above the eaves the formula would give 20 kip: the copy must not say that.
+    expect(Math.abs(Math.abs(out.reactions[0].rx) - (w * L * L) / (8 * rise))).toBeGreaterThan(5);
+    for (const lang of LANGS) {
+      const text = framePage[lang].method.paragraphs.join(' ');
+      expect(text).toMatch(lang === 'en' ? /the crown a height f above the feet/ : /cumbrera a una altura f sobre los pies/);
+      expect(text).not.toMatch(lang === 'en' ? /each foot pushes inward/ : /flecha f/);
+    }
+  });
+
+  it('A3: defined from its other end a member keeps V at each place (the end columns swap) and M changes sign', () => {
+    const load = (dir: 1 | -1): FrameModel =>
+      model({
+        nodes: dir === 1 ? [{ x: 0, y: 0 }, { x: 10, y: 0 }] : [{ x: 10, y: 0 }, { x: 0, y: 0 }],
+        members: [{ i: 0, j: 1 }],
+        supports: dir === 1 ? [{ node: 0, kind: 'pin' }, { node: 1, kind: 'roller' }] : [{ node: 1, kind: 'pin' }, { node: 0, kind: 'roller' }],
+        memberLoads: [{ kind: 'udl', member: 0, dir: 'global-y', w: -2 }],
+      });
+    const fwd = solved(load(1)).members[0];
+    const rev = solved(load(-1)).members[0];
+    near(fwd.start.V, 10);
+    near(fwd.end.V, -10);
+    near(rev.start.V, -10);
+    near(rev.end.V, 10);
+    const mid = (m: typeof fwd) => m.pieces[0] && m.maxima.M;
+    near(mid(fwd).max.value, 25);
+    near(mid(rev).min.value, -25);
+    for (const lang of LANGS) {
+      const text = framePage[lang].signs.items.join(' ');
+      expect(text).not.toMatch(lang === 'en' ? /V changes sign/ : /V cambia de signo/);
+    }
+  });
+
+  it('A4: the Spanish page says the moment diagram is drawn on the tension side whichever way the member was drawn', () => {
+    expect(framePage.es.signs.items.join(' ')).toMatch(/sea cual sea el sentido en que se dibujó la barra/);
+    expect(framePage.en.signs.items.join(' ')).toMatch(/whichever way the member was drawn/);
+  });
+
+  it('A16: a couple on a member exactly at a hinged end stays with the member: the moment at the hinge is the couple', () => {
+    const out = solved(
+      beam(10, [{ node: 0, kind: 'pin' }, { node: 1, kind: 'roller' }], {
+        members: [{ i: 0, j: 1, releases: { start: true } }],
+        memberLoads: [{ kind: 'moment', member: 0, a: 0, M: 12 }],
+      }),
+    );
+    expect(Math.abs(out.members[0].start.M)).toBeCloseTo(12, 9);
+    expect(framePage.en.limits.items.join(' ')).toMatch(/moment at the hinge is the couple and not zero/);
+  });
+});

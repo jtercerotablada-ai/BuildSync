@@ -3,7 +3,7 @@
  * PLANE FRAME ANALYSIS — what the engine is given and what it returns
  * ─────────────────────────────────────────────────────────────────
  * The eighth calculator of the catalogue ("Plane frame analysis",
- * /resources/frame; Spanish "Análisis de pórticos planos"): "Moments, shears,
+ * /resources/plane-frame-analysis; Spanish "Análisis de pórticos planos"): "Moments, shears,
  * axial forces and reactions of a 2D frame." Straight prismatic members joined at nodes,
  * rigidly or with a moment hinge at either end, held by fixed, pinned, roller,
  * guided or elastic supports, under nodal loads, member loads and temperature.
@@ -62,9 +62,10 @@
  *   member hangs BELOW it. Define the same member from node 1 to node 0 (right
  *   to left) and the local axes turn with it: ȳ points DOWN, so the −ȳ side
  *   (where M > 0 puts the tension) is the TOP. The same sagging beam then has
- *   M = −25 at midspan, and V changes sign as well. The sign of M and V depends
- *   on the direction the member was drawn; the DRAWING of M (on the tension
- *   side) does not.
+ *   M = −25 at midspan. V keeps its value at every PLACE (V′(x) = V(L − x), M′(x) =
+ *   −M(L − x)): only the start and end columns swap, V = −10 at the new start and
+ *   +10 at the new end. The sign of M depends on the direction the member was
+ *   drawn; the DRAWING of M (on the tension side) does not.
  *
  * Node displacements (ux, uy) are positive along +x and +y; the rotation θ is
  * positive counter-clockwise. The deflection v of a member is positive along
@@ -334,8 +335,9 @@ export interface FrameIssue {
  *                    moments and reactions are exact, displacements are not computed.
  *  'bar'             a member with a hinge at both ends (members = those): it carries axial force, and shear only from its own loads.
  *  'free-rotation'   nodes whose rotation is undetermined (every member hinged there).      nodes
+ *  'no-expansion'    a temperature change on these members (members) has an expansion coefficient α of 0: it has no effect.
  */
-export type FrameWarningCode = 'no-load' | 'no-stiffness' | 'bar' | 'free-rotation';
+export type FrameWarningCode = 'no-load' | 'no-stiffness' | 'bar' | 'free-rotation' | 'no-expansion';
 export interface FrameWarning {
   code: FrameWarningCode;
   members?: number[];

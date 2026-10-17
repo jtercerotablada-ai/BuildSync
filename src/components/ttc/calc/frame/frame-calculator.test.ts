@@ -77,7 +77,8 @@ describe('the default frame, as the server sends it', () => {
     const t = text(show('en'));
     expect(t).toContain('−50.44 kip·ft - Member 3, at node 4');
     expect(t).toContain('0.09287 in - node 3');
-    expect(t.match(/Turn a member round and V and M change sign/g)).toHaveLength(1);
+    expect(t.match(/Define a member from its other end and M changes sign/g)).toHaveLength(1);
+    expect(t).not.toMatch(/V and M change sign/);
     expect(t).toContain('no design check');
   });
 
@@ -248,8 +249,31 @@ describe('every code has its sentence, in both languages', () => {
     const one = issueSentence({ code: 'mechanism', nodes: [3], kind: 'sway', count: 1 }, frameUi.en);
     expect(one).toBe('The frame is a mechanism, and node 3 can sway. Add a diagonal member or a support, or make a joint rigid.');
     const many = issueSentence({ code: 'mechanism', nodes: [3, 4], kind: 'rotation', count: 2 }, frameUi.es);
-    expect(many).toContain('los nudos 3 y 4 pueden girar libremente');
+    expect(many).toContain('los nudos 3 y 4 pueden girar alrededor de una rótula');
     expect(many).toContain('Hay 2 movimientos independientes.');
+  });
+  it('a part that swings names the node where the hinge is, not the node that moves (an L-frame hinged on both sides of its corner)', () => {
+    const form = (() => {
+      let g = reduceFrame(emptyFrame(), { type: 'template', template: 'l-frame', params: { base: 'fixed' } });
+      g = reduceFrame(g, { type: 'patch', list: 'members', id: g.members[0].id, patch: { hingeEnd: true } });
+      return reduceFrame(g, { type: 'patch', list: 'members', id: g.members[1].id, patch: { hingeStart: true } });
+    })();
+    const a = analyseSafely(form);
+    const m = a.issues.find((i) => i.code === 'mechanism')!;
+    expect(m.kind).toBe('rotation');
+    // The beam's free end (node 3) is what moves; the hinge is at the corner, node 2.
+    expect(m.nodes).toEqual([3]);
+    expect(m.hinges).toEqual([2]);
+    expect(issueSentence(m, frameUi.en)).toContain('node 3 can swing about a hinge. Remove the hinge at node 2, or add a member.');
+    expect(issueSentence(m, frameUi.es)).toContain('Quite la rótula en el nudo 2, o añada una barra.');
+    expect(readingSentence(a, 'none', frameUi.en, { num: String, val: String, length: 'ft' })).toMatch(/\. Node 3 can swing about a hinge; they are ringed/);
+  });
+  it('a member with no length is not drawn: the node it sits on is ringed', () => {
+    const f = reduceFrame(base, { type: 'patch', list: 'members', id: base.members[2].id, patch: { j: base.members[2].i } });
+    const a = analyseSafely(f);
+    const z = a.issues.find((i) => i.code === 'zero-length')!;
+    expect(z.nodes).toEqual([3]);
+    expect(flaggedNodes(a)).toContain(3);
   });
   it('warnings: one sentence each', () => {
     for (const lang of LANGS) {
@@ -274,8 +298,13 @@ describe('the notices of the form', () => {
     const f = reduceFrame(base, { type: 'remove', list: 'nodes', id: base.nodes[0].id });
     const n = noticeText(f.notice, frameUi.en, how)!;
     expect(n.where).toBe('nodes');
-    expect(n.text).toBe('Node 1 deleted. Also taken away: member 1 (their numbers are those they had before). Also gone: 1 support. Later nodes now have a number one lower. Surviving members are renumbered as well.');
+    expect(n.text).toBe('Node 1 deleted. Also taken away: member 1, by the number given before the deletion. Also gone: 1 support. Later nodes now have a number one lower. Surviving members are renumbered as well.');
     expect(noticeText(f.notice, frameUi.es, how)!.text).toContain('Se borró el nudo 1.');
+    expect(noticeText(f.notice, frameUi.es, how)!.text).toContain('Se quitó además la barra 1, que conservaba su numeración anterior.');
+    // Two members go with a node that two meet in: the verbs and the nouns agree in the plural, in both languages (the defect locked in here before said “their numbers are those…” of one).
+    const g = reduceFrame(base, { type: 'remove', list: 'nodes', id: base.nodes[2].id });
+    expect(noticeText(g.notice, frameUi.en, how)!.text).toContain('Also taken away: members 1 and 3, by the numbers given before the deletion.');
+    expect(noticeText(g.notice, frameUi.es, how)!.text).toContain('Se quitaron además las barras 1 y 3, que conservaban su numeración anterior.');
   });
   it('a member deleted, a refused add, a full list', () => {
     const f = reduceFrame(base, { type: 'remove', list: 'members', id: base.members[0].id });

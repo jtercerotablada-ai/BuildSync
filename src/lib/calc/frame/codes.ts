@@ -62,7 +62,7 @@ export const ISSUE_CODES = all<AnalysisIssueCode>()([
 /** The engine's own codes (a subset of ISSUE_CODES): what `solveFrame` can return. */
 export const ENGINE_ISSUE_CODES: readonly FrameIssueCode[] = ISSUE_CODES.filter((c): c is FrameIssueCode => c !== 'duplicate-nodes' && c !== 'scale');
 
-export const WARNING_CODES = all<FrameWarningCode>()(['no-load', 'no-stiffness', 'bar', 'free-rotation'] as const);
+export const WARNING_CODES = all<FrameWarningCode>()(['no-load', 'no-stiffness', 'bar', 'free-rotation', 'no-expansion'] as const);
 
 export const NOTICE_CODES = all<FrameNotice['code']>()(['node-removed', 'member-removed', 'limit', 'nothing-to-add', 'template'] as const);
 
