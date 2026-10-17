@@ -109,10 +109,10 @@ describe('the cases the page opens with', () => {
     const hang = solveHanging(toEngine(h).hanging);
     expect(hang.ok && hang.exact.H).toBeCloseTo(12.5, 10);
     expect(hang.ok && hang.exact.tension.max).toBeCloseTo(13.46291201783626, 10);
-    // state: 6 ft sag at 60 °F, then 20 °F with ice: H1 ≈ 3.0156 kip, H2 ≈ 4.7349 kip
+    // state: 6 ft sag at 60 °F, then 20 °F with ice: H1 ≈ 3.3010 kip (wL²/8d), H2 ≈ 5.0857 kip (an independent RK4 solver: 5.08566)
     const st = solveState(toEngine(defaultCaseFor('state')).state);
-    expect(st.ok && st.exact.state1.H).toBeCloseTo(3.0155, 3);
-    expect(st.ok && st.exact.state2.H).toBeCloseTo(4.7349, 3);
+    expect(st.ok && st.exact.state1.H).toBeCloseTo(3.3009, 3);
+    expect(st.ok && st.exact.state2.H).toBeCloseTo(5.0857, 3);
     // points: H = 37.5 kip
     const pt = solvePoints(toEngine(defaultCaseFor('points')).points);
     expect(pt.ok && pt.H).toBeCloseTo(37.5, 12);
@@ -235,11 +235,14 @@ describe('the section and the weight', () => {
     near(stiffness(f) ?? 0, 29000 * (Math.PI / 4), 1e-12);
   });
 
-  it('a 1 in 6×19 IWRC rope: metallic area 0.4006 in² (0.40·d²), E on it 13,000 ksi, w = 1.608 lb/ft (≈ 1.6·d²), EA = 5,207 kip', () => {
+  it('a 1 in 6×19 IWRC rope: metallic area 0.4139 in² (0.414·d²), E on it 14,500 ksi, w = 1.7605 lb/ft (the published 1.76·d²), EA = 6,002 kip', () => {
     const f = act(defaultCaseFor('hanging'), { type: 'material', material: 'rope' }, { type: 'loads', patch: { weightFrom: 'section' } });
-    near(metalArea(f) * 144, 0.4005530633, 1e-8);
-    near(selfWeight(f) * 1000, 1.6083318, 1e-6);
-    near(stiffness(f) ?? 0, 5207.19, 1e-5);
+    near(metalArea(f) * 144, 0.527 * (Math.PI / 4), 1e-12);
+    near(selfWeight(f) * 1000, 1.7605327, 1e-6);
+    // the published weight of a 6×19 IWRC rope is 1.76·d² lb/ft (1 in: 1.76, 1/2 in: 0.44)
+    near(selfWeight(f) * 1000, 1.76, 1e-3);
+    near(selfWeight(act(f, { type: 'section', patch: { diameter: 0.5 } })) * 1000, 0.44, 1e-3);
+    near(stiffness(f) ?? 0, 6001.62, 1e-5);
   });
 
   it('a 7-wire strand of 0.5 in: area 0.153 in² and 0.52 lb/ft (published values)', () => {
@@ -251,7 +254,7 @@ describe('the section and the weight', () => {
   it('by area: the area typed is the metallic area; the weight is unit weight × area × lay', () => {
     const f = act(defaultCaseFor('hanging'), { type: 'material', material: 'rope' }, { type: 'section', patch: { sectionBy: 'area', area: 0.4 } }, { type: 'loads', patch: { weightFrom: 'section' } });
     near(metalArea(f) * 144, 0.4, 1e-12);
-    near(selfWeight(f), (490 / 1000) * (0.4 / 144) * 1.18, 1e-12);
+    near(selfWeight(f), (490 / 1000) * (0.4 / 144) * 1.25, 1e-12);
   });
 
   it('typed weight is used as given (lb/ft → kip/ft), none is 0; EA is null for an inextensible cable', () => {
@@ -281,9 +284,29 @@ describe('the section and the weight', () => {
       expect(p.range[0]).toBeLessThanOrEqual(p.E.us);
       expect(p.range[1]).toBeGreaterThanOrEqual(p.E.us);
     }
-    // the trap: a rope's modulus is not steel's
-    expect(CABLE_MATERIALS.rope.E.us).toBeLessThan(0.5 * CABLE_MATERIALS.steel.E.us);
-    expect(CABLE_MATERIALS.spiral.E.us).toBeLessThan(CABLE_MATERIALS.strand.E.us);
+    // the trap: a rope's modulus is not steel's - about half of it
+    expect(CABLE_MATERIALS.rope.E.us / CABLE_MATERIALS.steel.E.us).toBeGreaterThan(0.45);
+    expect(CABLE_MATERIALS.rope.E.us / CABLE_MATERIALS.steel.E.us).toBeLessThanOrEqual(0.5);
+    expect(CABLE_MATERIALS.rope.E.us).toBeLessThan(CABLE_MATERIALS.spiral.E.us);
+    expect(CABLE_MATERIALS.spiral.E.us).toBeLessThan(CABLE_MATERIALS.locked.E.us);
+    expect(CABLE_MATERIALS.locked.E.us).toBeLessThan(CABLE_MATERIALS.strand.E.us);
+  });
+
+  it('the verified presets (EN 1993-1-11 Table 3.1 and Annex C, the rope makers, the 6061-T6 data sheets): the numbers are pinned', () => {
+    const m = CABLE_MATERIALS;
+    expect([m.rope.E.us, m.rope.E.si, m.rope.fill, m.rope.lay, m.rope.range]).toEqual([14500, 100, 0.527, 1.25, [13000, 15500]]);
+    expect([m.spiral.E.us, m.spiral.E.si, m.spiral.fill, m.spiral.lay, m.spiral.range]).toEqual([21800, 150, 0.75, 1.04, [20000, 23200]]);
+    expect([m.locked.E.us, m.locked.E.si, m.locked.fill, m.locked.range]).toEqual([23200, 160, 0.84, [21800, 24700]]);
+    expect([m.stainless.alpha.us, m.stainless.alpha.si]).toEqual([9.2, 16.6]);
+    expect([m.aluminum.alpha.us, m.aluminum.alpha.si]).toEqual([13, 23.4]);
+    // what is kept: steel, strand
+    expect([m.steel.E.us, m.steel.E.si, m.steel.alpha.us, m.steel.alpha.si, m.steel.gamma.us, m.steel.gamma.si]).toEqual([29000, 200, 6.5, 11.7, 490, 77]);
+    expect([m.strand.E.us, m.strand.E.si, m.strand.fill]).toEqual([28500, 196, 0.78]);
+    // the metallic area of a rope: 0.414·d² (EN Annex C, 6×19), its weight 1.76·d² lb/ft
+    near(m.rope.fill * (Math.PI / 4), 0.414, 5e-3);
+    near(m.rope.gamma.us * m.rope.fill * (Math.PI / 4) * m.rope.lay, 1.76 * 144, 1e-3);
+    // the SI numbers are the round figures of the same physical value, to 0.5 %
+    for (const id of ['rope', 'spiral', 'locked'] as const) expect(Math.abs(m[id].E.si / (m[id].E.us * 0.0068947572932) - 1), id).toBeLessThan(5e-3);
   });
 });
 
@@ -330,16 +353,16 @@ describe('what each edit does', () => {
 
   it('material loads the preset (E, alpha, unit weight, fill, lay) in the units on show; typing over a preset number makes it custom', () => {
     const rope = act(base, { type: 'material', material: 'rope' });
-    expect(rope).toMatchObject({ material: 'rope', E: 13000, alpha: 6.5, gamma: 490, fill: 0.51, lay: 1.18 });
+    expect(rope).toMatchObject({ material: 'rope', E: 14500, alpha: 6.5, gamma: 490, fill: 0.527, lay: 1.25 });
     const si = act(convertCableSag(base, 'si'), { type: 'material', material: 'aluminum' });
-    expect(si).toMatchObject({ material: 'aluminum', E: 69, alpha: 23, gamma: 26.6 });
+    expect(si).toMatchObject({ material: 'aluminum', E: 69, alpha: 23.4, gamma: 26.6 });
     expect(act(base, { type: 'material', material: 'custom' })).toMatchObject({ material: 'custom', E: 29000 });
     expect(act(base, { type: 'material', material: 'unobtainium' as MaterialId })).toBe(base);
     const typed = act(rope, { type: 'section', patch: { E: 12500 } });
     expect(typed.material).toBe('custom');
     expect(typed.E).toBe(12500);
     // typing the preset's own number keeps it; section fields that are not material numbers keep it
-    expect(act(rope, { type: 'section', patch: { E: 13000 } }).material).toBe('rope');
+    expect(act(rope, { type: 'section', patch: { E: 14500 } }).material).toBe('rope');
     expect(act(rope, { type: 'section', patch: { diameter: 1.5, sectionBy: 'area', area: 0.5, elastic: false } }).material).toBe('rope');
     expect(act(rope, { type: 'section', patch: { fill: 0.6 } }).material).toBe('custom');
   });
@@ -410,9 +433,9 @@ describe('the engine inputs, by mode', () => {
   it('the state input: state 1 is the form\'s load, state 2 is its own q plus the weight plus ice; thermal = α·ΔT', () => {
     const f = defaultCaseFor('state');
     const e = toEngine(f);
-    expect(e.state.state1).toEqual({ q: 0, w: expect.closeTo(0.0016083318, 9) });
+    expect(e.state.state1).toEqual({ q: 0, w: expect.closeTo(0.0017605327, 9) });
     expect(e.state.state2.q).toBe(0);
-    expect(e.state.state2.w).toBeCloseTo(0.0016083318 + 0.001, 9);
+    expect(e.state.state2.w).toBeCloseTo(0.0017605327 + 0.001, 9);
     expect(e.state.state2.thermal).toBeCloseTo(-2.6e-4, 12);
   });
 
@@ -423,8 +446,8 @@ describe('the engine inputs, by mode', () => {
     expect(e.state.sweep?.thermal).toHaveLength(11);
     expect(e.state.sweep?.thermal?.[2]).toBeCloseTo(6.5e-6 * (20 - 60), 12);
     expect(e.factors).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3]);
-    expect(e.state.sweep?.loads?.[2]).toEqual({ q: 0, w: expect.closeTo(0.0016083318 + 0.001, 9) });
-    expect(e.state.sweep?.loads?.[0]).toEqual({ q: 0, w: expect.closeTo(0.0016083318, 9) });
+    expect(e.state.sweep?.loads?.[2]).toEqual({ q: 0, w: expect.closeTo(0.0017605327 + 0.001, 9) });
+    expect(e.state.sweep?.loads?.[0]).toEqual({ q: 0, w: expect.closeTo(0.0017605327, 9) });
     expect(e.tableIssues).toEqual([]);
     const bad = toEngine(act(f, { type: 'state', patch: { low: 0, high: 1000, step: 1, factorRows: 40 } }));
     expect(bad.temps).toEqual([]);

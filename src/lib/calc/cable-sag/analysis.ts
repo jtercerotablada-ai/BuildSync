@@ -84,6 +84,7 @@ export interface AnalysisWarning {
   x?: number;
   value?: number;
   count?: number;
+  cause?: 'depth' | 'elasticity';
 }
 
 /* ── One cable ────────────────────────────────────────────────────────── */
@@ -253,7 +254,8 @@ export interface StateResults {
     /** The total load per unit length of each state (lb/ft, kN/m): q + w. */
     loadPerLength: { state1: number; state2: number };
   };
-  tables: { thermal: StateTableRow[]; loads: StateTableRow[]; notes: AnalysisIssue[] };
+  /** `skipped`: the tables were not solved (`analyseCableSag(form, { tables: false })`): their rows are empty, and are somebody else's to fill. */
+  tables: { thermal: StateTableRow[]; loads: StateTableRow[]; notes: AnalysisIssue[]; skipped: boolean };
 }
 
 export interface JointLine {
@@ -382,6 +384,18 @@ function issueLine(i: CableIssue, form: CableSagForm): AnalysisIssue {
   return out;
 }
 
+/**
+ * The lines of one engine problem: one, but for two loads at one position, which is a problem of BOTH rows (the engine names the second of a
+ * pair; three at one place made two pairs and left the first row unmarked).
+ */
+function issueLines(i: CableIssue, form: CableSagForm): AnalysisIssue[] {
+  if (i.code !== 'duplicate-position' || !i.indices || i.indices.length !== 2) return [issueLine(i, form)];
+  const [a, b] = i.indices;
+  const first = issueField({ ...i, indices: [b, a] }, form);
+  const second = issueLine(i, form);
+  return first !== undefined && first !== second.field ? [{ ...second, field: first }, second] : [second];
+}
+
 const warningLine = (w: CableWarning): AnalysisWarning => ({ ...w });
 
 /* ── The drawing ──────────────────────────────────────────────────────── */
@@ -490,7 +504,16 @@ function rowsOf(rows: StateRow[], values: number[], h1: number, isState2: (value
   });
 }
 
-export function analyseCableSag(source: CableSagForm): CableSagAnalysis {
+/**
+ * `tables: false` leaves the two tables of a change of state unsolved (empty rows, `tables.skipped`): they are the
+ * heavy part of a deep cable (some 10 ms a row, 62 rows), and a page that must stay responsive to a key solves
+ * the cable first and the tables when the typing pauses.
+ */
+export interface AnalyseOptions {
+  tables?: boolean;
+}
+
+export function analyseCableSag(source: CableSagForm, options: AnalyseOptions = {}): CableSagAnalysis {
   // A mode that is none of the three (a form from nowhere) is the hanging cable's.
   const form: CableSagForm = MODES.includes(source.mode) ? source : { ...source, mode: 'hanging' };
   const units = CABLE_UNITS[form.units] ?? CABLE_UNITS.us;
@@ -517,7 +540,8 @@ export function analyseCableSag(source: CableSagForm): CableSagAnalysis {
   }
 
   if (form.mode === 'state') {
-    const out = solveState(input.state);
+    const skipTables = options.tables === false;
+    const out = solveState(skipTables ? { ...input.state, sweep: {} } : input.state);
     if (!out.ok) return { ...base, issues: out.issues.map((i) => issueLine(i, form)), warnings: [], drawing: emptyDrawing(form) };
     const s1 = out.exact.state1;
     const s2 = out.exact.state2;
@@ -547,6 +571,7 @@ export function analyseCableSag(source: CableSagForm): CableSagAnalysis {
         thermal: rowsOf(out.tables.thermal, input.temps, s1.H, (t) => Math.abs(t - st.T2) <= 1e-9 * Math.max(1, Math.abs(st.T2)) + 0.01 * st.step),
         loads: rowsOf(out.tables.loads, input.factors, s1.H, (v) => Math.abs(v - 1) <= 1e-9),
         notes: input.tableIssues.map((i) => issueLine(i, form)),
+        skipped: skipTables,
       },
     };
     return { ...base, issues: [], warnings: out.warnings.map(warningLine), state: results, drawing: stateDrawing(form, out) };
@@ -555,7 +580,7 @@ export function analyseCableSag(source: CableSagForm): CableSagAnalysis {
   const out = solvePoints(input.points);
   if (!out.ok) {
     // Issues name loads by index; the form's rows are in the same order.
-    return { ...base, issues: out.issues.map((i) => issueLine(i, form)), warnings: [], drawing: emptyDrawing(form) };
+    return { ...base, issues: out.issues.flatMap((i) => issueLines(i, form)), warnings: [], drawing: emptyDrawing(form) };
   }
   const known = input.points.known;
   const sagAt = known.kind === 'sag' ? { x: known.x, value: known.value } : null;
@@ -616,9 +641,9 @@ function pointsResultsOf(sol: PointsSolution, given: PointsKnownField, sagAt: { 
  * the page would be a blank box — so it is caught here and said as 'stopped', with the
  * drawing the form still allows.
  */
-export function analyseSafely(form: CableSagForm): CableSagAnalysis {
+export function analyseSafely(form: CableSagForm, options?: AnalyseOptions): CableSagAnalysis {
   try {
-    return analyseCableSag(form);
+    return analyseCableSag(form, options);
   } catch {
     let drawing: Drawing;
     try {

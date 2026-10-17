@@ -73,23 +73,23 @@ describe('the defaults, with their hand answers', () => {
     clean(a);
   });
 
-  it('state: the rope in ice and cold — H 3.0155 → 4.7349 kip (×1.570), sag 6 → 6.195 ft, ΔT −40 °F, strain −2.6e-4', () => {
+  it('state: the rope in ice and cold — H 3.3009 → 5.0857 kip (×1.5407), sag 6 → 6.105 ft, ΔT −40 °F, strain −2.6e-4', () => {
     const a = analyseCableSag(defaultCaseFor('state'));
     expect(a.issues).toEqual([]);
     const s = a.state!;
-    near(s.state1.H, 3.0155, 1e-4);
-    near(s.state2.H, 4.7349, 1e-4);
+    near(s.state1.H, 3.3009, 1e-4);
+    near(s.state2.H, 5.0857, 1e-4);
     near(s.state1.sagMid, 6, 1e-11);
-    near(s.state2.sagMid, 6.1952, 1e-4);
-    near(s.change.ratioH, 1.5702, 1e-4);
+    near(s.state2.sagMid, 6.1048, 1e-4);
+    near(s.change.ratioH, 1.5407, 1e-4);
     near(s.change.deltaH, s.state2.H - s.state1.H, 1e-12);
     near(s.change.deltaT, -40, 1e-15);
     near(s.change.thermalStrain, -2.6e-4, 1e-12);
-    near(s.change.loadPerLength.state1, 1.6083, 1e-4);
-    near(s.change.loadPerLength.state2, 2.6083, 1e-4);
-    near(s.section.area, 0.40055, 1e-4);
-    near(s.section.selfWeight, 1.6083, 1e-4);
-    near(s.section.EA ?? 0, 5207.19, 1e-6);
+    near(s.change.loadPerLength.state1, 1.7605, 1e-4);
+    near(s.change.loadPerLength.state2, 2.7605, 1e-4);
+    near(s.section.area, 0.41390, 1e-4);
+    near(s.section.selfWeight, 1.7605, 1e-4);
+    near(s.section.EA ?? 0, 6001.62, 1e-6);
     expect(s.family).toBe('catenary');
     expect(s.parabolic).not.toBeNull();
     expect(s.tables.thermal).toHaveLength(11);
@@ -142,7 +142,7 @@ describe('the defaults, with their hand answers', () => {
     // elongation is in millimetres in SI: 0.693 in = 17.6 mm
     near(h.exact.elongation, 0.6933 * 25.4, 5e-4);
     const s = analyseCableSag(defaultCaseFor('state', 'si')).state!;
-    near(s.change.ratioH, 1.5702, 2e-3);
+    near(s.change.ratioH, 1.5407, 2e-3);
     near(s.change.deltaT, -22.2222, 1e-4);
     near(s.change.thermalStrain, -2.6e-4, 1e-3);
     expect(s.tables.thermal.find((r) => r.isState2)).toBeDefined();
@@ -311,7 +311,7 @@ describe('the drawing', () => {
     const a = analyseCableSag(defaultCaseFor('state'));
     expect(curveIds(a)).toEqual(['state1', 'state2']);
     expect(a.drawing.mode).toBe('state');
-    expect(a.drawing.sag.mid!.value).toBeCloseTo(6.1952, 3);
+    expect(a.drawing.sag.mid!.value).toBeCloseTo(6.1048, 3);
     expect(a.drawing.sag.state1!.value).toBeCloseTo(6, 8);
     expect(a.drawing.sag.given).toBe('mid');
   });
@@ -379,7 +379,13 @@ describe('the problems, by field and by label', () => {
     const a = analyseCableSag(bad);
     expect(a.issues).toEqual([{ code: 'load-position', field: { point: 2 }, at: 2, value: 80 }]);
     const dup = act(base, { type: 'point-patch', id: 3, patch: { x: 15 } });
-    expect(analyseCableSag(dup).issues).toEqual([{ code: 'duplicate-position', field: { point: 3 }, ats: [1, 3] }]);
+    // BOTH rows of a pair are marked (the engine names the second; the first was left unmarked), and three at one place mark all three.
+    expect(analyseCableSag(dup).issues).toEqual([
+      { code: 'duplicate-position', field: { point: 1 }, ats: [1, 3] },
+      { code: 'duplicate-position', field: { point: 3 }, ats: [1, 3] },
+    ]);
+    const triple = act(base, { type: 'point-patch', id: 2, patch: { x: 15 } }, { type: 'point-patch', id: 3, patch: { x: 15 } });
+    expect(new Set(analyseCableSag(triple).issues.map((i) => JSON.stringify(i.field)))).toEqual(new Set([JSON.stringify({ point: 1 }), JSON.stringify({ point: 2 }), JSON.stringify({ point: 3 })]));
     const nan = act(base, { type: 'point-patch', id: 1, patch: { P: Number.NaN } });
     expect(analyseCableSag(nan).issues).toEqual([{ code: 'number', field: { point: 1 }, at: 1 }]);
     expect(analyseCableSag(act(base, { type: 'points', patch: { sagAt: 0 } })).issues).toEqual([{ code: 'sag-position', field: 'sagAt', value: 0 }]);

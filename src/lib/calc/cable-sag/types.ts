@@ -88,8 +88,9 @@
  *   length is q plus the weight of the cable over that run), integrated in the
  *   slope p = z' by Gauss–Legendre quadrature (shape.ts). The PARABOLIC
  *   approximation next to it treats all the load as per horizontal length,
- *   q_parabolic = q + w (the cable weight spread over the span, the usual
- *   shortcut) and solves the same known with the same machinery.
+ *   q_parabolic = q + w·√(1 + (h/L)²) (the cable weight spread over the CHORD,
+ *   the usual hand shortcut: w per length of chord, √(L² + h²) long, over a run
+ *   of L; on a level span it is q + w) and solves the same known with the same machinery.
  *
  * ── ELASTICITY ──────────────────────────────────────────────────────────
  *   EA  (F): modulus × metallic area, or null for an inextensible cable.
@@ -109,7 +110,13 @@
  *   tension has a minimum (a very slack cable has a large tension too), so
  *   there are two cables with that tension; the TAUT one (the larger H) is
  *   returned and the slacker one is given in `alternative`. The results are
- *   right to ≥ 1e-11 of themselves on the sag/span range 1e-6 … 100.
+ *   right to ≥ 1e-11 of themselves on the sag/span range 1e-6 … 100 (checked against an
+ *   independent solver). One exception is known and harmless: a 'sag-low' target on a
+ *   span a hundred times as high as wide, with the lowest point ~1e-6 of the span below
+ *   the lower support, is met to ~1e-5 of itself (the lowest point's level is a
+ *   difference of two numbers of ~1e4). And a shape whose two nested solves do not
+ *   close on the boundary conditions (the run is L, the rise is the chord's) is never
+ *   returned: it is a 'solver' issue (shape.ts, `forward`).
  */
 
 /* ── Limits the whole calculator holds ────────────────────────────────── */
@@ -123,7 +130,8 @@ export const MAX_SAG_RATIO = 100;
 export const MAX_RISE_RATIO = 100;
 /**
  * THE PARABOLA TOLERANCE. 'parabola-differs' is raised when the parabolic
- * approximation (all the load per horizontal length) differs from the exact
+ * approximation (all the load per horizontal length, the weight spread over the
+ * chord: q + w·√(1 + (h/L)²)) differs from the exact
  * result by MORE than 1 % in the largest of: H, the largest tension, the mid-span
  * sag (the quantity that is not the given one, so it measures the approximation
  * and not the input). Why 1 %: a pretension quoted to the nearest percent is
@@ -249,9 +257,11 @@ export interface PointsInput {
  *                           if it is shorter than the chord by more than the
  *                           solver's range (a strain far beyond 100 %).
  *  'tension-below-minimum'  the given tension is below the least tension the cable           min = that least tension; value
- *                           can have in this span and load, searched between 1e-2 and
- *                           1e9 times (q + w)·L of horizontal tension. (For q only the tension
- *                           never falls below ≈ qL/2 however slack the cable.)
+ *                           can have in this span and load, searched between 1e-4 and
+ *                           1e9 times (q + w)·L of horizontal tension (a mid-span sag of up to
+ *                           ~1,250 spans for the slackest). (For q only the tension never
+ *                           falls below qL/2 however slack the cable: a tension just above
+ *                           it is a real, very slack cable, and is found.)
  *  'state2-load-zero'       state 2 has no load: the cable would be straight (taut)        chord; length = state 2's unstressed length
  *                           or slack, and a "sag" has no meaning. SLACK when the
  *                           unstressed length is the longer.
@@ -337,12 +347,14 @@ export interface CableIssue {
 /**
  * What the engine says without refusing: the solution is there.
  *  'parabola-differs'  the parabolic approximation differs from the exact result    difference (relative, the worst of H, T, sag);
- *                      by more than PARABOLA_TOLERANCE (1 %).                       tolerance; ratio = the mid-span sag / L
+ *                      by more than PARABOLA_TOLERANCE (1 %).                       tolerance; ratio = the mid-span sag / L;
+ *                                                                                   cause = 'depth' | 'elasticity' (see CableWarning)
  *  'strain-high'       the largest T/EA is above 1 %.                               strain
  *  'vertex-outside'    the cable's lowest point is outside the span: the cable      x = where the (imaginary) lowest point would be,
  *                      rises (or falls) all the way from one support to the other.   from A
  *  'tension-two-roots' a given tension is the tension of two cables, a taut one     alternative H (the slack one)
- *                      (returned) and a slack one (`alternative`).
+ *                      (returned) and a slack one (`alternative`). Also in the funicular
+ *                      cable with a largest tension given.
  *  'upward-load'       a point load pulls up: the funicular polygon may rise         count
  *                      above its chord.
  *  'zero-load'         a point load of 0: it changes nothing.                        count
@@ -356,6 +368,8 @@ export interface CableWarning {
   code: CableWarningCode;
   state?: 1 | 2;
   difference?: number;
+  /** For 'parabola-differs': what separates the parabola from the exact cable. 'depth': the sag is deep enough that the catenary is no parabola. 'elasticity': a rigid cable would agree; the stretch is what differs. */
+  cause?: 'depth' | 'elasticity';
   tolerance?: number;
   ratio?: number;
   strain?: number;
@@ -510,6 +524,8 @@ export interface PointsSolution {
   lowest: { joint: number; z: number };
   /** Σ P. */
   totalLoad: number;
+  /** For a largest tension known: the slack cable with the same largest tension, when there is one (its H). Null otherwise. */
+  alternative: { H: number } | null;
   warnings: CableWarning[];
 }
 

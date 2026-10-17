@@ -7,7 +7,10 @@
  *   GL_X, GL_W   the 8-point Gauss–Legendre rule (positive half). On a panel
  *                the engine keeps narrower than half a unit of asinh(slope)
  *                its integrands are analytic at least π/2 away from the real
- *                axis, so the rule is exact to rounding (error ~ 1e-17).
+ *                axis, so the rule is exact to rounding for the cables met in
+ *                practice; measured against an independent solver the worst
+ *                single-panel case (half-slope ~0.37, sag/span ~0.09) is off by
+ *                3e-13 of the integral, which is still far below any figure shown.
  *   illinois     a bracketed root finder (false position with the Illinois
  *                halving, and a bisection every eighth step so that the
  *                bracket always closes). It never leaves its bracket, so it

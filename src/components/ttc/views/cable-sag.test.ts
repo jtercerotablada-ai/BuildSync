@@ -402,7 +402,7 @@ describe('cable sag page: the words', () => {
       [assumes, /effective modulus of a wire rope sits well under that of the steel/, /módulo efectivo resulta muy inferior al del acero/],
       [assumes, /Stretch from the first loading of a new rope, creep and relaxation are not modelled/, /estiramiento de la primera carga de un cable nuevo, la fluencia y la relajación no están modelados/],
       [limits, /^It gives tensions, shapes and lengths and stops there/, /^Da tensiones, formas y longitudes y se detiene ahí/],
-      [limits, /fits two cables, one taut and one slack/, /la tienen dos cables, uno tirante y otro flojo/],
+      [limits, /can fit two cables, one taut and one slack/, /pueden existir dos cables, el tenso y el flojo/],
       [limits, /The change of state is for a cable under its own weight/, /El cambio de estado es para un cable bajo su peso/],
       [limits, /no elasticity and no temperature/, /no tiene elasticidad ni temperatura/],
       [limits, /The three modes are separate cases of one form/, /Los tres modos son casos separados de un mismo formulario/],

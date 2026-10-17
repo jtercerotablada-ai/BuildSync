@@ -16,11 +16,12 @@ import { shaftPage } from '@/lib/calc/shaft/page-strings';
 import { shaftUi } from '@/lib/calc/shaft/strings';
 import { trussPage } from '@/lib/calc/truss/page-strings';
 import { trussUi } from '@/lib/calc/truss/strings';
-import { CABLE_SAG_KEY, MAX_POINT_LOADS, convertCableSag, decodeCableSag, defaultCase, defaultCaseFor, encodeCableSag, type CableSagForm, type CableSagMode, type PointRow } from '@/lib/calc/cable-sag/model';
+import { analyseSafely } from '@/lib/calc/cable-sag/analysis';
+import { CABLE_SAG_KEY, MAX_POINT_LOADS, convertCableSag, decodeCableSag, defaultCase, defaultCaseFor, encodeCableSag, reduceCableSag, type CableSagForm, type CableSagMode, type PointRow } from '@/lib/calc/cable-sag/model';
 import { cableSagUi, sharedWords } from '@/lib/calc/cable-sag/strings';
 import { calculatorFamilies } from '@/lib/ttc/calculators';
 import type { Lang } from '@/lib/ttc/i18n';
-import { CableSagCalculator } from './CableSagCalculator';
+import { CableSagCalculator, solvedFor } from './CableSagCalculator';
 
 // A turn of the event loop between two tests: every test here solves a cable or several, and never waits.
 afterEach(() => new Promise<void>((done) => setTimeout(done, 0)));
@@ -187,8 +188,8 @@ const PROBLEMS: { code: string; form: () => CableSagForm; en: RegExp; es: RegExp
   {
     code: 'duplicate-position',
     form: () => withPoints(points, [row(1, 10, 1), row(2, 10, 1)]),
-    en: /^Load 2: Load 1 and load 2 sit at one position\. Move one of them, or add them into one\.$/,
-    es: /^Carga 2: Las cargas 1 y 2 están en la misma posición\./,
+    en: /^Load 1: Load 1 and load 2 sit at one position\. Move one of them, or add them into one\.$/,
+    es: /^Carga 1: Las cargas 1 y 2 están en la misma posición\./,
   },
   { code: 'no-loads', form: () => withPoints(points, []), en: /^Point loads: There is no point load, or every one is 0\. With nothing to carry the cable would be straight\.$/, es: /^Cargas puntuales: No hay ninguna carga puntual, o todas valen 0\./ },
   {
@@ -232,7 +233,8 @@ describe('the hanging example, as the server sends it', () => {
     ]);
     expect(issueList(html)).toEqual([]);
     expect(warningList(html)).toEqual([]);
-    expect(html).not.toContain('mp-cs__warnings');
+    // The live region is always on the page (what is put in it is announced) and is hidden while it is empty.
+    expect(html).toMatch(/<div class="mp-cs__warnings" role="status" hidden=""><\/div>/);
   });
 
   it('opens bare: the example is the address of no case', () => {
@@ -246,8 +248,8 @@ describe('the hanging example, as the server sends it', () => {
     expect(headOf(card)).toEqual(['Support', 'Tension (kip)', 'Vertical force (kip)', 'Angle below horizontal (°)']);
     // qL/2 = 5 kip; T = √(12.5² + 5²) = 13.46 kip; atan(5/12.5) = 21.80°.
     expect(rowsOf(card)).toEqual([
-      ['A, left', '13.46', '5 upward', '+21.8'],
-      ['B, right', '13.46', '5 upward', '+21.8'],
+      ['A, left', '13.46', '5 kip upward', '+21.8'],
+      ['B, right', '13.46', '5 kip upward', '+21.8'],
     ]);
   });
 
@@ -444,7 +446,7 @@ describe('what is known, other than the mid-span sag', () => {
     const html = show('en', steep);
     expect(warningList(html)).toHaveLength(1);
     const shape = pairsOf(cardsOf(html).of('Pretension and shape'));
-    expect(shape.find((p) => p[0] === 'Lowest point')![1]).toBe('Outside the span: the cable rises from one support to the other.');
+    expect(shape.find((p) => p[0] === 'Lowest point')![1]).toBe('Outside the span: the cable rises, or falls, all the way from one support to the other.');
     expect(shape.find((p) => p[0] === 'Sag below the lower support, s')![1]).toBe('0: the lowest point is the lower support.');
     expect(html).not.toContain('class="mp-cs-fig__harrow"');
     const angles = rowsOf(cardsOf(html).of('Tensions at the supports')).map((r) => r[3]);
@@ -455,21 +457,21 @@ describe('what is known, other than the mid-span sag', () => {
 describe('a change of state, as the server sends it', () => {
   const html = show('en', state);
 
-  it('is the 300 ft rope cooled by 40 °F and loaded with ice: its pretension rises by 1.57', () => {
+  it('is the 300 ft rope cooled by 40 °F and loaded with ice: its pretension rises by 1.541', () => {
     expect(pairsOf(html.match(/<dl class="mp-app__dl mp-cs__headline">[\s\S]*?<\/dl>/)![0])).toEqual([
-      ['Pretension in state 2, H', '4.735 kip'],
-      ['State 2 ÷ state 1, H', '1.57'],
-      ['Sag at midspan in state 2', '6.195 ft'],
-      ['Largest tension in state 2', '4.751 kip at both supports'],
+      ['Pretension in state 2, H', '5.086 kip'],
+      ['State 2 ÷ state 1, H', '1.541'],
+      ['Sag at midspan in state 2', '6.105 ft'],
+      ['Largest tension in state 2', '5.102 kip at both supports'],
     ]);
     expect(issueList(html)).toEqual([]);
     expect(warningList(html)).toEqual([]);
   });
 
-  it('agrees with the textbook’s cubic to its own approximations (4.7367 kip)', () => {
+  it('agrees with the textbook’s cubic to its own approximations (5.0873 kip)', () => {
     const h2 = Number(pairsOf(html.match(/<dl class="mp-app__dl mp-cs__headline">[\s\S]*?<\/dl>/)![0])[0][1].replace(' kip', ''));
-    expect(Math.abs(h2 - 4.7367) / 4.7367).toBeLessThan(5e-4);
-    expect(Math.abs(3.015 - 0.0016083 * 300 ** 2 / 48)).toBeLessThan(2e-3);
+    expect(Math.abs(h2 - 5.0873) / 5.0873).toBeLessThan(5e-4);
+    expect(Math.abs(3.301 - 0.0017605 * 300 ** 2 / 48)).toBeLessThan(2e-3);
   });
 
   it('has the groups of a change of state, in order', () => {
@@ -504,11 +506,11 @@ describe('a change of state, as the server sends it', () => {
       'Length under load (ft)',
       'Unstretched length (ft)',
     ]);
-    // 1.608 lb/ft of rope, 1 lb/ft of ice; 60 °F to 20 °F.
-    expect(rows[0].slice(1)).toEqual(['1.608', '2.608', '+1']);
+    // 1.761 lb/ft of rope, 1 lb/ft of ice; 60 °F to 20 °F.
+    expect(rows[0].slice(1)).toEqual(['1.761', '2.761', '+1']);
     expect(rows[1].slice(1)).toEqual(['60', '20', '−40']);
-    expect(rows[2].slice(1)).toEqual(['3.015', '4.735', '+1.719']);
-    expect(rows[3].slice(1)).toEqual(['6', '6.195', '+0.1952']);
+    expect(rows[2].slice(1)).toEqual(['3.301', '5.086', '+1.785']);
+    expect(rows[3].slice(1)).toEqual(['6', '6.105', '+0.1048']);
     // The cable is shorter in the cold (6.5e-6 × −40 × 300 ft = −0.078 ft) and longer under the ice's load.
     expect(rows[8][3]).toMatch(/^−0\.078/);
     expect(rows.flat().every((c) => !noise.test(c))).toBe(true);
@@ -518,14 +520,14 @@ describe('a change of state, as the server sends it', () => {
     expect(pairsOf(cardsOf(html).of('What changed'))).toEqual([
       ['Temperature change', '−40 °F'],
       ['Thermal strain, α·ΔT', '−0.026 %'],
-      ['Pretension, state 2 ÷ state 1', '1.57'],
+      ['Pretension, state 2 ÷ state 1', '1.541'],
     ]);
   });
 
   it('gives state 2 in detail: the supports’ forces, the angle, the stretch', () => {
     const pairs = pairsOf(cardsOf(html).of('State 2 in detail'));
     expect(pairs.map((p) => p[0])).toEqual(['Sag ÷ span', 'Sag below the lower support, s', 'Vertical force at A', 'Vertical force at B', 'Angle below horizontal', 'Elastic stretch', 'Strain at the largest tension']);
-    expect(pairs[0][1]).toBe('0.0207');
+    expect(pairs[0][1]).toBe('0.0203');
   });
 
   it('tabulates the cable over temperature: 11 rows from 0 to 100 °F, the one that is state 2 marked', () => {
@@ -535,7 +537,7 @@ describe('a change of state, as the server sends it', () => {
     expect(rows).toHaveLength(11);
     expect(rows.map((r) => r[0])).toEqual(['0', '10', '20 · state 2', '30', '40', '50', '60', '70', '80', '90', '100']);
     // The row of state 2 is the state 2 above.
-    expect(rows[2].slice(1)).toEqual(['4.735', '1.57', '6.195', '4.751', rows[2][5]]);
+    expect(rows[2].slice(1)).toEqual(['5.086', '1.541', '6.105', '5.102', rows[2][5]]);
     // Colder is tighter and shallower; warmer is looser and deeper.
     const hs = rows.map((r) => Number(r[1]));
     const ds = rows.map((r) => Number(r[3]));
@@ -553,7 +555,7 @@ describe('a change of state, as the server sends it', () => {
     expect(rows.map((r) => r[0])).toEqual(['0', '0.5', '1 · state 2', '1.5', '2', '2.5', '3']);
     // With no ice the cable still has its own weight, so the first row is not slack.
     expect(Number(rows[0][1])).toBeGreaterThan(0);
-    expect(rows[2].slice(1, 5)).toEqual(['4.735', '1.57', '6.195', '4.751']);
+    expect(rows[2].slice(1, 5)).toEqual(['5.086', '1.541', '6.105', '5.102']);
     const hs = rows.map((r) => Number(r[1]));
     for (let i = 1; i < 7; i++) expect(hs[i]).toBeGreaterThan(hs[i - 1]);
   });
@@ -561,10 +563,10 @@ describe('a change of state, as the server sends it', () => {
   it('draws four small charts, each a sentence of its own, and the tables are the way to every number', () => {
     const charts = [...html.matchAll(/<svg class="mp-plot__svg mp-cs-chart__svg" role="img" aria-label="([^"]*)"/g)].map((m) => m[1]);
     expect(charts).toHaveLength(4);
-    expect(charts[0]).toBe('Sag against temperature: 5.941 ft at 0 °F, 7.193 ft at 100 °F; least 5.941 ft at 0 °F, most 7.193 ft at 100 °F. The ring marks state 2.');
-    expect(charts[1]).toMatch(/^Pretension against temperature: 4\.937 kip at 0 °F/);
-    expect(charts[2]).toMatch(/^Sag against load factor: 5\.414 ft at 0, 7\.323 ft at 3;/);
-    expect(charts[3]).toMatch(/^Pretension against load factor: 3\.341 kip at 0, 7\.076 kip at 3;/);
+    expect(charts[0]).toBe('Sag against temperature: 5.843 ft at 0 °F, 7.126 ft at 100 °F; least 5.843 ft at 0 °F, most 7.126 ft at 100 °F. The ring marks state 2.');
+    expect(charts[1]).toMatch(/^Pretension against temperature: 5\.313 kip at 0 °F/);
+    expect(charts[2]).toMatch(/^Sag against load factor: 5\.407 ft at 0, 7\.136 ft at 3;/);
+    expect(charts[3]).toMatch(/^Pretension against load factor: 3\.662 kip at 0, 7\.502 kip at 3;/);
     expect(html.match(/<figcaption class="mp-plot__title">/g)).toHaveLength(4);
     expect(html).toContain('>Temperature (°F)<');
     expect(html).toContain('>Load factor<');
@@ -575,15 +577,16 @@ describe('a change of state, as the server sends it', () => {
     expect(html).toContain('mp-cs-fig__curve--state1');
     expect(html).toContain('mp-cs-fig__curve--state2');
     // The sag lines are tagged 1 and 2, and the figures are in a block above the drawing, not on the curves.
-    expect(html).toMatch(/<text class="mp-cs-fig__label mp-cs-fig__label--dim"[^>]*>1<\/text>/);
-    expect(html).toMatch(/<text class="mp-cs-fig__label mp-cs-fig__label--dim"[^>]*>2<\/text>/);
-    expect(html).toContain('>1 – State 1 (dashed line): sag 6 ft, pretension H 3.015 kip, tension 3.025 kip<');
-    expect(html).toContain('>2 – State 2 (solid line): sag 6.195 ft, pretension H 4.735 kip, tension 4.751 kip<');
-    expect(html).toContain('>state 2 pretension H 4.735 kip<');
-    expect(html).not.toContain('>state 2 tension 4.751 kip<');
+    expect(html).toMatch(/<text class="mp-cs-fig__label mp-cs-fig__label--dim"[^>]*>1: 6 ft<\/text>/);
+    expect(html).toMatch(/<text class="mp-cs-fig__label mp-cs-fig__label--dim"[^>]*>2: 6\.105 ft<\/text>/);
+    expect(html).toContain('>1 – State 1 (dashed line): sag 6 ft, pretension H 3.301 kip, tension 3.311 kip<');
+    expect(html).toContain('>2 – State 2 (solid line): sag 6.105 ft, pretension H 5.086 kip, tension 5.102 kip<');
+    expect(html).toContain('>state 2 pretension H 5.086 kip<');
+    // The tensions at the two supports are state 2's, said so.
+    expect(html).toContain('>state 2 tension 5.102 kip<');
     expect(html).toContain('Vertical scale drawn 11 times larger than the horizontal one');
     const svg = html.match(/<svg class="mp-plot__svg mp-cs-fig__svg"[^>]*>/)![0];
-    expect(attr(svg, 'aria-label')).toBe('Cable over a span of 300 ft in two states. State 1: pretension 3.015 kip, sag 6 ft. State 2: pretension 4.735 kip, sag 6.195 ft.');
+    expect(attr(svg, 'aria-label')).toBe('Cable over a span of 300 ft in two states. State 1: pretension 3.301 kip, sag 6 ft. State 2: pretension 5.086 kip, sag 6.105 ft.');
     expect(html).not.toContain('<span>Load arrows</span>');
   });
 
@@ -679,8 +682,8 @@ describe('a cable with point loads, as the server sends it', () => {
   it('gives the totals and checks the equilibrium', () => {
     expect(pairsOf(cardsOf(html).of('Pretension and totals'))).toEqual([
       ['Pretension, H', '37.5 kip'],
-      ['Vertical force at A', '20 upward'],
-      ['Vertical force at B', '20 upward'],
+      ['Vertical force at A', '20 kip upward'],
+      ['Vertical force at B', '20 kip upward'],
       ['Loads added up', '40 kip'],
       ['Length of the cable', '65.048 ft'],
       ['Largest tension', '42.5 kip · piece 1'],
@@ -700,7 +703,7 @@ describe('a cable with point loads, as the server sends it', () => {
     const svg = html.match(/<svg class="mp-plot__svg mp-cs-fig__svg"[^>]*>/)![0];
     expect(attr(svg, 'aria-label')).toBe('Cable over a span of 60 ft with 3 point loads. Pretension 37.5 kip, largest tension 42.5 kip, lowest point Load 2, 12 ft below A.');
     expect(html).toContain('>sag 12 ft<');
-    expect(html).toContain('<span>Point load, with its size</span>');
+    expect(html).toContain('<span>Point load: a longer arrow is a larger load</span>');
     expect(html).not.toContain('<span>Load arrows</span>');
   });
 
@@ -778,22 +781,22 @@ describe('the reading under each drawing', () => {
   const stateOf = (over: Partial<CableSagForm['state']>, form: Partial<CableSagForm> = {}): CableSagForm => ({ ...state, ...form, state: { ...state.state, ...over } });
 
   it('reads the hanging example in plain words, from the numbers, in both languages', () => {
-    expect(readingOf(show('en'))).toBe('To hang with a 10 ft sag at midspan, this 100 ft cable must be pulled with 12.5 kip horizontally (the pretension); it pulls on each support with 13.46 kip.');
-    expect(readingOf(show('es'))).toBe('Para colgar con una flecha de 10 ft en el centro, este cable de 100 ft debe tensarse con 12.5 kip en horizontal (la pretensión); tira de cada apoyo con 13.46 kip.');
+    expect(readingOf(show('en'))).toBe('To hang with a 10 ft sag at midspan over a 100 ft span, the cable must be pulled with 12.5 kip horizontally (the pretension); it pulls on each support with 13.46 kip.');
+    expect(readingOf(show('es'))).toBe('Para colgar con una flecha de 10 ft en el centro de una luz de 100 ft, el cable debe tensarse con 12.5 kip en horizontal (la pretensión); tira de cada apoyo con 13.46 kip.');
   });
 
   const HANGING: [string, CableSagForm, RegExp, RegExp][] = [
-    ['the sag at midspan given', base, /^To hang with a 10 ft sag at midspan, this 100 ft cable must be pulled with 12\.5 kip horizontally \(the pretension\); it pulls on each support with 13\.46 kip\.$/, /^Para colgar con una flecha de 10 ft en el centro, este cable de 100 ft debe tensarse con 12\.5 kip/],
-    ['the sag below the lower support given, on a sloping span', inclined, /^To dip 12 ft below its lower support, this 100 ft cable must be pulled with 6\.01\d* kip horizontally \(the pretension\); it pulls on support A with 7\.11\d* kip and on support B with 8\.636 kip\.$/, /^Para bajar 12 ft por debajo de su apoyo más bajo, este cable de 100 ft debe tensarse con 6\.01/],
-    ['the pretension given', { ...base, known: 'H', H: 12.5 }, /^Pulled with 12\.5 kip horizontally \(the pretension\), this 100 ft cable hangs with a 10 ft sag at midspan; it pulls on each support with 13\.46 kip\.$/, /^Tensado con 12\.5 kip en horizontal \(la pretensión\), este cable de 100 ft cuelga con una flecha de 10 ft en el centro; tira de cada apoyo con 13\.46 kip\.$/],
-    ['the tension at the higher support given', { ...base, known: 'T-high', T: 13.5 }, /^With 13\.5 kip at its higher support, this 100 ft cable hangs with a 9\.96\d* ft sag at midspan and is pulled with 12\.5\d* kip horizontally \(the pretension\); it pulls on each support with 13\.5 kip\.$/, /^Con 13\.5 kip en su apoyo más alto, este cable de 100 ft cuelga con una flecha de 9\.96/],
-    ['the tension at the lower support given, on a sloping span', { ...base, rise: 20, known: 'T-low', T: 8 }, /^With 8 kip at its lower support, this 100 ft cable hangs with a [\d.]+ ft sag at midspan and is pulled with [\d.]+ kip horizontally \(the pretension\); it pulls on support A with 8 kip and on support B with [\d.]+ kip\.$/, /^Con 8 kip en su apoyo más bajo, este cable de 100 ft cuelga con una flecha de/],
-    ['the length given', { ...base, known: 'length', length: 102.5 }, /^Cut to 102\.5 ft before it stretches, this 100 ft cable hangs with a 9\.9\d* ft sag at midspan and is pulled with 12\.6\d* kip horizontally \(the pretension\); it pulls on each support with 13\.5\d* kip\.$/, /^Cortado a 102\.5 ft antes de estirarse, este cable de 100 ft cuelga con una flecha de 9\.9/],
-    ['a cable under its own weight and a load', combined, /^To hang with a 20 ft sag at midspan, this 100 ft cable must be pulled with [\d.]+ kip horizontally/, /^Para colgar con una flecha de 20 ft en el centro/],
-    ['a lowest point outside the span', steep, /^To hang with a 5 ft sag at midspan, this 100 ft cable must be pulled with 25 kip horizontally \(the pretension\); it pulls on support A with 29\.15 kip and on support B with 35\.36 kip\.$/, /^Para colgar con una flecha de 5 ft en el centro, este cable de 100 ft debe tensarse con 25 kip en horizontal \(la pretensión\); tira del apoyo A con 29\.15 kip y del apoyo B con 35\.36 kip\.$/],
+    ['the sag at midspan given', base, /^To hang with a 10 ft sag at midspan over a 100 ft span, the cable must be pulled with 12\.5 kip horizontally \(the pretension\); it pulls on each support with 13\.46 kip\.$/, /^Para colgar con una flecha de 10 ft en el centro de una luz de 100 ft, el cable debe tensarse con 12\.5 kip/],
+    ['the sag below the lower support given, on a sloping span', inclined, /^To dip 12 ft below its lower support over a 100 ft span, the cable must be pulled with 6\.01\d* kip horizontally \(the pretension\); it pulls on support A with 7\.11\d* kip and on support B with 8\.636 kip\.$/, /^Para bajar 12 ft por debajo de su apoyo más bajo en una luz de 100 ft, el cable debe tensarse con 6\.01/],
+    ['the pretension given', { ...base, known: 'H', H: 12.5 }, /^Pulled with 12\.5 kip horizontally \(the pretension\), the cable hangs with a 10 ft sag at midspan over a 100 ft span; it pulls on each support with 13\.46 kip\.$/, /^Tensado con 12\.5 kip en horizontal \(la pretensión\), el cable cuelga con una flecha de 10 ft en el centro de una luz de 100 ft; tira de cada apoyo con 13\.46 kip\.$/],
+    ['the tension at the higher support given', { ...base, known: 'T-high', T: 13.5 }, /^With 13\.5 kip at each support, the cable hangs over a 100 ft span with a 9\.96\d* ft sag at midspan and is pulled with 12\.5\d* kip horizontally \(the pretension\); it pulls on each support with 13\.5 kip\.$/, /^Con 13\.5 kip en cada apoyo, el cable cuelga en una luz de 100 ft con una flecha de 9\.96/],
+    ['the tension at the lower support given, on a sloping span', { ...base, rise: 20, known: 'T-low', T: 8 }, /^With 8 kip at its lower support, the cable hangs over a 100 ft span with a [\d.]+ ft sag at midspan and is pulled with [\d.]+ kip horizontally \(the pretension\); it pulls on support A with 8 kip and on support B with [\d.]+ kip\.$/, /^Con 8 kip en su apoyo más bajo, el cable cuelga en una luz de 100 ft con una flecha de/],
+    ['the length given', { ...base, known: 'length', length: 102.5 }, /^Cut to 102\.5 ft before it stretches, the cable hangs over a 100 ft span with a 9\.9\d* ft sag at midspan and is pulled with 12\.6\d* kip horizontally \(the pretension\); it pulls on each support with 13\.5\d* kip\.$/, /^Cortado a 102\.5 ft antes de estirarse, el cable cuelga en una luz de 100 ft con una flecha de 9\.9/],
+    ['a cable under its own weight and a load', combined, /^To hang with a 20 ft sag at midspan over a 100 ft span, the cable must be pulled with [\d.]+ kip horizontally/, /^Para colgar con una flecha de 20 ft en el centro/],
+    ['a lowest point outside the span', steep, /^To hang with a 5 ft sag at midspan over a 100 ft span, the cable must be pulled with 25 kip horizontally \(the pretension\); it pulls on support A with 29\.15 kip and on support B with 35\.36 kip\.$/, /^Para colgar con una flecha de 5 ft en el centro de una luz de 100 ft, el cable debe tensarse con 25 kip en horizontal \(la pretensión\); tira del apoyo A con 29\.15 kip y del apoyo B con 35\.36 kip\.$/],
     ['a cable that does not stretch', { ...base, elastic: false }, /^To hang with a 10 ft sag at midspan/, /^Para colgar con una flecha de 10 ft/],
-    ['a typed weight and no added load', { ...base, weightFrom: 'typed', typedWeight: 2, q: 0, sag: 2 }, /^To hang with a 2 ft sag at midspan, this 100 ft cable/, /^Para colgar con una flecha de 2 ft/],
-    ['the example in metres and kilonewtons', defaultCaseFor('hanging', 'si'), /^To hang with a 3\.048 m sag at midspan, this 30\.48 m cable must be pulled with 55\.6\d* kN horizontally \(the pretension\); it pulls on each support with 59\.8\d* kN\.$/, /^Para colgar con una flecha de 3\.048 m en el centro, este cable de 30\.48 m/],
+    ['a typed weight and no added load', { ...base, weightFrom: 'typed', typedWeight: 2, q: 0, sag: 2 }, /^To hang with a 2 ft sag at midspan over a 100 ft span, the cable/, /^Para colgar con una flecha de 2 ft/],
+    ['the example in metres and kilonewtons', defaultCaseFor('hanging', 'si'), /^To hang with a 3\.048 m sag at midspan over a 30\.48 m span, the cable must be pulled with 55\.6\d* kN horizontally \(the pretension\); it pulls on each support with 59\.8\d* kN\.$/, /^Para colgar con una flecha de 3\.048 m en el centro de una luz de 30\.48 m/],
   ];
   for (const [name, form, en, es] of HANGING) {
     it(`reads a hanging cable with ${name}`, () => {
@@ -819,19 +822,19 @@ describe('the reading under each drawing', () => {
   });
 
   it('reads a change of state in the direction each thing really goes', () => {
-    expect(readingOf(show('en', state))).toBe('When the temperature goes from 60 °F to 20 °F and the load per length goes from 1.608 lb/ft to 2.608 lb/ft, the pretension rises from 3.015 kip to 4.735 kip and the sag at midspan grows from 6 ft to 6.195 ft. At midspan the two cables are 0.1952 ft apart.');
-    expect(readingOf(show('es', state))).toBe('Cuando la temperatura pasa de 60 °F a 20 °F y la carga por longitud pasa de 1.608 lb/ft a 2.608 lb/ft, la pretensión sube de 3.015 kip a 4.735 kip y la flecha en el centro crece de 6 ft a 6.195 ft. En el centro los dos cables quedan a 0.1952 ft de distancia.');
+    expect(readingOf(show('en', state))).toBe('When the temperature goes from 60 °F to 20 °F and the load per length goes from 1.761 lb/ft to 2.761 lb/ft, the pretension rises from 3.301 kip to 5.086 kip and the sag at midspan grows from 6 ft to 6.105 ft. At midspan the two cables are 0.1048 ft apart.');
+    expect(readingOf(show('es', state))).toBe('Cuando la temperatura pasa de 60 °F a 20 °F y la carga por longitud pasa de 1.761 lb/ft a 2.761 lb/ft, la pretensión sube de 3.301 kip a 5.086 kip y la flecha en el centro crece de 6 ft a 6.105 ft. En el centro los dos cables quedan a 0.1048 ft de distancia.');
     // A warmer cable with the same load: the pretension falls and the sag grows.
     const warm = readingOf(show('en', stateOf({ T2: 100, ice: 0 })))!;
-    expect(warm).toMatch(/^When the temperature goes from 60 °F to 100 °F, the pretension falls from 3\.01\d* kip to [\d.]+ kip and the sag at midspan grows from 6 ft to [\d.]+ ft\. At midspan the two cables are [\d.]+ ft apart\.$/);
+    expect(warm).toMatch(/^When the temperature goes from 60 °F to 100 °F, the pretension falls from 3\.30\d* kip to [\d.]+ kip and the sag at midspan grows from 6 ft to [\d.]+ ft\. At midspan the two cables are [\d.]+ ft apart\.$/);
     // Heavy ice on a cold cable: the pretension rises while the sag shrinks.
     expect(readingOf(show('en', stateOf({ ice: 3 }, { span: 100, sag: 15 })))).toMatch(/the pretension rises from [\d.]+ kip to [\d.]+ kip and the sag at midspan shrinks from 15 ft to 14\.9\d* ft\. At midspan the two cables are [\d.]+ ft apart\.$/);
     expect(readingOf(show('es', stateOf({ ice: 3 }, { span: 100, sag: 15 })))).toMatch(/la pretensión sube de [\d.]+ kip a [\d.]+ kip y la flecha en el centro disminuye de 15 ft a 14\.9\d* ft\. En el centro los dos cables quedan a [\d.]+ ft de distancia\.$/);
     // Only the load changes.
-    expect(readingOf(show('en', stateOf({ T2: 60 })))).toMatch(/^When the load per length goes from 1\.608 lb\/ft to 2\.608 lb\/ft, the pretension rises/);
+    expect(readingOf(show('en', stateOf({ T2: 60 })))).toMatch(/^When the load per length goes from 1\.761 lb\/ft to 2\.761 lb\/ft, the pretension rises/);
     // Nothing changes.
-    expect(readingOf(show('en', stateOf({ T2: 60, ice: 0 })))).toBe('When neither temperature nor load changes, the pretension stays at 3.015 kip and the sag at midspan stays at 6 ft.');
-    expect(readingOf(show('es', stateOf({ T2: 60, ice: 0 })))).toBe('Cuando no cambian ni la temperatura ni la carga, la pretensión se mantiene en 3.015 kip y la flecha en el centro se mantiene en 6 ft.');
+    expect(readingOf(show('en', stateOf({ T2: 60, ice: 0 })))).toBe('When neither temperature nor load changes, the pretension stays at 3.301 kip and the sag at midspan stays at 6 ft.');
+    expect(readingOf(show('es', stateOf({ T2: 60, ice: 0 })))).toBe('Cuando no cambian ni la temperatura ni la carga, la pretensión se mantiene en 3.301 kip y la flecha en el centro se mantiene en 6 ft.');
   });
 
   it('reads a change of state whatever is known of state 1', () => {
@@ -924,7 +927,7 @@ describe('what the drawing says in words', () => {
     const html = show('en', state);
     expect(html).toContain('<span>State 1: dashed line</span>');
     expect(html).toContain('<span>State 2: solid line</span>');
-    expect(html).toContain('>2 – State 2 (solid line): sag 6.195 ft, pretension H 4.735 kip, tension 4.751 kip<');
+    expect(html).toContain('>2 – State 2 (solid line): sag 6.105 ft, pretension H 5.086 kip, tension 5.102 kip<');
     const css = readFileSync(join(SRC, 'components/ttc/calc/cable-sag/cable-sag.css'), 'utf8').replace(/\r\n/g, '\n');
     expect(css).toMatch(/\.mp-cs-fig__curve--state1,\s*\.mp-cs-fig__curve--state1 path \{[^}]*stroke-dasharray: 3 4;/);
   });
@@ -953,7 +956,7 @@ describe('what the drawing says in words', () => {
   it('explains every mark: the tension swatch is a number, the load arrows and the point loads have their words', () => {
     const html = show('en', points);
     expect(html).toContain('<span>Tension at a support: how hard the cable pulls on it</span>');
-    expect(html).toContain('<span>Point load, with its size</span>');
+    expect(html).toContain('<span>Point load: a longer arrow is a larger load</span>');
     expect(html).toContain('<span>Joint number</span>');
     expect(html).toContain('<span>Support A on the left, B on the right</span>');
     expect(show('en')).toContain('<span>Pretension H: the horizontal pull, drawn at the lowest point</span>');
@@ -1210,12 +1213,49 @@ describe('the address, at component level', () => {
     expect(open).toContain('setWhole(found)');
   });
 
+  // The decision itself, run on real forms and the real reducer (it was a pattern in the source, and the reducer never made it come true:
+  // a 'load' handed back a COPY of the form, so a case opened whole was never told from a number typed).
   it('solves a case opened whole in the render that shows it, and defers only the typing of numbers', () => {
-    expect(source).toContain('const behind = useDeferredValue(form);');
-    expect(source).toMatch(/const solved = onPaper \|\| form === whole \|\| choicesOf\(behind\) !== choicesOf\(form\) \? form : behind;/);
+    const a = defaultCaseFor('hanging');
+    const b = convertCableSag(defaultCaseFor('state'), 'si');
+    // A case opened whole (an address, "Load the example", Start over): the reducer gives back the very form, so it is solved NOW, not a render behind.
+    const opened = reduceCableSag(a, { type: 'load', form: b });
+    expect(opened).toBe(b);
+    expect(solvedFor(opened, a, b, false)).toBe(opened);
+    // The same cable that differs only in NUMBERS (what a link carries so often): still told whole.
+    const other = { ...a, span: 150, sag: 12 };
+    const openedOther = reduceCableSag(a, { type: 'load', form: other });
+    expect(openedOther).toBe(other);
+    expect(solvedFor(openedOther, a, other, false)).toBe(openedOther);
+    // A number typed afterwards is deferred: the answer is the cable of a moment ago.
+    const typed = reduceCableSag(openedOther, { type: 'geometry', patch: { span: 151 } });
+    expect(typed).not.toBe(other);
+    expect(solvedFor(typed, openedOther, other, false)).toBe(openedOther);
+    // A choice, the units, a load added: never behind. And paper is never behind.
+    for (const action of [{ type: 'units', units: 'si' }, { type: 'mode', mode: 'hanging' }, { type: 'known', patch: { known: 'H' } }, { type: 'point-add' }] as const) {
+      const before = defaultCaseFor('points');
+      const next = reduceCableSag(before, action);
+      expect(solvedFor(next, before, null, false), action.type).toBe(next);
+    }
+    expect(solvedFor(typed, openedOther, null, true)).toBe(typed);
     // The ids of the point loads are choices, not typed numbers.
     expect(source).toContain("const IDENTIFIERS = new Set(['id', 'nextId']);");
-    expect(source).toContain('aria-busy={catching ? true : undefined}');
+    expect(source).toContain('aria-busy={catching || staleTables ? true : undefined}');
+  });
+
+  it('puts the tables behind a typed number and not the cable: the cable first, the tables when the typing pauses', () => {
+    const f = defaultCaseFor('state');
+    const lean = analyseSafely(f, { tables: false });
+    const whole = analyseSafely(f);
+    expect(lean.state!.tables.skipped).toBe(true);
+    expect(lean.state!.tables.thermal).toEqual([]);
+    expect(lean.state!.tables.loads).toEqual([]);
+    expect(whole.state!.tables.skipped).toBe(false);
+    expect(whole.state!.tables.thermal).toHaveLength(11);
+    // The cable itself is the same one, to the last figure.
+    expect(lean.state!.state2).toEqual(whole.state!.state2);
+    expect(lean.state!.state1).toEqual(whole.state!.state1);
+    expect(lean.issues).toEqual([]);
   });
 
   it('brings the address to the cable on screen before copying, and before Start over throws one away', () => {
@@ -1269,13 +1309,16 @@ describe('the rules of the tool, as they stand in its source', () => {
   });
 
   it('solves through the door that never throws, and decides no number of its own', () => {
-    expect(source).toContain('analyseSafely(solved)');
+    expect(source).toContain('analyseSafely(solved, { tables: tablesNow })');
     expect(source).not.toMatch(/\b(solveHanging|solveState|solvePoints)\b/);
     expect(source).not.toMatch(/\bMath\.(sqrt|hypot|atan2|cosh|exp|log)\b/);
   });
 
   it('uses the shell’s pieces and not copies of them', () => {
-    for (const piece of ["from '../shell/Actions'", "from '../shell/address'", "from '../shell/layout'", "from '../shell/sheet'", "from '../shell/fields'", "from '../NumField'"]) expect(source).toContain(piece);
+    for (const piece of ["from '../shell/Actions'", "from '../shell/address'", "from '../shell/layout'", "from '../shell/sheet'", "from '../shell/fields'", "from './CsNum'"]) expect(source).toContain(piece);
+    // The number field is the shared one, wrapped for what it leaves to the page (a line under a text that is not a number, at once).
+    expect(read('CsNum.tsx')).toContain("from '../NumField'");
+    expect(source).not.toContain("from '../NumField'");
   });
 
   it('hands the keyboard its focus when a row is added or removed with it, as the others do', () => {
@@ -1292,7 +1335,10 @@ describe('the rules of the tool, as they stand in its source', () => {
 
   it('takes the mode’s tabs, the example button, the switches and the limit line off the sheet, and holds the drawing whole', () => {
     const print = css.slice(css.indexOf('@media print'));
-    for (const hidden of ['.mp-cs .mp-cs__modes', '.mp-cs .mp-cs__example', '.mp-cs .mp-cs__options', '.mp-cs .mp-cs__limit']) expect(print).toContain(hidden);
+    for (const hidden of ['.mp-cs .mp-cs__example', '.mp-cs .mp-cs__options', '.mp-cs .mp-cs__limit']) expect(print).toContain(hidden);
+    // The mode's tabs are NOT hidden: the shell prints the one chosen as plain words, and the sheet says what was calculated.
+    expect(print).not.toMatch(/\.mp-cs \.mp-cs__modes,/);
+    expect(print).not.toMatch(/\.mp-cs__modes\s*\{[^}]*display:\s*none/);
     expect(print).toContain('.mp-cs .mp-app__plots,\n  .mp-cs .mp-cs-chart {\n    break-inside: avoid;');
     expect(print).toContain('.mp-cs .mp-app__card {\n    break-inside: avoid;');
   });

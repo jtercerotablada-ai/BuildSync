@@ -35,43 +35,43 @@ const near = (got: number, want: number, tol = 1e-9, scale = Math.max(Math.abs(w
 const base = (over: Partial<StateInput> = {}): StateInput => ({
   L: 300,
   h: 0,
-  EA: 5207.19,
+  EA: 6001.62,
   known: { kind: 'sag-mid', value: 6 },
-  state1: { q: 0, w: 0.0016083 },
-  state2: { q: 0, w: 0.0026083, thermal: 6.5e-6 * -40 },
+  state1: { q: 0, w: 0.0017605327 },
+  state2: { q: 0, w: 0.0027605327, thermal: 6.5e-6 * -40 },
   ...over,
 });
 
 describe('the limits', () => {
   it('no change of state returns state 1 exactly (the same cable, ratio 1)', () => {
-    const s = state(base({ state2: { q: 0, w: 0.0016083, thermal: 0 } }));
+    const s = state(base({ state2: { q: 0, w: 0.0017605327, thermal: 0 } }));
     expect(s.exact.state2).toBe(s.exact.state1);
     expect(s.ratioH).toBe(1);
     expect(s.ratioLength).toBe(1);
   });
 
   it('...and when the same state is reached through the solver (a table row with the same load and temperature), the answer is state 1 to 1e-9', () => {
-    const s = state(base({ state2: { q: 0, w: 0.0016083, thermal: 0 }, sweep: { thermal: [0], loads: [{ q: 0, w: 0.0016083 }] } }));
+    const s = state(base({ state2: { q: 0, w: 0.0017605327, thermal: 0 }, sweep: { thermal: [0], loads: [{ q: 0, w: 0.0017605327 }] } }));
     near(s.tables.thermal[0].H!, s.exact.state1.H, 1e-9);
     near(s.tables.loads[0].H!, s.exact.state1.H, 1e-9);
     near(s.tables.loads[0].sagMid!, 6, 1e-9);
   });
 
   it('a thermal strain of 0 (α = 0) with new loads changes only the load; with the same loads and ΔT, only the temperature', () => {
-    const load = state(base({ state2: { q: 0, w: 0.0026083, thermal: 0 } }));
+    const load = state(base({ state2: { q: 0, w: 0.0027605327, thermal: 0 } }));
     expect(load.exact.state2.H).toBeGreaterThan(load.exact.state1.H);
     expect(load.exact.state2.sagMid).toBeGreaterThan(6);
-    const heat = state(base({ state2: { q: 0, w: 0.0016083, thermal: 6.5e-6 * 60 } }));
+    const heat = state(base({ state2: { q: 0, w: 0.0017605327, thermal: 6.5e-6 * 60 } }));
     expect(heat.exact.state2.H).toBeLessThan(heat.exact.state1.H);
     expect(heat.exact.state2.sagMid).toBeGreaterThan(heat.exact.state1.sagMid);
-    const cold = state(base({ state2: { q: 0, w: 0.0016083, thermal: 6.5e-6 * -60 } }));
+    const cold = state(base({ state2: { q: 0, w: 0.0017605327, thermal: 6.5e-6 * -60 } }));
     expect(cold.exact.state2.H).toBeGreaterThan(cold.exact.state1.H);
     expect(cold.exact.state2.sagMid).toBeLessThan(cold.exact.state1.sagMid);
   });
 
   it('a pure temperature rise decreases H, monotonically, and the sag rises monotonically, over a table', () => {
     const temps = Array.from({ length: 21 }, (_, i) => 6.5e-6 * (i * 10 - 100));
-    const s = state(base({ state2: { q: 0, w: 0.0016083, thermal: 0 }, sweep: { thermal: temps } }));
+    const s = state(base({ state2: { q: 0, w: 0.0017605327, thermal: 0 }, sweep: { thermal: temps } }));
     const rows = s.tables.thermal;
     expect(rows.every((r) => r.ok)).toBe(true);
     for (let i = 1; i < rows.length; i++) {
@@ -84,13 +84,13 @@ describe('the limits', () => {
   });
 
   it('heavier loads raise H and the sag together (the cable is longer than the chord and its length is fixed)... and lighter ones lower them', () => {
-    const w = [0.0008, 0.0016083, 0.003, 0.006];
-    const s = state(base({ state2: { q: 0, w: 0.0016083, thermal: 0 }, sweep: { loads: w.map((x) => ({ q: 0, w: x })) } }));
+    const w = [0.0008, 0.0017605327, 0.003, 0.006];
+    const s = state(base({ state2: { q: 0, w: 0.0017605327, thermal: 0 }, sweep: { loads: w.map((x) => ({ q: 0, w: x })) } }));
     const rows = s.tables.loads;
     for (let i = 1; i < rows.length; i++) expect(rows[i].H!).toBeGreaterThan(rows[i - 1].H!);
     // for a rigid cable of fixed length: H ∝ the load (the shape does not change)
-    const rigid = state(base({ EA: null, state2: { q: 0, w: 0.0016083, thermal: 0 }, sweep: { loads: [{ q: 0, w: 0.00321 }] } }));
-    near(rigid.tables.loads[0].H! / rigid.exact.state1.H, 0.00321 / 0.0016083, 5e-3);
+    const rigid = state(base({ EA: null, state2: { q: 0, w: 0.0017605327, thermal: 0 }, sweep: { loads: [{ q: 0, w: 0.00321 }] } }));
+    near(rigid.tables.loads[0].H! / rigid.exact.state1.H, 0.00321 / 0.0017605327, 5e-3);
   });
 
   it('the change reverses: state 1 → 2 → 1 returns H₁ (the temperature change as 1/(1+ε) − 1)', () => {
@@ -115,14 +115,14 @@ describe('the limits', () => {
   it('works from every kind of known for state 1, and state 1 is the cable of that known', () => {
     const one = hangingFirst();
     for (const known of one) {
-      const s = state(base({ known, state2: { q: 0, w: 0.0016083, thermal: 6.5e-6 * 20 } }));
-      expect(s.exact.state1.setup.w).toBe(0.0016083);
+      const s = state(base({ known, state2: { q: 0, w: 0.0017605327, thermal: 6.5e-6 * 20 } }));
+      expect(s.exact.state1.setup.w).toBe(0.0017605327);
     }
   });
 });
 
 function hangingFirst(): Known[] {
-  const h = solveHanging({ L: 300, h: 0, q: 0, w: 0.0016083, EA: 5207.19, known: { kind: 'sag-mid', value: 6 } });
+  const h = solveHanging({ L: 300, h: 0, q: 0, w: 0.0017605327, EA: 6001.62, known: { kind: 'sag-mid', value: 6 } });
   if (!h.ok) throw new Error('setup');
   return [
     { kind: 'sag-mid', value: 6 },
@@ -189,19 +189,19 @@ describe('against the textbook state equation of a level span', () => {
   }
 
   it('the default case: a 1 in IWRC rope, 300 ft, 6 ft of sag at 60 °F, then 20 °F with 1 lb/ft of ice', () => {
-    // A = 0.4006 in² × 13,000 ksi = 5,207 kip;  w = 1.6083 lb/ft;  α = 6.5e-6 /°F
+    // A = 0.4139 in² × 14,500 ksi = 6,002 kip;  w = 1.7605 lb/ft;  α = 6.5e-6 /°F
     const s = state(base());
-    const H1 = (0.0016083 * 300 ** 2) / (8 * 6); // = 3.0156 kip by hand
-    near(H1, 3.0156, 1e-4);
+    const H1 = (0.0017605 * 300 ** 2) / (8 * 6); // = 3.3010 kip by hand
+    near(H1, 3.301, 1e-4);
     near(s.exact.state1.H, H1, 1e-3);
-    const H2 = cubic(300, 5207.19, s.exact.state1.H, 0.0016083, 0.0026083, 6.5e-6 * -40);
-    near(H2, 4.7367, 2e-4);
+    const H2 = cubic(300, 6001.62, s.exact.state1.H, 0.0017605327, 0.0027605327, 6.5e-6 * -40);
+    near(H2, 5.0873, 2e-4);
     // the engine's exact elastic cable differs from the textbook's parabolic one with the mean-tension elasticity by 4e-4
     near(s.exact.state2.H, H2, 1e-3);
     expect(s.exact.state2.H).toBeLessThan(H2);
-    near(s.exact.state2.H, 4.7349, 1e-4);
-    near(s.exact.state2.sagMid, 6.1952, 1e-4);
-    near(s.ratioH, 1.5702, 1e-4);
+    near(s.exact.state2.H, 5.0857, 1e-4);
+    near(s.exact.state2.sagMid, 6.1048, 1e-4);
+    near(s.ratioH, 1.5407, 1e-4);
   });
 
   it('random level spans: the engine and the cubic agree within the equation\'s own approximations (1e-3 of H)', () => {
@@ -242,7 +242,7 @@ describe('against the textbook state equation of a level span', () => {
 
 describe('the parabolic chain next to the exact one', () => {
   it('with q only it is the same change of state; with w it differs by less than the sag/span squared, and the warning rises past 1 %', () => {
-    const q = state(base({ state1: { q: 0.0016083, w: 0 }, state2: { q: 0.0026083, w: 0, thermal: -2.6e-4 } }));
+    const q = state(base({ state1: { q: 0.0017605327, w: 0 }, state2: { q: 0.0027605327, w: 0, thermal: -2.6e-4 } }));
     expect(q.parabolic).toEqual({ state1: q.exact.state1, state2: q.exact.state2 });
     expect(q.family).toBe('parabola');
     expect(q.warnings.map((w) => w.code)).not.toContain('parabola-differs');
@@ -250,7 +250,7 @@ describe('the parabolic chain next to the exact one', () => {
     near(w.parabolic!.state2.H, w.exact.state2.H, 3e-3);
     expect(w.warnings.map((x) => x.code)).not.toContain('parabola-differs');
     // a deep cable, sag/span 0.25
-    const deep = state(base({ known: { kind: 'sag-mid', value: 75 }, state2: { q: 0, w: 0.0016083, thermal: 0 } }));
+    const deep = state(base({ known: { kind: 'sag-mid', value: 75 }, state2: { q: 0, w: 0.0017605327, thermal: 0 } }));
     expect(deep.warnings.map((x) => x.code)).toContain('parabola-differs');
   });
 });
@@ -267,9 +267,9 @@ describe('the tables', () => {
   });
 
   it('a load row is a state 2 with those loads at the case\'s temperature', () => {
-    const s = state(base({ sweep: { loads: [{ q: 0, w: 0.0026083 }, { q: 0.001, w: 0.0016083 }] } }));
+    const s = state(base({ sweep: { loads: [{ q: 0, w: 0.0027605327 }, { q: 0.001, w: 0.0017605327 }] } }));
     near(s.tables.loads[0].H!, s.exact.state2.H, 1e-9);
-    const direct = state(base({ state2: { q: 0.001, w: 0.0016083, thermal: 6.5e-6 * -40 } }));
+    const direct = state(base({ state2: { q: 0.001, w: 0.0017605327, thermal: 6.5e-6 * -40 } }));
     near(s.tables.loads[1].H!, direct.exact.state2.H, 1e-9);
     near(s.tables.loads[1].tensionHigh!, direct.exact.state2.tension.high, 1e-9);
   });
@@ -297,7 +297,7 @@ describe('the tables', () => {
 
 describe('what cannot be solved is said by code', () => {
   it('an inextensible cable cooled until it is shorter than its chord: state2-too-short, with the chord and the length', () => {
-    const out = solveState(base({ EA: null, state2: { q: 0, w: 0.0016083, thermal: -0.01 } }));
+    const out = solveState(base({ EA: null, state2: { q: 0, w: 0.0017605327, thermal: -0.01 } }));
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.issues).toHaveLength(1);
@@ -308,7 +308,7 @@ describe('what cannot be solved is said by code', () => {
   });
 
   it('...while an elastic one has an answer (very tight)', () => {
-    const s = state(base({ state2: { q: 0, w: 0.0016083, thermal: -0.01 } }));
+    const s = state(base({ state2: { q: 0, w: 0.0017605327, thermal: -0.01 } }));
     expect(s.exact.state2.H).toBeGreaterThan(10 * s.exact.state1.H);
     expect(s.warnings.some((w) => w.code === 'strain-high' && w.state === 2)).toBe(false);
   });

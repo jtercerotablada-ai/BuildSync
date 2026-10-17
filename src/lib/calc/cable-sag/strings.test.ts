@@ -140,7 +140,7 @@ describe('a sentence for every code the library can report', () => {
       for (const [code, sentence] of Object.entries(cableSagUi[lang].issues)) expect(holes(sentence), `${lang} ${code}`).toEqual((needs[code] ?? []).sort());
     }
     const warns: Record<string, string[]> = {
-      'parabola-differs': ['difference', 'ratio', 'tolerance'],
+      'parabola-differs': ['difference', 'tolerance', 'why'],
       'strain-high': ['strain'],
       'vertex-outside': ['unit', 'x'],
       'tension-two-roots': ['force', 'value'],

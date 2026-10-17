@@ -23,6 +23,25 @@
 
 /* ── the form ─────────────────────────────────────────────────────────── */
 
+/* A number field and the line the page adds under it (CsNum.tsx) take no box of their own: they sit in the form's grid as the bare field does. */
+.mp-cs .mp-cs__f {
+  display: contents;
+}
+/* A region that is announced when it is filled is always on the page, and empty it is not seen. */
+.mp-cs .mp-cs__warnings[hidden],
+.mp-cs .mp-cs__limit[hidden] {
+  display: none;
+}
+/* Numbers on screen that stand behind what was just typed (the cable solved before the tables, a moment behind a key) are dimmed
+   - after a pause, so that a key that is answered at once does not flash the page. */
+.mp-cs [aria-busy='true'] {
+  opacity: 0.55;
+  transition: opacity 0.15s ease 0.3s;
+}
+.mp-cs [aria-busy]:not([aria-busy='true']) {
+  transition: opacity 0.1s ease;
+}
+
 /* The mode is three tabs that may take two lines on a phone: each as wide as its words, none cut. */
 .mp-cs .mp-cs__modes {
   display: flex;
@@ -34,6 +53,17 @@
 .mp-cs .mp-cs__modes .mp-seg__item span {
   white-space: normal;
   text-align: center;
+}
+/* Where the tabs wrap to a second line each keeps its own whole border (the shell's tabs share one between neighbours and so lose the left edge of the first of a line); they overlap by a pixel so that no edge is doubled. */
+.mp-cs .mp-cs__modes {
+  padding: 0 1px 1px 0;
+}
+.mp-cs .mp-cs__modes > .mp-seg__item span {
+  margin: 0 -1px -1px 0;
+  border: 1px solid var(--mp-line-strong);
+}
+.mp-cs .mp-cs__modes > .mp-seg__item input:checked + span {
+  border-color: var(--mp-ink);
 }
 .mp-cs .mp-cs__modes > legend {
   position: absolute;
@@ -440,8 +470,8 @@ path.mp-cs-fig__curve {
 /* ── on paper ─────────────────────────────────────────────────────────── */
 
 @media print {
-  /* The mode's tabs, the example button and the switches are ways to use the page: none of them is on the sheet. */
-  .mp-cs .mp-cs__modes,
+  /* The example button and the switches are ways to use the page: none of them is on the sheet. The mode's tabs are not either, but the one chosen is
+     (the shell prints a choice as the plain words of the one made): without it the sheet never says what was calculated. */
   .mp-cs .mp-cs__example,
   .mp-cs .mp-cs__options,
   .mp-cs .mp-cs__limit {

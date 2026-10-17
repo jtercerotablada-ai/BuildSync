@@ -1,9 +1,9 @@
 'use client';
 
-import React, { memo, useCallback, useDeferredValue, useId, useMemo, useReducer, useRef, useState } from 'react';
+import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { formatNumber } from '@/lib/calc/format';
-import { analyseSafely, type AnalysisIssue, type ShapeLine, type StateTableRow } from '@/lib/calc/cable-sag/analysis';
+import { analyseSafely, type AnalysisIssue, type CableSagAnalysis, type ShapeLine, type StateResults, type StateTableRow } from '@/lib/calc/cable-sag/analysis';
 import {
   CABLE_SAG_KEY,
   CABLE_UNITS,
@@ -22,7 +22,6 @@ import {
   type MaterialId,
 } from '@/lib/calc/cable-sag/model';
 import type { CableSagShared, CableSagUi } from '@/lib/calc/cable-sag/strings';
-import { NumField } from '../NumField';
 import { Actions } from '../shell/Actions';
 import { useAddress } from '../shell/address';
 import { select } from '../shell/fields';
@@ -30,6 +29,7 @@ import { PAPER_WIDTH, useTooTall, useWidth } from '../shell/layout';
 import { arrow, settle } from '../shell/results';
 import { SheetStamp, useSheet } from '../shell/sheet';
 import { CableSchematic } from './CableSchematic';
+import { CsNum } from './CsNum';
 import { SweepChart, type ChartPoint } from './SweepChart';
 import { fieldKey, fill, issueSentence, percent, readingOf, rowSentence, signed, tableNote, warningSentence, type Context, type TableName } from './text';
 import './cable-sag.css';
@@ -107,6 +107,18 @@ const choiceOf = (f: CableSagForm): KnownChoice => (f.known === 'sag' ? (f.sagKi
 const knownPatch = (c: KnownChoice): Extract<CableSagAction, { type: 'known' }>['patch'] => (c === 'sag-mid' ? { known: 'sag', sagKind: 'mid' } : c === 'sag-low' ? { known: 'sag', sagKind: 'low' } : { known: c });
 
 const POINTS_KNOWN = ['sag', 'H', 'T-max'] as const;
+
+/**
+ * Which form the answer is of. While only NUMBERS change, the answer is of the form as it was a moment ago (`behind`, from
+ * `useDeferredValue`): the key shows at once and the cable is solved in a render of its own. Anything else - the units, the
+ * mode, a load added or removed, a choice in a list, a cable opened whole (`whole`: the form that was last loaded as it
+ * stands: an address, the example, "Start over") - is solved in the same render as ever: the answer must never stand under
+ * other units, beside rows it was not solved for, or under a cable it is not of. And on paper it is the form itself.
+ * `whole` is told by IDENTITY (`reduceCableSag` hands back the very form a 'load' gives it).
+ */
+export function solvedFor(form: CableSagForm, behind: CableSagForm, whole: CableSagForm | null, onPaper: boolean): CableSagForm {
+  return onPaper || form === whole || choicesOf(behind) !== choicesOf(form) ? form : behind;
+}
 
 /** A value that cannot be one where a size is asked for: not a number, or not above zero. */
 const bad = (v: number) => !Number.isFinite(v) || v <= 0;
@@ -221,6 +233,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
   // The printed sheet gives the address that opens this very cable, and while it prints the drawing is the sheet's size.
   const { stamp, onPaper } = useSheet({ locale: t.sheet.locale, url: () => address.link(encodeCableSag(form)) });
   const width = onPaper ? PAPER_WIDTH : windowWidth;
+  // Where the charts are first drawn, before they have measured the box they stand in (each chart then draws itself at that box's real width: SweepChart).
   const chartWidth = onPaper ? 350 : tablesWidth >= 700 ? Math.floor((tablesWidth - 24) / 2) : tablesWidth;
 
   // WHICH CABLE IS SOLVED. A cable at the far end of what the engine takes is some three quarters of a second of
@@ -232,11 +245,29 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
   // not solved for, or under a cable it is not of. And on paper it is the form itself: a sheet is never printed with
   // the answer of the cable before.
   const behind = useDeferredValue(form);
-  const solved = onPaper || form === whole || choicesOf(behind) !== choicesOf(form) ? form : behind;
+  const solved = solvedFor(form, behind, whole, onPaper);
   const catching = solved !== form;
 
+  // THE TABLES OF A CHANGE OF STATE are the heavy part of a deep cable (62 rows of some 10 ms: half a second a key, and a key typed
+  // meanwhile waits for it: `analyseSafely` cannot be interrupted). While numbers are being typed the cable is solved WITHOUT them,
+  // and they are solved once the typing has paused a quarter of a second (`settled`); until then the rows on screen are the last
+  // ones, said to be behind (`aria-busy`, dimmed). A cable that is not a typed number - opened whole, other units or mode, a
+  // choice, a sheet - has its tables in the same render as ever.
+  const [settled, setSettled] = useState(form);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(form), 400);
+    return () => clearTimeout(timer);
+  }, [form]);
+  const typing = !onPaper && form !== whole && choicesOf(behind) === choicesOf(form);
+  const tablesNow = !typing || settled === solved;
+  const [lastTables, setLastTables] = useState<StateResults['tables'] | null>(null);
+
   // Everything the page prints (lib/calc/cable-sag/analysis.ts) - through the door that never throws.
-  const a = useMemo(() => analyseSafely(solved), [solved]);
+  const solvedNow = useMemo(() => analyseSafely(solved, { tables: tablesNow }), [solved, tablesNow]);
+  // The tables last solved, kept to stand where the next ones are not ready (state set while rendering, as React allows for what a render derives).
+  if (tablesNow && solvedNow.state && lastTables !== solvedNow.state.tables) setLastTables(solvedNow.state.tables);
+  const staleTables = !tablesNow && solvedNow.state !== null && lastTables !== null;
+  const a: CableSagAnalysis = useMemo(() => (staleTables ? { ...solvedNow, state: { ...solvedNow.state!, tables: lastTables! } } : solvedNow), [staleTables, solvedNow, lastTables]);
   const ru = a.units;
   const hang = a.hanging;
   const st = a.state;
@@ -249,9 +280,10 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
   const withUnit = (v: number, unit: string, sig = 4) => `${num(v, sig)} ${unit}`;
   // The support the largest tension is at, or both where the two are the same to the figures shown.
   const supportOf = (s: ShapeLine) => (num(s.tension.A) === num(s.tension.B) ? 'both' : s.tension.maxAt);
-  const pointed = (v: number, plus: string, minus: string) => (
+  const pointed = (v: number, plus: string, minus: string, unit = '') => (
     <>
-      {num(Math.abs(v))} <span className="mp-app__dir">{v === 0 ? '' : arrow(v, plus, minus)}</span>
+      {num(Math.abs(v))}
+      {unit ? ` ${unit}` : ''} <span className="mp-app__dir">{v === 0 ? '' : arrow(v, plus, minus)}</span>
     </>
   );
   const ctx: Context = { num, length: ru.length, force: ru.force, span: solved.span, temp: ru.temp, line: ru.line };
@@ -316,7 +348,10 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
   };
   const secMark = (k: keyof typeof secBad) => (sectionFault && (secBad[k] || !Object.values(secBad).some(Boolean)) ? { invalid: true, describedBy: idOf('section') } : {});
   // What the results box says, each thing once.
-  const notices = a.issues.map((i) => ({ id: `${uid}box${i.code}`, text: says(i, true) })).filter((n, i, all) => all.findIndex((m) => m.text === n.text) === i);
+  // (Two loads at one position are two lines of the form, one on each row, and one sentence in the box.)
+  const notices = a.issues
+    .map((i) => ({ id: `${uid}box${i.code}`, text: says(i, true), key: i.code === 'duplicate-position' ? `duplicate${i.ats?.join(',')}` : says(i, true) }))
+    .filter((n, i, all) => all.findIndex((m) => m.key === n.key) === i);
 
   /* -- Rows of point loads -- */
   const removeRow = (id: number) => (press: React.MouseEvent<HTMLButtonElement>) => {
@@ -341,6 +376,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
     rows?.[rows.length - 1]?.querySelector<HTMLElement>('input, select')?.focus();
   };
   const full = form.points.length >= MAX_POINT_LOADS;
+  // The reducer's 'limit' notice is the other way to say it (a case that carries one).
   const limited = full || form.notice?.code === 'limit';
 
   /* -- Modes -- */
@@ -361,8 +397,8 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
     <fieldset className="mp-app__group">
       <legend>{w.geometry.title}</legend>
       <div className="mp-app__row mp-app__row--two">
-        <NumField numbers={t.numbers} label={w.geometry.span} unit={u.length} value={form.span} onChange={(span) => dispatch({ type: 'geometry', patch: { span } })} {...fault('span')} />
-        <NumField numbers={t.numbers} label={w.geometry.rise} unit={u.length} value={form.rise} onChange={(rise) => dispatch({ type: 'geometry', patch: { rise } })} {...fault('rise')} />
+        <CsNum numbers={t.numbers} format={num} label={w.geometry.span} unit={u.length} value={form.span} onChange={(span) => dispatch({ type: 'geometry', patch: { span } })} {...fault('span')} />
+        <CsNum numbers={t.numbers} format={num} label={w.geometry.rise} unit={u.length} value={form.rise} onChange={(rise) => dispatch({ type: 'geometry', patch: { rise } })} {...fault('rise')} />
       </div>
       {line('span')}
       {line('rise')}
@@ -376,13 +412,13 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
       <div className="mp-app__row mp-app__row--two">
         {select(w.load.from, form.weightFrom, (['section', 'typed', 'none'] as const).map((k) => [k, w.load.froms[k]] as [typeof k, string]), (weightFrom) => dispatch({ type: 'loads', patch: { weightFrom } }))}
         {form.weightFrom === 'typed' ? (
-          <NumField numbers={t.numbers} label={w.load.typed} unit={u.line} value={form.typedWeight} onChange={(typedWeight) => dispatch({ type: 'loads', patch: { typedWeight } })} {...fault('weight')} />
+          <CsNum numbers={t.numbers} format={num} label={w.load.typed} unit={u.line} value={form.typedWeight} onChange={(typedWeight) => dispatch({ type: 'loads', patch: { typedWeight } })} {...fault('weight')} />
         ) : null}
       </div>
       {line('weight')}
       {form.weightFrom === 'section' ? <p className="mp-app__computed">{fill(w.load.own, { weight: secSection ? num(secSection.selfWeight) : '—', unit: ru.line })}</p> : null}
       <div className="mp-app__row mp-app__row--two">
-        <NumField numbers={t.numbers} label={w.load.q} unit={u.line} value={form.q} onChange={(q) => dispatch({ type: 'loads', patch: { q } })} {...fault('q')} />
+        <CsNum numbers={t.numbers} format={num} label={w.load.q} unit={u.line} value={form.q} onChange={(q) => dispatch({ type: 'loads', patch: { q } })} {...fault('q')} />
       </div>
       {line('q')}
       <p className="mp-app__note">{w.load.note}</p>
@@ -402,7 +438,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
     <>
       <div className="mp-app__row mp-app__row--two mp-cs__known">
         {select<KnownChoice>(w.known.pick, choice, KNOWN_CHOICES.map((k) => [k, w.known.kinds[k]] as [KnownChoice, string]), (c) => dispatch({ type: 'known', patch: knownPatch(c) }))}
-        <NumField numbers={t.numbers} label={w.known.kinds[choice]} unit={knownValue.unit} value={knownValue.value} onChange={knownValue.set} {...fault('known')} />
+        <CsNum key={choice} numbers={t.numbers} format={num} label={w.known.kinds[choice]} unit={knownValue.unit} value={knownValue.value} onChange={knownValue.set} {...fault('known')} />
       </div>
       {line('known')}
       <p className="mp-app__note">{w.known.notes[choice]}</p>
@@ -425,25 +461,25 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
       <div className="mp-app__row mp-app__row--two">
         {form.sectionBy === 'diameter' ? (
           <>
-            <NumField numbers={t.numbers} label={w.section.diameter} unit={u.dim} value={form.diameter} onChange={(diameter) => dispatch({ type: 'section', patch: { diameter } })} {...secMark('diameter')} />
-            <NumField numbers={t.numbers} label={w.section.fill} value={form.fill} onChange={(fillValue) => dispatch({ type: 'section', patch: { fill: fillValue } })} {...secMark('fill')} />
+            <CsNum numbers={t.numbers} format={num} label={w.section.diameter} unit={u.dim} value={form.diameter} onChange={(diameter) => dispatch({ type: 'section', patch: { diameter } })} {...secMark('diameter')} />
+            <CsNum numbers={t.numbers} format={num} label={w.section.fill} value={form.fill} onChange={(fillValue) => dispatch({ type: 'section', patch: { fill: fillValue } })} {...secMark('fill')} />
           </>
         ) : (
-          <NumField numbers={t.numbers} label={w.section.area} unit={u.area} value={form.area} onChange={(area) => dispatch({ type: 'section', patch: { area } })} {...secMark('area')} />
+          <CsNum numbers={t.numbers} format={num} label={w.section.area} unit={u.area} value={form.area} onChange={(area) => dispatch({ type: 'section', patch: { area } })} {...secMark('area')} />
         )}
       </div>
       <div className="mp-app__row mp-app__row--two">
         {select<MaterialId>(w.section.material, form.material, MATERIAL_IDS.map((m) => [m, w.section.materials[m]] as [MaterialId, string]), (material) => dispatch({ type: 'material', material }))}
-        {form.elastic ? <NumField numbers={t.numbers} label={w.section.E} unit={u.E} value={form.E} onChange={(E) => dispatch({ type: 'section', patch: { E } })} {...secMark('E')} /> : null}
+        {form.elastic ? <CsNum numbers={t.numbers} format={num} label={w.section.E} unit={u.E} value={form.E} onChange={(E) => dispatch({ type: 'section', patch: { E } })} {...secMark('E')} /> : null}
       </div>
       <div className="mp-app__row mp-app__row--two">
         {form.weightFrom === 'section' ? (
           <>
-            <NumField numbers={t.numbers} label={w.section.gamma} unit={u.gamma} value={form.gamma} onChange={(gamma) => dispatch({ type: 'section', patch: { gamma } })} {...secMark('gamma')} />
-            <NumField numbers={t.numbers} label={w.section.lay} value={form.lay} onChange={(lay) => dispatch({ type: 'section', patch: { lay } })} {...secMark('lay')} />
+            <CsNum numbers={t.numbers} format={num} label={w.section.gamma} unit={u.gamma} value={form.gamma} onChange={(gamma) => dispatch({ type: 'section', patch: { gamma } })} {...secMark('gamma')} />
+            <CsNum numbers={t.numbers} format={num} label={w.section.lay} value={form.lay} onChange={(lay) => dispatch({ type: 'section', patch: { lay } })} {...secMark('lay')} />
           </>
         ) : null}
-        {form.mode === 'state' ? <NumField numbers={t.numbers} label={w.section.alpha} unit={u.alpha} value={form.alpha} onChange={(alpha) => dispatch({ type: 'section', patch: { alpha } })} {...fault('thermal')} /> : null}
+        {form.mode === 'state' ? <CsNum numbers={t.numbers} format={num} label={w.section.alpha} unit={u.alpha} value={form.alpha} onChange={(alpha) => dispatch({ type: 'section', patch: { alpha } })} {...fault('thermal')} /> : null}
       </div>
       {line('section')}
       <label className="mp-app__check">
@@ -476,16 +512,16 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
         {loadFields}
         {knownFields}
         <div className="mp-app__row mp-app__row--two">
-          <NumField numbers={t.numbers} label={w.state.T1} unit={u.temp} value={form.state.T1} onChange={(T1) => dispatch({ type: 'state', patch: { T1 } })} {...fault('thermal')} />
+          <CsNum numbers={t.numbers} format={num} label={w.state.T1} unit={u.temp} value={form.state.T1} onChange={(T1) => dispatch({ type: 'state', patch: { T1 } })} {...fault('thermal')} />
         </div>
       </fieldset>
       <fieldset className="mp-app__group">
         <legend>{w.state.title2}</legend>
         <p className="mp-app__note">{w.state.note2}</p>
         <div className="mp-app__row mp-app__row--two">
-          <NumField numbers={t.numbers} label={w.state.q} unit={u.line} value={form.state.q} onChange={(q) => dispatch({ type: 'state', patch: { q } })} {...fault('state.q')} />
-          <NumField numbers={t.numbers} label={w.state.ice} unit={u.line} value={form.state.ice} onChange={(ice) => dispatch({ type: 'state', patch: { ice } })} {...fault('state.ice')} />
-          <NumField numbers={t.numbers} label={w.state.T2} unit={u.temp} value={form.state.T2} onChange={(T2) => dispatch({ type: 'state', patch: { T2 } })} {...fault('thermal')} />
+          <CsNum numbers={t.numbers} format={num} label={w.state.q} unit={u.line} value={form.state.q} onChange={(q) => dispatch({ type: 'state', patch: { q } })} {...fault('state.q')} />
+          <CsNum numbers={t.numbers} format={num} label={w.state.ice} unit={u.line} value={form.state.ice} onChange={(ice) => dispatch({ type: 'state', patch: { ice } })} {...fault('state.ice')} />
+          <CsNum numbers={t.numbers} format={num} label={w.state.T2} unit={u.temp} value={form.state.T2} onChange={(T2) => dispatch({ type: 'state', patch: { T2 } })} {...fault('thermal')} />
         </div>
         {line('state.q')}
         {line('state.ice')}
@@ -511,17 +547,17 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
       <legend>{w.tables.title}</legend>
       <p className="mp-app__computed">{w.tables.thermal.title}</p>
       <div className="mp-app__row mp-app__row--three">
-        <NumField numbers={t.numbers} label={w.tables.thermal.low} unit={u.temp} value={form.state.low} onChange={(low) => dispatch({ type: 'state', patch: { low } })} {...tableFault(thermalNote, 'thermal')} />
-        <NumField numbers={t.numbers} label={w.tables.thermal.high} unit={u.temp} value={form.state.high} onChange={(high) => dispatch({ type: 'state', patch: { high } })} {...tableFault(thermalNote, 'thermal')} />
-        <NumField numbers={t.numbers} label={w.tables.thermal.step} unit={u.temp} value={form.state.step} onChange={(step) => dispatch({ type: 'state', patch: { step } })} {...tableFault(thermalNote, 'thermal')} />
+        <CsNum numbers={t.numbers} format={num} label={w.tables.thermal.low} unit={u.temp} value={form.state.low} onChange={(low) => dispatch({ type: 'state', patch: { low } })} {...tableFault(thermalNote, 'thermal')} />
+        <CsNum numbers={t.numbers} format={num} label={w.tables.thermal.high} unit={u.temp} value={form.state.high} onChange={(high) => dispatch({ type: 'state', patch: { high } })} {...tableFault(thermalNote, 'thermal')} />
+        <CsNum numbers={t.numbers} format={num} label={w.tables.thermal.step} unit={u.temp} value={form.state.step} onChange={(step) => dispatch({ type: 'state', patch: { step } })} {...tableFault(thermalNote, 'thermal')} />
       </div>
       {tableLine(thermalNote, 'thermal')}
       <p className="mp-app__note">{w.tables.thermal.note}</p>
       <p className="mp-app__computed">{w.tables.loads.title}</p>
       <div className="mp-app__row mp-app__row--three">
-        <NumField numbers={t.numbers} label={w.tables.loads.low} value={form.state.factorLow} onChange={(factorLow) => dispatch({ type: 'state', patch: { factorLow } })} {...tableFault(loadsNote, 'loads')} />
-        <NumField numbers={t.numbers} label={w.tables.loads.high} value={form.state.factorHigh} onChange={(factorHigh) => dispatch({ type: 'state', patch: { factorHigh } })} {...tableFault(loadsNote, 'loads')} />
-        <NumField numbers={t.numbers} label={w.tables.loads.rows} value={form.state.factorRows} onChange={(factorRows) => dispatch({ type: 'state', patch: { factorRows } })} {...tableFault(loadsNote, 'loads')} />
+        <CsNum numbers={t.numbers} format={num} label={w.tables.loads.low} value={form.state.factorLow} onChange={(factorLow) => dispatch({ type: 'state', patch: { factorLow } })} {...tableFault(loadsNote, 'loads')} />
+        <CsNum numbers={t.numbers} format={num} label={w.tables.loads.high} value={form.state.factorHigh} onChange={(factorHigh) => dispatch({ type: 'state', patch: { factorHigh } })} {...tableFault(loadsNote, 'loads')} />
+        <CsNum numbers={t.numbers} format={num} label={w.tables.loads.rows} value={form.state.factorRows} onChange={(factorRows) => dispatch({ type: 'state', patch: { factorRows } })} {...tableFault(loadsNote, 'loads')} />
       </div>
       {tableLine(loadsNote, 'loads')}
       <p className="mp-app__note">{fill(w.tables.loads.note, { max: MAX_FACTOR_ROWS })}</p>
@@ -545,8 +581,8 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               </p>
               <div className="mp-app__row mp-app__row--rm">
                 <div className="mp-app__fields mp-cs__fields">
-                  <NumField numbers={t.numbers} label={w.points.x} unit={u.length} value={p.x} onChange={(x) => dispatch({ type: 'point-patch', id: p.id, patch: { x } })} {...fault(key)} />
-                  <NumField numbers={t.numbers} label={w.points.P} unit={u.force} value={p.P} onChange={(P) => dispatch({ type: 'point-patch', id: p.id, patch: { P } })} {...fault(key)} />
+                  <CsNum numbers={t.numbers} format={num} label={w.points.x} unit={u.length} value={p.x} onChange={(x) => dispatch({ type: 'point-patch', id: p.id, patch: { x } })} {...fault(key)} />
+                  <CsNum numbers={t.numbers} format={num} label={w.points.P} unit={u.force} value={p.P} onChange={(P) => dispatch({ type: 'point-patch', id: p.id, patch: { P } })} {...fault(key)} />
                 </div>
                 <button type="button" className="mp-app__remove" onClick={removeRow(p.id)} aria-label={`${t.row.remove}: ${name}`} title={t.row.remove}>
                   <span aria-hidden="true">×</span>
@@ -560,11 +596,9 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
         <button type="button" className="mp-app__add" onClick={full ? undefined : addRow} aria-disabled={full || undefined} aria-describedby={limited ? `${uid}pointslimit` : undefined}>
           <span aria-hidden="true">+</span> {w.points.add}
         </button>
-        {limited ? (
-          <p className="mp-cs__limit" id={`${uid}pointslimit`} role="status">
-            {fill(w.points.limit, { max: MAX_POINT_LOADS })}
-          </p>
-        ) : null}
+        <p className="mp-cs__limit" id={`${uid}pointslimit`} role="status" hidden={!limited}>
+          {limited ? fill(w.points.limit, { max: MAX_POINT_LOADS }) : null}
+        </p>
       </fieldset>
       <fieldset className="mp-app__group">
         <legend>{w.points.known.title}</legend>
@@ -572,13 +606,13 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
           {select<(typeof POINTS_KNOWN)[number]>(w.points.known.pick, pointsKnownField, POINTS_KNOWN.map((k) => [k, w.points.known.kinds[k]] as [(typeof POINTS_KNOWN)[number], string]), (k) => dispatch({ type: 'points', patch: { pointsKnown: k } }))}
           {pointsKnownField === 'sag' ? (
             <>
-              <NumField numbers={t.numbers} label={w.points.known.at} unit={u.length} value={form.sagAt} onChange={(sagAt) => dispatch({ type: 'points', patch: { sagAt } })} {...fault('sagAt')} />
-              <NumField numbers={t.numbers} label={w.points.known.sag} unit={u.length} value={form.pointsSag} onChange={(pointsSag) => dispatch({ type: 'points', patch: { pointsSag } })} {...fault('known')} />
+              <CsNum numbers={t.numbers} format={num} label={w.points.known.at} unit={u.length} value={form.sagAt} onChange={(sagAt) => dispatch({ type: 'points', patch: { sagAt } })} {...fault('sagAt')} />
+              <CsNum numbers={t.numbers} format={num} label={w.points.known.sag} unit={u.length} value={form.pointsSag} onChange={(pointsSag) => dispatch({ type: 'points', patch: { pointsSag } })} {...fault('known')} />
             </>
           ) : pointsKnownField === 'H' ? (
-            <NumField numbers={t.numbers} label={w.points.known.H} unit={u.force} value={form.pointsH} onChange={(pointsH) => dispatch({ type: 'points', patch: { pointsH } })} {...fault('known')} />
+            <CsNum numbers={t.numbers} format={num} label={w.points.known.H} unit={u.force} value={form.pointsH} onChange={(pointsH) => dispatch({ type: 'points', patch: { pointsH } })} {...fault('known')} />
           ) : (
-            <NumField numbers={t.numbers} label={w.points.known.T} unit={u.force} value={form.pointsT} onChange={(pointsT) => dispatch({ type: 'points', patch: { pointsT } })} {...fault('known')} />
+            <CsNum numbers={t.numbers} format={num} label={w.points.known.T} unit={u.force} value={form.pointsT} onChange={(pointsT) => dispatch({ type: 'points', patch: { pointsT } })} {...fault('known')} />
           )}
         </div>
         {line('sagAt')}
@@ -599,8 +633,8 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
       const last = a.points.segments[a.points.segments.length - 1];
       return { A: lab(words.tension, first.tension), B: lab(words.tension, last.tension), H: null };
     }
-    // In a change of state the figures of each state are in the block above the drawing; the arrow under the lowest point is state 2's.
-    if (a.state) return { A: null, B: null, H: lab(words.H2, a.state.state2.H) };
+    // In a change of state the figures of each state are in the block above the drawing; the arrow under the lowest point and the tensions at the supports are state 2's.
+    if (a.state) return { A: lab(words.tension2, a.state.state2.tension.A), B: lab(words.tension2, a.state.state2.tension.B), H: lab(words.H2, a.state.state2.H) };
     const s = a.hanging?.exact ?? null;
     return s ? { A: lab(words.tension, s.tension.A), B: lab(words.tension, s.tension.B), H: lab(words.H, s.H) } : undefined;
   }, [a, group, w]);
@@ -663,16 +697,21 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
       ) : null}
     </div>
   );
-  const warnings = a.warnings.length ? (
-    <div className="mp-cs__warnings" role="status">
-      <p className="mp-app__issues-title">{w.results.warningsTitle}</p>
-      <ul>
-        {a.warnings.map((x, i) => (
-          <li key={`${x.code}${i}`}>{warningSentence(x, w, ctx)}</li>
-        ))}
-      </ul>
+  // The container is always there, so that what is put in it is announced (a live region that arrives already filled is not).
+  const warnings = (
+    <div className="mp-cs__warnings" role="status" hidden={a.warnings.length === 0}>
+      {a.warnings.length ? (
+        <>
+          <p className="mp-app__issues-title">{w.results.warningsTitle}</p>
+          <ul>
+            {a.warnings.map((x, i) => (
+              <li key={`${x.code}${i}`}>{warningSentence(x, w, ctx)}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </div>
-  ) : null;
+  );
 
   /* -- The headline -- */
   const pair = (label: string, value: React.ReactNode) => (
@@ -753,8 +792,8 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
                 <DataTable
                   cols={[{ title: w.results.supports.support }, { title: w.results.supports.tension, unit: ru.force }, { title: w.results.supports.vertical, unit: ru.force }, { title: w.results.supports.angle, unit: '°' }]}
                   rows={[
-                    { key: 'A', cells: [w.results.supports.left, num(e.tension.A), pointed(e.reaction.A, t.results.upward, t.results.downward), signedNum(e.angle.A)] },
-                    { key: 'B', cells: [w.results.supports.right, num(e.tension.B), pointed(e.reaction.B, t.results.upward, t.results.downward), signedNum(e.angle.B)] },
+                    { key: 'A', cells: [w.results.supports.left, num(e.tension.A), pointed(e.reaction.A, t.results.upward, t.results.downward, ru.force), signedNum(e.angle.A)] },
+                    { key: 'B', cells: [w.results.supports.right, num(e.tension.B), pointed(e.reaction.B, t.results.upward, t.results.downward, ru.force), signedNum(e.angle.B)] },
                   ]}
                 />
                 <p className="mp-app__note">{w.results.supports.note}</p>
@@ -880,8 +919,12 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
     const first = ok[0];
     const last = ok[ok.length - 1];
     const gaps = points.length - ok.length;
+    // A line that does not rise or fall has no "least" and "most" to name.
+    const level = yText(least.y) === yText(most.y);
     return [
-      fill(w.results.sweep.chartAbout, { title, first: yText(first.y), firstAt: xText(first.x), last: yText(last.y), lastAt: xText(last.x), least: yText(least.y), leastAt: xText(least.x), most: yText(most.y), mostAt: xText(most.x) }),
+      level
+        ? fill(w.results.sweep.chartLevel, { title, value: yText(first.y), firstAt: xText(first.x), lastAt: xText(last.x) })
+        : fill(w.results.sweep.chartAbout, { title, first: yText(first.y), firstAt: xText(first.x), last: yText(last.y), lastAt: xText(last.x), least: yText(least.y), leastAt: xText(least.x), most: yText(most.y), mostAt: xText(most.x) }),
       gaps ? fill(w.results.sweep.chartGaps, { count: gaps }) : '',
       ok.some((p) => p.current) ? w.results.sweep.chartCurrent : '',
     ]
@@ -907,6 +950,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
             <SweepChart
               points={sag}
               width={chartWidth}
+              measure={!onPaper}
               group={group}
               title={sagTitle}
               xTitle={axisTitle}
@@ -916,6 +960,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
             <SweepChart
               points={H}
               width={chartWidth}
+              measure={!onPaper}
               group={group}
               title={hTitle}
               xTitle={axisTitle}
@@ -938,7 +983,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
         const s2 = st.state2;
         // A difference of two settled numbers: zero where it is rounding.
         const diff = (p: number, q: number) => settle(q - p, 1e-9 * Math.max(Math.abs(p), Math.abs(q)));
-        const row = (key: string, label: string, unit: string, p: number, q: number, change: number, sig = 4) => ({ key, cells: [`${label} (${unit})`, num(p, sig), num(q, sig), signedNum(change, sig)] });
+        const row = (key: string, label: string, unit: string, p: number, q: number, change: number, sig = 4) => ({ key, cells: [`${label} (${unit})`, num(p, sig), num(q, sig), signedNum(change, 4)] });
         return (
           <>
             {card(
@@ -975,9 +1020,9 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               <dl className="mp-app__dl">
                 {pair(w.results.shape.sagRatio, num(s2.sagRatio, 3))}
                 {pair(w.results.shape.sagLow, s2.vertex.inside ? withUnit(s2.sagLow, ru.length) : w.results.shape.lowOutside)}
-                {pair(w.results.totals.reactionA, pointed(s2.reaction.A, t.results.upward, t.results.downward))}
-                {pair(w.results.totals.reactionB, pointed(s2.reaction.B, t.results.upward, t.results.downward))}
-                {pair(w.results.supports.angle, `${signedNum(s2.angle.A)}° · ${signedNum(s2.angle.B)}°`)}
+                {pair(w.results.totals.reactionA, pointed(s2.reaction.A, t.results.upward, t.results.downward, ru.force))}
+                {pair(w.results.totals.reactionB, pointed(s2.reaction.B, t.results.upward, t.results.downward, ru.force))}
+                {pair(w.results.supports.angle, `${signedNum(s2.angle.A)}° ${w.results.supports.atA} · ${signedNum(s2.angle.B)}° ${w.results.supports.atB}`)}
                 {s2.strain === null ? null : pair(w.results.stretch.elongation, withUnit(s2.elongation, ru.elongation))}
                 {s2.strain === null ? null : pair(w.results.stretch.strain, `${num(s2.strain * 100, 3)} %`)}
               </dl>,
@@ -1046,8 +1091,8 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               w.results.totals.title,
               <dl className="mp-app__dl">
                 {pair(w.results.totals.H, withUnit(pts.H, ru.force))}
-                {pair(w.results.totals.reactionA, pointed(pts.reaction.A, t.results.upward, t.results.downward))}
-                {pair(w.results.totals.reactionB, pointed(pts.reaction.B, t.results.upward, t.results.downward))}
+                {pair(w.results.totals.reactionA, pointed(pts.reaction.A, t.results.upward, t.results.downward, ru.force))}
+                {pair(w.results.totals.reactionB, pointed(pts.reaction.B, t.results.upward, t.results.downward, ru.force))}
                 {pair(w.results.totals.load, withUnit(pts.totalLoad, ru.force))}
                 {pair(w.results.totals.length, withUnit(pts.length, ru.length, 5))}
                 {pair(w.results.totals.tmax, `${withUnit(pts.tensionMax.value, ru.force)} · ${fill(w.results.totals.piece, { n: pts.tensionMax.segment })}`)}
@@ -1208,6 +1253,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               unit={ru.length}
               labels={w.results.labels}
               stretch={w.results.verticalNote}
+              stretchNotes={{ sag: w.results.verticalSagNote, small: w.results.verticalSmallNote, tiny: w.results.verticalTinyNote }}
               texts={texts}
               block={block}
               tensions={show.tensions}
@@ -1219,13 +1265,13 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               legend={w.results.legend}
             />
             {reading ? <p className="mp-cs__reading">{reading}</p> : null}
-            {shown || pts ? <p className="mp-app__note">{w.results.scale}</p> : <p className="mp-app__need">{w.results.waiting}</p>}
+            {shown || pts ? <p className="mp-app__note">{pts ? w.results.scalePoints : w.results.scale}</p> : <p className="mp-app__need">{w.results.waiting}</p>}
           </div>
         </section>
       </div>
 
       {/* -- the numbers: under the form and the drawing, on paper too -- */}
-      <div className="mp-app__tables mp-cs__tables" ref={tablesRef} aria-busy={catching ? true : undefined}>
+      <div className="mp-app__tables mp-cs__tables" ref={tablesRef} aria-busy={catching || staleTables ? true : undefined}>
         {hangingCards}
         {stateCards}
         {pointsCards}

@@ -190,7 +190,7 @@ export function solveKnown(set: Setup, known: Known, state?: 1 | 2, hint?: numbe
       };
       // The tension has a minimum in H (a very slack cable is also tight): the taut cable is on the right of it.
       // The slack end of the search is shorter for a tension: below 1e-2 of the load scale the cable is tens of spans deep.
-      const xlow = Math.log(1e-2 * Hs);
+      const xlow = xmin;
       const xs = argmin(tOf, xlow, xmax);
       const tmin = tOf(xs);
       if (!Number.isFinite(tmin)) return tag({ code: 'solver', field: known.kind });
@@ -221,6 +221,35 @@ export function solveKnown(set: Setup, known: Known, state?: 1 | 2, hint?: numbe
     }
   }
   return tag({ code: 'known-value', field: 'known' });
+}
+
+/**
+ * The setup the PARABOLA column solves: all the load per unit horizontal length, as a hand calculation spreads it.
+ * The cable's weight w is per length of cable, so over a span it is w times the length of the CHORD, √(L² + h²),
+ * and per horizontal length it is  w·√(1 + (h/L)²): q' = q + w·√(1 + (h/L)²). On a level span the factor is 1
+ * (q' = q + w); on an inclined one, spreading w over the horizontal run L instead would understate the load by
+ * that factor and the parabola would be off by it (30 % in H at a rise equal to the span), whatever the sag.
+ */
+export function parabolaSetup(set: Setup): Setup {
+  return { ...set, q: set.q + set.w * (Math.hypot(set.L, set.h) / set.L), w: 0 };
+}
+
+/**
+ * WHY the parabola and the exact cable differ, when they differ by more than the tolerance: 'depth' (the sag is deep
+ * enough that the catenary is no longer a parabola, whatever the cable is made of) or 'elasticity' (a rigid cable would
+ * agree with the parabola; the stretch of the cable, which carries its weight over a longer run and which the parabola
+ * ignores, is what separates them). Decided by solving the pair again with no stretch.
+ */
+function causeOf(set: Setup, known: Known, others?: { set2: Setup; known2: Known }): 'depth' | 'elasticity' {
+  if (set.EA === null) return 'depth';
+  const rigid = (s: Setup, k: Known): number | null => {
+    const e = solveKnown({ ...s, EA: null }, k);
+    const p = solveKnown({ ...parabolaSetup(s), EA: null }, k);
+    return 'shape' in e && 'shape' in p && allFinite(e.shape) && allFinite(p.shape) ? differenceOf(p.shape, e.shape).worst : null;
+  };
+  const a = rigid(set, known);
+  const b = others ? rigid(others.set2, others.known2) : 0;
+  return a !== null && b !== null && Math.max(a, b) <= PARABOLA_TOLERANCE ? 'elasticity' : 'depth';
 }
 
 const relative = (a: number, b: number): number => (b === 0 ? (a === 0 ? 0 : Number.POSITIVE_INFINITY) : (a - b) / b);
@@ -275,13 +304,13 @@ function hanging(input: HangingInput): HangingOutcome {
   let parabolic: CableShape | null = exact.shape;
   let difference: Difference | null = null;
   if (family !== 'parabola') {
-    const p = solveKnown({ ...set, q: set.q + set.w, w: 0 }, input.known);
+    const p = solveKnown(parabolaSetup(set), input.known);
     parabolic = 'shape' in p && allFinite(p.shape) ? p.shape : null;
     difference = parabolic ? differenceOf(parabolic, exact.shape) : null;
   }
 
   const warnings: CableWarning[] = [];
-  if (difference && difference.worst > PARABOLA_TOLERANCE) warnings.push({ code: 'parabola-differs', difference: difference.worst, tolerance: PARABOLA_TOLERANCE, ratio: exact.shape.sagMid / set.L });
+  if (difference && difference.worst > PARABOLA_TOLERANCE) warnings.push({ code: 'parabola-differs', difference: difference.worst, tolerance: PARABOLA_TOLERANCE, ratio: exact.shape.sagMid / set.L, cause: causeOf(set, input.known) });
   warnings.push(...shapeWarnings(exact.shape));
   if (exact.alternative) warnings.push({ code: 'tension-two-roots', value: exact.alternative.H });
   return { ok: true, family, chord, exact: exact.shape, parabolic, difference, alternative: exact.alternative, warnings };
@@ -362,9 +391,9 @@ function changeOfState(input: StateInput): StateOutcome {
   // The same change with all the load per horizontal length.
   let parabolic: { state1: CableShape; state2: CableShape } | null = null;
   if (family !== 'parabola' || input.state2.w !== 0) {
-    const p1 = solveKnown({ ...set1, q: set1.q + set1.w, w: 0 }, input.known, 1);
+    const p1 = solveKnown(parabolaSetup(set1), input.known, 1);
     if ('shape' in p1) {
-      const p2 = sameLoads && thermal === 0 ? { shape: p1.shape, alternative: null } : stateTwo({ q: input.state2.q + input.state2.w, w: 0 }, thermal, p1.shape, s2.H);
+      const p2 = sameLoads && thermal === 0 ? { shape: p1.shape, alternative: null } : stateTwo({ q: input.state2.q + input.state2.w * (chord / input.L), w: 0 }, thermal, p1.shape, s2.H);
       if ('shape' in p2 && allFinite(p1.shape) && allFinite(p2.shape)) parabolic = { state1: p1.shape, state2: p2.shape };
     }
   } else {
@@ -386,7 +415,13 @@ function changeOfState(input: StateInput): StateOutcome {
     const d2 = differenceOf(parabolic.state2, s2);
     const worst = Math.max(d1.worst, d2.worst);
     if (family !== 'parabola' || input.state2.w !== 0) {
-      if (worst > PARABOLA_TOLERANCE) warnings.push({ code: 'parabola-differs', difference: worst, tolerance: PARABOLA_TOLERANCE, ratio: Math.max(s1.sagMid, s2.sagMid) / input.L });
+      if (worst > PARABOLA_TOLERANCE) warnings.push({
+          code: 'parabola-differs',
+          difference: worst,
+          tolerance: PARABOLA_TOLERANCE,
+          ratio: Math.max(s1.sagMid, s2.sagMid) / input.L,
+          cause: causeOf(set1, input.known, { set2: { ...base, q: input.state2.q, w: input.state2.w }, known2: { kind: 'H', value: s2.H } }),
+        });
     }
   }
   warnings.push(...shapeWarnings(s1, 1));
@@ -445,6 +480,7 @@ function points(input: PointsInput): PointsOutcome {
   const scale = sorted.reduce((s, l) => s + Math.abs(l.P), 0);
 
   let H: number;
+  let alternativeH: number | null = null;
   const known = input.known;
   if (known.kind === 'H') {
     H = known.value;
@@ -471,6 +507,11 @@ function points(input: PointsInput): PointsOutcome {
       xr = illinois(g, xs, xhi, gs, gb, 1e-14, 140, 2e-15);
     }
     H = Math.exp(xr);
+    // tmax is convex in H and tends to max|V0| as H -> 0: a tension below that belongs to a second, slack cable on the left of the minimum.
+    if (gs < 0 && g(xlo) > 0) {
+      const xa = illinois(g, xlo, xs, g(xlo), gs, 1e-14, 140, 2e-15);
+      if (Number.isFinite(xa)) alternativeH = Math.exp(xa);
+    }
   }
   if (!(H > 0) || !Number.isFinite(H)) return { ok: false, issues: [{ code: 'size' }] };
 
@@ -512,6 +553,7 @@ function points(input: PointsInput): PointsOutcome {
   const zero = sorted.filter((l) => l.P === 0).length;
   if (up > 0) warnings.push({ code: 'upward-load', count: up });
   if (zero > 0) warnings.push({ code: 'zero-load', count: zero });
+  if (alternativeH !== null) warnings.push({ code: 'tension-two-roots', value: alternativeH });
   if (known.kind === 'sag' && !sorted.some((l) => Math.abs(l.x - known.x) <= 1e-12 * L)) warnings.push({ code: 'sag-not-at-load', value: known.x });
 
   return {
@@ -525,6 +567,7 @@ function points(input: PointsInput): PointsOutcome {
     tensionMax: { value: segments[top].tension, segment: top },
     lowest: { joint: lowest, z: joints[lowest].z },
     totalLoad: sorted.reduce((s, l) => s + l.P, 0),
+    alternative: alternativeH === null ? null : { H: alternativeH },
     warnings,
   };
 }

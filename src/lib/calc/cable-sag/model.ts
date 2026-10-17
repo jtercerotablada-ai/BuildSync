@@ -209,16 +209,17 @@ export interface CableSagForm {
  * L(1 + 8/3·(d/L)² − 32/5·(d/L)⁴ …) = 100(1 + 0.026667 − 0.00064 …) = 102.60 ft;
  * the lowest point is at mid-span, 10 ft below the supports.
  *
- * STATE. A 300 ft span of 1 in 6×19 IWRC rope (13,000 ksi on 0.4006 in², weight
- * 1.608 lb/ft: 490 lb/ft³ × 0.4006 in² × 1.18), hanging with a 6 ft sag at 60 °F, then
- * cooled to 20 °F with 1 lb/ft of ice on it (w₂ = 2.608 lb/ft). By hand, H₁ = wL²/8d =
- * 0.0016083 × 300² / 48 = 3.0156 kip (the exact catenary, elastic: 3.0155). The
- * textbook state equation of a level span — parabolic length s = L(1 + 8/3 r² − 32/5 r⁴),
+ * STATE. A 300 ft span of 1 in 6×19 IWRC rope (14,500 ksi on 0.4139 in², weight
+ * 1.7605 lb/ft: 490 lb/ft³ × 0.4139 in² × 1.25 = 1.76·d²), hanging with a 6 ft sag at
+ * 60 °F, then cooled to 20 °F with 1 lb/ft of ice on it (w₂ = 2.7605 lb/ft). By hand,
+ * H₁ = wL²/8d = 0.0017605 × 300² / 48 = 3.3010 kip (the exact catenary, elastic: 3.3009).
+ * The textbook state equation of a level span — parabolic length s = L(1 + 8/3 r² − 32/5 r⁴),
  * r = wL/8H, the unstressed length L₀ = s₁/(1 + H₁/EA), and at state 2
  * s₂ = L₀(1 + αΔT)(1 + H₂/EA) with αΔT = 6.5e-6 × (−40) — is a cubic in H₂ whose
- * root, found independently (state.test.ts), is H₂ = 4.7367 kip. The engine's
- * exact elastic solution is H₂ = 4.7349 kip (3.7e-4 lower: the textbook takes
- * the mean tension as H and the parabola as the shape), with a sag of 6.195 ft.
+ * root, found independently (state.test.ts), is H₂ = 5.0873 kip. The engine's
+ * exact elastic solution is H₂ = 5.0857 kip (3.2e-4 lower: the textbook takes
+ * the mean tension as H and the parabola as the shape; an independent RK4 solver
+ * gives 5.08566), with a sag of 6.105 ft and a largest tension of 5.102 kip.
  *
  * POINTS. A 60 ft level span carrying 10, 20 and 10 kip at 15, 30 and 45 ft, with a
  * 12 ft sag under the middle load. By hand: the reactions of the beam are 20 kip each;
@@ -314,22 +315,38 @@ export const defaultCableSag = defaultCase;
 /* ── Units ────────────────────────────────────────────────────────────── */
 
 /**
+ * A converted number to the figures a field shows: the shortest form (up to seven figures) within 2.2e-7 of itself, else eight figures.
+ * (beam/model's `tidy` stops at six, which moves a value typed to five figures on a round trip: 938.03 ft → 285.9 m → 938.02 ft.
+ * Here a hop moves a number by at most 2.2e-7 of itself, two hops by 4.4e-7, less than the 5e-7 that is half the gap between two numbers
+ * of five figures: so a value typed with up to FIVE significant figures comes back as typed, whichever system it was typed in.
+ * Six figures are not promised.)
+ */
+export function tidy7(v: number): number {
+  if (v === 0 || !Number.isFinite(v)) return v;
+  for (let figures = 1; figures < 8; figures++) {
+    const short = Number(v.toPrecision(figures));
+    if (Math.abs(short - v) <= 2.2e-7 * Math.abs(v)) return short;
+  }
+  return Number(v.toPrecision(8));
+}
+
+/**
  * The same cable in the other unit system: every quantity as its own, to the figures
- * a field shows (`tidy`), and back again to the very same numbers for values of up to
- * four significant figures. A listed material takes its listed numbers in the new
+ * a field shows (`tidy7`: at most eight significant figures), and back again to the very
+ * same numbers for values of up to five significant figures. A listed material takes its listed numbers in the new
  * system (29,000 ksi is 200 GPa, not 199.948). Temperatures carry their offset, a
  * temperature step and a coefficient per degree do not (ΔT is a difference).
  */
 export function convertCableSag(form: CableSagForm, to: UnitSystem): CableSagForm {
   if (form.units === to) return form;
   const k = CABLE_US_TO_SI;
-  const mul = (v: number, f: number): number => tidy(v * (to === 'si' ? f : 1 / f));
+  const mul = (v: number, f: number): number => tidy7(v * (to === 'si' ? f : 1 / f));
   // A temperature within a ten-thousandth of a degree of zero is zero: 0 °F → −17.7778 °C → 0.00004 below 0 °F again, otherwise.
   const temp = (v: number): number => {
     const raw = to === 'si' ? (v - 32) / 1.8 : v * 1.8 + 32;
-    return Math.abs(raw) < 1e-4 ? 0 : tidy(raw);
+    return Math.abs(raw) < 1e-4 ? 0 : tidy7(raw);
   };
-  const step = (v: number): number => tidy(to === 'si' ? v / 1.8 : v * 1.8);
+  const step = (v: number): number => tidy7(to === 'si' ? v / 1.8 : v * 1.8);
   const listed: ListedMaterial | null = form.material !== 'custom' && form.E === CABLE_MATERIALS[form.material].E[form.units] ? form.material : null;
   const s = form.state;
   return {
@@ -340,7 +357,7 @@ export function convertCableSag(form: CableSagForm, to: UnitSystem): CableSagFor
     diameter: mul(form.diameter, k.dim),
     area: mul(form.area, k.area),
     E: listed ? CABLE_MATERIALS[listed].E[to] : mul(form.E, k.E),
-    alpha: listed ? CABLE_MATERIALS[listed].alpha[to] : to === 'si' ? tidy(form.alpha * k.alpha) : tidy(form.alpha / k.alpha),
+    alpha: listed ? CABLE_MATERIALS[listed].alpha[to] : to === 'si' ? tidy7(form.alpha * k.alpha) : tidy7(form.alpha / k.alpha),
     gamma: listed ? CABLE_MATERIALS[listed].gamma[to] : mul(form.gamma, k.gamma),
     typedWeight: mul(form.typedWeight, k.line),
     q: mul(form.q, k.line),
@@ -423,11 +440,43 @@ function stillListed(form: CableSagForm): boolean {
   return form.E === p.E[form.units] && form.alpha === p.alpha[form.units] && form.gamma === p.gamma[form.units] && form.fill === p.fill && form.lay === p.lay;
 }
 
+/**
+ * Where a load added by 'Add a load' goes: a quarter of the span past the last one (kept inside 1 %…99 % of the span), as before,
+ * unless a load sits there already; then the middle of the widest gap between the supports and the loads. Never a position that
+ * is taken (two loads at one position are refused by the engine), whatever the loads are. A form whose span or positions are not
+ * numbers gets mid-span, as it always did.
+ */
+function freePosition(form: CableSagForm, last: PointRow | undefined): number {
+  const L = form.span;
+  if (!Number.isFinite(L) || !(L > 0)) return tidy(L / 2);
+  const taken = form.points.map((p) => p.x).filter((x) => Number.isFinite(x));
+  const free = (x: number) => x > 0 && x < L && !taken.includes(x);
+  if (last && Number.isFinite(last.x)) {
+    const a = tidy(Math.min(Math.max(last.x + L / 4, L / 100), L * 0.99));
+    if (free(a)) return a;
+  } else if (free(tidy(L / 2))) {
+    return tidy(L / 2);
+  }
+  const edges = [0, ...taken.filter((x) => x > 0 && x < L), L].sort((a, b) => a - b);
+  let best = 0;
+  let at = L / 2;
+  for (let i = 0; i + 1 < edges.length; i++) {
+    const gap = edges[i + 1] - edges[i];
+    if (gap > best) {
+      best = gap;
+      at = edges[i] + gap / 2;
+    }
+  }
+  const mid = tidy(at);
+  return free(mid) ? mid : at;
+}
+
 export function reduceCableSag(form: CableSagForm, action: CableSagAction): CableSagForm {
   const next = (patch: Partial<CableSagForm>): CableSagForm => ({ ...form, notice: null, ...patch });
   switch (action.type) {
     case 'load':
-      return { ...action.form, notice: null };
+      // The very form that was given when it has no notice (a decoded address, an example): the page tells "the case just opened whole" by identity.
+      return action.form.notice === null ? action.form : { ...action.form, notice: null };
     case 'reset':
       return defaultCaseFor('hanging', form.units);
     case 'mode':
@@ -462,8 +511,8 @@ export function reduceCableSag(form: CableSagForm, action: CableSagAction): Cabl
       if (form.points.length >= MAX_POINT_LOADS) return { ...form, notice: { code: 'limit', list: 'points', max: MAX_POINT_LOADS } };
       const last = form.points[form.points.length - 1];
       const seed = clean(action.seed, { x: 'number', P: 'number' }) as Partial<PointRow>;
-      // A new load goes a quarter of the span past the last one (or at mid-span), with the last one's size.
-      const x = seed.x ?? (last && Number.isFinite(last.x) && Number.isFinite(form.span) ? tidy(Math.min(Math.max(last.x + form.span / 4, form.span / 100), form.span * 0.99)) : tidy(form.span / 2));
+      // A new load goes a quarter of the span past the last one (or at mid-span), with the last one's size, and never on a position that is taken.
+      const x = seed.x ?? freePosition(form, last);
       const P = seed.P ?? (last && Number.isFinite(last.P) ? last.P : form.units === 'us' ? 10 : 40);
       return next({ points: [...form.points, { id: form.nextId, x, P }], nextId: form.nextId + 1 });
     }
@@ -563,9 +612,13 @@ export function toEngine(form: CableSagForm): EngineInput {
   if (![s.low, s.high, s.step].every(Number.isFinite)) tableIssues.push({ code: 'number', field: 'thermal' });
   else if (!(s.step > 0) || s.high < s.low) tableIssues.push({ code: 'table', field: 'thermal', count: 0, max: MAX_TABLE_ROWS });
   else {
-    const n = Math.floor((s.high - s.low) / s.step + 1e-9) + 1;
+    // The last row sits on the upper end when the step divides the range to six figures: a step and an end that crossed a units toggle (5.5555556 °C, 60 °C) must not lose a row to rounding.
+    const ratio = (s.high - s.low) / s.step;
+    // The slack is the rounding of the three numbers (eight figures each, `tidy7`) in units of the step.
+    const slack = 2e-6 * ((Math.abs(s.low) + Math.abs(s.high)) / s.step + ratio) + 1e-9;
+    const n = Math.floor(ratio + slack) + 1;
     if (n > MAX_TABLE_ROWS) tableIssues.push({ code: 'table', field: 'thermal', count: n, max: MAX_TABLE_ROWS });
-    else temps = Array.from({ length: n }, (_, i) => s.low + i * s.step);
+    else temps = Array.from({ length: n }, (_, i) => (i === n - 1 && Math.abs(s.low + i * s.step - s.high) <= slack * s.step ? s.high : s.low + i * s.step));
   }
   if (![s.factorLow, s.factorHigh, s.factorRows].every(Number.isFinite)) tableIssues.push({ code: 'number', field: 'loads' });
   else if (!Number.isInteger(s.factorRows) || s.factorRows < 1 || s.factorRows > MAX_FACTOR_ROWS) tableIssues.push({ code: 'table', field: 'loads', count: s.factorRows, max: MAX_FACTOR_ROWS });

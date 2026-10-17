@@ -62,7 +62,8 @@ const ZERO: Quad = { F: 0, Psi: 0, S: 0, U: 0 };
 
 /**
  * The widest panel, in asinh(slope). The integrands are analytic in u = asinh(p) at least π/2 from the real axis (their poles are at
- * cosh u = −q/(q·e + w)), so 8 nodes on a panel of half-width 0.375 give an error of order (π/2 / 0.375 + …)^−16 ≈ 2e-15 of the integral.
+ * cosh u = −q/(q·e + w)), so 8 nodes on a panel of half-width 0.375 give an error of order (π/2 / 0.375 + …)^−16 of the integral:
+ * ~2e-15 in theory, and 3e-13 at worst when measured against an independent solver (the single-panel branch, half-slope ~0.37).
  * (With q = 0 or w = 0 the integrands are entire or constant: exact.)
  */
 const PANEL = 0.75;
@@ -198,7 +199,15 @@ export function forward(set: Setup, H: number): Forward | null {
   const delta = Math.exp(t);
   const beta = chordBeta(k, c, delta);
   if (!Number.isFinite(beta)) return null;
-  return { set, H, k, c, delta, beta, total: quad(k, c, -delta, beta) };
+  const total = quad(k, c, -delta, beta);
+  // CLOSURE. A cable that does not come back to B (the run is not L, the chord's height is not reached) is no cable, whatever
+  // the two nested solves reported: they close to ~1e-14 on every cable met in practice, and in the one corner that was found
+  // where they did not (a strain of thousands of per cent on a span a hundred times as high as wide) they closed on a wrong
+  // root. Better no answer ('solver') than a cable that violates its own boundary conditions.
+  const run = H * total.F;
+  const rise = H * total.Psi;
+  if (!(Math.abs(run - set.L) <= 1e-7 * set.L) || !(Math.abs(rise) <= 1e-7 * set.L * Math.max(delta, beta))) return null;
+  return { set, H, k, c, delta, beta, total };
 }
 
 const DEG = 180 / Math.PI;

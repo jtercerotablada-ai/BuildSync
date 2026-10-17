@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { formatNumber } from '@/lib/calc/format';
+import { useIsoLayoutEffect } from '../shell/layout';
 
 /**
  * A small line chart for the tables of a change of state: one quantity of the cable (its sag, its
@@ -174,13 +175,32 @@ export interface SweepChartProps {
   yTitle: string;
   /** The sentence that says what the chart shows. */
   about: string;
+  /**
+   * Draw at the width of the box the chart stands in, measured after layout and again whenever the box changes (a grid of one column
+   * and of two has not the same boxes, and the window decides which). `width` is where it is first drawn and what the server draws. False
+   * for paper, which is drawn at the sheet's size whatever the window's.
+   */
+  measure?: boolean;
 }
 
-export function SweepChart({ points, width, height = 200, group, title, xTitle, yTitle, about }: SweepChartProps) {
-  const layout = useMemo(() => chartLayout(points, { width, height, group }), [points, width, height, group]);
+export function SweepChart({ points, width, height = 200, group, title, xTitle, yTitle, about, measure = true }: SweepChartProps) {
+  const box = useRef<HTMLElement>(null);
+  const [measured, setMeasured] = useState<number | null>(null);
+  useIsoLayoutEffect(() => {
+    const el = box.current;
+    if (!measure || !el) return;
+    const take = () => setMeasured(Math.max(200, Math.floor(el.clientWidth)));
+    take();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(take);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure]);
+  const drawn = measure && measured !== null ? measured : width;
+  const layout = useMemo(() => chartLayout(points, { width: drawn, height, group }), [points, drawn, height, group]);
   const { plot } = layout;
   return (
-    <figure className="mp-cs-chart">
+    <figure className="mp-cs-chart" ref={box}>
       <figcaption className="mp-plot__title">{title}</figcaption>
       <svg className="mp-plot__svg mp-cs-chart__svg" role="img" aria-label={about} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
         <g aria-hidden="true">

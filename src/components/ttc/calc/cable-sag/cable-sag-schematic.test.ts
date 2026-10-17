@@ -284,7 +284,9 @@ describe('the vertical stretch', () => {
   it('keeps the drawing within the height it may have, by stretching less where the span is steep', () => {
     const l = layoutOf({ ...base, rise: 60, sag: 2 });
     expect(l.height).toBeLessThanOrEqual(560 + 60);
-    expect(l.exaggeration).toBeLessThan(12);
+    // The chord already fills the height: the whole drawing is not stretched, the SAG is, from the true chord, and it can be seen (14 px or more).
+    expect(l.chordRelative).toBe(true);
+    expect(2 * l.scale * l.exaggeration).toBeGreaterThanOrEqual(14);
   });
 });
 
@@ -370,15 +372,15 @@ describe('a change of state', () => {
     expect(layout.exaggeration).toBe(11);
     const deepest = (id: string) => Math.max(...curve(layout, id).points.map((p) => p.y));
     const gap = deepest('state2') - deepest('state1');
-    // 0.195 ft at the horizontal scale times 11: a few pixels, drawn like the rest.
-    expect(gap).toBeCloseTo(0.195 * layout.scale * 11, 0);
-    expect(gap).toBeGreaterThan(3);
+    // 0.105 ft at the horizontal scale times 11: a few pixels, drawn like the rest.
+    expect(gap).toBeCloseTo(0.1048 * layout.scale * 11, 0);
+    expect(gap).toBeGreaterThan(2);
   });
 
   it('draws the cable in state 1 dashed under the one in state 2, and a sag line for each, tagged 1 and 2', () => {
     expect(layout.curves.map((c) => c.id)).toEqual(['state1', 'state2']);
     expect(layout.dims.map((d) => d.id)).toEqual(['state1', 'mid']);
-    expect(layout.labels.filter((x) => x.kind === 'dim').map((x) => x.value)).toEqual(['1', '2']);
+    expect(layout.labels.filter((x) => x.kind === 'dim').map((x) => x.value)).toEqual(['1: 6 ft', '2: 6.105 ft']);
     expect(layout.dims.map((d) => d.given)).toEqual([true, false]);
     expect(layout.legend).toEqual(expect.arrayContaining(['state1', 'state2', 'chord', 'sagMid', 'vertical']));
     expect(layout.loadArrows).toEqual([]);
@@ -387,13 +389,13 @@ describe('a change of state', () => {
   it('gives the figures of each state in a block of words above the drawing, not on the curves', () => {
     const b = layout.block!;
     expect(b.lines.map((l) => l.value)).toEqual([
-      '1 – State 1 (dashed line): sag 6 ft, pretension H 3.015 kip, tension 3.025 kip',
-      '2 – State 2 (solid line): sag 6.195 ft, pretension H 4.735 kip, tension 4.751 kip',
+      '1 – State 1 (dashed line): sag 6 ft, pretension H 3.301 kip, tension 3.311 kip',
+      '2 – State 2 (solid line): sag 6.105 ft, pretension H 5.086 kip, tension 5.102 kip',
     ]);
     // Above everything that is drawn, with room for the tags of the two sag lines between.
     expect(b.rect.y1).toBeLessThan(Math.min(...curve(layout, 'state2').points.map((p) => p.y)) - 20);
     expect(layout.labels.some((x) => x.kind === 'tension')).toBe(false);
-    expect(label(layout, 'H', 'H').value).toBe('state 2 pretension H 4.735 kip');
+    expect(label(layout, 'H', 'H').value).toBe('state 2 pretension H 5.086 kip');
   });
 
   it('breaks the block’s lines to the width of a phone, and keeps them on the page', () => {
@@ -417,7 +419,7 @@ describe('a cable with point loads', () => {
     expect(layout.curves.map((c) => c.id)).toEqual(['polygon']);
     expect(layout.curves[0].points).toHaveLength(5);
     expect(layout.segments).toHaveLength(4);
-    expect(layout.segments.map((s) => s.width)).toEqual([4.75, 4.45, 4.45, 4.75]);
+    expect(layout.segments.map((s) => s.width)).toEqual([5.5, 2, 2, 5.5]);
     expect(layout.segments[0].x1).toBe(layout.supports[0].x);
     expect(layout.segments[3].x2).toBe(layout.supports[1].x);
     expect(layout.H).toBeNull();

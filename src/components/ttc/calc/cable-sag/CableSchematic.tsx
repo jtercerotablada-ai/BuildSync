@@ -38,6 +38,15 @@ import { fill } from './text';
  * over 15 % of the span). The factor is whole (or a half) and is SAID under the drawing, in its
  * legend and on its scale bar, which measures the horizontal direction only.
  *
+ * THREE CASES DEPART FROM THAT, each said under the drawing:
+ *   - an INCLINED chord that leaves no room for the stretch (a rise that is a third of the span at 1:1 already
+ *     fills the height): the chord is drawn true and only the SAG is stretched, measured straight down from the
+ *     chord (`chordRelative`); the sag below the lower support is then not drawn, as its level line would slant.
+ *   - a cable DEEPER THAN IT IS WIDE (a sag or a rise of several spans): the heights are drawn smaller than the
+ *     widths (`compression`), so that the supports stay apart and their words do not pile up.
+ *   - a sag too small to see even so (under 6 px: a millionth of the span, or the stretch is capped): the drawing
+ *     says it is drawn as a straight line (`tooSmall`), not that the stretch lets the sag be seen.
+ *
  * NO WORD TOUCHES ANOTHER OR ANY LINE. Words are placed one at a time by `place`: each tries the
  * spots around the thing it names, nearest first and in the direction it prefers, and takes the
  * first where it touches no line (the cable, the chord, a sag line, an arrow, a support, another
@@ -67,6 +76,12 @@ const MAX_HEIGHT = 560;
 /** The most the vertical scale is stretched, and the share of the drawing's width the sag is brought up to. */
 const EXAGGERATION_CAP = 25;
 const SAG_SHARE = 0.24;
+/** A sag bar shorter than this many pixels cannot be seen. */
+const TOO_SMALL = 6;
+/** Where an inclined chord's own stretch leaves the sag shorter than this, only the sag is stretched. */
+const SAG_ENOUGH = 14;
+/** A cable whose heights would leave the supports closer than this share of the width is drawn with its heights compressed. */
+const NARROW = 0.2;
 /** Beyond this share of the span the cable is deep and is not stretched. */
 const DEEP = 0.15;
 const GAPS = [5, 11, 20, 34, 52, 76, 104, 140, 190, 250];
@@ -133,6 +148,8 @@ export interface SupportShape {
 
 export interface DimShape {
   id: 'mid' | 'low' | 'state1';
+  /** A short dotted line from the foot of the bar to the position it measures, where the bar stands aside from it (a load's arrow is there); null otherwise. */
+  reach: { x1: number; x2: number; y: number } | null;
   /** One line for the two sags, because they are the same line (a level span). */
   both: boolean;
   /** The sag the visitor gave. */
@@ -166,7 +183,7 @@ export interface LabelShape {
   clear: boolean;
 }
 
-export type LegendKey = 'cable' | 'parabola' | 'chord' | 'sagMid' | 'sagLow' | 'sagBoth' | 'sagAt' | 'load' | 'tension' | 'H' | 'state1' | 'state2' | 'polygon' | 'pointLoad' | 'joint' | 'support' | 'vertical';
+export type LegendKey = 'cable' | 'parabola' | 'chord' | 'sagMid' | 'sagLow' | 'sagBoth' | 'sagAt' | 'load' | 'tension' | 'H' | 'state1' | 'state2' | 'polygon' | 'pointLoad' | 'joint' | 'support' | 'vertical' | 'verticalSag' | 'verticalSmall';
 
 export interface Layout {
   width: number;
@@ -175,8 +192,14 @@ export interface Layout {
   viewTop: number;
   /** Pixels per unit of length across the page. */
   scale: number;
-  /** How many times larger the vertical scale is than the horizontal one: 1 where the cable is drawn true. */
+  /** How many times larger the vertical scale is than the horizontal one (of the whole drawing, or of the sag alone with `chordRelative`): 1 where the cable is drawn true. */
   exaggeration: number;
+  /** Only the sag is stretched, measured down from the chord, which keeps its true slope. */
+  chordRelative: boolean;
+  /** How many times SMALLER the heights are drawn than the widths (a cable much deeper than wide): 1 where they are not. */
+  compression: number;
+  /** The sag is under a few pixels even so: the cable looks straight. */
+  tooSmall: boolean;
   chord: Seg;
   supports: SupportShape[];
   curves: CurveShape[];
@@ -315,7 +338,12 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
 
   /* The scale: across the page, then the vertical stretch. */
   const plotW = Math.max(40, W - 2 * mx);
-  const scale = Math.min(plotW / lengthX, (maxHeight * 0.8) / Math.max(box.height, 1e-9));
+  const across = plotW / lengthX;
+  const fit = (maxHeight * 0.8) / Math.max(box.height, 1e-9);
+  // A cable much deeper than wide would leave its supports a few pixels apart: it is drawn as wide as the page, its heights compressed.
+  const compressed = fit < NARROW * across;
+  const scale = compressed ? across : Math.min(across, fit);
+  const compression = compressed ? across / fit : 1;
   const offX = mx + (plotW - lengthX * scale) / 2;
   const ch = drawing.chord;
   const chordZ = (x: number) => (ch.x1 === ch.x0 ? ch.z0 : ch.z0 + ((ch.z1 - ch.z0) * (x - ch.x0)) / (ch.x1 - ch.x0));
@@ -323,19 +351,27 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
   for (const c of drawing.curves) for (const p of c.points) dev = Math.max(dev, chordZ(p.x) - p.z);
   const ratio = dev / lengthX;
   let ev = 1;
-  if (dev > 0 && ratio < DEEP) {
+  let chordRelative = false;
+  if (dev > 0 && ratio < DEEP && !compressed) {
     // Up to a tenth of the span the sag is brought to its share of the width; from there the stretch fades out, to none at DEEP.
     const share = ratio <= 0.1 ? SAG_SHARE : SAG_SHARE - ((SAG_SHARE - DEEP) * (ratio - 0.1)) / (DEEP - 0.1);
-    ev = Math.min(EXAGGERATION_CAP, share / ratio);
-    // It must still fit the height.
-    ev = Math.min(ev, Math.max(1, (maxHeight * 0.8) / Math.max(box.height * scale, 1e-9)));
     // A factor that can be said: whole above two, a half below.
-    ev = ev >= 2 ? Math.floor(ev + 1e-9) : Math.floor(ev * 2 + 1e-9) / 2;
-    if (ev < 1.5) ev = 1;
+    const said = (v: number) => (v >= 2 ? Math.floor(v + 1e-9) : Math.floor(v * 2 + 1e-9) / 2);
+    const wanted = said(Math.min(EXAGGERATION_CAP, share / ratio));
+    // The whole drawing is stretched, so it must still fit the height.
+    const whole = said(Math.min(wanted, Math.max(1, (maxHeight * 0.8) / Math.max(box.height * scale, 1e-9))));
+    ev = whole < 1.5 ? 1 : whole;
+    // A chord that already fills the height leaves the sag a few pixels: then only the sag is stretched, from the chord, which stays true.
+    if (ch.z1 !== ch.z0 && dev * scale * ev < SAG_ENOUGH && wanted > 1.5 * ev) {
+      chordRelative = true;
+      ev = wanted;
+    }
   }
+  if (compressed) ev = 1 / compression;
   const X = (x: number) => offX + (x - box.x0) * scale;
-  const Y = (z: number) => (box.z1 - z) * scale * ev;
-  const at = (p: { x: number; z: number }): Point => ({ x: clean(X(p.x)), y: clean(Y(p.z)) });
+  // The level of a point drawn: z up, stretched by `ev` from the top of the box - or, with `chordRelative`, the chord true and only the distance below it stretched.
+  const Y = (z: number, x?: number) => (chordRelative && x !== undefined ? ((box.z1 - chordZ(x)) + (chordZ(x) - z) * ev) * scale : (box.z1 - z) * scale * ev);
+  const at = (p: { x: number; z: number }): Point => ({ x: clean(X(p.x)), y: clean(Y(p.z, p.x)) });
 
   const A = at(drawing.supports.A);
   const B = at(drawing.supports.B);
@@ -358,9 +394,14 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
   const segments: SegmentShape[] = [];
   const polygon = curves.find((c) => c.id === 'polygon');
   if (polygon) {
+    // The weight of a piece: from 2 px for the least tension to 5.5 px for the largest, whatever the two are (5 % apart is still seen).
+    // It says which piece pulls harder and not by how much (the tensions are in the table, and the legend says so).
+    const shares = o.shares ?? [];
+    const least = shares.length ? Math.min(...shares) : 1;
     for (let i = 1; i < polygon.points.length; i++) {
       const share = o.shares?.[i - 1] ?? 0.5;
-      segments.push({ label: i, x1: polygon.points[i - 1].x, y1: polygon.points[i - 1].y, x2: polygon.points[i].x, y2: polygon.points[i].y, width: clean(1.75 + 3 * share) });
+      const along = least < 0.999 ? (share - least) / (1 - least) : 1;
+      segments.push({ label: i, x1: polygon.points[i - 1].x, y1: polygon.points[i - 1].y, x2: polygon.points[i].x, y2: polygon.points[i].y, width: clean(least < 0.999 ? 2 + 3.5 * along : 3.75) });
     }
   }
   const r = clean(3.2 + 1.2 * k);
@@ -374,19 +415,19 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
   const dimWords = new Map<string, string>();
   const dimLine = (id: DimShape['id'], d: Dimension, word: string, shift = 0): DimShape => {
     const x = clean(X(d.x) + shift);
-    const y1 = clean(Y(d.zTop));
-    const y2 = clean(Y(d.zBottom));
+    const y1 = clean(Y(d.zTop, d.x));
+    const y2 = clean(Y(d.zBottom, d.x));
     dimWords.set(id, `${word} ${formatNumber(d.value, 4, o.group)} ${o.unit}`);
-    return { id, both: false, given: false, x, y1, y2, level: d.from === undefined ? null : { x1: clean(X(d.from)), x2: x, y: y1 } };
+    return { id, both: false, given: false, x, y1, y2, level: d.from === undefined ? null : { x1: clean(X(d.from)), x2: x, y: y1 }, reach: shift === 0 || mode === 'state' ? null : { x1: x, x2: clean(X(d.x)), y: y2 } };
   };
   if (o.dims) {
-    const { mid, low, state1 } = drawing.sag;
+    const { mid, low: lowSag, state1 } = drawing.sag;
+    // Where the chord is stretched apart from the cable its "level" line would slant: the sag below the lower support is left to the tables.
+    const low = chordRelative ? null : lowSag;
     if (mode === 'state') {
-      // Each state's sag line is tagged 1 and 2: the figures are in the block above the drawing.
-      if (state1) dims.push({ ...dimLine('state1', state1, '1', -5), given: drawing.sag.given === 'mid' });
-      if (mid) dims.push({ ...dimLine('mid', mid, '2', 5), given: false });
-      dimWords.set('state1', '1');
-      dimWords.set('mid', '2');
+      // Each state's sag line carries its number and its figure: the two cables are nearly one line, and the bars are what tells them apart.
+      if (state1) dims.push({ ...dimLine('state1', state1, '1:', -5), given: drawing.sag.given === 'mid' });
+      if (mid) dims.push({ ...dimLine('mid', mid, '2:', 5), given: false });
     } else if (mid && low) {
       const same = Math.abs(X(mid.x) - X(low.x)) < 1 && Math.abs(Y(mid.zTop) - Y(low.zTop)) < 0.5 && Math.abs(Y(mid.zBottom) - Y(low.zBottom)) < 0.5;
       if (same) dims.push({ ...dimLine('mid', mid, o.labels.sag), both: true, given: drawing.sag.given !== null });
@@ -431,6 +472,7 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
     line(d.x - 4, d.y1, d.x + 4, d.y1);
     line(d.x - 4, d.y2, d.x + 4, d.y2);
     if (d.level) line(d.level.x1, d.level.y, d.level.x2, d.level.y);
+    if (d.reach) line(d.reach.x1, d.reach.y, d.reach.x2, d.reach.y);
   }
   if (H) {
     line(H.arrow.x1, H.arrow.y, H.arrow.x2, H.arrow.y);
@@ -507,7 +549,7 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
     const value = dimWords.get(d.id) ?? '';
     const middle = { x: d.x, y: (d.y1 + d.y2) / 2 };
     if (mode === 'state') place('dim', d.id, value, { x: d.x, y: Math.min(d.y1, d.y2) }, d.id === 'state1' ? ['ul', 'u'] : ['ur', 'u']);
-    else place('dim', d.id, value, middle, d.level ? ['l', 'r'] : ['r', 'l', 'ur', 'ul']);
+    else place('dim', d.id, value, middle, d.level ? ['l', 'r'] : d.reach ? ['l', 'ul', 'r'] : ['r', 'l', 'ur', 'ul']);
   }
   // The pretension under the lowest point; the tensions below and outside the supports.
   if (H && o.texts?.H) place('H', 'H', o.texts.H, { x: H.x, y: H.arrow.y }, ['d', 'dl', 'dr', 'l', 'r']);
@@ -526,7 +568,7 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
     for (let i = 1; i <= count; i++) {
       const x = drawing.supports.A.x + (L * i) / (count + 1);
       const px = clean(X(x));
-      const tip = { x: px, y: clean(Y(levelAt(exact.points, x)) - 2) };
+      const tip = { x: px, y: clean(Y(levelAt(exact.points, x), x) - 2) };
       const arrow: Rect = { x0: px - HEAD_HALF, y0: tip.y - len, x1: px + HEAD_HALF, y1: tip.y };
       if (wordBoxes.some((b) => rectsHit(arrow, b, 3))) continue;
       if (obstacles.some((s) => s.x1 === s.x2 && segHitsRect(s, arrow, 4) && Math.abs(s.y2 - s.y1) > 0)) continue;
@@ -576,14 +618,22 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
   if (placed.some((p) => p.kind === 'tension')) legend.push('tension');
   if (H) legend.push('H');
   legend.push('support');
-  if (ev > 1) legend.push('vertical');
+  if (compression > 1) legend.push('verticalSmall');
+  else if (ev > 1) legend.push(chordRelative ? 'verticalSag' : 'vertical');
+
+  // The longest sag bar drawn, in pixels: under a few the cable looks like a line and the stretch has not shown the sag.
+  const sagPixels = dev * scale * (compressed ? 1 / compression : ev);
+  const tooSmall = dev > 0 && sagPixels < TOO_SMALL;
 
   return {
     width: W,
     height,
     viewTop,
     scale: clean(scale),
-    exaggeration: ev,
+    exaggeration: compressed ? 1 : ev,
+    chordRelative,
+    compression: clean(compression),
+    tooSmall,
     chord: { x1: A.x, y1: A.y, x2: B.x, y2: B.y },
     supports,
     curves,
@@ -626,16 +676,21 @@ export interface CableSchematicProps extends Omit<LayoutOptions, 'maxHeight'> {
   legend: CableSagUi['results']['legend'];
   /** The note under the drawing that says the vertical scale is stretched, with {n}. */
   stretch: string;
+  /** The notes of the other three cases (see the header): only the sag stretched from a true chord, the heights compressed, a sag too small to show. Each has {n}; `stretch` stands in for one that is left out. */
+  stretchNotes?: Partial<Record<'sag' | 'small' | 'tiny', string>>;
   maxHeight?: number;
 }
 
 /** The factor as it is said: whole, or with a half. */
-const factorText = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+const factorText = (n: number): string => (Number.isInteger(n) ? String(n) : n >= 10 ? String(Math.round(n)) : n.toFixed(1));
 
-export function CableSchematic({ drawing, summary, legend: words, stretch, ...options }: CableSchematicProps) {
+export function CableSchematic({ drawing, summary, legend: words, stretch, stretchNotes, ...options }: CableSchematicProps) {
   const { width, group, unit, labels, texts, block, tensions, dims, load, parabola, shares, maxHeight } = options;
   const layout = useMemo(() => cableLayout(drawing, { width, group, unit, labels, texts, block, tensions, dims, load, parabola, shares, maxHeight }), [drawing, width, group, unit, labels, texts, block, tensions, dims, load, parabola, shares, maxHeight]);
-  const n = factorText(layout.exaggeration);
+  const n = factorText(layout.compression > 1 ? layout.compression : layout.exaggeration);
+  // Which sentence is true of this drawing: the sag is too small to show; the heights are compressed; only the sag is stretched; the whole is.
+  const note = layout.tooSmall ? (stretchNotes?.tiny ?? stretch) : layout.compression > 1 ? (stretchNotes?.small ?? stretch) : layout.chordRelative ? (stretchNotes?.sag ?? stretch) : stretch;
+  const noted = layout.tooSmall || layout.compression > 1 || layout.exaggeration > 1;
   return (
     <figure className="mp-cs-fig">
       <svg className="mp-plot__svg mp-cs-fig__svg" role="img" aria-label={summary} viewBox={`0 ${layout.viewTop} ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
@@ -668,6 +723,7 @@ export function CableSchematic({ drawing, summary, legend: words, stretch, ...op
           {layout.dims.map((d) => (
             <g key={d.id} className={`mp-cs-fig__dim mp-cs-fig__dim--${d.id}${d.given ? ' mp-cs-fig__dim--given' : ''}`}>
               {d.level ? <line className="mp-cs-fig__level" x1={d.level.x1} y1={d.level.y} x2={d.level.x2} y2={d.level.y} /> : null}
+              {d.reach ? <line className="mp-cs-fig__level" x1={d.reach.x1} y1={d.reach.y} x2={d.reach.x2} y2={d.reach.y} /> : null}
               <line x1={d.x} y1={d.y1} x2={d.x} y2={d.y2} />
               <line x1={d.x - 4} y1={d.y1} x2={d.x + 4} y2={d.y1} />
               <line x1={d.x - 4} y1={d.y2} x2={d.x + 4} y2={d.y2} />
@@ -705,7 +761,7 @@ export function CableSchematic({ drawing, summary, legend: words, stretch, ...op
           </g>
         </g>
       </svg>
-      {layout.exaggeration > 1 ? <p className="mp-cs-fig__stretch">{fill(stretch, { n })}</p> : null}
+      {noted ? <p className="mp-cs-fig__stretch">{fill(note, { n })}</p> : null}
       <ul className="mp-cs-fig__legend">
         {layout.legend.map((key) => (
           <li key={key} className={`mp-cs-fig__key mp-cs-fig__key--${key}`}>
@@ -732,10 +788,10 @@ function LegendSwatch({ kind }: { kind: LegendKey }) {
           <path d="M1 3 Q15 15 29 3" />
         </g>
       ) : kind === 'polygon' ? (
-        <line className="mp-cs-fig__piece" x1="1" y1="4" x2="15" y2="11" strokeWidth="3.5" />
+        <line className="mp-cs-fig__piece" x1="4" y1="7" x2="26" y2="7" strokeWidth="5" />
       ) : kind === 'chord' ? (
         line('mp-cs-fig__chord')
-      ) : kind === 'sagMid' || kind === 'sagLow' || kind === 'sagBoth' || kind === 'sagAt' || kind === 'vertical' ? (
+      ) : kind === 'sagMid' || kind === 'sagLow' || kind === 'sagBoth' || kind === 'sagAt' || kind === 'vertical' || kind === 'verticalSag' || kind === 'verticalSmall' ? (
         <g className="mp-cs-fig__dim">
           <line x1="15" y1="1" x2="15" y2="13" />
           <line x1="11" y1="1" x2="19" y2="1" />

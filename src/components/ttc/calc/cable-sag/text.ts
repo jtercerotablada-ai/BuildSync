@@ -121,6 +121,8 @@ export function warningSentence(warning: AnalysisWarning, w: CableSagUi, ctx: Co
     force: ctx.force,
     count: warning.count ?? 0,
   };
+  // The parabola warning says WHY: the sag is deep, or the cable stretches (a rigid one would agree).
+  if (warning.code === 'parabola-differs') vars.why = fill(warning.cause === 'elasticity' ? w.results.compare.whyElastic : w.results.compare.whyDepth, vars);
   return fill(w.warnings[warning.code], vars);
 }
 
@@ -179,8 +181,10 @@ export function readingOf(a: CableSagAnalysis, w: CableSagUi, ctx: Context, form
       T: withUnit(a.hanging.given === 'T-low' ? e.tension.low : e.tension.high, F),
     };
     const given = a.hanging.given;
-    const lead = given === 'sag-mid' ? r.hanging.sagMid : given === 'sag-low' ? r.hanging.sagLow : given === 'H' ? r.hanging.H : given === 'T-high' ? r.hanging.THigh : given === 'T-low' ? r.hanging.TLow : r.hanging.length;
+    const lengthLead = e.strain === null ? r.hanging.lengthRigid : r.hanging.length;
+    // The two supports pull alike to the figures shown (a level span): "the higher support" is then no one in particular.
     const alike = n(e.tension.A) === n(e.tension.B);
+    const lead = given === 'sag-mid' ? r.hanging.sagMid : given === 'sag-low' ? r.hanging.sagLow : given === 'H' ? r.hanging.H : given === 'T-high' ? (alike ? r.hanging.TBoth : r.hanging.THigh) : given === 'T-low' ? (alike ? r.hanging.TBoth : r.hanging.TLow) : lengthLead;
     const tail = alike ? fill(r.hanging.tailEqual, { T: withUnit(e.tension.A, F) }) : fill(r.hanging.tailDiff, { Ta: withUnit(e.tension.A, F), Tb: withUnit(e.tension.B, F) });
     return fill(lead, vars) + tail;
   }
@@ -219,7 +223,9 @@ export function readingOf(a: CableSagAnalysis, w: CableSagUi, ctx: Context, form
       d: p.sagAt ? withUnit(p.sagAt.value, L) : '',
       x: p.sagAt ? withUnit(p.sagAt.x, L) : '',
     };
-    const lead = p.given === 'sag' && p.sagAt ? r.points.sag : p.given === 'T-max' ? r.points.T : r.points.H;
+    // A lowest joint that IS support A is level with support A by definition: that is not said.
+    const atA = p.joints[p.lowest.joint]?.kind === 'A';
+    const lead = p.given === 'sag' && p.sagAt ? r.points.sag : p.given === 'T-max' ? (atA ? r.points.TAtSupport : r.points.T) : atA ? r.points.HAtSupport : r.points.H;
     const steep = p.segments[p.tensionMax.segment - 1];
     const tail = steep ? fill(r.points.steepest, { a: nameOf(steep.from), b: nameOf(steep.to), T: withUnit(steep.tension, F) }) : '.';
     return fill(lead, vars) + tail;
