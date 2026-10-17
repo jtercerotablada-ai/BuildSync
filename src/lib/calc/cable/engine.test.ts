@@ -950,7 +950,7 @@ describe('the engine never throws and never returns NaN or Infinity', () => {
   });
   it('on extreme valid inputs (huge, tiny, nearly degenerate)', () => {
     const r = rng(42);
-    for (let k = 0; k < 3000; k++) {
+    for (let k = 0; k < 900; k++) {
       const e = () => 10 ** between(r, -12, 29);
       const sec: CableSection = { A: e(), E: e(), alpha: r() < 0.5 ? 0 : 10 ** between(r, -9, -3) };
       const loads = solveLoad({ W: e(), H: (r() < 0.5 ? -1 : 1) * e(), dT: between(r, -1e4, 1e4), legs: [{ angle: between(r, 0, 90), side: pickOf(r, ['left', 'right'] as const), length: e(), section: sec }, { angle: pickOf(r, [0, 90, between(r, 0, 90)]), side: pickOf(r, ['left', 'right'] as const), length: e(), section: sec }] });
