@@ -271,10 +271,10 @@ describe('the vertical stretch', () => {
   it('says it under the drawing and in its legend, in both languages, only where it was done', () => {
     const shallow = show({ ...base, sag: 2 });
     expect(shallow).toContain('<p class="mp-cs-fig__stretch">Vertical scale drawn 12 times larger than the horizontal one, so that the sag can be seen. Widths are to scale; heights are not.</p>');
-    expect(shallow).toContain('<span>Heights drawn 12 times larger than widths</span>');
+    expect(shallow).toContain('<span>Vertical scale stretched 12 times, so the sag shows</span>');
     const es = show({ ...base, sag: 2 }, { legend: cableSagUi.es.results.legend, stretch: cableSagUi.es.results.verticalNote });
     expect(es).toContain('Escala vertical dibujada 12 veces mayor que la horizontal');
-    expect(es).toContain('<span>Alturas dibujadas 12 veces mayores que los anchos</span>');
+    expect(es).toContain('<span>Escala vertical estirada 12 veces, para que se vea la flecha</span>');
     const deep = show({ ...base, sag: 25 });
     expect(deep).not.toContain('mp-cs-fig__stretch');
     expect(deep).not.toContain('Heights drawn');

@@ -938,7 +938,7 @@ describe('what the drawing says in words', () => {
     expect(level).toContain('>20 ft horizontal<');
     const shallow = show('en', state);
     expect(shallow).toContain('<p class="mp-cs-fig__stretch">Vertical scale drawn 11 times larger than the horizontal one, so that the sag can be seen. Widths are to scale; heights are not.</p>');
-    expect(shallow).toContain('<span>Heights drawn 11 times larger than widths</span>');
+    expect(shallow).toContain('<span>Vertical scale stretched 11 times, so the sag shows</span>');
     expect(shallow).toContain('>50 ft horizontal<');
     const es = show('es', state);
     expect(es).toContain('Escala vertical dibujada 11 veces mayor que la horizontal');
