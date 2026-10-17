@@ -30,9 +30,11 @@ import { CONTINUOUS_PATH, ContinuousBeamView } from './ContinuousBeamView';
 import { shaftPage } from '@/lib/calc/shaft/page-strings';
 import { SHAFT_PATH, ShaftView } from './ShaftView';
 import { trussPage } from '@/lib/calc/truss/page-strings';
+import { cableSagPage } from '@/lib/calc/cable-sag/page-strings';
 import { TRUSS_PATH, TrussView } from './TrussView';
 import { cablePage } from '@/lib/calc/cable/page-strings';
 import { CABLE_PATH, CableView } from './CableView';
+import { CABLE_SAG_PATH, CableSagView } from './CableSagView';
 import { CalculatorsView } from './CalculatorsView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
@@ -104,6 +106,7 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     [SHAFT_PATH, { title: shaftPage[lang].title, description: shaftPage[lang].description }] as const,
     [TRUSS_PATH, { title: trussPage[lang].title, description: trussPage[lang].description }] as const,
     [CABLE_PATH, { title: cablePage[lang].title, description: cablePage[lang].description }] as const,
+    [CABLE_SAG_PATH, { title: cableSagPage[lang].title, description: cableSagPage[lang].description }] as const,
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -392,6 +395,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [SHAFT_PATH, h(ShaftView, { lang })],
     [TRUSS_PATH, h(TrussView, { lang })],
     [CABLE_PATH, h(CableView, { lang })],
+    [CABLE_SAG_PATH, h(CableSagView, { lang })],
   ];
 }
 

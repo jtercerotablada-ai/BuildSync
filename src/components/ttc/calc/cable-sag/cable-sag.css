@@ -1,0 +1,521 @@
+/* CABLE SAG AND PRETENSION (.mp-cs) — the seventh calculator
+   (cable-sag/CableSagCalculator.tsx), its drawing (CableSchematic.tsx) and its
+   charts (SweepChart.tsx).
+
+   Imported by the calculator itself, so it travels with this page and no other.
+   The page lays the calculator out by the shared sheet (calc/calc.css: .mp-app,
+   .mp-num, .mp-seg, .mp-plot, the cards and the print rules); what follows is
+   only what a cable with three modes needs. Every rule here is written with the
+   weight of two classes (.mp-cs ...) so that it holds whichever of the two
+   sheets the browser reads last.
+
+   The drawing's classes are its own, every one (.mp-cs-fig__*, .mp-cs-chart__*):
+   ink for what is built, blue for the exact cable and red for the parabola,
+   gold for what the calculator found (the load arrows, the pretension).
+   THE CURVES DIFFER BY THE PATTERN AS WELL AS THE COLOUR (a solid line, a
+   dashed one, a thin dashed one for the chord), so that a black-and-white sheet
+   and a reader who does not tell blue from red lose nothing. */
+.mp-cs {
+  --mp-cs-cable: #1f5a99;
+  --mp-cs-parabola: #a63a2a;
+  --mp-cs-state1: #7d7f7a;
+}
+
+/* ── the form ─────────────────────────────────────────────────────────── */
+
+/* The mode is three tabs that may take two lines on a phone: each as wide as its words, none cut. */
+.mp-cs .mp-cs__modes {
+  display: flex;
+  flex-wrap: wrap;
+}
+.mp-cs .mp-cs__modes > .mp-seg__item {
+  flex: 1 1 9rem;
+}
+.mp-cs .mp-cs__modes .mp-seg__item span {
+  white-space: normal;
+  text-align: center;
+}
+.mp-cs .mp-cs__modes > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.mp-cs .mp-cs__example {
+  justify-self: start;
+}
+/* A row of a list: its name and the button that removes it on one line, and its fields under both. */
+.mp-cs .mp-cs__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  column-gap: var(--mp-4);
+  row-gap: var(--mp-2);
+}
+.mp-cs .mp-cs__item > .mp-app__row--rm {
+  display: contents;
+}
+.mp-cs .mp-cs__item > .mp-app__row--rm > .mp-app__remove {
+  grid-area: 1 / 2;
+}
+.mp-cs .mp-cs__item > .mp-app__row--rm > .mp-cs__fields,
+.mp-cs .mp-cs__item > .mp-app__row-error {
+  grid-column: 1 / -1;
+}
+.mp-cs .mp-cs__name {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--mp-ink-2);
+}
+.mp-cs .mp-cs__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--mp-3) var(--mp-4);
+  align-items: end;
+  min-width: 0;
+}
+.mp-cs .mp-cs__fields > .mp-num__hint {
+  grid-column: 1 / -1;
+}
+/* A value longer than its field shows that it is: a number cut short reads as another number. */
+@media screen {
+  .mp-cs .mp-num__input {
+    text-overflow: ellipsis;
+  }
+}
+.mp-cs .mp-cs__known > .mp-num--select {
+  flex-basis: 14rem;
+}
+.mp-cs .mp-cs__limit {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+.mp-cs .mp-app__add[aria-disabled='true'] {
+  color: var(--mp-ink-faint);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* ── the answer ───────────────────────────────────────────────────────── */
+
+.mp-cs .mp-cs__warnings {
+  padding: var(--mp-4);
+  border: 1px solid var(--mp-gold-ink);
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-cs .mp-cs__warnings ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+}
+.mp-cs .mp-cs__warnings .mp-app__issues-title {
+  color: var(--mp-gold-ink);
+}
+.mp-cs .mp-cs__headline {
+  margin-block: 0;
+}
+.mp-cs .mp-cs__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--mp-6);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mp-cs .mp-cs__options > legend {
+  width: 100%;
+  padding: 0;
+}
+
+/* ── the numbers ──────────────────────────────────────────────────────── */
+
+.mp-cs .mp-cs__table {
+  max-width: 64rem;
+}
+.mp-cs .mp-cs__table td {
+  white-space: normal;
+}
+.mp-cs .mp-cs__table tbody th .mp-plot__unit {
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+.mp-cs .mp-cs__head {
+  display: none;
+}
+@media screen {
+  .mp-cs .mp-app__card--wide {
+    overflow-x: auto;
+  }
+}
+/* The row that is state 2 as set up: marked in the table by its word and, on screen, by its ground. */
+.mp-cs .mp-cs__current {
+  background: var(--mp-gold-soft);
+}
+.mp-cs .mp-cs__failed td {
+  color: var(--mp-ink-3);
+}
+.mp-cs .mp-cs__balanced {
+  color: var(--mp-ink-2);
+}
+.mp-cs .mp-cs__charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--mp-4) 1.5rem;
+}
+.mp-cs .mp-cs__verdict {
+  max-width: 64rem;
+}
+
+/* On a phone a row is laid out two cells to a line, each under its own head: a table of seven columns was twice the width of its card. */
+@media screen and (max-width: 640px) {
+  .mp-cs .mp-cs__table,
+  .mp-cs .mp-cs__table > tbody {
+    display: block;
+  }
+  .mp-cs .mp-cs__table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .mp-cs .mp-cs__table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding-block: 0.35rem;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-cs .mp-cs__table tbody th,
+  .mp-cs .mp-cs__table td {
+    flex: 0 0 50%;
+    min-width: 0;
+    padding-block: 0.3rem;
+    border-block-end: 0;
+  }
+  .mp-cs .mp-cs__table tbody th {
+    flex-basis: 100%;
+  }
+  .mp-cs .mp-cs__table tbody td[colspan] {
+    flex-basis: 100%;
+  }
+  .mp-cs .mp-cs__table tbody tr > :nth-child(2n + 1):not(:first-child) {
+    padding-inline-end: 0;
+  }
+  .mp-cs .mp-cs__table .mp-cs__head {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mp-ink-3);
+  }
+  .mp-cs .mp-cs__table .mp-cs__head .mp-plot__unit {
+    text-transform: none;
+  }
+  .mp-cs .mp-cs__table tbody th .mp-cs__head {
+    display: none;
+  }
+}
+
+/* ── the drawing ──────────────────────────────────────────────────────── */
+
+.mp-cs .mp-cs-fig,
+.mp-cs .mp-cs-chart {
+  display: grid;
+  gap: var(--mp-3);
+  min-width: 0;
+  margin: 0;
+}
+.mp-cs .mp-cs-fig__svg,
+.mp-cs .mp-cs-chart__svg {
+  height: auto;
+}
+.mp-cs-fig__curve {
+  fill: none;
+}
+.mp-cs-fig__curve path,
+path.mp-cs-fig__curve {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mp-cs-fig__curve--exact,
+.mp-cs-fig__curve--state2,
+.mp-cs-fig__curve--exact path,
+.mp-cs-fig__curve--state2 path {
+  stroke: var(--mp-cs-cable);
+  stroke-width: 3;
+}
+.mp-cs-fig__curve--parabola,
+.mp-cs-fig__curve--parabola path {
+  stroke: var(--mp-cs-parabola);
+  stroke-width: 2;
+  stroke-dasharray: 8 5;
+}
+.mp-cs-fig__curve--state1,
+.mp-cs-fig__curve--state1 path {
+  stroke: var(--mp-cs-state1);
+  stroke-width: 2.25;
+  stroke-dasharray: 3 4;
+}
+.mp-cs-fig__piece {
+  stroke: var(--mp-cs-cable);
+  stroke-linecap: round;
+  fill: none;
+}
+.mp-cs-fig__curve--polygon {
+  stroke: none;
+}
+.mp-cs-fig__chord {
+  stroke: var(--mp-ink-3);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  fill: none;
+}
+.mp-cs-fig__support polygon {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-cs-fig__ground {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-cs-fig__letter,
+.mp-cs-fig__joint text,
+.mp-cs-fig__tension,
+.mp-cs-fig__dim text,
+.mp-cs-fig__load text,
+.mp-cs-fig__pointload text,
+.mp-cs-fig__harrow text {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink);
+  /* A line that passes a number goes behind it. */
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.mp-cs-fig__letter {
+  font-weight: 600;
+}
+.mp-cs-fig__joint text {
+  font-size: 10px;
+  font-weight: 600;
+}
+.mp-cs-fig__joint circle {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+}
+.mp-cs-fig__dim line {
+  stroke: var(--mp-ink-3);
+  stroke-width: 1;
+}
+.mp-cs-fig__dim--given line {
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+}
+.mp-cs-fig__dim line.mp-cs-fig__level {
+  stroke-dasharray: 2 3;
+  stroke-width: 1;
+}
+.mp-cs-fig__load line {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1.25;
+}
+.mp-cs-fig__load polygon {
+  fill: var(--mp-gold-ink);
+}
+.mp-cs-fig__pointload line {
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+}
+.mp-cs-fig__pointload polygon {
+  fill: var(--mp-ink);
+}
+.mp-cs-fig__h circle {
+  fill: var(--mp-gold-ink);
+}
+.mp-cs-fig__harrow line {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1.75;
+}
+.mp-cs-fig__harrow polygon {
+  fill: var(--mp-gold-ink);
+}
+.mp-cs-fig__harrow text {
+  fill: var(--mp-gold-ink);
+}
+.mp-cs-fig__scale line {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-cs-fig__scale text {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink-2);
+}
+.mp-cs-fig__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--mp-ink-2);
+}
+.mp-cs-fig__key {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-2);
+}
+.mp-cs-fig__swatch {
+  flex: none;
+  overflow: visible;
+}
+.mp-cs-fig__swatch .mp-cs-fig__tension {
+  stroke: none;
+}
+
+/* ── the charts ───────────────────────────────────────────────────────── */
+
+.mp-cs-chart__line {
+  fill: none;
+  stroke: var(--mp-cs-cable);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.mp-cs-chart__dot {
+  fill: var(--mp-cs-cable);
+}
+.mp-cs-chart__ring {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-cs-chart__tick,
+.mp-cs-chart__axis,
+.mp-cs-chart__gap {
+  font-family: var(--mp-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink-2);
+}
+.mp-cs-chart__axis {
+  fill: var(--mp-ink-3);
+}
+.mp-cs-chart__gap {
+  fill: var(--mp-error);
+  font-size: 13px;
+}
+
+/* ── on paper ─────────────────────────────────────────────────────────── */
+
+@media print {
+  /* The mode's tabs, the example button and the switches are ways to use the page: none of them is on the sheet. */
+  .mp-cs .mp-cs__modes,
+  .mp-cs .mp-cs__example,
+  .mp-cs .mp-cs__options,
+  .mp-cs .mp-cs__limit {
+    display: none !important;
+  }
+  .mp-cs .mp-cs__mode > .mp-app__note {
+    display: none;
+  }
+  /* A row of the input: its name, then its fields on a line. */
+  .mp-cs .mp-cs__item {
+    display: block;
+  }
+  .mp-cs .mp-cs__item > .mp-app__row--rm {
+    display: block;
+  }
+  .mp-cs .mp-cs__fields {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .mp-cs .mp-cs__name {
+    font-size: 6.5pt;
+    font-weight: 600;
+    color: #000;
+  }
+  /* A long list runs on into the next column, row by row; its title stays with its first row. */
+  .mp-cs .mp-app__group:has(> .mp-app__item:nth-of-type(5)) {
+    break-inside: auto;
+  }
+  .mp-cs .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend,
+  .mp-cs .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend + .mp-app__note {
+    break-after: avoid;
+  }
+  .mp-cs .mp-cs__warnings {
+    padding: 1mm 2mm;
+    break-inside: avoid;
+    font-size: 8pt;
+  }
+  .mp-cs .mp-cs__table {
+    max-width: none;
+  }
+  .mp-cs .mp-cs__table tbody th .mp-plot__unit {
+    font-size: 6pt;
+  }
+  .mp-cs .mp-cs__table tbody tr {
+    break-inside: avoid;
+  }
+  .mp-cs .mp-app__card {
+    break-inside: avoid;
+  }
+  .mp-cs .mp-cs__current {
+    background: none;
+    font-weight: 600;
+  }
+  /* The drawing and the charts are held whole on a sheet. The kinds of line are told apart by the pattern, which paper keeps. */
+  .mp-cs .mp-app__plots,
+  .mp-cs .mp-cs-chart {
+    break-inside: avoid;
+  }
+  .mp-cs {
+    --mp-cs-cable: #000;
+    --mp-cs-parabola: #000;
+    --mp-cs-state1: #555;
+  }
+  .mp-cs-fig__load line,
+  .mp-cs-fig__harrow line {
+    stroke: #000;
+  }
+  .mp-cs-fig__load polygon,
+  .mp-cs-fig__harrow polygon,
+  .mp-cs-fig__h circle {
+    fill: #000;
+  }
+  .mp-cs-fig__harrow text {
+    fill: #000;
+  }
+  .mp-cs-fig__letter,
+  .mp-cs-fig__joint text,
+  .mp-cs-fig__tension,
+  .mp-cs-fig__dim text,
+  .mp-cs-fig__load text,
+  .mp-cs-fig__pointload text,
+  .mp-cs-fig__harrow text {
+    stroke: none !important;
+  }
+  .mp-cs-chart__gap {
+    fill: #000;
+  }
+  .mp-cs-fig__legend {
+    font-size: 6.5pt;
+    gap: 1mm 5mm;
+  }
+}
