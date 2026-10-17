@@ -76,7 +76,7 @@ function randomForm(r: () => number): CableSagForm {
     H: num(),
     T: num(),
     length: num(),
-    state: { q: num(), ice: num(), T1: num(), T2: num(), low: num(), high: num(), step: num(), factorLow: num(), factorHigh: num(), factorRows: num() },
+    state: { q: r() < 0.3 ? null : num(), ice: num(), T1: num(), T2: num(), low: num(), high: num(), step: num(), factorLow: num(), factorHigh: num(), factorRows: num() },
     points: Array.from({ length: count }, (_, i) => ({ id: i + 1, x: num(), P: num() })),
     pointsKnown: pick(['sag', 'H', 'T-max'] as const),
     sagAt: num(),

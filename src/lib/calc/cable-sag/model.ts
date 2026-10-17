@@ -123,8 +123,12 @@ export interface PointRow {
  * `ice`, at T2.
  */
 export interface StateForm {
-  /** State 2's load per unit horizontal length (lb/ft, kN/m). */
-  q: number;
+  /**
+   * State 2's load per unit horizontal length (lb/ft, kN/m). `null` (the field left empty) is
+   * "THE SAME AS STATE 1": state 2 carries state 1's `form.q`, and follows it when that changes.
+   * A number, 0 included, is state 2's own load, absolute. (Ice is separate: it is always added.)
+   */
+  q: number | null;
   /** Weight per unit length of cable ADDED in state 2 — ice (lb/ft, kN/m). */
   ice: number;
   /** The temperatures of state 1 and state 2 (°F, °C). */
@@ -134,7 +138,7 @@ export interface StateForm {
   low: number;
   high: number;
   step: number;
-  /** The load-factor table: `factorRows` factors from `factorLow` to `factorHigh`, each multiplying state 2's ADDED load (its q and its ice; the self-weight stays), at state 2's temperature. 1 to 21 rows. */
+  /** The load-factor table: `factorRows` factors from `factorLow` to `factorHigh`, each multiplying state 2's ADDED load, at state 2's temperature. 1 to 21 rows. ADDED is what state 2 carries above state 1: the ice, plus (q2 − q1) where state 2's q is typed (nothing, where it is "same as state 1"). The self-weight and state 1's own load stay. A factor of 1 is state 2 exactly. */
   factorLow: number;
   factorHigh: number;
   factorRows: number;
@@ -255,7 +259,7 @@ function usBase(): CableSagForm {
     H: 12.5,
     T: 13.5,
     length: 102.6,
-    state: { q: 0, ice: 1, T1: 60, T2: 20, low: 0, high: 100, step: 10, factorLow: 0, factorHigh: 3, factorRows: 7 },
+    state: { q: null, ice: 1, T1: 60, T2: 20, low: 0, high: 100, step: 10, factorLow: 0, factorHigh: 3, factorRows: 7 },
     points: [
       { id: 1, x: 15, P: 10 },
       { id: 2, x: 30, P: 20 },
@@ -367,7 +371,7 @@ export function convertCableSag(form: CableSagForm, to: UnitSystem): CableSagFor
     length: mul(form.length, k.length),
     state: {
       ...s,
-      q: mul(s.q, k.line),
+      q: s.q === null ? null : mul(s.q, k.line),
       ice: mul(s.ice, k.line),
       T1: temp(s.T1),
       T2: temp(s.T2),
@@ -412,13 +416,13 @@ export type CableSagAction =
   | { type: 'point-patch'; id: number; patch: Partial<Pick<PointRow, 'x' | 'P'>> }
   | { type: 'dismiss' };
 
-type Kind = 'number' | 'boolean' | readonly string[];
+type Kind = 'number' | 'number-or-null' | 'boolean' | readonly string[];
 
 /** The keys a patch may change, and what each must be. */
 const SECTION_KEYS: Record<string, Kind> = { sectionBy: ['diameter', 'area'], diameter: 'number', area: 'number', fill: 'number', lay: 'number', E: 'number', alpha: 'number', gamma: 'number', elastic: 'boolean' };
 const LOAD_KEYS: Record<string, Kind> = { weightFrom: ['section', 'typed', 'none'], typedWeight: 'number', q: 'number' };
 const KNOWN_KEYS: Record<string, Kind> = { known: KNOWN_FIELDS, sagKind: ['mid', 'low'], sag: 'number', H: 'number', T: 'number', length: 'number' };
-const STATE_KEYS: Record<string, Kind> = { q: 'number', ice: 'number', T1: 'number', T2: 'number', low: 'number', high: 'number', step: 'number', factorLow: 'number', factorHigh: 'number', factorRows: 'number' };
+const STATE_KEYS: Record<string, Kind> = { q: 'number-or-null', ice: 'number', T1: 'number', T2: 'number', low: 'number', high: 'number', step: 'number', factorLow: 'number', factorHigh: 'number', factorRows: 'number' };
 const POINTS_KEYS: Record<string, Kind> = { pointsKnown: POINTS_KNOWN_FIELDS, sagAt: 'number', pointsSag: 'number', pointsH: 'number', pointsT: 'number' };
 const GEOMETRY_KEYS: Record<string, Kind> = { span: 'number', rise: 'number' };
 
@@ -428,7 +432,7 @@ function clean(patch: unknown, keys: Record<string, Kind>): Record<string, unkno
   for (const [key, value] of Object.entries(patch)) {
     const kind = keys[key];
     if (kind === undefined) continue;
-    if (kind === 'number' ? typeof value === 'number' : kind === 'boolean' ? typeof value === 'boolean' : typeof value === 'string' && kind.includes(value)) out[key] = value;
+    if (kind === 'number' ? typeof value === 'number' : kind === 'number-or-null' ? typeof value === 'number' || value === null : kind === 'boolean' ? typeof value === 'boolean' : typeof value === 'string' && kind.includes(value)) out[key] = value;
   }
   return out;
 }
@@ -624,7 +628,11 @@ export function toEngine(form: CableSagForm): EngineInput {
   else if (!Number.isInteger(s.factorRows) || s.factorRows < 1 || s.factorRows > MAX_FACTOR_ROWS) tableIssues.push({ code: 'table', field: 'loads', count: s.factorRows, max: MAX_FACTOR_ROWS });
   else factors = Array.from({ length: s.factorRows }, (_, i) => (s.factorRows === 1 ? s.factorLow : s.factorLow + (i * (s.factorHigh - s.factorLow)) / (s.factorRows - 1)));
 
-  const state2 = { q: s.q * k.line, w: self + s.ice * k.line };
+  // State 2's load per length: its own where typed, state 1's where the field is empty. What the load-factor table multiplies is
+  // the part ABOVE state 1: ice + (q2 − q1). With "same as state 1" the deck load is state 1's at every factor.
+  const q2 = (s.q === null ? form.q : s.q) * k.line;
+  const dq = s.q === null ? 0 : q2 - q1;
+  const state2 = { q: q2, w: self + s.ice * k.line };
   const hanging: HangingInput = { L: form.span, h: form.rise, q: q1, w: self, EA, known };
   const state: StateInput = {
     L: form.span,
@@ -635,7 +643,7 @@ export function toEngine(form: CableSagForm): EngineInput {
     state2: { ...state2, thermal: alpha * (s.T2 - s.T1) },
     sweep: {
       thermal: temps.map((t) => alpha * (t - s.T1)),
-      loads: factors.map((f) => ({ q: s.q * k.line * f, w: self + s.ice * k.line * f })),
+      loads: factors.map((f) => ({ q: dq === 0 ? q1 : q1 + dq * f, w: self + s.ice * k.line * f })),
     },
   };
   const points: PointsInput = { L: form.span, h: form.rise, loads: form.points.map((p) => ({ x: p.x, P: p.P })), known: pointsKnownOf(form) };
@@ -749,7 +757,7 @@ const WEIGHT_LETTER: Record<WeightFrom, string> = { section: 's', typed: 't', no
  *   loads        weight from (s section, t typed, n none), typed weight, q
  *   known        s | h | t | l | g (sag, H, T high, T low, length), m | l (the sag is the
  *                mid-span one / the lowest point's), sag, H, T, length
- *   state        q, ice, T1, T2, low, high, step, factorLow, factorHigh, factorRows
+ *   state        q (empty: the same as state 1; older links have a number), ice, T1, T2, low, high, step, factorLow, factorHigh, factorRows
  *   points       x,P  joined by _  (the rows, in the order they have; at most 12)
  *   pointsKnown  s | h | t (sag, H, T max), sagAt, sag, H, T
  *
@@ -771,7 +779,8 @@ export function encodeCableSag(form: CableSagForm): string {
     [MATERIAL_LETTER[form.material], form.sectionBy === 'diameter' ? 'd' : 'a', n(form.diameter), n(form.area), n(form.fill), n(form.lay), n(form.E), n(form.alpha), n(form.gamma), form.elastic ? '1' : '0'].join(','),
     `${WEIGHT_LETTER[form.weightFrom]},${n(form.typedWeight)},${n(form.q)}`,
     [KNOWN_LETTER[form.known], form.sagKind === 'mid' ? 'm' : 'l', n(form.sag), n(form.H), n(form.T), n(form.length)].join(','),
-    [s.q, s.ice, s.T1, s.T2, s.low, s.high, s.step, s.factorLow, s.factorHigh, s.factorRows].map(n).join(','),
+    // State 2's q: an EMPTY field is "the same as state 1"; a link written before that was possible has a number there, and reads as that number.
+    [s.q === null ? '' : n(s.q), ...[s.ice, s.T1, s.T2, s.low, s.high, s.step, s.factorLow, s.factorHigh, s.factorRows].map(n)].join(','),
     form.points.map((p) => `${n(p.x)},${n(p.P)}`).join('_'),
     [POINTS_KNOWN_LETTER[form.pointsKnown], n(form.sagAt), n(form.pointsSag), n(form.pointsH), n(form.pointsT)].join(','),
   ].join(';');
@@ -881,7 +890,7 @@ function read(text: string): CableSagForm | null {
     H: num(kn[3]),
     T: num(kn[4]),
     length: num(kn[5]),
-    state: { q: num(st[0]), ice: num(st[1]), T1: num(st[2]), T2: num(st[3]), low: num(st[4]), high: num(st[5]), step: num(st[6]), factorLow: num(st[7]), factorHigh: num(st[8]), factorRows: num(st[9]) },
+    state: { q: st[0] === '' ? null : num(st[0]), ice: num(st[1]), T1: num(st[2]), T2: num(st[3]), low: num(st[4]), high: num(st[5]), step: num(st[6]), factorLow: num(st[7]), factorHigh: num(st[8]), factorRows: num(st[9]) },
     points,
     pointsKnown: pointsKnownField,
     sagAt: num(pk[1]),

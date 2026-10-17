@@ -122,7 +122,7 @@ describe('a sentence for every problem, with its numbers', () => {
     const w = cableSagUi;
     const field = (f: AnalysisIssue['field'], lang: 'en' | 'es') => issueSentence({ code: 'number', field: f }, w[lang], ctx());
     expect(field('span', 'en')).toBe('The span is not a number the calculation can read.');
-    expect(field('state.q', 'en')).toContain('The added load of state 2');
+    expect(field('state.q', 'en')).toContain('The load per horizontal length of state 2');
     expect(field('state.ice', 'en')).toContain('ice');
     expect(field({ point: 1 }, 'en')).toContain('The position or the load');
     expect(field('table.loads', 'en')).toContain('The load table');

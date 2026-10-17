@@ -204,10 +204,12 @@ export interface StateInput {
    * cooling). The cable's unstressed length goes from L0 to L0·(1 + thermal).
    */
   state2: StateLoads & { thermal: number };
+  // (The engine takes state 2's loads as ABSOLUTE numbers. That an empty form field means "state 1's q" is model.ts's rule, applied in toEngine.)
   /**
    * Optional tables. `thermal`: one row per thermal strain α·(T − T1) at the loads of
    * state 2. `loads`: one row per pair of loads at state 2's temperature. At most 41
-   * and 21 rows (MAX_TABLE_ROWS, MAX_FACTOR_ROWS); more are refused ('table').
+   * and 21 rows (MAX_TABLE_ROWS, MAX_FACTOR_ROWS); more are refused ('table'). The form builds each load row as
+   * state 1's loads + factor × (what state 2 adds to them), so factor 1 is state 2 and factor 0 is state 1's loads.
    */
   sweep?: { thermal?: number[]; loads?: StateLoads[] };
 }

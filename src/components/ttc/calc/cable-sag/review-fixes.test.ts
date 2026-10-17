@@ -232,11 +232,12 @@ describe('A5, A6, A7, A8, A13: the notes say only what is true', () => {
     }
   });
 
-  it('the load-factor note names what is multiplied (state 2’s own load and ice, not an increment on state 1)', () => {
+  it('the load-factor note names what is multiplied: what state 2 adds to state 1 (its ice and any load above state 1’s), a factor of 1 being state 2 (A6)', () => {
     const items = cableSagPage.en.signs.items.join(' ');
-    expect(items).not.toContain('that state 2 adds to state 1');
-    expect(items).toContain('not as an increment on state 1');
-    expect(cableSagPage.es.signs.items.join(' ')).not.toContain('que el estado 2 añade al estado 1');
+    expect(items).toContain('scales what state 2 adds to state 1');
+    expect(items).not.toContain('not as an increment on state 1');
+    expect(cableSagPage.es.signs.items.join(' ')).toContain('lo que el estado 2 añade al estado 1');
+    expect(cableSagUi.en.tables.loads.note).toContain('Factor 1 is state 2 as set up');
   });
 
   it('the page says that an anchor feels the tension at the support, T, and not H', () => {
