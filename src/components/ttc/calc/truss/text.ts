@@ -1,4 +1,5 @@
 import type { AnalysisIssue } from '@/lib/calc/truss/analysis';
+import { encodeTruss, leavesBehind, type TrussForm } from '@/lib/calc/truss/model';
 import type { TrussUi } from '@/lib/calc/truss/strings';
 
 /**
@@ -56,8 +57,12 @@ export function signed(text: string, value: number): string {
  * the sentence is left as a `{hole}`: a number the code does not carry is the
  * sentence's own fault and is written as 0 (never printed for a real code).
  */
-export function issueSentence(issue: AnalysisIssue, w: TrussUi): string {
+export function issueSentence(issue: AnalysisIssue, w: TrussUi, how: { number?: (v: number) => string; unit?: string } = {}): string {
   const vars: Record<string, string | number> = {};
+  const say = how.number ?? ((v: number) => String(v));
+  if (issue.distance !== undefined) vars.distance = say(issue.distance);
+  if (issue.size !== undefined) vars.size = say(issue.size);
+  vars.unit = how.unit ?? '';
   if (issue.count !== undefined) vars.count = issue.count;
   if (issue.max !== undefined) vars.max = issue.max;
   if (issue.list) vars.list = w.lists[issue.list];
@@ -70,6 +75,7 @@ export function issueSentence(issue: AnalysisIssue, w: TrussUi): string {
   vars.max ??= 0;
   if (issue.code === 'disconnected') vars.groups = (issue.groups ?? []).map((g) => `${w.words.nodes} ${listOf(g, w.words.and)}`).join('; ');
   if (issue.code === 'mechanism') vars.nodes = nodesOf(issue.nodes ?? [], w.words);
+  if (issue.code === 'duplicate-nodes') vars.list = listOf(issue.nodes ?? [], w.words.and);
   return fill(w.issues[issue.code], vars);
 }
 
@@ -85,4 +91,69 @@ export function sortMembers<T extends { label: number; force: number }>(members:
   if (order === 'largest') return list.sort((p, q) => by(Math.abs(q.force), Math.abs(p.force)) || byLabel(p, q));
   if (order === 'tension') return list.sort((p, q) => by(q.force, p.force) || byLabel(p, q));
   return list.sort(byLabel);
+}
+
+/* ── What the tool does, as functions that can be run without a browser ─────── */
+
+/**
+ * A form but for the numbers typed into it: its units, its rows, every choice
+ * made in it - and the ids by which a member names its nodes, which are numbers
+ * but not typed ones: a member moved to another node is a different truss, solved
+ * in the render that shows it.
+ */
+const IDENTIFIERS = new Set(['id', 'i', 'j', 'node', 'nextId']);
+export const choicesOf = (form: unknown): string => JSON.stringify(form, (key, value: unknown) => (typeof value === 'number' && !IDENTIFIERS.has(key) ? 0 : value));
+
+/**
+ * WHICH TRUSS IS SOLVED. While only NUMBERS change, the answer is of the form as it was a moment ago (`behind`, from
+ * useDeferredValue): the key shows at once and the truss is solved in a render of its own. Anything else - the units, a row
+ * added or removed, a choice in a list, a member moved to another node, a truss opened whole (`whole`, by identity: the form
+ * the reducer returned for 'load' IS that form) - is solved in the same render as the form. And on paper it is the form.
+ */
+export function formToSolve<T>(o: { form: T; behind: T; whole: T | null; onPaper: boolean }): T {
+  return o.onPaper || o.form === o.whole || choicesOf(o.behind) !== choicesOf(o.form) ? o.form : o.behind;
+}
+
+/** Whether an action keeps the member marks: a number typed does, anything that can renumber a member does not. */
+export const keepsMarks = (type: string): boolean => type === 'patch' || type === 'section' || type === 'material';
+
+/** The duck of a fieldset as far as adding a row to it goes. */
+export interface RowsLike {
+  querySelectorAll(selector: string): ArrayLike<{ querySelector(selector: string): { focus(): void } | null }>;
+}
+/**
+ * A row added WITH THE KEYBOARD is handed the focus, in its first field - and only if one was added. An "add" that had
+ * nothing to add (every pair of nodes already joined) leaves the focus on the button, where it was, and says why in a line.
+ * Returns whether the focus was moved.
+ */
+export function focusAddedRow(fieldset: RowsLike | null | undefined, before: number): boolean {
+  const rows = fieldset?.querySelectorAll('.mp-app__item');
+  if (!rows || rows.length <= before) return false;
+  const first = rows[rows.length - 1].querySelector('input, select');
+  first?.focus();
+  return first !== null;
+}
+
+/**
+ * Opening a truss that arrives whole (from the address, or the example on "Start over"): the field with the focus is left
+ * FIRST - it would go on showing what was typed into the truss before - and then the truss is loaded, remembered as the one
+ * opened whole, and the template group is put back to its starting point. The order is the point.
+ */
+export function openWhole<T>(found: T, steps: { blur: () => void; load: (form: T) => void; remember: (form: T) => void; template: (form: T) => void }): void {
+  steps.blur();
+  steps.load(found);
+  steps.remember(found);
+  steps.template(found);
+}
+
+/**
+ * A truss about to be thrown away - by "Start over" or "Load template" - is left one step behind in the browser's history:
+ * the address is brought to that truss first (so the entry left behind is the one on screen), then the entry is pushed.
+ * Nothing at all happens for the example, or for a truss the new one is the same as. Returns whether anything was left.
+ */
+export function leaveBehind(before: TrussForm, after: TrussForm, example: string, io: { take: (code: string) => void; push: () => void }): boolean {
+  if (!leavesBehind(before, after, example)) return false;
+  io.take(encodeTruss(before));
+  io.push();
+  return true;
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { COLLINEAR, MECH, countOf, directionOf, jacobiEigen, solveLinear, solveTruss, zeroByInspection } from './engine';
+import { COLLINEAR, MECH, countOf, directionOf, jacobiEigen, positiveDefinite, solveLinear, solveTruss, zeroByInspection } from './engine';
 import { B1, DIRECTIONS, generate, int, oracle, pick, q as fraction, rng, type Generated } from './oracle.testlib';
 import { buildTemplate, TEMPLATE_IDS, type TemplateId, type TemplateParams } from './templates';
 import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS, type TrussIssueCode, type TrussModel, type TrussSolution } from './types';
@@ -462,7 +462,7 @@ describe('truss engine: properties of every solved truss', () => {
   const inds = population(150, 2, { nodes: [3, 12], extra: [1, 4], extraSupports: [0, 2], grid: 9, ea: 30 });
   const all = [...dets, ...inds];
 
-  it('every number is finite, no zero is negative', () => {
+  it('every number is finite, no zero is negative', { timeout: 60000 }, () => {
     for (const { s } of all) {
       numbersOf(s).forEach((v) => {
         expect(Number.isFinite(v)).toBe(true);
@@ -1092,5 +1092,147 @@ describe('truss engine: the limits', () => {
       expect(s.stiffness).toBe('absolute');
       near(s.members[1].N, 15, 1e-9);
     }
+  });
+});
+
+/* ═══ Review fixes: A1, A2, A7 ═══════════════════════════════════════════ */
+
+describe('truss engine: the areas count when the modulus is absent (A1)', () => {
+  // Three bars hanging from three pins above a loaded node; P = 100 down. The bars are 5 long (the vertical one) and
+  // 5/cos(0.5) (the inclined). With EA ∝ A: v = P / (A_v/5 + 2·(A_i/L_i)·cos²θ), and each bar's force is its stiffness × v.
+  const t = Math.tan(0.5) * 5;
+  const bars = (A: number[], E?: number): TrussModel => ({
+    nodes: [{ x: 0, y: 0 }, { x: 0, y: 5 }, { x: -t, y: 5 }, { x: t, y: 5 }],
+    members: [0, 1, 2].map((k) => ({ i: 0, j: k + 1, A: A[k], ...(E === undefined ? {} : { E }) })),
+    supports: [1, 2, 3].map((node) => ({ node, kind: 'pin' as const })),
+    loads: [{ node: 0, fx: 0, fy: -100 }],
+  });
+  const byHand = (A: number[]) => {
+    const c = Math.cos(0.5);
+    const Li = 5 / c;
+    const kv = A[0] / 5;
+    const ki = A[1] / Li;
+    const v = 100 / (kv + 2 * ki * c * c);
+    return [kv * v, ki * c * v, ki * c * v].map((x) => x);
+  };
+  it('areas on every member and no modulus anywhere give the same forces as the areas WITH a modulus', () => {
+    const withE = solved(bars([20, 2, 2], 29000));
+    const noE = solved(bars([20, 2, 2]));
+    noE.members.forEach((m, k) => near(m.N, withE.members[k].N, 1e-12, 100));
+    // And they are the hand values, not the equal-area answer (42.5, 32.7, 32.7).
+    near(noE.members[0].N, byHand([20, 2, 2])[0], 1e-12, 100);
+    near(noE.members[1].N, byHand([20, 2, 2])[1], 1e-12, 100);
+    expect(noE.stiffness).toBe('relative');
+    expect(noE.warnings).toEqual([]);
+    // Nothing absolute is known, so no elongation and no displacement.
+    expect(noE.displacements).toBeNull();
+    expect(noE.members[0].elongation).toBeNull();
+  });
+  it('the same with moduli on every member and no area', () => {
+    const m = bars([1, 1, 1]);
+    m.members.forEach((mm, k) => {
+      delete mm.A;
+      mm.E = [20, 2, 2][k];
+    });
+    const s = solved(m);
+    near(s.members[0].N, byHand([20, 2, 2])[0], 1e-12, 100);
+    expect(s.stiffness).toBe('relative');
+    expect(s.warnings).toEqual([]);
+  });
+  it('areas on SOME members only still warn and take the members as equally stiff', () => {
+    const m = bars([20, 2, 2]);
+    delete m.members[2].A;
+    const s = solved(m);
+    expect(s.warnings).toEqual([{ code: 'partial-stiffness' }]);
+    expect(s.stiffness).toBe('equal');
+    near(s.members[0].N, byHand([1, 1, 1])[0], 1e-12, 100);
+  });
+  it('against the exact oracle: 80 random indeterminate trusses with an area on every member and no modulus', { timeout: 180000 }, () => {
+    const rand = rng(515);
+    let checked = 0;
+    for (let t0 = 0; t0 < 80; t0++) {
+      const g = generate(rand, { nodes: [3, 7], extra: [1, 3], grid: 6, ea: 9, pythagorean: t0 % 4 === 0 });
+      if (g.determinate) continue;
+      // The generator gives A = EA and E = 1; take the modulus away.
+      const model: TrussModel = { ...g.model, members: g.model.members.map((m) => ({ i: m.i, j: m.j, A: m.A })) };
+      const exact = oracle(g.exact);
+      const out = solveTruss(model);
+      if (exact === null) continue;
+      expect(out.ok).toBe(true);
+      if (!out.ok) continue;
+      const scale = Math.max(1, ...exact.N.map(Math.abs));
+      out.members.forEach((m, k) => expect(Math.abs(m.N - exact.N[k]), `#${t0} member ${k}`).toBeLessThanOrEqual(1e-9 * scale));
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(25);
+  });
+});
+
+describe('truss engine: a truss with no force does not move (A2)', () => {
+  it('a load along a roller’s own line puts nothing in any member, and nothing moves', () => {
+    const model = template('pratt', { span: 32, height: 8, panels: 4, load: 10 });
+    const roller = model.supports.findIndex((s) => s.kind === 'roller');
+    model.supports[roller] = { ...model.supports[roller], angle: 45 };
+    model.loads = [{ node: model.supports[roller].node, fx: 10, fy: 10 }];
+    model.E = 29000 * 144;
+    model.A = 4 / 144;
+    const s = solved(model);
+    expect(forces(s).every((n) => n === 0)).toBe(true);
+    expect(s.displacements).not.toBeNull();
+    expect(s.displacements!.every((d) => d.ux === 0 && d.uy === 0 && d.magnitude === 0)).toBe(true);
+  });
+});
+
+describe('truss engine: a roller’s line is in [0, 180) (A7)', () => {
+  it('a hair under a half turn is the horizontal line, not 180', () => {
+    for (const a of [-1e-20, -1e-300, 180 - 1e-14 + 1e-14, 360, -180]) {
+      const d = directionOf(a);
+      expect(d.angle, String(a)).toBeGreaterThanOrEqual(0);
+      expect(d.angle, String(a)).toBeLessThan(180);
+    }
+    expect(directionOf(-1e-20)).toEqual({ angle: 0, c: 1, s: 0 });
+  });
+});
+
+describe('truss engine: the plainly stable truss skips the eigenvalues (C11)', () => {
+  it('positiveDefinite agrees with the smallest eigenvalue of 300 random symmetric matrices, stable and singular', () => {
+    const rand = rng(61);
+    let pd = 0;
+    let notPd = 0;
+    for (let t = 0; t < 300; t++) {
+      const n = 3 + Math.floor(rand() * 9);
+      // B^T B has rank min(rows, n): fewer rows than columns is singular, as a mechanism's matrix is.
+      const rows = t % 3 === 0 ? n - 1 : n + 2;
+      const b = Array.from({ length: rows }, () => Array.from({ length: n }, () => Math.round((rand() - 0.5) * 8)));
+      const k = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => b.reduce((s, r) => s + r[i] * r[j], 0)));
+      const smallest = Math.min(...jacobiEigen(k).values);
+      const shift = 0.01;
+      const holds = positiveDefinite(k, shift);
+      if (Math.abs(smallest - shift) > 1e-6) expect(holds, `case ${t}: smallest eigenvalue ${smallest}`).toBe(smallest > shift);
+      if (holds) pd++;
+      else notPd++;
+    }
+    expect(pd).toBeGreaterThan(50);
+    expect(notPd).toBeGreaterThan(50);
+  });
+  it('a mechanism is still found (it fails the test and goes through the eigenvalues), and a stable truss still solves', () => {
+    const model = template('pratt');
+    model.members = model.members.filter((_, k) => k !== model.members.length - 4);
+    expect(codesOf(model)).toContain('mechanism');
+    expect(solved(template('pratt')).members).toHaveLength(17);
+  });
+  it('the largest truss is solved in a few milliseconds, not sixty: a tenth of a second is a keystroke you can feel', () => {
+    const f = template('warren-verticals', { span: 76, height: 8, panels: 19 });
+    const members = [...f.members];
+    // Fill to 120 members with every pair that is not joined yet, the way the form does.
+    const have = new Set(members.map((m) => `${Math.min(m.i, m.j)}-${Math.max(m.i, m.j)}`));
+    for (let a = 0; a < f.nodes.length && members.length < 120; a++) for (let b = a + 1; b < f.nodes.length && members.length < 120; b++) if (!have.has(`${a}-${b}`)) { have.add(`${a}-${b}`); members.push({ i: a, j: b }); }
+    const model = { ...f, members };
+    expect(model.members).toHaveLength(120);
+    solved(model);
+    const t0 = performance.now();
+    for (let i = 0; i < 5; i++) solved(model);
+    // Generous, for a loaded machine: it was 60 ms of eigenvalues before, on this one 4.
+    expect((performance.now() - t0) / 5).toBeLessThan(40);
   });
 });

@@ -5,7 +5,7 @@ import { analyseSafely } from '@/lib/calc/truss/analysis';
 import { defaultTruss, emptyTruss, reduceTruss, type TrussForm } from '@/lib/calc/truss/model';
 import { TEMPLATE_IDS } from '@/lib/calc/truss/templates';
 import { trussUi } from '@/lib/calc/truss/strings';
-import { TrussSchematic, canDeform, forceText, trussLayout, type Layout, type LayoutOptions } from './TrussSchematic';
+import { TrussSchematic, canDeform, forceText, trussLayout, wantedWidth, type Layout, type LayoutOptions, type Rect } from './TrussSchematic';
 
 /**
  * THE TRUSS'S DRAWING — what is reckoned (`trussLayout`, held here without
@@ -43,9 +43,12 @@ describe('the layout of the example', () => {
 
   it('is as wide as it was asked to be, and as tall as the truss and its margin are', () => {
     expect(layout.width).toBe(720);
-    // 32 ft by 8 ft with a margin of 14% of 32 ft (4.48 ft) all round: 40.96 ft by 16.96 ft.
-    expect(layout.height / layout.width).toBeCloseTo(16.96 / 40.96, 5);
-    expect(layout.scale).toBeCloseTo(720 / 40.96, 3);
+    // 32 ft by 8 ft with a margin of 64 px all round (pixels, not a share of the truss): the truss fills the width less its margins.
+    expect(layout.scale).toBeCloseTo((720 - 128) / 32, 3);
+    expect(layout.height).toBeCloseTo(8 * layout.scale + 128, 3);
+    // It stands in the middle of its width.
+    const xs = layout.nodes.map((n) => n.x);
+    expect((Math.min(...xs) + Math.max(...xs)) / 2).toBeCloseTo(360, 3);
   });
 
   it('draws y upward: a top node is above a bottom node on the page', () => {
@@ -112,7 +115,7 @@ describe('the layout of the example', () => {
     // The thickest line is a largest force: 21.213 kip, the end diagonals.
     const widest = Math.max(...layout.members.map((x) => x.strokeWidth));
     expect(m(14).strokeWidth).toBe(widest);
-    expect(m(14).strokeWidth).toBeCloseTo(8.5, 5);
+    expect(m(14).strokeWidth).toBeCloseTo(9, 5);
     // A zero member is the thinnest, and has no core; a compression has one, narrower than its line and above zero; a tension has none.
     expect(m(1).strokeWidth).toBeLessThan(m(2).strokeWidth);
     expect(m(1).core).toBeNull();
@@ -270,16 +273,16 @@ describe('the deformed shape', () => {
     expect(canDeform(drawing)).toBe(true);
     expect(layoutOf(form).deformed).toBeNull();
     const layout = layoutOf(form, { deformed: true });
-    expect(layout.deformed).toHaveLength(17);
+    expect(layout.deformed!.members).toHaveLength(17);
     expect(layout.deformScale).toBe(drawing.deformScale);
     expect(layout.deformScale).toBeGreaterThan(1);
     // The roller end moves to the right under this load, so the deformed node 5 is right of node 5.
     const node5 = layout.nodes.find((n) => n.label === 5)!;
-    const bottom = layout.deformed!.find((m) => m.label === 4)!; // member 4 ends at node 5
+    const bottom = layout.deformed!.members.find((m) => m.label === 4)!; // member 4 ends at node 5
     expect(Math.max(bottom.x1, bottom.x2)).toBeGreaterThan(node5.x);
-    // The largest displacement is an eighth of the truss's larger side.
+    // The largest displacement is a twelfth of the truss's larger side.
     const moved = drawing.nodes.map((n) => Math.hypot(n.ux! * drawing.deformScale!, n.uy! * drawing.deformScale!));
-    expect(Math.max(...moved)).toBeCloseTo(32 / 8, 6);
+    expect(Math.max(...moved)).toBeCloseTo(32 / 12, 6);
   });
 
   it('is not offered without a section on every member, and not drawn for a truss that is not solved', () => {
@@ -404,5 +407,237 @@ describe('a full-size truss', () => {
     expect(layout.nodes).toHaveLength(40);
     expect(layout.members).toHaveLength(120);
     expect(show(form, { numbers: true })).not.toMatch(/NaN|undefined|Infinity/);
+  });
+});
+
+/* ═══ Review fixes: the words kept clear (C1–C8), the hollow cue (B6) ═══════ */
+
+/** The same truss in X-braced bays: 19 bays of 10 ft is 40 nodes, 96 members. */
+const braced = (bays = 19): TrussForm => {
+  const base = defaultTruss();
+  let id = 1;
+  const nodes: TrussForm['nodes'] = [];
+  const bottom: number[] = [];
+  const top: number[] = [];
+  for (let i = 0; i <= bays; i++) {
+    nodes.push({ id, x: i * 10, y: 0 });
+    bottom.push(id++);
+  }
+  for (let i = 0; i <= bays; i++) {
+    nodes.push({ id, x: i * 10, y: 10 });
+    top.push(id++);
+  }
+  const members: TrussForm['members'] = [];
+  const add = (i: number, j: number) => members.push({ id: id++, i, j, A: null, E: null });
+  for (let i = 0; i < bays; i++) {
+    add(bottom[i], bottom[i + 1]);
+    add(top[i], top[i + 1]);
+    add(bottom[i], top[i + 1]);
+    add(top[i], bottom[i + 1]);
+  }
+  for (let i = 0; i <= bays; i++) add(bottom[i], top[i]);
+  const supports: TrussForm['supports'] = [
+    { id: id++, node: bottom[0], kind: 'pin', angle: 90 },
+    { id: id++, node: bottom[bays], kind: 'roller', angle: 90 },
+  ];
+  const loads: TrussForm['loads'] = top.map((node) => ({ id: id++, node, fx: 0, fy: -10 }));
+  return { ...base, nodes, members, supports, loads, nextId: id };
+};
+/** A template stops at twice its span in depth; this one is 4 ft wide and 60 ft tall, as a visitor can make it by typing the nodes. */
+const tall = (): TrussForm => {
+  const f = pratt({ span: 4, height: 8, panels: 4, load: 10 });
+  return { ...f, nodes: f.nodes.map((n) => ({ ...n, y: n.y * 7.5 })) };
+};
+const pratt = (params: Record<string, number>, units: 'us' | 'si' = 'us') => reduceTruss(units === 'us' ? defaultTruss() : reduceTruss(defaultTruss(), { type: 'units', units }), { type: 'template', template: 'pratt', params });
+
+/** The distance from a point to a rectangle (0 inside it). */
+const toRect = (x: number, y: number, r: Rect) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.y0 - y, 0, y - r.y1));
+/** The least distance from a segment to a rectangle, by walking along the segment a pixel at a time: it shares no code with the layout. */
+function gap(seg: { x1: number; y1: number; x2: number; y2: number }, r: Rect): number {
+  if (Math.max(seg.x1, seg.x2) < r.x0 - 30 || Math.min(seg.x1, seg.x2) > r.x1 + 30 || Math.max(seg.y1, seg.y2) < r.y0 - 30 || Math.min(seg.y1, seg.y2) > r.y1 + 30) return Infinity;
+  const length = Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+  const steps = Math.max(1, Math.ceil(length));
+  let best = Infinity;
+  for (let i = 0; i <= steps; i++) best = Math.min(best, toRect(seg.x1 + ((seg.x2 - seg.x1) * i) / steps, seg.y1 + ((seg.y2 - seg.y1) * i) / steps, r));
+  return best;
+}
+
+/**
+ * EVERY WORD ON THE DRAWING IS CLEAR OF EVERYTHING: of every member's line (by its own half width), every node, every
+ * support, every arrow and every other word, and inside the drawing. Returns what is not, as sentences.
+ */
+function crowding(layout: Layout, what: string): string[] {
+  const words: { name: string; rect: Rect }[] = [];
+  for (const m of layout.members) if (m.text) words.push({ name: `member ${m.label}`, rect: m.text.rect });
+  for (const a of layout.loads) words.push({ name: `load ${a.label}`, rect: a.text.rect });
+  for (const a of layout.reactions) words.push({ name: `reaction ${a.label}`, rect: a.text.rect });
+  for (const d of layout.deformed?.nodes ?? []) if (d.tag) words.push({ name: `tag ${d.label}`, rect: d.tag.rect });
+  const bad: string[] = [];
+  for (const w of words) {
+    const r = w.rect;
+    if (r.x0 < 0 || r.y0 < 0 || r.x1 > layout.width || r.y1 > layout.height) bad.push(`${what}: ${w.name} leaves the drawing`);
+    for (const m of layout.members) if (gap(m, r) < m.strokeWidth / 2 + 0.5) bad.push(`${what}: ${w.name} touches member ${m.label}`);
+    for (const n of layout.nodes) if (toRect(n.x, n.y, r) < n.r) bad.push(`${what}: ${w.name} touches node ${n.label}`);
+    for (const s of layout.supports) if (r.x0 < s.box.x1 && s.box.x0 < r.x1 && r.y0 < s.box.y1 && s.box.y0 < r.y1) bad.push(`${what}: ${w.name} on the support at node ${s.node}`);
+    for (const a of [...layout.loads, ...layout.reactions]) if (gap({ x1: a.tail.x, y1: a.tail.y, x2: a.tip.x, y2: a.tip.y }, r) < 1.5) bad.push(`${what}: ${w.name} on an arrow of node ${a.node}`);
+    for (const other of words) if (other !== w && r.x0 < other.rect.x1 && other.rect.x0 < r.x1 && r.y0 < other.rect.y1 && other.rect.y0 < r.y1) bad.push(`${what}: ${w.name} over ${other.name}`);
+  }
+  return bad;
+}
+
+describe('every word on the drawing is clear of every line, node, support, arrow and other word', () => {
+  const cases: [string, TrussForm][] = [['example', defaultTruss()]];
+  for (const units of ['us', 'si'] as const) for (const id of TEMPLATE_IDS) cases.push([`${id} ${units}`, template(id, units)]);
+  cases.push(['pratt, 18 panels', pratt({ span: 144, height: 12, panels: 18, load: 5 })]);
+  cases.push(['very flat (span 200, depth 1)', pratt({ span: 200, height: 1, panels: 8, load: 10 })]);
+  cases.push(['very tall (span 4, depth 60)', tall()]);
+  cases.push(['load 1e9', reduceTruss(defaultTruss(), { type: 'patch', list: 'loads', id: defaultTruss().loads[1].id, patch: { fy: -1e9 } })]);
+  cases.push(['40 nodes, 96 members', braced()]);
+  const roller = (angle: number) => {
+    const f = defaultTruss();
+    return reduceTruss(f, { type: 'patch', list: 'supports', id: f.supports.find((s) => s.kind === 'roller')!.id, patch: { angle } });
+  };
+  cases.push(['roller at 30°', roller(30)], ['roller at 45°', roller(45)], ['roller at 0°', roller(0)]);
+
+  for (const [name, form] of cases) {
+    it(`${name}: at 320, 390, 720 and 1200 px, with and without the numbers, and deformed`, () => {
+      for (const width of [320, 390, 720, 1200]) {
+        for (const [numbers, deformed] of [[false, false], [true, false], [true, true]] as const) {
+          // As the page draws it: as wide as the column, or as wide as the words want.
+          const drawn = wantedWidth(drawingOf(form), { forces: true, numbers, group: ',' }, width);
+          const layout = layoutOf(form, { width: drawn, numbers, deformed });
+          expect(crowding(layout, `${name} ${width}${numbers ? ' numbers' : ''}${deformed ? ' deformed' : ''}`)).toEqual([]);
+        }
+      }
+    });
+  }
+
+  it('the checker itself sees a word on a line (it is not vacuous)', () => {
+    const layout = layoutOf(defaultTruss());
+    const m = layout.members[1];
+    const forged: Layout = { ...layout, loads: [{ ...layout.loads[0], text: { ...layout.loads[0].text, rect: { x0: m.x1 + 5, y0: m.y1 - 6, x1: m.x1 + 40, y1: m.y1 + 6 } } }] };
+    expect(crowding(forged, 'forged').some((s) => s.includes('touches member'))).toBe(true);
+  });
+});
+
+describe('a dense truss thins its words, the largest force first', () => {
+  const dense = braced();
+  const drawing = drawingOf(dense);
+  // As the page draws it: wider than a 733 px column, as wide as the words want.
+  const drawn = wantedWidth(drawing, { forces: true, numbers: false, group: ',' }, 733);
+  const layout = layoutOf(dense, { width: drawn });
+
+  it('leaves off the words that have no clear place, and says how many', () => {
+    expect(layout.members.length).toBe(96);
+    const left = layout.members.filter((m) => m.text === null);
+    expect(layout.thinned).toBe(left.length);
+    expect(layout.thinned).toBeGreaterThan(10);
+    expect(layout.thinned).toBeLessThan(96);
+  });
+
+  it('keeps the words of the members that carry the most', () => {
+    const forces = drawing.members.map((m) => ({ label: m.label, size: Math.abs(m.force!) })).sort((p, q) => q.size - p.size);
+    const shown = (label: number) => layout.members.find((m) => m.label === label)!.text !== null;
+    // Of the ten heaviest, most are written; of the ten lightest, no more than of the ten heaviest.
+    expect(forces.slice(0, 10).filter((f) => shown(f.label)).length).toBeGreaterThanOrEqual(7);
+    expect(forces.slice(-10).filter((f) => shown(f.label)).length).toBeLessThanOrEqual(forces.slice(0, 10).filter((f) => shown(f.label)).length);
+  });
+
+  it('keeps the word of a thinned member for the moment it is picked, with its value', () => {
+    const left = layout.members.filter((m) => m.text === null);
+    expect(left.length).toBeGreaterThan(0);
+    for (const m of left) {
+      expect(m.spare, `member ${m.label}`).not.toBeNull();
+      expect(m.spare!.value).toBe(forceText(drawing.members[m.label - 1].force!, ','));
+    }
+    expect(layout.members.filter((m) => m.text !== null).every((m) => m.spare === null)).toBe(true);
+  });
+
+  it('writes a picked member’s word on the drawing, and says how many are left off', () => {
+    const left = layout.members.find((m) => m.text === null)!;
+    const words = { thinned: trussUi.en.results.drawingNotes.thinned, scroll: trussUi.en.results.drawingNotes.scroll, region: trussUi.en.results.drawingNotes.region };
+    const plain = show(dense, { width: drawn, widen: false, notes: words });
+    expect(plain).toMatch(/\d+ labels are left off the drawing/);
+    const picked = show(dense, { width: drawn, widen: false, notes: words, active: left.label });
+    expect(picked.match(/mp-truss-fig__value--picked/g)).toHaveLength(1);
+    expect(plain).not.toContain('mp-truss-fig__value--picked');
+  });
+});
+
+describe('a drawing wide enough for its words', () => {
+  const O = { forces: true, numbers: false, group: ',' };
+  it('is as wide as its column when the panels are wide enough, and wider when they are not', () => {
+    expect(wantedWidth(drawingOf(defaultTruss()), O, 720)).toBe(720);
+    const many = drawingOf(pratt({ span: 144, height: 12, panels: 18, load: 5 }));
+    const wide = wantedWidth(many, O, 390);
+    expect(wide).toBeGreaterThan(390);
+    expect(wide).toBeLessThanOrEqual(390 * 4);
+    // Longer words want more room.
+    expect(wantedWidth(many, { ...O, numbers: true }, 390)).toBeGreaterThanOrEqual(wide);
+    // And never more than 4 columns, nor 2,600 px.
+    expect(wantedWidth(drawingOf(braced()), O, 1200)).toBeLessThanOrEqual(2600);
+    expect(wantedWidth(drawingOf(braced()), O, 280)).toBeLessThanOrEqual(1120);
+  });
+
+  it('is exactly the column on paper (it cannot scroll), and scrolls and says so on a screen', () => {
+    const many = pratt({ span: 144, height: 12, panels: 18, load: 5 });
+    const notes = { thinned: 'x', scroll: 'Scroll sideways.', region: 'Drawing, scrolls' };
+    const screen = show(many, { width: 390, notes });
+    expect(screen).toContain('mp-truss-fig__scroll mp-truss-fig__scroll--wide');
+    expect(screen).toContain('role="group"');
+    expect(screen).toContain('tabindex="0"');
+    expect(screen).toContain('Scroll sideways.');
+    expect(screen).toContain('aria-label="Drawing, scrolls"');
+    expect(Number(attr(screen.match(/<svg class="mp-plot__svg[^>]*>/)![0], 'width'))).toBeGreaterThan(390);
+    const paper = show(many, { width: 724, widen: false, notes });
+    expect(attr(paper.match(/<svg class="mp-plot__svg[^>]*>/)![0], 'width')).toBe('724');
+    expect(paper).not.toContain('role="group"');
+    expect(paper).not.toContain('Scroll sideways.');
+  });
+
+  it('draws a very flat truss no taller than its margins and members need, and a very tall one no wider than it is', () => {
+    const flat = layoutOf(pratt({ span: 200, height: 1, panels: 8, load: 10 }), { width: 1600 });
+    expect(flat.height).toBeLessThan(230);
+    const high = layoutOf(tall(), { width: 720 });
+    expect(high.height).toBeLessThanOrEqual(560.01);
+    const xs = high.nodes.map((n) => n.x);
+    // 4 ft of a 60 ft depth, in a drawing at most 560 px tall: a few tens of pixels, not the width of the column.
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(40);
+  });
+});
+
+describe('the cue that a line is hollow survives a small force (B6)', () => {
+  it('leaves at least 2 px of the page showing through every compression, and a wall of 1.5 px each side, whatever its force', () => {
+    // A load of 1e9 on one joint beside loads of 5 to 10: the light members have a weight near zero.
+    let f = defaultTruss();
+    f = reduceTruss(f, { type: 'patch', list: 'loads', id: f.loads[1].id, patch: { fy: -1e9 } });
+    const layout = layoutOf(f);
+    const compressed = layout.members.filter((m) => m.state === 'compression');
+    expect(compressed.length).toBeGreaterThan(3);
+    const widest = compressed.reduce((s, m) => Math.max(s, m.strokeWidth), 0);
+    expect(Math.min(...compressed.map((m) => m.strokeWidth))).toBeLessThan(widest);
+    for (const m of compressed) {
+      expect(m.core!, `member ${m.label}`).toBeGreaterThanOrEqual(2 - 1e-9);
+      expect((m.strokeWidth - m.core!) / 2, `member ${m.label}`).toBeGreaterThanOrEqual(1.5 - 1e-9);
+    }
+    for (const m of layout.members.filter((x) => x.state === 'tension')) expect(m.strokeWidth).toBeGreaterThanOrEqual(5 - 1e-9);
+  });
+});
+
+describe('the deformed shape is marked and its scale is stated (C8)', () => {
+  const form = defaultTruss();
+  const layout = layoutOf(form, { deformed: true });
+  it('marks every node that moved far enough to see, with its number', () => {
+    const marked = layout.deformed!.nodes;
+    expect(marked.length).toBeGreaterThanOrEqual(5);
+    // The pin does not move: it is not marked.
+    expect(marked.find((n) => n.label === 1)).toBeUndefined();
+    expect(marked.filter((n) => n.tag !== null).length).toBeGreaterThanOrEqual(3);
+    for (const n of marked) if (n.tag) expect(n.tag.value).toBe(String(n.label));
+  });
+  it('states how many times larger beside the swatch, and draws a diamond for each marked node', () => {
+    const html = show(form, { deformed: true, group: ',' });
+    expect(html).toMatch(new RegExp(`${trussUi.en.results.legend.deformed} ×[\\d.,]+`));
+    expect(html.match(/<g class="mp-truss-fig__moved">/g)!.length).toBe(layout.deformed!.nodes.length + 1 /* the legend's */);
   });
 });

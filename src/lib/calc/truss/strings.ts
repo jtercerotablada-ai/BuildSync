@@ -7,7 +7,7 @@ import type { TrussWarningCode, ZeroRule } from './types';
 
 /**
  * The words of the truss calculator's FORM AND TABLES, in English and in
- * Spanish (/resources/truss; the page's own text — its hero, its notes — is
+ * Spanish (/resources/truss-member-forces; the page's own text — its hero, its notes — is
  * page-strings.ts).
  *
  * The tool (TrussCalculator.tsx) takes two sets of words. `t`, a part of the
@@ -123,8 +123,17 @@ export type TrussUi = {
   /** The section group: what it adds to the first calculator's, and the line that says what the section is for. */
   material: { area: string; note: string };
 
-  /** After a node is deleted. {node}; {count} and {list} for the members, supports and loads that went with it. */
-  removed: { node: string; members: string; supports: string; loads: string; renumbered: string };
+  /**
+   * After a node is deleted. {node}; {count} and {list} for the members, supports and loads that went with it (the members by the
+   * numbers they had before). `renumbered` and `membersRenumbered` say that the ones after moved up. `member`: after a member is deleted.
+   */
+  removed: { node: string; members: string; supports: string; loads: string; renumbered: string; membersRenumbered: string; member: string };
+  /** An "add" that had nothing to add, and why. */
+  cannotAdd: { pairs: string; nodes: string; 'no-node': string };
+  /** A list with nothing in it, in the gender of its name. */
+  empty: Record<TrussList, string>;
+  /** The links at the head of the form for a phone, where the drawing is far below the inputs. */
+  jump: { label: string; drawing: string; results: string };
 
   results: {
     /** The determinacy line. {formula} is the formula as the page writes it. */
@@ -135,7 +144,6 @@ export type TrussUi = {
       indeterminate: { title: string; note: string };
       unstable: { title: string; note: string };
     };
-    summary: string;
     tension: string;
     compression: string;
     none: string;
@@ -146,6 +154,10 @@ export type TrussUi = {
     waiting: string;
     legend: { tension: string; compression: string; zero: string; load: string; reaction: string; node: string; flagged: string; deformed: string; unsolved: string };
     drawing: { empty: string; truss: string; largest: string; unsolved: string; reactions: string };
+    /** One plain sentence under the drawing: what to read in it. {largest} and {reactions} are the drawing's own two sentences, filled from the numbers. */
+    reading: { text: string; zero: string; unsolved: string };
+    /** What the drawing says about itself: {count} labels left off it; it is wider than its column. */
+    drawingNotes: { thinned: string; scroll: string; region: string };
     /** The Reactions card. */
     reaction: { node: string; kind: string; pin: string; roller: string; rx: string; ry: string; size: string; along: string; alongNote: string; right: string; left: string };
     /** The Member forces card. */
@@ -275,11 +287,20 @@ export const trussUi: Record<Lang, TrussUi> = {
     },
     removed: {
       node: 'Node {node} removed.',
-      members: '{count|Member|Members} {list} went with it.',
+      members: '{count|Member|Members} {list} (numbered as before) went with it.',
       supports: '{count} {count|support|supports} went with it.',
       loads: '{count} {count|load|loads} went with it.',
       renumbered: 'The nodes after it move up one number.',
+      membersRenumbered: 'The members that stay are renumbered too.',
+      member: 'Member {member} removed. The members after it move up one number.',
     },
+    cannotAdd: {
+      pairs: 'Every pair of nodes already has a member, so no member was added.',
+      nodes: 'Every node already has a support, so no support was added.',
+      'no-node': 'There is no node yet, so nothing was added. Add a node first.',
+    },
+    empty: { nodes: 'None.', members: 'None.', supports: 'None.', loads: 'None.' },
+    jump: { label: 'On this page', drawing: 'Jump to the drawing', results: 'Skip to the results' },
     results: {
       determinacy: {
         formula: 'm + r − 2j',
@@ -288,7 +309,6 @@ export const trussUi: Record<Lang, TrussUi> = {
         indeterminate: { title: 'Statically indeterminate to degree {degree}', note: 'Equilibrium alone does not give the forces: they depend on the stiffness, E·A, of the members.' },
         unstable: { title: 'Unstable', note: 'As drawn, the truss cannot carry load.' },
       },
-      summary: 'Largest forces',
       tension: 'Largest tension',
       compression: 'Largest compression',
       none: 'none',
@@ -314,6 +334,16 @@ export const trussUi: Record<Lang, TrussUi> = {
         largest: 'Largest tension: {tension}. Largest compression: {compression}.',
         unsolved: 'It cannot be solved yet; the problems are listed beside the drawing.',
         reactions: 'Reactions: {list}.',
+      },
+      reading: {
+        text: 'Reading the drawing: a solid line is in tension (+) and a hollow line in compression (−), and the thicker the line, the larger its force. {largest} {reactions}',
+        zero: 'Reading the drawing: no member carries a force under these loads, so every line is the thin dashed one. {reactions}',
+        unsolved: 'Reading the drawing: the members are drawn without forces, because the truss cannot be solved yet. The problems are listed beside it.',
+      },
+      drawingNotes: {
+        thinned: '{count} {count|label is|labels are} left off the drawing to keep it readable. Pick a member to see its label here; all of them are in the table below.',
+        scroll: 'This drawing is wider than the screen so that its numbers stay readable. Scroll sideways to see all of it.',
+        region: 'Drawing of the truss, scrolls sideways',
       },
       reaction: {
         node: 'Node',
@@ -370,8 +400,8 @@ export const trussUi: Record<Lang, TrussUi> = {
         title: 'Members with no force',
         none: 'Every member carries a force under these loads.',
         rule: {
-          'two-members': 'Zero by inspection: at node {node} only two members meet, not along one line, and no load or support acts there, so both carry no force.',
-          'three-members': 'Zero by inspection: at node {node} three members meet, two of them along one line, and no load or support acts there, so the third carries no force.',
+          'two-members': 'Zero by inspection: at node {node}, once the members already shown to be zero are set aside, only two members remain, not along one line, and no load or support acts there, so both carry no force.',
+          'three-members': 'Zero by inspection: at node {node}, once the members already shown to be zero are set aside, three members remain, two of them along one line, and no load or support acts there, so the third carries no force.',
         },
         solved: 'Carries no force under this load.',
         note: 'A member with no force under these loads still braces the members it joins, and carries force if the loading changes.',
@@ -382,11 +412,13 @@ export const trussUi: Record<Lang, TrussUi> = {
       'few-nodes': 'A truss needs at least two nodes, and this one has {count}.',
       'no-members': 'The truss has no member. Add members between the nodes.',
       'too-big': 'A truss holds {max} {list} at most, and this one has {count}.',
-      number: 'The {field} needs a number the calculation can use.',
+      number: 'The {field} needs a number the calculation can use: one that is filled in and no larger than 10^30.',
       section: 'The {field} must be a number above zero.',
       'member-node': 'This member joins a node that is not in the list. Choose both of its nodes.',
       'zero-length': 'This member goes from a node to itself. Choose two different nodes.',
       'duplicate-node': 'Nodes {a} and {b} are at the same place. Move one of them, or remove it.',
+      'duplicate-nodes': 'Nodes {list} are all at the same place. Move all but one of them, or remove them.',
+      scale: 'Nodes {a} and {b} are {distance} {unit} apart, but the truss is {size} {unit} across, so the calculation cannot tell them apart. Use coordinates of a similar size, or bring the far node closer.',
       'short-member': 'This member is under a millionth of the truss in length, too short for a sound solution. Move a node, or remove the member.',
       'duplicate-member': 'Members {a} and {b} join the same two nodes. Remove one of them.',
       'node-unconnected': 'Node {a} has no member. Join it to the truss, or remove it.',
@@ -397,7 +429,7 @@ export const trussUi: Record<Lang, TrussUi> = {
       'few-supports': 'The supports give {count} reaction {count|component|components}, and a truss needs at least 3 to stand (a pin gives 2, a roller 1). Add a support.',
       mechanism: 'The truss is a mechanism: {nodes} can move with no member changing length. Add a member or a support.',
       unrestrained: 'The supports do not hold the truss as a whole: it can move as a rigid body in {count} {count|way|ways}, because their lines of action are all parallel or meet at one point. Change the type, the angle or the place of a support.',
-      'ill-conditioned': 'The members’ stiffnesses, E·A ÷ length, differ by a factor of a trillion or more, and the solution does not balance to the figures printed. Use areas and moduli of a similar order.',
+      'ill-conditioned': 'The members’ stiffnesses, E·A ÷ length, differ by a factor of a billion or more, and the solution does not balance to the figures printed. Use areas and moduli of a similar order.',
       size: 'A number in the results is beyond the range the calculation can hold.',
       stopped: 'This truss made the calculation stop, so no results can be shown. The calculator is at fault here, not the truss.',
     },
@@ -494,11 +526,20 @@ export const trussUi: Record<Lang, TrussUi> = {
     },
     removed: {
       node: 'Se quitó el nudo {node}.',
-      members: 'Con él {count|se fue la barra|se fueron las barras} {list}.',
+      members: 'Con él {count|se fue la barra|se fueron las barras} {list} (con la numeración de antes).',
       supports: 'Con él {count|se fue|se fueron} {count} {count|apoyo|apoyos}.',
       loads: 'Con él {count|se fue|se fueron} {count} {count|carga|cargas}.',
       renumbered: 'Los nudos siguientes suben un número.',
+      membersRenumbered: 'Las barras que quedan también cambian de número.',
+      member: 'Se quitó la barra {member}. Las barras siguientes suben un número.',
     },
+    cannotAdd: {
+      pairs: 'Cada par de nudos ya tiene una barra, así que no se añadió ninguna.',
+      nodes: 'Cada nudo ya tiene un apoyo, así que no se añadió ninguno.',
+      'no-node': 'Todavía no hay ningún nudo, así que no se añadió nada. Añada primero un nudo.',
+    },
+    empty: { nodes: 'Ninguno.', members: 'Ninguna.', supports: 'Ninguno.', loads: 'Ninguna.' },
+    jump: { label: 'En esta página', drawing: 'Ir al dibujo', results: 'Ir a los resultados' },
     results: {
       determinacy: {
         formula: 'b + r − 2n',
@@ -507,7 +548,6 @@ export const trussUi: Record<Lang, TrussUi> = {
         indeterminate: { title: 'Estáticamente indeterminada de grado {degree}', note: 'El equilibrio solo no da las fuerzas: dependen de la rigidez, E·A, de las barras.' },
         unstable: { title: 'Inestable', note: 'Tal como está dibujada, la cercha no puede soportar carga.' },
       },
-      summary: 'Fuerzas máximas',
       tension: 'Mayor tensión',
       compression: 'Mayor compresión',
       none: 'ninguna',
@@ -533,6 +573,16 @@ export const trussUi: Record<Lang, TrussUi> = {
         largest: 'Mayor tensión: {tension}. Mayor compresión: {compression}.',
         unsolved: 'Todavía no se puede resolver; los problemas están en la lista junto al dibujo.',
         reactions: 'Reacciones: {list}.',
+      },
+      reading: {
+        text: 'Cómo leer el dibujo: una línea continua está a tensión (+) y una hueca a compresión (−), y cuanto más gruesa es la línea, mayor es su fuerza. {largest} {reactions}',
+        zero: 'Cómo leer el dibujo: ninguna barra soporta fuerza con estas cargas, así que todas las líneas son la fina discontinua. {reactions}',
+        unsolved: 'Cómo leer el dibujo: las barras se dibujan sin fuerzas porque la cercha todavía no se puede resolver. Los problemas están en la lista junto a él.',
+      },
+      drawingNotes: {
+        thinned: '{count} {count|etiqueta queda|etiquetas quedan} fuera del dibujo para que se lea bien. Elija una barra para ver aquí la suya; todas están en la tabla de abajo.',
+        scroll: 'Este dibujo es más ancho que la pantalla para que sus números se lean. Desplácese hacia los lados para verlo entero.',
+        region: 'Dibujo de la cercha, se desplaza hacia los lados',
       },
       reaction: {
         node: 'Nudo',
@@ -589,8 +639,8 @@ export const trussUi: Record<Lang, TrussUi> = {
         title: 'Barras sin fuerza',
         none: 'Todas las barras soportan alguna fuerza con estas cargas.',
         rule: {
-          'two-members': 'Nula por inspección: en el nudo {node} concurren solo dos barras, no alineadas, y allí no actúa ninguna carga ni hay apoyo, así que ninguna de las dos soporta fuerza.',
-          'three-members': 'Nula por inspección: en el nudo {node} concurren tres barras, dos de ellas alineadas, y allí no actúa ninguna carga ni hay apoyo, así que la tercera no soporta fuerza.',
+          'two-members': 'Nula por inspección: en el nudo {node}, al apartar las barras que ya se vio que son nulas, quedan solo dos barras, no alineadas, y allí no actúa ninguna carga ni hay apoyo, así que ninguna de las dos soporta fuerza.',
+          'three-members': 'Nula por inspección: en el nudo {node}, al apartar las barras que ya se vio que son nulas, quedan tres barras, dos de ellas alineadas, y allí no actúa ninguna carga ni hay apoyo, así que la tercera no soporta fuerza.',
         },
         solved: 'No soporta fuerza con esta carga.',
         note: 'Una barra sin fuerza con estas cargas sigue arriostrando las barras que une, y soporta fuerza si cambia la carga.',
@@ -601,11 +651,13 @@ export const trussUi: Record<Lang, TrussUi> = {
       'few-nodes': 'Una cercha necesita al menos dos nudos, y esta tiene {count}.',
       'no-members': 'La cercha no tiene ninguna barra. Añada barras entre los nudos.',
       'too-big': 'Una cercha admite {max} {list} como máximo, y esta tiene {count}.',
-      number: '{field} necesita un número que el cálculo pueda usar.',
+      number: '{field} necesita un número que el cálculo pueda usar: uno escrito y no mayor que 10^30.',
       section: '{field} debe ser un número mayor que cero.',
       'member-node': 'Esta barra une un nudo que no está en la lista. Elija sus dos nudos.',
       'zero-length': 'Esta barra va de un nudo a sí mismo. Elija dos nudos distintos.',
       'duplicate-node': 'Los nudos {a} y {b} están en el mismo lugar. Mueva uno de ellos o quítelo.',
+      'duplicate-nodes': 'Los nudos {list} están todos en el mismo lugar. Mueva todos menos uno o quítelos.',
+      scale: 'Los nudos {a} y {b} están a {distance} {unit} uno del otro, pero la cercha mide {size} {unit} de lado a lado, así que el cálculo no los distingue. Use coordenadas de un tamaño parecido o acerque el nudo lejano.',
       'short-member': 'Esta barra es más corta que una millonésima de la cercha: con una tan corta no se resuelve. Mueva un nudo o quite la barra.',
       'duplicate-member': 'Las barras {a} y {b} unen los mismos dos nudos. Quite una de ellas.',
       'node-unconnected': 'El nudo {a} no tiene ninguna barra. Únalo a la cercha o quítelo.',
@@ -616,7 +668,7 @@ export const trussUi: Record<Lang, TrussUi> = {
       'few-supports': 'Los apoyos dan {count} {count|componente|componentes} de reacción, y una cercha necesita al menos 3 para sostenerse (un apoyo articulado da 2; un rodillo, 1). Añada un apoyo.',
       mechanism: 'La cercha es un mecanismo: hay movimiento posible, sin que cambie la longitud de ninguna barra, en {nodes}. Añada una barra o un apoyo.',
       unrestrained: 'Los apoyos no sujetan la cercha en conjunto: puede moverse como un sólido rígido de {count} {count|manera|maneras}, porque sus líneas de acción son todas paralelas o concurren en un punto. Cambie el tipo, el ángulo o el lugar de un apoyo.',
-      'ill-conditioned': 'Las rigideces de las barras, E·A entre la longitud, difieren en un factor de un billón o más, y la solución no se equilibra con las cifras que se imprimen. Use áreas y módulos de un orden parecido.',
+      'ill-conditioned': 'Las rigideces de las barras, E·A entre la longitud, difieren en un factor de mil millones o más, y la solución no se equilibra con las cifras que se imprimen. Use áreas y módulos de un orden parecido.',
       size: 'Un número de los resultados queda fuera del rango que el cálculo puede manejar.',
       stopped: 'Con esta cercha el cálculo se detuvo y no se puede mostrar ningún resultado. El error es de la calculadora, no de la cercha.',
     },

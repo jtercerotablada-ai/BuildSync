@@ -1,4 +1,4 @@
-import { NAMED, NUMBER, US_TO_SI, checkOf, checked, round4, tidy, written, type UnitSystem } from '../beam/model';
+import { NAMED, NUMBER, US_TO_SI, checkOf, checked, written, type UnitSystem } from '../beam/model';
 import { TEMPLATE_DEFAULTS, buildTemplate, type Clamp, type TemplateId, type TemplateParams } from './templates';
 import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS, type TrussIssue, type TrussModel } from './types';
 
@@ -7,7 +7,7 @@ import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS, type TrussIssue, type 
  * TRUSS MEMBER FORCES — what the visitor edits, and what the engine is given
  * ─────────────────────────────────────────────────────────────────────────────
  * Between the form of the fifth calculator ("Truss member forces",
- * /resources/truss) and its engine (types.ts is the agreement between the two).
+ * /resources/truss-member-forces) and its engine (types.ts is the agreement between the two).
  * Pure functions, no React: the truss as entered (`TrussForm`), what each edit
  * does to it (`reduceTruss`), the model the engine takes and which row of the
  * form each of its entries is (`toEngine`, `issueRow`), the same truss in the
@@ -21,9 +21,9 @@ import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS, type TrussIssue, type 
  * yet commits NaN, which the engine reports against its row ('number'). `null`
  * is "not given" for the optional sizes.
  *
- * WHAT IS THE FIRST CALCULATOR'S IS USED, NOT WRITTEN AGAIN: the rounding of a
- * converted value (`tidy`), the check an address begins with (`checkOf`), how
- * a number travels in an address (`written`, `NUMBER`, `NAMED`).
+ * WHAT IS THE FIRST CALCULATOR'S IS USED, NOT WRITTEN AGAIN: the check an
+ * address begins with (`checkOf`), how a number is read from one (`NUMBER`,
+ * `NAMED`). (A converted value is NOT rounded as the beam's is: `convertTruss`.)
  *
  * UNITS. The form holds numbers in the units it SHOWS (`TRUSS_UNITS`):
  *
@@ -137,8 +137,13 @@ export interface LoadRow {
 }
 
 export type TrussNotice =
-  | { code: 'node-removed'; node: number; members: number[]; supports: number; loads: number; renumbered: boolean }
+  /** `members` are the labels the removed members had BEFORE the removal; `renumbered` / `membersRenumbered`: the nodes / the members after them moved up. */
+  | { code: 'node-removed'; node: number; members: number[]; supports: number; loads: number; renumbered: boolean; membersRenumbered: boolean }
+  /** A member was removed and the members after it moved up one number. Said only when some did. */
+  | { code: 'member-removed'; member: number }
   | { code: 'limit'; list: TrussList; max: number }
+  /** An "add" that had nothing to add: every pair of nodes already has a member ('pairs'), every node already has a support ('nodes'), or there is no node to put a support or a load on ('no-node'). */
+  | { code: 'nothing-to-add'; list: TrussList; why: 'pairs' | 'nodes' | 'no-node' }
   | { code: 'template'; template: TemplateId; clamped: Clamp[] };
 
 export interface TrussForm {
@@ -166,8 +171,7 @@ const LIMITS: Record<TrussList, number> = { nodes: MAX_NODES, members: MAX_MEMBE
 function rowsOf(t: ReturnType<typeof buildTemplate>, first: number): Pick<TrussForm, 'nodes' | 'members' | 'supports' | 'loads' | 'nextId'> {
   let id = first;
   const nodeIds = t.nodes.map(() => id++);
-  // Eight figures, the most a field shows and an address carries: a coordinate like 7 m ÷ 3 would not come back from a link.
-  const eight = (v: number) => (Number.isFinite(v) ? Number(v.toPrecision(8)) : v);
+  // Eight figures, the most a field shows: a coordinate like 7 m ÷ 3 is written to them.
   const nodes: NodeRow[] = t.nodes.map((n, k) => ({ id: nodeIds[k], x: eight(n.x), y: eight(n.y) }));
   const members: MemberRow[] = t.members.map((m) => ({ id: id++, i: nodeIds[m.i], j: nodeIds[m.j], A: null, E: null }));
   const supports: SupportRow[] = t.supports.map((s) => ({ id: id++, node: nodeIds[s.node], kind: s.kind, angle: s.angle ?? 90 }));
@@ -208,37 +212,75 @@ export function emptyTruss(units: UnitSystem = 'us'): TrussForm {
 /* ── Units ────────────────────────────────────────────────────────────── */
 
 /**
- * The same truss in the other unit system: every quantity as its own, to the
- * figures a field shows (`tidy`), and back again to the very same numbers for
- * values of up to four significant figures. A roller's angle has no unit.
+ * A converted value, to fifteen significant figures (the rounding of a double and
+ * no more), or to the shortest number within the noise of that. Rounding a coordinate to six or eight figures moves each node a little
+ * on its own, and a truss that was symmetric, or had members on one line, is not
+ * after it: the centre diagonals of a Warren truss that carried nothing carried
+ * a few hundredths of a percent of the load, and three members that statics showed
+ * to be zero were one. Fifteen figures keep the geometry, and a value of up to
+ * thirteen figures comes back from the other system as the very number it was.
+ */
+const exact = (v: number): number => {
+  if (v === 0 || !Number.isFinite(v)) return v;
+  const long = Number(v.toPrecision(15));
+  // The shortest number (up to twelve figures) that is the same to within the noise of a conversion and back: 27.3 comes
+  // back as 27.3 and not as 27.3000000000001, which is what fifteen figures make of the digits the other system kept.
+  for (let figures = 1; figures <= 12; figures++) {
+    const short = Number(long.toPrecision(figures));
+    if (Math.abs(short - long) <= 5e-14 * Math.abs(long)) return short;
+  }
+  return long;
+};
+
+/** The listed modulus (steel, aluminium) a value is, in the system it is written in; null for any other. */
+function listedModulus(v: number | null, units: UnitSystem): Exclude<TrussMaterial, 'custom'> | null {
+  if (v === null) return null;
+  return (Object.keys(TRUSS_MATERIALS) as Exclude<TrussMaterial, 'custom'>[]).find((m) => TRUSS_MATERIALS[m][units] === v) ?? null;
+}
+
+/**
+ * The same truss in the other unit system: every quantity as its own, with all
+ * its figures (`exact`), and back again to the very same numbers for values of up
+ * to thirteen significant figures. A roller's angle has no unit. A modulus that is
+ * a listed material's (29,000 ksi, 200 GPa) is the listed one in the other system
+ * (a member's own as well as the section's), not a conversion of it.
  */
 export function convertTruss(form: TrussForm, to: UnitSystem): TrussForm {
   if (form.units === to) return form;
   const c = (v: number, q: keyof typeof TRUSS_US_TO_SI): number => {
     const f = TRUSS_US_TO_SI[q];
-    return tidy(v * (to === 'si' ? f : 1 / f));
+    return exact(v * (to === 'si' ? f : 1 / f));
   };
   const opt = (v: number | null, q: 'area' | 'E') => (v === null ? null : c(v, q));
+  const modulus = (v: number | null) => {
+    const listed = listedModulus(v, form.units);
+    return listed ? TRUSS_MATERIALS[listed][to] : opt(v, 'E');
+  };
   return {
     ...form,
     units: to,
     nodes: form.nodes.map((n) => ({ ...n, x: c(n.x, 'length'), y: c(n.y, 'length') })),
-    members: form.members.map((m) => ({ ...m, A: opt(m.A, 'area'), E: opt(m.E, 'E') })),
+    members: form.members.map((m) => ({ ...m, A: opt(m.A, 'area'), E: modulus(m.E) })),
     loads: form.loads.map((l) => ({ ...l, fx: c(l.fx, 'force'), fy: c(l.fy, 'force') })),
     // A listed material's modulus is the listed one in the other system; any other number is converted.
-    E: form.material !== 'custom' && form.E === TRUSS_MATERIALS[form.material][form.units] ? TRUSS_MATERIALS[form.material][to] : opt(form.E, 'E'),
+    E: form.material !== 'custom' && form.E === TRUSS_MATERIALS[form.material][form.units] ? TRUSS_MATERIALS[form.material][to] : modulus(form.E),
     A: opt(form.A, 'area'),
     notice: null,
   };
 }
 
+/** What the template group holds, in the other system: the span and the depth (lengths) and the load (a force) are converted; the shape, the panels and the supports stay. */
+export function convertTemplateInputs<T extends { span: number; height: number; load: number }>(inputs: T, from: UnitSystem, to: UnitSystem): T {
+  if (from === to) return inputs;
+  const c = (v: number, q: 'length' | 'force'): number => exact(v * (to === 'si' ? TRUSS_US_TO_SI[q] : 1 / TRUSS_US_TO_SI[q]));
+  return { ...inputs, span: c(inputs.span, 'length'), height: c(inputs.height, 'length'), load: c(inputs.load, 'force') };
+}
+
 /* ── What each edit does to the form ──────────────────────────────────── */
 
 export type TrussAction =
+  /** Opens a whole truss. The form it is given IS the new state (the same object): the page tells "opened whole" from "edited" by that. */
   | { type: 'load'; form: TrussForm }
-  | { type: 'reset' }
-  /** Starts a truss of the visitor's own: nothing in it, the section kept. */
-  | { type: 'clear' }
   | { type: 'units'; units: UnitSystem }
   /** Replaces the geometry, supports and loads by a template's; units and section stay. Parameters are in the form's units. */
   | { type: 'template'; template: TemplateId; params?: Partial<TemplateParams> }
@@ -247,10 +289,12 @@ export type TrussAction =
   | { type: 'remove'; list: TrussList; id: number }
   | { type: 'patch'; list: TrussList; id: number; patch: Record<string, unknown> }
   | { type: 'section'; patch: { E?: number | null; A?: number | null } }
-  | { type: 'material'; material: TrussMaterial }
-  | { type: 'dismiss' };
+  | { type: 'material'; material: TrussMaterial };
 
 const isNode = (form: TrussForm, id: unknown): id is number => typeof id === 'number' && form.nodes.some((n) => n.id === id);
+
+/** Eight figures, the most a field shows: a coordinate computed from another keeps all of them (a rounding to four turned 123,456 into 123,500). */
+const eight = (v: number): number => (Number.isFinite(v) ? Number(v.toPrecision(8)) : v);
 
 /** The unit step a new node is placed at from the last one. */
 const stepOf = (units: UnitSystem) => (units === 'us' ? 8 : 2.5);
@@ -259,13 +303,8 @@ export function reduceTruss(form: TrussForm, action: TrussAction): TrussForm {
   const next = (patch: Partial<TrussForm>): TrussForm => ({ ...form, notice: null, ...patch });
   switch (action.type) {
     case 'load':
-      return { ...action.form, notice: null };
-    case 'reset':
-      return defaultTruss();
-    case 'clear':
-      return next({ nodes: [], members: [], supports: [], loads: [], nextId: 1 });
-    case 'dismiss':
-      return form.notice ? next({}) : form;
+      // The form that comes in is the form that stays, so that a caller can tell it from one edited afterwards (`===`).
+      return action.form.notice === null ? action.form : { ...action.form, notice: null };
     case 'units':
       return convertTruss(form, action.units);
     case 'template': {
@@ -302,7 +341,7 @@ function add(form: TrussForm, list: TrussList, seed: Record<string, unknown>): T
   switch (list) {
     case 'nodes': {
       const last = form.nodes[form.nodes.length - 1];
-      const x = typeof seed.x === 'number' ? seed.x : last ? round4(last.x + stepOf(form.units)) : 0;
+      const x = typeof seed.x === 'number' ? seed.x : last ? eight(last.x + stepOf(form.units)) : 0;
       const y = typeof seed.y === 'number' ? seed.y : last ? last.y : 0;
       return { ...form, notice: null, nodes: [...form.nodes, { id, x, y }], nextId: id + 1 };
     }
@@ -322,22 +361,22 @@ function add(form: TrussForm, list: TrussList, seed: Record<string, unknown>): T
             break;
           }
         }
-        if (free.length === 0) return form;
+        if (free.length === 0) return { ...form, notice: { code: 'nothing-to-add', list: 'members', why: 'pairs' } };
         [i, j] = free[0];
       }
-      if (i === j || joined(i, j)) return form;
+      if (i === j || joined(i, j)) return { ...form, notice: { code: 'nothing-to-add', list: 'members', why: 'pairs' } };
       return { ...form, notice: null, members: [...form.members, { id, i, j, A: null, E: null }], nextId: id + 1 };
     }
     case 'supports': {
       const taken = new Set(form.supports.map((s) => s.node));
       const node = isNode(form, seed.node) ? seed.node : form.nodes.find((n) => !taken.has(n.id))?.id;
-      if (node === undefined) return form;
+      if (node === undefined) return { ...form, notice: { code: 'nothing-to-add', list: 'supports', why: form.nodes.length === 0 ? 'no-node' : 'nodes' } };
       const kind = seed.kind === 'pin' || seed.kind === 'roller' ? seed.kind : form.supports.length === 0 ? 'pin' : 'roller';
       return { ...form, notice: null, supports: [...form.supports, { id, node, kind, angle: num(seed.angle, 90) }], nextId: id + 1 };
     }
     case 'loads': {
       const node = isNode(form, seed.node) ? seed.node : form.nodes[0]?.id;
-      if (node === undefined) return form;
+      if (node === undefined) return { ...form, notice: { code: 'nothing-to-add', list: 'loads', why: 'no-node' } };
       return { ...form, notice: null, loads: [...form.loads, { id, node, fx: num(seed.fx, 0), fy: num(seed.fy, us ? -10 : -40) }], nextId: id + 1 };
     }
   }
@@ -345,12 +384,18 @@ function add(form: TrussForm, list: TrussList, seed: Record<string, unknown>): T
 
 function remove(form: TrussForm, list: TrussList, id: number): TrussForm {
   if (list !== 'nodes') {
-    if (!form[list].some((r) => r.id === id)) return form;
-    return { ...form, notice: null, [list]: form[list].filter((r) => r.id !== id) };
+    const at = form[list].findIndex((r) => r.id === id);
+    if (at < 0) return form;
+    // A member's number is its place in the list: the ones after it move up, and the page says so.
+    const notice: TrussNotice | null = list === 'members' && at < form.members.length - 1 ? { code: 'member-removed', member: at + 1 } : null;
+    return { ...form, notice, [list]: form[list].filter((r) => r.id !== id) };
   }
   const index = form.nodes.findIndex((n) => n.id === id);
   if (index < 0) return form;
   const gone = form.members.map((m, k) => (m.i === id || m.j === id ? k + 1 : 0)).filter((k) => k > 0);
+  // Some member that stays is now numbered differently from before.
+  const kept = form.members.map((_, k) => k + 1).filter((label) => !gone.includes(label));
+  const membersRenumbered = kept.some((label, k) => label !== k + 1);
   const supports = form.supports.filter((s) => s.node !== id);
   const loads = form.loads.filter((l) => l.node !== id);
   return {
@@ -359,7 +404,7 @@ function remove(form: TrussForm, list: TrussList, id: number): TrussForm {
     members: form.members.filter((m) => m.i !== id && m.j !== id),
     supports,
     loads,
-    notice: { code: 'node-removed', node: index + 1, members: gone, supports: form.supports.length - supports.length, loads: form.loads.length - loads.length, renumbered: index < form.nodes.length - 1 },
+    notice: { code: 'node-removed', node: index + 1, members: gone, supports: form.supports.length - supports.length, loads: form.loads.length - loads.length, renumbered: index < form.nodes.length - 1, membersRenumbered },
   };
 }
 
@@ -436,6 +481,24 @@ export function nodeLabel(form: TrussForm, id: number): number {
 
 const MATERIAL_LETTER: Record<TrussMaterial, string> = { steel: 's', aluminum: 'a', custom: 'u' };
 
+/**
+ * A number as THIS address carries it: fifteen significant figures, where the
+ * other calculators' carry the eight a field shows. A truss that was converted to
+ * the other units holds the full figures of the conversion (`convertTruss`), and a
+ * link that rounded them would open a truss whose symmetric members are no longer.
+ */
+const written15 = (v: number): string => (Number.isFinite(v) ? String(Number(v.toPrecision(15))).replace('e+', 'e') : written(v));
+
+/**
+ * Whether replacing `before` by `after` throws a truss away that nobody could get back: it is not the example (which "Start
+ * over" brings back) and it is not what `after` is. The page then leaves it one step behind in the browser's history, so
+ * that Back restores it - for "Start over" and for "Load template" alike.
+ */
+export function leavesBehind(before: TrussForm, after: TrussForm, example: string): boolean {
+  const was = encodeTruss(before);
+  return was !== example && was !== encodeTruss(after);
+}
+
 /** The version of the address, its first field. A reader of another version returns null; it is raised only if the format changes. */
 const VERSION = '1';
 
@@ -449,8 +512,7 @@ export const MAX_LINK = 12000;
 /**
  * The case as a short string for the page's address (after `#t=`), so a link
  * opens the same truss. Written as the other calculators write theirs
- * (beam/model.ts, `encodeBeam`): each number to the eight figures its field
- * shows, nothing but numbers, a few letters and the separators `; _ ,`. Seven
+ * (beam/model.ts, `encodeBeam`): each number to fifteen figures (`written15`), nothing but numbers, a few letters and the separators `; _ ,`. Seven
  * fields, the rows of a list joined by `_`:
  *
  *     version ; units ; section ; nodes ; members ; supports ; loads
@@ -478,7 +540,7 @@ export const MAX_LINK = 12000;
  * another truss.
  */
 export function encodeTruss(form: TrussForm): string {
-  const n = written;
+  const n = written15;
   const optional = (v: number | null) => (v === null ? '' : n(v));
   const label = (id: number) => nodeLabel(form, id);
   const body = [

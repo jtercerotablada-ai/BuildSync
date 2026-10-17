@@ -11,6 +11,7 @@ import {
   TRUSS_KEY,
   TRUSS_MATERIALS,
   TRUSS_UNITS,
+  convertTemplateInputs,
   convertTruss,
   decode,
   decodeTruss,
@@ -20,6 +21,7 @@ import {
   encode,
   encodeTruss,
   issueRow,
+  leavesBehind,
   nodeLabel,
   reduceTruss,
   toEngine,
@@ -116,8 +118,8 @@ describe('truss form: the units', () => {
     expect(si.units).toBe('si');
     expect(si.nodes[4]).toMatchObject({ x: 9.7536, y: 0 });
     expect(si.nodes[5]).toMatchObject({ x: 0, y: 2.4384 });
-    // 10 kip is 44.482216 kN, and the beam's `tidy` keeps the shortest number within six parts in a million: 44.482.
-    expect(si.loads[1].fy).toBe(-44.482);
+    // 10 kip is 44.482216152605 kN: every figure of the conversion is kept (the beam's `tidy` rounds to six, which turns a symmetric truss into one that is not).
+    expect(si.loads[1].fy).toBe(-44.482216152605);
     expect(si.A).toBeCloseTo(2580.64, 6);
     expect(si.E).toBe(200);
     expect(si.material).toBe('steel');
@@ -185,14 +187,24 @@ describe('truss form: the units', () => {
 describe('truss form: what each edit does', () => {
   const base = defaultTruss();
 
-  it('load replaces the form and clears the notice; reset is the example; clear keeps the section', () => {
+  it('load replaces the form and clears the notice', () => {
     const other = emptyTruss('si');
     const noted = act(base, { type: 'remove', list: 'nodes', id: base.nodes[9].id });
     expect(noted.notice).not.toBeNull();
     expect(act(noted, { type: 'load', form: { ...other, notice: { code: 'limit', list: 'nodes', max: 40 } } })).toEqual(other);
-    expect(act(noted, { type: 'reset' })).toEqual(base);
-    const cleared = act(base, { type: 'clear' });
-    expect(cleared).toMatchObject({ units: 'us', nodes: [], members: [], supports: [], loads: [], material: 'steel', E: 29000, A: 4, nextId: 1, notice: null });
+  });
+
+  it('load hands back the very form it was given (B1): the page tells a truss opened whole from one edited, by ===', () => {
+    const other = emptyTruss('si');
+    // The same object, not a copy of it: `reduceTruss(d, { type: 'load', form: other }) === other` held for the other calculators' reducers.
+    expect(act(base, { type: 'load', form: other })).toBe(other);
+    expect(act(base, { type: 'load', form: base })).toBe(base);
+    // One that carries a notice is the same truss without it (a link never does).
+    const noted = { ...other, notice: { code: 'limit', list: 'nodes', max: 40 } as const };
+    expect(act(base, { type: 'load', form: noted })).toEqual(other);
+    // And anything done to it afterwards is another object, so the page knows it has been edited.
+    const edited = act(act(base, { type: 'load', form: other }), { type: 'add', list: 'nodes' });
+    expect(edited).not.toBe(other);
   });
 
   it('units converts; a unit switch clears a notice', () => {
@@ -224,22 +236,38 @@ describe('truss form: what each edit does', () => {
     const a = base.nodes[0].id;
     const c = base.nodes[2].id;
     expect(act(base, { type: 'add', list: 'members', seed: { i: a, j: c } }).members[17]).toMatchObject({ i: a, j: c });
-    expect(act(base, { type: 'add', list: 'members', seed: { i: a, j: base.nodes[1].id } })).toBe(base);
-    expect(act(base, { type: 'add', list: 'members', seed: { i: a, j: a } })).toBe(base);
+    // Told a pair already joined, or a node to itself, nothing is added - and the form SAYS so (B3), where it said nothing.
+    for (const seed of [{ i: a, j: base.nodes[1].id }, { i: a, j: a }]) {
+      const refused = act(base, { type: 'add', list: 'members', seed });
+      expect(refused.members).toEqual(base.members);
+      expect(refused.notice).toEqual({ code: 'nothing-to-add', list: 'members', why: 'pairs' });
+    }
     // A node that does not exist falls back to the default pair.
     expect(act(base, { type: 'add', list: 'members', seed: { i: 9999, j: a } }).members.length).toBe(18);
     expect(act(emptyTruss(), { type: 'add', list: 'members' }).members.length).toBe(0);
+    // Every pair of nodes already joined: nothing to add, and a notice that says it.
+    const triangle = act(emptyTruss(), { type: 'add', list: 'nodes', seed: { x: 0, y: 0 } }, { type: 'add', list: 'nodes', seed: { x: 4, y: 0 } }, { type: 'add', list: 'nodes', seed: { x: 2, y: 3 } });
+    const joined = act(triangle, { type: 'add', list: 'members' }, { type: 'add', list: 'members' }, { type: 'add', list: 'members' });
+    expect(joined.members).toHaveLength(3);
+    const none = act(joined, { type: 'add', list: 'members' });
+    expect(none.members).toHaveLength(3);
+    expect(none.notice).toEqual({ code: 'nothing-to-add', list: 'members', why: 'pairs' });
+    // Two nodes only, and one member between them: the same.
+    expect(act(emptyTruss(), { type: 'add', list: 'members' }).notice).toEqual({ code: 'nothing-to-add', list: 'members', why: 'pairs' });
   });
 
   it('a support is added at the first node that has none: a pin when it is the first, a roller after it; or where it is told', () => {
-    const none = act(base, { type: 'clear' });
-    const withNodes = act(none, { type: 'add', list: 'nodes' }, { type: 'add', list: 'nodes' });
+    const withNodes = act(emptyTruss(), { type: 'add', list: 'nodes' }, { type: 'add', list: 'nodes' });
     const one = act(withNodes, { type: 'add', list: 'supports' });
     expect(one.supports[0]).toMatchObject({ node: withNodes.nodes[0].id, kind: 'pin', angle: 90 });
     const two = act(one, { type: 'add', list: 'supports' });
     expect(two.supports[1]).toMatchObject({ node: withNodes.nodes[1].id, kind: 'roller', angle: 90 });
-    // Every node has one: nothing is added.
-    expect(act(two, { type: 'add', list: 'supports' })).toBe(two);
+    // Every node has one: nothing is added, and the notice says why.
+    const full = act(two, { type: 'add', list: 'supports' });
+    expect(full.supports).toEqual(two.supports);
+    expect(full.notice).toEqual({ code: 'nothing-to-add', list: 'supports', why: 'nodes' });
+    // No node at all: a different reason.
+    expect(act(emptyTruss(), { type: 'add', list: 'supports' }).notice).toEqual({ code: 'nothing-to-add', list: 'supports', why: 'no-node' });
     expect(act(base, { type: 'add', list: 'supports', seed: { node: base.nodes[3].id, kind: 'roller', angle: 45 } }).supports[2]).toMatchObject({ node: base.nodes[3].id, kind: 'roller', angle: 45 });
   });
 
@@ -248,6 +276,7 @@ describe('truss form: what each edit does', () => {
     expect(act(convertTruss(base, 'si'), { type: 'add', list: 'loads' }).loads[5]).toMatchObject({ fx: 0, fy: -40 });
     expect(act(base, { type: 'add', list: 'loads', seed: { node: base.nodes[4].id, fx: 3 } }).loads[5]).toMatchObject({ node: base.nodes[4].id, fx: 3, fy: -10 });
     expect(act(emptyTruss(), { type: 'add', list: 'loads' }).loads.length).toBe(0);
+    expect(act(emptyTruss(), { type: 'add', list: 'loads' }).notice).toEqual({ code: 'nothing-to-add', list: 'loads', why: 'no-node' });
   });
 
   it('the CAP: past 40 nodes, 120 members, 40 supports or 80 loads an add is refused and the notice says which', () => {
@@ -281,7 +310,7 @@ describe('truss form: what each edit does', () => {
     const f = act(base, { type: 'remove', list: 'nodes', id: gone });
     expect(f.nodes.length).toBe(9);
     const touching = base.members.map((m, k) => (m.i === gone || m.j === gone ? k + 1 : 0)).filter(Boolean);
-    expect(f.notice).toEqual({ code: 'node-removed', node: 2, members: touching, supports: 0, loads: 0, renumbered: true });
+    expect(f.notice).toEqual({ code: 'node-removed', node: 2, members: touching, supports: 0, loads: 0, renumbered: true, membersRenumbered: true });
     expect(f.members.length).toBe(17 - touching.length);
     expect(touching).toEqual([1, 2, 10, 14]);
     consistent(f);
@@ -294,6 +323,8 @@ describe('truss form: what each edit does', () => {
     // The LAST node renumbers nothing.
     const last = act(base, { type: 'remove', list: 'nodes', id: base.nodes[9].id });
     expect(last.notice).toMatchObject({ node: 10, renumbered: false });
+    // The members of the last node are the last members but one: node 10's member 13 and diagonal 17 go, and member 14..16 close up.
+    expect(last.notice).toMatchObject({ membersRenumbered: true });
     // Labels close up: what had label 3 has label 2; nothing else moved.
     expect(nodeLabel(f, base.nodes[2].id)).toBe(2);
     expect(nodeLabel(f, gone)).toBe(0);
@@ -312,7 +343,9 @@ describe('truss form: what each edit does', () => {
     const m = act(base, { type: 'remove', list: 'members', id: base.members[3].id });
     expect(m.members.length).toBe(16);
     expect(m.nodes).toEqual(base.nodes);
-    expect(m.notice).toBeNull();
+    // The members after it moved up one number, and the form says so (B9); removing the last one renumbers nothing and says nothing.
+    expect(m.notice).toEqual({ code: 'member-removed', member: 4 });
+    expect(act(base, { type: 'remove', list: 'members', id: base.members[16].id }).notice).toBeNull();
     const s = act(base, { type: 'remove', list: 'supports', id: base.supports[0].id });
     expect(s.supports.length).toBe(1);
     const l = act(base, { type: 'remove', list: 'loads', id: base.loads[2].id });
@@ -385,11 +418,12 @@ describe('truss form: what each edit does', () => {
     expect(act(base, { type: 'section', patch: {} })).toEqual(base);
   });
 
-  it('dismiss clears a notice and does nothing else', () => {
+  it('the next edit of any kind takes a notice away', () => {
     const f = act(base, { type: 'remove', list: 'nodes', id: base.nodes[9].id });
-    expect(act(f, { type: 'dismiss' }).notice).toBeNull();
-    expect(act(f, { type: 'dismiss' }).nodes).toEqual(f.nodes);
-    expect(act(base, { type: 'dismiss' })).toBe(base);
+    expect(f.notice).not.toBeNull();
+    for (const action of [{ type: 'add', list: 'loads' }, { type: 'patch', list: 'nodes', id: f.nodes[0].id, patch: { x: 1 } }, { type: 'material', material: 'aluminum' }, { type: 'section', patch: { A: 3 } }] as TrussAction[]) {
+      expect(act(f, action).notice, action.type).toBeNull();
+    }
   });
 
   it('a long random walk of edits never leaves the form inconsistent, and each step reads back from its address', () => {
@@ -407,9 +441,9 @@ describe('truss form: what each edit does', () => {
       else if (r < 0.75) action = { type: 'units', units: f.units === 'us' ? 'si' : 'us' };
       else if (r < 0.8) action = { type: 'template', template: ['pratt', 'fink', 'warren', 'cantilever', 'triangle'][Math.floor(rand() * 5)] as 'pratt', params: { panels: Math.floor(rand() * 30) - 3 } };
       else if (r < 0.85) action = { type: 'material', material: ['steel', 'aluminum', 'custom'][Math.floor(rand() * 3)] as 'steel' };
-      else if (r < 0.9) action = { type: 'dismiss' };
+      else if (r < 0.9) action = { type: 'add', list: lists[Math.floor(rand() * 4)] };
       else if (r < 0.95) action = { type: 'section', patch: { E: rand() < 0.5 ? null : round8(rand() * 30000), A: rand() < 0.5 ? null : round8(rand() * 9) } };
-      else action = { type: 'clear' };
+      else action = { type: 'remove', list: 'nodes', id: f.nodes[0]?.id ?? -1 };
       f = reduceTruss(f, action);
       consistent(f);
       if (step % 7 === 0) {
@@ -698,5 +732,108 @@ describe('truss form: a truss in an address', () => {
     // The fuzz is not vacuous: some damaged-but-sealed bodies do read (a damaged field that is still a field), and most do not.
     expect(read).toBeGreaterThan(100);
     expect(read).toBeLessThan(40000);
+  });
+});
+
+/* ═══ Review fixes: A6, B2, B7, B12 ═══════════════════════════════════════ */
+
+describe('truss form: switching units keeps the geometry exact (A6, B7)', () => {
+  const TEMPLATES = ['triangle', 'king-post', 'queen-post', 'pratt', 'howe', 'warren', 'warren-verticals', 'fink', 'cantilever'] as const;
+
+  it('a truss that carries nothing in a member in feet carries nothing in it in metres, for every template at awkward spans', () => {
+    let checked = 0;
+    for (const id of TEMPLATES) {
+      for (const span of [24, 31.7, 33.3333, 40.5, 100]) {
+        for (const panels of [2, 6]) {
+          let f = act(emptyTruss('us'), { type: 'template', template: id, params: { span, height: span / 4, panels, load: 10 } });
+          f = act(f, { type: 'section', patch: { A: 4 } });
+          const us = solveTruss(toEngine(f).model);
+          const si = solveTruss(toEngine(convertTruss(f, 'si')).model);
+          if (!us.ok || !si.ok) continue;
+          checked++;
+          // Which members are zero, and which are zero by inspection, do not change with the unit.
+          expect(si.members.map((m) => m.zero), `${id} ${span} ${panels}`).toEqual(us.members.map((m) => m.zero));
+          expect(si.inspection.length, `${id} ${span} ${panels}`).toBe(us.inspection.length);
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(70);
+  });
+
+  it('the reviewer’s cases: a 31.7 ft Warren of 2 panels and a queen post of 31.7 ft keep their zero members', () => {
+    const warren = act(emptyTruss('us'), { type: 'template', template: 'warren', params: { span: 31.7, height: 31.7 / 4, panels: 2, load: 10 } });
+    const queen = act(emptyTruss('us'), { type: 'template', template: 'queen-post', params: { span: 31.7, height: 31.7 / 4, load: 10 } });
+    for (const f of [warren, queen]) {
+      const us = solveTruss(toEngine(f).model);
+      const si = solveTruss(toEngine(convertTruss(f, 'si')).model);
+      if (!us.ok || !si.ok) throw new Error('not solved');
+      const zeros = us.members.filter((m) => m.zero).length;
+      expect(zeros).toBeGreaterThan(0);
+      expect(si.members.filter((m) => m.zero).length).toBe(zeros);
+    }
+  });
+
+  it('a value comes back as the very number it was, up to twelve figures, in either direction', () => {
+    const rand = rng(88);
+    for (let t = 0; t < 400; t++) {
+      const f = act(defaultTruss(), { type: 'patch', list: 'nodes', id: defaultTruss().nodes[3].id, patch: { x: Number((rand() * 90).toPrecision(1 + (t % 12))) } }, { type: 'section', patch: { A: Number((rand() * 20).toPrecision(1 + ((t + 5) % 12))) } });
+      expect(normal(convertTruss(convertTruss(f, 'si'), 'us'))).toEqual(normal(f));
+    }
+    // Five-figure values, which the beam’s rounding moved by a tenth of a percent.
+    const odd = act(defaultTruss(), { type: 'section', patch: { A: 8.8701 } }, { type: 'patch', list: 'nodes', id: defaultTruss().nodes[3].id, patch: { x: 894.37 } });
+    expect(convertTruss(convertTruss(odd, 'si'), 'us')).toEqual(odd);
+  });
+
+  it('a member’s own modulus that is a listed one is the listed one in the other system, and comes back', () => {
+    const f = act(defaultTruss(), { type: 'patch', list: 'members', id: defaultTruss().members[0].id, patch: { E: 29000 } }, { type: 'patch', list: 'members', id: defaultTruss().members[1].id, patch: { E: 10100 } }, { type: 'patch', list: 'members', id: defaultTruss().members[2].id, patch: { E: 30000 } });
+    const si = convertTruss(f, 'si');
+    expect(si.members[0].E).toBe(200);
+    expect(si.members[1].E).toBe(69.6);
+    expect(si.members[2].E).toBeCloseTo(206.8427, 3);
+    expect(convertTruss(si, 'us')).toEqual(f);
+  });
+
+  it('the template group’s numbers are converted with the units, and its shape is kept (B7)', () => {
+    const inputs = { template: 'warren' as const, span: 40, height: 10, panels: 6, load: 12, supports: 'two-pins' as const };
+    const si = convertTemplateInputs(inputs, 'us', 'si');
+    expect(si).toMatchObject({ template: 'warren', panels: 6, supports: 'two-pins' });
+    expect(si.span).toBeCloseTo(12.192, 9);
+    expect(si.height).toBeCloseTo(3.048, 9);
+    expect(si.load).toBeCloseTo(12 * 4.4482216152605, 9);
+    expect(convertTemplateInputs(si, 'si', 'us')).toEqual(inputs);
+    expect(convertTemplateInputs(inputs, 'us', 'us')).toBe(inputs);
+  });
+
+  it('a truss converted to SI is written in an address and read back as that truss, every figure', () => {
+    const f = convertTruss(act(emptyTruss('us'), { type: 'template', template: 'warren', params: { span: 33.3333, height: 8.3333, panels: 6, load: 10 } }), 'si');
+    expect(normal(decodeTruss(encodeTruss(f))!)).toEqual(normal(f));
+    // …and the link still ends under its cap, with the longest number it can write.
+    expect(encodeTruss(f).length).toBeLessThan(MAX_LINK);
+  });
+});
+
+describe('truss form: a node added past a large one keeps its figures (B12)', () => {
+  it('123,456 plus the step is 123,464 and not 123,500', () => {
+    const f = act(emptyTruss('us'), { type: 'add', list: 'nodes', seed: { x: 123456, y: 0 } }, { type: 'add', list: 'nodes' });
+    expect(f.nodes[1].x).toBe(123464);
+  });
+});
+
+describe('truss form: what "Load template" and "Start over" leave behind (B2)', () => {
+  const EXAMPLE_LINK = encodeTruss(defaultTruss());
+  it('a truss that was edited is left behind by a template, and the example is not', () => {
+    const edited = act(defaultTruss(), { type: 'patch', list: 'loads', id: defaultTruss().loads[1].id, patch: { fy: -12 } });
+    const template: TrussAction = { type: 'template', template: 'howe', params: { span: 40 } };
+    expect(leavesBehind(edited, act(edited, template), EXAMPLE_LINK)).toBe(true);
+    // The example is one press of "Start over" away: nothing to keep.
+    expect(leavesBehind(defaultTruss(), act(defaultTruss(), template), EXAMPLE_LINK)).toBe(false);
+    // A template that builds what is there already changes nothing.
+    const built = act(edited, template);
+    expect(leavesBehind(built, act(built, template), EXAMPLE_LINK)).toBe(false);
+  });
+  it('"Start over" on an edited truss leaves it behind, on the example it does not', () => {
+    const edited = act(defaultTruss(), { type: 'add', list: 'nodes' });
+    expect(leavesBehind(edited, defaultTruss(), EXAMPLE_LINK)).toBe(true);
+    expect(leavesBehind(defaultTruss(), defaultTruss(), EXAMPLE_LINK)).toBe(false);
   });
 });

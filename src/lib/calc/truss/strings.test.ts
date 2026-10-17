@@ -77,10 +77,10 @@ describe('a sentence for every code the library can report', () => {
   const analysis = read('analysis.ts');
   const templates = read('templates.ts');
 
-  it('has a line for every problem types.ts lists, and for the one analysis.ts adds', () => {
-    const codes = [...unionOf(types, 'TrussIssueCode'), 'stopped'];
-    expect(codes.length).toBe(21);
-    expect(unionOf(analysis, 'AnalysisIssueCode')).toEqual(['stopped']); // written TrussIssueCode | 'stopped': the union above plus that one
+  it('has a line for every problem types.ts lists, and for the three analysis.ts adds', () => {
+    const codes = [...unionOf(types, 'TrussIssueCode'), 'duplicate-nodes', 'scale', 'stopped'];
+    expect(codes.length).toBe(23);
+    expect(unionOf(analysis, 'AnalysisIssueCode')).toEqual(['duplicate-nodes', 'scale', 'stopped']); // written TrussIssueCode | …: the union above plus those
     for (const lang of LANGS) expect(Object.keys(trussUi[lang].issues).sort()).toEqual([...codes].sort());
   });
 
@@ -102,6 +102,8 @@ describe('a sentence for every code the library can report', () => {
       number: ['field'],
       section: ['field'],
       'duplicate-node': ['a', 'b'],
+      'duplicate-nodes': ['list'],
+      scale: ['a', 'b', 'distance', 'size', 'unit'],
       'duplicate-member': ['a', 'b'],
       'node-unconnected': ['a'],
       'duplicate-support': ['a'],

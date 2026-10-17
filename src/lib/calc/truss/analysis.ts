@@ -1,4 +1,4 @@
-import { countOf, solveTruss } from './engine';
+import { RESIDUAL, countOf, solveTruss } from './engine';
 import { FROM_ENGINE, TO_ENGINE, TRUSS_UNITS, issueRow, toEngine, type TrussForm, type TrussList, type TrussRow } from './model';
 import type { Determinacy, TrussIssueCode, TrussSolution, TrussWarningCode, ZeroRule } from './types';
 
@@ -45,7 +45,14 @@ import type { Determinacy, TrussIssueCode, TrussSolution, TrussWarningCode, Zero
  * results is in a unit the form does not show.
  */
 
-export type AnalysisIssueCode = TrussIssueCode | 'stopped';
+/**
+ * The engine's codes, plus two this file makes out of its 'duplicate-node' pairs and 'stopped'.
+ *   'duplicate-nodes'  three or more nodes at one place: ONE issue for the lot (ten nodes typed at (0, 0) are 45 pairs).
+ *   'scale'            two nodes the engine took for one because the truss is vastly bigger than the gap between them
+ *                      (its tolerance is relative to the truss): they are NOT at the same place, and saying so was wrong.
+ *   'stopped'          the arithmetic threw (never expected).
+ */
+export type AnalysisIssueCode = TrussIssueCode | 'duplicate-nodes' | 'scale' | 'stopped';
 
 export interface AnalysisIssue {
   code: AnalysisIssueCode;
@@ -60,6 +67,9 @@ export interface AnalysisIssue {
   groups?: number[][];
   /** 'few-nodes', 'few-supports', 'unrestrained', 'too-big': the number the sentence needs. */
   count?: number;
+  /** 'scale': how far apart the two nodes are, and how big the truss is across (length unit). */
+  distance?: number;
+  size?: number;
   /** 'too-big': which list, and how many it may have. */
   list?: TrussList;
   max?: number;
@@ -126,7 +136,7 @@ export interface TrussResults {
   reactions: ReactionLine[];
   /** Null unless every member has E and A (stiffness: 'absolute'). */
   displacements: DisplacementLine[] | null;
-  stiffness: 'absolute' | 'equal';
+  stiffness: 'absolute' | 'relative' | 'equal';
   /** The largest tension (the highest force above zero) and compression (the lowest below zero), by member label; null where there is none. */
   largest: { tension: { member: number; force: number } | null; compression: { member: number; force: number } | null };
   /** The largest force of either kind, as a size: what `share` is measured against. 0 when there is none. */
@@ -141,7 +151,7 @@ export interface TrussResults {
     sumM: number;
     /** The largest force left at any node. */
     joint: number;
-    /** Whether all four are zero (they are, in every solution this returns: it is the check on show). */
+    /** Whether all four are within the engine's tolerance of zero (RESIDUAL of the loads, the forces and the reactions: they are, in every solution this returns; it is the check on show). */
     balanced: boolean;
   };
   /** The members that are zero by inspection (labels from 1). */
@@ -212,7 +222,7 @@ export interface TrussDrawing {
   pad: number;
   /**
    * What to multiply the displacements by to draw the deformed shape so that the
-   * largest one is an eighth of the truss's larger side. Null when there are no
+   * largest one is a twelfth of the truss's larger side. Null when there are no
    * displacements, or they are all nothing.
    */
   deformScale: number | null;
@@ -321,7 +331,7 @@ function drawingOf(form: TrussForm, solution: TrussSolution | null): TrussDrawin
   let deformScale: number | null = null;
   if (solution?.displacements) {
     const top = Math.max(...solution.displacements.map((d) => d.magnitude));
-    if (top > 0 && side > 0 && Number.isFinite(top)) deformScale = side / 8 / top;
+    if (top > 0 && side > 0 && Number.isFinite(top)) deformScale = side / 12 / top;
   }
   return { nodes, members, loads, reactions, box, frame, pad, deformScale };
 }
@@ -330,6 +340,54 @@ function drawingOf(form: TrussForm, solution: TrussSolution | null): TrussDrawin
 
 const STRUCTURAL = new Set<TrussIssueCode>(['mechanism', 'unrestrained', 'few-supports']);
 
+/**
+ * The engine reports every PAIR of nodes at one place. Ten nodes typed at (0, 0) are forty-five pairs and forty-five
+ * lines of the same complaint: they are merged into one issue per place. A pair that is not at one place at all, only
+ * so small beside the truss that the engine's relative tolerance took it for one (a node at x = 1e20 beside two that are
+ * 8 ft apart), is a different complaint and is said as one ('scale').
+ */
+export function mergeDuplicates(pairs: [number, number][], nodes: readonly { x: number; y: number }[]): AnalysisIssue[] {
+  const parent = nodes.map((_, i) => i);
+  const root = (a: number): number => {
+    while (parent[a] !== a) {
+      parent[a] = parent[parent[a]];
+      a = parent[a];
+    }
+    return a;
+  };
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const n of nodes) {
+    x0 = Math.min(x0, n.x);
+    x1 = Math.max(x1, n.x);
+    y0 = Math.min(y0, n.y);
+    y1 = Math.max(y1, n.y);
+  }
+  const size = Math.hypot(x1 - x0, y1 - y0);
+  const apart: AnalysisIssue[] = [];
+  const seen = new Set<number>();
+  for (const [a, b] of pairs) {
+    const distance = Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y);
+    const own = Math.max(Math.abs(nodes[a].x), Math.abs(nodes[a].y), Math.abs(nodes[b].x), Math.abs(nodes[b].y));
+    // Closer than a billionth of the nodes' own coordinates: the same place typed twice. Otherwise only the truss's size made them one.
+    if (distance > 1e-9 * own && distance > 0) {
+      if (apart.length < 3) apart.push({ code: 'scale', nodes: [a + 1, b + 1], distance, size });
+    } else parent[root(a)] = root(b);
+    seen.add(a);
+    seen.add(b);
+  }
+  const groups = new Map<number, number[]>();
+  for (const k of [...seen].sort((p, q) => p - q)) {
+    const r = root(k);
+    groups.set(r, [...(groups.get(r) ?? []), k + 1]);
+  }
+  const out: AnalysisIssue[] = [];
+  for (const g of groups.values()) if (g.length >= 2) out.push(g.length === 2 ? { code: 'duplicate-node', nodes: g } : { code: 'duplicate-nodes', nodes: g });
+  return [...out, ...apart];
+}
+
 export function analyseTruss(form: TrussForm): TrussAnalysis {
   const units = TRUSS_UNITS[form.units];
   const { model, rows } = toEngine(form);
@@ -337,7 +395,18 @@ export function analyseTruss(form: TrussForm): TrussAnalysis {
   const counts = countOf(model);
 
   if (!outcome.ok) {
-    const issues: AnalysisIssue[] = outcome.issues.map((i) => {
+    const duplicates = mergeDuplicates(
+      outcome.issues.flatMap((i) => (i.code === 'duplicate-node' && i.nodes ? [[i.nodes[0], i.nodes[1]] as [number, number]] : [])),
+      model.nodes,
+    );
+    let merged = false;
+    const issues: AnalysisIssue[] = outcome.issues.flatMap((i): AnalysisIssue[] => {
+      // The merged ones stand where the first pair stood.
+      if (i.code === 'duplicate-node') {
+        if (merged) return [];
+        merged = true;
+        return duplicates;
+      }
       const row = issueRow(i, rows);
       const out: AnalysisIssue = { code: i.code };
       if (row) {
@@ -352,7 +421,7 @@ export function analyseTruss(form: TrussForm): TrussAnalysis {
         out.list = i.where.list;
         out.max = { nodes: 40, members: 120, supports: 40, loads: 80 }[i.where.list];
       }
-      return out;
+      return [out];
     });
     const structural = outcome.issues.length > 0 && outcome.issues.every((i) => STRUCTURAL.has(i.code));
     const word: Determinacy['word'] = structural ? 'unstable' : null;
@@ -384,8 +453,9 @@ function resultsOf(form: TrussForm, s: TrussSolution): TrussResults {
       share: maxForce === 0 ? 0 : Math.abs(force) / maxForce,
       elongation: m.elongation === null ? null : clean(settle(m.elongation * convert.displacement, elongationFloor)),
       stress: m.stress === null ? null : clean(m.stress * convert.stress),
-      A: m.A === null ? null : m.A / TO_ENGINE[form.units].area,
-      E: m.E === null ? null : m.E / TO_ENGINE[form.units].E,
+      // The section as it was typed: A = 1000 mm² crosses as 1e-3 m² and comes back as 1000, not 1000.0000000000001.
+      A: m.A === null ? null : Number((m.A / TO_ENGINE[form.units].area).toPrecision(14)),
+      E: m.E === null ? null : Number((m.E / TO_ENGINE[form.units].E).toPrecision(14)),
       inspection: z ? { rule: z.rule, node: z.node + 1 } : null,
     };
   });
@@ -413,6 +483,13 @@ function resultsOf(form: TrussForm, s: TrussSolution): TrussResults {
   const sumFy = clean(settle(eq.sumFy, floor));
   const sumM = clean(settle(eq.sumM, floor * arm));
   const joint = clean(settle(eq.joint, floor));
+  // BALANCED is the engine's own test (RESIDUAL, of the larger of the loads, the forces and the reactions), not the
+  // floor above: that one only decides what is PRINTED as 0. A solution the engine accepted is balanced by it, so the
+  // page never shows a result beside the words 'do not use these results' (an indeterminate truss with one member
+  // a hundred million times stiffer than the rest leaves a residual between the two thresholds).
+  const reactionScale = Math.max(eq.scale, maxForce, ...s.reactions.map((r) => r.magnitude));
+  const tolerance = RESIDUAL * reactionScale;
+  const balanced = Math.abs(eq.sumFx) <= tolerance && Math.abs(eq.sumFy) <= tolerance && Math.abs(eq.sumM) <= tolerance * (arm === 0 ? 1 : arm) && eq.joint <= tolerance;
   let fx = 0;
   let fy = 0;
   const applied = (() => {
@@ -434,7 +511,7 @@ function resultsOf(form: TrussForm, s: TrussSolution): TrussResults {
     },
     maxForce,
     applied,
-    equilibrium: { about: eq.about, sumFx, sumFy, sumM, joint, balanced: sumFx === 0 && sumFy === 0 && sumM === 0 && joint === 0 },
+    equilibrium: { about: eq.about, sumFx, sumFy, sumM, joint, balanced },
     inspection: s.inspection.map((z) => ({ member: z.member + 1, node: z.node + 1, rule: z.rule })),
     zeroMembers: members.filter((m) => m.state === 'zero').map((m) => m.label),
   };
