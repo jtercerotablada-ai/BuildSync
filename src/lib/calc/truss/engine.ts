@@ -19,7 +19,7 @@ import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS } from './types';
  * TRUSS MEMBER FORCES — the engine: the direct stiffness method, 2D, pin joints
  * ─────────────────────────────────────────────────────────────────────────────
  * The engine of the fifth calculator of the catalogue ("Truss member forces",
- * /resources/truss). types.ts has what goes in and what comes out: units,
+ * /resources/truss-member-forces). types.ts has what goes in and what comes out: units,
  * signs, supports, and the code of every problem that is REPORTED and never
  * thrown. `solveTruss` never throws and never returns a NaN: a result is a
  * solution whose every number is finite, or a list of issues.
@@ -54,6 +54,11 @@ import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS } from './types';
  *          'unrestrained';
  *        — the rest are motions of part of it: 'mechanism', with the nodes
  *          that can move — those the null vectors move at all.
+ *      (A truss that is plainly stable never reaches the eigenvalues: if K₁ less
+ *      twice MECH is still positive definite, which a Cholesky factorisation
+ *      tells in a few hundred thousand operations, its smallest eigenvalue is
+ *      over 2·MECH and there is no null vector. The largest truss took 60 ms
+ *      of Jacobi rotations before; it takes 4 ms of everything now.)
  *      A joint with two members on one line and nothing else is a mechanism of
  *      this kind: in a first-order analysis it has no stiffness across the
  *      line, whatever the load on it.
@@ -67,7 +72,10 @@ import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS } from './types';
  *          from G q = (N L / E A).
  *        — INDETERMINATE: K q = f, N = W G q. With every member's E and A where
  *          they are all given, and otherwise EA the same in all members (the
- *          warning 'partial-stiffness' says so when some are given).
+ *          warning 'partial-stiffness' says so when some are given). With only
+ *          the areas (or only the moduli) given, to EVERY member, EA follows the
+ *          one that is there (stiffness 'relative'); a factor given to some
+ *          members only cannot be read as a ratio.
  *   5. REACTIONS. At a support node the force the support exerts is what
  *      balances the node: R = −(F + Σ members' force on the node) — this is
  *      K u − F at that node, written through the member forces already found.
@@ -102,7 +110,10 @@ import { MAX_LOADS, MAX_MEMBERS, MAX_NODES, MAX_SUPPORTS } from './types';
  *   RIGID = 1e-6, on the share of a null vector that is not a rigid motion.
  *     A rigid null vector has 1e-15 of it left over; a mechanism's, which moves
  *     a few nodes, has a large share. There is a gap of nine orders.
- *   ZERO = 1e-9, of the loads' size: a force under it is rounding. MEASURED
+ *   ZERO = 1e-9, of the loads' size: a force under it is rounding (so a force
+ *     that is truly smaller than a billionth of the sum of the loads, loads that
+ *     differ by ten orders of magnitude on one truss, reads 0: the figures
+ *     printed are four, and no load case a person types has that range). MEASURED
  *     against the exact oracle (engine.test.ts, oracle.testlib.ts) on random
  *     trusses of 3 to 9 joints: the worst error of a member force, relative to
  *     the largest, is 1e-14 in a determinate truss and 5e-12 in an
@@ -142,6 +153,8 @@ export function directionOf(angle: number | undefined): { angle: number; c: numb
   const raw = angle === undefined ? 90 : angle;
   let a = raw % 180;
   if (a < 0) a += 180;
+  // −1e-20 % 180 + 180 is 180 in floating point: the range is [0, 180), so that is the same line as 0.
+  if (a >= 180) a = 0;
   if (a === 0) return { angle: 0, c: 1, s: 0 };
   if (a === 90) return { angle: 90, c: 0, s: 1 };
   const r = (a * Math.PI) / 180;
@@ -289,6 +302,26 @@ export function jacobiEigen(sym: Mat): { values: number[]; vectors: number[][] }
   const values = Array.from({ length: n }, (_, i) => a[i][i]);
   const vectors = Array.from({ length: n }, (_, k) => Array.from({ length: n }, (_, i) => v[i][k]));
   return { values, vectors };
+}
+
+/** Whether `sym` less `shift` times the identity is positive definite: a Cholesky factorisation that finds every pivot over zero. */
+export function positiveDefinite(sym: Mat, shift: number): boolean {
+  const n = sym.length;
+  const l = sym.map((row) => Float64Array.from(row));
+  for (let i = 0; i < n; i++) l[i][i] -= shift;
+  for (let j = 0; j < n; j++) {
+    let d = l[j][j];
+    for (let k = 0; k < j; k++) d -= l[j][k] * l[j][k];
+    if (!(d > 0)) return false;
+    const root = Math.sqrt(d);
+    l[j][j] = root;
+    for (let i = j + 1; i < n; i++) {
+      let v = l[i][j];
+      for (let k = 0; k < j; k++) v -= l[i][k] * l[j][k];
+      l[i][j] = v / root;
+    }
+  }
+  return true;
 }
 
 /* ── Zero by inspection ───────────────────────────────────────────────── */
@@ -489,7 +522,16 @@ function solve(given: TrussModel): TrussOutcome {
   const sectionA = members.map((m) => m.A ?? model.A ?? null);
   const sectionE = members.map((m) => m.E ?? model.E ?? null);
   const absolute = members.every((_, k) => sectionA[k] !== null && sectionE[k] !== null);
-  const someSection = members.some((_, k) => sectionA[k] !== null && sectionE[k] !== null);
+  // What the members' stiffness is made of when it is not whole. A factor given to EVERY member and the other to NONE
+  // (areas and no modulus anywhere, or the reverse) still says how stiff the members are beside one another: the
+  // modulus (or the area) is the same in all of them, so EA is proportional to the one that is there. Anything in
+  // between, a factor on some members only, cannot be read as a ratio and the members are taken as equally stiff.
+  const everyA = members.every((_, k) => sectionA[k] !== null);
+  const everyE = members.every((_, k) => sectionE[k] !== null);
+  const anyA = members.some((_, k) => sectionA[k] !== null);
+  const anyE = members.some((_, k) => sectionE[k] !== null);
+  const relative = !absolute && ((everyA && !anyE) || (everyE && !anyA));
+  const someSection = anyA || anyE;
 
   /* ── 3. Supports → free directions ── */
   const supportAt = new Map<number, number>();
@@ -542,7 +584,7 @@ function solve(given: TrussModel): TrussOutcome {
   const joints = J;
   const determinate = M + r === 2 * joints;
   const weights = members.map((_, k) => {
-    const EA = absolute ? (sectionE[k] as number) * (sectionA[k] as number) : 1;
+    const EA = absolute ? (sectionE[k] as number) * (sectionA[k] as number) : relative ? ((sectionE[k] ?? 1) as number) * ((sectionA[k] ?? 1) as number) : 1;
     return EA / info[k].length;
   });
   let N: number[];
@@ -679,23 +721,31 @@ function solve(given: TrussModel): TrussOutcome {
     });
     const umax = Math.max(0, ...u.map((v) => Math.hypot(v[0], v[1])));
     if (!Number.isFinite(umax)) return { ok: false, issues: [{ code: 'size' }] };
+    // A truss whose every force is nothing does not move: what the solve left in q is rounding, and the floor below
+    // is relative to the largest of it, so it would be drawn as a deformed shape at a scale of 1e18.
+    const still = memberResults.every((m) => m.N === 0);
     displacements = u.map(([ux0, uy0], node) => {
-      const ux = settle(ux0, ZERO * umax);
-      const uy = settle(uy0, ZERO * umax);
+      const ux = still ? 0 : settle(ux0, ZERO * umax);
+      const uy = still ? 0 : settle(uy0, ZERO * umax);
       return { node, ux, uy, magnitude: Math.hypot(ux, uy) };
     });
   }
   let tension: Extreme | null = null;
   let compression: Extreme | null = null;
+  // Two forces that are equal but for rounding (a Fink truss' two halves, in feet and in metres) are a tie, and a tie goes
+  // to the lowest member number: the larger one is not whichever the last bit of each happened to favour.
+  const tie = 1e-9 * Math.max(0, ...memberResults.map((m) => Math.abs(m.N)));
   for (const m of memberResults) {
-    if (m.N > 0 && (!tension || m.N > tension.N)) tension = { member: m.index, N: m.N };
-    if (m.N < 0 && (!compression || m.N < compression.N)) compression = { member: m.index, N: m.N };
+    if (m.N > 0 && (!tension || m.N > tension.N + tie)) tension = { member: m.index, N: m.N };
+    if (m.N < 0 && (!compression || m.N < compression.N - tie)) compression = { member: m.index, N: m.N };
   }
   const redundants = M + r - 2 * J;
   const determinacy: Determinacy = { joints: J, members: M, reactions: r, degree: redundants, word: redundants === 0 ? 'determinate' : 'indeterminate' };
   const warnings: TrussWarning[] = [];
   if (loadScale === 0) warnings.push({ code: 'no-load' });
-  if (!determinate && !absolute && someSection) warnings.push({ code: 'partial-stiffness' });
+  if (!determinate && !absolute && !relative && someSection) warnings.push({ code: 'partial-stiffness' });
+  // 'relative': the areas (or the moduli) alone told the members apart, and the forces follow them.
+  const stiffness: TrussSolution['stiffness'] = absolute ? 'absolute' : relative && !determinate && weights.some((w, k) => Math.abs(w * info[k].length - weights[0] * info[0].length) > 1e-12 * weights[0] * info[0].length) ? 'relative' : 'equal';
 
   const supported = nodes.map((_, k) => supportAt.has(k));
   const loaded = F.map((v) => v[0] !== 0 || v[1] !== 0);
@@ -708,7 +758,7 @@ function solve(given: TrussModel): TrussOutcome {
     reactions,
     displacements,
     determinacy,
-    stiffness: absolute ? 'absolute' : 'equal',
+    stiffness,
     equilibrium,
     largest: { tension, compression },
     inspection,
@@ -733,6 +783,10 @@ function stability(nodes: { x: number; y: number }[], frames: Frame[], G: Mat, f
       for (let b = 0; b < free; b++) K1[a][b] += row[a] * row[b];
     }
   }
+  // A truss that is plainly stable needs no eigenvalues: if K1 less twice MECH is still positive definite (Cholesky, a few
+  // hundred thousand operations for the largest truss), its smallest eigenvalue is over 2·MECH and there is no null vector.
+  // Anything else - a mechanism, or a truss near the line - goes through the eigenvalues, as it always did.
+  if (positiveDefinite(K1, 2 * MECH)) return [];
   const { values, vectors } = jacobiEigen(K1);
   const nullIdx = values.map((v, k) => (v <= MECH ? k : -1)).filter((k) => k >= 0);
   if (nullIdx.length === 0) return [];

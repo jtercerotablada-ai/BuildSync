@@ -142,6 +142,67 @@
   padding: 0;
 }
 
+/* Two links at the head of the form for a phone, where the drawing is a long scroll below the inputs: they go to the drawing and to the tables. */
+.mp-truss .mp-truss__jump {
+  display: none;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+.mp-truss .mp-truss__jump a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+@media screen and (max-width: 1100px) {
+  .mp-truss .mp-truss__jump {
+    display: flex;
+  }
+}
+/* On a wide screen they are still there for the keyboard: out of sight until one has the focus. */
+@media screen and (min-width: 1101px) {
+  .mp-truss .mp-truss__jump {
+    display: flex;
+    position: absolute;
+    inset-inline-start: -9999px;
+  }
+  .mp-truss .mp-truss__jump:focus-within {
+    position: static;
+  }
+}
+/* A line that says what just happened is in the page before it has anything to say (a screen reader hears it arrive): empty, it takes no room. */
+.mp-truss .mp-truss__notice:empty,
+.mp-truss .mp-truss__limit:empty,
+.mp-truss .mp-truss__said:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+}
+.mp-truss .mp-truss__target {
+  scroll-margin-top: calc(var(--mp-header-h, 6rem) + var(--mp-4));
+}
+.mp-truss [tabindex='-1']:focus {
+  outline: none;
+}
+/* One plain sentence under the drawing: what to read in it. */
+.mp-truss .mp-truss__reading {
+  margin: 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+
 /* ── the numbers ──────────────────────────────────────────────────────── */
 
 .mp-truss .mp-truss__table {
@@ -216,9 +277,6 @@
 .mp-truss .mp-truss__zero-name {
   white-space: nowrap;
 }
-.mp-truss .mp-truss__zero .mp-truss__pick {
-  min-height: 32px;
-}
 .mp-truss .mp-truss__balanced {
   color: var(--mp-ink-2);
 }
@@ -278,6 +336,31 @@
 .mp-truss .mp-truss-fig__svg {
   height: auto;
 }
+/* A drawing wider than its column scrolls sideways inside the figure, at its own size (the numbers must stay readable). */
+.mp-truss .mp-truss-fig__scroll {
+  min-width: 0;
+}
+@media screen {
+  .mp-truss .mp-truss-fig__svg {
+    max-width: none;
+  }
+  .mp-truss .mp-truss-fig__scroll--wide {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border-block-end: 1px dashed var(--mp-line-strong);
+  }
+  .mp-truss .mp-truss-fig__scroll--wide:focus-visible,
+  .mp-truss .mp-truss-fig:focus-visible {
+    outline: 2px solid var(--mp-gold-ink);
+    outline-offset: 2px;
+  }
+}
+.mp-truss .mp-truss-fig__note {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mp-ink-2);
+}
 .mp-truss-fig__bar {
   fill: none;
   stroke: var(--mp-ink-3);
@@ -309,7 +392,24 @@
   fill: none;
   stroke: var(--mp-ink);
   stroke-width: 1.5;
-  stroke-dasharray: 7 3;
+  /* Dash, dot: not the zero members' plain dash, so the two do not read as one on a grey-scale sheet. */
+  stroke-dasharray: 10 3 2 3;
+}
+/* A node at its displaced place: a filled diamond with its number beside it. */
+.mp-truss-fig__moved rect {
+  fill: var(--mp-ink);
+  stroke: var(--mp-paper);
+  stroke-width: 1;
+}
+.mp-truss-fig__moved text {
+  font-family: var(--mp-mono);
+  font-size: 9px;
+  font-weight: 600;
+  fill: var(--mp-ink);
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 .mp-truss-fig__node circle {
   fill: var(--mp-paper);
@@ -375,6 +475,11 @@
 }
 .mp-truss-fig__reaction text {
   fill: var(--mp-gold-ink);
+}
+/* A number the drawing had no clear place for, written because its member was picked: on top, and heavier. */
+.mp-truss-fig__value--picked {
+  font-weight: 700;
+  stroke-width: 5px;
 }
 .mp-truss-fig__hit {
   stroke: transparent;
@@ -502,10 +607,34 @@
   .mp-truss-fig__halo {
     display: none;
   }
+  /* A number keeps its halo on paper (white): the '+' of a tension must not be lost where a line passes it. Nothing is drawn under a number, but a halo costs nothing. */
   .mp-truss-fig__load text,
   .mp-truss-fig__reaction text,
-  .mp-truss-fig__value {
-    stroke: none !important;
+  .mp-truss-fig__value,
+  .mp-truss-fig__moved text {
+    paint-order: stroke;
+    stroke: #fff !important;
+    stroke-width: 3.5px !important;
+    stroke-linejoin: round;
+  }
+  .mp-truss-fig__node--active circle {
+    stroke: #000;
+    stroke-width: 1.5;
+  }
+  .mp-truss-fig__moved rect {
+    fill: #000;
+    stroke: #fff;
+  }
+  .mp-truss-fig__scroll {
+    overflow: visible !important;
+  }
+  .mp-truss .mp-truss__jump,
+  .mp-truss .mp-truss-fig__note--scroll {
+    display: none !important;
+  }
+  /* The note under a zero-force list is on the sheet: calc.css hides the last paragraph of the last card. */
+  .mp-truss__tables .mp-app__card:last-child > p:last-child {
+    display: block !important;
   }
   .mp-truss-fig__reaction text {
     fill: #000;

@@ -3,7 +3,7 @@
  * TRUSS MEMBER FORCES — what the engine is given and what it returns
  * ─────────────────────────────────────────────────────────────────
  * The fifth calculator of the catalogue ("Truss member forces",
- * /resources/truss): "Axial force in every member, tension or compression,
+ * /resources/truss-member-forces): "Axial force in every member, tension or compression,
  * and the reactions of a 2D truss." A plane pin-jointed truss — straight
  * members joined at nodes by frictionless pins, loads and supports at the
  * nodes only — solved by the direct stiffness method (engine.ts).
@@ -324,10 +324,11 @@ export interface TrussSolution {
   determinacy: Determinacy;
   /**
    * 'absolute': every member has E and A, so elongations and displacements are
-   * real. 'equal': not — the members are taken as equally stiff (EA the same).
+   * real. 'relative': only the areas (or only the moduli), given to every member,
+   * so the forces follow their ratios but nothing absolute is known. 'equal': not — the members are taken as equally stiff (EA the same).
    * That changes the forces only in a truss that is statically indeterminate.
    */
-  stiffness: 'absolute' | 'equal';
+  stiffness: 'absolute' | 'relative' | 'equal';
   equilibrium: Equilibrium;
   /** The largest tension (the highest N above zero) and the largest compression (the lowest N below zero): null where there is none. */
   largest: { tension: Extreme | null; compression: Extreme | null };

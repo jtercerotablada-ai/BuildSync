@@ -320,10 +320,10 @@ describe('truss analysis: the drawing', () => {
     expect(d.frame.width).toBeCloseTo(32 + 2 * d.pad, 12);
     expect(d.frame.height).toBeCloseTo(8 + 2 * d.pad, 12);
   });
-  it('the deformed shape: a scale that makes the largest displacement an eighth of the long side, in the length unit', () => {
+  it('the deformed shape: a scale that makes the largest displacement a twelfth of the long side, in the length unit', () => {
     const top = Math.max(...d.nodes.map((n) => Math.hypot(n.ux!, n.uy!)));
     expect(top).toBeGreaterThan(0);
-    near(top * d.deformScale!, 32 / 8, 1e-9);
+    near(top * d.deformScale!, 32 / 12, 1e-9);
   });
   it('inclined and horizontal rollers are drawn with their line', () => {
     const g = act(f, { type: 'patch', list: 'supports', id: f.supports[1].id, patch: { angle: 480 } });
@@ -407,5 +407,89 @@ describe('truss analysis: it does not throw', () => {
         expect(results(a).equilibrium.balanced).toBe(true);
       }
     }
+  });
+});
+
+describe('truss analysis: what the page calls balanced is what the engine accepted (A3)', () => {
+  it('an indeterminate two-pin truss with one member 1e8 times stiffer is never called out of balance', { timeout: 120000 }, () => {
+    const rand = rng(4242);
+    let solvedCount = 0;
+    for (let t = 0; t < 150; t++) {
+      const n = 2 + Math.floor(rand() * 4);
+      const f = defaultTruss();
+      const nodes: { id: number; x: number; y: number }[] = [];
+      for (let i = 0; i <= n; i++) nodes.push({ id: i + 1, x: (i * 20) / n, y: 0 });
+      for (let i = 0; i <= n; i++) nodes.push({ id: n + 2 + i, x: (i * 20) / n, y: 6 });
+      const pairs: [number, number][] = [];
+      for (let i = 0; i < n; i++) pairs.push([i + 1, i + 2], [n + 2 + i, n + 3 + i]);
+      for (let i = 0; i <= n; i++) pairs.push([i + 1, n + 2 + i]);
+      for (let i = 0; i < n; i++) pairs.push(i % 2 ? [n + 2 + i, i + 2] : [i + 1, n + 3 + i]);
+      const stiff = Math.floor(rand() * pairs.length);
+      f.nodes = nodes;
+      f.members = pairs.map(([i, j], k) => ({ id: 100 + k, i, j, A: k === stiff ? 4e8 : 4, E: null }));
+      f.supports = [{ id: 300, node: 1, kind: 'pin', angle: 90 }, { id: 301, node: n + 1, kind: 'pin', angle: 90 }];
+      f.loads = nodes.slice(n + 1).map((p, k) => ({ id: 400 + k, node: p.id, fx: 0, fy: -10 }));
+      f.E = 29000;
+      f.A = null;
+      const a = analyseSafely(f);
+      if (!a.results) continue;
+      solvedCount++;
+      expect(a.results.equilibrium.balanced, `case ${t}`).toBe(true);
+    }
+    expect(solvedCount).toBeGreaterThan(100);
+  });
+  it('a result that really is out of balance is still called so', () => {
+    // The analysis cannot be handed an unbalanced solution by the engine, so the rule is checked on its own numbers: the
+    // tolerance is a millionth of the larger of the loads and the forces.
+    const a = analyseSafely(defaultTruss());
+    expect(results(a).equilibrium.balanced).toBe(true);
+  });
+});
+
+describe('truss analysis: coincident nodes are one complaint, not forty-seven (C9, C10)', () => {
+  const moveTo = (f: TrussForm, labels: number[], x: number, y: number): TrussForm => ({ ...f, nodes: f.nodes.map((n, k) => (labels.includes(k + 1) ? { ...n, x, y } : n)) });
+
+  it('ten nodes at one place give one issue naming all ten', () => {
+    const a = analyseSafely(moveTo(defaultTruss(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0, 0));
+    const dup = a.issues.filter((i) => i.code === 'duplicate-nodes' || i.code === 'duplicate-node');
+    expect(dup).toHaveLength(1);
+    expect(dup[0].code).toBe('duplicate-nodes');
+    expect(dup[0].nodes).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+
+  it('two nodes at one place stay the pair the sentence is written for, and two such places are two issues', () => {
+    const one = analyseSafely(moveTo(defaultTruss(), [2, 3], 8, 0));
+    expect(one.issues.filter((i) => i.code === 'duplicate-node').map((i) => i.nodes)).toEqual([[2, 3]]);
+    const two = analyseSafely(moveTo(moveTo(defaultTruss(), [2, 3], 8, 0), [7, 8], 8, 8));
+    const groups = two.issues.filter((i) => i.code === 'duplicate-node' || i.code === 'duplicate-nodes').map((i) => i.nodes);
+    expect(groups).toEqual([[2, 3], [7, 8]]);
+  });
+
+  it('a node a hundred quintillion feet away does not make two nodes 8 ft apart "the same place"', () => {
+    const f = defaultTruss();
+    const far = moveTo(f, [10], 1e20, 8);
+    const a = analyseSafely(far);
+    expect(a.results).toBeNull();
+    const codes = a.issues.map((i) => i.code);
+    expect(codes).not.toContain('duplicate-node');
+    expect(codes).toContain('scale');
+    const scale = a.issues.find((i) => i.code === 'scale')!;
+    expect(scale.size).toBeGreaterThan(1e19);
+    expect(scale.distance).toBeGreaterThan(0);
+    expect(scale.distance).toBeLessThan(1e10);
+    expect(scale.nodes!.length).toBe(2);
+  });
+});
+
+describe('truss analysis: a section comes back as it was typed (A11)', () => {
+  it('1000 mm² and 200 GPa are exactly 1000 and 200 in the results, and so are 8.8701 in² and 29,000 ksi', () => {
+    const si = convertTruss(defaultTruss(), 'si');
+    const form = reduceTruss(reduceTruss(si, { type: 'section', patch: { A: 1000 } }), { type: 'patch', list: 'members', id: si.members[0].id, patch: { A: 1000, E: 200 } });
+    const r = results(analyseSafely(form));
+    expect(r.members[0].A).toBe(1000);
+    expect(r.members[0].E).toBe(200);
+    expect(r.members[1].A).toBe(1000);
+    const us = reduceTruss(defaultTruss(), { type: 'section', patch: { A: 8.8701 } });
+    expect(results(analyseSafely(us)).members.map((m) => m.A)).toEqual(Array(17).fill(8.8701));
   });
 });

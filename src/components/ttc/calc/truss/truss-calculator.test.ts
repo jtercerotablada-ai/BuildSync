@@ -15,19 +15,19 @@ import { continuousUi } from '@/lib/calc/continuous/strings';
 import { shaftPage } from '@/lib/calc/shaft/page-strings';
 import { shaftUi } from '@/lib/calc/shaft/strings';
 import { analyseSafely } from '@/lib/calc/truss/analysis';
-import { MAX_NODES, TRUSS_KEY, convertTruss, decodeTruss, defaultTruss, emptyTruss, encodeTruss, reduceTruss, type MemberRow, type NodeRow, type TrussForm } from '@/lib/calc/truss/model';
+import { MAX_NODES, TRUSS_KEY, convertTruss, decodeTruss, defaultTruss, emptyTruss, encodeTruss, reduceTruss, type MemberRow, type NodeRow, type TrussAction, type TrussForm } from '@/lib/calc/truss/model';
 import { sharedWords, trussUi } from '@/lib/calc/truss/strings';
 import { TEMPLATE_IDS, type TemplateId } from '@/lib/calc/truss/templates';
 import { calculatorFamilies } from '@/lib/ttc/calculators';
 import type { Lang } from '@/lib/ttc/i18n';
 import { TrussCalculator } from './TrussCalculator';
-import { issueSentence, sortMembers } from './text';
+import { focusAddedRow, formToSolve, issueSentence, keepsMarks, leaveBehind, openWhole, sortMembers } from './text';
 
 // A turn of the event loop between two tests: every test here solves a truss or several, and never waits.
 afterEach(() => new Promise<void>((done) => setTimeout(done, 0)));
 
 /**
- * THE TRUSS CALCULATOR — the tool of /resources/truss, as the server sends it:
+ * THE TRUSS CALCULATOR — the tool of /resources/truss-member-forces, as the server sends it:
  * what a visitor sees before the script arrives, or without it.
  *
  * The arithmetic is held where it is done (lib/calc/truss: engine, model,
@@ -110,6 +110,9 @@ const nodeIds = base.nodes.map((n) => n.id);
 const withMember = (f: TrussForm, k: number, patch: Partial<MemberRow>): TrussForm => ({ ...f, members: f.members.map((m, i) => (i === k ? { ...m, ...patch } : m)) });
 const withNode = (f: TrussForm, k: number, patch: Partial<NodeRow>): TrussForm => ({ ...f, nodes: f.nodes.map((n, i) => (i === k ? { ...n, ...patch } : n)) });
 
+/** The same truss with its second load changed: another truss with the geometry of the example. */
+const edited = (f: TrussForm, patch: { fx?: number; fy?: number }): TrussForm => reduceTruss(f, { type: 'patch', list: 'loads', id: f.loads[1].id, patch });
+
 /** The nodes, members, supports and loads that make up the example, kept apart: a problem is the example with one thing changed. */
 const withoutMember = (f: TrussForm, label: number): TrussForm => ({ ...f, members: f.members.filter((_, i) => i !== label - 1) });
 
@@ -126,7 +129,10 @@ const PROBLEMS: { code: string; form: () => TrussForm; en: RegExp; row?: { list:
     form: () => ({ ...base, nodes: Array.from({ length: MAX_NODES + 1 }, (_, k) => ({ id: k + 1, x: k, y: 0 })), members: [], supports: [], loads: [], nextId: 100 }),
     en: /^A truss holds 40 nodes at most, and this one has 41\.$/,
   },
-  { code: 'number', form: () => withNode(base, 1, { x: Number.NaN }), en: /^Node 2: The x coordinate needs a number the calculation can use\.$/, row: { list: 'node', name: 'Node 2' } },
+  { code: 'number', form: () => withNode(base, 1, { x: Number.NaN }), en: /^Node 2: The x coordinate needs a number the calculation can use: one that is filled in and no larger than 10\^30\.$/, row: { list: 'node', name: 'Node 2' } },
+  // Ten nodes (here three) at one place are ONE line naming them, and a truss too big for its smallest gap is not "the same place" (C9, C10).
+  { code: 'duplicate-nodes', form: () => withNode(withNode(base, 1, { x: 0, y: 0 }), 2, { x: 0, y: 0 }), en: /^Nodes 1–3 are all at the same place\. Move all but one of them, or remove them\.$/ },
+  { code: 'scale', form: () => withNode(base, 9, { x: 1e20, y: 8 }), en: /^Nodes 1 and 2 are 8 ft apart, but the truss is 1 × 10\^20 ft across, so the calculation cannot tell them apart\. Use coordinates of a similar size, or bring the far node closer\.$/ },
   { code: 'section', form: () => ({ ...base, E: -5 }), en: /^Section and material: The modulus of elasticity \(E\) must be a number above zero\.$/, row: { list: 'model' } },
   { code: 'section', form: () => withMember(base, 2, { A: 0 }), en: /^Member 3: The area \(A\) must be a number above zero\.$/, row: { list: 'member', name: 'Member 3' } },
   { code: 'member-node', form: () => withMember(base, 0, { j: 999 }), en: /^Member 1: This member joins a node that is not in the list\. Choose both of its nodes\.$/, row: { list: 'member', name: 'Member 1' } },
@@ -439,8 +445,8 @@ describe('every template', () => {
     const form = template('king-post');
     const a = analyseSafely(form);
     expect(a.results!.inspection).toEqual([{ member: 5, node: 2, rule: 'three-members' }]);
-    expect(text(cardsOf(show('en', form)).of('Members with no force'))).toContain('5 (2 – 4) Zero by inspection: at node 2 three members meet, two of them along one line, and no load or support acts there, so the third carries no force.');
-    expect(text(cardsOf(show('es', form)).of('Barras sin fuerza'))).toContain('5 (2 – 4) Nula por inspección: en el nudo 2 concurren tres barras, dos de ellas alineadas, y allí no actúa ninguna carga ni hay apoyo, así que la tercera no soporta fuerza.');
+    expect(text(cardsOf(show('en', form)).of('Members with no force'))).toContain('5 (2 – 4) Zero by inspection: at node 2, once the members already shown to be zero are set aside, three members remain, two of them along one line, and no load or support acts there, so the third carries no force.');
+    expect(text(cardsOf(show('es', form)).of('Barras sin fuerza'))).toContain('5 (2 – 4) Nula por inspección: en el nudo 2, al apartar las barras que ya se vio que son nulas, quedan tres barras, dos de ellas alineadas, y allí no actúa ninguna carga ni hay apoyo, así que la tercera no soporta fuerza.');
   });
 
   it('a truss with a joint of two members, not on a line, and nothing else says so in both languages', () => {
@@ -457,8 +463,8 @@ describe('every template', () => {
     const a = analyseSafely(form);
     const two = a.results?.inspection.filter((z) => z.rule === 'two-members') ?? [];
     expect(two.map((z) => z.node)).toEqual([4, 4]);
-    expect(text(cardsOf(show('en', form)).of('Members with no force'))).toContain('Zero by inspection: at node 4 only two members meet, not along one line, and no load or support acts there, so both carry no force.');
-    expect(text(cardsOf(show('es', form)).of('Barras sin fuerza'))).toContain('Nula por inspección: en el nudo 4 concurren solo dos barras, no alineadas, y allí no actúa ninguna carga ni hay apoyo, así que ninguna de las dos soporta fuerza.');
+    expect(text(cardsOf(show('en', form)).of('Members with no force'))).toContain('Zero by inspection: at node 4, once the members already shown to be zero are set aside, only two members remain, not along one line, and no load or support acts there, so both carry no force.');
+    expect(text(cardsOf(show('es', form)).of('Barras sin fuerza'))).toContain('Nula por inspección: en el nudo 4, al apartar las barras que ya se vio que son nulas, quedan solo dos barras, no alineadas, y allí no actúa ninguna carga ni hay apoyo, así que ninguna de las dos soporta fuerza.');
   });
 
   it('a truss pinned at both ends is indeterminate, says so with its degree and why, and warns of unequal sections', () => {
@@ -608,7 +614,9 @@ describe('every problem, on its row and in the box', () => {
   it('says every problem once, even when two rows have it', () => {
     const form = { ...base, nodes: base.nodes.map((n, k) => (k === 1 || k === 2 ? { ...n, x: Number.NaN } : n)) };
     const box = issueList(show('en', form));
-    expect(box).toEqual(['Node 2: The x coordinate needs a number the calculation can use.', 'Node 3: The x coordinate needs a number the calculation can use.']);
+    const sentence = trussUi.en.issues.number.replace('{field}', trussUi.en.fields.x);
+    expect(sentence).toMatch(/^The x coordinate needs a number the calculation can use/);
+    expect(box).toEqual([`Node 2: ${sentence}`, `Node 3: ${sentence}`]);
   });
 });
 
@@ -633,7 +641,8 @@ describe('every code has a sentence, with its numbers', () => {
     ['few-supports', { count: 2 }, { en: /give 2 reaction components/, es: /dan 2 componentes de reacción/ }],
     ['mechanism', { nodes: [3, 4] }, { en: /nodes 3 and 4 can move/, es: /en los nudos 3 y 4\./ }],
     ['unrestrained', { count: 2 }, { en: /in 2 ways/, es: /de 2 maneras/ }],
-    ['ill-conditioned', {}, { en: /factor of a trillion/, es: /billón/ }],
+    ['ill-conditioned', {}, { en: /factor of a billion or more/, es: /mil millones o más/ }],
+    ['duplicate-nodes', { nodes: [2, 3, 4, 9] }, { en: /Nodes 2–4 and 9 are all at the same place/, es: /nudos 2–4 y 9 están todos en el mismo lugar/ }],
     ['size', {}, { en: /beyond the range/, es: /fuera del rango/ }],
     ['stopped', {}, { en: /calculation stop/, es: /se detuvo/ }],
   ];
@@ -658,25 +667,25 @@ describe('every code has a sentence, with its numbers', () => {
 describe('what the form says of what it just did', () => {
   it('says a deleted node, the members, supports and loads that went with it, and that the rest were renumbered', () => {
     const form = reduceTruss(base, { type: 'remove', list: 'nodes', id: 7 });
-    expect(form.notice).toMatchObject({ code: 'node-removed', node: 7, supports: 0, loads: 1, renumbered: true });
+    expect(form.notice).toMatchObject({ code: 'node-removed', node: 7, supports: 0, loads: 1, renumbered: true, membersRenumbered: true });
     const html = show('en', form);
     const nodes = groupsOf(html)[1].html;
     expect((form.notice as { members: number[] }).members).toEqual([5, 6, 10, 15]);
-    expect(text(nodes.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('Node 7 removed. Members 5, 6, 10 and 15 went with it. 1 load went with it. The nodes after it move up one number.');
+    expect(text(nodes.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('Node 7 removed. Members 5, 6, 10 and 15 (numbered as before) went with it. 1 load went with it. The nodes after it move up one number. The members that stay are renumbered too.');
     expect(itemsOf(nodes)).toHaveLength(9);
     const es = text(groupsOf(show('es', form))[1].html.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1]);
-    expect(es).toBe('Se quitó el nudo 7. Con él se fueron las barras 5, 6, 10 y 15. Con él se fue 1 carga. Los nudos siguientes suben un número.');
+    expect(es).toBe('Se quitó el nudo 7. Con él se fueron las barras 5, 6, 10 y 15 (con la numeración de antes). Con él se fue 1 carga. Los nudos siguientes suben un número. Las barras que quedan también cambian de número.');
   });
 
   it('says nothing about renumbering when the last node goes, and a single member in the singular', () => {
     const t = template('triangle');
     const form = reduceTruss(t, { type: 'remove', list: 'nodes', id: t.nodes[2].id });
     const html = show('en', form);
-    const note = text(html.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1]);
-    expect(note).toBe('Node 3 removed. Members 2 and 3 went with it. 1 load went with it.');
+    const note = text(groupsOf(html)[1].html.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1]);
+    expect(note).toBe('Node 3 removed. Members 2 and 3 (numbered as before) went with it. 1 load went with it.');
     const endOnly = reduceTruss(reduceTruss(emptyTruss(), { type: 'add', list: 'nodes' }), { type: 'add', list: 'nodes' });
     const last = reduceTruss(endOnly, { type: 'remove', list: 'nodes', id: endOnly.nodes[1].id });
-    expect(text(show('en', last).match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('Node 2 removed.');
+    expect(text(groupsOf(show('en', last))[1].html.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('Node 2 removed.');
   });
 
   it('says a list is full, under its add button, which then does nothing', () => {
@@ -689,8 +698,8 @@ describe('what the form says of what it just did', () => {
       expect(nodes).toMatch(/<button type="button" class="mp-app__add" aria-disabled="true" aria-describedby="[^"]+">/);
     }
     expect(text(groupsOf(show('es', full))[1].html)).toContain('Una cercha admite 40 nudos como máximo.');
-    // A list with room has no such line and a plain button.
-    expect(groupsOf(show('en'))[1].html).not.toContain('mp-truss__limit');
+    // A list with room has a plain button, and its line is on the page with nothing in it (a screen reader hears it arrive).
+    expect(text(groupsOf(show('en'))[1].html.match(/<p class="mp-truss__limit"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('');
     expect(groupsOf(show('en'))[1].html).toContain('<button type="button" class="mp-app__add"><span');
   });
 
@@ -706,7 +715,8 @@ describe('what the form says of what it just did', () => {
   });
 
   it('says nothing when a template was built as asked', () => {
-    expect(groupsOf(show('en', reduceTruss(base, { type: 'template', template: 'howe' })))[0].html).not.toContain('mp-truss__notice');
+    const quiet = groupsOf(show('en', reduceTruss(base, { type: 'template', template: 'howe' })))[0].html;
+    expect(text(quiet.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('');
   });
 });
 
@@ -812,25 +822,45 @@ describe('the address, at component level', () => {
     expect(source).toMatch(/blank: defaultTruss,/);
   });
 
-  it('leaves the field with the focus FIRST when a case arrives, then loads it, whole', () => {
-    const open = source.slice(source.indexOf('open: (found) =>'), source.indexOf('const { linkError }'));
-    expect(open.indexOf('focused.blur()')).toBeGreaterThan(-1);
-    expect(open.indexOf('focused.blur()')).toBeLessThan(open.indexOf("dispatch({ type: 'load', form: found })"));
-    expect(open).toContain('root.current?.contains(focused)');
-    expect(open).toContain('setWhole(found)');
+  it('leaves the field with the focus FIRST when a case arrives, then loads it, whole, and puts the template group back', () => {
+    const calls: string[] = [];
+    const found = defaultTruss();
+    openWhole(found, { blur: () => calls.push('blur'), load: (f) => calls.push(f === found ? 'load' : 'load?'), remember: (f) => calls.push(f === found ? 'remember' : 'remember?'), template: () => calls.push('template') });
+    expect(calls).toEqual(['blur', 'load', 'remember', 'template']);
   });
 
-  it('solves a case opened whole in the render that shows it, and defers only the typing of numbers', () => {
-    expect(source).toContain('const behind = useDeferredValue(form);');
-    expect(source).toMatch(/const solved = onPaper \|\| form === whole \|\| choicesOf\(behind\) !== choicesOf\(form\) \? form : behind;/);
-    // The ids by which a member names its nodes are choices, not typed numbers.
-    expect(source).toContain("const IDENTIFIERS = new Set(['id', 'i', 'j', 'node', 'nextId']);");
+  it('solves a case opened whole in the render that shows it, and defers only the typing of numbers (B1)', () => {
+    const behind = defaultTruss();
+    // A truss opened whole: the reducer hands back the very form it was given, and the page remembers that form.
+    const shared = reduceTruss(behind, { type: 'load', form: edited(behind, { fy: -12 }) });
+    expect(formToSolve({ form: shared, behind, whole: shared, onPaper: false })).toBe(shared);
+    // The same geometry with other loads, opened from a link, is NOT the stale form (it was, while 'load' made a copy).
+    expect(formToSolve({ form: shared, behind, whole: shared, onPaper: false })).not.toBe(behind);
+    // Typing a number into it afterwards is another form: the answer stays one render behind.
+    const typed = reduceTruss(shared, { type: 'patch', list: 'loads', id: shared.loads[1].id, patch: { fy: -13 } });
+    expect(typed).not.toBe(shared);
+    expect(formToSolve({ form: typed, behind: shared, whole: shared, onPaper: false })).toBe(shared);
+    // Anything but a number is solved in the render that shows it: units, a row added, a member moved to another node.
+    for (const action of [{ type: 'units', units: 'si' }, { type: 'add', list: 'nodes' }, { type: 'patch', list: 'members', id: shared.members[0].id, patch: { j: shared.nodes[3].id } }] as TrussAction[]) {
+      const next = reduceTruss(shared, action);
+      expect(formToSolve({ form: next, behind: shared, whole: null, onPaper: false }), action.type).toBe(next);
+    }
+    // On paper it is the form itself.
+    expect(formToSolve({ form: typed, behind: shared, whole: null, onPaper: true })).toBe(typed);
   });
 
-  it('brings the address to the truss on screen before copying, and before Start over throws one away', () => {
-    expect(source).toMatch(/address\.take\(encodeTruss\(form\)\);\s*return address\.link\(encodeTruss\(form\)\);/);
-    expect(source).toContain('window.history.pushState');
-    expect(source).toContain('setWhole(example)');
+  it('brings the address to the truss on screen before Start over or a template throws one away, and only for one worth keeping', () => {
+    const example = encodeTruss(defaultTruss());
+    const calls: string[] = [];
+    const io = { take: (code: string) => calls.push(`take ${code === encodeTruss(typedOver) ? 'the truss on screen' : 'something else'}`), push: () => calls.push('push') };
+    const typedOver = edited(defaultTruss(), { fy: -12 });
+    expect(leaveBehind(typedOver, defaultTruss(), example, io)).toBe(true);
+    expect(calls).toEqual(['take the truss on screen', 'push']);
+    calls.length = 0;
+    // The example is one press away; nothing is left behind for it, nor for a template that changes nothing.
+    expect(leaveBehind(defaultTruss(), edited(defaultTruss(), { fy: -12 }), example, io)).toBe(false);
+    expect(leaveBehind(typedOver, typedOver, example, io)).toBe(false);
+    expect(calls).toEqual([]);
   });
 
   it('prints through the shell’s sheet, with the address that reopens the case', () => {
@@ -882,14 +912,24 @@ describe('the rules of the tool, as they stand in its source', () => {
     for (const piece of ["from '../shell/Actions'", "from '../shell/address'", "from '../shell/layout'", "from '../shell/sheet'", "from '../NumField'"]) expect(source).toContain(piece);
   });
 
-  it('hands the keyboard its focus when a row is added or removed with it, as the others do', () => {
-    expect(source).toContain('press.detail === 0');
-    expect(source).toContain('flushSync(() => dispatch({ type: \'add\', list }))');
-    expect(source).toContain('next?.focus()');
+  it('hands the keyboard its focus to a row that was added with it - and to nothing when nothing was added (B3)', () => {
+    const focused: string[] = [];
+    const row = (name: string) => ({ querySelector: () => ({ focus: () => focused.push(name) }) });
+    const set = (n: number) => ({ querySelectorAll: () => Array.from({ length: n }, (_, k) => row(`row ${k + 1}`)) });
+    // Three rows before, four after: the last is handed the focus.
+    expect(focusAddedRow(set(4), 3)).toBe(true);
+    expect(focused).toEqual(['row 4']);
+    // Three before and three after (the list did not grow): the focus stays where it was, on the button.
+    focused.length = 0;
+    expect(focusAddedRow(set(3), 3)).toBe(false);
+    expect(focusAddedRow(set(0), 0)).toBe(false);
+    expect(focusAddedRow(null, 0)).toBe(false);
+    expect(focused).toEqual([]);
   });
 
-  it('keeps the member marks off every action but a number typed, and drops them with the edit that renumbers', () => {
-    expect(source).toMatch(/action\.type !== 'patch' && action\.type !== 'section' && action\.type !== 'material'/);
+  it('keeps the member marks through a number typed, and drops them with every edit that can renumber a member', () => {
+    for (const type of ['patch', 'section', 'material']) expect(keepsMarks(type), type).toBe(true);
+    for (const type of ['load', 'units', 'template', 'add', 'remove']) expect(keepsMarks(type), type).toBe(false);
   });
 
   it('takes the template group, the switches and the order off the sheet, and holds the drawing whole on one page', () => {
@@ -905,6 +945,8 @@ describe('the rules of the tool, as they stand in its source', () => {
     expect(css).toContain('.mp-truss-fig__member--compression .mp-truss-fig__bar');
     expect(css).toMatch(/\.mp-truss-fig__core \{\s*fill: none;\s*stroke: var\(--mp-paper\);/);
     expect(css).toMatch(/\.mp-truss-fig__member--zero \.mp-truss-fig__bar \{[^}]*stroke-dasharray: 5 4;/);
+    // …and the deformed shape is neither of the other lines: its own dash-dot, so that on a grey-scale sheet it is not the zero members' dash (C8).
+    expect(css).toMatch(/\.mp-truss-fig__deformed \{[^}]*stroke-dasharray: 10 3 2 3;/);
     expect(schematic).toContain("signed(formatNumber(Math.abs(v), significant, group), v)");
   });
 
@@ -914,9 +956,23 @@ describe('the rules of the tool, as they stand in its source', () => {
     expect(single).toEqual([]);
   });
 
-  it('gives every control 44px to be pressed with', () => {
+  it('gives every control 44px to be pressed with (B12, C13): no rule of the screen sheet makes a button or a link shorter', () => {
     expect(css).toMatch(/\.mp-truss \.mp-truss__pick \{\s*min-width: 44px;\s*min-height: 44px;/);
     expect(css).toContain('grid-template-columns: minmax(0, 1fr) 44px;');
+    // The screen rules only (the sheet's own are under @media print): a pick button or a jump link with a smaller minimum is a small target.
+    const screen = css.slice(0, css.indexOf('@media print')).replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const rule of screen.match(/[^{}]+\{[^}]*\}/g)!) {
+      if (!/__pick|__jump/.test(rule)) continue;
+      for (const m of rule.matchAll(/min-height:\s*(\d+)px/g)) expect(Number(m[1]), rule.trim().slice(0, 60)).toBeGreaterThanOrEqual(44);
+    }
+    expect(css).toMatch(/\.mp-truss \.mp-truss__jump a \{[^}]*min-height: 44px;/);
+  });
+
+  it('puts the note that a zero member still braces its neighbours on paper, where the shared sheet hides the last note of the last card (B4)', () => {
+    const print = css.slice(css.indexOf('@media print'));
+    expect(print).toMatch(/\.mp-truss__tables \.mp-app__card:last-child > p:last-child \{\s*display: block !important;/);
+    // And the numbers keep their halo on paper, white, so that a '+' is not lost on a line (C4).
+    expect(print).toMatch(/\.mp-truss-fig__value[^{]*\{[^}]*stroke: #fff !important;/);
   });
 });
 
@@ -960,5 +1016,114 @@ describe('the words around the tool', () => {
       expect(Object.keys(shared.results).sort()).toEqual(['downward', 'privacy', 'reactions', 'support', 'title', 'upward']);
       expect(JSON.stringify(shared).length).toBeLessThan(JSON.stringify(beamStrings[lang].ui).length / 4);
     }
+  });
+});
+
+/* ═══ Review fixes, as the server sends the tool ═════════════════════════════ */
+
+describe('a plain sentence under the drawing, in both languages (C)', () => {
+  const sentence = (html: string) => text(html.match(/<p class="mp-truss__reading">([\s\S]*?)<\/p>/)?.[1] ?? '');
+  it('says what to read in the example, from its numbers', () => {
+    expect(sentence(show('en'))).toBe(
+      'Reading the drawing: a solid line is in tension (+) and a hollow line in compression (−), and the thicker the line, the larger its force. Largest tension: Member 14, +21.21 kip. Largest compression: Member 6, −20 kip. Reactions: Node 1: 20 kip; Node 5: 20 kip.',
+    );
+    expect(sentence(show('es'))).toBe(
+      'Cómo leer el dibujo: una línea continua está a tensión (+) y una hueca a compresión (−), y cuanto más gruesa es la línea, mayor es su fuerza. Mayor tensión: Barra 14, +21.21 kip. Mayor compresión: Barra 6, −20 kip. Reacciones: Nudo 1: 20 kip; Nudo 5: 20 kip.',
+    );
+  });
+  it('follows the truss: in SI it is in kilonewtons, with no load it says there is no force, unsolved it says so', () => {
+    expect(sentence(show('en', convertTruss(base, 'si')))).toContain('Largest tension: Member 14, +94.36 kN.');
+    const noLoad = { ...base, loads: [] };
+    expect(sentence(show('en', noLoad))).toMatch(/^Reading the drawing: no member carries a force under these loads, so every line is the thin dashed one\./);
+    expect(sentence(show('en', PROBLEMS.find((p) => p.code === 'mechanism')!.form()))).toBe(trussUi.en.results.reading.unsolved);
+    expect(sentence(show('en', emptyTruss()))).toBe('');
+  });
+});
+
+describe('links to the drawing and the results, for a phone (C3, C12)', () => {
+  const nav = (html: string) => html.match(/<nav class="mp-truss__jump" aria-label="([^"]*)">([\s\S]*?)<\/nav>/);
+  it('are at the head of the tool, name where they go, and go to ids that are in the page once', () => {
+    for (const lang of LANGS) {
+      const html = show(lang);
+      const found = nav(html)!;
+      expect(found[1]).toBe(trussUi[lang].jump.label);
+      const links = [...found[2].matchAll(/<a href="#([^"]+)">([^<]*)<\/a>/g)];
+      expect(links.map((l) => l[2])).toEqual([trussUi[lang].jump.drawing, trussUi[lang].jump.results]);
+      for (const [, id] of links) expect(html.split(`id="${id}"`), id).toHaveLength(2);
+      // The targets can take the focus, so that a keyboard lands there too.
+      for (const [, id] of links) expect(html).toMatch(new RegExp(`id="${id.replace(/[:]/g, '\\:')}"[^>]*tabindex="-1"|tabindex="-1"[^>]*id="${id.replace(/[:]/g, '\\:')}"`));
+    }
+    // It comes before the form.
+    const html = show('en');
+    expect(html.indexOf('mp-truss__jump')).toBeLessThan(html.indexOf('<form'));
+  });
+  it('offers only the drawing when there are no results to skip to', () => {
+    const html = show('en', PROBLEMS.find((p) => p.code === 'mechanism')!.form());
+    expect([...nav(html)![2].matchAll(/<a /g)]).toHaveLength(1);
+  });
+});
+
+describe('what the page says is in the page once, and in the right words (B5, B8, B10, C9, C10)', () => {
+  const ids = (html: string) => [...html.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+  it('has no id twice, with two unconnected nodes, with two pairs of nodes at one place, and with ten at one', () => {
+    const twoLoose = reduceTruss(reduceTruss(base, { type: 'add', list: 'nodes' }), { type: 'add', list: 'nodes' });
+    const pairs = withNode(withNode(withNode(withNode(base, 2, { x: 8, y: 0 }), 3, { x: 8, y: 0 }), 7, { x: 8, y: 8 }), 8, { x: 8, y: 8 });
+    const ten = { ...base, nodes: base.nodes.map((n) => ({ ...n, x: 0, y: 0 })) };
+    for (const [name, form] of [['two unconnected', twoLoose], ['two pairs', pairs], ['ten at one place', ten]] as const) {
+      for (const lang of LANGS) {
+        const all = ids(show(lang, form));
+        expect(new Set(all).size, `${name} ${lang}: ${all.filter((id, k) => all.indexOf(id) !== k).join(', ')}`).toBe(all.length);
+      }
+    }
+  });
+
+  it('says ten nodes at one place once, in the box, and gives every one of their rows the same line (not forty-five lines)', () => {
+    const ten = { ...base, nodes: base.nodes.map((n) => ({ ...n, x: 0, y: 0 })) };
+    const html = show('en', ten);
+    expect(issueList(html)).toEqual(['Nodes 1–10 are all at the same place. Move all but one of them, or remove them.']);
+    const rows = itemsOf(groupsOf(html)[1].html);
+    expect(rows.filter((r) => r.invalid)).toHaveLength(10);
+    expect([...html.matchAll(/at the same place/g)].length).toBeLessThanOrEqual(1 + 10);
+  });
+
+  it('does not call two nodes 8 ft apart "the same place" because another is 1e20 ft away', () => {
+    const html = show('en', withNode(base, 9, { x: 1e20, y: 8 }));
+    expect(issueList(html).join(' ')).not.toContain('same place');
+    expect(issueList(html)[0]).toContain('cannot tell them apart');
+  });
+
+  it('keeps a line for what has just happened on the page, empty, for every list and for the template (B10)', () => {
+    const html = show('en');
+    const lines = [...html.matchAll(/<p class="(mp-truss__notice|mp-truss__limit|mp-app__computed mp-truss__said)"[^>]*role="status"[^>]*>([\s\S]*?)<\/p>/g)];
+    // The template, the four lists, the four limits and the "loaded" line.
+    expect(lines.length).toBe(1 + 4 + 4 + 1);
+    expect(lines.every((l) => text(l[2]) === '')).toBe(true);
+  });
+
+  it('says "None." in the gender of the list, in Spanish: Ninguno for nodes and supports, Ninguna for members and loads (B8)', () => {
+    const es = groupsOf(show('es', emptyTruss()));
+    const none = (legend: string) => text(es.find((g) => g.legend === legend)!.html.match(/<p class="mp-app__none">([\s\S]*?)<\/p>/)![1]);
+    expect(none('Nudos')).toBe('Ninguno.');
+    expect(none('Barras')).toBe('Ninguna.');
+    expect(none('Apoyos')).toBe('Ninguno.');
+    expect(none('Cargas')).toBe('Ninguna.');
+    const en = groupsOf(show('en', emptyTruss()));
+    for (const g of en.filter((x) => ['Nodes', 'Members', 'Supports', 'Loads'].includes(x.legend))) expect(text(g.html.match(/<p class="mp-app__none">([\s\S]*?)<\/p>/)![1])).toBe('None.');
+  });
+
+  it('says a member was removed and the rest moved up, and an add that had nothing to add (B3, B9)', () => {
+    const removed = reduceTruss(base, { type: 'remove', list: 'members', id: base.members[3].id });
+    const members = (f: TrussForm, lang: Lang) => groupsOf(show(lang, f)).find((g) => /Members|Barras/.test(g.legend))!.html;
+    expect(text(members(removed, 'en').match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('Member 4 removed. The members after it move up one number.');
+    expect(text(members(removed, 'es').match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('Se quitó la barra 4. Las barras siguientes suben un número.');
+    // The last member goes and nothing moves: nothing is said.
+    const last = reduceTruss(base, { type: 'remove', list: 'members', id: base.members[16].id });
+    expect(text(members(last, 'en').match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('');
+    // Every node already has a support.
+    const supportsFull = reduceTruss(reduceTruss(emptyTruss(), { type: 'add', list: 'nodes' }), { type: 'add', list: 'supports' });
+    const noMore = reduceTruss(supportsFull, { type: 'add', list: 'supports' });
+    const supports = groupsOf(show('en', noMore)).find((g) => g.legend === 'Supports')!.html;
+    expect(text(supports.match(/<p class="mp-truss__notice"[^>]*>([\s\S]*?)<\/p>/)![1])).toBe('Every node already has a support, so no support was added.');
+    expect(noMore.supports).toHaveLength(1);
   });
 });

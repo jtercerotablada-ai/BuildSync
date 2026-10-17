@@ -52,8 +52,10 @@ import { MAX_MEMBERS, MAX_NODES } from './types';
  *                    compression.)
  *   howe             As the Pratt, the diagonals sloping UP towards the
  *                    centre: in the left half B(i) to T(i+1), in the right
- *                    half T(i) to B(i+1). (Diagonals in compression,
- *                    verticals in tension.)
+ *                    half T(i) to B(i+1). (Diagonals in compression; the
+ *                    verticals in tension, but for the two end ones, which
+ *                    hold the half load of the end joint and are in
+ *                    compression, and the centre one, which carries nothing.)
  *   warren-verticals Parallel chords of n panels (n ≥ 2) with a vertical at
  *                    every x, and the diagonals alternating: panel i is B(i) to
  *                    T(i+1) when i is even and T(i) to B(i+1) when it is odd.

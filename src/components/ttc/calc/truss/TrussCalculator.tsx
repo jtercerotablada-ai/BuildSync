@@ -11,6 +11,7 @@ import {
   MAX_SUPPORTS,
   TRUSS_KEY,
   TRUSS_UNITS,
+  convertTemplateInputs,
   decodeTruss,
   defaultTruss,
   encodeTruss,
@@ -33,11 +34,11 @@ import { PAPER_WIDTH, useTooTall, useWidth } from '../shell/layout';
 import { arrow } from '../shell/results';
 import { SheetStamp, useSheet } from '../shell/sheet';
 import { TrussSchematic, canDeform, forceText } from './TrussSchematic';
-import { fill, issueSentence, listOf, sortMembers, type Order } from './text';
+import { fill, focusAddedRow, formToSolve, issueSentence, keepsMarks, leaveBehind as leaveBehindWith, listOf, openWhole, sortMembers, type Order } from './text';
 import './truss.css';
 
 /**
- * TRUSS MEMBER FORCES - the calculator (/resources/truss).
+ * TRUSS MEMBER FORCES - the calculator (/resources/truss-member-forces).
  *
  * The fifth calculator of the catalogue, and the fourth one's sibling
  * (shaft/ShaftCalculator.tsx): the form on the left, the answer on the right
@@ -97,15 +98,6 @@ function caseIn(hash: string): TrussForm | null | undefined {
   return decodeTruss(text);
 }
 
-/**
- * A form but for the numbers typed into it: its units, its rows, every choice
- * made in it - and the ids by which a member names its nodes, which are numbers
- * but not typed ones: a member moved to another node is a different truss, solved
- * in the render that shows it.
- */
-const IDENTIFIERS = new Set(['id', 'i', 'j', 'node', 'nextId']);
-const choicesOf = (form: TrussForm) => JSON.stringify(form, (key, value: unknown) => (typeof value === 'number' && !IDENTIFIERS.has(key) ? 0 : value));
-
 /** A row of the form as one word: two issues are on the same row when theirs are the same. */
 const rowKey = (row: TrussRow) => (row.list === 'model' ? `model${row.field}` : `${row.list}${row.id}`);
 
@@ -144,6 +136,9 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   const [hover, setHover] = useState<number | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
   const uid = useId();
+  // Where the links at the head of the form go: the drawing, and the tables of results.
+  const drawingId = `${uid}drawing`;
+  const resultsId = `${uid}results`;
   // The calculator itself: a truss opened from the address asks whether the focus is in one of its fields.
   const root = useRef<HTMLDivElement>(null);
   const [plotRef, windowWidth] = useWidth<HTMLDivElement>();
@@ -155,7 +150,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   // another member once one before it is gone) and takes back the line "Load template" said.
   const dispatch = useCallback((action: TrussAction) => {
     setSaid('');
-    if (action.type !== 'patch' && action.type !== 'section' && action.type !== 'material') {
+    if (!keepsMarks(action.type)) {
       setPicked(null);
       setHover(null);
     }
@@ -171,16 +166,19 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
     read: caseIn,
     blank: defaultTruss,
     // A truss in the address opens as that truss.
-    open: (found) => {
+    open: (found) =>
       // An edit in progress is an edit of the truss before, and ends here. The field with the focus is left FIRST:
       // it would go on showing what was typed into that truss, and fall back on that truss's value at the first key
       // that is not a number (NumField).
-      const focused = document.activeElement;
-      if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();
-      dispatch({ type: 'load', form: found });
-      setWhole(found);
-      setTpl(templateDefaults(FIRST_TEMPLATE, found.units));
-    },
+      openWhole(found, {
+        blur: () => {
+          const focused = document.activeElement;
+          if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();
+        },
+        load: (opened) => dispatch({ type: 'load', form: opened }),
+        remember: setWhole,
+        template: (opened) => setTpl(templateDefaults(FIRST_TEMPLATE, opened.units)),
+      }),
   });
   const { linkError } = address;
   // The printed sheet gives the address that opens this very truss, and while it prints the drawing is the sheet's size.
@@ -196,7 +194,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   // as ever: the answer must never stand under other units, beside rows it was not solved for, or under a truss it
   // is not of. And on paper it is the form itself: a sheet is never printed with the answer of the truss before.
   const behind = useDeferredValue(form);
-  const solved = onPaper || form === whole || choicesOf(behind) !== choicesOf(form) ? form : behind;
+  const solved = formToSolve({ form, behind, whole, onPaper });
   const catching = solved !== form;
 
   // Everything the page prints (lib/calc/truss/analysis.ts) - through the door that never throws.
@@ -211,12 +209,12 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   const onPick = useCallback((label: number) => setPicked((p) => (p === label ? null : label)), []);
   const flagged = useMemo(() => {
     const ring = new Set<number>();
-    for (const i of a.issues) if (i.code === 'mechanism' || i.code === 'node-unconnected' || i.code === 'duplicate-node' || i.code === 'duplicate-support') for (const n of i.nodes ?? []) ring.add(n);
+    for (const i of a.issues) if (i.code === 'mechanism' || i.code === 'node-unconnected' || i.code === 'duplicate-node' || i.code === 'duplicate-nodes' || i.code === 'scale' || i.code === 'duplicate-support') for (const n of i.nodes ?? []) ring.add(n);
     return [...ring].sort((p, q) => p - q);
   }, [a]);
 
   // Every number this page prints, with the page's own mark between thousands.
-  const num = (v: number, sig = 4) => formatNumber(v, sig, group).replace(' × ', ' × ');
+  const num = (v: number, sig = 4) => formatNumber(v, sig, group);
   const signedNum = (v: number, sig = 4) => forceText(v, group, sig);
   const pointed = (v: number, plus: string, minus: string) => (
     <>
@@ -227,14 +225,14 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   /* -- The faults, by row -- */
   const listName: Record<TrussList, string> = { nodes: w.nodes.name, members: w.members.name, supports: w.supports.name, loads: w.loads.name };
   const says = (issue: AnalysisIssue, where = false): string => {
-    const text = issueSentence(issue, w);
+    const text = issueSentence(issue, w, { number: (v) => num(v, 3), unit: u.length });
     if (!where || !issue.row) return text;
     return `${issue.row.list === 'model' ? t.section.title : `${listName[issue.row.list]} ${issue.at ?? ''}`.trim()}: ${text}`;
   };
   // The faults of one row of a list: those that name it, and for a node those that name its label.
   const issuesOf = (list: TrussList, id: number): AnalysisIssue[] => {
     const label = list === 'nodes' ? solved.nodes.findIndex((n) => n.id === id) + 1 : 0;
-    return a.issues.filter((i) => (i.row && i.row.list === list && i.row.id === id) || (list === 'nodes' && (i.code === 'duplicate-node' || i.code === 'node-unconnected') && i.nodes?.includes(label)));
+    return a.issues.filter((i) => (i.row && i.row.list === list && i.row.id === id) || (list === 'nodes' && (i.code === 'duplicate-node' || i.code === 'duplicate-nodes' || i.code === 'scale' || i.code === 'node-unconnected') && i.nodes?.includes(label)));
   };
   const sectionIssues = (field: 'E' | 'A') => a.issues.filter((i) => i.row?.list === 'model' && i.row.field === field);
   const idOf = (key: string) => `${uid}${key}`;
@@ -253,7 +251,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
     ) : null;
   };
   // What the results box says, each thing once.
-  const notices = a.issues.map((i) => ({ id: i.row ? undefined : `${uid}${i.code}`, text: says(i, true) })).filter((n, i, all) => all.findIndex((m) => m.text === n.text) === i);
+  const notices = a.issues.map((i) => ({ text: says(i, true) })).filter((n, i, all) => all.findIndex((m) => m.text === n.text) === i);
 
   /* -- The rows of the form -- */
   const patch = (list: TrussList, id: number, p: Record<string, unknown>) => dispatch({ type: 'patch', list, id, patch: p });
@@ -279,9 +277,10 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
       return;
     }
     const fieldset = press.currentTarget.closest('fieldset');
+    const before = fieldset?.querySelectorAll('.mp-app__item').length ?? 0;
     flushSync(() => dispatch({ type: 'add', list }));
-    const rows = fieldset?.querySelectorAll('.mp-app__item');
-    rows?.[rows.length - 1]?.querySelector<HTMLElement>('input, select')?.focus();
+    // Only a row that was added is handed the focus. An "add" that had nothing to add leaves it on the button, and says why.
+    focusAddedRow(fieldset, before);
   };
   // A list at its limit: the button stays where it is and does nothing, and the limit is a line of the page under it.
   const limitLine = (list: TrussList) => fill(w.limit, { max: LIMITS[list], list: w.lists[list] });
@@ -293,11 +292,9 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
         <button type="button" className="mp-app__add" onClick={full ? undefined : addRow(list)} aria-disabled={full || undefined} aria-describedby={limited ? `${uid}${list}limit` : undefined}>
           <span aria-hidden="true">+</span> {label}
         </button>
-        {limited ? (
-          <p className="mp-truss__limit" id={`${uid}${list}limit`} role="status">
-            {limitLine(list)}
-          </p>
-        ) : null}
+        <p className="mp-truss__limit" id={`${uid}${list}limit`} role="status">
+          {limited ? limitLine(list) : ''}
+        </p>
       </>
     );
   };
@@ -362,11 +359,14 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
           n.supports ? fill(w.removed.supports, { count: n.supports }) : '',
           n.loads ? fill(w.removed.loads, { count: n.loads }) : '',
           n.renumbered ? w.removed.renumbered : '',
+          n.membersRenumbered ? w.removed.membersRenumbered : '',
         ]
           .filter(Boolean)
           .join(' '),
       };
     }
+    if (n.code === 'member-removed') return { where: 'members', text: fill(w.removed.member, { member: n.member }) };
+    if (n.code === 'nothing-to-add') return { where: n.list, text: w.cannotAdd[n.why] };
     if (n.code === 'template') {
       const asText = (c: Clamp, v: number | string) => {
         if (c.field === 'supports') return typeof v === 'string' && v in w.template.layouts ? w.template.layouts[v as SupportLayout] : '—';
@@ -378,13 +378,34 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
     return null;
   };
   const notice = noticeText(form.notice);
+  // A line that tells what just happened is on the page before it has anything to say, so that a screen reader hears it arrive.
+  const status = (where: TrussList | 'template', className: string) => (
+    <p className={className} role="status">
+      {notice?.where === where ? notice.text : ''}
+    </p>
+  );
 
   /* -- The template group -- */
   const spec = TEMPLATE_SPECS[tpl.template];
   const setTemplate = (template: TemplateId) => setTpl(templateDefaults(template, form.units));
+  // A truss that is about to be thrown away - by "Start over" or by "Load template" - is left one step behind in the browser's
+  // history, so that Back brings it back. The address is brought to that truss first: the entry left behind is the one on screen.
+  const leaveBehind = (next: TrussForm) =>
+    leaveBehindWith(form, next, EXAMPLE, {
+      take: address.take,
+      push: () => {
+        try {
+          window.history.pushState(window.history.state, '', window.location.href);
+        } catch {
+          /* the way back is a convenience; the calculator works without it */
+        }
+      },
+    });
   const applyTemplate = () => {
     const params = { span: tpl.span, height: tpl.height, panels: tpl.panels, load: tpl.load, supports: tpl.supports };
-    dispatch({ type: 'template', template: tpl.template, params });
+    const action: TrussAction = { type: 'template', template: tpl.template, params };
+    leaveBehind(reduceTruss(form, action));
+    dispatch(action);
     const built = buildTemplate(tpl.template, params, form.units);
     setSaid(fill(w.template.done, { template: w.template.names[tpl.template], nodes: built.nodes.length, members: built.members.length, supports: built.supports.length, loads: built.loads.length }));
   };
@@ -437,10 +458,10 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   const extreme = (e: { member: number; force: number } | null) => (e ? `${fill(w.results.memberOf, { member: e.member })}, ${signedNum(e.force)} ${ru.force}` : w.results.none);
 
   const cards = r ? (
-    <div className="mp-app__tables mp-truss__tables" aria-busy={catching ? true : undefined}>
+    <div className="mp-app__tables mp-truss__tables mp-truss__target" id={resultsId} tabIndex={-1} aria-busy={catching ? true : undefined}>
       <div className="mp-app__card mp-app__card--wide">
         <h3 className="mp-app__h">{t.results.reactions}</h3>
-        <table className="mp-app__table mp-truss__table" role="table">
+        <table className="mp-app__table mp-truss__table" role="table" aria-label={t.results.reactions}>
           <thead role="rowgroup">
             <tr role="row">
               <th scope="col" role="columnheader">
@@ -516,7 +537,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
             </select>
           </span>
         </label>
-        <table className="mp-app__table mp-truss__table mp-truss__table--members" role="table">
+        <table className="mp-app__table mp-truss__table mp-truss__table--members" role="table" aria-label={w.results.forces.title}>
           <thead role="rowgroup">
             <tr role="row">
               <th scope="col" role="columnheader">
@@ -595,7 +616,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
       {r.displacements ? (
         <div className="mp-app__card mp-app__card--wide">
           <h3 className="mp-app__h">{w.results.displacements.title}</h3>
-          <table className="mp-app__table mp-truss__table" role="table">
+          <table className="mp-app__table mp-truss__table" role="table" aria-label={w.results.displacements.title}>
             <thead role="rowgroup">
               <tr role="row">
                 <th scope="col" role="columnheader">
@@ -712,6 +733,24 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
     return parts.join(' ');
   };
   const summary = summaryOf();
+  // The one plain sentence under the drawing: what to read in it, from the same numbers.
+  const readingOf = (): string => {
+    if (solved.nodes.length === 0) return '';
+    if (!r) return w.results.reading.unsolved;
+    const reactions = r.reactions.length ? fill(w.results.drawing.reactions, { list: r.reactions.map((x) => `${w.results.reaction.node} ${x.node}: ${num(x.magnitude)} ${ru.force}`).join('; ') }) : '';
+    const largest = fill(w.results.drawing.largest, { tension: extreme(r.largest.tension), compression: extreme(r.largest.compression) });
+    const noForce = r.largest.tension === null && r.largest.compression === null;
+    return fill(noForce ? w.results.reading.zero : w.results.reading.text, { largest, reactions }).trim();
+  };
+  const reading = readingOf();
+  // A link that goes to a place on this page and leaves the address alone (a fragment would replace the truss in it).
+  const goTo = (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    e.preventDefault();
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'start' });
+  };
 
   // The box of notices.
   const box = (
@@ -721,7 +760,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
           <p className="mp-app__issues-title">{w.issuesTitle}</p>
           <ul>
             {notices.map((n) => (
-              <li key={n.text} id={n.id}>
+              <li key={n.text}>
                 {n.text}
               </li>
             ))}
@@ -739,6 +778,16 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
 
   return (
     <div className={onPaper ? 'mp-app mp-truss mp-truss--sheet' : 'mp-app mp-truss'} ref={root}>
+      <nav className="mp-truss__jump" aria-label={w.jump.label}>
+        <a href={`#${drawingId}`} onClick={goTo(drawingId)}>
+          {w.jump.drawing}
+        </a>
+        {r ? (
+          <a href={`#${resultsId}`} onClick={goTo(resultsId)}>
+            {w.jump.results}
+          </a>
+        ) : null}
+      </nav>
       <div className="mp-app__top">
         {/* -- the form -- */}
         <form className="mp-app__form" onSubmit={(e) => e.preventDefault()} noValidate>
@@ -753,8 +802,8 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
                     checked={form.units === unit}
                     onChange={() => {
                       dispatch({ type: 'units', units: unit });
-                      // A span typed in feet is not that many metres.
-                      setTpl(templateDefaults(tpl.template, unit));
+                      // A span typed in feet is that many feet in metres: the group's numbers are converted, and its shape is kept.
+                      setTpl(convertTemplateInputs(tpl, form.units, unit));
                     }}
                   />
                   <span>{w.toolbar[unit]}</span>
@@ -780,23 +829,17 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
             <button type="button" className="mp-app__btn" onClick={applyTemplate}>
               {w.template.apply}
             </button>
-            {said ? (
-              <p className="mp-app__computed mp-truss__said" role="status">
-                {said}
-              </p>
-            ) : null}
-            {notice?.where === 'template' ? (
-              <p className="mp-truss__notice" role="status">
-                {notice.text}
-              </p>
-            ) : null}
+            <p className="mp-app__computed mp-truss__said" role="status">
+              {said}
+            </p>
+            {status('template', 'mp-truss__notice')}
             <p className="mp-app__note">{w.template.note}</p>
           </fieldset>
 
           <fieldset className="mp-app__group">
             <legend>{w.nodes.title}</legend>
             <p className="mp-app__note">{w.nodes.note}</p>
-            {form.nodes.length === 0 ? <p className="mp-app__none">{t.loads.none}</p> : null}
+            {form.nodes.length === 0 ? <p className="mp-app__none">{w.empty.nodes}</p> : null}
             {form.nodes.map((n, i) =>
               item(
                 'nodes',
@@ -809,17 +852,13 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               ),
             )}
             {addButton('nodes', w.nodes.add)}
-            {notice?.where === 'nodes' ? (
-              <p className="mp-truss__notice" role="status">
-                {notice.text}
-              </p>
-            ) : null}
+            {status('nodes', 'mp-truss__notice')}
           </fieldset>
 
           <fieldset className="mp-app__group">
             <legend>{w.members.title}</legend>
             <p className="mp-app__note">{w.members.note}</p>
-            {form.members.length === 0 ? <p className="mp-app__none">{t.loads.none}</p> : null}
+            {form.members.length === 0 ? <p className="mp-app__none">{w.empty.members}</p> : null}
             {form.members.map((m, i) =>
               item(
                 'members',
@@ -852,12 +891,13 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               ),
             )}
             {addButton('members', w.members.add)}
+            {status('members', 'mp-truss__notice')}
           </fieldset>
 
           <fieldset className="mp-app__group">
             <legend>{t.supports.title}</legend>
             <p className="mp-app__note">{w.supports.note}</p>
-            {form.supports.length === 0 ? <p className="mp-app__none">{t.loads.none}</p> : null}
+            {form.supports.length === 0 ? <p className="mp-app__none">{w.empty.supports}</p> : null}
             {form.supports.map((s, i) =>
               item(
                 'supports',
@@ -873,12 +913,13 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               ),
             )}
             {addButton('supports', w.supports.add)}
+            {status('supports', 'mp-truss__notice')}
           </fieldset>
 
           <fieldset className="mp-app__group">
             <legend>{t.loads.title}</legend>
             <p className="mp-app__note">{w.loads.note}</p>
-            {form.loads.length === 0 ? <p className="mp-app__none">{t.loads.none}</p> : null}
+            {form.loads.length === 0 ? <p className="mp-app__none">{w.empty.loads}</p> : null}
             {form.loads.map((l, i) =>
               item(
                 'loads',
@@ -892,6 +933,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               ),
             )}
             {addButton('loads', w.loads.add)}
+            {status('loads', 'mp-truss__notice')}
           </fieldset>
 
           <fieldset className="mp-app__group">
@@ -944,16 +986,8 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               // example - is left one step behind in the browser's history: Back brings it back, as the page opens any
               // truss its address holds (../shell/address.ts), and Forward returns to the example. The address is brought
               // to that truss first: the entry left behind is the one on screen.
-              const thrown = encodeTruss(form);
-              if (thrown !== EXAMPLE) {
-                address.take(thrown);
-                try {
-                  window.history.pushState(window.history.state, '', window.location.href);
-                } catch {
-                  /* the way back is a convenience; the calculator works without it */
-                }
-              }
               const example = defaultTruss();
+              leaveBehind(example);
               dispatch({ type: 'load', form: example });
               setWhole(example);
               setTpl(templateDefaults(FIRST_TEMPLATE, 'us'));
@@ -1031,8 +1065,11 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               </span>
             </p>
             <Schematic
+              id={drawingId}
               drawing={a.drawing}
               width={width}
+              widen={!onPaper}
+              notes={w.results.drawingNotes}
               forces={show.forces}
               numbers={show.numbers}
               deformed={show.deformed && deformable}
@@ -1044,6 +1081,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               onPick={onPick}
               legend={w.results.legend}
             />
+            {reading ? <p className="mp-truss__reading">{reading}</p> : null}
             {show.deformed && deformable && a.drawing.deformScale !== null ? <p className="mp-app__note">{fill(w.results.scale, { scale: num(a.drawing.deformScale, 3) })}</p> : null}
             {r ? null : <p className="mp-app__need">{w.results.waiting}</p>}
           </div>
