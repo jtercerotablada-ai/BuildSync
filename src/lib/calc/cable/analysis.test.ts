@@ -171,9 +171,9 @@ describe('the modes’ other results', () => {
     expect(a.typical).toBe(true);
     const l = a.load!;
     const T = 2000 / Math.sqrt(3);
-    expect(l.legs[1].A).toBeCloseTo(0.4 * 0.25, 12);
-    expect(l.legs[1].E).toBe(13000);
-    expect(l.legs[1].elastic).toBeCloseTo((T * 120) / (0.1 * 13e6), 9);
+    expect(l.legs[1].A).toBeCloseTo(0.41 * 0.25, 12);
+    expect(l.legs[1].E).toBe(14500);
+    expect(l.legs[1].elastic).toBeCloseTo((T * 120) / (0.1025 * 14.5e6), 9);
     // The load point moves sideways as well as down, because the legs stretch differently.
     expect(l.move.linear.dx).not.toBe(0);
   });
@@ -224,7 +224,11 @@ describe('the modes’ other results', () => {
       const a = analyseCable(f);
       for (const reg of a.pull!.regimes) {
         if (reg.status !== 'pull') {
-          expect(reg.arrows.map((x) => x.id)).toEqual(['W']);
+          // Nothing the cable does is drawn - except the cable that HOLDS a block that slides by itself, and N and F where no pull is needed.
+          const ids = reg.arrows.map((x) => x.id);
+          if (reg.holdDrawn) expect(ids).toEqual(['T', 'N', 'F', 'W']);
+          else if (reg.status === 'no-pull-needed') expect(ids.includes('T')).toBe(false);
+          else expect(ids).toEqual(['W']);
           continue;
         }
         const sx = reg.arrows.reduce((s, x) => s + x.fx, 0);
@@ -486,5 +490,98 @@ describe('analyseSafely', () => {
     expect(a.issues).toEqual([{ code: 'stopped' }]);
     expect(a.units.length).toBe('ft');
     expect(a.mode).toBe('load');
+  });
+});
+
+/* ── The reviewers' findings, held at the analysis ─────────────────────── */
+
+describe('A2 — the acceleration the range error quotes is the one the field takes', () => {
+  const withAccel = (units: 'us' | 'si', accel: number) => reduceCable(exampleOf('pull', units), { type: 'pullInput', patch: { accel } });
+  it('US: |a/g| ≤ 10 is ±321.74 ft/s², not ±10 ft/s²', () => {
+    const a = analyseCable(withAccel('us', 400));
+    const i = a.issues.find((x) => x.code === 'range')!;
+    expect(i.row).toEqual({ group: 'pull', field: 'accel' });
+    expect(i.max).toBeCloseTo(321.7405, 3);
+    expect(i.min).toBeCloseTo(-321.7405, 3);
+    // The limit is the limit: 321 is taken, 322 is not.
+    expect(analyseCable(withAccel('us', 321)).issues).toEqual([]);
+    expect(analyseCable(withAccel('us', 322)).issues).toHaveLength(1);
+  });
+  it('SI: ±98.0665 m/s²', () => {
+    const i = analyseCable(withAccel('si', 150)).issues[0];
+    expect(i.max).toBeCloseTo(98.0665, 4);
+    expect(i.min).toBeCloseTo(-98.0665, 4);
+    expect(analyseCable(withAccel('si', 98)).issues).toEqual([]);
+    expect(analyseCable(withAccel('si', 99)).issues).toHaveLength(1);
+  });
+});
+
+describe('B13 / C4 — the move of a sling is never drawn smaller than it is', () => {
+  it('the exaggeration is at least 1 (a move that is already large is drawn to scale)', () => {
+    const normal = analyseCable(defaultCase()).drawing.sling!;
+    expect(normal.moveScale).toBeGreaterThan(1);
+    // A thin cable (d = 0.02 in) stretches by a large part of its length.
+    const thin = analyseCable({ ...defaultCase(), section: { ...defaultCase().section, d: 0.02 } }).drawing.sling!;
+    expect(thin.moveScale).toBe(1);
+    // A very large cooling: the contraction is far past the sling's size.
+    const cold = analyseCable({ ...defaultCase(), dT: -500000 }).drawing.sling!;
+    expect(cold.moveScale).toBe(1);
+  });
+  it('C14: cooling past the cable’s whole length is a warning, not a silent negative length', () => {
+    const a = analyseCable({ ...defaultCase(), dT: -500000 });
+    expect(a.warnings.filter((w) => w.code === 'shrinks-past-zero').map((w) => w.leg)).toEqual([1, 2]);
+    expect(analyseCable(defaultCase()).warnings).toEqual([]);
+  });
+});
+
+describe('A10 — rounding is not an imbalance', () => {
+  it('a leg almost flat (1e-7°) carries a huge tension, and the sling is still balanced', () => {
+    for (const angle of [1e-7, 1e-5, 1e-3]) {
+      let f = reduceCable(defaultCase(), { type: 'leg', leg: 1, patch: { angle } });
+      f = reduceCable(f, { type: 'leg', leg: 2, patch: { angle: 45 } });
+      const a = analyseCable(f);
+      expect(a.issues, `angle ${angle}`).toEqual([]);
+      expect(a.load!.balanced, `angle ${angle}`).toBe(true);
+    }
+  });
+});
+
+describe('C1 / C2 — the free body of a case the cable cannot pull', () => {
+  const pullForm = (p: Partial<CableForm['pull']>): CableForm => ({ ...defaultCase(), mode: 'pull', pull: { ...defaultCase().pull, ...p } });
+  const net = (r: { arrows: { fx: number; fy: number }[] }) => [r.arrows.reduce((s, x) => s + x.fx, 0), r.arrows.reduce((s, x) => s + x.fy, 0)];
+  it('a block that slides by itself is drawn with the cable that HOLDS it back, in balance with W, N and F', () => {
+    const a = analyseCable(pullForm({ theta: -30, muS: 0.3, muK: 0.2 }));
+    const run = a.pull!.regimes.find((r) => r.id === 'run')!;
+    expect(run.status).toBe('slides-on-its-own');
+    expect(run.holdDrawn).toBe(true);
+    expect(run.arrows.map((x) => x.id)).toEqual(['T', 'N', 'F', 'W']);
+    const [sx, sy] = net(run);
+    expect(Math.abs(sx)).toBeLessThan(1e-9);
+    expect(Math.abs(sy)).toBeLessThan(1e-9);
+    // The hold-back cable pulls UP the slope (against the way the block goes) at φ above the surface.
+    const T = run.arrows.find((x) => x.id === 'T')!;
+    expect(T.magnitude).toBeCloseTo(run.hold!.T, 9);
+    expect(T.dx * Math.cos(-30 * RAD) + T.dy * Math.sin(-30 * RAD)).toBeLessThan(0);
+    expect(run.travelDir.dx).toBeCloseTo(Math.cos(-30 * RAD), 12);
+  });
+  it('a case that needs no pull has N and F in balance with W, and no T', () => {
+    const a = analyseCable(pullForm({ theta: 0, muS: 0, muK: 0 }));
+    const run = a.pull!.regimes.find((r) => r.id === 'run')!;
+    expect(run.status).toBe('no-pull-needed');
+    expect(run.arrows.map((x) => x.id)).toEqual(['N', 'W']);
+    const [sx, sy] = net(run);
+    expect(Math.abs(sx) + Math.abs(sy)).toBeLessThan(1e-9);
+  });
+  it('the role of a pull comes through, and the curve’s least tension is the constrained one', () => {
+    const against = analyseCable(pullForm({ theta: 30, muS: 0.3, muK: 0.2, phi: 0, travel: 'against' })).pull!;
+    expect(against.regimes.map((r) => r.role)).toEqual(['restrain', 'restrain']);
+    expect(against.regimes[0].T).toBeCloseTo(24.0, 1);
+    const lifts = analyseCable(pullForm({ theta: 60, muS: 1, muK: 1, phi: 30 })).pull!;
+    const c = lifts.curves.find((x) => x.regime === 'run')!;
+    expect(c.optimum).toMatchObject({ atLiftOff: true });
+    expect(c.optimum!.phi).toBeCloseTo(30, 9);
+    expect(c.optimum!.T).toBeCloseTo(100, 9);
+    // And the grid's least valid tension agrees with it to the 1° of the grid.
+    expect(c.points[c.minIndex!].phi).toBe(30);
   });
 });

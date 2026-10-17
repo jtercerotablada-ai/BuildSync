@@ -10,6 +10,7 @@ import type {
   LoadWarningCode,
   PullIssueCode,
   PullRegimeId,
+  PullRole,
   PullStatus,
   PullWarningCode,
   Side,
@@ -39,10 +40,10 @@ import type {
  *                     (types.ts lists the numbers each carries.)
  *   cableIssues[]     'number' | 'range' about the CABLE (section, length, ΔT, n, allowable) in modes pull and drum:
  *                     the mode's own numbers are still there; only the cable's block is missing (`cable: null`).
- *   warnings[].code   load: 'no-load' 'no-exact-position' 'no-second-order' 'restrained-slack'(leg) 'large-strain'
+ *   warnings[].code   load: 'no-load' 'no-exact-position' 'no-second-order' 'restrained-slack'(leg) 'large-strain' 'shrinks-past-zero'(leg)
  *                     pull: 'kinetic-above-static' 'no-governing'
- *                     drum: 'no-friction' 'no-wrap'
- *   pull status       'pull' | 'slides-on-its-own' | 'stays-put' | 'self-locking' | 'leaves-surface'  (per regime, types.ts)
+ *                     drum: 'no-friction' 'no-wrap' 'beyond-limit' (unknown, max)
+ *   pull status       'pull' | 'slides-on-its-own' | 'stays-put' | 'self-locking' | 'leaves-surface' | 'cannot-hold' | 'no-pull-needed'  (per regime, types.ts)
  *   notes             'no-verdict': the calculator gives numbers; whether a cable is adequate is the engineer's.
  *                     'typical-values': the section presets are typical (always, when a rope or strand preset is in use,
  *                     see `typical`).
@@ -86,9 +87,12 @@ export interface AnalysisIssue {
 }
 
 export interface AnalysisWarning {
-  code: LoadWarningCode | PullWarningCode | 'no-friction' | 'no-wrap';
+  code: LoadWarningCode | PullWarningCode | 'no-friction' | 'no-wrap' | 'beyond-limit';
   leg?: 1 | 2;
   numbers?: number[];
+  /** 'beyond-limit': which quantity found is past what the form accepts, and the most it accepts (in the unit its field shows). */
+  unknown?: DrumUnknown;
+  max?: number;
 }
 
 /** One cable under one tension, in the units shown (types.ts, CableLine, has every formula). */
@@ -217,6 +221,8 @@ export interface SlingDrawing {
 export interface RegimeLine {
   id: PullRegimeId;
   status: PullStatus;
+  /** What a 'pull' tension does: drives the block (along), holds it back (against) or releases it (against, a cable that lifts it off its friction). Null for any other status. */
+  role: PullRole | null;
   /** The coefficient used, the acceleration over g and the acceleration in the unit shown (ft/s², m/s²; 0 for start and run). */
   mu: number;
   aOverG: number;
@@ -232,14 +238,22 @@ export interface RegimeLine {
   weightNormal: number;
   inertia: number;
   /** The best cable angle (degrees from the surface) and what happens there. */
-  optimum: { phi: number; T: number | null; N: number | null; closedForm: number; valid: boolean; status: PullStatus };
+  optimum: { phi: number; T: number | null; N: number | null; closedForm: number; valid: boolean; status: PullStatus; best: { phi: number; T: number; N: number; atLiftOff: boolean } | null };
   phiLift: number | null;
   liftTension: number | null;
   hold: { T: number; N: number } | null;
   /** The cable under this regime's tension (stress, stretch…); null without a 'pull' status or when the cable is incomplete (`cableIssues`). */
   cable: CableOut | null;
-  /** The free-body arrows (T, W, N, F and nothing else) in the drawing's frame: x right, y up, the surface at θ. W always; T, N, F only for status 'pull'. */
+  /**
+   * The free-body arrows (T, W, N, F and nothing else) in the drawing's frame: x right, y up, the surface at θ. W always; T, N, F for status
+   * 'pull'. A block that slides by itself has, in place of the cable's pull, the HOLD-BACK cable (`hold`: T, N, F on the way it is held); a case
+   * with no pull to be told ('no-pull-needed') has N and F.
+   */
   arrows: Arrow[];
+  /** True when the arrows T, N, F are those of the holding cable of `hold` and not a cable that pulls the block along. */
+  holdDrawn: boolean;
+  /** The direction of travel and the acceleration, for the drawing: the unit vector of the travel in the drawing's frame, and a (ft/s², m/s²; 0 at constant speed). */
+  travelDir: { dx: number; dy: number };
 }
 
 export interface CurveLine {
@@ -247,8 +261,8 @@ export interface CurveLine {
   points: CurvePoint[];
   /** The least valid tension on the grid, as an index into `points`; null if none. */
   minIndex: number | null;
-  /** The analytic optimum (φ = σ·atan μ, T = closed form), null when it is not a valid pull. */
-  optimum: { phi: number; T: number } | null;
+  /** The least tension the block allows (types.ts, PullBest): at φ* when the block stays down there, else at lift-off. Null when no angle pulls it. */
+  optimum: { phi: number; T: number; atLiftOff: boolean } | null;
   /** Largest valid T, and the top of a sensible plot (the larger of 3 × the least and... capped at the largest valid). Null when no point is valid. */
   maxValid: number | null;
   plotMax: number | null;
@@ -401,7 +415,7 @@ function rowOf(form: CableForm, mode: CableMode, field: string | undefined, leg?
 
 /** The bounds of a range issue in the units shown. */
 function boundsOf(form: CableForm, k: EngineScale, field: string | undefined, b: { min?: number; max?: number }): { min?: number; max?: number } {
-  const f: Record<string, number> = { W: k.force, H: k.force, mbf: k.force, length: k.length, E: k.E, alpha: k.alpha, allowable: k.stress, A: k.area };
+  const f: Record<string, number> = { W: k.force, H: k.force, mbf: k.force, length: k.length, E: k.E, alpha: k.alpha, allowable: k.stress, A: k.area, aOverG: k.accel };
   const mass = field === 'W' && form.mode === 'pull' && form.pull.massInput;
   const div = mass ? k.mass : field !== undefined ? (f[field] ?? 1) : 1;
   const wrap = field === 'beta' ? (form.drum.wrapUnit === 'deg' ? Math.PI / 180 : 2 * Math.PI) : 1;
@@ -502,7 +516,8 @@ function loadAnalysis(form: CableForm, k: EngineScale): Partial<CableAnalysis> {
         iterations: so.iterations,
       }
     : null;
-  const residual = settle(out.residual, tFloor) / k.force;
+  // The rounding of the larger tension (a leg almost flat carries a huge one) is not an imbalance either.
+  const residual = settle(out.residual, Math.max(tFloor, 1e-11 * topT)) / k.force;
   const maxStrain = Math.max(...legs.map((l) => Math.abs(l.strain)));
   const load: LoadResults = {
     legs,
@@ -522,7 +537,8 @@ function loadAnalysis(form: CableForm, k: EngineScale): Partial<CableAnalysis> {
   const sizeY = Math.max(...legs.map((l) => l.anchorY), 0);
   const side = Math.max(sizeX * 2, sizeY);
   const moveLen = lenOf(shownMove.magnitude * k.stretch);
-  const moveScale = moveLen > 0 && side > 0 ? side / 8 / moveLen : null;
+  // Never drawn smaller than it is: a move that is already an eighth of the sling or more is drawn to scale (1).
+  const moveScale = moveLen > 0 && side > 0 ? Math.max(1, side / 8 / moveLen) : null;
   const arrows = shared([...(load.applied.W !== 0 ? [arrowOf('W', 0, -load.applied.W)] : []), ...(load.applied.H !== 0 ? [arrowOf('H', load.applied.H, 0)] : [])]);
   const xs = [0, ...legs.map((l) => l.anchorX)];
   const ys = [0, ...legs.map((l) => l.anchorY)];
@@ -561,22 +577,33 @@ function pullAnalysis(form: CableForm, k: EngineScale): Partial<CableAnalysis> {
     const phi = form.pull.phi;
     const sx = cosd(th);
     const sy = sind(th);
+    const nx = -sy;
+    const ny = sx;
+    // The forces to draw. A cable that pulls the block: T along θ + φ. A block that slides by itself: the cable that HOLDS it back, pulling the
+    // other way (−s) at φ above the surface, with the normal force and the friction that go with it. A case that needs no pull: N and F alone.
+    const hold = r.status === 'slides-on-its-own' && r.hold ? r.hold : null;
+    const drawn = T !== null && N !== null ? { T, N, F: r.F === null ? 0 : settle(r.F, floor), dir: [cosd(th + phi), sind(th + phi)] as [number, number], fdir: -sigma }
+      : hold ? { T: hold.T, N: settle(hold.N, floor), F: settle(r.mu * hold.N, floor), dir: [-cosd(phi) * sx + sind(phi) * nx, -cosd(phi) * sy + sind(phi) * ny] as [number, number], fdir: -1 }
+      : r.status === 'no-pull-needed' && r.N !== null ? { T: 0, N: settle(r.N, floor), F: r.F === null ? 0 : settle(r.F, floor), dir: [0, 0] as [number, number], fdir: -sigma }
+      : null;
     const inForce = shared(
       [
-        ...(T !== null && N !== null
+        ...(drawn
           ? [
-              arrowOf('T', (T * cosd(th + phi)) / k.force, (T * sind(th + phi)) / k.force),
-              arrowOf('N', (-N * sy) / k.force, (N * sx) / k.force),
-              arrowOf('F', (-sigma * (r.F === null ? 0 : settle(r.F, floor)) * sx) / k.force, (-sigma * (r.F === null ? 0 : settle(r.F, floor)) * sy) / k.force),
+              arrowOf('T', (drawn.T * drawn.dir[0]) / k.force, (drawn.T * drawn.dir[1]) / k.force),
+              arrowOf('N', (drawn.N * nx) / k.force, (drawn.N * ny) / k.force),
+              arrowOf('F', (drawn.fdir * drawn.F * sx) / k.force, (drawn.fdir * drawn.F * sy) / k.force),
             ]
           : []),
         arrowOf('W', 0, -W),
       ].filter((a) => a.magnitude > 0 || a.id === 'W'),
     );
     const cable = T !== null && cableIssues.length === 0 ? cableOut(cableLine({ T, section, length: lengthEngine, dT: form.dT * k.dT, n: form.n, allowable: form.allowable === null ? null : form.allowable * k.stress }), k, floor / k.force) : null;
+    const best = r.optimum.best;
     return {
       id: r.id,
       status: r.status,
+      role: r.role,
       mu: r.mu,
       aOverG: r.aOverG,
       a: r.aOverG / k.accel,
@@ -589,12 +616,22 @@ function pullAnalysis(form: CableForm, k: EngineScale): Partial<CableAnalysis> {
       weightAlong: settle(r.weightAlong, floor) / k.force,
       weightNormal: settle(r.weightNormal, floor) / k.force,
       inertia: settle(r.inertia, floor) / k.force,
-      optimum: { phi: clean(r.optimum.phi), T: opt(r.optimum.T, (v) => v / k.force), N: r.optimum.N === null ? null : settle(r.optimum.N, floor) / k.force, closedForm: settle(r.optimum.closedForm, floor) / k.force, valid: r.optimum.valid, status: r.optimum.status },
+      optimum: {
+        phi: clean(r.optimum.phi),
+        T: opt(r.optimum.T, (v) => v / k.force),
+        N: r.optimum.N === null ? null : settle(r.optimum.N, floor) / k.force,
+        closedForm: settle(r.optimum.closedForm, floor) / k.force,
+        valid: r.optimum.valid,
+        status: r.optimum.status,
+        best: best ? { phi: clean(best.phi), T: best.T / k.force, N: settle(best.N, floor) / k.force, atLiftOff: best.atLiftOff } : null,
+      },
       phiLift: r.phiLift,
       liftTension: opt(r.liftTension, (v) => v / k.force),
       hold: r.hold ? { T: r.hold.T / k.force, N: settle(r.hold.N, floor) / k.force } : null,
       cable,
       arrows: inForce,
+      holdDrawn: hold !== null,
+      travelDir: { dx: clean(sigma * sx), dy: clean(sigma * sy) },
     };
   });
 
@@ -604,11 +641,12 @@ function pullAnalysis(form: CableForm, k: EngineScale): Partial<CableAnalysis> {
     const r = regimes.find((x) => x.id === c.regime) as RegimeLine;
     const least = valid.length ? Math.min(...valid) : null;
     const most = valid.length ? Math.max(...valid) : null;
+    const best = r.optimum.best;
     return {
       regime: c.regime,
       points,
       minIndex: c.minIndex,
-      optimum: r.optimum.valid && r.optimum.T !== null ? { phi: r.optimum.phi, T: r.optimum.T } : null,
+      optimum: best ? { phi: best.phi, T: best.T, atLiftOff: best.atLiftOff } : null,
       maxValid: most,
       plotMax: least === null || most === null ? null : Math.min(most, 4 * Math.max(least, 1e-300)),
     };
@@ -675,7 +713,14 @@ function drumAnalysis(form: CableForm, k: EngineScale): Partial<CableAnalysis> {
   return {
     drum,
     cableIssues,
-    warnings: out.warnings.map((w) => ({ code: w.code })),
+    warnings: out.warnings.map((w) => {
+      const unit = form.drum.wrapUnit === 'deg' ? Math.PI / 180 : 2 * Math.PI;
+      return {
+        code: w.code,
+        ...(w.field ? { unknown: w.field, numbers: [w.field === 'beta' ? out.beta / unit : out.mu] } : {}),
+        ...(w.max !== undefined ? { max: w.field === 'beta' ? w.max / unit : w.max } : {}),
+      };
+    }),
     drawing: { sling: null, drum: drawing },
   };
 }

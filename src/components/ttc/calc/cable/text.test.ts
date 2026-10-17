@@ -5,17 +5,24 @@ import { CABLE_UNITS, convertCable, defaultCase, exampleOf, reduceCable, type Ca
 import { cableUi } from '@/lib/calc/cable/strings';
 import type { Lang } from '@/lib/ttc/i18n';
 import {
+  absentKey,
   angleBetweenLegs,
+  atAngle,
   bodyReading,
   bodySummary,
   curveReading,
   curveSummary,
   drumReading,
+  curveReason,
+  drawnToScale,
   drumSummary,
+  emptyKey,
   fieldKey,
   fill,
   issueSentence,
   materialForRope,
+  regimeLabel,
+  regimeName,
   regimeSentences,
   ropeFits,
   ropeForMaterial,
@@ -23,6 +30,9 @@ import {
   signed,
   slingReading,
   slingSummary,
+  statusKey,
+  trueMinus,
+  turnWord,
   unitText,
   warningSentence,
   whereOf,
@@ -37,7 +47,8 @@ import {
  */
 
 const LANGS: Lang[] = ['en', 'es'];
-const ctxOf = (form: CableForm, lang: Lang = 'en'): Ctx => ({ form, units: CABLE_UNITS[form.units], num: (v, sig = 4) => formatNumber(v, sig, lang === 'es' ? ' ' : ',') });
+// The page's own `num`: its grouping, and a true minus in a sentence.
+const ctxOf = (form: CableForm, lang: Lang = 'en'): Ctx => ({ form, units: CABLE_UNITS[form.units], num: (v, sig = 4) => trueMinus(formatNumber(v, sig, lang === 'es' ? ' ' : ',')) });
 const noise = /NaN|undefined|Infinity|\[object|(?:^|[\s>(=])-0(?![.\d])|−0(?![.\d])|\be[+-]\d|\{[a-z|]+\}/;
 
 describe('fill', () => {
@@ -78,7 +89,9 @@ describe('a rope and its material go together', () => {
     expect(ropeFits('rope-6x36', 'rope-fibre')).toBe(true);
     expect(ropeFits('rope-6x19', 'steel')).toBe(false);
     expect(ropeFits('strand7', 'strand7')).toBe(true);
-    expect(ropeFits('locked', 'rope-spiral')).toBe(true);
+    expect(ropeFits('locked', 'rope-locked')).toBe(true);
+    expect(ropeFits('locked', 'rope-spiral')).toBe(false);
+    expect(ropeFits('spiral', 'rope-spiral')).toBe(true);
     expect(ropeFits('spiral', 'rope')).toBe(false);
   });
   it('takes a typed factor or a typed modulus as fitting anything', () => {
@@ -235,10 +248,10 @@ describe('every state of a pull has a sentence, with its numbers', () => {
     const en = regimeSentences(r, cableUi.en, ctxOf(form));
     expect(en).toHaveLength(2);
     expect(en[0]).toBe('To keep it moving: gravity along the slope beats friction, so the block moves with no pull at all.');
-    expect(en[1]).toMatch(/^A cable pulling the other way, 0° above the surface, holds it with [\d.]+ lbf \(normal force [\d.]+ lbf\)\.$/);
+    expect(en[1]).toMatch(/^A cable pulling the other way, along the surface, holds it with [\d.]+ lbf \(normal force [\d.]+ lbf\)\.$/);
     const es = regimeSentences(r, cableUi.es, ctxOf(form, 'es'));
     expect(es[0]).toMatch(/^Para mantenerlo en movimiento: la gravedad a lo largo de la pendiente vence a la fricción/);
-    expect(es[1]).toMatch(/^Un cable que tire en sentido contrario, 0° sobre la superficie, lo retiene con/);
+    expect(es[1]).toMatch(/^Un cable que tire en sentido contrario, paralelo a la superficie, lo retiene con/);
     // 100 lb: gravity along the slope is 50, friction 0.1 × 86.6 = 8.66: held with 41.34 lbf.
     expect(en[1]).toContain('holds it with 41.34 lbf');
   });
@@ -256,8 +269,9 @@ describe('every state of a pull has a sentence, with its numbers', () => {
     const form = pullForm({ theta: 0, travel: 'against', phi: 0 });
     const r = regimeOf(form);
     expect(r.status).toBe('stays-put');
-    expect(regimeSentences(r, cableUi.en, ctxOf(form))).toEqual(['To keep it moving: the block does not move this way on its own, and making it move would take a push, which a cable cannot give.']);
-    expect(regimeSentences(r, cableUi.es, ctxOf(form, 'es'))[0]).toMatch(/^Para mantenerlo en movimiento: el bloque no se mueve así por sí solo/);
+    // Against the pull, the cable is a brake: its cases are named for what a brake does (A6/B2).
+    expect(regimeSentences(r, cableUi.en, ctxOf(form))).toEqual(['To lower it at constant speed: the block does not move this way on its own, and making it move would take a push, which a cable cannot give.']);
+    expect(regimeSentences(r, cableUi.es, ctxOf(form, 'es'))[0]).toMatch(/^Para bajarlo a velocidad constante: el bloque no se mueve así por sí solo/);
   });
 
   it('self-locking: the harder the cable pulls the harder friction grips', () => {
@@ -326,7 +340,7 @@ describe('the drawings in words', () => {
   it('describes the free body with its forces, and only the weight where the cable cannot pull', () => {
     const { a, w, c } = sums(exampleOf('pull'));
     const run = a.pull!.regimes.find((r) => r.id === 'run')!;
-    expect(bodySummary(a, run, w, c)).toBe('Free body of To keep it moving. A block of weight 100 lbf on a surface inclined 0°, a cable 30° above the surface. Cable tension 37.52 lbf, normal force 81.24 lbf, friction 32.5 lbf.');
+    expect(bodySummary(a, run, w, c)).toBe('Free body, to keep it moving. A block of weight 100 lbf on a surface inclined 0°, a cable at 30° above the surface. Cable tension 37.52 lbf, normal force 81.24 lbf, friction 32.5 lbf.');
     const f = exampleOf('pull');
     const stays = sums({ ...f, pull: { ...f.pull, travel: 'against', phi: 0 } });
     expect(bodySummary(stays.a, stays.a.pull!.regimes[1], stays.w, stays.c)).toContain('The cable cannot pull the block in this case; only the weight is drawn.');
@@ -336,7 +350,7 @@ describe('the drawings in words', () => {
 
   it('describes the chart: the least tension of each curve and the chosen angle', () => {
     const { a, w, c } = sums(exampleOf('pull'));
-    expect(curveSummary(a, w, c)).toBe('Chart of cable tension against cable angle from −90° to 90°. To start it moving: least tension 44.72 lbf at 26.57°. To keep it moving: least tension 37.14 lbf at 21.8°. Your angle is 30°.');
+    expect(curveSummary(a, w, c)).toBe('Chart of cable tension against cable angle from −90° to 90°. To start it moving: least tension 44.72 lbf at 26.57°. To keep it moving: least tension 37.14 lbf at 21.8°. Your angle is 30°. At your angle: 44.8 lbf (to start it moving); 37.52 lbf (to keep it moving).');
     const es = sums(exampleOf('pull'), 'es');
     expect(curveSummary(es.a, es.w, es.c)).toMatch(/^Gráfico de la tensión del cable según su ángulo, de −90° a 90°\. Para ponerlo en movimiento: tensión mínima 44\.72 lbf con 26\.57°\./);
     const f = exampleOf('pull');
@@ -385,18 +399,18 @@ describe('the reading under each drawing', () => {
 
   it('drum: reads the capstan in plain words, whichever of the four is the unknown', () => {
     const { a, c, w } = read(drumForm({}));
-    expect(drumReading(a, w, c)).toBe('The cable is held at the holding end with 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 1,000 lbf.');
+    expect(drumReading(a, w, c)).toBe('The holding end carries 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 1,000 lbf.');
     const es = read(drumForm({}), 'es');
-    expect(drumReading(es.a, es.w, es.c)).toBe('El cable se sujeta por el extremo que sujeta con 23.05 lbf. Un envolvimiento de 2 vueltas con μ = 0.3 lo multiplica por 43.38, así que el extremo de la carga puede soportar 1 000 lbf.');
+    expect(drumReading(es.a, es.w, es.c)).toBe('El extremo de sujeción soporta 23.05 lbf. Un envolvimiento de 2 vueltas con μ = 0.3 lo multiplica por 43.38, así que el extremo de la carga puede soportar 1 000 lbf.');
     // The large tension unknown: the same relation, with the answer 999.8.
     const big = read(drumForm({ Tbig: null, Tsmall: 23.05 }));
-    expect(drumReading(big.a, big.w, big.c)).toBe('The cable is held at the holding end with 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 999.8 lbf.');
+    expect(drumReading(big.a, big.w, big.c)).toBe('The holding end carries 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 999.8 lbf.');
     // μ unknown.
     const mu = read(drumForm({ mu: null, Tsmall: 23.05 }));
     expect(drumReading(mu.a, mu.w, mu.c)).toMatch(/with μ = 0\.3 multiplies that by 43\.3\d/);
     // The wrap unknown, given in degrees: the answer is read in degrees.
     const wrap = read(drumForm({ wrap: null, Tsmall: 23.05, wrapUnit: 'deg' }));
-    expect(drumReading(wrap.a, wrap.w, wrap.c)).toMatch(/^The cable is held at the holding end with 23\.05 lbf\. A wrap of 72\d(\.\d+)?° with μ = 0\.3 multiplies that by 43\.3\d/);
+    expect(drumReading(wrap.a, wrap.w, wrap.c)).toMatch(/^The holding end carries 23\.05 lbf\. A wrap of 72\d(\.\d+)?° with μ = 0\.3 multiplies that by 43\.3\d/);
     // In turns: the turns.
     const turns = read(drumForm({ wrap: null, Tsmall: 23.05 }));
     expect(drumReading(turns.a, turns.w, turns.c)).toMatch(/A wrap of 2(\.\d+)? turns with/);
@@ -432,10 +446,10 @@ describe('the reading under each drawing', () => {
 
   it('sling: says what each leg pulls with and where the load point goes, drawn how much larger', () => {
     const { a, c, w } = read(defaultCase());
-    expect(slingReading(a, w, c, true)).toBe('The legs pull with 1,155 lbf each. When the cable stretches, the load point moves 0.1124 in down (the dashed lines show it, drawn 133 times larger).');
-    expect(slingReading(a, w, c, false)).toBe('The legs pull with 1,155 lbf each. When the cable stretches, the load point moves 0.1124 in down.');
+    expect(slingReading(a, w, c, true)).toBe('The legs pull with 1,155 lbf each. When the legs stretch, the load point moves 0.1124 in down (the dashed lines show it, drawn 133 times larger).');
+    expect(slingReading(a, w, c, false)).toBe('The legs pull with 1,155 lbf each. When the legs stretch, the load point moves 0.1124 in down.');
     const es = read(defaultCase(), 'es');
-    expect(slingReading(es.a, es.w, es.c, true)).toBe('Los ramales tiran con 1 155 lbf cada uno. Cuando el cable se alarga, el punto de carga se mueve 0.1124 in hacia abajo (las líneas discontinuas lo muestran, dibujado 133 veces mayor).');
+    expect(slingReading(es.a, es.w, es.c, true)).toBe('Los ramales tiran con 1 155 lbf cada uno. Cuando los ramales se alargan, el punto de carga se mueve 0.1124 in hacia abajo (las líneas discontinuas lo muestran, dibujado 133 veces mayor).');
   });
 
   it('sling: tells the legs apart when they differ, reads a single cable, a sideways move and a load that does not move', () => {
@@ -458,7 +472,7 @@ describe('the reading under each drawing', () => {
     const acc = read(pullForm({ accel: 3 }));
     expect(bodyReading(acc.a, acc.a.pull!.regimes[2], acc.w, acc.c)).toMatch(/^To speed the block up as asked, the cable must pull with [\d.]+ lbf at 30°/);
     const es = read(pullForm({}), 'es');
-    expect(bodyReading(es.a, es.a.pull!.regimes[0], es.w, es.c)).toBe('Para poner el bloque en movimiento, el cable debe tirar con 44.8 lbf a 30° sobre la superficie; la superficie empuja con 77.6 lbf y la fricción es de 38.8 lbf.');
+    expect(bodyReading(es.a, es.a.pull!.regimes[0], es.w, es.c)).toBe('Para poner el bloque en movimiento, el cable debe tirar con 44.8 lbf, a 30° sobre la superficie; la superficie empuja con 77.6 lbf y la fricción es de 38.8 lbf.');
     // A case the cable cannot pull is read with the sentence of its status.
     const stays = read(pullForm({ travel: 'against', theta: 0, phi: 0 }));
     expect(bodyReading(stays.a, stays.a.pull!.regimes[1], stays.w, stays.c)).toContain('does not move this way on its own');
@@ -468,7 +482,7 @@ describe('the reading under each drawing', () => {
   it('chart: says what the curves are, where the least tension is and what it takes at the chosen angle', () => {
     const { a, c, w } = read(pullForm({}));
     expect(curveReading(a, w, c)).toBe(
-      'Each curve is the cable tension needed at each cable angle to start the block moving (solid line) and to keep it moving (dashed line). The least tension, marked with a diamond, is 44.72 lbf at 26.57° (to start it moving); 37.14 lbf at 21.8° (to keep it moving). At your angle, 30°, it takes 44.8 lbf (to start it moving); 37.52 lbf (to keep it moving).',
+      'Each curve is the cable tension needed at each cable angle to start the block moving (solid line) and to keep it moving (dashed line). The least tension, marked with a diamond, is 44.72 lbf at 26.57° (to start it moving); 37.14 lbf at 21.8° (to keep it moving). At your angle, 30°, it takes 44.8 lbf (to start it moving); 37.52 lbf (to keep it moving). The block lifts off the surface at a cable angle of 90°.',
     );
     const acc = read(pullForm({ accel: 3 }));
     expect(curveReading(acc.a, acc.w, acc.c)).toMatch(/to start the block moving \(solid line\), to keep it moving \(dashed line\) and to speed it up \(dotted line\)\./);
@@ -478,5 +492,199 @@ describe('the reading under each drawing', () => {
     expect(curveReading(none.a, none.w, none.c)).toMatch(/No cable angle pulls the block in this case\.$/);
     const d = drumForm({});
     expect(curveReading(read(d).a, cableUi.en, ctxOf(d))).toBe('');
+  });
+});
+
+/* ── The reviewers' findings, held at the sentences ───────────────────── */
+
+describe('A3, A6, B2 — a block going against the pull: the cable holds it, and the words say so', () => {
+  const against = (patch: Partial<CableForm['pull']>): CableForm => {
+    const f = exampleOf('pull');
+    return { ...f, pull: { ...f.pull, travel: 'against', theta: 30, muS: 0.3, muK: 0.2, phi: 0, ...patch } };
+  };
+  const reg = (form: CableForm, id: 'start' | 'run' | 'accel' = 'start') => analyseSafely(form).pull!.regimes.find((r) => r.id === id)!;
+
+  it('the three cases are named for what a brake does, in both languages', () => {
+    const f = against({ accel: 3 });
+    const a = analyseSafely(f);
+    expect(a.pull!.regimes.map((r) => regimeLabel(r, cableUi.en, 'against'))).toEqual(['To hold it from sliding', 'To lower it at constant speed', 'To let it speed up']);
+    expect(a.pull!.regimes.map((r) => regimeLabel(r, cableUi.es, 'against'))).toEqual(['Para que no empiece a deslizar', 'Para bajarlo a velocidad constante', 'Para dejarlo acelerar']);
+    // Along the pull they are what they were.
+    expect(regimeName('start', cableUi.en, 'along')).toBe('To start it moving');
+  });
+  it('the tension is the one that HOLDS the block: less and it slides (never “to start it moving”)', () => {
+    const f = against({});
+    const a = analyseSafely(f);
+    const c = ctxOf(f);
+    const start = reg(f);
+    expect(start.role).toBe('restrain');
+    expect(regimeSentences(start, cableUi.en, c)[0]).toBe('To hold it from sliding: the cable must hold the block back with 24.02 lbf; with less it slides. The surface pushes back with 86.6 lbf and friction is 25.98 lbf.');
+    expect(bodyReading(a, start, cableUi.en, c)).toBe('To keep the block from starting to slide, the cable must hold it back with 24.02 lbf along the surface; with less it slides. The surface pushes back with 86.6 lbf and friction is 25.98 lbf.');
+    expect(bodyReading(a, reg(f, 'run'), cableUi.en, c)).toBe('To lower the block at constant speed, the cable must hold it back with 32.68 lbf along the surface; the surface pushes back with 86.6 lbf and friction is 17.32 lbf.');
+    const es = ctxOf(f, 'es');
+    expect(bodyReading(a, start, cableUi.es, es)).toBe('Para que el bloque no empiece a deslizar, el cable debe retenerlo con 24.02 lbf, paralelo a la superficie; con menos se desliza. La superficie empuja con 86.6 lbf y la fricción es de 25.98 lbf.');
+    for (const text of [bodySummary(a, start, cableUi.en, c), curveSummary(a, cableUi.en, c), curveReading(a, cableUi.en, c)]) {
+      expect(text).not.toMatch(/to start it moving|to start the block moving|pull with/);
+    }
+    // The chart says it in the chart's words too.
+    expect(curveReading(a, cableUi.en, c)).toContain('to hold the block from sliding (solid line) and to lower it at constant speed (dashed line)');
+  });
+  it('A3: a block that slides by itself that no tension at this angle can hold says so, and does not call it self-locking', () => {
+    const f = against({ muS: 0.3, muK: 0.3, phi: 80 });
+    const r = reg(f);
+    expect(r.status).toBe('cannot-hold');
+    const en = regimeSentences(r, cableUi.en, ctxOf(f))[0];
+    expect(en).toContain('no tension can hold it back');
+    expect(en).not.toMatch(/the harder the cable pulls the harder friction grips/);
+    expect(regimeSentences(r, cableUi.es, ctxOf(f, 'es'))[0]).toContain('ninguna tensión lo retiene');
+    expect(statusKey(r)).toBe('cannot');
+    expect(cableUi.en.results.statusWords[statusKey(r)]).toBe('Cannot be held');
+  });
+  it('a cable that only releases a block is named as a pull, not as a brake, and has no curve', () => {
+    const f = against({ theta: 60, muS: 2, muK: 2, phi: 40 });
+    const a = analyseSafely(f);
+    const r = a.pull!.regimes[0];
+    expect(r.role).toBe('release');
+    expect(regimeLabel(r, cableUi.en, 'against')).toBe('To start it moving');
+    expect(regimeSentences(r, cableUi.en, ctxOf(f))[0]).toMatch(/^To start it moving: at [\d.]+ lbf the cable lifts enough of the weight/);
+    expect(a.pull!.curves.every((c) => c.maxValid === null)).toBe(true);
+  });
+});
+
+describe('A5, B3 — nothing opposes the motion: no tension is needed, which is not “slides by itself”', () => {
+  it('level and frictionless: says no cable tension is needed, both ways of travel and both languages', () => {
+    const f = exampleOf('pull');
+    const level = { ...f, pull: { ...f.pull, theta: 0, muS: 0, muK: 0 } };
+    const r = analyseSafely(level).pull!.regimes[1];
+    expect(r.status).toBe('no-pull-needed');
+    expect(regimeSentences(r, cableUi.en, ctxOf(level))[0]).toMatch(/^To keep it moving: nothing opposes the motion here .* so the cable needs no tension\.$/);
+    expect(regimeSentences(r, cableUi.es, ctxOf(level, 'es'))[0]).toMatch(/^Para mantenerlo en movimiento: nada se opone al movimiento aquí/);
+    const held = { ...level, pull: { ...level.pull, travel: 'against' as const } };
+    expect(regimeSentences(analyseSafely(held).pull!.regimes[1], cableUi.en, ctxOf(held))[0]).toMatch(/nothing makes the block slide this way/);
+    for (const x of regimeSentences(r, cableUi.en, ctxOf(level))) expect(x).not.toMatch(/beats friction|slides by itself/);
+    // The drawing says what it draws.
+    const a = analyseSafely(level);
+    expect(bodySummary(a, r, cableUi.en, ctxOf(level))).toContain('No tension is needed: normal force 100 lbf, friction 0 lbf.');
+  });
+});
+
+describe('C1 — a block that slides by itself: the free body says it draws the cable that holds it back', () => {
+  it('names the hold-back cable and its forces', () => {
+    const f = exampleOf('pull');
+    const form = { ...f, pull: { ...f.pull, theta: -30, muS: 0.3, muK: 0.2 } };
+    const a = analyseSafely(form);
+    const run = a.pull!.regimes[1];
+    const text = bodySummary(a, run, cableUi.en, ctxOf(form));
+    expect(text).toContain('The block slides by itself, so the drawing shows the cable that holds it back, pulling the other way: tension 42.66 lbf');
+    expect(text).toContain('a cable at 30° above the surface');
+    expect(curveSummary(a, cableUi.en, ctxOf(form))).not.toMatch(/least tension/);
+  });
+});
+
+describe('C2 — why a chart is empty is said in words, for every status', () => {
+  it('every status that can empty a chart has its reason, in the legend and in the plot', () => {
+    for (const lang of LANGS) {
+      for (const status of ['slides-on-its-own', 'no-pull-needed', 'stays-put', 'cannot-hold', 'self-locking', 'leaves-surface', 'pull'] as const) {
+        const key = absentKey(status);
+        expect(cableUi[lang].results.curve.absent[key], `${lang} ${status}`).toBeTruthy();
+        expect(cableUi[lang].results.curve.empty[key], `${lang} ${status}`).toBeTruthy();
+      }
+    }
+    expect(emptyKey(['slides-on-its-own', 'slides-on-its-own'])).toBe('slides');
+    expect(emptyKey(['slides-on-its-own', 'stays-put'])).toBe('none');
+    expect(curveReason([{ status: 'pull' }, { status: 'stays-put' }, { status: 'stays-put' }, { status: 'leaves-surface' }])).toBe('stays-put');
+  });
+});
+
+describe('B4 — “1 turns”', () => {
+  it('a wrap that rounds to one turn is one turn, in the aria-label, the reading and the summary', () => {
+    const f = exampleOf('drum');
+    // Tbig 1000, Tsmall 151.8, μ 0.3, wrap unknown: 1.000125 turns, written “1”.
+    const form: CableForm = { ...f, drum: { ...f.drum, Tbig: 1000, Tsmall: 151.8, mu: 0.3, wrap: null } };
+    const a = analyseSafely(form);
+    expect(a.drum!.turns).not.toBe(1);
+    const c = ctxOf(form);
+    expect(c.num(a.drum!.turns)).toBe('1');
+    expect(turnWord(a.drum!.turns, cableUi.en, c.num)).toBe('turn');
+    expect(turnWord(a.drum!.turns, cableUi.es, ctxOf(form, 'es').num)).toBe('vuelta');
+    expect(drumSummary(a, cableUi.en, c)).toContain('(1 turn)');
+    expect(drumSummary(a, cableUi.en, c)).not.toContain('1 turns');
+    expect(drumReading(a, cableUi.en, c)).toContain('A wrap of 1 turn with');
+    expect(drumSummary(a, cableUi.es, ctxOf(form, 'es'))).toContain('(1 vuelta)');
+    expect(turnWord(2, cableUi.en, c.num)).toBe('turns');
+  });
+});
+
+describe('B10, C16 — a negative angle is written with a true minus and in words', () => {
+  it('“−20° above” is “at 20° below the surface”; a range reads “between −30 and 60°”', () => {
+    const c = ctxOf(defaultCase());
+    expect(atAngle(-20, cableUi.en, c.num)).toBe('at 20° below the surface');
+    expect(atAngle(30, cableUi.en, c.num)).toBe('at 30° above the surface');
+    expect(atAngle(0, cableUi.en, c.num)).toBe('along the surface');
+    expect(atAngle(-20, cableUi.es, ctxOf(defaultCase(), 'es').num)).toBe('a 20° bajo la superficie');
+    const f = exampleOf('pull');
+    const form = { ...f, pull: { ...f.pull, theta: -45 } };
+    const issue = analyseSafely(form).issues[0];
+    const line = issueSentence(issue, cableUi.en, ctxOf(form));
+    expect(line).toBe('The slope angle must be between −30 and 60°.');
+    expect(line).not.toMatch(/-\d/);
+    const below = { ...f, pull: { ...f.pull, phi: -20 } };
+    const a = analyseSafely(below);
+    expect(bodyReading(a, a.pull!.regimes[1], cableUi.en, ctxOf(below))).toContain('at 20° below the surface');
+    expect(bodySummary(a, a.pull!.regimes[1], cableUi.en, ctxOf(below))).toContain('inclined 0°, a cable at 20° below the surface');
+    const steep = { ...f, pull: { ...f.pull, theta: -25, muS: 0.1, muK: 0.1 } };
+    expect(bodySummary(analyseSafely(steep), analyseSafely(steep).pull!.regimes[1], cableUi.en, ctxOf(steep))).toContain('inclined −25°');
+  });
+});
+
+describe('A10 — a bound of zero on a power-of-ten unit is just “0”', () => {
+  it('“must be 0 or more”, not “0 10^−6/°F or more”', () => {
+    const f = defaultCase();
+    const issue: AnalysisIssue = { code: 'range', row: { group: 'section', field: 'alpha' }, min: 0 };
+    expect(issueSentence(issue, cableUi.en, ctxOf(f))).toBe('The thermal coefficient (α) must be 0 or more.');
+    expect(issueSentence(issue, cableUi.es, ctxOf(f, 'es'))).toMatch(/debe ser de 0 o más\.$/);
+  });
+});
+
+describe('B13, C14 — what is said of a move drawn to scale, and of a cable that has shrunk away', () => {
+  it('“drawn to scale” when the factor is 1, “N times larger” when it is more', () => {
+    const c = ctxOf(defaultCase());
+    expect(drawnToScale(1, c.num)).toBe(true);
+    expect(drawnToScale(1.0004, c.num)).toBe(true);
+    expect(drawnToScale(0.87, c.num)).toBe(false);
+    expect(drawnToScale(133, c.num)).toBe(false);
+    const f = defaultCase();
+    const thin = { ...f, section: { ...f.section, d: 0.02 } };
+    const a = analyseSafely(thin);
+    expect(slingReading(a, cableUi.en, ctxOf(thin), true)).toContain('(the dashed lines show it, to scale)');
+    expect(slingSummary(a, cableUi.en, ctxOf(thin), true)).toContain('the drawing shows the move to scale');
+    expect(slingReading(a, cableUi.en, ctxOf(thin), true)).not.toMatch(/times larger/);
+  });
+  it('the warning for a shrinkage past the whole length is in both languages', () => {
+    const f = defaultCase();
+    const line = warningSentence({ code: 'shrinks-past-zero', leg: 2, numbers: [-2] }, cableUi.en, ctxOf(f));
+    expect(line).toMatch(/^The fall in temperature shortens leg 2 by more than its whole length/);
+    expect(warningSentence({ code: 'shrinks-past-zero', leg: 1 }, cableUi.es, ctxOf(f, 'es'))).toMatch(/^La bajada de temperatura acorta el ramal 1/);
+    const drum = warningSentence({ code: 'beyond-limit', unknown: 'mu', numbers: [69314.7], max: 100 }, cableUi.en, ctxOf(f));
+    expect(drum).toBe('The value found for the friction coefficient, 69,310, is more than the form accepts as an entry (100): typing it back in would be refused.');
+  });
+  it('a single vertical cable is not “at 90° with the horizontal, anchored on the left”', () => {
+    const f = defaultCase();
+    const form = { ...f, load: { ...f.load, legs: 1 as const, H: 0 } };
+    const a = analyseSafely(form);
+    expect(slingSummary(a, cableUi.en, ctxOf(form), false)).toContain('One vertical cable carries 2,000 lbf.');
+    expect(slingSummary(a, cableUi.es, ctxOf(form, 'es'), false)).toMatch(/Un cable vertical soporta 2\s000 lbf\./);
+  });
+});
+
+describe('A4 — the best angle at lift-off is read as such', () => {
+  it('the chart reading and the aria-label say the least tension is at lift-off, and where it lifts', () => {
+    const f = exampleOf('pull');
+    const form = { ...f, pull: { ...f.pull, theta: 60, muS: 1, muK: 1, phi: 30 } };
+    const a = analyseSafely(form);
+    const read = curveReading(a, cableUi.en, ctxOf(form));
+    expect(read).toContain('100 lbf at 30° (to start it moving, at lift-off)');
+    expect(curveSummary(a, cableUi.en, ctxOf(form))).toContain('least tension 100 lbf at lift-off, 30°');
+    expect(curveReading(a, cableUi.es, ctxOf(form, 'es'))).toContain('al despegarse');
   });
 });

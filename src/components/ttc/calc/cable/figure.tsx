@@ -267,10 +267,11 @@ export type LegendKey =
   | 'normal'
   | 'friction'
   | 'tension'
+  | 'holdback'
+  | 'motion'
+  | 'accelArrow'
   | 'slope'
   | 'drum'
-  | 'wrap'
-  | 'resultant'
   | 'minimum'
   | 'chosen'
   | 'lift'
@@ -306,8 +307,12 @@ export function Swatch({ kind }: { kind: LegendKey }) {
         arrow('mp-cable-fig__normal')
       ) : kind === 'friction' ? (
         arrow('mp-cable-fig__friction')
-      ) : kind === 'resultant' ? (
-        arrow('mp-cable-fig__resultant')
+      ) : kind === 'holdback' ? (
+        arrow('mp-cable-fig__tension mp-cable-fig__tension--hold')
+      ) : kind === 'motion' ? (
+        arrow('mp-cable-fig__motion')
+      ) : kind === 'accelArrow' ? (
+        arrow('mp-cable-fig__motion mp-cable-fig__motion--accel')
       ) : kind === 'anchor' ? (
         <g className="mp-cable-fig__anchor">
           <line x1="5" y1="9" x2="25" y2="9" />
@@ -341,8 +346,6 @@ export function Swatch({ kind }: { kind: LegendKey }) {
         <rect className="mp-cable-fig__block" x="7" y="2" width="16" height="10" />
       ) : kind === 'drum' ? (
         <circle className="mp-cable-fig__drum" cx="15" cy="7" r="5.5" />
-      ) : kind === 'wrap' ? (
-        <path className="mp-cable-fig__wrap" d="M 6 12 A 10 10 0 0 1 24 12" />
       ) : kind === 'minimum' ? (
         <polygon className="mp-cable-fig__minimum" points="15,1.5 20,7 15,12.5 10,7" />
       ) : kind === 'chosen' ? (

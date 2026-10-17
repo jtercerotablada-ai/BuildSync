@@ -14,13 +14,15 @@ import { ArrowGlyph, Swatch, anchorOf, arcPath, arrowFrom, clean, declutter, fli
  * angle of each leg from the horizontal as an arc, and - on request - where the
  * load point ends up after the legs stretch: the position drawn with the move
  * EXAGGERATED by `moved.factor` (a stretch of a thousandth of the sling would
- * not show), the factor written on the drawing and in the page's note under it.
+ * not show; never drawn smaller than it is), the factor written in the legend and in the page's note under it.
  *
  * It is given a `SlingDrawing` (lib/calc/cable/analysis.ts) and knows nothing of
  * the form or of the engine. `slingLayout` is arithmetic from end to end - where
  * every line, arrow, arc and label goes, in pixels - and `SlingSchematic` writes
  * what it returns as SVG and adds nothing of its own, so the layout is held to
- * its rules without React (cable-schematic.test.ts).
+ * its rules without React (cable-schematic.test.ts). The exaggeration is said in the
+ * LEGEND ("drawn 8 times larger", or "drawn to scale"), not on the picture, where a
+ * note beside the dashed circle read as its label and lay across its lines.
  *
  * Tension is told by the number on the leg, not by colour or weight: every leg
  * is the same line, which is what a printed sheet keeps.
@@ -37,8 +39,6 @@ export interface SlingOptions {
   group: string;
   /** The force unit written after a size. */
   unit: string;
-  /** The words by the dashed position, with {scale} where the factor goes. */
-  scaleText: string;
   /** The tallest the drawing may be (px). */
   maxHeight?: number;
 }
@@ -67,7 +67,6 @@ export interface MovedShape {
   links: { x1: number; y1: number; x2: number; y2: number }[];
   /** From the load point to where it goes. */
   move: { x1: number; y1: number; x2: number; y2: number };
-  label: Label;
 }
 
 export interface SlingLayout {
@@ -82,6 +81,31 @@ export interface SlingLayout {
   legend: LegendKey[];
   /** Every line a label must keep clear of. */
   lines: Seg[];
+}
+
+/** The arc of a leg as short chords, for the labels to keep clear of. */
+function arcSegs(node: Pt, l: LegShape): Seg[] {
+  if (!l.arc) return [];
+  const from = l.side === 'left' ? 180 : 0;
+  const to = l.side === 'left' ? 180 - l.angle : l.angle;
+  const out: Seg[] = [];
+  const n = Math.max(2, Math.ceil(Math.abs(to - from) / 6));
+  for (let i = 0; i < n; i++) {
+    const p = polar(node, l.arc.r, from + ((to - from) * i) / n);
+    const q = polar(node, l.arc.r, from + ((to - from) * (i + 1)) / n);
+    out.push([p.x, p.y, q.x, q.y]);
+  }
+  return out;
+}
+/** The dashed circle as a 12-gon. */
+function ringSegs(c: Pt): Seg[] {
+  const out: Seg[] = [];
+  for (let i = 0; i < 12; i++) {
+    const p = polar(c, NODE_R, i * 30);
+    const q = polar(c, NODE_R, (i + 1) * 30);
+    out.push([p.x, p.y, q.x, q.y]);
+  }
+  return out;
 }
 
 export function slingLayout(d: SlingDrawing | null, o: SlingOptions): SlingLayout {
@@ -159,7 +183,6 @@ export function slingLayout(d: SlingDrawing | null, o: SlingOptions): SlingLayou
       factor,
       links: legs.map((l) => ({ x1: l.x2, y1: l.y2, x2: P.x, y2: P.y })),
       move: { x1: node.x, y1: node.y, x2: P.x, y2: P.y },
-      label: place(o.scaleText.replace('{scale}', num(factor, 3)), P.x + NODE_R + 6, P.y + 4, 'start', o.width, height),
     };
   }
 
@@ -170,8 +193,11 @@ export function slingLayout(d: SlingDrawing | null, o: SlingOptions): SlingLayou
     ...legs.flatMap((l) => l.anchor.plate.length ? [[l.anchor.plate[0].x, l.anchor.plate[0].y, l.anchor.plate[1].x, l.anchor.plate[1].y] as Seg] : []),
     ...arrows.map((a): Seg => [a.tail.x, a.tail.y, a.tip.x, a.tip.y]),
     ...(moved ? moved.links.map((k): Seg => [k.x1, k.y1, k.x2, k.y2]) : []),
+    // The angle arcs and the horizontals they are measured from, the dashed move and the dashed circle: a number is never put across them either.
+    ...legs.flatMap((l) => (l.arc ? [[l.arc.ref.x1, l.arc.ref.y1, l.arc.ref.x2, l.arc.ref.y2] as Seg, ...arcSegs(node, l)] : [])),
+    ...(moved ? [[moved.move.x1, moved.move.y1, moved.move.x2, moved.move.y2] as Seg, ...ringSegs(moved.point)] : []),
   ];
-  declutter([...arrows.map((a) => a.label), ...legs.map((l) => l.tension), ...legs.flatMap((l) => (l.arc ? [l.arc.label] : [])), ...(moved ? [moved.label] : [])], o.width, height, lines);
+  declutter([...arrows.map((a) => a.label), ...legs.map((l) => l.tension), ...legs.flatMap((l) => (l.arc ? [l.arc.label] : []))], o.width, height, lines);
 
   const legend: LegendKey[] = ['cable', 'anchor'];
   if (arrows.length) legend.push('load');
@@ -188,8 +214,8 @@ export interface SlingSchematicProps extends SlingOptions {
   legend: CableUi['results']['legend'];
 }
 
-export function SlingSchematic({ drawing, width, moved, group, unit, scaleText, maxHeight, summary, legend: words }: SlingSchematicProps) {
-  const layout = useMemo(() => slingLayout(drawing, { width, moved, group, unit, scaleText, maxHeight }), [drawing, width, moved, group, unit, scaleText, maxHeight]);
+export function SlingSchematic({ drawing, width, moved, group, unit, maxHeight, summary, legend: words }: SlingSchematicProps) {
+  const layout = useMemo(() => slingLayout(drawing, { width, moved, group, unit, maxHeight }), [drawing, width, moved, group, unit, maxHeight]);
   return (
     <figure className="mp-cable-fig">
       <svg className="mp-plot__svg mp-cable-fig__svg" role="img" aria-label={summary} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
@@ -200,9 +226,6 @@ export function SlingSchematic({ drawing, width, moved, group, unit, scaleText, 
                 <line key={k} className="mp-cable-fig__ghost" x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} />
               ))}
               <circle className="mp-cable-fig__ring" cx={layout.moved.point.x} cy={layout.moved.point.y} r={NODE_R} />
-              <text className="mp-cable-fig__value" x={layout.moved.label.x} y={layout.moved.label.y} textAnchor={layout.moved.label.anchor}>
-                {layout.moved.label.text}
-              </text>
             </g>
           ) : null}
           {layout.legs.map((l) => (

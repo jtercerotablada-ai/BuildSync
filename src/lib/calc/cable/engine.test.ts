@@ -425,6 +425,15 @@ describe('mode 1 — every code', () => {
     expect(big?.numbers?.[0]).toBeGreaterThan(0.01);
     expect(solved(sling(2000, 60, 60)).warnings).toEqual([]);
   });
+  it("warning 'shrinks-past-zero': a fall in temperature that takes more than the whole length (C14)", () => {
+    // 120 in legs, α = 6.5e-6, ΔT = −500,000 °F: the free contraction is 389.9 in, more than the cable there is.
+    const s = solved(sling(2000, 60, 60, { dT: -500000 }));
+    const w = s.warnings.filter((x) => x.code === 'shrinks-past-zero');
+    expect(w.map((x) => x.leg)).toEqual([1, 2]);
+    expect(w[0].numbers![0]).toBeLessThan(0);
+    // A fall that leaves cable (−50,000 °F: the length is 1 − 0.325 of what it was) says nothing of the kind.
+    expect(solved(sling(2000, 60, 60, { dT: -50000 })).warnings.map((x) => x.code)).not.toContain('shrinks-past-zero');
+  });
   it('validateCable reports the cable faults of the other two modes', () => {
     expect(validateCable(STEEL, 10, 0, null, null)).toEqual([]);
     expect(validateCable({ ...STEEL, A: Number.NaN }, null, 0, null, null)).toEqual([{ code: 'number', field: 'A' }]);
@@ -697,11 +706,20 @@ describe('mode 2 — every status and code', () => {
     expect(reg(s, 'run').T).toBeNull();
     expect(reg(s, 'run').hold).toBeNull();
   });
-  it("'self-locking': the harder the cable pulls the harder friction grips", () => {
-    const s = run(pull({ theta: 60, muS: 0.5, muK: 0.5, phi: 70, travel: 'against' }));
+  it("'self-locking': along the pull, the harder the cable pulls the harder friction grips", () => {
+    // A cable pressing the block into the surface at a steep angle: Den = cosφ + μ sinφ < 0 while the block would stay put.
+    const s = run(pull({ theta: 10, muS: 0.5, muK: 0.5, phi: -80 }));
     expect(reg(s, 'run').status).toBe('self-locking');
     expect(reg(s, 'run').T).toBeNull();
     expect(reg(s, 'run').rawT!).toBeLessThan(0);
+  });
+  it("'cannot-hold': against the pull, a block that slides by itself is not held by any tension at this angle (A3)", () => {
+    // θ = 60°, μ = 0.5, φ = 70° above the surface: the cable lifts the block as it pulls, so friction grips LESS as T rises.
+    const s = run(pull({ theta: 60, muS: 0.5, muK: 0.5, phi: 70, travel: 'against' }));
+    expect(reg(s, 'run').status).toBe('cannot-hold');
+    expect(reg(s, 'run').T).toBeNull();
+    expect(reg(s, 'run').rawT!).toBeLessThan(0);
+    expect(reg(s, 'run').role).toBeNull();
   });
   it("'leaves-surface': N would be negative; T and N are the formula's, the regime is refused, phiLift says where", () => {
     const s = run(pull({ theta: 45, muS: 0.2, muK: 0.2, phi: 60 }));
@@ -721,18 +739,21 @@ describe('mode 2 — every status and code', () => {
     // The optimum (11.3° above the surface) is below the lift-off angle here: valid.
     expect(r.optimum.valid).toBe(true);
   });
-  it("'pull' needs T > 0 and N ≥ 0, and a steep downward pull on a block that would slide can hold it (T > 0 with both signs negative)", () => {
-    // Along the pull, θ = −25° (down), μ = 0.1 → c < 0. Pulling steeply INTO the surface (φ = −85°) makes den < 0: T > 0, a real brake.
-    const s = run(pull({ theta: -25, muS: 0.1, muK: 0.1, phi: -85 }));
-    const r = reg(s, 'run');
-    expect(r.status).toBe('pull');
+  it('a steep pull into the surface on a block that already slides is a STOPPING tension, not a pull that starts it (A7)', () => {
+    // Along the pull, θ = −25° (down), μ = 0.1, φ = −85°: Den < 0 and c < 0. The block slides at T = 0; the formula's T = 100·... stops it.
     const core = pullCore(100, -25, 0.1, -85, 0, 1);
     expect(core.den).toBeLessThan(0);
     expect(core.c).toBeLessThan(0);
-    expect(core.status).toBe('pull');
-    expect(core.T!).toBeGreaterThan(0);
-    const b = balance(100, -25, 0.1, -85, 1);
-    expect(core.T!).toBeCloseTo(b.T, 9);
+    expect(core.rawT!).toBeGreaterThan(0);
+    expect(core.status).toBe('slides-on-its-own');
+    expect(core.T).toBeNull();
+    const s = run(pull({ theta: -25, muS: 0.1, muK: 0.1, phi: -85 }));
+    expect(reg(s, 'run').status).toBe('slides-on-its-own');
+    expect(s.governing).toBeNull();
+    // Independent: the net force along the travel at T = 0 is positive, and falls as the cable presses the block down.
+    const g = (T: number) => T * Math.cos(-85 * RAD) - 100 * Math.sin(-25 * RAD) - 0.1 * (100 * Math.cos(-25 * RAD) - T * Math.sin(-85 * RAD));
+    expect(g(0)).toBeGreaterThan(0);
+    expect(g(1000)).toBeLessThan(g(0));
   });
   it("'number' and 'range'", () => {
     const f = (i: unknown, field: string) => {
@@ -859,6 +880,14 @@ describe('mode 3 — a cable round a drum', () => {
     expect(ok({ mu: 0 }).warnings).toEqual([{ code: 'no-friction' }]);
     expect(ok({ beta: 0 }).warnings).toEqual([{ code: 'no-wrap' }]);
     expect(ok({ mu: 0 }).Tsmall).toBe(1000);
+    // A μ or a wrap that is FOUND can be past what the form accepts as an entry: it is flagged (A10).
+    const mu = ok({ Tsmall: 500, mu: null, beta: 1e-5 });
+    expect(mu.mu).toBeGreaterThan(100);
+    expect(mu.warnings).toEqual([{ code: 'beyond-limit', field: 'mu', max: 100 }]);
+    const beta = ok({ Tsmall: 999.0005, mu: 1e-6, beta: null });
+    expect(beta.beta).toBeGreaterThan(200 * Math.PI);
+    expect(beta.warnings).toEqual([{ code: 'beyond-limit', field: 'beta', max: 200 * Math.PI }]);
+    expect(ok({ Tsmall: 500, mu: null, beta: 2 }).warnings).toEqual([]);
     // A pull equal to the load: μ = 0 is the only way, and any wrap gives it: degenerate for β.
   });
   it('every code', () => {

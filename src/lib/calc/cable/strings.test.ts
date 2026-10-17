@@ -104,16 +104,19 @@ describe('a sentence for every code the library can report', () => {
   });
 
   it('has a line for every warning the library lists', () => {
-    const codes = [...unionOf(types, 'LoadWarningCode'), ...unionOf(types, 'PullWarningCode'), 'no-friction', 'no-wrap'];
+    const codes = [...unionOf(types, 'LoadWarningCode'), ...unionOf(types, 'PullWarningCode'), ...unionOf(types, 'DrumWarningCode')];
     for (const lang of LANGS) expect(Object.keys(cableUi[lang].warnings).sort()).toEqual([...codes].sort());
   });
 
   it('has a status word and a sentence for every state of a pull', () => {
     const statuses = unionOf(types, 'PullStatus');
-    expect(statuses).toEqual(['pull', 'slides-on-its-own', 'stays-put', 'self-locking', 'leaves-surface']);
+    expect(statuses).toEqual(['pull', 'slides-on-its-own', 'stays-put', 'self-locking', 'leaves-surface', 'cannot-hold', 'no-pull-needed']);
     for (const lang of LANGS) {
-      expect(Object.keys(cableUi[lang].results.statusWords).sort()).toEqual(['leaves', 'locks', 'pull', 'slides', 'stays']);
-      expect(Object.keys(cableUi[lang].results.status).sort()).toEqual(['holds', 'holdsNot', 'leaves', 'leavesAt', 'locks', 'pull', 'slides', 'stays']);
+      expect(Object.keys(cableUi[lang].results.statusWords).sort()).toEqual(['cannot', 'holds', 'leaves', 'locks', 'nopull', 'pull', 'releases', 'slides', 'stays']);
+      expect(Object.keys(cableUi[lang].results.status).sort()).toEqual(['cannot', 'holds', 'holdsNot', 'leaves', 'leavesAt', 'locks', 'nohold', 'nopull', 'pull', 'release', 'restrain', 'slides', 'stays']);
+      // Why a case has no curve: one reason for each status that can be the reason.
+      expect(Object.keys(cableUi[lang].results.curve.absent).sort()).toEqual(['cannot', 'leaves', 'locks', 'none', 'nopull', 'slides', 'stays']);
+      expect(Object.keys(cableUi[lang].results.curve.empty).sort()).toEqual(['cannot', 'leaves', 'locks', 'none', 'nopull', 'slides', 'stays']);
     }
   });
 
@@ -143,7 +146,7 @@ describe('a sentence for every code the library can report', () => {
     for (const lang of LANGS) {
       for (const [code, sentence] of Object.entries(cableUi[lang].issues)) expect(holes(sentence), `${lang} ${code}`).toEqual((needs[code] ?? []).sort());
     }
-    const warnNeeds: Record<string, string[]> = { 'restrained-slack': ['leg'], 'large-strain': ['strain'], 'kinetic-above-static': ['muK', 'muS'] };
+    const warnNeeds: Record<string, string[]> = { 'restrained-slack': ['leg'], 'large-strain': ['strain'], 'kinetic-above-static': ['muK', 'muS'], 'shrinks-past-zero': ['leg'], 'beyond-limit': ['max', 'name', 'value'] };
     for (const lang of LANGS) for (const [code, sentence] of Object.entries(cableUi[lang].warnings)) expect(holes(sentence), `${lang} ${code}`).toEqual((warnNeeds[code] ?? []).sort());
   });
 

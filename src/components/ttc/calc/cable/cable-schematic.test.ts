@@ -33,7 +33,7 @@ const deg = (rad: number) => (rad * 180) / Math.PI;
 const seen = (dx: number, dy: number) => deg(Math.atan2(-dy, dx));
 
 const slingOf = (form: CableForm) => analyseSafely(form).drawing.sling;
-const sling = (form: CableForm, width = 720, moved = true) => slingLayout(slingOf(form), { width, moved, group: ',', unit: form.forceUnit === 'large' ? 'kip' : 'lbf', scaleText: cableUi.en.results.moveTag });
+const sling = (form: CableForm, width = 720, moved = true) => slingLayout(slingOf(form), { width, moved, group: ',', unit: form.forceUnit === 'large' ? 'kip' : 'lbf' });
 const pullOf = (form: CableForm) => analyseSafely(form).pull;
 const body = (form: CableForm, id: 'start' | 'run' | 'accel' = 'run', width = 720) => {
   const p = pullOf(form);
@@ -50,14 +50,15 @@ const wordsOf = (form: CableForm) => {
     symbols: cableUi.en.drum.symbols,
     wrap: d ? fill(f.wrap, { wrap: `${num(d.betaDeg)}°` }) : '',
     turns: d && d.turns >= 1 ? fill(f.turnsLine, { n: num(d.turns) }) : '',
-    coil: d && d.turns > 1 ? fill(f.coil, { n: num(d.turns) }) : '',
+    drawn: d && d.turns > 6 ? fill(f.drawn, { n: 6 }) : '',
     taper: d ? fill(f.taper, { ratio: num(d.ratio, 3), mu: num(d.mu, 3) }) : '',
+    noWrap: d && d.betaDeg === 0 ? f.noWrap : '',
   };
 };
 const drum = (form: CableForm, width = 720) => drumLayout(analyseSafely(form).drawing.drum, { width, group: ',', unit: 'lbf', words: wordsOf(form) });
 const curves = (form: CableForm, width = 720, phi = form.pull.phi) => {
   const p = pullOf(form);
-  return curveLayout(p?.curves ?? [], p?.regimes ?? [], { width, group: ',', axisX: 'φ (°)', axisY: 'T (lbf)', phi, lift: (v) => `lift-off ${v}°` });
+  return curveLayout(p?.curves ?? [], p?.regimes ?? [], { width, group: ',', axisX: 'φ (°)', axisY: 'T (lbf)', phi }, { liftLabel: (v, r) => ['lift-off', `${Math.round(v * 100) / 100}°`, ...(r ? [`(${r})`] : [])], empty: 'nothing to plot' });
 };
 
 const withLoad = (patch: Partial<CableForm['load']>): CableForm => {
@@ -83,7 +84,7 @@ function expectInside(labels: Label[], width: number, height: number, what: stri
     expect(l.y, `${what}: "${l.text}" is on the page`).toBeLessThanOrEqual(height);
   }
 }
-const labelsOfSling = (l: SlingLayout): Label[] => [...l.legs.flatMap((x) => [x.tension, ...(x.arc ? [x.arc.label] : [])]), ...l.arrows.map((a) => a.label), ...(l.moved ? [l.moved.label] : [])];
+const labelsOfSling = (l: SlingLayout): Label[] => [...l.legs.flatMap((x) => [x.tension, ...(x.arc ? [x.arc.label] : [])]), ...l.arrows.map((a) => a.label)];
 const labelsOfBody = (l: BodyLayout): Label[] => [...l.arrows.map((a) => a.label), ...(l.phiArc ? [l.phiArc.label] : []), ...(l.thetaArc ? [l.thetaArc.label] : [])];
 
 describe('the little geometry the drawings share', () => {
@@ -227,7 +228,9 @@ describe('the sling', () => {
     const m = layout.moved!;
     expect(m).not.toBeNull();
     expect(m.factor).toBe(d.moveScale);
-    expect(m.label.text).toBe(`drawn ${Math.round(d.moveScale!)} times larger`);
+    // The factor is said in the legend, never on the picture (a note beside the dashed circle read as its label), and is never below 1.
+    expect(d.moveScale!).toBeGreaterThanOrEqual(1);
+    expect(m).not.toHaveProperty('label');
     // The factor is applied to the real move: 0.1124 in down, drawn as factor × 0.1124 in = about an eighth of the sling’s larger side (10 ft).
     expect(m.point.x).toBeCloseTo(layout.node.x, 6);
     const drawn = (m.point.y - layout.node.y) / layout.scale;
@@ -265,12 +268,12 @@ describe('the sling', () => {
   });
 
   it('leaves the drawing empty, and the page says so, when the case cannot be solved', () => {
-    const bad = slingLayout(null, { width: 390, moved: true, group: ',', unit: 'lbf', scaleText: '' });
+    const bad = slingLayout(null, { width: 390, moved: true, group: ',', unit: 'lbf' });
     expect(bad).toMatchObject({ width: 390, height: 120, legs: [], arrows: [], moved: null, legend: [] });
   });
 
   it('writes the SVG with an accessible name, the legs in groups and a legend of what is drawn', () => {
-    const html = renderToStaticMarkup(h(SlingSchematic, { drawing: slingOf(defaultCase()), width: 720, moved: true, scaleText: 'drawn {scale} times larger', group: ',', unit: 'lbf', summary: 'A sling.', legend: cableUi.en.results.legend }));
+    const html = renderToStaticMarkup(h(SlingSchematic, { drawing: slingOf(defaultCase()), width: 720, moved: true, group: ',', unit: 'lbf', summary: 'A sling.', legend: cableUi.en.results.legend }));
     const svg = html.match(/<svg[^>]*>/)![0];
     expect(attr(svg, 'role')).toBe('img');
     expect(attr(svg, 'aria-label')).toBe('A sling.');
@@ -383,7 +386,7 @@ describe('the free body', () => {
           const l = body(withPull({ theta, phi, muS: 0.2, muK: 0.1 }), 'start', width);
           expect(l.width).toBe(width);
           expect(l.height).toBeGreaterThanOrEqual(230);
-          expect(l.height).toBeLessThanOrEqual(330);
+          expect(l.height).toBeLessThanOrEqual(340);
           expectInside(labelsOfBody(l), width, l.height, `θ ${theta} φ ${phi} ${width}px`);
         }
       }
@@ -405,6 +408,19 @@ describe('the free body', () => {
     expect(html.match(/<li class="mp-cable-fig__key">/g)).toHaveLength(7);
   });
 });
+
+const chartWords = {
+  regime: { start: 'To start it moving', run: 'To keep it moving', accel: 'Accelerating' },
+  minimum: 'Least tension',
+  chosen: 'Your angle',
+  lift: 'Block lifts off',
+  liftLabel: (v: number, r: string | null) => ['lift-off', `${Math.round(v * 100) / 100}°`, ...(r ? [`(${r})`] : [])],
+  empty: 'nothing to plot',
+};
+const boxOfLabels = (labels: Label[]) => {
+  const spans = labels.map((l) => ({ ...labelSpan(l), y: l.y }));
+  return { x0: Math.min(...spans.map((q) => q[0])), x1: Math.max(...spans.map((q) => q[1])), y0: Math.min(...spans.map((q) => q.y)) - 11, y1: Math.max(...spans.map((q) => q.y)) + 3 };
+};
 
 describe('the chart T(φ)', () => {
   const form = exampleOf('pull');
@@ -498,35 +514,42 @@ describe('the chart T(φ)', () => {
     expect(start.minimum!.x).toBeCloseTo(X(start.minimum!.phi), 3);
     // Lowest on the page is least tension: no point of the curve is lower than its mark.
     for (const c of layout.curves) for (const p of c.runs.flat()) expect(p.y).toBeLessThanOrEqual(c.minimum!.y + 1e-6);
-    expect(layout.legend).toContain('minimum');
+    expect(layout.legend.map((i) => i.key)).toContain('minimum');
   });
 
   it('marks the cable angle chosen, and where it meets each curve', () => {
     const X30 = layout.plot.x0 + ((30 + 90) / 180) * (layout.plot.x1 - layout.plot.x0);
-    expect(layout.chosen.x).toBeCloseTo(X30, 6);
-    expect(layout.chosen.label.text).toBe('φ = 30°');
+    expect(layout.chosen!.x).toBeCloseTo(X30, 6);
+    expect(layout.chosen!.label.text).toBe('φ = 30°');
     layout.curves.forEach((c, i) => {
       expect(c.at?.x).toBeCloseTo(X30, 6);
       expect(c.at?.T).toBe(analysis.regimes[i].T);
     });
     // Another angle, another place.
-    expect(curves(form, 720, -20).chosen.x).toBeLessThan(layout.chosen.x);
+    expect(curves(form, 720, -20).chosen!.x).toBeLessThan(layout.chosen!.x);
   });
 
   it('marks where the block would lift off', () => {
-    expect(layout.lift).toMatchObject({ phi: 90, x: layout.plot.x1 });
-    expect(layout.lift?.label.text).toBe('lift-off 90°');
-    expect(layout.legend).toContain('lift');
+    expect(layout.lifts).toHaveLength(1);
+    expect(layout.lifts[0]).toMatchObject({ phi: 90, x: layout.plot.x1 });
+    expect(layout.lifts[0].label.map((t) => t.text)).toEqual(['lift-off', '90°']);
+    expect(layout.legend.map((i) => i.key)).toContain('lift');
     // On a slope the lift-off is earlier: 90° − θ.
     const steep = curves(withPull({ theta: 30, phi: 5 }));
-    expect(steep.lift?.phi).toBeCloseTo(60, 6);
-    expect(steep.lift!.x).toBeLessThan(steep.plot.x1);
+    expect(steep.lifts[0].phi).toBeCloseTo(60, 6);
+    expect(steep.lifts[0].x).toBeLessThan(steep.plot.x1);
+    // C10: a case with an acceleration lifts off at its own angle, and has its own line (the line most cases share is named by its angle alone).
+    const accel = curves(withPull({ theta: 20, accel: 8 }));
+    expect(accel.lifts).toHaveLength(2);
+    expect(new Set(accel.lifts.map((l) => Math.round(l.phi))).size).toBe(2);
+    expect(accel.lifts.find((l) => l.regimes.length === 1)!.regimes).toEqual(['accel']);
+    expect(accel.lifts.every((l) => !hitsAny(boxOfLabels(l.label), accel.lines.filter((q) => Math.abs(q[0] - q[2]) < 1e-9 && Math.abs(q[0] - l.x) > 1e-6)))).toBe(true);
   });
 
   it('draws a third curve when the block accelerates', () => {
     const l = curves(withPull({ accel: 4 }));
     expect(l.curves.map((c) => c.regime)).toEqual(['start', 'run', 'accel']);
-    expect(l.legend.slice(0, 3)).toEqual(['start', 'run', 'accel']);
+    expect(l.legend.slice(0, 3).map((i) => i.key)).toEqual(['start', 'run', 'accel']);
     const accel = l.curves[2];
     expect(accel.minimum).not.toBeNull();
     // More tension than to keep it going at the same angle.
@@ -546,10 +569,15 @@ describe('the chart T(φ)', () => {
   it('draws the axes and no curve when no angle gives a pull', () => {
     const l = curves(withPull({ travel: 'against', theta: 0, muS: 0, muK: 0, phi: 0 }));
     expect(l.yMax).toBeNull();
-    expect(l.curves.every((c) => c.d === '' && c.minimum === null && c.at === null)).toBe(true);
+    // C2: nothing is drawn that is not there - no curve, no marks, no chosen line, no lift-off - and one sentence says why.
+    expect(l.curves).toEqual([]);
+    expect(l.chosen).toBeNull();
+    expect(l.lifts).toEqual([]);
+    expect(l.empty?.text).toBe('nothing to plot');
+    expect(l.legend.every((i) => i.absent === true && i.regime !== undefined)).toBe(true);
     expect(l.yTicks).toEqual([]);
     expect(l.xTicks).toHaveLength(7);
-    const empty = curveLayout([], [], { width: 390, group: ',', axisX: 'x', axisY: 'y', phi: 0, lift: () => '' });
+    const empty = curveLayout([], [], { width: 390, group: ',', axisX: 'x', axisY: 'y', phi: 0 }, { liftLabel: () => [''], empty: 'e' });
     expect(empty.curves).toEqual([]);
     expect(empty.height).toBeGreaterThanOrEqual(230);
   });
@@ -558,7 +586,7 @@ describe('the chart T(φ)', () => {
     for (const width of [280, 390, 720]) {
       for (const f of [form, withPull({ accel: 4 }), withPull({ theta: 30 }), withPull({ W: 5e6 })]) {
         const l = curves(f, width);
-        expectInside([l.titleX, l.chosen.label, ...(l.lift ? [l.lift.label] : [])], width, l.height, `${width}px`);
+        expectInside([l.titleX, ...(l.chosen ? [l.chosen.label] : []), ...l.lifts.flatMap((x) => x.label)], width, l.height, `${width}px`);
         expect(l.plot.x0).toBeGreaterThan(30);
         expect(l.plot.x1).toBeLessThanOrEqual(width);
         expect(l.plot.y1).toBeLessThan(l.height);
@@ -570,8 +598,7 @@ describe('the chart T(φ)', () => {
 
   it('writes the SVG with an accessible name, axes with numbers, one path for each curve, a different mark on each and a legend', () => {
     const p = analysis;
-    const legend = [{ key: 'start' as const, text: 'To start it moving' }, { key: 'run' as const, text: 'To keep it moving' }, { key: 'minimum' as const, text: 'Least tension' }];
-    const html = renderToStaticMarkup(h(PullCurve, { curves: p.curves, regimes: p.regimes, width: 720, group: ',', axisX: 'Cable angle (°)', axisY: 'Tension (lbf)', phi: 30, lift: (v: number) => `lift-off ${v}°`, summary: 'A chart.', legend }));
+    const html = renderToStaticMarkup(h(PullCurve, { curves: p.curves, regimes: p.regimes, width: 720, group: ',', axisX: 'Cable angle (°)', axisY: 'Tension (lbf)', phi: 30, summary: 'A chart.', words: chartWords }));
     const svg = html.match(/<svg[^>]*>/)![0];
     expect(attr(svg, 'role')).toBe('img');
     expect(attr(svg, 'aria-label')).toBe('A chart.');
@@ -585,7 +612,8 @@ describe('the chart T(φ)', () => {
     expect(html).toContain('<circle class="mp-cable-fig__mark"');
     expect(html).toContain('<rect class="mp-cable-fig__mark"');
     expect(html).toContain('clip-path="url(#mp-cable-clip-720)"');
-    expect(html.match(/<li class="mp-cable-fig__key">/g)).toHaveLength(3);
+    // Two cases, then the three marks that are on the chart.
+    expect(html.match(/<li class="mp-cable-fig__key">/g)).toHaveLength(5);
     expect(html).not.toMatch(/NaN|undefined|Infinity/);
   });
 
@@ -594,7 +622,7 @@ describe('the chart T(φ)', () => {
     expect(css).toMatch(/\.mp-cable-fig__curve--run \{[^}]*stroke-dasharray: 8 4;/);
     expect(css).toMatch(/\.mp-cable-fig__curve--accel \{[^}]*stroke-dasharray: 2 4;/);
     const three = pullOf(withPull({ accel: 4 }))!;
-    const html = renderToStaticMarkup(h(PullCurve, { curves: three.curves, regimes: three.regimes, width: 720, group: ',', axisX: 'x', axisY: 'y', phi: 30, lift: () => 'l', summary: 's', legend: [] }));
+    const html = renderToStaticMarkup(h(PullCurve, { curves: three.curves, regimes: three.regimes, width: 720, group: ',', axisX: 'x', axisY: 'y', phi: 30, summary: 's', words: chartWords }));
     expect(html).toContain('<circle class="mp-cable-fig__mark"');
     expect(html).toContain('<rect class="mp-cable-fig__mark"');
     expect(html).toMatch(/<polygon class="mp-cable-fig__mark"/);
@@ -697,21 +725,22 @@ describe('the drum', () => {
     expect(Math.hypot(tip.x - c.x, tip.y - c.y)).toBeLessThan(c.r);
     expect(part.dim!.d.match(/ A /g)).toHaveLength(1);
     expect(part.dim!.radials).toHaveLength(2);
-    expect(part.dim!.tag.lines).toEqual(['β = 120°']);
+    expect(part.dim!.tag!.lines).toEqual(['β = 120°']);
     // A whole turn or more is a whole circle, with its head where it began.
     const two = layout.dim!;
     expect(two.d.match(/ A /g)).toHaveLength(2);
     expect(two.radials).toHaveLength(1);
-    expect(two.tag.lines).toEqual(['β = 720°', '2 turns']);
-    expect(drum(withDrum({ wrap: 360, wrapUnit: 'deg', Tsmall: null })).dim!.tag.lines).toEqual(['β = 360°', '1 turn']);
+    expect(two.tag!.lines).toEqual(['β = 720°', '2 turns']);
+    expect(drum(withDrum({ wrap: 360, wrapUnit: 'deg', Tsmall: null })).dim!.tag!.lines).toEqual(['β = 360°', '1 turn']);
     // The words are inside the arc, round the centre.
-    expect(Math.abs(layout.dim!.tag.x - layout.drum.x)).toBeLessThan(2);
+    expect(Math.abs(layout.dim!.tag!.x - layout.drum.x)).toBeLessThan(2);
     expect(layout.dim!.r).toBeLessThan(layout.drum.r);
   });
 
   it('says on the picture that friction multiplies the tension, with the number, and names a coil', () => {
-    expect(at(layout, 'taper')!.lines.join(' ')).toBe('wrapped 2 turns friction multiplies the tension by 43.4 (= e^μβ), μ = 0.3');
-    expect(at(layout, 'taper')!.named).toBe(true);
+    expect(at(layout, 'taper')!.lines.join(' ').replace(/\s+/g, ' ')).toMatch(/^friction multiplies the tension by 43\.4 \(= e\^μβ\), μ = 0\.3$/);
+    expect(at(layout, 'taper')!.named).toBe(false);
+    expect(at(drum(withDrum({ wrap: 30, Tsmall: null }), 720), 'taper')?.lines.at(-1)).toBe('drawn as 6 turns');
     expect(at(drum(withDrum({ wrap: 120, wrapUnit: 'deg', Tsmall: null })), 'taper')!.lines.join(' ')).toBe('friction multiplies the tension by 1.87 (= e^μβ), μ = 0.3');
     expect(layout.leaders).toHaveLength(1);
   });
@@ -733,8 +762,10 @@ describe('the drum', () => {
       for (const width of [390, 720]) {
         const l = drum(form, width);
         expect(l.width).toBe(width);
-        const boxes = [...l.tags.map((t) => ({ id: t.id as string, box: tagBox(t.tag) })), ...(l.dim ? [{ id: 'dim', box: tagBox(l.dim.tag) }] : [])];
-        expect(boxes.length, name).toBeGreaterThanOrEqual(3);
+        const boxes = [...l.tags.map((t) => ({ id: t.id as string, box: tagBox(t.tag) })), ...(l.dim?.tag ? [{ id: 'dim', box: tagBox(l.dim.tag) }] : [])];
+        // The two ends are always named; the sentence on the friction and the words on the angle are left off a drawing with no room for them.
+        expect(boxes.map((b) => b.id), name).toEqual(expect.arrayContaining(['load', 'hold']));
+        if (width === 720) expect(boxes.length, name).toBeGreaterThanOrEqual(3);
         for (const { id, box } of boxes) {
           expect(box.x0, `${name} ${width}px ${id}`).toBeGreaterThanOrEqual(2.5);
           expect(box.x1, `${name} ${width}px ${id}`).toBeLessThanOrEqual(width - 2.5);
@@ -769,12 +800,14 @@ describe('the drum', () => {
     const none = drum(withDrum({ wrap: 0, Tsmall: null }));
     expect(none.cable).toBeNull();
     expect(none.dim).toBeNull();
-    expect(none.tags.map((t) => t.id)).toEqual(['load', 'hold']);
+    // The two ends are named, and so is the fact that there is no wrap (the cable only touches the drum at one point).
+    expect(none.tags.map((t) => t.id)).toEqual(['load', 'hold', 'nowrap']);
+    expect(none.tags.find((t) => t.id === 'nowrap')!.tag.lines.join(' ')).toContain('no wrap');
     expect(none.legend).not.toContain('taper');
   });
 
   it('leaves the drawing empty when the case cannot be solved', () => {
-    const l = drumLayout(null, { width: 390, group: ',', unit: 'lbf', words: { load: '', hold: '', symbols: { big: 'a', small: 'b' }, wrap: '', turns: '', coil: '', taper: '' } });
+    const l = drumLayout(null, { width: 390, group: ',', unit: 'lbf', words: { load: '', hold: '', symbols: { big: 'a', small: 'b' }, wrap: '', turns: '', drawn: '', taper: '', noWrap: '' } });
     expect(l).toMatchObject({ width: 390, cable: null, load: null, hold: null, dim: null, tags: [], legend: [] });
   });
 
@@ -787,8 +820,8 @@ describe('the drum', () => {
     const f = exampleOf('drum');
     const html = renderToStaticMarkup(h(DrumSchematic, { drawing: analyseSafely(f).drawing.drum, width: 720, group: ',', unit: 'lbf', words: wordsOf(f), summary: 'A drum.', legend: cableUi.en.results.legend }));
     expect(attr(html.match(/<svg[^>]*>/)![0], 'aria-label')).toBe('A drum.');
-    for (const t of ['Load end', 'T big = 1,000 lbf', 'Holding end', 'T small = 23.05 lbf', 'β = 720°', '2 turns', 'wrapped 2 turns']) expect(html).toContain(`>${t}<`);
-    expect(html.match(/<g class="mp-cable-fig__wrap">[\s\S]*?<\/g>/)![0].match(/<path /g)).toHaveLength(14);
+    for (const t of ['Load end', 'T big = 1,000 lbf', 'Holding end', 'T small = 23.05 lbf', 'β = 720°', '2 turns']) expect(html).toContain(`>${t}<`);
+    expect(html.match(/<g class="mp-cable-fig__wrap">[\s\S]*?<\/g>/)![0].match(/<path /g)).toHaveLength(24);
     const keys = [...html.matchAll(/<li class="mp-cable-fig__key">[\s\S]*?<span>([^<]*)<\/span>/g)].map((m) => m[1]);
     expect(keys).toEqual(['Drum', 'Centre of the drum', 'Cable on the drum, thinner toward the holding end', 'Wrap angle β', 'Load end: the large tension', 'Holding end: the small tension']);
     expect(html).not.toMatch(/NaN|undefined|Infinity/);
@@ -807,7 +840,12 @@ describe('the drawings in the sheet', () => {
     // The curves keep their dashes (they are in the base rules, and print does not take them away).
     expect(print).not.toMatch(/stroke-dasharray: none/);
     // A value written on a drawing carries no halo on paper.
-    expect(print).toMatch(/\.mp-cable-fig__value \{\s*stroke: none !important;/);
+    expect(print).toMatch(/\.mp-cable-fig__value,\s*\.mp-cable-fig__empty \{\s*stroke: none !important;/);
+    // B15: the gold of the notes and of the holding end goes to black too, not only the drawings' blue and red.
+    expect(print).toContain('--mp-gold-ink: #000;');
+    expect(print).toMatch(/\.mp-cable__warnings,[\s\S]*?border-color: #000;/);
+    // B6: the name of a mode and its hint are on separate lines on the sheet.
+    expect(print).toMatch(/\.mp-cable__mode-name,\s*\.mp-cable \.mp-cable__mode-hint \{\s*display: block;/);
   });
 
   it('writes the name of every arrow with its size, so that no colour is needed to read it', () => {
@@ -823,5 +861,217 @@ describe('the drawings in the sheet', () => {
       expect(source).not.toMatch(/import (?!type)[^;]*from '@\/lib\/calc\/cable\/strings'/);
       expect(source).toContain("'use client';");
     }
+  });
+});
+
+/* ── The reviewers' findings, held at the drawings ────────────────────── */
+
+describe('C6 — a wrap of more than one turn is ONE line, a spiral that can be followed from the load end to the holding end', () => {
+  const points = (l: DrumLayout): { x: number; y: number }[][] => l.cable!.chunks.map((c) => [...c.d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]) })));
+  const polarOf = (l: DrumLayout, p: { x: number; y: number }) => ({ r: Math.hypot(p.x - l.drum.x, p.y - l.drum.y), a: (Math.atan2(-(p.y - l.drum.y), p.x - l.drum.x) * 180) / Math.PI });
+  const turns = (n: number, width = 720) => drum(withDrum({ wrap: n, wrapUnit: 'turns', Tsmall: null }), width);
+
+  for (const n of [1.5, 2, 3, 5]) {
+    it(`${n} turns: the pieces join end to end, the line winds counter-clockwise by exactly the wrap and comes in from the outside to the drum`, () => {
+      const l = turns(n);
+      const chunks = points(l);
+      for (let i = 1; i < chunks.length; i++) {
+        const a = chunks[i - 1].at(-1)!;
+        const b = chunks[i][0];
+        expect(Math.hypot(a.x - b.x, a.y - b.y), `piece ${i}`).toBeLessThan(1e-3);
+      }
+      const all = chunks.flat();
+      // Starts at the outermost loop, where the load end leaves, level with the centre on the right…
+      const first = polarOf(l, all[0]);
+      expect(first.r).toBeCloseTo(l.cable!.outer, 3);
+      expect(((first.a % 360) + 360) % 360).toBeCloseTo(0, 2);
+      // …ends on the drum's own circle (a hair beyond it: the line has width), where the holding end leaves…
+      const last = polarOf(l, all.at(-1)!);
+      expect(last.r).toBeCloseTo(l.cable!.inner, 3);
+      expect(l.cable!.inner).toBeCloseTo(1.06 * l.drum.r, 3);
+      // …and the radius only ever falls along it, the angle only ever grows: it winds one way.
+      let wound = 0;
+      let prev = first;
+      for (const p of all.slice(1)) {
+        const q = polarOf(l, p);
+        expect(q.r, 'the radius never grows').toBeLessThanOrEqual(prev.r + 1e-6);
+        let d = q.a - prev.a;
+        while (d < -180) d += 360;
+        while (d > 180) d -= 360;
+        expect(d, 'counter-clockwise on the page').toBeGreaterThanOrEqual(-1e-6);
+        wound += d;
+        prev = q;
+      }
+      expect(wound).toBeCloseTo(n * 360, 0);
+      // The ends are where the arrows start.
+      expect(l.load!.from).toEqual(l.cable!.start);
+      expect(l.hold!.from.x).toBeCloseTo(l.cable!.end.x, 3);
+      expect(l.hold!.from.y).toBeCloseTo(l.cable!.end.y, 3);
+    });
+  }
+
+  it('the loops are the turns: a ray from the centre crosses the line once for each turn drawn (never more than six)', () => {
+    for (const [n, expected] of [[2, 2], [3, 3], [5, 5], [30, 6]] as const) {
+      const l = turns(n);
+      const all = points(l).flat();
+      let crossings = 0;
+      for (let i = 1; i < all.length; i++) {
+        const a = polarOf(l, all[i - 1]).a;
+        const b = polarOf(l, all[i]).a;
+        if (a > 0 && b <= 0 && Math.abs(b - a) < 180) crossings++;
+        else if (a <= 0 && b > 0 && Math.abs(b - a) < 180) crossings++;
+      }
+      // The ray points along the line's start (angle 0): the line crosses it going up, once a turn, and starts on it.
+      expect(Math.round(crossings / 1), `${n} turns`).toBeGreaterThanOrEqual(expected - 1);
+      expect(l.cable!.loops, `${n} turns`).toBe(expected);
+    }
+  });
+
+  it('the taper is in order: thick at the load end and thin at the holding end, along the one line', () => {
+    const w = turns(5).cable!.chunks.map((c) => c.w);
+    for (let i = 1; i < w.length; i++) expect(w[i]).toBeLessThanOrEqual(w[i - 1]);
+    expect(w[0]).toBeGreaterThan(w.at(-1)!);
+  });
+
+  it('the load arrow leaves the outside of the line in the open: it crosses no loop; the holding end passes over the loops, with a gap in the page’s colour', () => {
+    const l = turns(5);
+    const segs = points(l).flatMap((c) => c.slice(1).map((p, i): [number, number, number, number] => [c[i].x, c[i].y, p.x, p.y]));
+    const cross = (a: [number, number, number, number], b: [number, number, number, number]) => {
+      const d = (a[2] - a[0]) * (b[3] - b[1]) - (a[3] - a[1]) * (b[2] - b[0]);
+      if (Math.abs(d) < 1e-12) return false;
+      const t = ((b[0] - a[0]) * (b[3] - b[1]) - (b[1] - a[1]) * (b[2] - b[0])) / d;
+      const u = ((b[0] - a[0]) * (a[3] - a[1]) - (b[1] - a[1]) * (a[2] - a[0])) / d;
+      return t > 0.02 && t < 0.98 && u > 0.02 && u < 0.98;
+    };
+    const load: [number, number, number, number] = [l.load!.from.x, l.load!.from.y, l.load!.tip.x, l.load!.tip.y];
+    expect(segs.filter((s) => cross(load, s))).toHaveLength(0);
+    const hold: [number, number, number, number] = [l.hold!.from.x, l.hold!.from.y, l.hold!.tip.x, l.hold!.tip.y];
+    expect(segs.filter((s) => cross(hold, s)).length).toBeGreaterThanOrEqual(4);
+    const f = exampleOf('drum');
+    const html = renderToStaticMarkup(h(DrumSchematic, { drawing: analyseSafely({ ...f, drum: { ...f.drum, wrap: 5 } }).drawing.drum, width: 720, group: ',', unit: 'lbf', words: wordsOf({ ...f, drum: { ...f.drum, wrap: 5 } }), summary: 'A drum.', legend: cableUi.en.results.legend }));
+    expect(html).toContain('class="mp-cable-fig__halo"');
+    // The direction it winds is drawn: little arrowheads along the line.
+    expect(l.cable!.chevrons.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('every mark of the drawing is in its legend, and nothing is in the legend that is not drawn', () => {
+    for (const [name, form] of [['two turns', exampleOf('drum')], ['no wrap', withDrum({ wrap: 0, Tsmall: null })], ['30°', withDrum({ wrap: 30, wrapUnit: 'deg', Tsmall: null })]] as const) {
+      const l = drum(form);
+      expect(l.legend.includes('taper'), name).toBe(l.cable !== null);
+      expect(l.legend.includes('dimension'), name).toBe(l.dim !== null);
+      expect(l.legend.includes('loadEnd'), name).toBe(l.load !== null);
+      expect(l.legend.includes('holdEnd'), name).toBe(l.hold !== null);
+    }
+  });
+
+  it('C5: the leader of the friction sentence ends ON the cable, where the wrap is (30° and 90° too), and clear of the names of the ends', () => {
+    for (const wrap of [30, 90, 180, 270]) {
+      const l = drum(withDrum({ wrap, wrapUnit: 'deg', Tsmall: null }));
+      const taper = l.tags.find((t) => t.id === 'taper');
+      if (!taper) continue;
+      expect(l.leaders.length).toBeGreaterThan(0);
+      const leader = l.leaders.find((g) => {
+        const q = polarOf(l, { x: g[0], y: g[1] });
+        return Math.abs(q.r - l.cable!.outer) < 3;
+      });
+      expect(leader, `${wrap}°: a leader starts on the cable`).toBeDefined();
+      const q = polarOf(l, { x: leader![0], y: leader![1] });
+      const a = ((q.a % 360) + 360) % 360;
+      expect(a, `${wrap}°: where the wrap is`).toBeLessThanOrEqual(wrap + 2);
+      for (const t of l.tags.filter((x) => x.id !== 'taper')) expect(hitsAny(tagBox(t.tag), l.leaders), `${wrap}°: a leader crosses ${t.id}`).toBe(false);
+    }
+  });
+});
+
+describe('C1, C9 — the free body draws the way the block goes, the acceleration, and the cable that holds a block that slides', () => {
+  const bodyWords = (form: CableForm, id: 'start' | 'run' | 'accel' = 'run', width = 720) => {
+    const p = pullOf(form);
+    return bodyLayout(p, p?.regimes.find((r) => r.id === id) ?? null, { width, group: ',', unit: 'lbf', motionText: 'Direction of travel', accelText: 'a = +12 ft/s²' });
+  };
+  it('a motion arrow points the way the block goes, and the friction arrow opposes it', () => {
+    for (const [theta, travel] of [[0, 'along'], [30, 'along'], [30, 'against'], [-20, 'along']] as const) {
+      const l = bodyWords(withPull({ theta, travel, muS: 0.3, muK: 0.2, phi: 10 }));
+      expect(l.motion, `${theta} ${travel}`).not.toBeNull();
+      const dir = l.motion!.dir;
+      const th = (theta * Math.PI) / 180;
+      const along = dir.x * Math.cos(th) + -dir.y * Math.sin(th);
+      expect(along > 0, `${theta} ${travel}`).toBe(travel === 'along');
+      const F = l.arrows.find((a) => a.id === 'F');
+      if (F) expect(F.dir.x * dir.x + F.dir.y * dir.y, `${theta} ${travel}: friction opposes the motion`).toBeLessThan(-0.99);
+      // The lane lies below the surface, clear of the block and of the weight.
+      const hit = (b: { x0: number; x1: number; y0: number; y1: number }) => hitsAny(b, [[l.motion!.tail.x, l.motion!.tail.y, l.motion!.tip.x, l.motion!.tip.y]]);
+      const xs = l.block.map((p) => p.x);
+      const ys = l.block.map((p) => p.y);
+      expect(hit({ x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) })).toBe(false);
+      const W = l.arrows.find((a) => a.id === 'W')!;
+      expect(hit({ x0: W.tail.x - 1, x1: W.tail.x + 1, y0: W.tail.y, y1: W.tip.y })).toBe(false);
+    }
+  });
+  it('an acceleration is drawn as an arrow with its value, only when one is asked for, and keeps the legend honest', () => {
+    const still = bodyWords(withPull({}));
+    expect(still.accel).toBeNull();
+    expect(still.legend).not.toContain('accelArrow');
+    const f = withPull({ accel: 12 });
+    const l = bodyWords(f, 'accel');
+    expect(l.accel).not.toBeNull();
+    expect(l.accel!.label.text).toBe('a = +12 ft/s²');
+    expect(l.legend).toContain('accelArrow');
+    expect(l.legend).toContain('motion');
+  });
+  it('a block that slides by itself has the hold-back cable (dashed, named in the legend) with N and F, balanced with W', () => {
+    const f = withPull({ theta: -30, muS: 0.3, muK: 0.2, phi: 20 });
+    const l = bodyWords(f);
+    expect(l.holdDrawn).toBe(true);
+    expect(l.arrows.map((a) => a.id)).toEqual(['T', 'N', 'F', 'W']);
+    expect(l.legend).toContain('holdback');
+    expect(l.legend).not.toContain('tension');
+    const sum = l.arrows.reduce((acc, a) => ({ x: acc.x + a.dir.x * a.magnitude, y: acc.y + a.dir.y * a.magnitude }), { x: 0, y: 0 });
+    expect(Math.hypot(sum.x, sum.y)).toBeLessThan(1e-3);
+    // The cable that pulls a block along is not marked as a hold-back.
+    expect(bodyWords(withPull({})).holdDrawn).toBe(false);
+    expect(bodyWords(withPull({})).legend).toContain('tension');
+    const html = renderToStaticMarkup(h(PullSchematic, { pull: pullOf(f), regime: pullOf(f)!.regimes[1], width: 720, group: ',', unit: 'lbf', motionText: 'Direction of travel', accelText: null, summary: 'A block.', legend: cableUi.en.results.legend }));
+    expect(html).toContain('mp-cable-fig__tension mp-cable-fig__tension--hold');
+    expect(html).toContain('Hold-back cable T');
+  });
+  it('the block grows with the drawing, rests on the surface line, and every label stays inside at every width and on every slope', () => {
+    const small = bodyWords(withPull({}), 'run', 390);
+    const large = bodyWords(withPull({}), 'run', 1100);
+    const wide = (l: BodyLayout) => Math.max(...l.block.map((p) => p.x)) - Math.min(...l.block.map((p) => p.x));
+    expect(wide(large)).toBeGreaterThan(wide(small));
+    expect(wide(large)).toBeGreaterThanOrEqual(80);
+    for (const theta of [-30, -10, 0, 20, 40, 60]) {
+      for (const width of [320, 390, 720]) {
+        const l = bodyWords(withPull({ theta, phi: 20, accel: 6 }), 'accel', width);
+        expectInside([...labelsOfBody(l), ...(l.motion ? [l.motion.label] : []), ...(l.accel ? [l.accel.label] : [])], width, l.height, `θ ${theta} ${width}px`);
+        // The block's lower edge lies on the surface line (no overlap with it).
+        const [p0, p1] = [l.block[0], l.block[1]];
+        const s = l.surface;
+        const dist = (p: { x: number; y: number }) => Math.abs((s.y2 - s.y1) * p.x - (s.x2 - s.x1) * p.y + s.x2 * s.y1 - s.y2 * s.x1) / Math.hypot(s.y2 - s.y1, s.x2 - s.x1);
+        expect(dist(p0)).toBeLessThan(0.01);
+        expect(dist(p1)).toBeLessThan(0.01);
+      }
+    }
+  });
+});
+
+describe('C2 — a mark that is not on a chart is not in its legend', () => {
+  it('a curve is in the legend with a swatch only when it is drawn; the marks only when they are on it', () => {
+    const empty = curves(withPull({ theta: -30, muS: 0.3, muK: 0.2 }));
+    expect(empty.legend.map((i) => i.key)).toEqual(['start', 'run']);
+    expect(empty.legend.every((i) => i.absent)).toBe(true);
+    const mixed = curves(withPull({ theta: -20, muS: 0.5, muK: 0.2, phi: 10 }));
+    // μs = 0.5 holds the block (a pull starts it), μk = 0.2 lets it slide: one curve, one case without.
+    expect(mixed.curves.map((c) => c.regime)).toEqual(['start']);
+    expect(mixed.legend.find((i) => i.key === 'run')!.absent).toBe(true);
+    expect(mixed.legend.find((i) => i.key === 'start')!.absent).toBeUndefined();
+  });
+  it('the diamond of a curve is at its constrained best angle, and not pinned to −90° when no angle works', () => {
+    const lift = curves(withPull({ theta: 60, muS: 1, muK: 1, phi: 30 }));
+    for (const c of lift.curves) {
+      expect(c.minimum!.phi).toBeCloseTo(30, 9);
+      expect(c.minimum!.T).toBeCloseTo(100, 9);
+    }
+    expect(curves(withPull({ theta: -30, muS: 0.3, muK: 0.2 })).curves).toEqual([]);
   });
 });
