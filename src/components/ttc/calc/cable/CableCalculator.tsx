@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useCallback, useDeferredValue, useId, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { formatNumber } from '@/lib/calc/format';
 import { analyseSafely, type AnalysisIssue, type CableOut, type CableRow, type RegimeLine } from '@/lib/calc/cable/analysis';
-import { CABLE_KEY, CABLE_UNITS, MATERIALS, ROPES, decodeCable, defaultCase, encodeCable, reduceCable, sectionInput, type CableAction, type CableForm, type SectionForm, type SectionTarget } from '@/lib/calc/cable/model';
+import { CABLE_KEY, CABLE_UNITS, MATERIALS, ROPES, choicesOf, decodeCable, defaultCase, encodeCable, reduceCable, sectionInput, type CableAction, type CableForm, type SectionForm, type SectionTarget } from '@/lib/calc/cable/model';
 import type { CableShared, CableUi } from '@/lib/calc/cable/strings';
 import { MATERIAL_IDS, MODES, ROPE_IDS, type CableMode, type MaterialId, type PullRegimeId, type RopeId, type Side, type Travel } from '@/lib/calc/cable/types';
 import { NumField } from '../NumField';
@@ -13,11 +13,11 @@ import { select } from '../shell/fields';
 import { PAPER_WIDTH, useTooTall, useWidth } from '../shell/layout';
 import { SheetStamp, useSheet } from '../shell/sheet';
 import { DrumSchematic } from './DrumSchematic';
-import { PullCurve } from './PullCurve';
+import { PullCurve, type CurveWords } from './PullCurve';
 import { PullSchematic } from './PullSchematic';
 import { SlingSchematic } from './SlingSchematic';
 import { DataTable, Head, type Column, type Row } from './tables';
-import { bodyReading, bodySummary, curveReading, curveSummary, drumReading, drumSummary, fill, issueSentence, materialForRope, regimeName, regimeSentences, ropeForMaterial, signed, slingReading, slingSummary, unitText, warningSentence, whereOf, type Ctx } from './text';
+import { absentKey, regimeLabel, bodyReading, bodySummary, curveReading, curveReason, curveSummary, drawnToScale, drumReading, drumSummary, emptyKey, fill, issueSentence, materialForRope, regimeSentences, ropeForMaterial, signed, slingReading, slingSummary, statusKey, trueMinus, turnWord, unitText, warningSentence, whereOf, type Ctx } from './text';
 import './cable.css';
 
 /**
@@ -82,23 +82,23 @@ function caseIn(hash: string): CableForm | null | undefined {
   return decodeCable(text);
 }
 
-/** A form but for the numbers typed into it: its units, its modes, every choice made in it. A choice is solved in the render that shows it. */
-const choicesOf = (form: CableForm) => JSON.stringify(form, (_key, value: unknown) => (typeof value === 'number' ? 0 : value));
-
 type Group = CableRow['group'];
 /** The region of the form a message sits under: the two legs share one. */
 const regionOf = (g: Group): string => (g === 'leg1' || g === 'leg2' ? 'legs' : g);
-/** The region a problem that names no field belongs to. */
-const wideRegion = (i: AnalysisIssue): string | null => {
+/**
+ * The region a problem that names no field belongs to: the legs of a sling, the drum, and - for a result too large (`size`), a drum whose
+ * μβ is past 700 (`overflow`) or an arithmetic that stopped - the group of the mode that is solved, so that the fault is marked beside the
+ * fields and not only in the results.
+ */
+const wideRegion = (i: AnalysisIssue, mode: CableMode): string | null => {
   if (i.row) return null;
   if (i.code === 'parallel-legs' || i.code === 'slack-leg') return 'legs';
-  if (i.code === 'underdetermined' || i.code === 'overdetermined' || i.code === 'order') return 'drum';
+  if (i.code === 'underdetermined' || i.code === 'overdetermined' || i.code === 'order' || i.code === 'degenerate' || i.code === 'overflow') return 'drum';
+  if (i.code === 'size' || i.code === 'stopped') return mode === 'load' ? 'load' : mode;
   return null;
 };
 
-const STATUS_WORD = { pull: 'pull', 'slides-on-its-own': 'slides', 'stays-put': 'stays', 'self-locking': 'locks', 'leaves-surface': 'leaves' } as const;
 const lower = (text: string): string => text.toLocaleLowerCase();
-const upper = (text: string): string => text.charAt(0).toLocaleUpperCase() + text.slice(1);
 
 /**
  * `initial`: the case it opens with, where that is not the example - for the
@@ -111,6 +111,9 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
   const [whole, setWhole] = useState<CableForm | null>(null);
   const [moved, setMoved] = useState(true);
   const [bodyChoice, setBodyChoice] = useState<PullRegimeId | null>(null);
+  // A section and material that were set to follow the other (and say so), and the section leg 2 had of its own when it was last taken off.
+  const [paired, setPaired] = useState<{ target: SectionTarget; kind: 'material' | 'rope'; id: MaterialId | RopeId } | null>(null);
+  const own2Memory = useRef<SectionForm | null>(null);
   const uid = useId();
   // The calculator itself: a case opened from the address asks whether the focus is in one of its fields.
   const root = useRef<HTMLDivElement>(null);
@@ -134,11 +137,14 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
       // An edit in progress is an edit of the case before, and ends here. The field with the focus is left FIRST: it
       // would go on showing what was typed into that case, and fall back on that case's value at the first key that is
       // not a number (NumField).
+      // (Only a field of numbers: a radio button or a checkbox has no edit in progress, and Back must not take its focus.)
       const focused = document.activeElement;
-      if (focused instanceof HTMLInputElement && root.current?.contains(focused)) focused.blur();
+      if (focused instanceof HTMLInputElement && focused.classList.contains('mp-num__input') && root.current?.contains(focused)) focused.blur();
       dispatch({ type: 'load', form: found });
       setWhole(found);
       setBodyChoice(null);
+      setPaired(null);
+      own2Memory.current = null;
     },
   });
   const { linkError } = address;
@@ -160,8 +166,15 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
   const ru = a.units;
   const rf = ru.force[solved.forceUnit];
 
-  // Every number this page prints, with the page's own mark between thousands.
-  const num = (v: number, sig = 4) => formatNumber(v, sig, group);
+  // Every number this page prints, with the page's own mark between thousands, a true minus in a sentence, and a force too small to be a number
+  // as "< 1 × 10^−12" (a drum with thirty turns holds its small end with 10⁻²² lbf, which is not "0").
+  const num = useCallback(
+    (v: number, sig = 4) => {
+      if (v > 0 && v < 1e-12) return '< 1 × 10^−12';
+      return trueMinus(formatNumber(v, sig, group));
+    },
+    [group],
+  );
   const signedNum = (v: number, sig = 4) => signed(num(Math.abs(v), sig), v);
   const dash = (v: number | null, f: (x: number) => string = num) => (v === null ? '—' : f(v));
   const ctx: Ctx = { form: solved, units: ru, num };
@@ -173,12 +186,12 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
     const at = where ? whereOf(i.row, w) : null;
     return at ? `${at}: ${text}` : text;
   };
-  const issuesIn = (region: string) => everything.filter((i) => (i.row ? regionOf(i.row.group) === region : wideRegion(i) === region));
+  const issuesIn = (region: string) => everything.filter((i) => (i.row ? regionOf(i.row.group) === region : wideRegion(i, solved.mode) === region));
   const idOf = (region: string) => `${uid}${region}`;
   // A field at fault: marked, and tied to the message of its region. The field the fault is about - every field of the
   // region, when the fault names none.
   const fault = (g: Group, field?: string) => {
-    const hit = everything.some((i) => (i.row ? i.row.group === g && (field === undefined || ('field' in i.row && i.row.field === field)) : wideRegion(i) === regionOf(g)));
+    const hit = everything.some((i) => (i.row ? i.row.group === g && (field === undefined || ('field' in i.row && i.row.field === field)) : wideRegion(i, solved.mode) === regionOf(g)));
     return hit ? { invalid: true, describedBy: idOf(regionOf(g)) } : {};
   };
   const message = (region: string) => {
@@ -220,23 +233,35 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
     const s = target === 'leg2' ? (form.load.own2 as SectionForm) : form.section;
     const g: Group = target === 'leg2' ? 'leg2section' : 'section';
     const patch = (p: Partial<Pick<SectionForm, 'by' | 'd' | 'A' | 'factor' | 'E' | 'alpha' | 'mbf'>>) => dispatch({ type: 'section', patch: p, target });
+    // A cable type and a material go together; when one is chosen and the other does not fit, the other follows - and the page SAYS it did.
     const pickRope = (rope: RopeId) => {
       dispatch({ type: 'rope', rope, target });
+      let follows: MaterialId | null = null;
       if (rope !== 'custom') {
         const usual = materialForRope(rope, s.material, ROPES[rope].material);
-        if (usual) dispatch({ type: 'material', material: usual as MaterialId, target });
+        if (usual) {
+          dispatch({ type: 'material', material: usual as MaterialId, target });
+          follows = usual as MaterialId;
+        }
       }
+      setPaired(follows ? { target, kind: 'material', id: follows } : null);
     };
     const pickMaterial = (material: MaterialId) => {
       dispatch({ type: 'material', material, target });
+      let follows: RopeId | null = null;
       if (material !== 'custom') {
         const usual = ropeForMaterial(material, s.rope, MATERIALS[material].rope);
-        if (usual) dispatch({ type: 'rope', rope: usual as RopeId, target });
+        if (usual) {
+          dispatch({ type: 'rope', rope: usual as RopeId, target });
+          follows = usual as RopeId;
+        }
       }
+      setPaired(follows ? { target, kind: 'rope', id: follows } : null);
     };
     const area = sectionInput(s, form).A;
     const preset = s.material !== 'custom' ? MATERIALS[s.material] : null;
-    const rope = preset && (s.material === 'rope' || s.material === 'rope-fibre') && s.E === preset.E[form.units];
+    const ropeNote = preset && s.E === preset.E[form.units] ? (s.material === 'rope' ? 'steel' : s.material === 'rope-fibre' ? 'fibre' : null) : null;
+    const pairedHere = paired && paired.target === target ? paired : null;
     return (
       <>
         {seg<'diameter' | 'area'>(`by-${target}`, w.section.by, s.by, [['diameter', w.section.byDiameter], ['area', w.section.byArea]], (by) => patch({ by }))}
@@ -252,8 +277,22 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
           {num$(w.section.alpha, unitText(uForm.alpha), optionalNumber(s.alpha), (alpha) => patch({ alpha: fromField(alpha) }), fault(g, 'alpha'))}
         </div>
         <div className="mp-app__row mp-app__row--two">{optional$(w.section.mbf, formForce, s.mbf, (mbf) => patch({ mbf }), fault(g, 'mbf'))}</div>
+        {pairedHere ? (
+          <p className="mp-app__note mp-cable__paired">
+            {pairedHere.kind === 'material' ? fill(w.section.pairedMaterial, { name: w.section.materials[pairedHere.id as MaterialId] }) : fill(w.section.pairedRope, { name: w.section.ropes[pairedHere.id as Exclude<RopeId, never>] })}
+          </p>
+        ) : null}
         {message(g)}
-        {rope && preset ? <p className="mp-app__note mp-cable__trap">{fill(w.section.ropeModulus, { E: num(preset.E[form.units], 5), unit: uForm.E, steel: num(MATERIALS.steel.E[form.units], 5) })}</p> : null}
+        {ropeNote && preset ? (
+          <p className="mp-app__note mp-cable__trap">
+            {fill(ropeNote === 'steel' ? w.section.ropeModulus : w.section.ropeModulusFibre, {
+              E: num(preset.E[form.units], 5),
+              unit: uForm.E,
+              steel: num(MATERIALS.steel.E[form.units], 5),
+              pct: Math.round((100 * preset.E[form.units]) / MATERIALS.steel.E[form.units]),
+            })}
+          </p>
+        ) : null}
         {s.rope !== 'solid' ? <p className="mp-app__note">{w.section.ropeLoose}</p> : null}
       </>
     );
@@ -282,7 +321,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
   };
   const oneLeg = a.load && solved.mode === 'load' && solved.load.legs === 1 ? a.load.legs[0] : null;
   const loadGroup = (
-    <>
+    <React.Fragment key="load-group">
       <fieldset className="mp-app__group">
         <legend>{w.load.title}</legend>
         <p className="mp-app__note">{w.load.note}</p>
@@ -306,7 +345,18 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
             {legBlock(1)}
             {legBlock(2)}
             <label className="mp-app__check">
-              <input type="checkbox" checked={form.load.own2 !== null} onChange={(e) => dispatch({ type: 'own2', on: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={form.load.own2 !== null}
+                onChange={(e) => {
+                  // Taken off, the section leg 2 had of its own is kept: put back, it is the one that was typed and not a copy of the shared one.
+                  if (e.target.checked) dispatch({ type: 'own2', on: true, restore: own2Memory.current ?? undefined });
+                  else {
+                    own2Memory.current = form.load.own2;
+                    dispatch({ type: 'own2', on: false });
+                  }
+                }}
+              />
               <span>{w.load.own2}</span>
             </label>
           </>
@@ -320,13 +370,13 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
           {sectionFields('leg2')}
         </fieldset>
       ) : null}
-    </>
+    </React.Fragment>
   );
 
   /* -- The pull group -- */
   const p = form.pull;
   const pullGroup = (
-    <fieldset className="mp-app__group">
+    <fieldset className="mp-app__group" key="pull-group">
       <legend>{w.pull.title}</legend>
       <p className="mp-app__note">{w.pull.note}</p>
       {seg<'weight' | 'mass'>('given', w.pull.given, p.massInput ? 'mass' : 'weight', [['weight', w.pull.byWeight], ['mass', w.pull.byMass]], (v) => dispatch({ type: 'pullInput', patch: { massInput: v === 'mass' } }))}
@@ -360,7 +410,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
   const blankName = blanks.length === 1 ? w.drum.names[blanks[0] === 'wrap' ? 'beta' : blanks[0]] : '';
   const wrapUnit = d.wrapUnit === 'deg' ? '°' : w.words.turns;
   const drumGroup = (
-    <fieldset className="mp-app__group">
+    <fieldset className="mp-app__group" key="drum-group">
       <legend>{w.drum.title}</legend>
       <p className="mp-app__note">{w.drum.note}</p>
       <div className="mp-app__row mp-app__row--two">
@@ -372,9 +422,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
         {optional$(w.drum.wrap, wrapUnit, d.wrap, (wrap) => dispatch({ type: 'drumInput', patch: { wrap } }), fault('drum', 'wrap'), w.drum.blank)}
       </div>
       {seg<'deg' | 'turns'>('wrapunit', w.drum.wrapIn, d.wrapUnit, [['deg', w.drum.degrees], ['turns', w.drum.turns]], (wrapUnit2) => dispatch({ type: 'drumInput', patch: { wrapUnit: wrapUnit2 } }))}
-      <p className="mp-app__computed" role="status">
-        {blanks.length === 1 ? fill(w.drum.finds, { name: blankName }) : fill(w.drum.count, { count: blanks.length })}
-      </p>
+      <p className="mp-app__computed">{blanks.length === 1 ? fill(w.drum.finds, { name: blankName }) : fill(w.drum.count, { count: blanks.length })}</p>
       {message('drum')}
     </fieldset>
   );
@@ -500,7 +548,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
       <>
         <div className="mp-app__card mp-app__card--wide">
           <h3 className="mp-app__h">{s.title}</h3>
-          <DataTable columns={legCols} rows={legRows} stack />
+          <DataTable columns={legCols} rows={legRows} stack label={s.title} />
           <p className="mp-app__note">{s.note}</p>
           {count === 2 ? <p className="mp-app__note">{s.sling}</p> : null}
         </div>
@@ -517,6 +565,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
                 ]}
                 rows={moveRows}
                 stack
+                label={w.results.move.title}
               />
               <p className="mp-app__note">{w.results.move.note}</p>
               {count === 2 && !m.exact ? <p className="mp-app__note">{w.results.move.noExact}</p> : null}
@@ -541,6 +590,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
                 { key: '2', cells: [legName(2), num(L.legs[1].T), num(so.T2), signedNum(so.change2 * 100, 3), num(so.angle2)] },
               ]}
               stack
+              label={w.results.second.title}
             />
             <p className="mp-app__note">{fill(w.results.second.note, { iterations: so.iterations })}</p>
           </div>
@@ -562,13 +612,14 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
                 cells: [legName(l.label), signedNum(l.restrainedForce), signedNum(l.restrainedStress), signedNum(l.combinedTension), signedNum(l.combinedStress), l.combinedSlack ? w.results.held.slackWord : w.results.held.taut],
               }))}
               stack
+              label={w.results.held.title}
             />
             <p className="mp-app__note">{w.results.held.note}</p>
           </div>
         ) : null}
         <div className="mp-app__card mp-app__card--wide">
           <h3 className="mp-app__h">{z.title}</h3>
-          {anyBreak ? <DataTable columns={sizeCols} rows={sizeRows} stack /> : <p className="mp-app__note">{z.none}</p>}
+          {anyBreak ? <DataTable columns={sizeCols} rows={sizeRows} stack label={z.title} /> : <p className="mp-app__note">{z.none}</p>}
           <p className="mp-app__note">{z.note}</p>
         </div>
         <div className="mp-app__card">
@@ -590,7 +641,8 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
   const pullCards = (() => {
     if (!P) return null;
     const t2 = w.results.pullTable;
-    const word = (r: RegimeLine) => w.results.statusWords[STATUS_WORD[r.status]];
+    const word = (r: RegimeLine) => w.results.statusWords[statusKey(r)];
+    const bestAt = (r: RegimeLine) => (r.optimum.best ? `${signedNum(r.optimum.best.phi)}${r.optimum.best.atLiftOff ? ` · ${w.results.headline.pull.bestLift}` : ''}` : '—');
     const rows: Row[] = [
       { key: 'status', cells: [t2.status, ...P.regimes.map(word)] },
       { key: 'mu', cells: [t2.mu, ...P.regimes.map((r) => num(r.mu, 3))] },
@@ -599,13 +651,13 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
       { key: 'F', cells: [<Head key="h" title={t2.F} unit={rf} />, ...P.regimes.map((r) => dash(r.F))] },
       { key: 'lift', cells: [<Head key="h" title={t2.lift} unit={rf} />, ...P.regimes.map((r) => dash(r.lift))] },
       { key: 'drag', cells: [<Head key="h" title={t2.drag} unit={rf} />, ...P.regimes.map((r) => dash(r.drag))] },
-      { key: 'best', cells: [<Head key="h" title={t2.best} unit="°" />, ...P.regimes.map((r) => signedNum(r.optimum.phi))] },
-      { key: 'least', cells: [<Head key="h" title={t2.least} unit={rf} />, ...P.regimes.map((r) => dash(r.optimum.valid ? r.optimum.T : null))] },
+      { key: 'best', cells: [<Head key="h" title={t2.best} unit="°" />, ...P.regimes.map(bestAt)] },
+      { key: 'least', cells: [<Head key="h" title={t2.least} unit={rf} />, ...P.regimes.map((r) => dash(r.optimum.best ? r.optimum.best.T : null))] },
       { key: 'lifts', cells: [<Head key="h" title={t2.lifts} unit="°" />, ...P.regimes.map((r) => dash(r.phiLift))] },
       { key: 'liftT', cells: [<Head key="h" title={t2.liftT} unit={rf} />, ...P.regimes.map((r) => dash(r.liftTension))] },
       ...(P.regimes.some((r) => r.hold) ? [{ key: 'hold', cells: [<Head key="h" title={t2.hold} unit={rf} />, ...P.regimes.map((r) => dash(r.hold ? r.hold.T : null))] }] : []),
     ];
-    const columns: Column[] = [{ key: 'q', title: t2.quantity }, ...P.regimes.map((r) => ({ key: r.id, title: regimeName(r.id, w) }))];
+    const columns: Column[] = [{ key: 'q', title: t2.quantity }, ...P.regimes.map((r) => ({ key: r.id, title: regimeLabel(r, w, P.travel) }))];
     const governing = P.governing ? P.regimes.find((r) => r.id === P.governing) : null;
     const grid: number[] = [];
     for (let phi = -90; phi <= 90; phi += 10) grid.push(phi);
@@ -613,7 +665,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
       <>
         <div className="mp-app__card mp-app__card--wide">
           <h3 className="mp-app__h">{t2.title}</h3>
-          <DataTable columns={columns} rows={rows} className="mp-cable__matrix" />
+          <DataTable columns={columns} rows={rows} className="mp-cable__matrix" label={t2.title} />
           <p className="mp-app__note">{t2.note}</p>
         </div>
         <div className="mp-app__card mp-app__card--wide">
@@ -631,7 +683,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
           {governing && governing.cable ? (
             <>
               <p className="mp-app__note">
-                {w.results.pullCable.regime}: {regimeName(governing.id, w)}
+                {w.results.pullCable.regime}: {regimeLabel(governing, w, P.travel)}
               </p>
               {pairsCard(cablePairs(governing.cable))}
             </>
@@ -644,8 +696,9 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
         <div className="mp-app__card mp-app__card--wide mp-cable__curve-table">
           <h3 className="mp-app__h">{w.results.curve.title}</h3>
           <DataTable
-            columns={[{ key: 'phi', title: w.results.curve.phi, unit: '°' }, ...P.curves.map((c) => ({ key: c.regime, title: regimeName(c.regime, w), unit: rf }))]}
+            columns={[{ key: 'phi', title: w.results.curve.phi, unit: '°' }, ...P.curves.map((c) => ({ key: c.regime, title: regimeLabel(P.regimes.find((q) => q.id === c.regime) as RegimeLine, w, P.travel), unit: rf }))]}
             rows={grid.map((phi) => ({ key: String(phi), cells: [signedNum(phi), ...P.curves.map((c) => dash(c.points[phi + 90]?.valid ? c.points[phi + 90].T : null))] }))}
+            label={w.results.curve.title}
           />
           <p className="mp-app__note">{w.results.curve.note}</p>
         </div>
@@ -676,7 +729,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
         <div className="mp-app__card">
           <h3 className="mp-app__h">{t3.title}</h3>
           {pairsCard(rows)}
-          <p className="mp-app__note">{fill(t3.solved, { name: upper(w.drum.names[D.solved]) })}</p>
+          <p className="mp-app__note">{fill(t3.solved, { name: w.drum.names[D.solved] })}</p>
           <p className="mp-app__note">{t3.note}</p>
         </div>
         <div className="mp-app__card">
@@ -714,14 +767,14 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
     }
     if (P) {
       const gov = P.governing ? P.regimes.find((r) => r.id === P.governing) : null;
-      const pairs: [string, string][] = P.regimes.map((r) => [regimeName(r.id, w), r.T !== null ? `${num(r.T)} ${rf}` : w.results.statusWords[STATUS_WORD[r.status]]]);
-      pairs.unshift([hl.pull.governing, gov && gov.T !== null ? `${num(gov.T)} ${rf} (${regimeName(gov.id, w)})` : hl.pull.none]);
-      if (gov && gov.optimum.valid && gov.optimum.T !== null) pairs.push([hl.pull.best, `${signedNum(gov.optimum.phi)}° → ${num(gov.optimum.T)} ${rf}`]);
+      const pairs: [string, string][] = P.regimes.map((r) => [regimeLabel(r, w, P.travel), r.T !== null ? `${num(r.T)} ${rf}` : w.results.statusWords[statusKey(r)]]);
+      pairs.unshift([hl.pull.governing, gov && gov.T !== null ? `${num(gov.T)} ${rf} (${regimeLabel(gov, w, P.travel)})` : hl.pull.none]);
+      if (gov && gov.optimum.best) pairs.push([hl.pull.best, `${signedNum(gov.optimum.best.phi)}° → ${num(gov.optimum.best.T)} ${rf}${gov.optimum.best.atLiftOff ? ` (${hl.pull.bestLift})` : ''}`]);
       return pairs;
     }
     if (D) {
       const found =
-        D.solved === 'Tbig' ? `${num(D.Tbig)} ${rf}` : D.solved === 'Tsmall' ? `${num(D.Tsmall)} ${rf}` : D.solved === 'mu' ? num(D.mu) : `${num(D.betaDeg)}° (${num(D.turns)} ${D.turns === 1 ? w.words.turn : w.words.turns})`;
+        D.solved === 'Tbig' ? `${num(D.Tbig)} ${rf}` : D.solved === 'Tsmall' ? `${num(D.Tsmall)} ${rf}` : D.solved === 'mu' ? num(D.mu) : `${num(D.betaDeg)}° (${num(D.turns)} ${turnWord(D.turns, w, num)})`;
       return [
         [`${hl.drum.found}: ${w.drum.names[D.solved]}`, found],
         [hl.drum.ratio, num(D.ratio)],
@@ -742,33 +795,71 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
   const curveRead = curveReading(a, w, ctx);
   const drumRead = drumReading(a, w, ctx);
   const fig = w.results.drumFig;
-  const drumWords = {
-    load: fig.load,
-    hold: fig.hold,
-    symbols: w.drum.symbols,
-    wrap: D ? fill(fig.wrap, { wrap: `${num(D.betaDeg)}°` }) : '',
-    turns: D && D.turns >= 1 ? fill(fig.turnsLine, { n: num(D.turns) }) : '',
-    coil: D && D.turns > 1 ? fill(fig.coil, { n: num(D.turns) }) : '',
-    taper: D ? fill(fig.taper, { ratio: num(D.ratio, 3), mu: num(D.mu, 3) }) : '',
-  };
+  // The drawings are given the same words object until the words themselves change: a new one every key would draw them again every key.
+  const drumTurnsDrawn = D ? Math.min(Math.floor(D.turns + 1e-9), 6) : 0;
+  const drumWords = useMemo(
+    () => ({
+      load: fig.load,
+      hold: fig.hold,
+      symbols: w.drum.symbols,
+      wrap: D ? fill(fig.wrap, { wrap: `${num(D.betaDeg)}°` }) : '',
+      turns: D && D.turns >= 1 ? fill(fig.turnsLine, { n: num(D.turns) }) : '',
+      drawn: D && D.turns > 6 ? fill(fig.drawn, { n: drumTurnsDrawn }) : '',
+      taper: D ? fill(fig.taper, { ratio: num(D.ratio, 3), mu: num(D.mu, 3) }) : '',
+      noWrap: D && D.betaDeg === 0 ? fig.noWrap : '',
+    }),
+    [D, fig, w.drum.symbols, num, drumTurnsDrawn],
+  );
   const sling = a.drawing.sling;
-  const curveLegend = P
-    ? [
-        ...P.curves.map((c) => {
-          const r = P.regimes.find((x) => x.id === c.regime) as RegimeLine;
-          const least = c.optimum ? fill(w.results.curve.legendLeast, { T: num(c.optimum.T), unit: rf, phi: num(c.optimum.phi) }) : w.results.curve.legendNone;
-          const here = r.T !== null ? fill(w.results.curve.legendAt, { phi: num(P.phi), T: num(r.T), unit: rf }) : fill(w.results.curve.legendNoneAt, { phi: num(P.phi) });
-          return { key: c.regime as 'start' | 'run' | 'accel', text: `${regimeName(c.regime, w)}: ${least}; ${here}` };
-        }),
-        { key: 'minimum' as const, text: w.results.legend.minimum },
-        { key: 'chosen' as const, text: w.results.legend.chosen },
-        ...(P.regimes.some((r) => r.phiLift !== null && r.phiLift <= 90) ? [{ key: 'lift' as const, text: w.results.legend.lift }] : []),
-      ]
-    : [];
+  // What the dashed position is, and how large it is drawn: said in the legend, not on the picture.
+  const slingLegend = useMemo(() => {
+    const k = sling?.moveScale ?? null;
+    const moved = k === null ? w.results.legend.moved : drawnToScale(k, num) ? w.results.movedTrue : fill(w.results.movedScale, { scale: num(k, 3) });
+    return { ...w.results.legend, moved };
+  }, [sling, w.results, num]);
+  // The chart's words: one legend line for each case (a case with no angle that works says why, and has no swatch), and the words on the marks.
+  const curveWords: CurveWords | null = useMemo(() => {
+    if (!P) return null;
+    const regime = {} as Record<PullRegimeId, string>;
+    for (const c of P.curves) {
+      const r = P.regimes.find((x) => x.id === c.regime) as RegimeLine;
+      const name = regimeLabel(r, w, P.travel);
+      const reason = w.results.curve.absent[absentKey(curveReason(c.points))];
+      if (c.maxValid === null) regime[c.regime] = `${name}: ${fill(w.results.curve.legendAbsent, { why: reason })}`;
+      else {
+        const least = c.optimum ? fill(c.optimum.atLiftOff ? w.results.curve.legendLeastLift : w.results.curve.legendLeast, { T: num(c.optimum.T), unit: rf, phi: num(c.optimum.phi) }) : '';
+        const here = r.T !== null ? fill(w.results.curve.legendAt, { phi: num(P.phi), T: num(r.T), unit: rf }) : fill(w.results.curve.legendAbsentAt, { phi: num(P.phi), why: lower(w.results.statusWords[statusKey(r)]) });
+        regime[c.regime] = `${name}: ${[least, here].filter(Boolean).join('; ')}`;
+      }
+    }
+    return {
+      regime,
+      minimum: w.results.legend.minimum,
+      chosen: w.results.legend.chosen,
+      lift: w.results.legend.lift,
+      // Short lines - the word, the angle, and for a line not shared by every case the case - so that a label fits between two lines of the chart.
+      liftLabel: (phi, id) => [w.results.curve.lift, `${num(phi)}°`, ...(id ? [`(${lower(regimeLabel(P.regimes.find((q) => q.id === id) as RegimeLine, w, P.travel))})`] : [])],
+      empty: w.results.curve.empty[emptyKey(P.curves.map((c) => curveReason(c.points)))],
+    };
+  }, [P, w, num, rf]);
+  const axisY = fill(w.results.curve.axisY, { unit: rf });
+  // The free body's words by the arrows of travel and of the acceleration.
+  const motionText = w.results.legend.motion;
+  const accelText = bodyRegime && bodyRegime.a !== 0 ? `a = ${signedNum(bodyRegime.a)} ${ru.accel}` : null;
+
+  // What a screen reader is told, once the case has stopped changing: a keystroke that passes through "0" on the way to "0.5" must not be
+  // announced as a fault. One polite region, kept in the page from the start (a region that appears with its text is often not read), with the
+  // faults in words and, for the notes, how many there are - never the numbers a note carries, which change with every key.
+  const liveNow = [...notices, ...(cableNotices.length ? [w.results.cableIssuesTitle] : []), ...(a.warnings.length ? [`${w.results.warningsTitle}: ${a.warnings.length}`] : [])].join(' ');
+  const [liveText, setLiveText] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setLiveText(liveNow), 700);
+    return () => clearTimeout(t);
+  }, [liveNow]);
 
   // The box of notices.
   const box = (
-    <div className="mp-app__issues" role="alert" aria-live="assertive">
+    <div className="mp-app__issues">
       {notices.length ? (
         <>
           <p className="mp-app__issues-title">{w.issuesTitle}</p>
@@ -807,7 +898,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
                     }}
                   />
                   <span>
-                    <strong className="mp-cable__mode-name">{w.modes[m].name}</strong>
+                    <strong className="mp-cable__mode-name">{w.modes[m].name}</strong>{' '}
                     <small className="mp-cable__mode-hint">{w.modes[m].hint}</small>
                   </span>
                 </label>
@@ -847,6 +938,8 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
               dispatch({ type: 'load', form: example });
               setWhole(example);
               setBodyChoice(null);
+              setPaired(null);
+              own2Memory.current = null;
               setMoved(true);
               // The address goes bare - if what is after the # is a case.
               address.take(EXAMPLE);
@@ -856,10 +949,13 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
 
         {/* -- the answer -- */}
         <section className={tooTall ? 'mp-app__out mp-app__out--tall' : 'mp-app__out'} aria-label={t.results.title} ref={outRef} aria-busy={catching ? true : undefined}>
+          <div className="mp-cable__live" role="status" aria-live="polite" aria-atomic="true">
+            {liveText}
+          </div>
           {box}
 
           {cableNotices.length ? (
-            <div className="mp-cable__warnings" role="status">
+            <div className="mp-cable__warnings">
               <p className="mp-app__issues-title">{w.results.cableIssuesTitle}</p>
               <ul>
                 {cableNotices.map((text) => (
@@ -870,7 +966,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
           ) : null}
 
           {a.warnings.length ? (
-            <div className="mp-cable__warnings" role="status">
+            <div className="mp-cable__warnings">
               <p className="mp-app__issues-title">{w.results.warningsTitle}</p>
               <ul>
                 {a.warnings.map((x) => (
@@ -900,7 +996,7 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
             </fieldset>
           ) : null}
           {solvedMode === 'pull' && P && P.regimes.length > 1 ? (
-            <div className="mp-cable__options">{seg<PullRegimeId>('body', w.results.options.body, bodyId as PullRegimeId, P.regimes.map((r) => [r.id, regimeName(r.id, w)] as [PullRegimeId, string]), setBodyChoice)}</div>
+            <div className="mp-cable__options">{seg<PullRegimeId>('body', w.results.options.body, bodyId as PullRegimeId, P.regimes.map((r) => [r.id, regimeLabel(r, w, P.travel)] as [PullRegimeId, string]), setBodyChoice)}</div>
           ) : null}
 
           <div className="mp-app__plots" ref={plotRef}>
@@ -913,26 +1009,27 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
             </p>
             {solvedMode === 'load' ? (
               <>
-                <SlingSchematic drawing={sling} width={width} moved={moved} scaleText={w.results.moveTag} group={group} unit={rf} summary={slingText} legend={w.results.legend} />
+                <SlingSchematic drawing={sling} width={width} moved={moved} group={group} unit={rf} summary={slingText} legend={slingLegend} />
                 {slingRead ? <p className="mp-app__note mp-cable__reading">{slingRead}</p> : null}
               </>
             ) : solvedMode === 'pull' ? (
               <>
-                <PullSchematic pull={P} regime={bodyRegime} width={width} group={group} unit={rf} summary={bodyText} legend={w.results.legend} />
+                <PullSchematic pull={P} regime={bodyRegime} width={width} group={group} unit={rf} motionText={motionText} accelText={accelText} summary={bodyText} legend={w.results.legend} />
                 {bodyRead ? <p className="mp-app__note mp-cable__reading">{bodyRead}</p> : null}
                 <p className="mp-plot__title">{w.results.schematic.curve}</p>
-                <PullCurve
-                  curves={P ? P.curves : []}
-                  regimes={P ? P.regimes : []}
-                  width={width}
-                  group={group}
-                  phi={P ? P.phi : solved.pull.phi}
-                  axisX={w.results.curve.axisX}
-                  axisY={fill(w.results.curve.axisY, { unit: rf })}
-                  lift={(phi) => fill(w.results.curve.lift, { phi: num(phi) })}
-                  summary={curveText}
-                  legend={curveLegend}
-                />
+                {P && curveWords ? (
+                  <PullCurve
+                    curves={P.curves}
+                    regimes={P.regimes}
+                    width={width}
+                    group={group}
+                    phi={P.phi}
+                    axisX={w.results.curve.axisX}
+                    axisY={axisY}
+                    summary={curveText}
+                    words={curveWords}
+                  />
+                ) : null}
                 {curveRead ? <p className="mp-app__note mp-cable__reading">{curveRead}</p> : null}
               </>
             ) : (

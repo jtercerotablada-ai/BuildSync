@@ -141,43 +141,53 @@ export function engineScale(units: UnitSystem, force: ForceUnit): EngineScale {
  * Material presets. Each is TYPICAL; the manufacturer's value governs. The
  * two systems' numbers are written out, not converted (29,000 ksi is 199.95 GPa and
  * steel is 200 GPa). THE WIRE ROPES' MODULI ARE EFFECTIVE (APPARENT) MODULI, NOT STEEL'S
- * (types.ts says why).
+ * (types.ts says why). Sources: EN 1993-1-11:2006 (Table 3.1: the rope and strand
+ * moduli; Annex C: the metallic-area factors), the Hanes Supply wire-rope guide
+ * (modulus by load range, ASTM A586 / A603), Bekaert's 7-wire strand data sheet
+ * (ASTM A416), SCI Design Manual for Structural Stainless Steel 4th ed., 6061-T6 data sheets.
  *
  *   steel          E 29,000 ksi = 200 GPa; α 6.5 ×10⁻⁶/°F = 11.7 ×10⁻⁶/°C (AISC 360 / ASCE).
- *   stainless      E 28,000 ksi = 193 GPa; α 9.6 ×10⁻⁶/°F = 17.3 ×10⁻⁶/°C (austenitic, AISC Design Guide 27).
- *   aluminum       E 10,000 ksi = 69 GPa;  α 12.8 ×10⁻⁶/°F = 23 ×10⁻⁶/°C (6061 / 6063 alloys, rounded).
+ *   stainless      E 28,000 ksi = 193 GPa; α 9.2 ×10⁻⁶/°F = 16.6 ×10⁻⁶/°C (austenitic; sources run 8.9–9.6 ×10⁻⁶/°F: medium confidence).
+ *   aluminum       E 10,000 ksi = 69 GPa;  α 13.0 ×10⁻⁶/°F = 23.4 ×10⁻⁶/°C (6061-T6: 13.1 / 23.6).
  *   strand7        E 28,500 ksi = 196 GPa: 7-wire prestressing strand (ASTM A416; PCI / ACI 28,500 ksi); α steel's.
- *   rope           6×19 / 6×36 wire rope with an independent wire-rope core (IWRC): effective E 13,000 ksi = 90 GPa
- *                  (published ranges ≈ 12,000–14,000 ksi); α steel's.
- *   rope-fibre     the same with a fibre core: softer, 10,000 ksi = 69 GPa (≈ 9,000–11,000); LOW CONFIDENCE.
- *   rope-spiral    spiral strand / locked-coil rope: effective E 20,000 ksi = 138 GPa (published ranges ≈ 20,000–23,000 ksi,
- *                  138–160 GPa for a pre-stretched strand), the low end taken.
+ *   rope           6×19 / 6×36 wire rope with an independent wire-rope core (IWRC): effective E 14,500 ksi = 100 GPa
+ *                  (EN 1993-1-11: 100 ± 10 GPa; range 13,000–15,500 ksi; Hanes: 6×19 IWRC 13,500 ksi at 0–20 % of the breaking
+ *                  load, 15,000 ksi at 21–65 %, and service load is usually 20–40 %: the upper bracket); α steel's.
+ *                  A SECANT value over a load range: it is about HALF of steel's.
+ *   rope-fibre     the same with a fibre core: softer, 11,500 ksi = 80 GPa (EN: 80 ± 10 GPa; range 9,900–12,000 ksi): about 40 % of
+ *                  steel's; MEDIUM CONFIDENCE.
+ *   rope-spiral    spiral strand: effective E 21,800 ksi = 150 GPa (EN: 150 ± 10 GPa; range 20,000–23,200 ksi; 20,000 is a floor, not
+ *                  the typical value).
+ *   rope-locked    locked-coil rope: effective E 23,200 ksi = 160 GPa (EN: 160 ± 10 GPa; range 21,800–24,700 ksi).
+ *   The moduli of spiral and locked-coil ropes depend on pre-stretch and on the load level: a new rope that was not pre-stretched is
+ *   softer, a pre-stretched one up to about 10 % stiffer. A rope's modulus is always a secant value over a load range.
  */
 export const MATERIALS: Record<Exclude<MaterialId, 'custom'>, MaterialPreset> = {
   steel: { id: 'steel', E: { us: 29000, si: 200 }, alpha: { us: 6.5, si: 11.7 }, rope: 'solid', typical: false },
-  stainless: { id: 'stainless', E: { us: 28000, si: 193 }, alpha: { us: 9.6, si: 17.3 }, rope: 'solid', typical: false },
-  aluminum: { id: 'aluminum', E: { us: 10000, si: 69 }, alpha: { us: 12.8, si: 23 }, rope: 'solid', typical: true },
+  stainless: { id: 'stainless', E: { us: 28000, si: 193 }, alpha: { us: 9.2, si: 16.6 }, rope: 'solid', typical: false },
+  aluminum: { id: 'aluminum', E: { us: 10000, si: 69 }, alpha: { us: 13, si: 23.4 }, rope: 'solid', typical: true },
   strand7: { id: 'strand7', E: { us: 28500, si: 196 }, alpha: { us: 6.5, si: 11.7 }, rope: 'strand7', typical: false },
-  rope: { id: 'rope', E: { us: 13000, si: 90 }, alpha: { us: 6.5, si: 11.7 }, rope: 'rope-6x19', typical: true },
-  'rope-fibre': { id: 'rope-fibre', E: { us: 10000, si: 69 }, alpha: { us: 6.5, si: 11.7 }, rope: 'rope-6x19', typical: true },
-  'rope-spiral': { id: 'rope-spiral', E: { us: 20000, si: 138 }, alpha: { us: 6.5, si: 11.7 }, rope: 'spiral', typical: true },
+  rope: { id: 'rope', E: { us: 14500, si: 100 }, alpha: { us: 6.5, si: 11.7 }, rope: 'rope-6x19', typical: true },
+  'rope-fibre': { id: 'rope-fibre', E: { us: 11500, si: 80 }, alpha: { us: 6.5, si: 11.7 }, rope: 'rope-6x19', typical: true },
+  'rope-spiral': { id: 'rope-spiral', E: { us: 21800, si: 150 }, alpha: { us: 6.5, si: 11.7 }, rope: 'spiral', typical: true },
+  'rope-locked': { id: 'rope-locked', E: { us: 23200, si: 160 }, alpha: { us: 6.5, si: 11.7 }, rope: 'locked', typical: true },
 };
 
 /**
  * Metallic-area factors, A = factor · d² (d the NOMINAL diameter). TYPICAL — the manufacturer's metallic area governs.
  *   solid        π/4 (a solid round bar or rod).
- *   rope-6x19    0.40 (6×19 class, IWRC; the published range is ≈ 0.38–0.46: the low end, so the stress is not under-stated).
- *   rope-6x36    0.41 (6×36 / 6×37 class, IWRC; same remark).
- *   strand7      0.60 (7-wire strand: ASTM A416 ½ in = 0.153 in² → 0.61; 0.6 in = 0.217 in² → 0.60).
- *   locked       0.65 (fully locked coil, fill ≈ 0.83).   LOW CONFIDENCE
- *   spiral       0.58 (spiral strand of round wires, fill ≈ 0.74).   LOW CONFIDENCE
+ *   rope-6x19    0.41 (6×19 class, IWRC; EN 1993-1-11 Annex C gives 0.414).
+ *   rope-6x36    0.455 (6×36WS with an independent wire-rope core; EN 1993-1-11 Annex C).
+ *   strand7      0.60 (7-wire strand: ASTM A416 ½ in = 0.153 in² → 0.61; 0.6 in = 0.217 in² → 0.60; fill 0.78).
+ *   locked       0.66 (fully locked coil; EN 1993-1-11 Annex C: 0.660, fill 0.84), with its OWN material 'rope-locked'.
+ *   spiral       0.58 (spiral strand of round wires, fill ≈ 0.75).   LOW CONFIDENCE
  */
 export const ROPES: Record<Exclude<RopeId, 'custom'>, RopePreset> = {
   solid: { id: 'solid', factor: Math.PI / 4, typical: false, material: 'steel' },
-  'rope-6x19': { id: 'rope-6x19', factor: 0.4, typical: true, material: 'rope' },
-  'rope-6x36': { id: 'rope-6x36', factor: 0.41, typical: true, material: 'rope' },
+  'rope-6x19': { id: 'rope-6x19', factor: 0.41, typical: true, material: 'rope' },
+  'rope-6x36': { id: 'rope-6x36', factor: 0.455, typical: true, material: 'rope' },
   strand7: { id: 'strand7', factor: 0.6, typical: true, material: 'strand7' },
-  locked: { id: 'locked', factor: 0.65, typical: true, material: 'rope-spiral' },
+  locked: { id: 'locked', factor: 0.66, typical: true, material: 'rope-locked' },
   spiral: { id: 'spiral', factor: 0.58, typical: true, material: 'rope-spiral' },
 };
 
@@ -344,13 +354,14 @@ export function convertCable(form: CableForm, to: UnitSystem): CableForm {
   };
 }
 
-const eight = (v: number): number => Number(v.toPrecision(8));
+/** A value kept to twelve figures: more than any field holds (a field shows eight), and none of the noise of a multiplication by 1000. */
+const twelve = (v: number): number => Number(v.toPrecision(12)) + 0;
 
-/** The same case with forces in the other of lbf/kip (N/kN): a factor of 1000, exact. */
+/** The same case with forces in the other of lbf/kip (N/kN): a factor of 1000, exact (to twelve figures, so that 12,345.6789 lbf comes back as 12,345.6789). */
 export function convertForceUnit(form: CableForm, to: ForceUnit): CableForm {
   if (form.forceUnit === to) return form;
   const k = to === 'large' ? 1 / 1000 : 1000;
-  const f = (v: number): number => (Number.isFinite(v) ? eight(v * k) : v);
+  const f = (v: number): number => (Number.isFinite(v) ? twelve(v * k) : v);
   const opt = (v: number | null): number | null => (v === null ? null : f(v));
   const section = (s: SectionForm): SectionForm => ({ ...s, mbf: opt(s.mbf) });
   return {
@@ -377,8 +388,8 @@ export type CableAction =
   | { type: 'material'; material: MaterialId; target?: SectionTarget }
   | { type: 'rope'; rope: RopeId; target?: SectionTarget }
   | { type: 'section'; patch: Partial<Pick<SectionForm, 'by' | 'd' | 'A' | 'factor' | 'E' | 'alpha' | 'mbf'>>; target?: SectionTarget }
-  /** Leg 2 gets its own section (a copy of the shared one) or goes back to the shared one. */
-  | { type: 'own2'; on: boolean }
+  /** Leg 2 gets its own section (the one it had when it was last taken off, else a copy of the shared one) or goes back to the shared one. */
+  | { type: 'own2'; on: boolean; restore?: SectionForm }
   | { type: 'dT'; value: number }
   | { type: 'design'; patch: { n?: number | null; allowable?: number | null } }
   | { type: 'legs'; legs: 1 | 2 }
@@ -454,7 +465,7 @@ export function reduceCable(form: CableForm, action: CableAction): CableForm {
     case 'section':
       return section(action.target, (s) => patchSection(form.units, s, action.patch));
     case 'own2':
-      if (action.on) return form.load.own2 ? form : { ...form, load: { ...form.load, own2: { ...form.section } } };
+      if (action.on) return form.load.own2 ? form : { ...form, load: { ...form.load, own2: action.restore && typeof action.restore === 'object' ? { ...action.restore } : { ...form.section } } };
       return form.load.own2 ? { ...form, load: { ...form.load, own2: null } } : form;
     case 'dT':
       return isNum(action.value) ? { ...form, dT: action.value } : form;
@@ -475,14 +486,29 @@ export function reduceCable(form: CableForm, action: CableAction): CableForm {
       if ('massInput' in patch && patch.massInput !== form.pull.massInput && !('W' in patch)) {
         const k = engineScale(form.units, form.forceUnit);
         // weight (force units) × engine force = mass × engine mass (weight in lbf or N)
-        next = { ...next, W: Number.isFinite(next.W) ? eight(patch.massInput ? (next.W * k.force) / k.mass : (next.W * k.mass) / k.force) : next.W };
+        // `tidy`, as every other conversion is: a weight of 100 N is 10.1972 kg and comes back as 100 N, not 99.999999.
+        next = { ...next, W: Number.isFinite(next.W) ? tidy(patch.massInput ? (next.W * k.force) / k.mass : (next.W * k.mass) / k.force) : next.W };
       }
       return { ...form, pull: next };
     }
-    case 'drumInput':
-      return { ...form, drum: { ...form.drum, ...pick<DrumForm>(action.patch, { Tbig: 'nullable', Tsmall: 'nullable', mu: 'nullable', wrap: 'nullable', wrapUnit: 'unit' }) } };
+    case 'drumInput': {
+      const patch = pick<DrumForm>(action.patch, { Tbig: 'nullable', Tsmall: 'nullable', mu: 'nullable', wrap: 'nullable', wrapUnit: 'unit' });
+      let next: DrumForm = { ...form.drum, ...patch };
+      // The wrap field turned from degrees to turns (or back) keeps the same wrap: 2 turns is 720°, not "2 degrees". A blank stays blank, and a wrap
+      // retyped with the switch is what was typed.
+      if (patch.wrapUnit !== undefined && patch.wrapUnit !== form.drum.wrapUnit && !('wrap' in patch) && form.drum.wrap !== null && Number.isFinite(form.drum.wrap)) {
+        next = { ...next, wrap: tidy(patch.wrapUnit === 'turns' ? form.drum.wrap / 360 : form.drum.wrap * 360) };
+      }
+      return { ...form, drum: next };
+    }
   }
 }
+
+/**
+ * A form but for the numbers typed into it: its units, its modes, every choice made in it. A choice is solved in the render that shows it (the
+ * page defers only the solving of typed numbers). The number of legs is a number, and a choice: one cable or two.
+ */
+export const choicesOf = (form: CableForm): string => JSON.stringify(form, (key, value: unknown) => (typeof value === 'number' && key !== 'legs' ? 0 : value));
 
 /* ── From the form to the engine ───────────────────────────────────────── */
 
@@ -559,7 +585,7 @@ const VERSION = '1';
 /** The longest address a form can write is under this (model.test.ts writes it with every number at its longest). */
 export const MAX_LINK = 1500;
 
-const MATERIAL_LETTER: Record<MaterialId, string> = { steel: 's', stainless: 'i', aluminum: 'a', strand7: 't', rope: 'r', 'rope-fibre': 'f', 'rope-spiral': 'p', custom: 'u' };
+const MATERIAL_LETTER: Record<MaterialId, string> = { steel: 's', stainless: 'i', aluminum: 'a', strand7: 't', rope: 'r', 'rope-fibre': 'f', 'rope-spiral': 'p', 'rope-locked': 'k', custom: 'u' };
 const ROPE_LETTER: Record<RopeId, string> = { solid: 's', 'rope-6x19': 'a', 'rope-6x36': 'b', strand7: 'c', locked: 'd', spiral: 'e', custom: 'u' };
 const MODE_LETTER: Record<CableMode, string> = { load: 'l', pull: 'p', drum: 'd' };
 
@@ -578,7 +604,7 @@ const lookup = <K extends string>(table: Record<K, string>, letter: string | und
  *   section   by(d|a), rope, factor, material, d, A, E, alpha, mbf — empty when null:  d,s,,s,0.25,,29000,6.5,
  *             rope letters s solid, a 6×19, b 6×36, c 7-wire strand, d locked coil, e spiral, u own factor;
  *             material letters s steel, i stainless, a aluminum, t 7-wire strand, r rope, f fibre-core rope,
- *             p spiral/locked rope, u own E and α
+ *             p spiral strand, k locked-coil rope, u own E and α
  *   leg-2 section   empty when leg 2 uses the shared one, else the same nine fields
  *   design    ΔT, n, allowable stress:  0,,
  *   load      W, H, legs(1|2), angle1, side1(l|r), length1, angle2, side2, length2

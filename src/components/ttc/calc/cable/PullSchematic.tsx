@@ -7,7 +7,7 @@ import type { CableUi } from '@/lib/calc/cable/strings';
 import { ArrowGlyph, Swatch, anchorOf, arcPath, arrowFrom, clean, declutter, flip, place, polar, pt, type ArrowShape, type Label, type LegendKey, type Pt, type Seg } from './figure';
 
 /**
- * THE FREE BODY - the block on its surface with the four forces on it.
+ * THE FREE BODY - the block on its surface with the forces on it.
  *
  * A block of weight W on a surface inclined at θ, pulled by a cable at φ above
  * that surface: the cable tension T along θ + φ, the weight W straight down,
@@ -18,22 +18,32 @@ import { ArrowGlyph, Swatch, anchorOf, arcPath, arrowFrom, clean, declutter, fli
  * angles are arcs: φ between the surface and the cable, θ between the horizontal
  * and the surface.
  *
+ * THE MOTION IS DRAWN, too: a long thin arrow beside the surface, ahead of the
+ * block, points the way the block goes (so the friction arrow is seen to oppose
+ * something), and, when an acceleration is asked for, a second one carries a.
+ *
+ * A BLOCK THAT SLIDES BY ITSELF has, in place of the cable that pulls it, the cable that
+ * HOLDS it back, pulling the other way (the arrow is dashed and is named so in the legend),
+ * with the normal force and the friction that go with it. A case that needs no pull draws N
+ * and F alone. Where the cable cannot do anything (the block stays put, locks, lifts off, or
+ * cannot be held) only the weight is drawn, and the page's sentence says why.
+ *
  * The arrows are the analysis's own (`RegimeLine.arrows`: components in the
  * frame x right, y up, in the force unit); this file flips them to the page and
- * fits them to the drawing. A case in which the cable cannot pull the block
- * (`stays-put`, `self-locking`, a block that slides on its own, a pull that
- * would lift it off) has no T, N or F: only the weight is drawn, and the
- * page's sentence says why.
+ * fits them to the drawing.
  */
 
-const MIN_HEIGHT = 230;
-const MAX_HEIGHT = 330;
+const MIN_HEIGHT = 250;
+const MAX_HEIGHT = 340;
 
 export interface BodyOptions {
   width: number;
   group: string;
   unit: string;
   maxHeight?: number;
+  /** The words by the arrow of travel, and by the arrow of the acceleration ("a = 5.2 ft/s²"; null when there is none). */
+  motionText?: string;
+  accelText?: string | null;
 }
 
 export interface BodyLayout {
@@ -47,6 +57,11 @@ export interface BodyLayout {
   surface: { x1: number; y1: number; x2: number; y2: number };
   hatch: [Pt, Pt][];
   arrows: ArrowShape[];
+  /** The direction of travel (and of the acceleration): thin arrows beside the surface, ahead of the block. */
+  motion: ArrowShape | null;
+  accel: ArrowShape | null;
+  /** True when the arrow T is the cable that holds a sliding block back. */
+  holdDrawn: boolean;
   /** The cable angle above the surface, between the surface direction (dotted) and the cable. */
   phiArc: { d: string; r: number; label: Label; ref: { x1: number; y1: number; x2: number; y2: number } } | null;
   /** The slope angle, between a horizontal and the surface. */
@@ -59,12 +74,12 @@ export interface BodyLayout {
 export function bodyLayout(pull: PullResults | null, regime: RegimeLine | null, o: BodyOptions): BodyLayout {
   const maxH = o.maxHeight ?? MAX_HEIGHT;
   const height = clean(Math.max(MIN_HEIGHT, Math.min(maxH, o.width * 0.62)));
-  const centre = pt(o.width / 2, height * 0.5);
-  if (!pull || !regime) return { width: o.width, height, centre, block: [], surface: { x1: 0, y1: 0, x2: 0, y2: 0 }, hatch: [], arrows: [], phiArc: null, thetaArc: null, legend: [], lines: [] };
+  const centre = pt(o.width / 2, height * 0.46);
+  if (!pull || !regime) return { width: o.width, height, centre, block: [], surface: { x1: 0, y1: 0, x2: 0, y2: 0 }, hatch: [], arrows: [], motion: null, accel: null, holdDrawn: false, phiArc: null, thetaArc: null, legend: [], lines: [] };
 
-  const k = Math.max(0.7, Math.min(1, o.width / 520));
-  const a = 26 * k;
-  const b = 16 * k;
+  // The block grows with the drawing: a box 30 px wide was a speck on a wide canvas.
+  const a = Math.max(24, Math.min(46, o.width * 0.062));
+  const b = a * 0.62;
   const theta = pull.surface.theta;
   const th = (theta * Math.PI) / 180;
   const s = { x: Math.cos(th), y: Math.sin(th) };
@@ -99,25 +114,58 @@ export function bodyLayout(pull: PullResults | null, regime: RegimeLine | null, 
 
   // The forces.
   const num = (v: number) => formatNumber(v, 4, o.group);
-  const maxLen = Math.min(height * 0.3, o.width * 0.28, 120);
+  const maxLen = Math.min(height * 0.32, o.width * 0.3, 130);
+  const holdDrawn = regime.holdDrawn;
   const arrows: ArrowShape[] = regime.arrows.map((f) => {
     const dir = flip(f.dx, f.dy);
     const length = maxLen * (0.33 + 0.67 * f.share);
     return arrowFrom(f.id, centre, dir, length, `${f.id} = ${num(f.magnitude)} ${o.unit}`, f.magnitude, o.width, height);
   });
 
+  // The travel: beside the surface, ahead of the block, on the side the surface hatching is - clear of the weight, which falls from the block's middle.
+  const travel = flip(regime.travelDir.dx, regime.travelDir.dy);
+  const inside = (p: Pt) => p.x >= 8 && p.x <= o.width - 8 && p.y >= 12 && p.y <= height - 24;
+  const sign = regime.travelDir.dx * s.x + regime.travelDir.dy * s.y >= 0 ? 1 : -1;
+  const lane = (depth: number, dir: Pt, len: number, id: string, text: string): ArrowShape | null => {
+    for (const ahead of [true, false]) {
+      const from = at(ahead ? sign * (a + 22) : -sign * (a + 22 + len), -b - depth);
+      let tipPt = pt(from.x + dir.x * len, from.y + dir.y * len);
+      let l = len;
+      // Shorter, rather than off the drawing.
+      while (l > 26 && !(inside(from) && inside(tipPt))) {
+        l -= 6;
+        tipPt = pt(from.x + dir.x * l, from.y + dir.y * l);
+      }
+      if (inside(from) && inside(tipPt)) {
+        const shape = arrowFrom(id, from, dir, l, text, 0, o.width, height);
+        // The words sit under the arrow, in the middle of it, where nothing else is.
+        const mid = pt((from.x + tipPt.x) / 2, (from.y + tipPt.y) / 2);
+        shape.label = place(text, mid.x, mid.y + 16, 'middle', o.width, height);
+        return shape;
+      }
+    }
+    return null;
+  };
+  const motion = o.motionText ? lane(20, travel, 58, 'motion', o.motionText) : null;
+  const accelDir = regime.a >= 0 ? travel : pt(-travel.x, -travel.y);
+  const accel = o.accelText && regime.a !== 0 ? lane(52, accelDir, 40, 'a', o.accelText) : null;
+
   // The angles.
   const T = arrows.find((x) => x.id === 'T');
   let phiArc: BodyLayout['phiArc'] = null;
-  if (T && Math.abs(pull.phi) >= 0.5) {
+  // The cable's own angle above the surface (φ); the hold-back cable is measured from the other direction along the surface.
+  const phiShown = pull.phi;
+  if (T && Math.abs(phiShown) >= 0.5) {
     const tl = Math.hypot(T.tip.x - T.tail.x, T.tip.y - T.tail.y);
     const r = Math.max(14, Math.min(34, tl * 0.6));
-    const mid = polar(centre, r + 13, theta + pull.phi / 2);
+    const base = holdDrawn ? 180 + theta : theta;
+    const to = holdDrawn ? 180 + theta - phiShown : theta + phiShown;
+    const mid = polar(centre, r + 13, (base + to) / 2);
     phiArc = {
-      d: arcPath(centre, r, theta, theta + pull.phi),
+      d: arcPath(centre, r, base, to),
       r: clean(r),
-      label: place(`φ = ${num(pull.phi).replace('-', '−')}°`, mid.x, mid.y + 4, anchorOf(mid.x - centre.x), o.width, height),
-      ref: { x1: centre.x, y1: centre.y, x2: clean(centre.x + ps.x * (r + 14)), y2: clean(centre.y + ps.y * (r + 14)) },
+      label: place(`φ = ${num(phiShown).replace('-', '−')}°`, mid.x, mid.y + 4, anchorOf(mid.x - centre.x), o.width, height),
+      ref: { x1: centre.x, y1: centre.y, x2: clean(centre.x + (holdDrawn ? -1 : 1) * ps.x * (r + 14)), y2: clean(centre.y + (holdDrawn ? -1 : 1) * ps.y * (r + 14)) },
     };
   }
   let thetaArc: BodyLayout['thetaArc'] = null;
@@ -143,17 +191,22 @@ export function bodyLayout(pull: PullResults | null, regime: RegimeLine | null, 
   const lines: Seg[] = [
     [surface.x1, surface.y1, surface.x2, surface.y2],
     ...block.map((p, i): Seg => [p.x, p.y, block[(i + 1) % block.length].x, block[(i + 1) % block.length].y]),
-    ...arrows.map((a): Seg => [a.tail.x, a.tail.y, a.tip.x, a.tip.y]),
+    ...arrows.map((q): Seg => [q.tail.x, q.tail.y, q.tip.x, q.tip.y]),
+    ...(motion ? [[motion.tail.x, motion.tail.y, motion.tip.x, motion.tip.y] as Seg] : []),
+    ...(accel ? [[accel.tail.x, accel.tail.y, accel.tip.x, accel.tip.y] as Seg] : []),
+    ...hatch.map((h): Seg => [h[0].x, h[0].y, h[1].x, h[1].y]),
   ];
-  declutter([...arrows.map((a) => a.label), ...(phiArc ? [phiArc.label] : []), ...(thetaArc ? [thetaArc.label] : [])], o.width, height, lines);
+  declutter([...arrows.map((q) => q.label), ...(motion ? [motion.label] : []), ...(accel ? [accel.label] : []), ...(phiArc ? [phiArc.label] : []), ...(thetaArc ? [thetaArc.label] : [])], o.width, height, lines);
 
   const legend: LegendKey[] = ['weight'];
   if (arrows.some((x) => x.id === 'N')) legend.push('normal');
   if (arrows.some((x) => x.id === 'F')) legend.push('friction');
-  if (T) legend.push('tension');
+  if (T) legend.push(holdDrawn ? 'holdback' : 'tension');
+  if (motion) legend.push('motion');
+  if (accel) legend.push('accelArrow');
   legend.push('block', 'slope');
   if (phiArc || thetaArc) legend.push('angle');
-  return { width: o.width, height, centre, block, surface, hatch, arrows, phiArc, thetaArc, legend, lines };
+  return { width: o.width, height, centre, block, surface, hatch, arrows, motion, accel, holdDrawn, phiArc, thetaArc, legend, lines };
 }
 
 export interface PullSchematicProps extends BodyOptions {
@@ -165,8 +218,8 @@ export interface PullSchematicProps extends BodyOptions {
 
 const ARROW_CLASS: Record<string, string> = { T: 'mp-cable-fig__tension', W: 'mp-cable-fig__load', N: 'mp-cable-fig__normal', F: 'mp-cable-fig__friction' };
 
-export function PullSchematic({ pull, regime, width, group, unit, maxHeight, summary, legend: words }: PullSchematicProps) {
-  const layout = useMemo(() => bodyLayout(pull, regime, { width, group, unit, maxHeight }), [pull, regime, width, group, unit, maxHeight]);
+export function PullSchematic({ pull, regime, width, group, unit, maxHeight, motionText, accelText, summary, legend: words }: PullSchematicProps) {
+  const layout = useMemo(() => bodyLayout(pull, regime, { width, group, unit, maxHeight, motionText, accelText }), [pull, regime, width, group, unit, maxHeight, motionText, accelText]);
   return (
     <figure className="mp-cable-fig">
       <svg className="mp-plot__svg mp-cable-fig__svg" role="img" aria-label={summary} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
@@ -188,6 +241,8 @@ export function PullSchematic({ pull, regime, width, group, unit, maxHeight, sum
                   </text>
                 </g>
               ) : null}
+              {layout.motion ? <ArrowGlyph a={layout.motion} className="mp-cable-fig__motion" /> : null}
+              {layout.accel ? <ArrowGlyph a={layout.accel} className="mp-cable-fig__motion mp-cable-fig__motion--accel" /> : null}
               <polygon className="mp-cable-fig__block" points={layout.block.map((p) => `${p.x},${p.y}`).join(' ')} />
               {layout.phiArc ? (
                 <g className="mp-cable-fig__angle">
@@ -199,7 +254,7 @@ export function PullSchematic({ pull, regime, width, group, unit, maxHeight, sum
                 </g>
               ) : null}
               {layout.arrows.map((a) => (
-                <ArrowGlyph key={a.id} a={a} className={ARROW_CLASS[a.id] ?? 'mp-cable-fig__load'} />
+                <ArrowGlyph key={a.id} a={a} className={a.id === 'T' && layout.holdDrawn ? 'mp-cable-fig__tension mp-cable-fig__tension--hold' : (ARROW_CLASS[a.id] ?? 'mp-cable-fig__load')} />
               ))}
             </>
           ) : null}

@@ -5,16 +5,16 @@ import { describe, expect, it } from 'vitest';
 /* Every code the contract lists is in types.ts and has a test; no code is tested that the contract does not list. */
 const read = (file: string) => readFileSync(join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
 const types = read('types.ts');
-const tests = read('engine.test.ts') + read('analysis.test.ts');
+const tests = read('engine.test.ts') + read('engine.physics.test.ts') + read('analysis.test.ts');
 
 const CODES = {
   load: ['number', 'range', 'parallel-legs', 'slack-leg', 'size'],
-  loadWarnings: ['no-load', 'no-exact-position', 'no-second-order', 'restrained-slack', 'large-strain'],
+  loadWarnings: ['no-load', 'no-exact-position', 'no-second-order', 'restrained-slack', 'large-strain', 'shrinks-past-zero'],
   pull: ['number', 'range', 'size'],
   pullWarnings: ['kinetic-above-static', 'no-governing'],
-  pullStatus: ['pull', 'slides-on-its-own', 'stays-put', 'self-locking', 'leaves-surface'],
+  pullStatus: ['pull', 'slides-on-its-own', 'stays-put', 'self-locking', 'leaves-surface', 'cannot-hold', 'no-pull-needed'],
   drum: ['number', 'range', 'underdetermined', 'overdetermined', 'order', 'degenerate', 'overflow'],
-  drumWarnings: ['no-friction', 'no-wrap'],
+  drumWarnings: ['no-friction', 'no-wrap', 'beyond-limit'],
   analysis: ['stopped'],
 };
 
@@ -38,6 +38,7 @@ describe('the codes', () => {
     expect(declared('PullWarningCode').sort()).toEqual([...CODES.pullWarnings].sort());
     expect(declared('PullStatus').sort()).toEqual([...CODES.pullStatus].sort());
     expect(declared('DrumIssueCode').sort()).toEqual([...CODES.drum].sort());
+    expect(declared('DrumWarningCode').sort()).toEqual([...CODES.drumWarnings].sort());
   });
   it('the engine and the analysis hold no words: no sentence in a string literal', () => {
     for (const file of ['engine.ts', 'analysis.ts', 'model.ts']) {

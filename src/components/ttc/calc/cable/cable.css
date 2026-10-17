@@ -12,11 +12,11 @@
    their own, every one (.mp-cable-fig__*).
 
    Ink for what is built, blue for the cable's tension, gold for what the
-   calculator found (the force on the drum, the cable angle chosen), red for
-   friction, the page's colour inside a block. THE MEANING NEVER RESTS ON COLOUR:
-   the three cases of the curve are a solid, a dashed and a dotted line with a
-   circle, a square and a triangle on them; every arrow carries its name and its
-   size; on paper every colour goes to black. */
+   calculator found (the hold end of a drum, a note), red for friction, the
+   page's colour inside a block. THE MEANING NEVER RESTS ON COLOUR: the three
+   cases of the curve are a solid, a dashed and a dotted line with a circle, a
+   square and a triangle on them; every arrow carries its name and its size; on
+   paper every colour - the gold of the notes included - goes to black. */
 .mp-cable {
   --mp-cable-tension: #1f5a99;
   --mp-cable-friction: #a63a2a;
@@ -99,10 +99,20 @@
   border-inline-start: 3px solid var(--mp-gold-ink);
 }
 .mp-cable .mp-cable__typical,
-.mp-cable .mp-cable__trap {
+.mp-cable .mp-cable__trap,
+.mp-cable .mp-cable__paired {
   padding: var(--mp-2) var(--mp-3);
   border-inline-start: 3px solid var(--mp-gold-ink);
   color: var(--mp-ink-2);
+}
+/* What a screen reader is told once the case has settled: in the page from the start, out of sight. */
+.mp-cable .mp-cable__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 /* The labels and the heads of this page carry Greek letters (σ, ε, α, μ, θ, φ): in capitals they would be other letters (Σ, E, A). */
 .mp-cable .mp-num__label,
@@ -284,12 +294,6 @@
   stroke-width: 1.5;
   stroke-dasharray: 6 4;
 }
-.mp-cable-fig__path {
-  fill: none;
-  stroke: var(--mp-gold-ink);
-  stroke-width: 1.5;
-  stroke-dasharray: 2 3;
-}
 .mp-cable-fig__ring {
   fill: none;
   stroke: var(--mp-ink);
@@ -320,7 +324,7 @@
 .mp-cable-fig__tension line,
 .mp-cable-fig__normal line,
 .mp-cable-fig__friction line,
-.mp-cable-fig__resultant line {
+.mp-cable-fig__motion line {
   stroke-width: 2;
 }
 .mp-cable-fig__load line {
@@ -347,18 +351,40 @@
 .mp-cable-fig__friction polygon {
   fill: var(--mp-cable-friction);
 }
-.mp-cable-fig__resultant line {
-  stroke: var(--mp-gold-ink);
-  stroke-dasharray: 7 3;
+/* The cable that holds back a block that slides by itself: the tension's own blue, dashed (and said so in the legend), so that it is not taken for a pull. */
+.mp-cable-fig__tension--hold line {
+  stroke-dasharray: 7 4;
 }
-.mp-cable-fig__resultant polygon {
-  fill: var(--mp-gold-ink);
+/* The way the block goes, and the acceleration: thin and grey, beside the surface, so that the forces are what the eye reads first. */
+.mp-cable-fig__motion line {
+  stroke: var(--mp-ink-3);
+  stroke-width: 1.5;
+}
+.mp-cable-fig__motion polygon {
+  fill: var(--mp-ink-3);
+}
+.mp-cable-fig__motion--accel line {
+  stroke: var(--mp-ink-2);
+  stroke-dasharray: 3 3;
+}
+.mp-cable-fig__motion--accel polygon {
+  fill: var(--mp-ink-2);
+}
+/* The holding end of a drum passes OVER the loops of the cable and over the load end: a gap in the page's colour, each side of it. */
+.mp-cable-fig__hold-end line.mp-cable-fig__halo,
+.mp-cable-fig__halo {
+  stroke: var(--mp-paper);
+  stroke-linecap: butt;
+}
+.mp-cable-fig__wrap .mp-cable-fig__chevron {
+  fill: var(--mp-ink);
+  stroke: none;
 }
 .mp-cable-fig__load text,
 .mp-cable-fig__tension text,
 .mp-cable-fig__normal text,
 .mp-cable-fig__friction text,
-.mp-cable-fig__resultant text,
+.mp-cable-fig__motion text,
 .mp-cable-fig__value {
   font-family: var(--mp-mono);
   font-size: 11px;
@@ -373,14 +399,14 @@
 .mp-cable-fig__tension text {
   fill: var(--mp-cable-tension);
 }
+.mp-cable-fig__motion text {
+  fill: var(--mp-ink-2);
+}
 .mp-cable-fig__normal text {
   fill: var(--mp-cable-normal);
 }
 .mp-cable-fig__friction text {
   fill: var(--mp-cable-friction);
-}
-.mp-cable-fig__resultant text {
-  fill: var(--mp-gold-ink);
 }
 .mp-cable-fig__block {
   fill: var(--mp-paper);
@@ -483,9 +509,17 @@
   stroke-dasharray: none;
 }
 .mp-cable-fig__chosen {
-  stroke: var(--mp-gold-ink);
+  stroke: var(--mp-ink);
   stroke-width: 1.5;
   stroke-dasharray: 6 3;
+}
+/* What an empty chart says. */
+.mp-cable-fig__empty {
+  font-size: 12.5px;
+  fill: var(--mp-ink-2);
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3.5px;
 }
 .mp-cable-fig__lift {
   stroke: var(--mp-cable-friction);
@@ -494,8 +528,8 @@
 }
 /* The legend. */
 .mp-cable-fig__legend {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr));
   gap: var(--mp-2) var(--mp-6);
   margin: 0;
   padding: 0;
@@ -503,9 +537,12 @@
   font-size: 0.75rem;
   color: var(--mp-ink-2);
 }
-.mp-cable-fig__legend--curve {
-  display: grid;
-  gap: var(--mp-2);
+.mp-cable-fig__legend--cases {
+  grid-template-columns: 1fr;
+}
+.mp-cable-fig__legend--marks {
+  display: flex;
+  flex-wrap: wrap;
 }
 .mp-cable-fig__key {
   display: flex;
@@ -516,6 +553,11 @@
 .mp-cable-fig__swatch {
   flex: none;
   overflow: visible;
+}
+/* A case that has no curve is in the legend without a swatch, and with the room one takes. */
+.mp-cable-fig__swatch-gap {
+  flex: none;
+  width: 30px;
 }
 .mp-cable-fig__swatch .mp-cable-fig__minimum {
   stroke: var(--mp-ink);
@@ -548,6 +590,14 @@
   .mp-cable .mp-cable__own2 {
     padding-inline-start: 2mm;
   }
+  /* The mode tabs print as the name and, after it, the hint: the sheet shows each on its own line, never run together. */
+  .mp-cable .mp-cable__mode-name,
+  .mp-cable .mp-cable__mode-hint {
+    display: block;
+  }
+  .mp-cable .mp-cable__live {
+    display: none;
+  }
   .mp-cable .mp-cable__case {
     font-size: 8pt;
     color: #000;
@@ -557,7 +607,8 @@
   }
   .mp-cable .mp-cable__warnings,
   .mp-cable .mp-cable__typical,
-  .mp-cable .mp-cable__trap {
+  .mp-cable .mp-cable__trap,
+  .mp-cable .mp-cable__paired {
     padding: 1mm 2mm;
     break-inside: avoid;
     font-size: 7pt;
@@ -585,12 +636,32 @@
   .mp-cable .mp-app__plots {
     break-inside: avoid;
   }
-  .mp-cable {
+  /* Every colour goes to black - the gold of a note and of the holding end of a drum, the blue of the tension, the red of the friction. */
+  .mp-cable,
+  .mp-cable.mp-app {
     --mp-cable-tension: #000;
     --mp-cable-friction: #000;
     --mp-cable-normal: #000;
+    --mp-gold-ink: #000;
   }
-  .mp-cable-fig__path,
+  .mp-cable .mp-cable__warnings,
+  .mp-cable .mp-cable__typical,
+  .mp-cable .mp-cable__trap,
+  .mp-cable .mp-cable__paired,
+  .mp-cable .mp-cable__own2,
+  .mp-cable .mp-cable__status li {
+    border-color: #000;
+  }
+  .mp-cable .mp-cable__warnings .mp-app__issues-title {
+    color: #000;
+  }
+  /* The problems of the case, which the shared sheet sets in red: black here too. */
+  .mp-cable .mp-app__issues,
+  .mp-cable .mp-app__issues-title,
+  .mp-cable .mp-app__row-error {
+    color: #000;
+    border-color: #000;
+  }
   .mp-cable-fig__chosen,
   .mp-cable-fig__lift {
     stroke: #000;
@@ -598,19 +669,16 @@
   .mp-cable-fig__curve--accel {
     stroke: #000;
   }
-  .mp-cable-fig__resultant line,
   .mp-cable-fig__load-end line,
-  .mp-cable-fig__hold-end line {
+  .mp-cable-fig__hold-end line,
+  .mp-cable-fig__motion line {
     stroke: #000;
   }
   .mp-cable-fig__load-end polygon,
   .mp-cable-fig__hold-end polygon,
+  .mp-cable-fig__motion polygon,
   .mp-cable-fig__tag--load,
   .mp-cable-fig__tag--hold {
-    fill: #000;
-  }
-  .mp-cable-fig__resultant polygon,
-  .mp-cable-fig__resultant text {
     fill: #000;
   }
   .mp-cable-fig__normal line {
@@ -624,9 +692,15 @@
   .mp-cable-fig__tension text,
   .mp-cable-fig__normal text,
   .mp-cable-fig__friction text,
-  .mp-cable-fig__resultant text,
-  .mp-cable-fig__value {
+  .mp-cable-fig__motion text,
+  .mp-cable-fig__value,
+  .mp-cable-fig__empty {
     stroke: none !important;
+    fill: #000;
+  }
+  .mp-cable-fig__hold-end line.mp-cable-fig__halo,
+  .mp-cable-fig__halo {
+    stroke: #fff;
   }
   .mp-cable-fig__legend {
     font-size: 6.5pt;

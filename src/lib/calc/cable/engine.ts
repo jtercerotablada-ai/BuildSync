@@ -11,11 +11,13 @@ import {
   type DrumIssue,
   type DrumOutcome,
   type DrumUnknown,
+  type DrumWarningCode,
   type LegInput,
   type LegResult,
   type LoadInput,
   type LoadOutcome,
   type LoadWarning,
+  type PullBest,
   type PullHold,
   type PullInput,
   type PullIssue,
@@ -23,6 +25,7 @@ import {
   type PullOutcome,
   type PullRegime,
   type PullRegimeId,
+  type PullRole,
   type PullStatus,
   type PullWarning,
   type SecondOrder,
@@ -223,6 +226,11 @@ const disp = (dx: number, dy: number): Displacement => ({ dx: clean(dx), dy: cle
  * (a slack cable carries 0). Null if it does not converge.
  */
 function secondOrder(W: number, H: number, legs: LegResult[], inputs: LegInput[], dT: number, first: [number, number]): SecondOrder | null {
+  // Two starts: the first-order move (the right neighbourhood whenever the legs are taut), then the loaded point's own place. Each step is capped at a tenth of the shortest leg, so a hot sling whose legs start slack settles by falling, not by a leap of a hundred leg lengths.
+  return secondOrderFrom(W, H, legs, inputs, dT, first) ?? secondOrderFrom(W, H, legs, inputs, dT, [0, 0]);
+}
+
+function secondOrderFrom(W: number, H: number, legs: LegResult[], inputs: LegInput[], dT: number, start: [number, number]): SecondOrder | null {
   const scale = Math.abs(W) + Math.abs(H);
   if (!(scale > 0)) return null;
   const anchors = legs.map((l) => [l.anchorX, l.anchorY] as [number, number]);
@@ -249,10 +257,11 @@ function secondOrder(W: number, H: number, legs: LegResult[], inputs: LegInput[]
     });
     return { fx, fy, parts };
   };
-  let p: [number, number] = [0, 0];
+  const reach = 0.1 * Math.min(inputs[0].length, inputs[1].length);
+  let p: [number, number] = [start[0], start[1]];
   let cur = evalAt(p);
   let iterations = 0;
-  for (; iterations < 300; iterations++) {
+  for (; iterations < 600; iterations++) {
     const norm = Math.hypot(cur.fx, cur.fy);
     if (norm <= 1e-13 * scale) break;
     let j11 = 0;
@@ -271,8 +280,13 @@ function secondOrder(W: number, H: number, legs: LegResult[], inputs: LegInput[]
     j22 -= lam;
     const det = j11 * j22 - j12 * j12;
     if (!Number.isFinite(det) || det === 0) return null;
-    const sx = (-cur.fx * j22 + cur.fy * j12) / det;
-    const sy = (-cur.fy * j11 + cur.fx * j12) / det;
+    let sx = (-cur.fx * j22 + cur.fy * j12) / det;
+    let sy = (-cur.fy * j11 + cur.fx * j12) / det;
+    const step = Math.hypot(sx, sy);
+    if (step > reach) {
+      sx *= reach / step;
+      sy *= reach / step;
+    }
     let t = 1;
     let next = cur;
     let q: [number, number] = p;
@@ -291,7 +305,6 @@ function secondOrder(W: number, H: number, legs: LegResult[], inputs: LegInput[]
   const T2 = cur.parts[1].T;
   const first1 = legs[0].line.T;
   const first2 = legs[1].line.T;
-  void first;
   const ang = (i: number) => Math.atan2(cur.parts[i].ey, Math.abs(cur.parts[i].ex)) / DEG;
   return {
     T1,
@@ -407,13 +420,17 @@ function solveLoadUnsafe(input: LoadInput): LoadOutcome {
     exact = p ? disp(p[0], p[1]) : null;
     if (!exact) warnings.push({ code: 'no-exact-position' });
     if (scale > 0) {
-      second = secondOrder(W, H, legs, legsIn, dT, [0, 0]);
+      second = secondOrder(W, H, legs, legsIn, dT, [linear.dx, linear.dy]);
       if (!second) warnings.push({ code: 'no-second-order' });
     }
   }
 
   legs.forEach((l) => {
     if (l.line.combinedSlack) warnings.push({ code: 'restrained-slack', leg: l.leg });
+  });
+  legs.forEach((l, i) => {
+    const after = l.line.newLength;
+    if (after !== null && after <= 0) warnings.push({ code: 'shrinks-past-zero', leg: l.leg, numbers: [after / legsIn[i].length] });
   });
   const maxStrain = Math.max(...legs.map((l) => Math.abs(l.line.strain)));
   if (maxStrain > 0.01) warnings.push({ code: 'large-strain', numbers: [maxStrain] });
@@ -447,36 +464,52 @@ interface Core {
   T: number | null;
   N: number | null;
   status: PullStatus;
+  role: PullRole | null;
 }
 
 /**
  * The formula of types.ts, T = W·c / Den, with its statuses, for one (θ, μ, φ, a/g, σ).
  * `c` and `den` are dimensionless. Exported for the tests and the analysis.
+ *
+ * WHAT THE CABLE DOES, from the force along the travel g(T) = σ·(T·Den − W·c) (types.ts):
+ *   g(0) = −σ·W·c is what the block does with no cable at all, and Den says whether more tension
+ *   pushes g up (Den·σ > 0) or down.
+ *   along   (σ = +1): Den > 0 & c > 0 the cable DRIVES it, T = W·c/Den; Den > 0 & c < 0, or Den ≤ 0 & c < 0
+ *           (a cable that presses the block into the surface: it STOPS a block that already slides) it
+ *           moves by itself; Den ≤ 0 & c > 0 more tension only grips harder (self-locking).
+ *   against (σ = −1): Den > 0 & c > 0 it slides by itself, the cable RESTRAINS it with T = W·c/Den;
+ *           Den > 0 & c < 0 it stays put; Den ≤ 0 & c ≥ 0 it slides whatever the cable does (friction
+ *           falls as the cable lifts): 'cannot-hold'; Den < 0 & c < 0 the cable RELEASES it (lifts it off
+ *           the friction that held it) at T = W·c/Den.
+ *   c = 0 with Den > 0: nothing opposes the motion, T = 0 ('no-pull-needed').
  */
 export function pullCore(W: number, theta: number, mu: number, phi: number, aOverG: number, sigma: 1 | -1): Core {
   let c = sind(theta) + sigma * (mu * cosd(theta) + aOverG);
   let den = cosd(phi) + sigma * mu * sind(phi);
   if (Math.abs(c) <= ZERO) c = 0;
   if (Math.abs(den) <= ZERO) den = 0;
-  const unaided: PullStatus = sigma === 1 ? 'slides-on-its-own' : 'stays-put';
+  const along = sigma === 1;
+  const unaided: PullStatus = along ? 'slides-on-its-own' : 'stays-put';
   const rawT = den === 0 ? null : (W * c) / den;
-  if (den === 0) return { c, den, rawT, T: null, N: null, status: c > 0 ? 'self-locking' : unaided };
+  const none = (status: PullStatus): Core => ({ c, den, rawT, T: null, N: null, status, role: null });
   if (den > 0) {
-    if (c > 0) return pulled(W, theta, mu, phi, c, den, rawT as number);
-    return { c, den, rawT, T: null, N: null, status: unaided };
+    if (c > 0) return pulled(W, theta, phi, c, den, rawT as number, along ? 'drive' : 'restrain');
+    if (c === 0) return { c, den, rawT: 0, T: null, N: W * cosd(theta), status: 'no-pull-needed', role: null };
+    return none(unaided);
   }
-  // den < 0
-  if (c < 0) return pulled(W, theta, mu, phi, c, den, rawT as number);
-  return { c, den, rawT, T: null, N: null, status: c > 0 ? 'self-locking' : unaided };
+  if (along) return none(c < 0 ? 'slides-on-its-own' : den === 0 && c === 0 ? 'slides-on-its-own' : 'self-locking');
+  if (den === 0) return none(c > 0 ? 'cannot-hold' : 'stays-put');
+  // against, den < 0
+  if (c < 0) return pulled(W, theta, phi, c, den, rawT as number, 'release');
+  return none('cannot-hold');
 }
 
-function pulled(W: number, theta: number, mu: number, phi: number, c: number, den: number, rawT: number): Core {
+function pulled(W: number, theta: number, phi: number, c: number, den: number, rawT: number, role: PullRole): Core {
   const T = rawT;
   let N = W * cosd(theta) - T * sind(phi);
-  if (N < -1e-12 * W) return { c, den, rawT, T: null, N, status: 'leaves-surface' };
+  if (N < -1e-12 * W) return { c, den, rawT, T: null, N, status: 'leaves-surface', role };
   if (N < 0) N = 0;
-  void mu;
-  return { c, den, rawT, T, N, status: 'pull' };
+  return { c, den, rawT, T, N, status: 'pull', role };
 }
 
 /** φ_lift of types.ts, degrees, or null past 90°. */
@@ -492,9 +525,19 @@ function regime(W: number, theta: number, mu: number, phi: number, aOverG: numbe
   const T = core.T;
   const sp = sind(phi);
   const cp = cosd(phi);
+  const pl = liftAngle(theta, aOverG, sigma);
+  const liftTension = pl === null || !(sind(pl) > 0) ? null : (W * cosd(theta)) / sind(pl);
   // The optimum cable angle and the regime there.
   const phiOpt = sigma * Math.atan(mu) / DEG;
   const at = pullCore(W, theta, mu, phiOpt, aOverG, sigma);
+  // The least tension a block that stays on the surface allows: at φ* when the block stays down there; when φ* would lift it off,
+  // the least valid tension is at the lift-off angle itself (N = 0), where T = W·cosθ / sinφ_lift.
+  let best: PullBest | null = null;
+  if (at.status === 'pull' && at.T !== null && at.N !== null) best = { phi: phiOpt, T: at.T, N: at.N, atLiftOff: false };
+  else if (at.status === 'leaves-surface' && pl !== null && liftTension !== null) {
+    const lp = pullCore(W, theta, mu, pl, aOverG, sigma);
+    if (lp.status === 'pull' && lp.role === at.role) best = { phi: pl, T: liftTension, N: 0, atLiftOff: true };
+  }
   const optimum: PullOptimum = {
     phi: phiOpt,
     T: at.T,
@@ -502,22 +545,23 @@ function regime(W: number, theta: number, mu: number, phi: number, aOverG: numbe
     closedForm: (W * (sind(theta) + sigma * (mu * cosd(theta) + aOverG))) / Math.sqrt(1 + mu * mu),
     valid: at.status === 'pull',
     status: at.status,
+    best,
   };
   let hold: PullHold | null = null;
   if (core.status === 'slides-on-its-own') {
     const h = pullCore(W, -theta, mu, phi, aOverG, -1);
-    if (h.status === 'pull' && h.T !== null && h.N !== null) hold = { T: h.T, N: h.N };
+    if (h.status === 'pull' && h.role === 'restrain' && h.T !== null && h.N !== null) hold = { T: h.T, N: h.N };
   }
-  const pl = liftAngle(theta, aOverG, sigma);
   return {
     id,
     status: core.status,
+    role: core.role,
     mu,
     aOverG,
     T,
     rawT: core.rawT,
     N: core.N,
-    F: core.N !== null && core.N >= 0 && T !== null ? mu * core.N : null,
+    F: core.N !== null && core.N >= 0 && (T !== null || core.status === 'no-pull-needed') ? mu * core.N : null,
     lift: T === null ? null : clean(T * sp),
     drag: T === null ? null : clean(T * cp),
     weightAlong: clean(W * sind(theta)),
@@ -525,7 +569,7 @@ function regime(W: number, theta: number, mu: number, phi: number, aOverG: numbe
     inertia: clean(W * aOverG),
     optimum,
     phiLift: pl,
-    liftTension: pl === null || !(sind(pl) > 0) ? null : (W * cosd(theta)) / sind(pl),
+    liftTension,
     hold,
   };
 }
@@ -534,7 +578,8 @@ function regime(W: number, theta: number, mu: number, phi: number, aOverG: numbe
 export function pullAt(W: number, theta: number, mu: number, phi: number, aOverG: number, travel: Travel): CurvePoint {
   const sigma = travel === 'along' ? 1 : -1;
   const core = pullCore(W, theta, mu, phi, aOverG, sigma);
-  return { phi, T: core.T, N: core.N, valid: core.status === 'pull', status: core.status };
+  // A cable that only RELEASES the block (it lifts the block off the friction that held it) is not a pull the curve is about: it is in the table, not on the curve.
+  return { phi, T: core.T, N: core.N, valid: core.status === 'pull' && core.role !== 'release', status: core.status };
 }
 
 export function solvePull(input: PullInput): PullOutcome {
@@ -593,6 +638,7 @@ function solvePullUnsafe(input: PullInput): PullOutcome {
 /* ── Mode 3: a cable round a drum or bollard ───────────────────────────── */
 
 const MAX_EXPONENT = 700;
+const MAX_MU = 100;
 const MAX_BETA = 200 * Math.PI;
 
 export function solveDrum(input: DrumInput): DrumOutcome {
@@ -613,7 +659,7 @@ function solveDrumUnsafe(input: DrumInput): DrumOutcome {
   const bad: Bad[] = [];
   checkNumber(bad, given.Tbig, 'Tbig', { min: 0, minOpen: true, optional: true });
   checkNumber(bad, given.Tsmall, 'Tsmall', { min: 0, minOpen: true, optional: true });
-  checkNumber(bad, given.mu, 'mu', { min: 0, max: 100, optional: true });
+  checkNumber(bad, given.mu, 'mu', { min: 0, max: MAX_MU, optional: true });
   checkNumber(bad, given.beta, 'beta', { min: 0, max: MAX_BETA, optional: true });
   if (bad.length > 0) return { ok: false, mode: 'drum', issues: bad as DrumIssue[] };
   const blanks = (Object.keys(given) as DrumUnknown[]).filter((k) => given[k] === null);
@@ -654,9 +700,12 @@ function solveDrumUnsafe(input: DrumInput): DrumOutcome {
   const b = beta as number;
   const rx = -Ts * sind(b / DEG);
   const ry = -Tb + Ts * cosd(b / DEG);
-  const warnings: { code: 'no-friction' | 'no-wrap' }[] = [];
+  const warnings: { code: DrumWarningCode; field?: DrumUnknown; max?: number }[] = [];
   if (mu === 0) warnings.push({ code: 'no-friction' });
   if (b === 0) warnings.push({ code: 'no-wrap' });
+  // A μ or a wrap that is FOUND can be past what the form takes as an entry: typed back, it would be refused.
+  if (solved === 'mu' && (mu as number) > MAX_MU) warnings.push({ code: 'beyond-limit', field: 'mu', max: MAX_MU });
+  if (solved === 'beta' && b > MAX_BETA) warnings.push({ code: 'beyond-limit', field: 'beta', max: MAX_BETA });
   return {
     ok: true,
     mode: 'drum',

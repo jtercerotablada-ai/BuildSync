@@ -35,21 +35,23 @@ export function Head({ title, unit }: { title: string; unit?: string }) {
   );
 }
 
-export function DataTable({ columns, rows, stack = false, className = '' }: { columns: Column[]; rows: Row[]; stack?: boolean; className?: string }) {
+export function DataTable({ columns, rows, stack = false, className = '', label }: { columns: Column[]; rows: Row[]; stack?: boolean; className?: string; label?: string }) {
+  // The table has a NAME (its card's title) and its parts say what they are: on a phone the rows are laid out as blocks (cable.css), which a
+  // screen reader on Safari may take for the end of the table - the roles keep it a table whatever the style does to its boxes.
   return (
-    <table className={`mp-app__table mp-cable__table${stack ? ' mp-cable__table--stack' : ''} ${className}`.trim()}>
-      <thead>
-        <tr>
+    <table className={`mp-app__table mp-cable__table${stack ? ' mp-cable__table--stack' : ''} ${className}`.trim()} role="table" aria-label={label}>
+      <thead role="rowgroup">
+        <tr role="row">
           {columns.map((c) => (
-            <th key={c.key} scope="col">
+            <th key={c.key} scope="col" role="columnheader">
               <Head title={c.title} unit={c.unit} />
             </th>
           ))}
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {rows.map((r) => (
-          <tr key={r.key} className={r.className}>
+          <tr key={r.key} className={r.className} role="row">
             {r.cells.map((cell, i) => {
               const under = stack ? (
                 <span className="mp-cable__head" aria-hidden="true">
@@ -57,12 +59,12 @@ export function DataTable({ columns, rows, stack = false, className = '' }: { co
                 </span>
               ) : null;
               return i === 0 ? (
-                <th key={columns[i].key} scope="row">
+                <th key={columns[i].key} scope="row" role="rowheader">
                   {under}
                   {cell}
                 </th>
               ) : (
-                <td key={columns[i].key}>
+                <td key={columns[i].key} role="cell">
                   {under}
                   {cell}
                 </td>

@@ -50,14 +50,17 @@
  *   in strands and strands in the rope; under load the rope straightens
  *   (geometric elongation) and the wires bed against each other, so the
  *   stretch per unit load is about twice what the steel of the wires alone gives.
- *   A 6×19 IWRC rope stretches like a material with E ≈ 13,000 ksi (90 GPa),
- *   not 29,000 ksi (200 GPa); a fibre-core rope is softer still, a spiral strand
- *   or locked-coil rope stiffer. Using 29,000 ksi for a rope under-predicts its
- *   stretch by more than half. A new rope also has a permanent CONSTRUCTIONAL
- *   stretch on first loading that no modulus describes (removed by pre-stretching);
- *   this calculator gives the elastic stretch only. The modulus of a rope
- *   depends on its construction, lay, core, the load range and how long it was
- *   pre-stretched: the values are typical, within about ±15 %.
+ *   A 6×19 or 6×36 rope with a steel core (IWRC) stretches like a material with
+ *   E ≈ 14,500 ksi (100 GPa), half of steel's 29,000 ksi (200 GPa); a fibre-core
+ *   rope is softer still (11,500 ksi, 80 GPa: about 40 % of steel's), a spiral
+ *   strand (21,800 ksi, 150 GPa) or a locked-coil rope (23,200 ksi, 160 GPa)
+ *   stiffer. Using 29,000 ksi for a steel-core rope under-predicts its stretch by
+ *   about half, for a fibre-core rope by more than half. A new rope also has a
+ *   permanent CONSTRUCTIONAL stretch on first loading that no modulus describes
+ *   (removed by pre-stretching); this calculator gives the elastic stretch only.
+ *   The modulus of a rope depends on its construction, lay, core, the load range
+ *   and how long it was pre-stretched: the values are typical (see MATERIALS in
+ *   model.ts for the sources and the ranges).
  *
  * ─── CODES ─────────────────────────────────────────────────────────────────
  * Everything that goes wrong, or is worth saying, is a STABLE MACHINE CODE with
@@ -164,8 +167,8 @@ export interface CableLine {
 
 /* ── Materials and ropes (the tables) ───────────────────────────────────── */
 
-export type MaterialId = 'steel' | 'stainless' | 'aluminum' | 'strand7' | 'rope' | 'rope-fibre' | 'rope-spiral' | 'custom';
-export const MATERIAL_IDS: MaterialId[] = ['steel', 'stainless', 'aluminum', 'strand7', 'rope', 'rope-fibre', 'rope-spiral', 'custom'];
+export type MaterialId = 'steel' | 'stainless' | 'aluminum' | 'strand7' | 'rope' | 'rope-fibre' | 'rope-spiral' | 'rope-locked' | 'custom';
+export const MATERIAL_IDS: MaterialId[] = ['steel', 'stainless', 'aluminum', 'strand7', 'rope', 'rope-fibre', 'rope-spiral', 'rope-locked', 'custom'];
 
 /** The ropes and strands that have a typical metallic-area factor; 'solid' is a round bar (π/4); 'custom' is a factor the visitor types. */
 export type RopeId = 'solid' | 'rope-6x19' | 'rope-6x36' | 'strand7' | 'locked' | 'spiral' | 'custom';
@@ -284,7 +287,7 @@ export interface SecondOrder {
 }
 
 export type LoadIssueCode = 'number' | 'range' | 'parallel-legs' | 'slack-leg' | 'size';
-export type LoadWarningCode = 'no-load' | 'no-exact-position' | 'no-second-order' | 'restrained-slack' | 'large-strain';
+export type LoadWarningCode = 'no-load' | 'no-exact-position' | 'no-second-order' | 'restrained-slack' | 'large-strain' | 'shrinks-past-zero';
 
 /**
  * Codes (mode 'load'). `field` names an input in the engine's vocabulary:
@@ -306,6 +309,8 @@ export type LoadWarningCode = 'no-load' | 'no-exact-position' | 'no-second-order
  *                       negative (the cable would go slack)           leg
  *  'large-strain'       the largest strain exceeds 1 %: first-order results (and the
  *                       linearised displacement) are least reliable    numbers = [largest strain]
+ *  'shrinks-past-zero'  a leg's stretch (a fall of temperature) is more than its whole length: there is no cable left, the
+ *                       numbers mean nothing                           leg, numbers = [length after / length before]
  */
 export interface LoadIssue {
   code: LoadIssueCode;
@@ -370,7 +375,10 @@ export type LoadOutcome = LoadSolution | LoadFailure;
  * For a cable that restrains a block going down ('against') the best cable
  * direction is below the surface (φ* < 0): it presses the block down to raise
  * the friction. The optimum is reported with its own N and status: if the best
- * angle would lift the block off the surface it is `valid: false`.
+ * angle would lift the block off the surface it is `valid: false`, and the least
+ * tension that keeps the block on the surface is then at the LIFT-OFF angle itself
+ * (`best`, below): whenever μ·(sinθ + σ·a/g) > cosθ the constrained minimiser is
+ * φ_lift, with T = W·cosθ / sinφ_lift (brute force over φ agrees in every case).
  *
  * LIFT-OFF. N = 0 where tanφ = cosθ / (sinθ + σ·a/g): φ_lift = atan2(cosθ,
  * sinθ + σ·a/g). It does not depend on μ (friction vanishes with N); at θ = 0,
@@ -393,31 +401,50 @@ export interface PullInput {
 
 /**
  * THE THREE REGIMES. 'start' is the tension at which motion is about to begin (μs,
- * no acceleration); 'run' keeps it moving at constant speed (μk); 'accel' gives it
- * the acceleration a (μk). Statuses:
+ *  no acceleration); 'run' keeps it moving at constant speed (μk); 'accel' gives it
+ *  the acceleration a (μk). For travel 'against' the cable is a BRAKE, so the same three
+ *  numbers are the tensions that HOLD the block from starting to slide (start), that
+ *  LOWER it at constant speed (run) and that let it speed up at a (accel): the block slides
+ *  for less, and is held for more (see `role`). Statuses:
  *
- *  'pull'               T > 0 and N ≥ 0: the tension in `T` does it.
+ *  'pull'               T > 0 and N ≥ 0: the tension in `T` does it (see `role`).
  *  'slides-on-its-own'  ('along' only) gravity beats friction in the direction of the
  *                       pull: it moves with no pull at all (T ≤ 0 needed).
  *                       `hold` then gives the tension of a cable pulling the OTHER way at the
  *                       same φ above the surface that restrains it (start: just holds it;
  *                       run: lets it go at constant speed); null when no such tension exists.
+ *                       Also a cable that presses the block into the surface (Den < 0) on a block
+ *                       that already slides: that tension would only STOP it (a stopping tension,
+ *                       not a starting one), so it is not reported as a pull.
  *  'stays-put'          ('against' only) it does not move that way by itself: a PUSH would be
  *                       needed (T ≤ 0). Nothing a cable can do.
- *  'self-locking'       T > 0 would be infinite or negative: the denominator
- *                       cosφ + σμ·sinφ ≤ 0 — the harder the cable pulls, the harder friction
+ *  'cannot-hold'        ('against' only) it slides by itself and no tension at this φ can hold it:
+ *                       Den = cosφ − μ·sinφ ≤ 0 — the harder the cable pulls, the less friction
+ *                       grips (the cable lifts the block), so the net force down only grows.
+ *  'no-pull-needed'     c = 0 exactly with Den > 0 (a frictionless level surface; the exact limit
+ *                       slope): nothing opposes the motion, T = 0. `T` is null, `N` and `F` are there.
+ *  'self-locking'       ('along' only) T > 0 would be infinite or negative: the denominator
+ *                       cosφ + μ·sinφ ≤ 0 — the harder the cable pulls, the harder friction
  *                       grips. No tension moves it at this φ.
  *  'leaves-surface'     the tension that the formula asks for makes N < 0: the block would
  *                       lift off, and the friction formula does not apply. `T` and `N` are the
  *                       formula's (N < 0); the regime is REFUSED: it does not govern, is not
  *                       in the curve as valid, and the page says so. `phiLift` says where the lift begins.
  */
-export type PullStatus = 'pull' | 'slides-on-its-own' | 'stays-put' | 'self-locking' | 'leaves-surface';
+export type PullStatus = 'pull' | 'slides-on-its-own' | 'stays-put' | 'self-locking' | 'leaves-surface' | 'cannot-hold' | 'no-pull-needed';
+/**
+ * What the tension of a 'pull' does: 'drive' (travel 'along': the cable moves the block), 'restrain' (travel 'against':
+ * it slides by itself and the cable holds it back; less tension and it slides), 'release' (travel 'against', Den < 0:
+ * the block is held by friction and the cable lifts it clear of that friction; more tension and it slides).
+ */
+export type PullRole = 'drive' | 'restrain' | 'release';
 export type PullRegimeId = 'start' | 'run' | 'accel';
 
 export interface PullRegime {
   id: PullRegimeId;
   status: PullStatus;
+  /** What a 'pull' tension does (null for any other status). */
+  role: PullRole | null;
   /** The coefficient used and the acceleration over g. */
   mu: number;
   aOverG: number;
@@ -425,14 +452,14 @@ export interface PullRegime {
   T: number | null;
   /** The raw Num/Den of the formula (null when Den = 0): signed, for the page's explanation. */
   rawT: number | null;
-  /** Normal force N = W·cosθ − T·sinφ (null when T is null; may be < 0 for 'leaves-surface'). */
+  /** Normal force N = W·cosθ − T·sinφ (null when T is null, but for 'no-pull-needed': W·cosθ; may be < 0 for 'leaves-surface'). */
   N: number | null;
-  /** Friction force F = μ·N ≥ 0, acting against the travel. Null when N is null or negative. */
+  /** Friction force F = μ·N ≥ 0, acting against the travel. Null when N is null or negative, or for a status with no friction to speak of. */
   F: number | null;
   /** The share of T that lifts (T·sinφ) and that drags along the surface (T·cosφ). Null with T. */
   lift: number | null;
   drag: number | null;
-  /** Of the weight: the component along the surface (W·sinθ, positive = along +s, against the pull when θ > 0) and across it (W·cosθ). */
+  /** Of the weight: the component along the surface (W·sinθ, positive when the weight pulls the block DOWN the slope, i.e. against +s when θ > 0) and across it (W·cosθ). */
   weightAlong: number;
   weightNormal: number;
   /** The inertia force (W/g)·a, in the direction of travel. */
@@ -457,6 +484,16 @@ export interface PullOptimum {
   /** status 'pull' at φ*. */
   valid: boolean;
   status: PullStatus;
+  /** The least tension a block that stays on the surface allows, and the cable angle it is at; null when no valid angle exists. */
+  best: PullBest | null;
+}
+
+/** The constrained optimum: φ* itself when the block stays down there, else the lift-off angle (`atLiftOff`, N = 0). */
+export interface PullBest {
+  phi: number;
+  T: number;
+  N: number;
+  atLiftOff: boolean;
 }
 
 export interface PullHold {
@@ -470,7 +507,7 @@ export interface CurvePoint {
   phi: number;
   T: number | null;
   N: number | null;
-  /** status === 'pull'. */
+  /** status === 'pull' and the cable drives the block or holds it back (a cable that only releases it is not on the curve). */
   valid: boolean;
   status: PullStatus;
 }
@@ -565,7 +602,7 @@ export interface DrumSolution {
   resultantX: number;
   resultantY: number;
   resultantAngle: number;
-  warnings: { code: 'no-friction' | 'no-wrap' }[];
+  warnings: { code: DrumWarningCode; field?: DrumUnknown; max?: number }[];
 }
 /**
  * DRUM FRAME (for the drawing; the engine fixes it so tests can check it): the drum's centre
@@ -573,8 +610,11 @@ export interface DrumSolution {
  * the drum, along (0, −1) — the force of the cable ON the drum is along (0, −1)) to angle β
  * (where Tsmall leaves, along (−sinβ, cosβ)). So resultant = Tbig·(0, −1) + Tsmall·(−sinβ, cosβ).
  * 'no-friction': μ = 0 (the ratio is 1). 'no-wrap': β = 0 (the ratio is 1).
+ * 'beyond-limit': the μ (past 100) or the wrap (past 100 turns) FOUND is more than the form accepts as an entry; field = which, max = the largest accepted
+ * (β in radians), so that typing the answer back would be refused.
  */
 
+export type DrumWarningCode = 'no-friction' | 'no-wrap' | 'beyond-limit';
 export type DrumIssueCode = 'number' | 'range' | 'underdetermined' | 'overdetermined' | 'order' | 'degenerate' | 'overflow';
 /**
  *  'number' / 'range'  field in 'Tbig' | 'Tsmall' | 'mu' | 'beta'; a force must be > 0 (min 0, minOpen), μ ≥ 0, β ≥ 0

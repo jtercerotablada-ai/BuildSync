@@ -12,6 +12,7 @@ import {
   MATERIALS,
   MAX_LINK,
   ROPES,
+  choicesOf,
   convertCable,
   convertForceUnit,
   decodeCable,
@@ -53,18 +54,40 @@ describe('the tables', () => {
     expect(MATERIALS.steel.E).toEqual({ us: 29000, si: 200 });
     expect(MATERIALS.steel.alpha).toEqual({ us: 6.5, si: 11.7 });
     expect(MATERIALS.stainless.E).toEqual({ us: 28000, si: 193 });
-    expect(MATERIALS.stainless.alpha).toEqual({ us: 9.6, si: 17.3 });
+    expect(MATERIALS.stainless.alpha).toEqual({ us: 9.2, si: 16.6 });
     expect(MATERIALS.aluminum.E).toEqual({ us: 10000, si: 69 });
-    expect(MATERIALS.aluminum.alpha).toEqual({ us: 12.8, si: 23 });
+    expect(MATERIALS.aluminum.alpha).toEqual({ us: 13, si: 23.4 });
     expect(MATERIALS.strand7.E.us).toBe(28500);
+    // The verified moduli of the ropes (EN 1993-1-11 Table 3.1; Hanes): steel core 100 GPa, fibre core 80, spiral strand 150, locked coil 160.
+    expect(MATERIALS.rope.E).toEqual({ us: 14500, si: 100 });
+    expect(MATERIALS['rope-fibre'].E).toEqual({ us: 11500, si: 80 });
+    expect(MATERIALS['rope-spiral'].E).toEqual({ us: 21800, si: 150 });
+    expect(MATERIALS['rope-locked'].E).toEqual({ us: 23200, si: 160 });
   });
-  it('a wire rope’s effective modulus is not steel’s: it is about half, and the spiral strand is stiffer than a 6×19', () => {
-    expect(MATERIALS.rope.E.us).toBeLessThan(0.5 * MATERIALS.steel.E.us);
-    expect(MATERIALS.rope.E.us).toBeGreaterThanOrEqual(12000);
-    expect(MATERIALS.rope.E.us).toBeLessThanOrEqual(14000);
+  it('a wire rope’s effective modulus is not steel’s: about half with a steel core, about 40 % with a fibre core; spiral and locked-coil are stiffer, in that order', () => {
+    const steel = MATERIALS.steel.E;
+    for (const sys of ['us', 'si'] as const) {
+      expect(MATERIALS.rope.E[sys] / steel[sys]).toBeGreaterThan(0.45);
+      expect(MATERIALS.rope.E[sys] / steel[sys]).toBeLessThan(0.55);
+      expect(MATERIALS['rope-fibre'].E[sys] / steel[sys]).toBeGreaterThan(0.35);
+      expect(MATERIALS['rope-fibre'].E[sys] / steel[sys]).toBeLessThan(0.45);
+    }
+    expect(MATERIALS.rope.E.us).toBeGreaterThanOrEqual(13000);
+    expect(MATERIALS.rope.E.us).toBeLessThanOrEqual(15500);
     expect(MATERIALS['rope-fibre'].E.us).toBeLessThan(MATERIALS.rope.E.us);
     expect(MATERIALS['rope-spiral'].E.us).toBeGreaterThan(MATERIALS.rope.E.us);
-    expect(MATERIALS.rope.typical && MATERIALS['rope-fibre'].typical && MATERIALS['rope-spiral'].typical).toBe(true);
+    expect(MATERIALS['rope-locked'].E.us).toBeGreaterThan(MATERIALS['rope-spiral'].E.us);
+    for (const m of ['rope', 'rope-fibre', 'rope-spiral', 'rope-locked'] as const) expect(MATERIALS[m].typical).toBe(true);
+  });
+  it('locked-coil rope has its own material, and the rope factors are the verified ones (EN 1993-1-11 Annex C)', () => {
+    expect(ROPES.locked.material).toBe('rope-locked');
+    expect(ROPES.spiral.material).toBe('rope-spiral');
+    expect(MATERIALS['rope-locked'].rope).toBe('locked');
+    expect(ROPES['rope-6x19'].factor).toBe(0.41);
+    expect(ROPES['rope-6x36'].factor).toBe(0.455);
+    expect(ROPES.locked.factor).toBe(0.66);
+    expect(ROPES.spiral.factor).toBe(0.58);
+    expect(ROPES.strand7.factor).toBe(0.6);
   });
   it('has rope factors below π/4 (a rope is not a solid bar) and the solid round at π/4', () => {
     expect(ROPES.solid.factor).toBe(Math.PI / 4);
@@ -185,9 +208,9 @@ describe('what each edit does', () => {
   it('picks a material: E and α follow it; a typed E or α makes it the visitor’s own', () => {
     const rope = act({ type: 'material', material: 'rope' });
     expect(rope.section.material).toBe('rope');
-    expect(rope.section.E).toBe(13000);
+    expect(rope.section.E).toBe(14500);
     const si = act({ type: 'units', units: 'si' }, rope);
-    expect(si.section.E).toBe(90);
+    expect(si.section.E).toBe(100);
     expect(si.section.alpha).toBe(11.7);
     expect(act({ type: 'material', material: 'aluminum' }, si).section.E).toBe(69);
     const typed = act({ type: 'section', patch: { E: 12345 } }, rope);
@@ -195,17 +218,17 @@ describe('what each edit does', () => {
     expect(typed.section.E).toBe(12345);
     expect(act({ type: 'section', patch: { alpha: 7 } }, rope).section.material).toBe('custom');
     // Typing the listed value keeps the material.
-    expect(act({ type: 'section', patch: { E: 13000 } }, rope).section.material).toBe('rope');
-    expect(act({ type: 'material', material: 'custom' }, rope).section.E).toBe(13000);
+    expect(act({ type: 'section', patch: { E: 14500 } }, rope).section.material).toBe('rope');
+    expect(act({ type: 'material', material: 'custom' }, rope).section.E).toBe(14500);
     expect(act({ type: 'material', material: 'unobtainium' as never })).toBe(f0);
   });
   it('picks a rope: the factor follows it; a typed factor makes it custom; solid has none', () => {
     const r = act({ type: 'rope', rope: 'rope-6x19' });
     expect(r.section.rope).toBe('rope-6x19');
-    expect(r.section.factor).toBe(0.4);
-    expect(ropeFactor(r.section)).toBe(0.4);
+    expect(r.section.factor).toBe(0.41);
+    expect(ropeFactor(r.section)).toBe(0.41);
     expect(act({ type: 'section', patch: { factor: 0.44 } }, r).section.rope).toBe('custom');
-    expect(act({ type: 'section', patch: { factor: 0.4 } }, r).section.rope).toBe('rope-6x19');
+    expect(act({ type: 'section', patch: { factor: 0.41 } }, r).section.rope).toBe('rope-6x19');
     const c = act({ type: 'rope', rope: 'custom' }, f0);
     expect(c.section.rope).toBe('custom');
     expect(c.section.factor).toBe(0.5);
@@ -214,8 +237,8 @@ describe('what each edit does', () => {
     expect(ropeFactor(s.section)).toBe(Math.PI / 4);
     // The engine area of a rope given by diameter: A = factor·d².
     const rope = act({ type: 'section', patch: { d: 1 } }, r);
-    expect(sectionInput(rope.section, rope).A).toBeCloseTo(0.4, 14);
-    expect(sectionInput(rope.section, rope).factor).toBe(0.4);
+    expect(sectionInput(rope.section, rope).A).toBeCloseTo(0.41, 14);
+    expect(sectionInput(rope.section, rope).factor).toBe(0.41);
     expect(sectionInput(f0.section, f0).factor).toBeNull();
   });
   it('gives the section by diameter or by area, and names the form field of an engine field', () => {
@@ -236,7 +259,7 @@ describe('what each edit does', () => {
     const edited = act({ type: 'material', material: 'rope', target: 'leg2' }, own);
     expect(edited.section.material).toBe('steel');
     expect(edited.load.own2!.material).toBe('rope');
-    expect(loadInput(edited).legs[1].section.E).toBe(13e6);
+    expect(loadInput(edited).legs[1].section.E).toBe(14.5e6);
     expect(loadInput(edited).legs[0].section.E).toBe(29e6);
     expect(act({ type: 'section', patch: { d: 0.5 }, target: 'leg2' }, edited).load.own2!.d).toBe(0.5);
     expect(act({ type: 'section', patch: { d: 0.5 }, target: 'leg2' })).toBe(f0); // no own section: nothing to edit
@@ -268,10 +291,10 @@ describe('what each edit does', () => {
     expect(m.pull.W).toBe(100); // 100 lbf weighs as 100 lb of mass in US units
     const si = act({ type: 'units', units: 'si' }, f0);
     const sm = act({ type: 'pullInput', patch: { massInput: true } }, si);
-    expect(sm.pull.W).toBeCloseTo(si.pull.W / 9.80665, 5);
-    expect(pullInput(sm).W).toBeCloseTo(pullInput(si).W, 4);
+    expect(sm.pull.W).toBeCloseTo(si.pull.W / 9.80665, 3);
+    expect(pullInput(sm).W).toBeCloseTo(pullInput(si).W, 3);
     const back = act({ type: 'pullInput', patch: { massInput: false } }, sm);
-    expect(back.pull.W).toBeCloseTo(si.pull.W, 5);
+    expect(back.pull.W).toBeCloseTo(si.pull.W, 3);
     // Retyped together with the switch: taken as typed.
     expect(act({ type: 'pullInput', patch: { massInput: true, W: 55 } }, si).pull.W).toBe(55);
   });
@@ -432,5 +455,120 @@ describe('the form reaches the engine', () => {
     expect(pickOf(rng(1), [1])).toBe(1);
     expect(between(rng(1), 2, 3)).toBeGreaterThanOrEqual(2);
     expect(six(1.23456789)).toBe(1.23457);
+  });
+});
+
+/* ── The reviewers' findings, held at the reducer: the sequences a visitor makes ──────── */
+
+function solveDrumTsmall(f: CableForm): number {
+  const i = drumInput(f);
+  const ratio = Math.exp((i.mu as number) * (i.beta as number));
+  return (i.Tbig as number) / ratio;
+}
+
+describe('B1 — the wrap field turned from turns to degrees (and back) keeps the same wrap', () => {
+  const f0 = defaultCase(); // 2 turns
+  it('2 turns is 720°, and back again, exactly', () => {
+    const deg = reduceCable(f0, { type: 'drumInput', patch: { wrapUnit: 'deg' } });
+    expect(deg.drum.wrap).toBe(720);
+    expect(deg.drum.wrapUnit).toBe('deg');
+    const turns = reduceCable(deg, { type: 'drumInput', patch: { wrapUnit: 'turns' } });
+    expect(turns.drum.wrap).toBe(2);
+    // The same case: the engine is given the same β either way (the reviewer: T small went from 23.05 to 989.58 lbf).
+    expect(drumInput(deg).beta).toBeCloseTo(drumInput(f0).beta as number, 12);
+    expect(solveDrumTsmall(deg)).toBeCloseTo(solveDrumTsmall(f0), 9);
+    expect(solveDrumTsmall(f0)).toBeCloseTo(23.05, 2);
+  });
+  it('a wrap that does not divide evenly comes back to the very number it was (30° and a twelfth of a turn)', () => {
+    let f = reduceCable(f0, { type: 'drumInput', patch: { wrapUnit: 'deg', wrap: 30 } });
+    expect(f.drum.wrap).toBe(30);
+    f = reduceCable(f, { type: 'drumInput', patch: { wrapUnit: 'turns' } });
+    expect(f.drum.wrap).toBeCloseTo(1 / 12, 5);
+    f = reduceCable(f, { type: 'drumInput', patch: { wrapUnit: 'deg' } });
+    expect(f.drum.wrap).toBe(30);
+  });
+  it('a blank wrap stays blank, a wrap typed with the switch is what was typed, and the same unit changes nothing', () => {
+    const blank = { ...f0, drum: { ...f0.drum, wrap: null } };
+    expect(reduceCable(blank, { type: 'drumInput', patch: { wrapUnit: 'deg' } }).drum.wrap).toBeNull();
+    expect(reduceCable(f0, { type: 'drumInput', patch: { wrapUnit: 'deg', wrap: 90 } }).drum.wrap).toBe(90);
+    expect(reduceCable(f0, { type: 'drumInput', patch: { wrapUnit: 'turns' } })).toEqual(f0);
+    const nan = { ...f0, drum: { ...f0.drum, wrap: Number.NaN } };
+    expect(reduceCable(nan, { type: 'drumInput', patch: { wrapUnit: 'deg' } }).drum.wrap).toBeNaN();
+  });
+});
+
+describe('B5 — the number of legs is a choice, and is solved in the render that shows it', () => {
+  it('going from two legs to one (and back) changes the choices, though legs is a number', () => {
+    const two = defaultCase();
+    const one = reduceCable(two, { type: 'legs', legs: 1 });
+    expect(choicesOf(one)).not.toBe(choicesOf(two));
+    expect(choicesOf(reduceCable(one, { type: 'legs', legs: 2 }))).toBe(choicesOf(two));
+  });
+  it('typing a number does not change the choices; a unit, a mode, a list and a switch do', () => {
+    const f = defaultCase();
+    expect(choicesOf(reduceCable(f, { type: 'loadInput', patch: { W: 2500 } }))).toBe(choicesOf(f));
+    expect(choicesOf(reduceCable(f, { type: 'leg', leg: 1, patch: { angle: 45 } }))).toBe(choicesOf(f));
+    expect(choicesOf(reduceCable(f, { type: 'section', patch: { d: 0.5 } }))).toBe(choicesOf(f));
+    expect(choicesOf(reduceCable(f, { type: 'mode', mode: 'pull' }))).not.toBe(choicesOf(f));
+    expect(choicesOf(reduceCable(f, { type: 'units', units: 'si' }))).not.toBe(choicesOf(f));
+    expect(choicesOf(reduceCable(f, { type: 'material', material: 'rope' }))).not.toBe(choicesOf(f));
+    expect(choicesOf(reduceCable(f, { type: 'leg', leg: 2, patch: { side: 'left' } }))).not.toBe(choicesOf(f));
+    expect(choicesOf(reduceCable(f, { type: 'own2', on: true }))).not.toBe(choicesOf(f));
+  });
+});
+
+describe('B8 / B9 — a conversion comes back to the very number', () => {
+  it('weight and mass in SI: 100 N is 10.1972 kg and is 100 N again, not 99.999999', () => {
+    const si = reduceCable(exampleOf('pull', 'si'), { type: 'pullInput', patch: { W: 100 } });
+    const mass = reduceCable(si, { type: 'pullInput', patch: { massInput: true } });
+    expect(mass.pull.W).toBeCloseTo(10.1972, 4);
+    expect(reduceCable(mass, { type: 'pullInput', patch: { massInput: false } }).pull.W).toBe(100);
+    // In kN too.
+    const kn = reduceCable(reduceCable(si, { type: 'force', force: 'large' }), { type: 'pullInput', patch: { massInput: true } });
+    expect(reduceCable(kn, { type: 'pullInput', patch: { massInput: false } }).pull.W).toBeCloseTo(0.1, 12);
+  });
+  it('lbf and kip keep every figure a field can hold: 12,345.6789 lbf comes back as 12,345.6789', () => {
+    let f = reduceCable(defaultCase(), { type: 'loadInput', patch: { W: 12345.6789, H: 0.123456789 } });
+    f = reduceCable(f, { type: 'force', force: 'large' });
+    expect(f.load.W).toBe(12.3456789);
+    f = reduceCable(f, { type: 'force', force: 'small' });
+    expect(f.load.W).toBe(12345.6789);
+    expect(f.load.H).toBe(0.123456789);
+    // A random sample of ordinary values.
+    const r = rng(2024);
+    for (let k = 0; k < 500; k++) {
+      const w = Number(between(r, 1, 99999).toPrecision(1 + Math.floor(r() * 9)));
+      const back = reduceCable(reduceCable(reduceCable(defaultCase(), { type: 'loadInput', patch: { W: w } }), { type: 'force', force: 'large' }), { type: 'force', force: 'small' });
+      expect(back.load.W).toBe(w);
+    }
+  });
+});
+
+describe('the material and the rope: a locked-coil rope has its own', () => {
+  it('picking the locked-coil rope sets the factor and a material that pairs with it', () => {
+    const f = reduceCable(defaultCase(), { type: 'rope', rope: 'locked' });
+    expect(f.section.factor).toBe(0.66);
+    const m = reduceCable(f, { type: 'material', material: 'rope-locked' });
+    expect(m.section.E).toBe(23200);
+    expect(reduceCable(m, { type: 'units', units: 'si' }).section.E).toBe(160);
+    // The address carries it, and an old address that had a locked-coil rope on the spiral material still reads.
+    expect(decodeCable(encodeCable(m))).toEqual(m);
+    const spiralMat = reduceCable(f, { type: 'material', material: 'rope-spiral' });
+    expect(decodeCable(encodeCable(spiralMat))).toEqual(spiralMat);
+  });
+});
+
+describe('leg 2 section survives being taken off and put back', () => {
+  it('off and on again gives back the section that was typed, not a fresh copy', () => {
+    let f = reduceCable(defaultCase(), { type: 'own2', on: true });
+    f = reduceCable(f, { type: 'section', patch: { d: 0.5 }, target: 'leg2' });
+    f = reduceCable(f, { type: 'material', material: 'rope', target: 'leg2' });
+    const typed = f.load.own2 as NonNullable<typeof f.load.own2>;
+    const off = reduceCable(f, { type: 'own2', on: false });
+    expect(off.load.own2).toBeNull();
+    expect(reduceCable(off, { type: 'own2', on: true }).load.own2).toEqual(off.section); // nothing remembered: the shared one
+    const back = reduceCable(off, { type: 'own2', on: true, restore: typed });
+    expect(back.load.own2).toEqual(typed);
+    expect(back.load.own2).not.toBe(typed);
   });
 });

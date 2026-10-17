@@ -277,7 +277,7 @@ describe('cable page: the words', () => {
   it('the formulas are the same in both languages (a symbol is not translated; “sin” is “sen” in Spanish)', () => {
     const FORMULA =
       /T = W\/\(2 sin θ\)|T = √\(W² \+ H²\)|σ = T\/A|ε = σ\/E|δ = TL\/\(AE\)|A = kd²|πd²\/4|δ = αLΔT|EAαΔT|−u · d = δ|N = W cos θ − T sin φ|T cos φ = W sin θ \+ μN|T = \(sin θ \+ μ cos θ\)W\/\(cos φ \+ μ sin φ\)|T = \(sin θ \+ μ cos θ \+ a\/g\)W\/\(cos φ \+ μ sin φ\)|T = \(sin θ − μ cos θ − a\/g\)W\/\(cos φ − μ sin φ\)|φ = arctan μ|tan φ = μ|T = \(sin θ \+ μ cos θ\)W\/√\(1 \+ μ²\)|T_big = e\^\(μβ\) T_small|dT = μT dβ|e\^\(2πμ\)|e\^\(2πnμ\)|T = μW\/√\(1 \+ μ²\)|N = W\/\(1 \+ μ²\)|T = W|σ = W\/A|δ = WL\/\(AE\)|cos φ \+ μ sin φ/g;
-    const formulas = (s: string) => s.replace(/\bsen\b/g, 'sin').match(FORMULA) ?? [];
+    const formulas = (s: string) => s.replace(/\bsen\b/g, 'sin').replace(/T_mayor/g, 'T_big').replace(/T_menor/g, 'T_small').match(FORMULA) ?? [];
     en.forEach(([path, s], i) => expect(formulas(es[i][1]), path).toEqual(formulas(s)));
     expect(en.flatMap(([, s]) => formulas(s)).length).toBeGreaterThanOrEqual(30);
     // Every formula the engine tests above check is written on the page.

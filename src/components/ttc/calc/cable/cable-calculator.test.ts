@@ -211,9 +211,12 @@ describe('the example, as the server sends it: a load on a cable', () => {
 
   it('has a head to every column, every row of the numbers headed, and no table without one', () => {
     for (const table of html.match(/<table\b[\s\S]*?<\/table>/g)!) {
-      expect(table).toMatch(/<thead>/);
-      expect(table.match(/<th scope="col">/g)!.length).toBeGreaterThanOrEqual(3);
-      for (const row of table.match(/<tbody>[\s\S]*<\/tbody>/)![0].match(/<tr\b[\s\S]*?<\/tr>/g)!) expect(row).toMatch(/^<tr[^>]*><th scope="row">/);
+      expect(table).toMatch(/<thead\b/);
+      expect(table.match(/<th scope="col"[^>]*>/g)!.length).toBeGreaterThanOrEqual(3);
+      // B16: a table has a name (its card's title), and its parts say what they are even where the phone's layout turns them into blocks.
+      expect(table).toMatch(/^<table [^>]*role="table" aria-label="[^"]+"/);
+      expect(table).toContain('role="rowgroup"');
+      for (const row of table.match(/<tbody[^>]*>[\s\S]*<\/tbody>/)![0].match(/<tr\b[\s\S]*?<\/tr>/g)!) expect(row).toMatch(/^<tr[^>]*><th scope="row"/);
     }
   });
 });
@@ -251,7 +254,7 @@ describe('the sling in its other forms', () => {
     const rope = reduceCable(reduceCable(defaultCase(), { type: 'rope', rope: 'rope-6x19' }), { type: 'material', material: 'rope' });
     const html = show(rope);
     expect(text(html)).toContain('Typical values: use the manufacturer’s.');
-    expect(text(html)).toContain('A wire rope’s effective modulus is about half of steel’s (13,000 ksi against 29,000 ksi)');
+    expect(text(html)).toContain('A wire rope’s effective modulus is about half of steel’s (14,500 ksi against 29,000 ksi)');
     expect(text(html)).toContain('constructional');
     expect(fieldsOf(groupsOf(html)[1].html).map((f) => f.label)).toContain('Area factor, A ÷ d²');
     expect(text(show(defaultCase()))).not.toContain('Typical values');
@@ -292,8 +295,8 @@ describe('pulling a load against friction', () => {
     expect(rows['Cable tension, T (lbf)']).toEqual(['44.8', '37.52']);
     expect(rows['Normal force, N (lbf)']).toEqual(['+77.6', '+81.24']);
     expect(rows['Friction force, F (lbf)']).toEqual(['38.8', '32.5']);
-    expect(rows['Best cable angle, φ* (°)']).toEqual(['+26.57', '+21.8']);
-    expect(rows['Least tension, at φ* (lbf)']).toEqual(['44.72', '37.14']);
+    expect(rows['Best cable angle (°)']).toEqual(['+26.57', '+21.8']);
+    expect(rows['Least tension, at that angle (lbf)']).toEqual(['44.72', '37.14']);
     expect(rows['Cable angle at which the block lifts off (°)']).toEqual(['90', '90']);
   });
 
@@ -309,7 +312,7 @@ describe('pulling a load against friction', () => {
   it('draws the free body and the chart, with their words and a table of the curve', () => {
     expect(html).toContain('Free body of');
     expect(html.match(/<svg class="mp-plot__svg mp-cable-fig__svg[^"]*"/g)).toHaveLength(2);
-    expect(html).toContain('Free body of To start it moving');
+    expect(html).toContain('Free body, to start it moving');
     expect(html).toContain('Chart of cable tension against cable angle from −90° to 90°');
     const table = cardsOf(html).of('Cable tension against cable angle (table)');
     expect(headOf(table)).toEqual(['Cable angle, φ (°)', 'To start it moving (lbf)', 'To keep it moving (lbf)']);
@@ -354,7 +357,7 @@ describe('pulling a load against friction', () => {
   });
 
   it('a case in which no cable can pull the block says so in the numbers, the headline and the drawings', () => {
-    const f = withPull({ travel: 'against', theta: 0, muS: 0, muK: 0, phi: 0 });
+    const f = withPull({ travel: 'against', theta: 0, phi: 0 });
     const out = show(f);
     expect(analyseSafely(f).pull!.governing).toBeNull();
     expect(text(out)).toContain('No cable tension moves the block at this angle');
@@ -393,7 +396,7 @@ describe('a cable round a drum', () => {
     expect(pairsOf(html.match(/<dl class="mp-app__dl">[\s\S]*?<\/dl>/)![0])).toEqual([
       ['Found: the small tension', '23.05 lbf'],
       ['Tension ratio, e^(μβ)', '43.38'],
-      ['Held by', '23.05 lbf'],
+      ['Force at the holding end', '23.05 lbf'],
       ['Force on the drum', '976.9 lbf'],
     ]);
     const card = cardsOf(html).of('The drum');
@@ -406,7 +409,7 @@ describe('a cable round a drum', () => {
       'Ratio, T big ÷ T small = e^(μβ)': '43.38',
       'Force on the drum': '976.9 lbf',
     });
-    expect(text(card)).toContain('The small tension was the empty one.');
+    expect(text(card)).toContain('The empty quantity was the small tension.');
     expect(label(html)).toContain('A cable wrapped 720° (2 turns) round a drum: 1,000 lbf on the large side, 23.05 lbf on the small side, ratio 43.38.');
   });
 
@@ -453,7 +456,7 @@ describe('every problem, on its row and in the box', () => {
     { name: 'a modulus of zero', code: 'range', form: withSection({ E: 0 }), en: /^Cable section: The modulus \(E\) must be above 0 ksi\.$/, es: /^Sección del cable: El módulo \(E\) debe ser mayor que 0 ksi\.$/, field: 'Modulus, E' },
     { name: 'a negative design factor', code: 'range', form: { ...defaultCase(), n: -2 }, en: /^Design values: The design factor must be above 0\.$/, es: /^Valores de diseño: El factor de diseño debe ser mayor que 0\.$/, field: 'Design factor, n (optional)' },
     { name: 'a leg 2 section with no diameter', code: 'number', form: { ...f, load: { ...f.load, own2: { ...f.section, d: null } } }, en: /^Leg 2 section: The diameter is empty or is not a number\.$/, es: /^Sección del ramal 2: El diámetro no es un número, o falta\.$/, field: 'Nominal diameter, d' },
-    { name: 'a slope of 80°', code: 'range', form: withPull({ theta: 80 }), en: /^Block and cable: The slope angle must be between -30 and 60°\.$/, es: /^Bloque y cable: El ángulo de la pendiente debe ser un valor entre -30 y 60°\.$/, field: 'Slope angle, θ' },
+    { name: 'a slope of 80°', code: 'range', form: withPull({ theta: 80 }), en: /^Block and cable: The slope angle must be between −30 and 60°\.$/, es: /^Bloque y cable: El ángulo de la pendiente debe ser un valor entre −30 y 60°\.$/, field: 'Slope angle, θ' },
     { name: 'a friction that is not a number', code: 'number', form: withPull({ muS: Number.NaN }), en: /^Block and cable: The static friction is empty or is not a number\.$/, es: /^Bloque y cable: La fricción estática no es un número, o falta\.$/, field: 'Static friction, μs' },
     { name: 'two drum quantities empty', code: 'underdetermined', form: withDrum({ mu: null }), en: /^2 of the four quantities are empty\./, es: /^2 de las cuatro cantidades están vacías\./ },
     { name: 'no drum quantity empty', code: 'overdetermined', form: withDrum({ Tsmall: 23 }), en: /^All four quantities are filled in/, es: /^Las cuatro cantidades están llenas/ },
@@ -617,7 +620,9 @@ describe('the address, at component level', () => {
   it('solves a case opened whole in the render that shows it, and defers only the typing of numbers', () => {
     expect(src).toContain('const behind = useDeferredValue(form);');
     expect(src).toMatch(/const solved = onPaper \|\| form === whole \|\| choicesOf\(behind\) !== choicesOf\(form\) \? form : behind;/);
-    expect(src).toContain("typeof value === 'number' ? 0 : value");
+    // What a "choice" is lives in the model, where it is tested (model.test.ts: legs are one).
+    expect(src).toContain('choicesOf,');
+    expect(source('lib/calc/cable/model.ts')).toContain("key !== 'legs'");
   });
 
   it('brings the address to the case on screen before copying, and before Start over throws one away', () => {
@@ -658,20 +663,20 @@ describe('one plain sentence under each drawing', () => {
   const reading = (html: string) => [...html.matchAll(/<p class="mp-app__note mp-cable__reading">([\s\S]*?)<\/p>/g)].map((m) => text(m[1]));
 
   it('reads the sling, the free body and the chart, and the drum, in both languages', () => {
-    expect(reading(show(undefined))).toEqual(['The legs pull with 1,155 lbf each. When the cable stretches, the load point moves 0.1124 in down (the dashed lines show it, drawn 133 times larger).']);
+    expect(reading(show(undefined))).toEqual(['The legs pull with 1,155 lbf each. When the legs stretch, the load point moves 0.1124 in down (the dashed lines show it, drawn 133 times larger).']);
     const pull = reading(show(exampleOf('pull')));
     expect(pull).toHaveLength(2);
     expect(pull[0]).toMatch(/^To start the block moving, the cable must pull with 44\.8 lbf at 30° above the surface/);
     expect(pull[1]).toMatch(/^Each curve is the cable tension needed at each cable angle to start the block moving \(solid line\)/);
-    expect(reading(show(exampleOf('drum')))).toEqual(['The cable is held at the holding end with 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 1,000 lbf.']);
-    expect(reading(show(exampleOf('drum'), 'es'))[0]).toMatch(/^El cable se sujeta por el extremo que sujeta con 23\.05 lbf\./);
+    expect(reading(show(exampleOf('drum')))).toEqual(['The holding end carries 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 1,000 lbf.']);
+    expect(reading(show(exampleOf('drum'), 'es'))[0]).toMatch(/^El extremo de sujeción soporta 23\.05 lbf\./);
     expect(reading(show(undefined, 'es'))[0]).toMatch(/^Los ramales tiran con/);
   });
 
   it('says in words that the arrows of the drum follow the logarithm, and names the ends on the drawing', () => {
     const html = show(exampleOf('drum'));
     expect(text(html)).toContain('Arrow length and thickness follow the logarithm of the tension');
-    for (const t of ['Load end', 'Holding end', 'T big = 1,000 lbf', 'T small = 23.05 lbf', 'wrapped 2 turns']) expect(html).toContain(`>${t}<`);
+    for (const t of ['Load end', 'Holding end', 'T big = 1,000 lbf', 'T small = 23.05 lbf', 'β = 720°', '2 turns']) expect(html).toContain(`>${t}<`);
     expect(text(html)).toContain('friction multiplies the tension by 43.4');
     expect(text(show(exampleOf('drum'), 'es'))).toContain('La longitud y el grosor de las flechas siguen el logaritmo de la tensión');
   });
@@ -731,5 +736,138 @@ describe('the rules of the tool, as they stand in its source', () => {
   it('keeps the table of a phone to two cells a line and the cards from overflowing the screen', () => {
     expect(css).toMatch(/@media screen and \(max-width: 640px\)[\s\S]*?\.mp-cable__table--stack tbody th,[\s\S]*?flex: 0 0 50%;/);
     expect(css).toMatch(/@media screen \{\s*\.mp-cable \.mp-app__card--wide \{\s*overflow-x: auto;/);
+  });
+});
+
+/* ── The reviewers' findings, held at the render ──────────────────────── */
+
+describe('B7 — a drum that cannot be solved is marked beside its fields, not only in the results', () => {
+  it('μβ past 700: the message is under the drum group and the fields are marked and tied to it', () => {
+    const html = show(withDrum({ mu: 5, wrap: 100, Tsmall: 1, Tbig: null }));
+    const drum = groupsOf(html).find((g) => g.legend === 'Cable round a drum')!;
+    expect(drum.html).toMatch(/class="mp-app__row-error"[^>]*>[^<]*μβ is/);
+    expect(drum.html).toMatch(/aria-invalid="true"/);
+    expect(drum.html).toMatch(/aria-describedby="[^"]+drum"/);
+  });
+  it('a result too large to hold, in each mode, is under that mode’s group', () => {
+    const big = show(withPull({ W: 1e29, theta: 60, muS: 1, muK: 1, phi: 45 - 1e-11 / Math.SQRT2 / (Math.PI / 180), travel: 'against' }));
+    expect(text(big)).toContain('too large');
+    expect(groupsOf(big).find((g) => g.legend === 'Block, surface and cable')!.html).toContain('mp-app__row-error');
+  });
+});
+
+describe('B6 — the mode tabs keep a space between the name and the hint, which paper prints', () => {
+  it('</strong> then a space then <small>', () => {
+    const html = show(undefined);
+    expect(html).toMatch(/<\/strong> <small class="mp-cable__mode-hint">/);
+  });
+});
+
+describe('B17, B18 — one polite voice for the notices, kept in the page from the start; no alert that flashes while a number is typed', () => {
+  it('there is a polite status region and no assertive alert, with or without a problem', () => {
+    for (const f of [undefined, withLoad({ W: Number.NaN }), withDrum({ mu: null })]) {
+      const html = show(f);
+      expect(html).toMatch(/class="mp-cable__live" role="status" aria-live="polite"/);
+      expect(html).not.toMatch(/role="alert"|aria-live="assertive"/);
+      // The visible lists are not live regions of their own (their numbers change with every key).
+      expect(html).not.toMatch(/class="mp-cable__warnings"[^>]*role=/);
+    }
+  });
+});
+
+describe('B13 — the legend says how large the move is drawn', () => {
+  it('“times larger” for an exaggerated move, “drawn to scale” for one that is already large; never on the picture', () => {
+    const html = show(undefined);
+    expect(text(html)).toContain('Position after the stretch, drawn 133 times larger');
+    expect(html).not.toMatch(/<text[^>]*>drawn /);
+    const thin = show(withSection({ d: 0.02 }));
+    expect(text(thin)).toContain('Position after the stretch, drawn to scale');
+    expect(text(thin)).not.toMatch(/0\.\d+ times larger/);
+  });
+});
+
+describe('A9, B12 — what is said of a rope’s modulus is true of its own number', () => {
+  const rope = (material: 'rope' | 'rope-fibre', E: number) => withSection({ by: 'area', A: 0.1, material, E, rope: 'rope-6x19', factor: 0.41 });
+  it('a steel-core rope: about half; a fibre-core rope: about 40 %, and more than half under-stated', () => {
+    expect(text(show(rope('rope', 14500)))).toContain('about half of steel’s (14,500 ksi against 29,000 ksi)');
+    const fibre = text(show(rope('rope-fibre', 11500)));
+    expect(fibre).toContain('about 40 % of steel’s (11,500 ksi against 29,000 ksi)');
+    expect(fibre).toContain('under-states its stretch by more than half');
+    expect(fibre).not.toContain('about half of steel’s');
+    expect(text(show(rope('rope-fibre', 11500), 'es'))).toContain('cerca del 40 % del acero');
+    // A typed modulus is the visitor’s own: no note about the preset.
+    expect(text(show(rope('rope', 14000)))).not.toContain('about half of steel’s');
+  });
+});
+
+describe('C1, C2 — the free body and the chart say only what exists', () => {
+  it('a block that slides by itself: the hold-back cable is in the legend and the chart says why it is empty', () => {
+    const html = show(withPull({ theta: -30, muS: 0.3, muK: 0.2 }));
+    expect(text(html)).toContain('Hold-back cable T (it pulls the other way)');
+    expect(text(html)).toContain('The block moves by itself at this slope, so no cable tension moves it. Nothing to plot.');
+    expect(text(html)).toContain('To keep it moving: it moves by itself: no pull is needed');
+    // No mark that is not on the chart is in its legend.
+    const chart = html.split('mp-cable-fig__chart')[1].split('</figure>')[0].split('</svg>')[1];
+    expect(chart).not.toContain('Least tension');
+    expect(chart).not.toContain('Your angle');
+    expect(chart).not.toContain('Block lifts off');
+  });
+  it('a chart with curves lists the marks that are on it, and each lift-off line once', () => {
+    const html = show(withPull({}));
+    const chart = html.split('mp-cable-fig__chart')[1].split('</figure>')[0];
+    expect(chart).toContain('Least tension');
+    expect(chart).toContain('Your angle');
+    expect(chart).toContain('Block lifts off');
+    const lines = (h: string) => h.split('mp-cable-fig__chart')[1].split('</svg>')[0].match(/<line class="mp-cable-fig__lift"/g)!.length;
+    expect(lines(html)).toBe(1);
+    // With an acceleration the block lifts off at its own angle: a second line.
+    expect(lines(show(withPull({ accel: 3 * 32.174 / 3, theta: 20 })))).toBe(2);
+  });
+});
+
+describe('A4 — the table gives the best angle that keeps the block down', () => {
+  it('θ = 60°, μ = 1: 30° and 100 lbf at lift-off, not the 45° that would lift the block', () => {
+    const html = show(withPull({ theta: 60, muS: 1, muK: 1, phi: 30 }));
+    const rows = Object.fromEntries(rowsOf(cardsOf(html).of('The three cases')).map((r) => [r[0], r.slice(1)]));
+    expect(rows['Best cable angle (°)']).toEqual(['+30 · lift-off', '+30 · lift-off']);
+    expect(rows['Least tension, at that angle (lbf)']).toEqual(['100', '100']);
+    expect(text(html)).toContain('Best cable angle +30° → 100 lbf (lift-off)');
+  });
+});
+
+describe('B2, A6 — against the pull, the page speaks of holding', () => {
+  it('names, status and reading are a brake’s', () => {
+    const html = show(withPull({ theta: 30, muS: 0.3, muK: 0.2, phi: 0, travel: 'against' }));
+    const t = text(html);
+    expect(t).toContain('To hold it from sliding');
+    expect(t).toContain('To lower it at constant speed');
+    expect(t).toContain('Holds it back');
+    expect(t).toContain('To lower the block at constant speed, the cable must hold it back with 32.68 lbf along the surface;');
+    expect(cardsOf(html).titles).toContain('The three cases');
+    expect(headOf(cardsOf(html).of('The three cases'))).toEqual(['Quantity', 'To hold it from sliding', 'To lower it at constant speed']);
+    expect(t).not.toMatch(/To start it moving/);
+  });
+});
+
+describe('C13, B14, C15 — the drum: a number too small is not “0”, and the Spanish reads', () => {
+  it('30 turns at μ 0.3: the small end is “< 1 × 10^−12 lbf”, in the table, the headline and the drawing', () => {
+    const html = show(withDrum({ Tbig: 1000, Tsmall: null, mu: 0.3, wrap: 30, wrapUnit: 'turns' }));
+    expect(text(html)).toContain('< 1 × 10^−12 lbf');
+    expect(text(html)).not.toMatch(/T small = 0 lbf| 0 lbf · found/);
+    expect(text(html)).toContain('drawn as 6 turns');
+  });
+  it('Spanish: the holding end and the empty quantity read as sentences', () => {
+    const t = text(show(exampleOf('drum'), 'es'));
+    expect(t).toContain('El extremo de sujeción soporta 23.05 lbf.');
+    expect(t).toContain('La cantidad vacía era la tensión menor.');
+    expect(t).not.toContain('era la que estaba vacía');
+  });
+});
+
+describe('B4 — “1 turn” in the aria-label of the drum and in its reading', () => {
+  it('a wrap that is 1.000125 turns', () => {
+    const html = show(withDrum({ Tbig: 1000, Tsmall: 151.8, mu: 0.3, wrap: null }));
+    expect(label(html)).toContain('(1 turn)');
+    expect(text(html)).not.toContain('1 turns');
   });
 });
