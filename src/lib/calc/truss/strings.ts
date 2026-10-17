@@ -149,15 +149,15 @@ export type TrussUi = {
     none: string;
     memberOf: string;
     schematic: string;
-    options: { title: string; forces: string; numbers: string; deformed: string };
+    options: { title: string; forces: string; numbers: string; deformed: string; taller: string; wider: string; every: string };
     scale: string;
     waiting: string;
-    legend: { tension: string; compression: string; zero: string; load: string; reaction: string; node: string; flagged: string; deformed: string; unsolved: string };
+    legend: { tension: string; compression: string; zero: string; load: string; reaction: string; node: string; flagged: string; deformed: string; unsolved: string; stretchedHeights: string; stretchedWidths: string };
     drawing: { empty: string; truss: string; largest: string; unsolved: string; reactions: string };
     /** One plain sentence under the drawing: what to read in it. {largest} and {reactions} are the drawing's own two sentences, filled from the numbers. */
-    reading: { text: string; zero: string; unsolved: string };
+    reading: { text: string; zero: string; unsolved: string; stretchedHeights: string; stretchedWidths: string };
     /** What the drawing says about itself: {count} labels left off it; it is wider than its column. */
-    drawingNotes: { thinned: string; scroll: string; region: string };
+    drawingNotes: { thinned: string; thinnedPaper: string; scroll: string; region: string; every: string; stretchedHeights: string; stretchedWidths: string };
     /** The Reactions card. */
     reaction: { node: string; kind: string; pin: string; roller: string; rx: string; ry: string; size: string; along: string; alongNote: string; right: string; left: string };
     /** The Member forces card. */
@@ -314,7 +314,7 @@ export const trussUi: Record<Lang, TrussUi> = {
       none: 'none',
       memberOf: 'Member {member}',
       schematic: 'Truss, loads and reactions',
-      options: { title: 'On the drawing', forces: 'Force on each member', numbers: 'Member numbers', deformed: 'Deformed shape' },
+      options: { title: 'On the drawing', forces: 'Force on each member', numbers: 'Member numbers', deformed: 'Deformed shape', taller: 'Draw taller (heights ×{n})', wider: 'Draw wider (widths ×{n})', every: 'Show every force' },
       scale: 'Deformed shape: displacements are drawn {scale} times larger than they are.',
       waiting: 'The results appear here as soon as the truss has a solution.',
       legend: {
@@ -327,6 +327,8 @@ export const trussUi: Record<Lang, TrussUi> = {
         flagged: 'Node with a problem',
         deformed: 'Deformed shape',
         unsolved: 'Not solved: members are drawn without forces',
+        stretchedHeights: 'Heights ×{n}: angles are not true',
+        stretchedWidths: 'Widths ×{n}: angles are not true',
       },
       drawing: {
         empty: 'Truss: no nodes yet.',
@@ -339,10 +341,16 @@ export const trussUi: Record<Lang, TrussUi> = {
         text: 'Reading the drawing: a solid line is in tension (+) and a hollow line in compression (−), and the thicker the line, the larger its force. {largest} {reactions}',
         zero: 'Reading the drawing: no member carries a force under these loads, so every line is the thin dashed one. {reactions}',
         unsolved: 'Reading the drawing: the members are drawn without forces, because the truss cannot be solved yet. The problems are listed beside it.',
+        stretchedHeights: 'Its heights are drawn {n} times larger than its widths, so do not read angles from it.',
+        stretchedWidths: 'Its widths are drawn {n} times larger than its heights, so do not read angles from it.',
       },
       drawingNotes: {
         thinned: '{count} {count|label is|labels are} left off the drawing to keep it readable. Pick a member to see its label here; all of them are in the table below.',
+        thinnedPaper: '{count} {count|label is|labels are} left off the drawing to keep it readable. All of them are in the table below.',
         scroll: 'This drawing is wider than the screen so that its numbers stay readable. Scroll sideways to see all of it.',
+        every: 'This drawing is widened until every force is written on it, in the smallest print that still reads. Scroll sideways to see all of it.',
+        stretchedHeights: 'Heights are drawn {n} times larger than widths: angles are not true.',
+        stretchedWidths: 'Widths are drawn {n} times larger than heights: angles are not true.',
         region: 'Drawing of the truss, scrolls sideways',
       },
       reaction: {
@@ -553,7 +561,7 @@ export const trussUi: Record<Lang, TrussUi> = {
       none: 'ninguna',
       memberOf: 'Barra {member}',
       schematic: 'Cercha, cargas y reacciones',
-      options: { title: 'En el dibujo', forces: 'Fuerza en cada barra', numbers: 'Números de barra', deformed: 'Forma deformada' },
+      options: { title: 'En el dibujo', forces: 'Fuerza en cada barra', numbers: 'Números de barra', deformed: 'Forma deformada', taller: 'Dibujar más alto (alturas ×{n})', wider: 'Dibujar más ancho (anchos ×{n})', every: 'Mostrar todas las fuerzas' },
       scale: 'Forma deformada: los desplazamientos se dibujan {scale} veces mayores de lo que son.',
       waiting: 'Los resultados aparecerán aquí en cuanto la cercha tenga solución.',
       legend: {
@@ -566,6 +574,8 @@ export const trussUi: Record<Lang, TrussUi> = {
         flagged: 'Nudo con un problema',
         deformed: 'Forma deformada',
         unsolved: 'Sin resolver: las barras se dibujan sin fuerzas',
+        stretchedHeights: 'Alturas ×{n}: los ángulos no son reales',
+        stretchedWidths: 'Anchos ×{n}: los ángulos no son reales',
       },
       drawing: {
         empty: 'Cercha: todavía no hay nudos.',
@@ -578,10 +588,16 @@ export const trussUi: Record<Lang, TrussUi> = {
         text: 'Cómo leer el dibujo: una línea continua está a tensión (+) y una hueca a compresión (−), y cuanto más gruesa es la línea, mayor es su fuerza. {largest} {reactions}',
         zero: 'Cómo leer el dibujo: ninguna barra soporta fuerza con estas cargas, así que todas las líneas son la fina discontinua. {reactions}',
         unsolved: 'Cómo leer el dibujo: las barras se dibujan sin fuerzas porque la cercha todavía no se puede resolver. Los problemas están en la lista junto a él.',
+        stretchedHeights: 'Sus alturas se dibujan {n} veces mayores que sus anchos: no lea ángulos en él.',
+        stretchedWidths: 'Sus anchos se dibujan {n} veces mayores que sus alturas: no lea ángulos en él.',
       },
       drawingNotes: {
         thinned: '{count} {count|etiqueta queda|etiquetas quedan} fuera del dibujo para que se lea bien. Elija una barra para ver aquí la suya; todas están en la tabla de abajo.',
+        thinnedPaper: '{count} {count|etiqueta queda|etiquetas quedan} fuera del dibujo para que se lea bien. Todas están en la tabla de abajo.',
         scroll: 'Este dibujo es más ancho que la pantalla para que sus números se lean. Desplácese hacia los lados para verlo entero.',
+        every: 'Este dibujo se ensancha hasta que cada fuerza queda escrita en él, con la letra más pequeña que aún se lee. Desplácese hacia los lados para verlo entero.',
+        stretchedHeights: 'Las alturas se dibujan {n} veces mayores que los anchos: los ángulos no son reales.',
+        stretchedWidths: 'Los anchos se dibujan {n} veces mayores que las alturas: los ángulos no son reales.',
         region: 'Dibujo de la cercha, se desplaza hacia los lados',
       },
       reaction: {

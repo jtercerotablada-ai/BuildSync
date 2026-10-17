@@ -650,3 +650,15 @@
     gap: 1mm 5mm;
   }
 }
+
+/* The mark in the legend that says the drawing's heights (or widths) are drawn larger: a double arrow across the stretched direction. */
+.mp-truss-fig__stretch line {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-truss-fig__stretch polygon {
+  fill: var(--mp-ink);
+}
+.mp-truss-fig__note--stretched {
+  font-weight: 600;
+}
