@@ -23,6 +23,7 @@ import { ServiceDetailView } from './ServiceDetailView';
 import { ServicesView } from './ServicesView';
 import { SHAFT_PATH, ShaftView } from './ShaftView';
 import { TRUSS_PATH, TrussView } from './TrussView';
+import { CABLE_PATH, CableView } from './CableView';
 import { WorkView } from './WorkView';
 
 /**
@@ -65,6 +66,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [CONTINUOUS_PATH, h(ContinuousBeamView, { lang })],
     [SHAFT_PATH, h(ShaftView, { lang })],
     [TRUSS_PATH, h(TrussView, { lang })],
+    [CABLE_PATH, h(CableView, { lang })],
     ...getContent(lang).services.map(
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,

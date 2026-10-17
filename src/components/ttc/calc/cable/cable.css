@@ -1,0 +1,594 @@
+/* CABLE TENSION AND ELONGATION (.mp-cable) — the sixth calculator
+   (cable/CableCalculator.tsx) and its four drawings (SlingSchematic,
+   PullSchematic, PullCurve, DrumSchematic).
+
+   Imported by the calculator itself, so it travels with this page and no other.
+   The page lays the calculator out by the shared sheet (calc/calc.css: .mp-app,
+   .mp-num, .mp-seg, .mp-plot, the cards and the print rules); what follows is
+   only what a cable needs: a choice of three modes, the legs of a sling, tables
+   of nine columns that stack on a phone, and drawings. Every rule here is
+   written with the weight of two classes (.mp-cable ...) so that it holds
+   whichever of the two sheets the browser reads last; the drawings' classes are
+   their own, every one (.mp-cable-fig__*).
+
+   Ink for what is built, blue for the cable's tension, gold for what the
+   calculator found (the force on the drum, the cable angle chosen), red for
+   friction, the page's colour inside a block. THE MEANING NEVER RESTS ON COLOUR:
+   the three cases of the curve are a solid, a dashed and a dotted line with a
+   circle, a square and a triangle on them; every arrow carries its name and its
+   size; on paper every colour goes to black. */
+.mp-cable {
+  --mp-cable-tension: #1f5a99;
+  --mp-cable-friction: #a63a2a;
+  --mp-cable-normal: var(--mp-gold-ink);
+}
+
+/* ── the form ─────────────────────────────────────────────────────────── */
+
+/* The mode, a stack of three choices that say what they do; then the two small switches beside each other. */
+.mp-cable .mp-cable__bar {
+  display: grid;
+  gap: var(--mp-4);
+  align-items: start;
+}
+.mp-cable .mp-cable__modes {
+  display: grid;
+  gap: 0;
+  width: 100%;
+}
+.mp-cable .mp-cable__modes > .mp-seg__item {
+  flex: none;
+}
+.mp-cable .mp-cable__modes .mp-seg__item span {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.1rem;
+  padding-block: 0.55rem;
+  white-space: normal;
+  text-align: start;
+}
+.mp-cable .mp-cable__modes .mp-seg__item + .mp-seg__item span {
+  border-inline-start: 1px solid var(--mp-line-strong);
+  border-block-start: 0;
+}
+.mp-cable .mp-cable__mode-name {
+  font-weight: 500;
+}
+.mp-cable .mp-cable__mode-hint {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+.mp-cable .mp-cable__switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-4) var(--mp-6);
+}
+.mp-cable .mp-cable__switches > .mp-seg {
+  flex: 1 1 12rem;
+}
+
+/* A leg of the sling: its name, then its angle, its side and its length. */
+.mp-cable .mp-cable__leg {
+  display: grid;
+  gap: var(--mp-2);
+  padding-block-start: var(--mp-3);
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-cable .mp-cable__name {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--mp-ink-2);
+}
+.mp-cable .mp-cable__leg[data-invalid='true'] .mp-cable__name {
+  color: var(--mp-error-ink);
+}
+.mp-cable .mp-cable__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--mp-3) var(--mp-4);
+  align-items: end;
+  min-width: 0;
+}
+.mp-cable .mp-cable__fields > .mp-num__hint {
+  grid-column: 1 / -1;
+}
+.mp-cable .mp-cable__own2 {
+  padding-inline-start: var(--mp-4);
+  border-inline-start: 3px solid var(--mp-gold-ink);
+}
+.mp-cable .mp-cable__typical,
+.mp-cable .mp-cable__trap {
+  padding: var(--mp-2) var(--mp-3);
+  border-inline-start: 3px solid var(--mp-gold-ink);
+  color: var(--mp-ink-2);
+}
+/* The labels and the heads of this page carry Greek letters (σ, ε, α, μ, θ, φ): in capitals they would be other letters (Σ, E, A). */
+.mp-cable .mp-num__label,
+.mp-cable .mp-app__table thead th,
+.mp-cable .mp-cable__head,
+.mp-cable .mp-cable__case-label,
+.mp-cable .mp-plot__title {
+  text-transform: none;
+}
+/* A value longer than its field shows that it is: a number cut short reads as another number. */
+@media screen {
+  .mp-cable .mp-num__input {
+    text-overflow: ellipsis;
+  }
+}
+
+/* ── the answer ───────────────────────────────────────────────────────── */
+
+.mp-cable .mp-cable__case {
+  margin: 0;
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-cable .mp-cable__case-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-cable .mp-cable__case strong {
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mp-ink);
+}
+.mp-cable .mp-cable__case-units {
+  color: var(--mp-ink-3);
+}
+.mp-cable .mp-cable__warnings {
+  padding: var(--mp-4);
+  border: 1px solid var(--mp-gold-ink);
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-cable .mp-cable__warnings ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+}
+.mp-cable .mp-cable__warnings .mp-app__issues-title {
+  color: var(--mp-gold-ink);
+}
+.mp-cable .mp-cable__options {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mp-cable .mp-cable__options > legend {
+  padding: 0;
+}
+.mp-cable .mp-cable__status {
+  display: grid;
+  gap: var(--mp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mp-t-small);
+}
+.mp-cable .mp-cable__status li {
+  padding-block: var(--mp-2);
+  border-block-end: 1px solid var(--mp-line);
+  line-height: 1.55;
+}
+.mp-cable .mp-cable__status li[data-status='pull'] {
+  border-inline-start: 3px solid var(--mp-cable-tension);
+  padding-inline-start: var(--mp-3);
+}
+.mp-cable .mp-cable__status li:not([data-status='pull']) {
+  border-inline-start: 3px solid var(--mp-gold-ink);
+  padding-inline-start: var(--mp-3);
+}
+.mp-cable .mp-cable__verdict {
+  max-width: 64rem;
+}
+.mp-cable .mp-cable__balanced {
+  color: var(--mp-ink-2);
+}
+
+/* ── the numbers ──────────────────────────────────────────────────────── */
+
+.mp-cable .mp-cable__table {
+  max-width: 72rem;
+}
+.mp-cable .mp-cable__table td {
+  white-space: normal;
+}
+.mp-cable .mp-cable__table tbody th .mp-plot__unit {
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+.mp-cable .mp-cable__head {
+  display: none;
+}
+@media screen {
+  .mp-cable .mp-app__card--wide {
+    overflow-x: auto;
+  }
+}
+/* The three cases, one under another of the quantities: its first column is a name and wraps. */
+.mp-cable .mp-cable__matrix tbody th {
+  min-width: 9rem;
+}
+
+/* On a phone a row is laid out two cells to a line, each under its own head: a table of nine columns was three times the width of its card. */
+@media screen and (max-width: 640px) {
+  .mp-cable .mp-cable__table--stack,
+  .mp-cable .mp-cable__table--stack > tbody {
+    display: block;
+  }
+  .mp-cable .mp-cable__table--stack > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .mp-cable .mp-cable__table--stack tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding-block: 0.35rem;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-cable .mp-cable__table--stack tbody th,
+  .mp-cable .mp-cable__table--stack td {
+    flex: 0 0 50%;
+    min-width: 0;
+    padding-block: 0.3rem;
+    border-block-end: 0;
+  }
+  .mp-cable .mp-cable__table--stack tbody tr > :nth-child(2n) {
+    padding-inline-end: 0;
+  }
+  .mp-cable .mp-cable__table--stack .mp-cable__head {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mp-ink-3);
+  }
+  .mp-cable .mp-cable__table--stack .mp-cable__head .mp-plot__unit {
+    text-transform: none;
+  }
+}
+
+/* ── the drawings ─────────────────────────────────────────────────────── */
+
+.mp-cable .mp-cable-fig {
+  display: grid;
+  gap: var(--mp-3);
+  min-width: 0;
+  margin: 0;
+}
+.mp-cable .mp-cable-fig__svg {
+  height: auto;
+}
+.mp-cable-fig__cable {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.mp-cable-fig__ghost {
+  fill: none;
+  stroke: var(--mp-ink-3);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+.mp-cable-fig__path {
+  fill: none;
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 3;
+}
+.mp-cable-fig__ring {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+.mp-cable-fig__node {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+}
+.mp-cable-fig__anchor line {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-cable-fig__arc {
+  fill: none;
+  stroke: var(--mp-ink-2);
+  stroke-width: 1.25;
+}
+.mp-cable-fig__refline {
+  fill: none;
+  stroke: var(--mp-ink-3);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+.mp-cable-fig__load line,
+.mp-cable-fig__tension line,
+.mp-cable-fig__normal line,
+.mp-cable-fig__friction line,
+.mp-cable-fig__resultant line {
+  stroke-width: 2;
+}
+.mp-cable-fig__load line {
+  stroke: var(--mp-ink);
+}
+.mp-cable-fig__load polygon {
+  fill: var(--mp-ink);
+}
+.mp-cable-fig__tension line {
+  stroke: var(--mp-cable-tension);
+}
+.mp-cable-fig__tension polygon {
+  fill: var(--mp-cable-tension);
+}
+.mp-cable-fig__normal line {
+  stroke: var(--mp-cable-normal);
+}
+.mp-cable-fig__normal polygon {
+  fill: var(--mp-cable-normal);
+}
+.mp-cable-fig__friction line {
+  stroke: var(--mp-cable-friction);
+}
+.mp-cable-fig__friction polygon {
+  fill: var(--mp-cable-friction);
+}
+.mp-cable-fig__resultant line {
+  stroke: var(--mp-gold-ink);
+  stroke-dasharray: 7 3;
+}
+.mp-cable-fig__resultant polygon {
+  fill: var(--mp-gold-ink);
+}
+.mp-cable-fig__load text,
+.mp-cable-fig__tension text,
+.mp-cable-fig__normal text,
+.mp-cable-fig__friction text,
+.mp-cable-fig__resultant text,
+.mp-cable-fig__value {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink);
+  /* A line that passes a number goes behind it. */
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.mp-cable-fig__tension text {
+  fill: var(--mp-cable-tension);
+}
+.mp-cable-fig__normal text {
+  fill: var(--mp-cable-normal);
+}
+.mp-cable-fig__friction text {
+  fill: var(--mp-cable-friction);
+}
+.mp-cable-fig__resultant text {
+  fill: var(--mp-gold-ink);
+}
+.mp-cable-fig__block {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.mp-cable-fig__drum {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 2;
+}
+.mp-cable-fig__wrap path,
+.mp-cable-fig__wrap {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 3.5;
+  stroke-linecap: butt;
+}
+.mp-cable-fig__wrap circle.mp-cable-fig__ring-turn {
+  fill: none;
+  stroke: var(--mp-ink-3);
+  stroke-width: 1.5;
+}
+/* The chart. */
+.mp-cable-fig__tick text,
+.mp-cable-fig__axis-title {
+  font-family: var(--mp-mono);
+  font-size: 10.5px;
+  fill: var(--mp-ink-3);
+}
+.mp-cable-fig__axis-title {
+  font-size: 11px;
+  fill: var(--mp-ink-2);
+}
+.mp-cable-fig__curve {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 2.25;
+  stroke-linejoin: round;
+}
+.mp-cable-fig__curve--run {
+  stroke: var(--mp-cable-tension);
+  stroke-dasharray: 8 4;
+}
+.mp-cable-fig__curve--accel {
+  stroke: var(--mp-gold-ink);
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+}
+.mp-cable-fig__curve line {
+  stroke-width: 2.25;
+}
+.mp-cable-fig__mark {
+  fill: var(--mp-paper);
+  stroke: currentColor;
+  stroke-width: 1.75;
+}
+.mp-cable-fig__curve .mp-cable-fig__mark {
+  stroke: inherit;
+  stroke-dasharray: none;
+}
+.mp-cable-fig__minimum {
+  fill: var(--mp-paper);
+  stroke: inherit;
+  stroke-width: 1.75;
+  stroke-dasharray: none;
+}
+.mp-cable-fig__chosen {
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 3;
+}
+.mp-cable-fig__lift {
+  stroke: var(--mp-cable-friction);
+  stroke-width: 1.5;
+  stroke-dasharray: 1 3;
+}
+/* The legend. */
+.mp-cable-fig__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--mp-ink-2);
+}
+.mp-cable-fig__legend--curve {
+  display: grid;
+  gap: var(--mp-2);
+}
+.mp-cable-fig__key {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-2);
+  min-width: 0;
+}
+.mp-cable-fig__swatch {
+  flex: none;
+  overflow: visible;
+}
+.mp-cable-fig__swatch .mp-cable-fig__minimum {
+  stroke: var(--mp-ink);
+  stroke-width: 1.75;
+}
+.mp-cable-fig__swatch .mp-cable-fig__cable {
+  stroke-width: 2.5;
+}
+
+/* ── on paper ─────────────────────────────────────────────────────────── */
+
+@media print {
+  /* What is a way to look, and not part of the case, is not on the sheet. */
+  .mp-cable .mp-cable__options,
+  .mp-cable .mp-cable__curve-table {
+    display: none !important;
+  }
+  .mp-cable .mp-cable__leg {
+    padding-block-start: 0.6mm;
+  }
+  .mp-cable .mp-cable__fields {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .mp-cable .mp-cable__name {
+    font-size: 6.5pt;
+    font-weight: 600;
+    color: #000;
+  }
+  .mp-cable .mp-cable__own2 {
+    padding-inline-start: 2mm;
+  }
+  .mp-cable .mp-cable__case {
+    font-size: 8pt;
+    color: #000;
+  }
+  .mp-cable .mp-cable__case strong {
+    font-size: 9pt;
+  }
+  .mp-cable .mp-cable__warnings,
+  .mp-cable .mp-cable__typical,
+  .mp-cable .mp-cable__trap {
+    padding: 1mm 2mm;
+    break-inside: avoid;
+    font-size: 7pt;
+  }
+  .mp-cable .mp-cable__status {
+    font-size: 7pt;
+  }
+  .mp-cable .mp-cable__status li {
+    padding-block: 0.6mm;
+    break-inside: avoid;
+  }
+  .mp-cable .mp-cable__table {
+    max-width: none;
+  }
+  .mp-cable .mp-cable__table tbody th .mp-plot__unit {
+    font-size: 6pt;
+  }
+  .mp-cable .mp-cable__table tbody tr {
+    break-inside: avoid;
+  }
+  .mp-cable .mp-cable__verdict {
+    font-size: 7pt;
+  }
+  /* The drawings are held whole on one sheet. Everything told apart by colour is told apart by pattern, which paper keeps. */
+  .mp-cable .mp-app__plots {
+    break-inside: avoid;
+  }
+  .mp-cable {
+    --mp-cable-tension: #000;
+    --mp-cable-friction: #000;
+    --mp-cable-normal: #000;
+  }
+  .mp-cable-fig__path,
+  .mp-cable-fig__chosen,
+  .mp-cable-fig__lift {
+    stroke: #000;
+  }
+  .mp-cable-fig__curve--accel {
+    stroke: #000;
+  }
+  .mp-cable-fig__resultant line {
+    stroke: #000;
+  }
+  .mp-cable-fig__resultant polygon,
+  .mp-cable-fig__resultant text {
+    fill: #000;
+  }
+  .mp-cable-fig__normal line {
+    stroke: #000;
+  }
+  .mp-cable-fig__normal polygon,
+  .mp-cable-fig__normal text {
+    fill: #000;
+  }
+  .mp-cable-fig__load text,
+  .mp-cable-fig__tension text,
+  .mp-cable-fig__normal text,
+  .mp-cable-fig__friction text,
+  .mp-cable-fig__resultant text,
+  .mp-cable-fig__value {
+    stroke: none !important;
+  }
+  .mp-cable-fig__legend {
+    font-size: 6.5pt;
+    gap: 1mm 5mm;
+  }
+}
