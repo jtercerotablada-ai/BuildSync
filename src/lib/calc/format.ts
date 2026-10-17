@@ -76,6 +76,18 @@ export function fieldNumber(value: number): string {
 }
 
 /**
+ * A value as a line under a field names it: `fieldNumber`, except that a value
+ * which needs an exponent is written as the tables write it, "2.2481 × 10^−13",
+ * and not as a spreadsheet does ("2.2481e-13"). Never put this back in a field:
+ * a field shows what `parseNumber` reads.
+ */
+export function sayNumber(value: number): string {
+  const s = fieldNumber(value);
+  const m = /^(-?[\d.]+)e([+-])(\d+)$/.exec(s);
+  return m ? `${m[1]} × 10^${m[2] === '-' ? '−' : ''}${m[3]}` : s;
+}
+
+/**
  * Whether two numbers that ought to be one number are: the same figures when
  * printed, or no further apart than a millionth of `scale`, the size of what
  * they were added up from. (The second half is for two values a hair either

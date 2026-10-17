@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useId, useRef, useState } from 'react';
-import { ambiguousNumber, fieldNumber, parseNumber } from '@/lib/calc/format';
+import { ambiguousNumber, fieldNumber, parseNumber, sayNumber } from '@/lib/calc/format';
 
 /**
  * A number, with its label and its unit — the field every calculator is
@@ -63,6 +63,7 @@ export function NumField({
   describedBy,
   optional,
   emptyIs,
+  placeholder,
   numbers,
   onEdit,
   onCommit,
@@ -79,6 +80,8 @@ export function NumField({
   optional?: string;
   /** The value an empty field stands for, where the field may be left empty. */
   emptyIs?: number;
+  /** What an empty field says it stands for, in grey inside the box (for a field whose empty is a choice, e.g. "same as state 1"). */
+  placeholder?: string;
   /**
    * How the page writes numbers: what it sets thousands apart with; the
    * line for a text that reads two ways, with {grouped}, {decimal} and
@@ -121,7 +124,7 @@ export function NumField({
   // A paragraph pasted by mistake is named by its beginning. Under a field
   // that is empty again nothing is said: the line would name the value an
   // empty field stands for ("the value is still 0"), which it does not show.
-  const lost = left !== null && !hint && numbers && !(canBeEmpty && Object.is(value, emptyIs)) ? fill(left === '' ? (numbers.emptied ?? '') : numbers.refused, { text: left.length > 24 ? `${left.slice(0, 24)}…` : left, value: fieldNumber(value) }) : '';
+  const lost = left !== null && !hint && numbers && !(canBeEmpty && Object.is(value, emptyIs)) ? fill(left === '' ? (numbers.emptied ?? '') : numbers.refused, { text: left.length > 24 ? `${left.slice(0, 24)}…` : left, value: sayNumber(value) }) : '';
   // While the field has focus the line is about the text in it, and is read with it.
   const tied = hint !== '' && draft !== null;
   const described = [tied ? id : '', describedBy ?? ''].filter(Boolean).join(' ');
@@ -140,6 +143,7 @@ export function NumField({
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
+            placeholder={placeholder}
             value={draft ?? shown}
             aria-invalid={marked ? true : undefined}
             aria-describedby={described || undefined}

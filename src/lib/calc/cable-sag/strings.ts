@@ -164,6 +164,7 @@ const en = {
     qSame: 'Empty: the same load as state 1, {value}. Type a number (0 for none) to give state 2 a load of its own.',
     qOwn: 'State 2’s own load; state 1’s is {value}. Clear the field to make it the same as state 1.',
     qSameNoValue: 'Empty: the same load as state 1. Type a number (0 for none) to give state 2 a load of its own.',
+    qPlaceholder: 'same as state 1: {value}',
     ice: 'Ice or extra weight on the cable, per length',
   },
 
@@ -644,6 +645,7 @@ const es: CableSagUi = {
     qSame: 'Vacío: la misma carga que el estado 1, {value}. Escriba un número (0 para ninguna) para dar al estado 2 una carga propia.',
     qOwn: 'Carga propia del estado 2; la del estado 1 es {value}. Vacíe el campo para que sea la misma que la del estado 1.',
     qSameNoValue: 'Vacío: la misma carga que el estado 1. Escriba un número (0 para ninguna) para dar al estado 2 una carga propia.',
+    qPlaceholder: 'igual que el estado 1: {value}',
     ice: 'Hielo o peso extra sobre el cable, por longitud',
   },
 

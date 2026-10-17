@@ -519,7 +519,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
         <legend>{w.state.title2}</legend>
         <p className="mp-app__note">{w.state.note2}</p>
         <div className="mp-app__row mp-app__row--two">
-          <CsNum numbers={t.numbers} format={num} label={w.state.q} unit={u.line} value={form.state.q ?? Number.NaN} emptyIs={Number.NaN} onChange={(q) => dispatch({ type: 'state', patch: { q: Number.isNaN(q) ? null : q } })} {...fault('state.q')} />
+          <CsNum numbers={t.numbers} format={num} label={w.state.q} unit={u.line} value={form.state.q ?? Number.NaN} emptyIs={Number.NaN} placeholder={form.state.q === null && Number.isFinite(form.q) ? fill(w.state.qPlaceholder, { value: `${num(form.q)} ${u.line}` }) : undefined} onChange={(q) => dispatch({ type: 'state', patch: { q: Number.isNaN(q) ? null : q } })} {...fault('state.q')} />
           <CsNum numbers={t.numbers} format={num} label={w.state.ice} unit={u.line} value={form.state.ice} onChange={(ice) => dispatch({ type: 'state', patch: { ice } })} {...fault('state.ice')} />
           <CsNum numbers={t.numbers} format={num} label={w.state.T2} unit={u.temp} value={form.state.T2} onChange={(T2) => dispatch({ type: 'state', patch: { T2 } })} {...fault('thermal')} />
         </div>

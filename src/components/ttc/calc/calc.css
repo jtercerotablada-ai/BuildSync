@@ -984,6 +984,17 @@ select.mp-num__input {
   .mp-app__card:last-child > p:last-child {
     display: none !important;
   }
+  /* Errors on paper are black: the sheet is printed in grey, and a red box would print as a grey one that says nothing more; the words and the box stay. */
+  .mp-app__issues,
+  .mp-app__issues-title,
+  .mp-app__issues li {
+    color: #000 !important;
+    border-color: #000 !important;
+  }
+  .mp-num[data-invalid='true'] .mp-num__box {
+    border-block-end-color: #000 !important;
+    box-shadow: none !important;
+  }
   .mp-sheet {
     display: block;
   }

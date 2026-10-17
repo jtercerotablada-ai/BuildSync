@@ -1,6 +1,33 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+/**
+ * The four seconds a notice is on screen, as one timer: starting it again restarts
+ * the four seconds (a second Copy used to be cleared by the first one's timer),
+ * and stopping it leaves nothing pending. The timers are a parameter so that this
+ * can be tested without a browser.
+ */
+export function noticeTimer(
+  clear: () => void,
+  ms = 4000,
+  timers: { set: (run: () => void, ms: number) => number; clear: (id: number) => void } = { set: (run, after) => window.setTimeout(run, after), clear: (id) => window.clearTimeout(id) },
+) {
+  let id: number | null = null;
+  return {
+    start() {
+      if (id !== null) timers.clear(id);
+      id = timers.set(() => {
+        id = null;
+        clear();
+      }, ms);
+    },
+    stop() {
+      if (id !== null) timers.clear(id);
+      id = null;
+    },
+  };
+}
 
 /**
  * THE CALCULATORS' SHELL — the row of actions that closes a form: Copy
@@ -24,6 +51,10 @@ import React, { useState } from 'react';
  */
 export function Actions({ t, copy, reset }: { t: { copy: string; copied: string; copyFailed: string; print: string; reset: string }; copy: () => string; reset: () => void }) {
   const [copied, setCopied] = useState<'' | 'ok' | 'failed'>('');
+  // One timer for the notice: a second Copy inside the four seconds restarts them, and the page leaving takes the timer with it.
+  const holder = useRef<ReturnType<typeof noticeTimer> | null>(null);
+  if (holder.current === null) holder.current = noticeTimer(() => setCopied(''));
+  useEffect(() => () => holder.current?.stop(), []);
   const copyLink = async () => {
     const link = copy();
     try {
@@ -33,7 +64,7 @@ export function Actions({ t, copy, reset }: { t: { copy: string; copied: string;
       // No clipboard (an old browser, a page not served over https): the address bar has it.
       setCopied('failed');
     }
-    window.setTimeout(() => setCopied(''), 4000);
+    holder.current?.start();
   };
   return (
     <div className="mp-app__actions">
