@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { hasTranslation, langFromPathname, localePath } from "@/lib/ttc/i18n";
 import { legal, primaryNav, services } from "@/lib/ttc/site";
 import { citySlugs } from "@/lib/ttc/city-slugs";
+import { COST_PATH } from "@/lib/ttc/cost-path";
 import { openCalculatorPaths } from "@/lib/ttc/calculator-paths";
 import { isNonContributorRole } from "@/lib/workspace-roles";
 
@@ -298,6 +299,9 @@ export const EN_PUBLIC_PAGES: readonly string[] = [
   // text stays out of the proxy's bundle (cities.test.ts keeps the two
   // lists together).
   ...citySlugs.map((c) => `/services/${c.program}/${c.slug}`),
+  // The recertification cost page (cost-page.ts): a static page beside the
+  // service pages, so it is not in `services`.
+  COST_PATH,
 ];
 
 /** The Spanish mirror: every English page that has a Spanish twin (all but

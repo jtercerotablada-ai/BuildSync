@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { absoluteUrl, services } from '@/lib/ttc/site';
 import { cityPath } from '@/lib/ttc/cities';
 import { citySlugs } from '@/lib/ttc/city-slugs';
+import { COST_PATH } from '@/lib/ttc/cost-path';
 import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { hreflangFor, LANGS, localePath } from '@/lib/ttc/i18n';
 
@@ -38,6 +39,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/privacy', freq: 'yearly', priority: 0.2 },
     { path: '/terms', freq: 'yearly', priority: 0.2 },
     ...services.map((s) => ({ path: `/services/${s.slug}`, freq: 'monthly' as const, priority: 0.8 })),
+    // What a recertification or a BSIP inspection costs (cost-page.ts).
+    { path: COST_PATH, freq: 'monthly', priority: 0.8 },
     // One page per city, under its county program (cities.ts).
     ...citySlugs.map((c) => ({ path: cityPath(c), freq: 'monthly' as const, priority: 0.7 })),
     // The calculators catalogue, and each calculator that is open

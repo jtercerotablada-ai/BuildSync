@@ -3348,6 +3348,13 @@ const pricing = {
   ],
   note: 'The price depends on the size of the building, the number of structures, the electrical service, the documents available and what the jurisdiction asks for. Several buildings: one proposal, a price for each.',
   cta: 'Get a fixed-fee proposal',
+  costLink: 'What moves the price, and what the fee leaves out',
+  /** The link from each county program's page to the cost page. */
+  pageLink: 'Prices by building size: {name}',
+  /* The owner, October 17, 2026: the complete package, signed and sealed,
+     three to four days after the inspection; one to two when the client is
+     in a hurry. Spelled out in words, not figures. */
+  delivery: 'The complete package, signed and sealed, three to four days after the inspection. In a hurry? One to two days.',
   urgency: {
     eyebrow: 'What waiting can cost',
     titleLines: ['Every month you wait', 'costs you more.'],

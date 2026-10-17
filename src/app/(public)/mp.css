@@ -6472,3 +6472,59 @@ a.mp-menu__mail {
 .mp-legal__cols + p {
   margin-block-start: var(--mp-6);
 }
+
+/* ── 22. The recertification cost page (CostView.tsx) ───────────────────────
+   The tables, the scope lists and the risk rows are section 20's; these are
+   the pieces only this page has. */
+.mp-costp__reviewed {
+  margin: var(--mp-4) 0 0;
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-faint);
+}
+.mp-costp__grid {
+  list-style: none;
+  margin: clamp(2rem, 4vw, 3rem) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-6);
+}
+.mp-costp__grid li {
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-costp__grid h3 {
+  margin: var(--mp-3) 0 var(--mp-2, 0.5rem);
+  font-size: var(--mp-t-h4);
+  letter-spacing: -0.01em;
+}
+.mp-costp__grid p {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+.mp-costp__h2 {
+  margin: var(--mp-4) 0 var(--mp-6);
+}
+.mp-costp__late {
+  margin: var(--mp-6) 0 0;
+}
+@media (min-width: 640px) {
+  .mp-costp__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 901px) {
+  .mp-costp__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* The delivery promise under the pricing lede: one gold-ruled line. */
+.mp-cost__delivery {
+  margin: var(--mp-6) 0 0;
+  padding-inline-start: var(--mp-4);
+  border-inline-start: 3px solid var(--mp-gold);
+  max-width: 58ch;
+  font-size: var(--mp-t-body);
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--mp-ink);
+}

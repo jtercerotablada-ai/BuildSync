@@ -2002,6 +2002,9 @@ export const es: SiteContent = {
     ],
     note: 'El precio depende del tamaño del edificio, del número de estructuras, del servicio eléctrico, de los documentos disponibles y de lo que pida la jurisdicción. Varios edificios: una sola propuesta, con un precio para cada uno.',
     cta: 'Solicitar propuesta a precio fijo',
+    costLink: 'Qué mueve el precio y qué queda fuera de los honorarios',
+    pageLink: 'Precios según el tamaño del edificio: {name}',
+    delivery: 'El paquete completo, firmado y sellado, de tres a cuatro días después de la inspección. ¿Tiene prisa? De uno a dos días.',
     urgency: {
       eyebrow: 'Lo que puede costar esperar',
       titleLines: ['Cada mes que espera', 'le cuesta más.'],

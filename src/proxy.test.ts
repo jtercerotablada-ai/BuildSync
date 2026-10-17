@@ -26,6 +26,7 @@ import nextConfig from "../next.config";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 import { services } from "@/lib/ttc/site";
 import { citySlugs } from "@/lib/ttc/city-slugs";
+import { COST_PATH } from "@/lib/ttc/cost-path";
 import { openCalculatorPaths } from "@/lib/ttc/calculator-paths";
 
 /**
@@ -877,6 +878,8 @@ describe("publicNotFoundTarget", () => {
         ...services.map((s) => `/es/services/${s.slug}`),
         // One page per city, under its county program (city-slugs.ts).
         ...citySlugs.map((c) => `/es/services/${c.program}/${c.slug}`),
+        // The recertification cost page (cost-path.ts).
+        `/es${COST_PATH}`,
       ].sort(),
     );
   });

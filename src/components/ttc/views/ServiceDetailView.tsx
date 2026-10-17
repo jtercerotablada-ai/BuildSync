@@ -6,6 +6,7 @@ import { cityPath } from '@/lib/ttc/cities';
 import { cityPagesOf } from '@/lib/ttc/city-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { serviceLd, webPageLd } from '@/lib/ttc/structured-data';
+import { COST_PATH } from '@/lib/ttc/cost-path';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
@@ -384,6 +385,13 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               </ButtonLink>
               {assuredUnderRows ? <ReachRow c={c} assure className="mp-reach--row" /> : null}
             </Reveal>
+            {/* The county programs: what the work costs, on its own page
+                (cost-page.ts), in words of its own, not the home page's. */}
+            {program ? (
+              <p className="mp-costp__late">
+                <TextLink href={localePath(COST_PATH, lang)}>{c.pricing.pageLink.replace('{name}', c.pricing.programs.find((p) => p.slug === service.slug)?.name ?? service.title)}</TextLink>
+              </p>
+            ) : null}
           </div>
         </section>
       ) : null}

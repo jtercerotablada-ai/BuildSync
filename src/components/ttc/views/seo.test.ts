@@ -38,6 +38,8 @@ import { CABLE_SAG_PATH, CableSagView } from './CableSagView';
 import { framePage } from '@/lib/calc/frame/page-strings';
 import { FRAME_PATH, FrameView } from './FrameView';
 import { CalculatorsView } from './CalculatorsView';
+import { CostView } from './CostView';
+import { COST_PATH, costPage } from '@/lib/ttc/cost-page';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -110,6 +112,8 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     [CABLE_PATH, { title: cablePage[lang].title, description: cablePage[lang].description }] as const,
     [CABLE_SAG_PATH, { title: cableSagPage[lang].title, description: cableSagPage[lang].description }] as const,
     [FRAME_PATH, { title: framePage[lang].title, description: framePage[lang].description }] as const,
+    // The recertification cost page (cost-page.ts).
+    [COST_PATH, { title: costPage(lang).seo.title, description: costPage(lang).seo.description }] as const,
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -177,7 +181,7 @@ describe('titles and descriptions: every page in the sitemap', () => {
     expect(pages.map((p) => p.url).sort()).toEqual(sitemap().map((e) => e.url).sort());
     // Sixteen pages in each language, one more for every city page, and the
     // calculators: their catalogue and each one that is open.
-    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length + 1 + openCalculatorPaths.length));
+    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length + 1 + openCalculatorPaths.length + 1));
   });
 
   for (const p of pages) {
@@ -400,6 +404,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [CABLE_PATH, h(CableView, { lang })],
     [CABLE_SAG_PATH, h(CableSagView, { lang })],
     [FRAME_PATH, h(FrameView, { lang })],
+    [COST_PATH, h(CostView, { lang })],
   ];
 }
 

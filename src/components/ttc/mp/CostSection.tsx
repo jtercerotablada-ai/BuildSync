@@ -6,6 +6,7 @@ import { accentLines } from './text';
 import { useContent, useL } from './lang';
 import { ReachRow } from './ReachRow';
 import { marks } from '@/lib/ttc/municipalities';
+import { COST_PATH } from '@/lib/ttc/cost-path';
 
 /**
  * Three home sections, one file, one copy block (`pricing` in site.ts and
@@ -44,6 +45,7 @@ export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 
         />
         <Reveal delay={0.06}>
           <p className="mp-prog__lede">{k.lede}</p>
+          <p className="mp-cost__delivery">{k.delivery}</p>
         </Reveal>
 
         <div className="mp-cost__cards">
@@ -82,6 +84,9 @@ export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 
               ))}
             </ul>
             <p className="mp-cost__note">{k.note}</p>
+            <p className="mp-costp__late">
+              <TextLink href={l(COST_PATH)}>{k.costLink}</TextLink>
+            </p>
           </div>
         </Reveal>
       </div>
