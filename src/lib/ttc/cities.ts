@@ -84,11 +84,25 @@ export type CityPage = {
   faq: { q: string; a: string }[];
   /** The one thing to do next, naming this city's office. */
   nextStep: string;
+  /** The day THIS city's own pages were read, for a page added after
+      `citiesChecked` (ISO, a key of `readDates`). Absent: `citiesCheckedISO`. */
+  checkedISO?: string;
 };
 
 /** The day every city's own pages were opened and read (city-sources.ts). */
 export const citiesChecked = { en: 'October 9, 2026', es: '9 de octubre de 2026' } as const;
 export const citiesCheckedISO = '2026-10-09';
+
+/** Every day city pages were read, as each language prints it. The pages
+    added on October 17, 2026 carry that day in `checkedISO`. */
+export const readDates: Record<string, { en: string; es: string }> = {
+  [citiesCheckedISO]: citiesChecked,
+  '2026-10-17': { en: 'October 17, 2026', es: '17 de octubre de 2026' },
+};
+
+/** The day a city’s own pages were read: ISO, and as `lang` prints it. */
+export const cityCheckedISO = (p: { checkedISO?: string }) => p.checkedISO ?? citiesCheckedISO;
+export const cityChecked = (p: { checkedISO?: string }, lang: 'en' | 'es') => readDates[cityCheckedISO(p)][lang];
 
 /** `/services/<program>/<slug>` — canonical (English) path of a city page.
     Takes a page or an entry of city-slugs.ts: the slugs are the same in

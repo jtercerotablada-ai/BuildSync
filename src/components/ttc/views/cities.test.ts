@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import sitemap from '@/app/sitemap';
 import { getContent } from '@/lib/ttc/content';
-import { cityPath, citiesCheckedISO, type CityPage } from '@/lib/ttc/cities';
+import { cityCheckedISO, cityPath, citiesCheckedISO, type CityPage } from '@/lib/ttc/cities';
 import { cityPagesEn } from '@/lib/ttc/cities.en';
 import { getCityPages } from '@/lib/ttc/city-content';
 import { citySeo } from '@/lib/ttc/city-seo';
@@ -235,6 +235,9 @@ const CITY_SYSTEMS: Record<string, string[]> = {
   'hallandale-beach': ['hallandalefl-energovpub.tylerhost.net', 'cohb.org'],
   'deerfield-beach': ['deerfieldbeach.geocivix.com'],
   miramar: ['miramarfl-energovweb.tylerhost.net'],
+  // Pages added October 17, 2026: where the city posts its own files.
+  'dania-beach': ['content.civicplus.com'],
+  'cooper-city': ['files-backend.assets.thrillshare.com', 'aca-prod.accela.com'],
 };
 
 describe('city pages: where each line was read', () => {
@@ -549,7 +552,7 @@ describe('city pages: the page a visitor gets', () => {
         expect(faq.mainEntity.map((q: { name: string }) => q.name)).toEqual(p.faq.map((x) => x.q));
         const crumbs = ld.find((x) => x['@type'] === 'BreadcrumbList');
         expect(crumbs.itemListElement).toHaveLength(4);
-        expect(ld.find((x) => x['@type'] === 'WebPage').lastReviewed).toBe(citiesCheckedISO);
+        expect(ld.find((x) => x['@type'] === 'WebPage').lastReviewed).toBe(cityCheckedISO(p));
       });
     }
   }

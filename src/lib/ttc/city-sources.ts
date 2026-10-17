@@ -24,7 +24,9 @@ export const cityPagesRead = '2026-10-09';
 
 export type CityQuote = { page: string; quote: string };
 
-export const citySources: Record<string, { office: CityQuote[]; rows: Record<string, CityQuote[]> }> = {
+/** `read`: the day this record was read, where it is not `cityPagesRead` —
+    the pages added on October 17, 2026 (cities.ts, `checkedISO`). */
+export const citySources: Record<string, { read?: string; office: CityQuote[]; rows: Record<string, CityQuote[]> }> = {
   'building-recertification/miami': {
     office: [
       { page: 'https://www.miami.gov/Permits-Construction/Unsafe-Structures-Services/Get-a-Building-Recertification', quote: 'You must visit the Unsafe Structures Section -Recertification Division, within the Building Department at: 444 SW 2nd Ave, 1st Floor, Miami, FL 33130' },
@@ -2177,6 +2179,2153 @@ export const citySources: Record<string, { office: CityQuote[]; rows: Record<str
       ],
       'nextStep': [
         { page: 'https://www.davie-fl.gov/Search?searchPhrase=Building%20Safety%20Inspection%20Program&pageNumber=1&perPage=10&departmentId=-1', quote: 'YOU CAN FIND THE CASE NUMBER IN THE NOTICE RECEIVED FROM THE TOWN OF DAVIE BUILDING DIVISION.' },
+      ],
+    },
+  },
+  'building-recertification/bay-harbor-islands': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.bayharborislands-fl.gov/149/Building-Department', quote: 'Building Department Physical Address 1045 95th Street, Trailer 3 Bay Harbor Islands, FL 33154 Phone: 305-993-1786' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'TOWN OF BAY HARBOR ISLANDS SPECIAL MASTER HEARING' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Submit the required engineering report to complete the recertification process.' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'The Responsible Person must file with the Town any report ("Engineer\'s Report") of a professional engineer or architect concerning the structural, electrical or life safety conditions of the building' },
+      ],
+      'lede': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'RECERTIFICATION, INSPECTIONS, RESERVE STUDIES AND REGISTRATION' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'BUILDING OFFICIAL MIKE MESA' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Engineering reports also must be provided:' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Submit the required engineering report to complete the recertification process.' },
+      ],
+      'local 1: Who handles it': [
+        { page: 'https://www.bayharborislands-fl.gov/149/Building-Department', quote: 'Building & Zoning Department' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'COUNCIL MEMBER ROBERT YAFFE & CHIEF BUILDING OFFICIAL MIKE MESA' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Presenter: Mike Mesa' },
+      ],
+      'local 2: Engineers’ reports to the Town': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Each condominium, cooperative or homeowner\'s association or apartment complex of more than four (4) units must designate a Responsible Person (the contact person for the association).' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'The Responsible Person must file with the Town any report ("Engineer\'s Report") of a professional engineer or architect concerning the structural, electrical or life safety conditions of the building within five (5) business days of receipt of the Engineer\'s Report.' },
+      ],
+      'local 3: How that filing works': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Filing means hand delivery of the Engineer\'s Report to the Town\'s Chief Building Official or to the Building Department in the absence of the CBO.' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'The report is to be filed in both digital, if available, and hard copy formats.' },
+      ],
+      'local 4: Association registration': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Requires all condominium associations, multifamily homeowners, cooperative apartment associations and commercial and residential buildings within the Town to file with the Code Compliance unit a registration of a form provided' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'The registration must be updated on or before January 30 of each year following the initial registration.' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Contact information for association\'s insurance agent, if any' },
+      ],
+      'local 5: Repairs need permits': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Violation: Apply and obtain permit(s) for all repairs as indicated on your engineer\'s report.' },
+      ],
+      'local 6: If it is late': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Violation: Submit Engineers 40, 50, 60.... Year Re-Certification Report' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Code Section: 24-3 The intent and purpose of this chapter is to protect the public health, safety, morals and welfare of all of the people of the town by establishing minimum standards governing the condition, occupancy and maintenance of all buildings and premises' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Impose a fine of $50.00 per day until compliance is met.' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Submit the required engineering report to complete the recertification process.' },
+      ],
+      'local 7: Older names': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Violation: Submit Engineers 40, 50, 60.... Year Re-Certification Report' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Recertification mandate is shortened to 30 years instead of 40 years.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'COUNCIL MEMBER ROBERT YAFFE & CHIEF BUILDING OFFICIAL MIKE MESA' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'RECERTIFICATION, INSPECTIONS, RESERVE STUDIES AND REGISTRATION' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Presenter: Mike Mesa' },
+      ],
+      'faq 2': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'The Responsible Person must file with the Town any report ("Engineer\'s Report") of a professional engineer or architect concerning the structural, electrical or life safety conditions of the building within five (5) business days of receipt of the Engineer\'s Report.' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Filing means hand delivery of the Engineer\'s Report to the Town\'s Chief Building Official or to the Building Department in the absence of the CBO.' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'The report is to be filed in both digital, if available, and hard copy formats.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Violation: Apply and obtain permit(s) for all repairs as indicated on your engineer\'s report.' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Type of Hearing: Special Master Hearing' },
+      ],
+      'faq 4': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Time frames are calculated by Building Age' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: '(dated when built) rather than from issuance of' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Early Notification of Recertification' },
+      ],
+      'faq 5': [
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2447/09292022-Special-Master-Hearing', quote: 'Violation: Submit Engineers 40, 50, 60.... Year Re-Certification Report' },
+        { page: 'https://www.bayharborislands-fl.gov/DocumentCenter/View/2673/Condo-Workshop-PowerPoint-Presentation', quote: 'Recertification mandate is shortened to 30 years instead of 40 years.' },
+      ],
+      'nextStep': [
+        { page: 'https://www.bayharborislands-fl.gov/149/Building-Department', quote: 'Please contact the Building Department for more information' },
+      ],
+    },
+  },
+  'building-recertification/cutler-bay': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'Building Permits are available in the Building Department located in the Town of Cutler Bay Town Center at 10720 Caribbean Blvd., Suite 110' },
+      { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'Cutler Bay, FL 33189' },
+      { page: 'https://www.cutlerbay-fl.gov/com-dev/page/permits-and-inspections', quote: 'please contact the Building Department at (305) 234-4193.' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Building Recertification Inspection Report Form - Electrical' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Building Recertification Inspection Report Form - Structural' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'General Considerations and Guidelines' },
+      ],
+      'lede': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'The Building Division reviews building plans and conducts required building inspections, assesses potentially dangerous structures, and posts unsafe notices as needed.' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Certification of Compliance with Parking Lot Guardrails' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Certification of Compliance with Parking Lot Illumination' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'MIAMI-DADE COUNTY BUILDING RECERTIFICATION GENERAL CONSIDERATIONS & GUIDELINES' },
+      ],
+      'local 1: The Town’s forms': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Building Recertification Inspection Report Form - Structural' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/min-inspection-structural-recertification.pdf', quote: 'REGULATORY AND ECONOMIC RESOURCES DEPARTMENT' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/min-inspection-structural-recertification.pdf', quote: 'Initial Inspection Report' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/min-inspection-structural-recertification.pdf', quote: 'Amended Inspection Report after completion of repairs' },
+      ],
+      'local 2: Parking-lot forms': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Certification of Compliance with Parking Lot Guardrails' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Certification of Compliance with Parking Lot Illumination' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/cert-of-compliance-parking-lot-guardrails.pdf', quote: 'The parking lot(s) is not adjacent to or abutting a canal, lake, or other body of water.' },
+      ],
+      'local 3: The guidelines': [
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'The approved report forms provided must be used, proprietary forms will not be accepted.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'Where required, photos must be in color and with sufficient resolution to detail the conditions being shown.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'Each report shall include a cover letter from the design professional with a statement to the effect that the building or structure is structurally or electrically not unsafe as defined by the Florida Building Code, for continued occupancy.' },
+      ],
+      'local 4: Larger electrical services': [
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'For electrical service systems with service entrance conductors rated at 400 amperes or greater in the aggregate, an infrared thermography inspection with a written report of the following electrical equipment must be provided as applicable' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'Level-II or higher certified infrared thermographer' },
+      ],
+      'local 5: Repairs and permits': [
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'it should be immediately submitted to the local jurisdiction for processing, do not proceed to conduct repairs without permits.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'Additionally, repairs being conducted under a permit will afford additional time to comply with a complete recertification report.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'Unpermitted additions found by the recertification process present an unsafe situation and must be identified in the report, even if found to be properly built.' },
+      ],
+      'local 6: After filing': [
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'reports may be au-dited, and the subject building may be inspected at the discretion of the Building Official. The Building Official reserves the right to revoke an approved recertification report.' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'assesses potentially dangerous structures, and posts unsafe notices as needed.' },
+      ],
+      'local 7: How it is filed': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'Citizens and contractors who need permits, inspections and plan reviews can visit Town Hall for complete service, courtesy of the Town\'s contractor, CAP Government, Inc.' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/permits-and-inspections', quote: 'The Town\'s Permit and Inspections Online Services provides instant access to information on the status of permits, plans and inspections on commercial and residential properties.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'Building Permits are available in the Building Department located in the Town of Cutler Bay Town Center at 10720 Caribbean Blvd., Suite 110' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'courtesy of the Town\'s contractor, CAP Government, Inc.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'it should be immediately submitted to the local jurisdiction for processing' },
+      ],
+      'faq 2': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Building Recertification Inspection Report Form - Electrical' },
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Certification of Compliance with Parking Lot Guardrails' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'The approved report forms provided must be used, proprietary forms will not be accepted.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'Unpermitted additions found by the recertification process present an unsafe situation and must be identified in the report, even if found to be properly built.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'legaliz-ing an unpermitted addition would be a prerequisite to the completion of a successful recertification report.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'Violations through the local jurisdiction\'s code compliance division should be investigated.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-forms', quote: 'Building Recertification Inspection Report Form - Structural' },
+      ],
+      'faq 5': [
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'The Miami-Dade Recertification Program, which is synonymous with the State of Florida Milestone Inspection Program, combines both Phase 1 and Phase 2 inspections into a single inspection.' },
+        { page: 'https://www.cutlerbay-fl.gov/sites/default/files/fileattachments/community_development/page/4671/general-consideration-guidelines-2025.pdf', quote: 'The Miami-Dade Recertification Program meets and exceeds the minimum requirements of the State of Florida Milestone Inspection Program' },
+      ],
+      'nextStep': [
+        { page: 'https://www.cutlerbay-fl.gov/com-dev/page/building-division', quote: 'The purpose of the Building Division is to assure compliance with the Florida Building Code, which regulates all building construction activities within the Town of Cutler Bay.' },
+      ],
+    },
+  },
+  'building-recertification/el-portal': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'Village Hall 500 NE 87th Street El Portal, Florida 33138' },
+      { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'The Building Department can be reached by calling Village Hall at 305-795-7880.' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: '40-Year Certification Guidelines' },
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'PROCESS OPTION 1, HARD COPY DROP OFF VIA APPOINTMENT ONLY TO VILLAGE OF EL PORTAL – BUILDING DEPARTMENT OFFICE. PROCESS OPTION 2, ELECTRONIC PLAN REVIEW SUBMISSION VIA WEB PORTAL.' },
+      ],
+      'lede': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'Code Enforcement & Building Department' },
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'Code Enforcement/Building Dept. Forms' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'BUILDING & ZONING DEPARTMENT' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'MINIMUM INSPECTION PROCEDURAL GUIDELINES FOR' },
+      ],
+      'local 1: The Village’s guidelines': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: '40-Year Certification Guidelines' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '40-year Certification' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'BUILDING\'S STRUCTURAL/ELECTRICAL RECERTIFICATION' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '500 NE 87 SREET' },
+      ],
+      'local 2: What the report covers': [
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'f. Folio Number of Building:' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'g. Building Code Occupancy Classification:' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '4. FOUNDATION' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '5. MASONRY BEARING WALL' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '6. FLOOR AND ROOF SYSTEM' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '11. OTHER (As required by Architect/Engineer)' },
+      ],
+      'local 3: The electrical part': [
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '14. ELECTRICAL SERVICE' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '15. METER AND ELECTRIC ROOMS' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '16. BRANCH CIRCUITS' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '17. CONDUIT RACEWAYS' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'Exit signs lighting and emergency lighting, along with a functional fire alarm system must all be in good working condition.' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'e. Electrical repair note appropriate line:' },
+      ],
+      'local 4: The notice date': [
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'a. Date of notice of required inspection' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'b. Date(s) of actual inspection' },
+      ],
+      'local 5: How filings are made': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'PROCESS OPTION 1, HARD COPY DROP OFF VIA APPOINTMENT ONLY TO VILLAGE OF EL PORTAL – BUILDING DEPARTMENT OFFICE. PROCESS OPTION 2, ELECTRONIC PLAN REVIEW SUBMISSION VIA WEB PORTAL.' },
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'PLEASE DO NOT E-MAIL ANY PLANS OR SUBMISSION DOCUMENTS AS IT WILL DELAY YOUR REVIEW PROCESS.' },
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'Once submitted you will be automatically and periodically updated on the status of your electronic review process.' },
+      ],
+      'local 6: Which forms it takes': [
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'EVALUATION: Each report shall include a statement to the effect that the building is structurally safe, unsafe, safe with qualifications, or has been deemed safe by restrictive interpretation of such statements.' },
+      ],
+      'faq 1': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'The Building Department can be reached by calling Village Hall at 305-795-7880.' },
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'Code Enforcement & Building Department' },
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'Building Official: Pedro J Martinez' },
+      ],
+      'faq 2': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: '40-Year Certification Guidelines' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'STRUCTURAL INSPECTION' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'ELECTRICAL INSPECTION' },
+      ],
+      'faq 3': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'ATTENTION TO ALL APPLICANTS, ONLY TWO FORMAT SUBMISSION PROCESS OPTIONS WILL BE ACCEPTABLE BY THE VILLAGE OF EL PORTAL – BUILDING DEPARTMENT.' },
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'PLEASE DO NOT E-MAIL ANY PLANS OR SUBMISSION DOCUMENTS AS IT WILL DELAY YOUR REVIEW PROCESS.' },
+      ],
+      'faq 4': [
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: 'a. Date of notice of required inspection' },
+      ],
+      'faq 5': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: '40-Year Certification Guidelines' },
+        { page: 'https://elportalvillage.com/wp-content/uploads/2020/09/40-year-cerfication-guidelines-el-portal.pdf', quote: '40-year Certification' },
+      ],
+      'nextStep': [
+        { page: 'https://elportalvillage.com/code-enforcement-building-department/', quote: 'The Building Department can be reached by calling Village Hall at 305-795-7880.' },
+      ],
+    },
+  },
+  'building-recertification/florida-city': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'City of Florida City 404 West Palm Drive Florida City, FL 33034' },
+      { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'For assistance, contact the Building Department at 305-247-8222 (option 2).' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.floridacityfl.gov/167/Community-Development-Documents', quote: '40 Year Certification (PDF)' },
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'NEW ONLINE SERVICES- EFFECTIVE JANUARY 1, 2026 ALL NEW APPLICATIONS ARE REQUIRED TO REGISTER ON eTRAKIT:' },
+      ],
+      'lede': [
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'Building Department – Administers permitting, plan review, inspections, and enforcement of applicable building codes to help ensure safe and compliant construction.' },
+        { page: 'https://www.floridacityfl.gov/167/Community-Development-Documents', quote: '40 Year Certification (PDF)' },
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'NEW ONLINE SERVICES- EFFECTIVE JANUARY 1, 2026 ALL NEW APPLICATIONS ARE REQUIRED TO REGISTER ON eTRAKIT:' },
+      ],
+      'local 1: The City’s document': [
+        { page: 'https://www.floridacityfl.gov/167/Community-Development-Documents', quote: '40 Year Certification (PDF)' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'GENERAL CONSIDERATIONS' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'BORA Approved - Revised September 17, 2015' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'STRUCTURAL RECERTIFICATION' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'ELECTRICAL RECERTIFICATION' },
+      ],
+      'local 2: What the outlines ask': [
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'Date of notice of required inspection' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'OWNER\'S MAILING ADDRESS' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'FOLIO NUMBER OF BUILDING:' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'BUILDING CODE OCCUPANCY CLASSIFICATION:' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'ELECTRIC SERVICE:' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'WIRJNG TO MECHANICAL EQUIPMENT: GOOD ( ): REPAIRS REQUIRED' },
+      ],
+      'local 3: Parking-lot lighting form': [
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'CERTIFICATION OF COMPLIANCE WITH PARKING LOT ILLUMINATION' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'I measured the level of illumination in the' },
+      ],
+      'local 4: The file’s edition': [
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'BORA Approved - Revised September 17, 2015' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'MINIMUM GUIDELINES AND INFORMATION FOR RECERTIFICATION OF ELECTRICAL' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'SYSTEMS OF FORTY (40} YEARS STRUCTURES' },
+      ],
+      'local 5: Online applications': [
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'NEW ONLINE SERVICES- EFFECTIVE JANUARY 1, 2026 ALL NEW APPLICATIONS ARE REQUIRED TO REGISTER ON eTRAKIT:' },
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'Legacy system for existing projects prior to Jan. 1, 2026:' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/119/Introduction-to-eTRAKiT-Online-Services-Portal-PDF', quote: 'Submit plans and supporting documents electronically' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/119/Introduction-to-eTRAKiT-Online-Services-Portal-PDF', quote: 'Track application and permit status in real time' },
+      ],
+      'local 6: Code cases': [
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'The Department conducts inspections, responds to complaints, works with property owners to achieve compliance, and refers unresolved violations to the Special Magistrate for further action.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'For assistance, contact the Building Department at 305-247-8222 (option 2).' },
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'Our department includes:' },
+      ],
+      'faq 2': [
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'NEW ONLINE SERVICES- EFFECTIVE JANUARY 1, 2026 ALL NEW APPLICATIONS ARE REQUIRED TO REGISTER ON eTRAKIT:' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/119/Introduction-to-eTRAKiT-Online-Services-Portal-PDF', quote: 'Submit plans and supporting documents electronically' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/119/Introduction-to-eTRAKiT-Online-Services-Portal-PDF', quote: 'Schedule and cancel inspections' },
+      ],
+      'faq 3': [
+        { page: 'https://www.floridacityfl.gov/167/Community-Development-Documents', quote: '40 Year Certification (PDF)' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'CERTIFICATION OF COMPLIANCE WITH PARKING LOT ILLUMINATION' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'BORA Approved - Revised September 17, 2015' },
+      ],
+      'faq 4': [
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'Date of notice of required inspection' },
+      ],
+      'faq 5': [
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'meets the minimum' },
+        { page: 'https://www.floridacityfl.gov/DocumentCenter/View/154/40-Year-Certification-PDF', quote: 'standards for the occupancy classification of the building as established in' },
+      ],
+      'nextStep': [
+        { page: 'https://www.floridacityfl.gov/166/Community-Development', quote: 'For assistance, contact the Building Department at 305-247-8222 (option 2).' },
+      ],
+    },
+  },
+  'building-recertification/medley': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.townofmedley.com/building-and-zoning-department', quote: 'Town of Medley Building Department 7777 NW 72nd Ave Medley, FL 33166 Phone: 305-887-6913' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Recertification Report Submittal Form' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'certify under penalties of perjury, that I have read the' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: '(Notary\'s signature and stamp)' },
+      ],
+      'lede': [
+        { page: 'https://www.townofmedley.com/building-and-zoning-department', quote: 'Building Permit Applications/Forms' },
+        { page: 'https://www.townofmedley.com/building-and-zoning-department', quote: 'Recertification Form' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Recertification Report Submittal Form' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: '40 Year Recertification Due:' },
+      ],
+      'local 1: The submittal form': [
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Recertification Report Submittal Form' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Property Address:' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Folio Number :' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Property Owner Name:' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Mailing Address:' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Architect / Engineer Name' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Contact Name:' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Other (specify):' },
+      ],
+      'local 2: The owner’s affidavit': [
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'certify under penalties of perjury, that I have read the' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'entire application and the above is correct.' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: '(property owner\'s signature)' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Sworn to and Subscribed before me this' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Personally known to me:' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Or Produced Identification Type:' },
+      ],
+      'local 3: Approval by trade': [
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Approved/Date' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Disapproved/Date' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Electrical' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Structural' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Building Official' },
+      ],
+      'local 4: One building, one application': [
+        { page: 'https://www.townofmedley.com/documents/Town%20of%20Medley%20-%20Building%20and%20Zoning%20Fee%20Schedule.pdf', quote: '17. RECERTIFICATION (40 YEAR-10 YEAR)' },
+        { page: 'https://www.townofmedley.com/documents/Town%20of%20Medley%20-%20Building%20and%20Zoning%20Fee%20Schedule.pdf', quote: 'building, for every Forty (40) Year Building re-certification program' },
+        { page: 'https://www.townofmedley.com/documents/Town%20of%20Medley%20-%20Building%20and%20Zoning%20Fee%20Schedule.pdf', quote: 'application as required under the Miami-Dade County Code' },
+      ],
+      'local 5: Extensions': [
+        { page: 'https://www.townofmedley.com/documents/Town%20of%20Medley%20-%20Building%20and%20Zoning%20Fee%20Schedule.pdf', quote: 'extension application for subsequent Ten (10) Year re-certification' },
+      ],
+      'local 6: Your building’s record': [
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'Liens and Information Request' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'Estoppel letter' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'OFFICIAL USE ONLY' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'Year Built:' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: '40 Year Recertification Due:' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'Complied:' },
+      ],
+      'faq 1': [
+        { page: 'https://www.townofmedley.com/building-and-zoning-department', quote: 'Recertification Form' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Recertification Report Submittal Form' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: '(Notary\'s signature and stamp)' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Approved/Date' },
+      ],
+      'faq 2': [
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: '(property owner\'s signature)' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'certify under penalties of perjury, that I have read the' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Personally known to me:' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Or Produced Identification Type:' },
+      ],
+      'faq 3': [
+        { page: 'https://www.townofmedley.com/documents/Town%20of%20Medley%20-%20Building%20and%20Zoning%20Fee%20Schedule.pdf', quote: 'application as required under the Miami-Dade County Code' },
+      ],
+      'faq 4': [
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'Building & Zoning Department' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'Liens and Information Request' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: '40 Year Recertification Due:' },
+        { page: 'https://www.townofmedley.com/forms/Liens%20&%20Information%20request.pdf', quote: 'Complied:' },
+      ],
+      'faq 5': [
+        { page: 'https://www.townofmedley.com/documents/Town%20of%20Medley%20-%20Building%20and%20Zoning%20Fee%20Schedule.pdf', quote: 'building, for every Forty (40) Year Building re-certification program' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Other (specify):' },
+        { page: 'https://www.townofmedley.com/documents/Town%20of%20Medley%20-%20Building%20and%20Zoning%20Fee%20Schedule.pdf', quote: 'application as required under the Miami-Dade County Code' },
+      ],
+      'nextStep': [
+        { page: 'https://www.townofmedley.com/building-and-zoning-department', quote: 'Town of Medley Building Department 7777 NW 72nd Ave Medley, FL 33166 Phone: 305-887-6913' },
+        { page: 'https://www.townofmedley.com/forms/Recertification%20Form.pdf', quote: 'Sworn to and Subscribed before me this' },
+      ],
+    },
+  },
+  'building-recertification/miami-lakes': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.miamilakes-fl.gov/building-recertification/', quote: '6601 Main Street Miami Lakes, FL 33014' },
+      { page: 'https://www.miamilakes-fl.gov/building-recertification/', quote: '(305) 827-4015' },
+      { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The Town of Miami Lakes Building Department has implemented an Early Start Request Program' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Changes effective June 2022' },
+        { page: 'https://www.miamilakes-fl.gov/building-recertification/', quote: '40 Year Recertification-Structural' },
+        { page: 'https://www.miamilakes-fl.gov/building-recertification/', quote: '40 Year Recertification-Electrical' },
+      ],
+      'lede': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The Building Department is responsible for the review, inspection and permitting of new construction and/or alterations to any structures within the Town' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'For those properties that require certification, the property owners receive a Notice of Required Recertification to commence the process.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Property owners must submit written recertification reports prepared by a Florida-registered professional engineer or architect, certifying each building or structure is structurally and electrically safe for the specified use for continued occupancy.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'pursuant to Section 8-11(f) of the Code of Miami-Dade County' },
+      ],
+      'local 1: How it starts': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Each year, new properties become subject to the recertification process at 30 years and every 10-year interval thereafter for the life of the structure, pursuant to Section 8-11(f) of the Code of Miami-Dade County.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'For those properties that require certification, the property owners receive a Notice of Required Recertification to commence the process.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The recertification reports must be submitted within 90 days from the date of notice.' },
+      ],
+      'local 2: What the reports certify': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Property owners must submit written recertification reports prepared by a Florida-registered professional engineer or architect, certifying each building or structure is structurally and electrically safe for the specified use for continued occupancy.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The design professional must have proven qualifications by training and experience in the specific technical field covered in the inspection report (structural and/or electrical) as per the Miami-Dade County Code.' },
+      ],
+      'local 3: The Town’s forms': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Forty (40) Year Recertification (Electrical)' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Forty (40) Year Recertification (Structural)' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'REGULATORY AND ECONOMIC RESOURCES DEPARTMENT' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'BUILDING RECERTIFICATION INSPECTION REPORT FORM - STRUCTURAL' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-guidelines-electrical-2025.pdf', quote: 'BUILDING RECERTIFICATION INSPECTION REPORT FORM - ELECTRICAL' },
+      ],
+      'local 4: Revised templates': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The recertification program in Miami-Dade County has been strengthened to include inspecting additional building components and providing a more detailed look into existing buildings.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Approved by the Board of Rules and Appeals (BORA), the updated guidelines and report templates have been revised and are available below.' },
+      ],
+      'local 5: What the form asks': [
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'Initial Inspection Report' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'Amended Inspection Report after completion of repairs' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'Passed the Inspection' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'Maintenance needed but does not rise to the level of Substantial Deterioration or Dangerous' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'Dangerous Condition Observed. Notify Building Official within 10 days' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'Check box if unpermitted work has been identified as per Sec. 1804.1 FBC, EB' },
+      ],
+      'local 6: Who is exempt': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Note that the following types of residences do not go through the recertification process:' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Buildings with 10 occupant load or less and 2,000 square feet or less' },
+      ],
+      'local 7: Condominiums and state law': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The new state law, which went into effect on May 26, 2022, created new requirements for milestone inspections of condominium and cooperative association buildings that are three stories and taller.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The integration of the new law together with the amended Miami-Dade ordinance has the following impacts to all existing buildings in Miami-Dade County.' },
+      ],
+      'local 8: Each application': [
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2023/09/Building-Department-FEE-SCHEDULE.pdf', quote: 'For every application for 40-year Re-certification under Chapter 8 of the Miami-Dade County' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2023/09/Building-Department-FEE-SCHEDULE.pdf', quote: 'Code there shall be paid to the Building Department for the processing of each application:' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2023/09/Building-Department-FEE-SCHEDULE.pdf', quote: 'For every application for subsequent Re-certification at 10 year intervals thereafter, there shall' },
+      ],
+      'faq 1': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'For those properties that require certification, the property owners receive a Notice of Required Recertification to commence the process.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Property owners must submit written recertification reports prepared by a Florida-registered professional engineer or architect, certifying each building or structure is structurally and electrically safe for the specified use for continued occupancy.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Forty (40) Year Recertification (Electrical)' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Forty (40) Year Recertification (Structural)' },
+        { page: 'https://www.miamilakes-fl.gov/wp-content/uploads/2025/10/min-inspection-structural-recert-2025.pdf', quote: 'REGULATORY AND ECONOMIC RESOURCES DEPARTMENT' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Approved by the Board of Rules and Appeals (BORA), the updated guidelines and report templates have been revised and are available below.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The recertification reports must be submitted within 90 days from the date of notice.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'The new state law, which went into effect on May 26, 2022, created new requirements for milestone inspections of condominium and cooperative association buildings that are three stories and taller.' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Miami-Dade County has had a building recertification program since 1975, which was amended on June 1, 2022.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'Forty (40) Year Recertification (Structural)' },
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'All buildings built on or before 1982 that have already had an initial recertification inspection through Miami-Dade’s 40-Year program will continue to follow the established schedule.' },
+      ],
+      'nextStep': [
+        { page: 'https://www.miamilakes-fl.gov/departments/building-zoning-and-code-compliance/', quote: 'For those properties that require certification, the property owners receive a Notice of Required Recertification to commence the process.' },
+      ],
+    },
+  },
+  'building-recertification/miami-springs': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: 'City Hall Building Department Second Floor' },
+      { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: '201 Westward Drive Miami Springs, FL 33166' },
+      { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: '(305)805-5030' },
+      { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: 'The City of Miami Springs Building Department strives to achieve superiority in all facets of building, roofing, mechanical, electrical and plumbing inspections' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Reports must be submitted into our office in person.' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: 'City Hall Building Department Second Floor' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Structural Recertification form' },
+      ],
+      'lede': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: 'This department is responsible for issuing all building permits in the City.' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Reports must be submitted into our office in person.' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Supporting Documents' },
+      ],
+      'local 1: Filing in person': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Reports must be submitted into our office in person.' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: 'City Hall Building Department Second Floor' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: '201 Westward Drive Miami Springs, FL 33166' },
+      ],
+      'local 2: The city’s list': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Recertification Guidelines' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Recertification Parking lot illumination' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'General Considerations Guidelines' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Electrical recertification' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Structural Recertification form' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'The files can also be retrieved via Miami-Dade County' },
+      ],
+      'local 3: County templates': [
+        { page: 'https://www.miamisprings-fl.gov/media/41006', quote: 'REGULATORY AND ECONOMIC RESOURCES DEPARTMENT' },
+        { page: 'https://www.miamisprings-fl.gov/media/41006', quote: 'BUILDING RECERTIFICATION INSPECTION REPORT FORM - STRUCTURAL' },
+        { page: 'https://www.miamisprings-fl.gov/media/41001', quote: 'BUILDING RECERTIFICATION INSPECTION REPORT FORM - ELECTRICAL' },
+        { page: 'https://www.miamisprings-fl.gov/media/40986', quote: 'MIAMI-DADE COUNTY BUILDING RECERTIFICATION GENERAL CONSIDERATIONS & GUIDELINES' },
+        { page: 'https://www.miamisprings-fl.gov/media/40991', quote: 'Department of Regulatory and Economic Resources' },
+      ],
+      'local 5: One inspection, two phases': [
+        { page: 'https://www.miamisprings-fl.gov/media/40986', quote: 'The Miami-Dade Recertification Program, which is synonymous with the State of Florida Milestone Inspection Program, combines both Phase 1 and Phase 2 inspections into a single inspection.' },
+        { page: 'https://www.miamisprings-fl.gov/media/40986', quote: 'The Miami-Dade Recertification Program meets and exceeds the minimum requirements of the State of Florida Milestone Inspection Program adopted in 553.899, Florida Statutes' },
+      ],
+      'local 6: Initial and amended': [
+        { page: 'https://www.miamisprings-fl.gov/media/41006', quote: 'Amended Inspection Report after completion of repairs' },
+        { page: 'https://www.miamisprings-fl.gov/media/41001', quote: 'Amended Inspection Report after completion of repairs' },
+        { page: 'https://www.miamisprings-fl.gov/media/41006', quote: 'Initial Inspection Report' },
+      ],
+      'local 7: Processing and the board': [
+        { page: 'https://www.miamisprings-fl.gov/media/56676', quote: 'Building Processing Department' },
+        { page: 'https://www.miamisprings-fl.gov/media/56676', quote: 'For every application for forty year certification under section 104.9, Florida Building Code, there shall be paid to the City, for the processing of each application' },
+        { page: 'https://www.miamisprings-fl.gov/media/56676', quote: 'Unsafe Structures Board Filing' },
+        { page: 'https://www.miamisprings-fl.gov/media/56676', quote: 'plus costs (as billed by the Unsafe Structures Board)' },
+      ],
+      'faq 1': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Reports must be submitted into our office in person.' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/building-overview', quote: 'City Hall Building Department Second Floor' },
+      ],
+      'faq 2': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Recertification Guidelines' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Recertification Parking lot illumination' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'The files can also be retrieved via Miami-Dade County' },
+        { page: 'https://www.miamisprings-fl.gov/media/41006', quote: 'REGULATORY AND ECONOMIC RESOURCES DEPARTMENT' },
+      ],
+      'faq 3': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Reports must be submitted into our office in person.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.miamisprings-fl.gov/media/40986', quote: 'The Miami-Dade Recertification Program, which is synonymous with the State of Florida Milestone Inspection Program, combines both Phase 1 and Phase 2 inspections into a single inspection.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Forty Year (40 YR) or older Recertification Forms' },
+        { page: 'https://www.miamisprings-fl.gov/media/56676', quote: 'Forty year certification fee.' },
+      ],
+      'nextStep': [
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Reports must be submitted into our office in person.' },
+      ],
+      'local 4: Where there is parking': [
+        { page: 'https://www.miamisprings-fl.gov/media/40991', quote: 'CERTIFICATION OF COMPLIANCE WITH PARKING LOT ILLUMINATION STANDARDS IN CHAPTER 8C-3 OF THE CODE OF MIAMI-DADE COUNTY' },
+        { page: 'https://www.miamisprings-fl.gov/building/page/forty-year-40-yr-or-older-recertification-forms', quote: 'Recertification Parking lot illumination' },
+      ],
+    },
+  },
+  'building-recertification/north-bay-village': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://northbayvillage-fl.gov/building-department/', quote: '1666 Kennedy Causeway Suite 101 North Bay Village, FL 33141' },
+      { page: 'https://northbayvillage-fl.gov/building-department/', quote: '(305) 754-6740' },
+      { page: 'https://northbayvillage-fl.gov/building-department/', quote: 'North Bay Village Building and Zoning Department is responsible for ensuring that all work done in the Village meets the Village’s code as well as the Florida Building Code' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-24-PERMITS-ISSUED-REPORT.pdf', quote: 'PERMITS ISSUED FOR BUILDING RECERTIFICATION:' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2024/08/08-15-2024-Virtual-Special-Magistrate-Hearing-Agenda.pdf', quote: 'Section 151.20(A) of the North Bay Village code of ordinances. Failure to obtain recertification of buildings and components.' },
+      ],
+      'lede': [
+        { page: 'https://northbayvillage-fl.gov/building-department/', quote: 'North Bay Village Building and Zoning Department is responsible for ensuring that all work done in the Village meets the Village’s code as well as the Florida Building Code' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'Record review of a building’s re-certification history by the Village Building Department' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-24-PERMITS-ISSUED-REPORT.pdf', quote: 'PERMITS ISSUED FOR BUILDING RECERTIFICATION:' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2024/08/08-15-2024-Virtual-Special-Magistrate-Hearing-Agenda.pdf', quote: 'NORTH BAY VILLAGE SPECIAL MAGISTRATE HEARING AGENDA' },
+      ],
+      'local 1: A permit of its own': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-24-PERMITS-ISSUED-REPORT.pdf', quote: 'PERMITS ISSUED FOR BUILDING RECERTIFICATION:' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-22-PERMITS-ISSUED-REPORT.pdf', quote: 'RECERT-000479-2022 Building' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-24-PERMITS-ISSUED-REPORT.pdf', quote: 'PERMITS ISSUED BY TYPE (10/01/2023 TO 09/30/2024)' },
+      ],
+      'local 2: Repairs under permit': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-22-PERMITS-ISSUED-REPORT.pdf', quote: 'REPAIR CONCRETE AS PER 40-YEAR INSPECTION REPORT' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-22-PERMITS-ISSUED-REPORT.pdf', quote: 'MINOR CONCRETE REPAIRS AS PER RECERTIFICATION REPORT' },
+      ],
+      'local 3: Digital applications': [
+        { page: 'https://northbayvillage-fl.gov/building-department/', quote: 'the Building Department will only be accepting applications digitally.' },
+        { page: 'https://northbayvillage-fl.gov/building-department/', quote: 'When ready, email all required permitting documents to the Building Clerk,' },
+        { page: 'https://northbayvillage-fl.gov/building-department/', quote: '*Note: PDFs only.' },
+      ],
+      'local 4: The building audit': [
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'The BAP was initiated in light of the Surfside tragedy, which occurred on June 24, 2021.' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'As part of the BAP, the NBV Building Department is conducting on-site visits and record reviews of all multi-family and commercial buildings located in the Village.' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'Record review of a building’s re-certification history by the Village Building Department' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'Are due for a building re-certification (for the 40-year recertification and every 10 years after)' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: '*Last Updated: 11/23/2021' },
+      ],
+      'local 5: Engineering reports': [
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'If any deficiencies are identified, a structural engineering report will be requested to be submitted to the Village Building Department within a specified timeframe.' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'Following such reports, buildings must comply with the engineering recommendations for repairs.' },
+      ],
+      'local 6: If it is late': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2024/08/08-15-2024-Virtual-Special-Magistrate-Hearing-Agenda.pdf', quote: 'Section 151.20(A) of the North Bay Village code of ordinances. Failure to obtain recertification of buildings and components.' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2024/08/08-15-2024-Virtual-Special-Magistrate-Hearing-Agenda.pdf', quote: 'Code Enforcement Officer' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2024/08/08-15-2024-Virtual-Special-Magistrate-Hearing-Agenda.pdf', quote: 'Video conference' },
+      ],
+      'local 7: Unsafe buildings': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2023/04/NBV-Majestic-Isle-Press-Release.pdf', quote: 'North Bay Village Building Officials deem Majestic Isle Condominium not safe for occupancy and orders residents to evacuate' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2023/04/NBV-Majestic-Isle-Press-Release.pdf', quote: 'building engineer retained by the Majestic Isle Condominium Association to perform a building recertification' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2023/04/NBV-Majestic-Isle-Press-Release.pdf', quote: 'The building engineer shared a report raising serious concerns with the current conditions of the building' },
+      ],
+      'local 8: Help with assessments': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/07/Condo-Special-Assessment-Application-6-25-25-1.pdf', quote: 'rehabilitation and repairs due to applicable building integrity recertification requirements. The assistance is provided as a zero percent interest loan.' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/07/Condo-Special-Assessment-Application-6-25-25-1.pdf', quote: 'Describe Improvements including the 40-year certification and any other recertifications (if applicable) for Special' },
+      ],
+      'faq 1': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2024/08/08-15-2024-Virtual-Special-Magistrate-Hearing-Agenda.pdf', quote: 'Section 151.20(A) of the North Bay Village code of ordinances. Failure to obtain recertification of buildings and components.' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2024/08/08-15-2024-Virtual-Special-Magistrate-Hearing-Agenda.pdf', quote: 'NORTH BAY VILLAGE SPECIAL MAGISTRATE HEARING AGENDA' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'If any deficiencies are identified, a structural engineering report will be requested to be submitted to the Village Building Department within a specified timeframe.' },
+      ],
+      'faq 2': [
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-24-PERMITS-ISSUED-REPORT.pdf', quote: 'PERMITS ISSUED FOR BUILDING RECERTIFICATION:' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-22-PERMITS-ISSUED-REPORT.pdf', quote: 'MINOR CONCRETE REPAIRS AS PER RECERTIFICATION REPORT' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'To submit a public record request on historical data for your building, please visit the “Contact Us” section at the bottom of this page.' },
+      ],
+      'faq 3': [
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'Once a property has been visited, our CBO follows up with each building and informs them if there are any outstanding issues to be addressed.' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'We encourage residents to reach out to their Condominium Associations or Property Managers for more details on their BAP visit.' },
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'Further below, you will find a list of buildings that have received a visit from the Village Chief Building Official (CBO) as part of the BAP.' },
+      ],
+      'faq 4': [
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'If any deficiencies are identified, a structural engineering report will be requested to be submitted to the Village Building Department within a specified timeframe.' },
+      ],
+      'faq 5': [
+        { page: 'https://northbayvillage-fl.gov/buildingaudit/', quote: 'Are due for a building re-certification (for the 40-year recertification and every 10 years after)' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2025/06/FY-22-PERMITS-ISSUED-REPORT.pdf', quote: 'REPAIR CONCRETE AS PER 40-YEAR INSPECTION REPORT' },
+        { page: 'https://northbayvillage-fl.gov/wp-content/uploads/2023/04/NBV-Majestic-Isle-Press-Release.pdf', quote: 'in anticipation of the required 60-year building certification' },
+      ],
+      'nextStep': [
+        { page: 'https://northbayvillage-fl.gov/building-department/', quote: '1666 Kennedy Causeway Suite 101 North Bay Village, FL 33141' },
+      ],
+    },
+  },
+  'building-recertification/opa-locka': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'City of Opa-locka Building and Licensing Department 780 Fisherman Street Opa-locka, FL 33054' },
+      { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: '780 Fisherman St. Opa-Locka , FL 33054 Phone: (305) 953-2868 (option #4)' },
+      { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'If you need a new or reissued permit, contact the Building and Licensing Department at (305) 953-2868.' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Reviewing consultants’ reports for 40-year-old building recertification' },
+      ],
+      'lede': [
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'City of Opa-locka Building and Licensing Department 780 Fisherman Street Opa-locka, FL 33054' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'The Building and Licensing Department issues:' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Building, electrical, mechanical, roofing, and plumbing permits' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Certificates of occupancy' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Reviewing consultants’ reports for 40-year-old building recertification' },
+      ],
+      'local 1: The notice': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'The department is responsible for:' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+      ],
+      'local 2: The review': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Reviewing consultants’ reports for 40-year-old building recertification' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Reviewing building plans' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'PERMIT APPLICATION' },
+      ],
+      'local 3: Repair permits': [
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'First, all building permit applications must be submitted in a complete form at the intake counter.' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'Once the application is reviewed for sufficiency, it is given a process number and routed to the Zoning Department.' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'Once Zoning approves the application, it is routed to the plans examination review, where it is reviewed for compliance with the Florida Building Code.' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'Building permits are issued in the name of the person performing the work. Only licensed contractors or owners / builders may obtain a permit.' },
+      ],
+      'local 4: Small repairs': [
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'It shall be unlawful to construct, enlarge, alter, repair, move, remove, or demolish any building structure or any part thereof;' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'However, no repairs maybe made without prior approval of the building official.' },
+      ],
+      'local 5: Older names': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Reviewing consultants’ reports for 40-year-old building recertification' },
+      ],
+      'faq 1': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'The department is responsible for:' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+      ],
+      'faq 2': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Reviewing consultants’ reports for 40-year-old building recertification' },
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'PERMIT APPLICATION' },
+      ],
+      'faq 3': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+      ],
+      'faq 4': [
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'It shall be unlawful to construct, enlarge, alter, repair, move, remove, or demolish any building structure or any part thereof;' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'However, no repairs maybe made without prior approval of the building official.' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'First, all building permit applications must be submitted in a complete form at the intake counter.' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'Once the application is reviewed for sufficiency, it is given a process number and routed to the Zoning Department.' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'Once Zoning approves the application, it is routed to the plans examination review, where it is reviewed for compliance with the Florida Building Code.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+      ],
+      'nextStep': [
+        { page: 'https://www.opalockafl.gov/73/Building-Licenses', quote: 'Issuing notices to owners of 40-year-old buildings to comply with the structural and electrical inspection for building recertification' },
+        { page: 'https://www.opalockafl.gov/faq.aspx?TID=14', quote: 'City of Opa-locka Building and Licensing Department 780 Fisherman Street Opa-locka, FL 33054' },
+      ],
+    },
+  },
+  'building-recertification/pinecrest': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.pinecrest-fl.gov/Government/Building', quote: 'Pinecrest Municipal Center 12645 Pinecrest Parkway Pinecrest, FL 33156' },
+      { page: 'https://www.pinecrest-fl.gov/Government/Building', quote: 'Phone 305.234.2121' },
+      { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'submit a completed report of the inspection performed to the Village of Pinecrest Building Department for review and approval.' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'the Building Department will send a notice to the Owner or Owner’s representative via certified mail.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Yes, reports may be submitted electronically at: https://pine-trk.aspgov.com/eTRAKiT/ .' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'When the recertification reports have been approved, the Building Official will issue a Building Recertification approval letter that will be sent to the Owner and the Professional Engineer and/or Architect of record. Retain this letter as proof of approval.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Please make sure to submit the following:' },
+      ],
+      'lede': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'submit a completed report of the inspection performed to the Village of Pinecrest Building Department for review and approval.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'In accordance with the Miami Dade County Code, section 8-11 (f), all buildings, except single-family residences, duplexes, and minor structures,' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'As of January 2022, The Village of Pinecrest will provide, where applicable, advance courtesy noticing of required recertifications.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Yes, reports may be submitted electronically at: https://pine-trk.aspgov.com/eTRAKiT/ .' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building', quote: 'Online Permitting System (eTRAKiT)' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'When the recertification reports have been approved, the Building Official will issue a Building Recertification approval letter that will be sent to the Owner and the Professional Engineer and/or Architect of record. Retain this letter as proof of approval.' },
+      ],
+      'local 1: Courtesy notices': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'As of January 2022, The Village of Pinecrest will provide, where applicable, advance courtesy noticing of required recertifications.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Advance courtesy noticing will begin two-years before the required recertification cycle, followed by another notice one-year prior to the final 90-day notice of required recertification.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Early noticing helps property owners and building managers in planning for the hiring of an engineer or architect and budgeting for any repairs required to maintain compliance with the applicable codes.' },
+      ],
+      'local 2: The formal notice': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'the Building Department will send a notice to the Owner or Owner’s representative via certified mail.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'shall furnish within ninety (90) days of the receipt of the Notification of Building Recertification a complete written report; which has to be submitted to the Building Official.' },
+      ],
+      'local 3: Filing the report': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Yes, reports may be submitted electronically at: https://pine-trk.aspgov.com/eTRAKiT/ .' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building', quote: 'Online Permitting System (eTRAKiT)' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Please make sure to submit the following:' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Structural Recertification Report' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Electrical Recertification Report' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Parking Lot Illumination Standards' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Parking Lot Guardrails (Certificate of Compliance)' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Pinecrest Building Recertification Submittal Form' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'All reports must be digitally signed and sealed.' },
+      ],
+      'local 4: Guidelines and scope': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'The Recommended Minimum Inspection Procedural Guidelines for Building Recertification to be utilized by your architect or engineer are available online at the following link(s):' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'General Considerations & Guidelines - Scope of Structural Inspections' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'in conformity with the minimum inspection procedural guidelines as issued by the Miami Dade County Board of Rules and Appeals.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Report will also include an Illumination Survey for the parking areas.' },
+      ],
+      'local 5: Repairs': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'In the event that repairs or modifications are found to be necessary resulting from the building recertification inspection,' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'The Owner of the property must hire a State of Florida Licensed Contractor and obtain permits from the Building Department prior to performing any repairs or modifications.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Once all permits receive an approved final inspection from the electrical and/or structural inspectors, the Professional Engineer and/or the Registered Architect of record must submit a signed and sealed report stating that all repairs have been completed and the building is structurally and electrically safe for continued use.' },
+      ],
+      'local 6: Extensions': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'The Building Official may issue an extension of not more than 60 days from the recertification deadline to submit a recertification report or to obtain any necessary permits upon a written extension request from an engineer or architect.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Such a request must contain a signed and sealed statement from the engineer or architect that the building may continue to be occupied while undergoing recertification.' },
+      ],
+      'local 7: Approval': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'to the Building Department Governmental Compliance Section, certifying that the building is structurally and electrically safe for the specified use and occupancy in conformity with the minimum inspection procedure.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'When the recertification reports have been approved, the Building Official will issue a Building Recertification approval letter that will be sent to the Owner and the Professional Engineer and/or Architect of record. Retain this letter as proof of approval.' },
+      ],
+      'local 8: If it is late': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'will result in the issuance of a Building Violation' },
+      ],
+      'faq 1': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'the Building Department will send a notice to the Owner or Owner’s representative via certified mail.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'As of January 2022, The Village of Pinecrest will provide, where applicable, advance courtesy noticing of required recertifications.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'shall furnish within ninety (90) days of the receipt of the Notification of Building Recertification a complete written report; which has to be submitted to the Building Official.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Yes, reports may be submitted electronically at: https://pine-trk.aspgov.com/eTRAKiT/ .' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'All reports must be digitally signed and sealed.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Please make sure to submit the following:' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Pinecrest Building Recertification Submittal Form' },
+      ],
+      'faq 3': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'The Building Official may issue an extension of not more than 60 days from the recertification deadline to submit a recertification report or to obtain any necessary permits upon a written extension request from an engineer or architect.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Such a request must contain a signed and sealed statement from the engineer or architect that the building may continue to be occupied while undergoing recertification.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'In accordance with the Miami Dade County Code, section 8-11 (f), all buildings, except single-family residences, duplexes, and minor structures,' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'Minor Buildings are defined as any occupancy group having an occupant load of 10 or less, and having a gross area of 2,000 square feet or less.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'When did this change from a 40 year Recertification process?' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'The new state law, which went into effect on May 26, 2022, created new requirements for milestone inspections of condominium and cooperative association buildings that are three stories and taller.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'The changes of the Miami-Dade County recertification program became effective on June 01, 2022, and have been enhanced to include inspections of additional building components and a more detailed look at existing buildings.' },
+      ],
+      'nextStep': [
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'As of January 2022, The Village of Pinecrest will provide, where applicable, advance courtesy noticing of required recertifications.' },
+        { page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification', quote: 'the Building Department will send a notice to the Owner or Owner’s representative via certified mail.' },
+      ],
+    },
+  },
+  'building-recertification/sweetwater': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://cityofsweetwater.fl.gov/158/Building-Zoning', quote: '1695 NW 110 Ave Unit 109 Sweetwater FL 33172' },
+      { page: 'https://cityofsweetwater.fl.gov/158/Building-Zoning', quote: 'Phone: 305-485-4526' },
+      { page: 'https://cityofsweetwater.fl.gov/158/Building-Zoning', quote: 'The City of Sweetwater Building and Zoning Department is dedicated to promoting safe, sustainable, and well-planned community growth by ensuring compliance with the Florida Building Code, zoning regulations, and land-use policies.' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'City of Sweetwater Building Department Memorandum' },
+        { page: 'https://cityofsweetwater.fl.gov/159/Important-Forms-Building-Zoning', quote: '40-Year Certification Instructions (PDF)' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 2- Attach in the same email the engineer Report documents in PDF format.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/774/Electronic-submittals-Instructions', quote: 'Email the documents to SUBMITTALS@CITYOFSWEETWATER.FL.GOV.' },
+      ],
+      'lede': [
+        { page: 'https://cityofsweetwater.fl.gov/158/Building-Zoning', quote: 'The City of Sweetwater Building and Zoning Department is dedicated to promoting safe, sustainable, and well-planned community growth by ensuring compliance with the Florida Building Code, zoning regulations, and land-use policies.' },
+        { page: 'https://cityofsweetwater.fl.gov/159/Important-Forms-Building-Zoning', quote: '40-Year Recertification' },
+        { page: 'https://cityofsweetwater.fl.gov/159/Important-Forms-Building-Zoning', quote: '40-Year Memorandum (PDF)' },
+        { page: 'https://cityofsweetwater.fl.gov/159/Important-Forms-Building-Zoning', quote: '40-Year Certification Instructions (PDF)' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'City of Sweetwater Building Department Memorandum' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: '40 Year Recertification -Electronic submittal instructions' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 4- Once the report is reviewed by our Engineer and by all applicable trades, you will receive a call advising the status of the permit, if it is ready for pick up' },
+      ],
+      'local 1: The memorandum': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'City of Sweetwater Building Department Memorandum' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'you must submit a written Recertification Report to the Building Official, prepared by a Florida registered professional engineer or architect*, certifying each building or structure is structurally and electrically safe for the specified use for continued occupancy.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Under Section 8-11(f) of the Miami-Dade County Code, the owner of a building which has been in existence for forty (40) years or longer is required to have the building inspected' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'within ninety (90) days of Notice of Required Inspection' },
+      ],
+      'local 2: Filing by e-mail': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 1 - Submit a permit application signed by owner and engineer in order to obtain a permit number,' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 2- Attach in the same email the engineer Report documents in PDF format.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Following the 40 year Structural and Electric Certification formats.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 3- If accepted, we will email back with the receipt' },
+      ],
+      'local 3: The review': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 4- Once the report is reviewed by our Engineer and by all applicable trades, you will receive a call advising the status of the permit, if it is ready for pick up' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'or if you have comments that needs to be addressed.' },
+      ],
+      'local 4: What the report carries': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Each page of the electrical and structural report must be signed and sealed by the engineer or architect.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'In addition, if there is more than one building on the property, please submit a site plan or copy of a survey showing the location of each building. The building which is the subject of the 40-Year Recertification report must be clearly identified on the site plan or survey submitted.' },
+      ],
+      'local 5: Lot certificates': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'you are required to submit the enclosed documents certifying compliance with the parking lot illumination standards and guardrail requirements signed and sealed by your architect or professional engineer.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Also included in this package is a copy of Chapter 8C of the Code of Miami-Dade County relating to parking lot illumination and guardrails.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'the minimum prescribed standards for parking lot illumination and guardrails contained in Sections 8C-3 and 8C-6 were made retroactive upon adoption.' },
+      ],
+      'local 6: Claiming an exemption': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'If the building which is the subject of this notice is exempt for any of the above reasons, the building is not forty (40) years old or older or the building has been demolished, please notify this office and submit any available documentation. If you are claiming an exemption for an existing building, please submit dated pictures showing the front and rear of the building.' },
+      ],
+      'local 7: If it is late': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Failure to submit the required Recertification Report will result in the issuance of a Civil Violation Notice or ticket without further notice to you and referral of this matter to the Unsafe Structures Unit for the initiation of condemnation proceedings.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Further, upon issuance of an unsafe structures Notice of Violation, the building must be vacated and you may ultimately have to demolish the building.' },
+      ],
+      'local 8: Two street addresses': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: '1701 N.W. 112 Ave #102 Sweetwater, Florida 33172' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Building and Zoning Department 1701 NW 112 Ave, # 102 Sweetwater, FL. 33172' },
+        { page: 'https://cityofsweetwater.fl.gov/158/Building-Zoning', quote: '1695 NW 110 Ave Unit 109 Sweetwater FL 33172' },
+      ],
+      'faq 1': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 1 - Submit a permit application signed by owner and engineer in order to obtain a permit number,' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 2- Attach in the same email the engineer Report documents in PDF format.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/774/Electronic-submittals-Instructions', quote: 'Email the documents to SUBMITTALS@CITYOFSWEETWATER.FL.GOV.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/774/Electronic-submittals-Instructions', quote: 'We accept your permit applications by email only. We do not accept hard copies at our office.' },
+      ],
+      'faq 2': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'Step 4- Once the report is reviewed by our Engineer and by all applicable trades, you will receive a call advising the status of the permit, if it is ready for pick up' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/134/40-Year-Certification-Instructions-PDF', quote: 'or if you have comments that needs to be addressed.' },
+      ],
+      'faq 3': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'within ninety (90) days of Notice of Required Inspection' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'as determined by the Building Official, who shall at such time issue a Notice of Required Inspection to the building owner.' },
+      ],
+      'faq 4': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Failure to submit the required Recertification Report will result in the issuance of a Civil Violation Notice or ticket without further notice to you and referral of this matter to the Unsafe Structures Unit for the initiation of condemnation proceedings.' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Further, upon issuance of an unsafe structures Notice of Violation, the building must be vacated and you may ultimately have to demolish the building.' },
+      ],
+      'faq 5': [
+        { page: 'https://cityofsweetwater.fl.gov/159/Important-Forms-Building-Zoning', quote: '40-Year Recertification' },
+        { page: 'https://cityofsweetwater.fl.gov/159/Important-Forms-Building-Zoning', quote: '40-Year Memorandum (PDF)' },
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'Under Section 8-11(f) of the Miami-Dade County Code, the owner of a building which has been in existence for forty (40) years or longer is required to have the building inspected' },
+      ],
+      'nextStep': [
+        { page: 'https://cityofsweetwater.fl.gov/DocumentCenter/View/133/40-Year-Memorandum-PDF', quote: 'City of Sweetwater Building Department Memorandum' },
+        { page: 'https://cityofsweetwater.fl.gov/158/Building-Zoning', quote: 'The City of Sweetwater Building and Zoning Department is dedicated to promoting safe, sustainable, and well-planned community growth by ensuring compliance with the Florida Building Code, zoning regulations, and land-use policies.' },
+      ],
+    },
+  },
+  'building-recertification/west-miami': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0', quote: 'Located at City of West Miami Building Department 901 SW 62 Avenue West Miami, FL 33144' },
+      { page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0', quote: 'Building Department Number 305-266-4214' },
+      { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'CITY OF WEST MIAMI BUILDING DEPARTMENT 901 SW 62 Avenue West Miami, Florida 33144 Phone: 305-266-4214' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'The City of West Miami Building Department has received notification from the Property Appraiser\'s Office that the building on the property located at' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Please mail the report' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Attention: City of West Miami Building Department 901 SW 62 Avenue' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_STRUCTURAL_REVIEW_FORM.pdf', quote: 'CITY OF WEST MIAMI BUILDING DEPARTMENT' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'As part of your submission for the 40 Year Recertification, you are required to submit the enclosed documents certifying compliance with the parking lot illumination standards and guardrail requirements signed and sealed by your architect or professional engineer.' },
+      ],
+      'lede': [
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0', quote: 'Located at City of West Miami Building Department 901 SW 62 Avenue West Miami, FL 33144' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0', quote: 'The Building Department provides customer-friendly services including review, processing, issuance and inspection of building permits and assurance that construction in the City of West Miami complies with the provisions of City, County and Florida Building Code.' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR LETTER OF NOTIFICATION.pdf' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'you must submit a written Recertification Report to the Building Official' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Please mail the report' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Failure to submit the required Recertification Report will result in the issuance of a Civil Violation Notice or ticket without further notice to you and referral of this matter to the Unsafe Structures Unit for the initiation of condemnation proceedings.' },
+      ],
+      'local 1: The letter': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'The City of West Miami Building Department has received notification from the Property Appraiser\'s Office that the building on the property located at' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Under Section 8-11(f) of the Miami-Dade County Code, the owner of a building which has been in existence for forty (40) years or longer is required to have the building inspected' },
+      ],
+      'local 2: Sending the report': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Please mail the report' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Attention: City of West Miami Building Department 901 SW 62 Avenue' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0', quote: 'Permit Portal' },
+      ],
+      'local 3: The city’s forms': [
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR CERTIFICATION OF COMPLIANCE FORMS.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR ELECTRICAL INSPECTION GUIDELINES.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR GENERAL CONSIDERATIONS GUIDELINES.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR LETTER OF NOTIFICATION.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR STRUCTURAL REVIEW FORM.pdf' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_STRUCTURAL_REVIEW_FORM.pdf', quote: 'CITY OF WEST MIAMI BUILDING DEPARTMENT' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_STRUCTURAL_REVIEW_FORM.pdf', quote: 'MINIMUM INSPECTION PROCEDURAL GUIDELINES FOR BUILDING STRUCTURAL RECERTIFICATION' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'The forms which are in PDF(Portable Document Format) can be filled out by your architect or engineer and then printed. If you prefer, you can obtain a hard copy of the forms by contacting our office at (305) 266-4214.' },
+      ],
+      'local 4: Paper copies': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'The forms which are in PDF(Portable Document Format) can be filled out by your architect or engineer and then printed. If you prefer, you can obtain a hard copy of the forms by contacting our office at (305) 266-4214.' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'For further information, please contact the Billing and Collection Unit Supervisor at (305) 266-4214.' },
+      ],
+      'local 5: What the report carries': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Each page of the electrical and structural report must be signed and sealed by the engineer or architect.' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'In addition, if there is more than one building on the property, please submit a site plan or copy of a survey showing the location of each building. The building which is the subject of the 40-Year Recertification report must be clearly identified on the site plan or survey submitted.' },
+      ],
+      'local 6: The lot certificates': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Included with this package is a copy of Chapter 8C of the Code of Miami-Dade County relating to parking lot illumination and guardrails.' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'As part of your submission for the 40 Year Recertification, you are required to submit the enclosed documents certifying compliance with the parking lot illumination standards and guardrail requirements signed and sealed by your architect or professional engineer.' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_CERTIFICATION_OF_COMPLIANCE_FORMS.pdf', quote: 'The parking lot(s) is adjacent to or abutting a canal, lake or other body of water and parked vehicles are not protected by a guardrail that complies with Section 8C-6 of the Miami-Dade County Code. I have advised the property owner that he/she must obtain a permit for the installation of the guardrail and obtain all required inspection approvals to avoid enforcement action.' },
+      ],
+      'local 7: Claiming an exemption': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'If the building which is the subject of this notice is exempt for any of the above reasons, the building is not forty (40) years old or older or the building has been demolished, please notify this office and submit any available documentation. If you are claiming an exemption for an existing building, please submit dated pictures showing the front and rear of the building.' },
+      ],
+      'local 8: If it is late': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Failure to submit the required Recertification Report will result in the issuance of a Civil Violation Notice or ticket without further notice to you and referral of this matter to the Unsafe Structures Unit for the initiation of condemnation proceedings.' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Further, upon issuance of an unsafe structures Notice of Violation, the building must be vacated and you may ultimately have to demolish the building.' },
+      ],
+      'faq 1': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'The City of West Miami Building Department has received notification from the Property Appraiser\'s Office that the building on the property located at' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Building Official' },
+      ],
+      'faq 2': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Please mail the report' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Attention: City of West Miami Building Department 901 SW 62 Avenue' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0', quote: 'Permit Portal' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR STRUCTURAL REVIEW FORM.pdf' },
+      ],
+      'faq 3': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'You are required to submit the completed Recertification Report within ninety (90) days from the date of this notice.' },
+      ],
+      'faq 4': [
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Please note that single family homes, duplexes and all other buildings with an occupant load of ten (10) or less and two thousand (2,000) square feet or less in area are exempt from recertification requirements. Non-residential farm buildings on farms are also exempt from recertification requirements.' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'If the building which is the subject of this notice is exempt for any of the above reasons, the building is not forty (40) years old or older or the building has been demolished, please notify this office and submit any available documentation. If you are claiming an exemption for an existing building, please submit dated pictures showing the front and rear of the building.' },
+      ],
+      'faq 5': [
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR CERTIFICATION OF COMPLIANCE FORMS.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR ELECTRICAL INSPECTION GUIDELINES.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR GENERAL CONSIDERATIONS GUIDELINES.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR LETTER OF NOTIFICATION.pdf' },
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=BDCBD8E0-DEC4-4C85-836A-C44A5457F1A6&Type=B_BASIC', quote: '40 YEAR STRUCTURAL REVIEW FORM.pdf' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'Under Section 8-11(f) of the Miami-Dade County Code, the owner of a building which has been in existence for forty (40) years or longer is required to have the building inspected' },
+      ],
+      'nextStep': [
+        { page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0', quote: 'Located at City of West Miami Building Department 901 SW 62 Avenue West Miami, FL 33144' },
+        { page: 'https://cityofwestmiami.gov/vertical/sites/%7B43D8A331-4B65-45FE-843C-E0F6FE3CD0E8%7D/uploads/40_YEAR_LETTER_OF_NOTIFICATION_2017_v2021.pdf', quote: 'The City of West Miami Building Department has received notification from the Property Appraiser\'s Office that the building on the property located at' },
+      ],
+    },
+  },
+  'broward-bsip/cooper-city': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.coopercity.gov/page/building-division', quote: 'The Building Division\'s lobby is located within City Hall. 9090 SW 50 Place Cooper City, FL 33328' },
+      { page: 'https://www.coopercity.gov/page/building-division', quote: 'Phone 954-434-4300 #4' },
+      { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: '(954) 434-4300' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.coopercity.gov/documents/departments/community-development/building-division/applications-%26-submittal-forms-(permitting)/823554', quote: 'Form - Commercial Building Safety Inspection Program' },
+        { page: 'https://www.coopercity.gov/documents/departments/community-development/building-division/applications-%26-submittal-forms-(permitting)/823554', quote: 'Applications & Submittal Forms (Permitting)' },
+      ],
+      'lede': [
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'CITY OF COOPER CITY COMMUNITY DEVELOPMENT DEPARTMENT BUILDING DIVISION' },
+        { page: 'https://www.coopercity.gov/documents/departments/community-development/building-division/applications-%26-submittal-forms-(permitting)/823554', quote: 'Form - Commercial Building Safety Inspection Program' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Building Safety Inspection Program' },
+      ],
+      'local 1: The city’s form': [
+        { page: 'https://www.coopercity.gov/documents/departments/community-development/building-division/applications-%26-submittal-forms-(permitting)/823554', quote: 'Form - Commercial Building Safety Inspection Program' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'CITY OF COOPER CITY COMMUNITY DEVELOPMENT DEPARTMENT BUILDING DIVISION' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Project #:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Site Address:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Property Name/Bldg.:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Folio #:' },
+      ],
+      'local 2: The building’s cycle': [
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Actual Year Built:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: '25-Year Due:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: '35-Year Due:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: '45-Year Due:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: '55-Year Due:' },
+      ],
+      'local 3: Two professionals named': [
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Structural Engineer/Architect:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Electrical Engineer/Architect:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'License #:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Contact Name:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Contact Email:' },
+      ],
+      'local 4: The city’s review': [
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'For Office Use Only:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Structural Reviewed by:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Electrical Reviewed by:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Structural Repair Permit Required?' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Electrical Repair Permit Required?' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: '2nd Structural/Electrical Report Required' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Additional Comments:' },
+      ],
+      'local 5: Permits and the portal': [
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'Permitting, inspections and plan review are now handled through Accela Citizen Access.' },
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'From there, you can view your permit, upload documents, schedule inspections, and make payments online, any time.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'Notices & Announcements' },
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'Permitting & Inspections' },
+        { page: 'https://www.coopercity.gov/documents/departments/community-development/building-division/applications-%26-submittal-forms-(permitting)/823554', quote: 'Form - Commercial Building Safety Inspection Program' },
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'Phone 954-434-4300 #4 Email Building@CooperCity.gov' },
+      ],
+      'faq 2': [
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Project #:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Folio #:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Actual Year Built:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Contact Name:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Structural Engineer/Architect:' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'For Office Use Only:' },
+      ],
+      'faq 3': [
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Structural Repair Permit Required?' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Electrical Repair Permit Required?' },
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: '2nd Structural/Electrical Report Required' },
+      ],
+      'faq 4': [
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'Permitting, inspections and plan review are now handled through Accela Citizen Access.' },
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'All first-time users of the online permitting portal will need to create an account to get started.' },
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'If your permit was created prior to September 15, 2025, create your account and we will connect your existing permit to it so you can manage everything in one place.' },
+        { page: 'https://www.coopercity.gov/page/building-division', quote: 'Contact us to connect your permit. Please call the Building Division at 954-434-4300 #4 or email Building@CooperCity.gov with three items:' },
+      ],
+      'nextStep': [
+        { page: 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5674/Ccc/191cbeaf-5f8b-47ec-a31b-9f0776b9221e/Form_Commercial_Building_Safety_Inspection_Pro.pdf', quote: 'Building Safety Inspection Program' },
+      ],
+    },
+  },
+  'broward-bsip/coral-springs': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Phone 954-344-1025 Email buildingpermits@coralsprings.gov Location 9500 West Sample Road Coral Springs 33065' },
+      { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'City Hall 9500 West Sample Road Coral Springs, FL 33065' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'The Building Department provides customer friendly plan review, issues building permits, performs field inspections, and issues certificates of occupancy' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Building Safety Inspection Electronic Submittal' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'City of Coral Springs Submittal Form (Required)' },
+      ],
+      'lede': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'Please review the Broward County Board of Rules and Appeals (BORA) Policy # 05-05 for detailed program requirements.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'City of Coral Springs Submittal Form (Required) Broward County Required Inspection Forms Instructions for Electronic Submittal of Inspection Reports' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Please note that reports and submittal form must be uploaded as separate PDF files.' },
+      ],
+      'local 1: The program page': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'The Building Safety Inspection Program became effective in Broward County in January 2006. In 2023, the program requirements changed. The current program requires structural and electrical safety inspections for buildings 25 years old and then every ten years thereafter.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Broward-County-Board-of-Rules-and-Appeals-BORA', quote: 'The Broward County Board of Rules and Appeals (BORA) website is currently unavailable. For your convenience, the applicable BORA policies, guidelines, and required inspection forms are provided below for access while the website is down.' },
+      ],
+      'local 2: The notice': [
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: '(Refer to your NOTICE OF REQUIRED BUILDING SAFETY INSPECTION letter for applicable fees)' },
+      ],
+      'local 3: Filing the report': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Log-in to your public or contractor account.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Enter your project number & select your project.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Fees must be paid first.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Click on attachment (paper clip icon upper left-hand corner) & upload your reports with the submittal form.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'Online Permitting (eTrakit)' },
+      ],
+      'local 4: Separate PDF files': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Please note that reports and submittal form must be uploaded as separate PDF files.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Each attachment must be uploaded separately and named as follows: Submittal Form Structural Inspection Report Electrical Inspection Report Inspection Photos' },
+      ],
+      'local 5: The city’s submittal form': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'City of Coral Springs Submittal Form (Required)' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'Building Safety Inspection Program Submittal Form' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: '(ALL FORMS MUST BE COMPLETED IN BLACK/BLUE INK OR TYPED)' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'Job Address: Subdivision Square Feet Eng/Arch 1: Eng/Arch 1 Address: Phone (Required) Eng/Arch 2: Eng/Arch 2 Address: Phone (Required)' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'Email Address (Required)' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'Present Use:' },
+      ],
+      'local 6: Three kinds of submittal': [
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'POST REPAIRS INSPECTION RECHECK' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: '(For RECHECK ONLY, please list the permit numbers for repairs)' },
+      ],
+      'local 7: The county’s report forms': [
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'Please make sure your package includes the following with this cover sheet:' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'Broward County Building Safety Inspection Report Forms' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Broward-County-Board-of-Rules-and-Appeals-BORA', quote: 'Board Policy 05-05(PDF, 208KB) General Considerations & Guidelines (Policy 05-05)(PDF, 200KB) Broward County Required Inspection Form Structural - BSIP Inspection(PDF, 991KB) Electrical - BSIP Inspection(PDF, 905KB)' },
+      ],
+      'local 8: When repairs stay open': [
+        { page: 'https://www.coralsprings.gov/files/assets/public/v/193/documents/development-services/code-compliance/special-magistrate/september-24-2026-docket.pdf', quote: 'SPECIAL MAGISTRATE HEARING' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/v/193/documents/development-services/code-compliance/special-magistrate/september-24-2026-docket.pdf', quote: 'BUILDING SAFETY INSPECTION PROGRAM REPAIRS' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/v/193/documents/development-services/code-compliance/special-magistrate/september-24-2026-docket.pdf', quote: 'CHIEF BUILDING OFFICIAL' },
+      ],
+      'faq 1': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Online-Permitting-eTrakit/Create-an-Online-Account', quote: 'You will need to register as a new user under the Public Login section.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Online-Permitting-eTrakit/Create-an-Online-Account', quote: 'If you are a contractor who has previously transacted business with the Building Department and have an active account, you are already in eTRAKiT.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Enter your project number & select your project.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Please note that reports and submittal form must be uploaded as separate PDF files.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'City of Coral Springs Submittal Form (Required)' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Each attachment must be uploaded separately and named as follows: Submittal Form' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'Broward County Building Safety Inspection Report Forms' },
+      ],
+      'faq 3': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'BSIP Project Search' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Online-Permitting-eTrakit/Create-an-Online-Account', quote: 'Before you begin, please note that most searches are available in eTRAKiT with no login.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Online-Permitting-eTrakit/Create-an-Online-Account', quote: 'If you need to make payment, apply for a permit or schedule an inspection, then you will need to login to eTRAKiT.' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building/Building-Safety-Inspection-Electronic-Submittal', quote: 'Enter your project number & select your project.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.coralsprings.gov/files/assets/public/v/193/documents/development-services/code-compliance/special-magistrate/september-24-2026-docket.pdf', quote: 'BUILDING SAFETY INSPECTION PROGRAM REPAIRS' },
+        { page: 'https://www.coralsprings.gov/files/assets/public/v/193/documents/development-services/code-compliance/special-magistrate/september-24-2026-docket.pdf', quote: 'CHIEF BUILDING OFFICIAL' },
+      ],
+      'faq 5': [
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'Register for Permitting & Building Safety Inspection Program Workshops' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'Interested in receiving important Building Department updates? Subscribe today to stay informed.' },
+      ],
+      'nextStep': [
+        { page: 'https://www.coralsprings.gov/files/assets/public/documents/building/building-forms/040.0-40-year-building-safety-inspection-submittal-form-ada.pdf', quote: 'NOTICE OF REQUIRED BUILDING SAFETY INSPECTION' },
+        { page: 'https://www.coralsprings.gov/Government/Departments/Building', quote: 'BSIP Project Search' },
+      ],
+    },
+  },
+  'broward-bsip/dania-beach': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'For more information, please email the Building Official or call 954-924-6805.' },
+      { page: 'https://www.daniabeachfl.gov/building-division', quote: 'Building Division 954 924-6805, dial 4.' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'The Building Official will notify the building owner or association with a Notice of Required Inspection.' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'After the reports are reviewed:' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'BUILDING SAFETY INSPECTION PROGRAM SUBMITTAL FORM' },
+      ],
+      'lede': [
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'Home Our City Departments Community Development Building Division' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'This program is dedicated to ensuring the safety and integrity of buildings within the community, adhering to the Florida Building Code and the guidelines established by the Broward County Board of Rules and Appeals (BORA).' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'Important Note: BORA Policy #05-05 takes precedence over Florida Senate Bill 154.' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'Building Safety Inspection Program Submittal Form (PDF)' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'Safety Inspection Frequently Asked Questions (PDF)' },
+      ],
+      'local 1: The notice': [
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'This date is based on when the certificate of occupancy was issued. The Building Official will notify the building owner or association with a Notice of Required Inspection.' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'The City will send a notice to the property owner, informing them that they must conduct a structural inspection by a certified architect or engineer, as well as an electrical inspection by a licensed electrical contractor.' },
+      ],
+      'local 2: Submitting to the city': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'Applicants must submit the following documents to the City\'s Building Official:' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Each building is required to submit a Submittal Package that include the following documents:' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'Owners have 90 days from receiving the notice to complete the inspections and submit the reports to the City.' },
+      ],
+      'local 3: The submittal form': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Property Owner\'s Name:' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Present Use:' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Engineer/Architect:' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Reg #:' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Initial Building Safety Inspection' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: '10 Year Re-Inspection' },
+      ],
+      'local 4: What the reports carry': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'Forms must be properly sealed/stamped by a Florida Registered Architect or Engineer.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'Forms must have an original signature.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'The Architect/Engineer is required to check the correct box for either "Repairs Required" or "No Repairs Required".' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'BUILDING OFFICIAL USE ONLY' },
+      ],
+      'local 5: How the review works': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'No. The City\'s review is based totally on the architect\'s/engineer\'s report.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'How long does it take for the review to be completed once submitted?' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'Unfortunately, we are not able to provide that information. Because we review the reports that are prepared by an architect or engineer, it would be a conflict of interest for us to provide a referral list.' },
+      ],
+      'local 6: After the review': [
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'If deemed safe, the property owner can request a certificate of completion for the Building Safety Inspection Program.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Report complete, repairs not required per report' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Permit(s) required for repairs' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Permit(s) not required for repairs' },
+      ],
+      'local 7: Repairs': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'A building permit application completed by a licensed and insured contractor for the appropriate discipline.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'detailing the scope of the repairs required by the report and indicating the the location of the repairs.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'No. The architect or engineer will prepare an updated Safety Inspection Report once the repairs have been completed. A city building inspector will only perform inspections relating to an active building permit.' },
+      ],
+      'local 8: Who is exempt': [
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'One- and two-family dwellings under 3,500 square feet U.S. government buildings State of Florida buildings Schools under the Broward County School Board Buildings located on Indian reservations' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'The inspection will not be waived unless the ENTIRE building was demolished, and a new structure was built.' },
+      ],
+      'faq 1': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'I did a complete interior demolition/renovation of my property. Am I exempt from the program?' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'No. An Inspection is needed to ensure the electrical and structural exterior of the entire building is in compliance with the Building Safety Inspection Program.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'The inspection will not be waived unless the ENTIRE building was demolished, and a new structure was built.' },
+      ],
+      'faq 2': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'We will verify through the Broward County Property Appraiser\'s Office that there is a new owner and will make changes in our database. If the BCPA still shows you are listed as property owner, you will need to contact them directly to have it changed.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'If you believe the building is not 25 years old, you will need to contact the City\'s Building Department and we will research further with the Broward County Property Appraiser\'s office to verify the age.' },
+      ],
+      'faq 3': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'No. This is a safety inspection of the current condition of the building\'s structural and electrical system. If repairs are required, the repairs will have to meet the current building code.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'This will be determined during the buildings annual inspection by the City of Dania Beach Fire Department.' },
+      ],
+      'faq 4': [
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e8cd6b8f-fa93-40c5-8847-68f86aa691b0', quote: 'Yes, especially if it is being occupied or still in use. Requests for an exception must be submitted in writing to the Building Official.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'Owners have 90 days from receiving the notice to complete the inspections and submit the reports to the City.' },
+        { page: 'https://content.civicplus.com/api/assets/fl-daniabeach/e0b1e222-1173-4b23-8a0b-250ddef61c67', quote: 'Repairs required per report. New report updated by architect/engineer must be' },
+      ],
+      'nextStep': [
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'The Building Official will notify the building owner or association with a Notice of Required Inspection.' },
+        { page: 'https://www.daniabeachfl.gov/3220/Building-Safety-Inspection-Program', quote: 'This date is based on when the certificate of occupancy was issued.' },
+      ],
+    },
+  },
+  'broward-bsip/hillsboro-beach': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'Building Department Email Physical Address View Map 1210 Hillsboro Mile Hillsboro Beach, FL 33062' },
+      { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'For permitting questions contact Ivan Wong at wwong@cgasolutions.com or Ivelisse Cruz at icruz@cgasolutions.com or via phone at 954-427-4011' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'The Town of Hillsboro Beach 25/40 Year Log Report List' },
+      ],
+      'lede': [
+        { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'The Town of Hillsboro Beach Building Department is powered by Calvin, Giordano & Associates, Inc (CGA).' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'For additional program information please click the following link: Broward County Building Safety Inspection Program' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'The Town of Hillsboro Beach 25/40 Year Log Report List' },
+      ],
+      'local 1: The town’s program page': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: '25 Year or Older Building Safety Program' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'The Broward County Board of Rules and Appeals (BORA) adopted new regulations for Building Inspections (formerly known as the 40-Year Inspection Program). Per BORA, the Program was revised to be consistent with the requirements of Florida law, F.S.553.899. The major change to the program is that buildings will now be required to have that initial inspection at 25 years of age instead of 40.' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'For additional program information please click the following link: Broward County Building Safety Inspection Program' },
+      ],
+      'local 2: A town ordinance': [
+        { page: 'https://www.townofhillsborobeach.com/187/Public-Notices', quote: 'PUBLIC NOTICE - ORD 2023-02 Bldg Safety Program 25yr Inspections (2nd Reading)' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5606/PUBLIC-NOTICE---ORD-2023-02--Bldg-Safety-Program-25yr-Inspections--2nd-Reading', quote: 'AMENDING THE TOWN\'S CODE OF ORDINANCES BY AMENDING CHAPTER 4 ENTITLED "BUILDINGS AND BUILDING REGULATIONS"' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5606/PUBLIC-NOTICE---ORD-2023-02--Bldg-Safety-Program-25yr-Inspections--2nd-Reading', quote: 'BY CREATING SECTION 4-9 TO BE ENTITLED "BUILDING SAFETY INSPECTION PROGRAM"' },
+      ],
+      'local 3: The log of reports': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'The Town of Hillsboro Beach 25/40 Year Log Report List' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'BUILDING NAME' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'YEAR BUILT' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: '40 Year Due' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'STATUS' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'NOTES' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Reports submitted' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Concrete Restoration Applied For' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Letter from Engineer dated 10/28/25 Building has no Life Safety Issues while repairs are being done.' },
+      ],
+      'local 4: Searching past reports': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'To search 25/40 Reports submitted to the town check it out at Forerunner- Floodplain Information Website' },
+      ],
+      'local 5: Copies of a report': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'If you are requesting a copy of a Safety Report on any building in the Town of Hillsboro Beach, please submit a Public Records Request with the town clerk' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5093', quote: 'Public records request do not have to be in writing. However, to insure accuracy, transparency and to promote efficiency, please consider completing this public records request form.' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5093', quote: 'Fax to (954) 427-4834, Physical Mailing Address: 1210 Hillsboro Mile Hillsboro Beach, FL 33062' },
+      ],
+      'local 6: Questions on the program': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'If there are any questions, please contact:' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'Building Official- George Folles' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'Permit Administrator- Mariana El-Sayed' },
+        { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'For scheduling inspections or general questions contact the Building Department General Voicemail at 954-766-2766 or via email building@townofhillsborobeach.com' },
+        { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'For permitting questions contact' },
+      ],
+      'local 7: Repairs and permits': [
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Concrete Restoration Applied For' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Electrical permits submitted for repairs' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Concrete restoration permit final' },
+        { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'We encourage you to visit Community Core Permitting Website (Community Core-Hillsboro Beach) for the most current information and to pay permit fees, schedule inspections, view plan review comments, or check inspection results.' },
+        { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'Community Core will require a login to the website\'s portal.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'To search 25/40 Reports submitted to the town check it out at Forerunner- Floodplain Information Website' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'If you are requesting a copy of a Safety Report on any building in the Town of Hillsboro Beach, please submit a Public Records Request with the town clerk' },
+      ],
+      'faq 2': [
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: '40 Year Due' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'The Broward County Board of Rules and Appeals (BORA) adopted new regulations for Building Inspections (formerly known as the 40-Year Inspection Program).' },
+      ],
+      'faq 3': [
+        { page: 'https://www.townofhillsborobeach.com/235/Building-Applications-Forms', quote: 'Building Applications & Forms' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'For additional program information please click the following link: Broward County Building Safety Inspection Program' },
+      ],
+      'faq 4': [
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Concrete Restoration Applied For' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Emails sent on 10/23 & 10/27' },
+        { page: 'https://www.townofhillsborobeach.com/DocumentCenter/View/5302', quote: 'Letter from Engineer dated 10/28/25 Building has no Life Safety Issues while repairs are being done.' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'Building Official- George Folles' },
+      ],
+      'faq 5': [
+        { page: 'https://www.townofhillsborobeach.com/196/Building-Department', quote: 'The Town of Hillsboro Beach Building Department is powered by Calvin, Giordano & Associates, Inc (CGA).' },
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'If there are any questions, please contact:' },
+      ],
+      'nextStep': [
+        { page: 'https://www.townofhillsborobeach.com/511/Broward-County-Building-Safety-Program-I', quote: 'The Town of Hillsboro Beach 25/40 Year Log Report List' },
+      ],
+    },
+  },
+  'broward-bsip/lauderdale-lakes': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'DEVELOPMENT SERVICES DEPARTMENT BUILDING DIVISION 3521 NW 43rd Avenue, Lauderdale Lakes, FL 33319 | (954) 535-2480' },
+      { page: 'https://www.lauderdalelakes.org/160/Building', quote: 'Building Development Services 3521 NW 43rd Avenue Lauderdale Lakes, FL 33319 Ph: 954-535-2480' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'If the Building Safety Inspection Program affects your property, you will receive a certified letter with information about what you need to do.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'In order for an Engineer/Architect to submit a Building Safety Inspection Report, they must register with the City of Lauderdale Lakes.' },
+      ],
+      'lede': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'DEVELOPMENT SERVICES DEPARTMENT BUILDING DIVISION' },
+        { page: 'https://www.lauderdalelakes.org/313/Building-Documents', quote: 'Building Safety Program Packet' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Building Safety Inspection Program: Yearly Schedule' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Engineer\'s/Architect\'s Registration Application' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Building Safety Inspection Report Form' },
+      ],
+      'local 1: The certified letter': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'If the Building Safety Inspection Program affects your property, you will receive a certified letter with information about what you need to do.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'JUNE (Preceding the specified calendar year) Board of Rules and Appeals obtains building data from Property Appraisers Office and forwards it to each city.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Building Officials must notify property owners whose buildings are subject to the Safety Inspection Program for the specified calendar year.' },
+      ],
+      'local 2: Engineer registration': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'In order for an Engineer/Architect to submit a Building Safety Inspection Report, they must register with the City of Lauderdale Lakes. A copy of the Engineer\'s/Architect\'s Current State License must accompany this completed application to register.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'All applications require the engineer\'s/architect\'s notarized signature.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Fax copies of requirements are not acceptable. Originals must be submitted' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Registrations must be renewed annually on or before September 30th for the following fiscal year.' },
+      ],
+      'local 3: The city’s application': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'BUILDING SAFETY INSPECTION APPLICATION' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'SITE NAME Address Legal Description Subdivision' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Certificate of Competency #' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'State Engineer\'s/Architect\'s #' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'FOR OFFICIAL USE ONLY' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Notary Signature' },
+      ],
+      'local 4: Forms with the filing': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'The following forms are required to be completed at the time of submittal: Building Safety Inspection Submittal Form Building Safety Inspection Form - Structural Building Safety Inspection Form - Electrical' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Broward County Board of Rules and Appeals Policy # 05-05' },
+      ],
+      'local 5: Where to send it': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: '3521 NW 43rd Avenue, Lauderdale Lakes, FL 33319 | (954) 535-2480 | Fax (954) 731-5309 | permits@lauderdalelakes.org' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'For more information regarding the Building Safety Inspection Program, please send an email to permits@lauderdalelakes.org or call 954-535-2480.' },
+      ],
+      'local 6: Permits for repairs': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Note: A separate building permit must be obtained if the Building Official deems it necessary after reviewing the Engineer\'s or Architect\'s Report. A licensed and insured contractor must obtain the Permit.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'days from the date of the report to obtain the required permit(s) and complete all necessary repairs.' },
+      ],
+      'local 7: Milestone inspections': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'PLEASE NOTE: Buildings or structures that must perform a phase one and/or phase two milestone inspection as defined under F.S. 553.899, this building safety inspection shall serve as compliance for both milestone inspection requirements.' },
+      ],
+      'local 8: Who is exempt': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Exempt from this program are:' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Fee Simple Townhouses as defined in the Florida Building Code' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Minor Structures, defined as buildings or structures in any occupancy group having a gross floor area less than three thousand five hundred (3,500) square feet.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'In order for an Engineer/Architect to submit a Building Safety Inspection Report, they must register with the City of Lauderdale Lakes.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'All applications require the engineer\'s/architect\'s notarized signature.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Registrations must be renewed annually on or before September 30th for the following fiscal year.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'If the Building Safety Inspection Program affects your property, you will receive a certified letter with information about what you need to do.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'Board of Rules and Appeals obtains building data from Property Appraisers Office and forwards it to each city.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: '90 day period for property owners to return structural and electrical check list to the City/County' },
+      ],
+      'faq 4': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/7020/Special-Magistrate-Case-Docket', quote: 'Owners of buildings or structures shall conduct a 40' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/7020/Special-Magistrate-Case-Docket', quote: 'year structural and electrical safety inspection in' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'BUILDING SAFETY INSPECTION PROGRAM' },
+      ],
+      'faq 5': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/7020/Special-Magistrate-Case-Docket', quote: 'SPECIAL MAGISTRATE' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/7020/Special-Magistrate-Case-Docket', quote: 'FIRST TIME HEARING' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/7020/Special-Magistrate-Case-Docket', quote: 'Sec. 18-3 (a) Safety' },
+      ],
+      'nextStep': [
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'you will receive a certified letter with information about what you need to do.' },
+        { page: 'https://www.lauderdalelakes.org/DocumentCenter/View/5806/Building-Safety-Program-Packet', quote: 'they must register with the City of Lauderdale Lakes.' },
+      ],
+    },
+  },
+  'broward-bsip/lauderhill': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.lauderhill-fl.gov/departments/development-services/contact-us', quote: 'Ken Thurston Inverrary Community Center' },
+      { page: 'https://www.lauderhill-fl.gov/departments/development-services/contact-us', quote: '3300 Inverrary Blvd.' },
+      { page: 'https://www.lauderhill-fl.gov/departments/development-services/contact-us', quote: 'Lauderhill, FL 33319' },
+      { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/32848/638899132500130000', quote: 'Development Services Department / Building Division' },
+      { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/32848/638899132500130000', quote: 'Phone: 954.730.3060' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.lauderhill-fl.gov/community-services/online-forms/-folder-309', quote: '40 or 50 Year Building and Safety Inspection Packet' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: '40 or 50 year Building and Safety Inspection Application and Instructions' },
+      ],
+      'lede': [
+        { page: 'https://www.lauderhill-fl.gov/departments/development-services/building', quote: 'Welcome to the City of Lauderhill Building Division.' },
+        { page: 'https://www.lauderhill-fl.gov/departments/development-services/contact-us', quote: 'Development Services Department' },
+        { page: 'https://www.lauderhill-fl.gov/community-services/online-forms/-folder-309', quote: '40 or 50 Year Building and Safety Inspection Packet' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'The Lauderhill Building Department is required to enforce the County Code.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/32848/638899132500130000', quote: 'What to Expect from the City of Lauderhill' },
+      ],
+      'local 1: Why the city enforces it': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: '40 or 50 year Building and Safety Inspection are mandated by the Broward County Administrative Code and the' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'The Lauderhill Building Department is required to enforce the County Code.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Subject: Broward County Board of Rules and Appeals – Building Safety Inspection Program' },
+      ],
+      'local 2: The notice': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'a list of buildings meeting the program requirements' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'are provided to Building Officials from a database that the Board of Rules and Appeals obtains from the County' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'The program is then to be administrated by the City Building Department or the' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'County Building Department and a notification letter is sent.' },
+      ],
+      'local 3: What the filing holds': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Complete the Broward County 40 year Building Safety Inspection Program Application.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'The same application is used for 50 year Safety Inspections.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Written report by a Florida Registered Architect or a Professional Engineer evaluating the' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'structural elements of the property.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'electrical elements of the property' },
+      ],
+      'local 4: Where it goes': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Application may be submitted at:' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'City of Lauderhill Business Center' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: '5581 W. Oakland Park Boulevard Lauderhill, FL 33313' },
+        { page: 'https://www.lauderhill-fl.gov/departments/development-services/contact-us', quote: 'Ken Thurston Inverrary Community Center' },
+        { page: 'https://www.lauderhill-fl.gov/departments/development-services/contact-us', quote: 'Located behind City Hall' },
+      ],
+      'local 5: The review': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'The Building Department will review the reports submitted to verify that if the inspecting agency has deemed' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'the structural and electrical systems as safe. If any deficiency is noted, the building department shall follow' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'the guidelines of Policy #05-05 (copy attached).' },
+      ],
+      'local 6: Repairs': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'to correct the structural and electrical deficiencies that pose an immediate threat to life, health, safety or where failure of a' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'shall re-inspect the areas noted on the original report and shall provide the building owner a signed and sealed letter stating the' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'corrections have all been completed. The building owner shall submit that letter to the Building Official.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Repairs or modifications of deficient conditions that are incidental and non-life threatening shall be completed within a time' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'frame as specified by the inspecting Professional Engineer or Registered Architect and approved by the Building Official.' },
+      ],
+      'local 7: If it is not filed': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'In the event an owner fails to submit the 40 year Inspection Report the governing authority shall elect the choice of either' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'a Special Magistrate or Code Enforcement Board' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'the structure may be deemed to be unsafe and unfit for occupation.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Unsafe Structures Board, as appropriate.' },
+      ],
+      'local 8: An older packet': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Revised June 2015' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Amended Effective10/20/14' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'furnish within 90 days the required Safety Inspection' },
+      ],
+      'faq 1': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'are provided to Building Officials from a database that the Board of Rules and Appeals obtains from the County' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'County Building Department and a notification letter is sent.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Complete the Broward County 40 year Building Safety Inspection Program Application.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'Written report by a Florida Registered Architect or a Professional Engineer evaluating the' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'City of Lauderhill Business Center' },
+        { page: 'https://www.lauderhill-fl.gov/departments/development-services/contact-us', quote: '3300 Inverrary Blvd.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.lauderhill-fl.gov/community-services/online-forms/-folder-309', quote: '40 or 50 Year Building and Safety Inspection Packet' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'The same application is used for 50 year Safety Inspections.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'In the event an owner fails to submit the 40 year Inspection Report the governing authority shall elect the choice of either' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'the structure may be deemed to be unsafe and unfit for occupation.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/32848/638899132500130000', quote: 'New Condominium & Community Association Requirements (HB 913)' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/32848/638899132500130000', quote: 'Architects/engineers bidding on milestone inspections must disclose in writing if they intend to bid on' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/32848/638899132500130000', quote: 'City ordinances will be amended to include inspection and enforcement language.' },
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/32848/638899132500130000', quote: 'Required milestone inspection reports for condos must be submitted to the City by' },
+      ],
+      'nextStep': [
+        { page: 'https://www.lauderhill-fl.gov/home/showpublisheddocument/21570/638474060306630000', quote: 'County Building Department and a notification letter is sent.' },
+      ],
+    },
+  },
+  'broward-bsip/lighthouse-point': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: '3701 NE 22 Avenue Lighthouse Point FL 33064' },
+      { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Phone: 954-943-6509' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'If you have questions regarding Building Safety Inspections, contact the Lighthouse Point Building Department.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'The City is aware that engineering and architectural firms are sending out notices regarding the Building Safety Inspection requirements.' },
+      ],
+      'lede': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Broward County Building Safety Inspection Requirement' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'If you have questions regarding Building Safety Inspections, contact the Lighthouse Point Building Department.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Single-family homes, duplexes, and all buildings under 3,500 square feet are exempt from this requirement.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'The City is aware that engineering and architectural firms are sending out notices regarding the Building Safety Inspection requirements.' },
+      ],
+      'local 1: Whose requirement it is': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Broward County Building Safety Inspection Requirement' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Broward County requires Building Safety Inspections on all buildings over 25 years old and over 3,500 square feet.' },
+      ],
+      'local 2: Who is exempt': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Single-family homes, duplexes, and all buildings under 3,500 square feet are exempt from this requirement.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'you are not required to have this inspection.' },
+      ],
+      'local 3: Notices from private firms': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'The City is aware that engineering and architectural firms are sending out notices regarding the Building Safety Inspection requirements.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'If you receive one of their notices, remember your property may not be subject to the requirements.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'The City does not endorse any of the firms sending out the notices.' },
+      ],
+      'local 4: Questions and permits': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'If you have questions regarding Building Safety Inspections, contact the Lighthouse Point Building Department.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'New permit applications can be accepted online and in person.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Building Department Public Portal' },
+      ],
+      'faq 1': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'The City is aware that engineering and architectural firms are sending out notices regarding the Building Safety Inspection requirements.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'If you receive one of their notices, remember your property may not be subject to the requirements.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'The City does not endorse any of the firms sending out the notices.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'If you have questions regarding Building Safety Inspections, contact the Lighthouse Point Building Department.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Broward County requires Building Safety Inspections on all buildings over 25 years old and over 3,500 square feet.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Single-family homes, duplexes, and all buildings under 3,500 square feet are exempt from this requirement.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'If you have questions regarding Building Safety Inspections, contact the Lighthouse Point Building Department.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'New permit applications can be accepted online and in person.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Now you can submit your permit application and view your application status and inspection results by visiting the' },
+      ],
+      'faq 4': [
+        { page: 'https://www.lighthousepointfl.gov/DocumentCenter/View/945/LHP-Revised-Fees-as-of-9-12-22-Final-PDF', quote: '40-year inspection program (required by Broward County)' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Broward County Building Safety Inspection Requirement' },
+      ],
+      'nextStep': [
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'The City is aware that engineering and architectural firms are sending out notices regarding the Building Safety Inspection requirements.' },
+        { page: 'https://www.lighthousepointfl.gov/158/Building-Zoning', quote: 'Broward County requires Building Safety Inspections on all buildings over 25 years old and over 3,500 square feet.' },
+      ],
+    },
+  },
+  'broward-bsip/margate': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.margatefl.com/196/Building', quote: '901 NW 66th Avenue Margate FL 33063' },
+      { page: 'https://www.margatefl.com/196/Building', quote: 'Phone: 954-970-3004' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'you will receive a certified letter with information about what you need to do' },
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'ProjectDox - Apply and upload Structural & Electrical Engineer Reports' },
+      ],
+      'lede': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'for the City of Margate Building Department to review the reports' },
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: '25 Year Frequently Asked Questions' },
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: '25-Year Building Safety Inspection Incidental Repair Agreement' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'FAILED REPORTS' },
+      ],
+      'local 1: The notice': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'you will receive a certified letter with information about what you need to do' },
+      ],
+      'local 2: Filing the report': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'ProjectDox - Apply and upload Structural & Electrical Engineer Reports' },
+        { page: 'https://www.margatefl.com/788/Margate-Building-ePermitting-ProjectDox', quote: 'to create an account or log in with an existing account' },
+      ],
+      'local 3: The forms': [
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'The following are the most common reasons for failed reports and how to correct them.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Broward County Form was not used' },
+        { page: 'https://www.margatefl.com/197/Permit-Applications-Forms', quote: 'Safety Inspection Report Form - Structural (PDF)' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/7215', quote: 'This report has been based upon the minimum inspection guidelines for building safety inspection as listed in the Broward County' },
+      ],
+      'local 4: Common reasons it fails': [
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Appropriate boxes were not checked' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Architect’s seal is not clear or an original signature was not provided' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'The Architect can upload corrected form to the Building Department through Building e-Permitting - ProjectDox.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Architect indicated deficiencies in the building; either structural, electrical or both' },
+      ],
+      'local 5: After review': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'After review of the reports, if the building is determined to be safe you will not be required to have another Building Safety Inspection for ten (10) years.' },
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'the owner shall have one hundred-eighty (180) days from the date of the report to obtain the required permit(s) and complete the necessary repairs.' },
+      ],
+      'local 6: Repairs and permits': [
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'The owner must hire a licensed Contractor to apply for required permits to complete the repairs.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Can a building owner apply for the permit and do the required work?' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Can a handyman repair the roof and take pictures and not have to apply for a permit?' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Can a handyman do stucco repairs and take pictures and not have to apply for a permit?' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Can a handyman replace rotted doorframes without applying for a permit?' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Once repairs have been completed and all permits relating to the repairs have passed final inspection, you will need to upload a new report to the Building Department through Builidng e-Permitting - ProjectDox.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'The report must state “No Repairs are Required”' },
+      ],
+      'local 7: Incidental repairs': [
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5260', quote: 'we request that you complete this form' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5260', quote: 'for incidental repairs that are non-life threatening.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'The Architect will provide a date and you must sign the form to acknowledge that the repairs will be' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5260', quote: 'Approval of the Building Official as to acceptance of the time frame for repairs or modifications of deficient conditions that are' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5260', quote: 'NOTARY PUBLIC,' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'When incidental repairs are the only repairs required, the report submitted to the Building Department must state “No Repairs are Required.”' },
+      ],
+      'local 8: Site visit and close-out': [
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'The Building Department will visit the site to ensure all work has been completed in accordance with the FBC.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'A final Architect/Engineer’s report will be required to complete the Safety Inspection Certification.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'you will receive a certified letter with information about what you need to do' },
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'please email Andrew Valentino' },
+        { page: 'https://www.margatefl.com/196/Building', quote: 'Chief Structural Inspector' },
+      ],
+      'faq 2': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'ProjectDox - Apply and upload Structural & Electrical Engineer Reports' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'The Architect can upload corrected form to the Building Department through Building e-Permitting - ProjectDox.' },
+        { page: 'https://www.margatefl.com/197/Permit-Applications-Forms', quote: 'Safety Inspection Report Form - Electrical (PDF)' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'No. A letter will not be adequate. You are required to submit the BCBRA form.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Broward County Form was not used' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Appropriate boxes were not checked' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Architect’s seal is not clear or an original signature was not provided' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'Architect indicated deficiencies in the building; either structural, electrical or both' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'You must apply for the required permits for each repair per the Florida Building Code.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'No. This is a safety inspection of the condition of the building’s structure and the electrical system.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'If certain repairs are required, you may have to repair it to the current code.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5262', quote: 'This will be determined during the annual inspection by the City of Margate Fire Department.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'the owner shall have one hundred-eighty (180) days from the date of the report to obtain the required permit(s) and complete the necessary repairs.' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5260', quote: 'Repairs or modifications of deficient conditions that are incidental and non-life threatening are not required to be completed within' },
+        { page: 'https://www.margatefl.com/DocumentCenter/View/5260', quote: 'Approval of the Building Official as to acceptance of the time frame for repairs or modifications of deficient conditions that are' },
+      ],
+      'nextStep': [
+        { page: 'https://www.margatefl.com/801/25-Year-Building-Safety-Inspection-Progr', quote: 'you will receive a certified letter with information about what you need to do' },
+      ],
+    },
+  },
+  'broward-bsip/oakland-park': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.oaklandparkfl.gov/166/Building-Permitting', quote: 'In Person at the Building and Permitting Division located at Sky South Building 1100 Park Lane East, 1st Floor, Oakland Park, FL 33334.' },
+      { page: 'https://www.oaklandparkfl.gov/166/Building-Permitting', quote: 'Phone: 954-630-4350' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Please make sure your package includes the following with this cover sheet:' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Only the latest Broward County Board of Rules and' },
+      ],
+      'lede': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/13805/FY-2025-Budget-Message-PDF', quote: 'Oakland Park\'s Building & Permitting Division oversees' },
+        { page: 'https://oaklandparkfl.gov/Directory.aspx?DID=8', quote: 'Administrative Assistant/Building Safety Inspections Program' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'BUILDING SAFETY INSPECTION - SUBMITTAL FORM' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'The website for submitting online reports can be found at:' },
+        { page: 'https://www.oaklandparkfl.gov/172/Building-Permit-Applications-Forms', quote: 'Building Safety Inspection Form-Structural' },
+      ],
+      'local 1: The city’s submittal form': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'BUILDING SAFETY INSPECTION - SUBMITTAL FORM' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Please make sure your package includes the following with this cover sheet:' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Year Built' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Present Use' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Square Feet' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'BORA List' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: '(Official Use Only)' },
+      ],
+      'local 2: What the package holds': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Broward County Building Safety Inspection Report Forms' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Only the latest Broward County Board of Rules and' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Appeals INSPECTIONS FORMS will be approved.' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'A written letter issued by the Florida Licensed Professional Engineer/Architect stating that each building is structurally and' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'electrically SAFE for continued occupancy.' },
+      ],
+      'local 3: Filing the report': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'The website for submitting online reports can be found at:' },
+        { page: 'https://www.oaklandparkfl.gov/166/Building-Permitting', quote: 'In Person at the Building and Permitting Division' },
+        { page: 'https://oaklandparkfl.gov/584/Building-Permitting-FAQs', quote: 'Online Submissions Help Desk' },
+      ],
+      'local 4: The report forms': [
+        { page: 'https://www.oaklandparkfl.gov/172/Building-Permit-Applications-Forms', quote: 'Building Safety Inspection Form-Electrical' },
+        { page: 'https://www.oaklandparkfl.gov/172/Building-Permit-Applications-Forms', quote: 'Building Safety Inspection Form-Structural' },
+        { page: 'https://www.oaklandparkfl.gov/166/Building-Permitting', quote: 'Building Safety Inspection - Structural' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/12513', quote: 'This report has been based upon the minimum inspection guidelines for building safety inspection as listed in the Broward County' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/12513', quote: 'Repairs are required as outlined in the attached inspection report' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/12513', quote: 'No Repairs Required' },
+      ],
+      'local 5: Who runs it': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/13805/FY-2025-Budget-Message-PDF', quote: 'Oakland Park\'s Building & Permitting Division oversees' },
+        { page: 'https://oaklandparkfl.gov/Directory.aspx?DID=8', quote: 'Administrative Assistant/Building Safety Inspections Program' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/13805/FY-2025-Budget-Message-PDF', quote: 'A new Administrative Assistant position' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/13805/FY-2025-Budget-Message-PDF', quote: 'The volume of inspections has increased considerably' },
+      ],
+      'local 6: If it is not filed': [
+        { page: 'https://oaklandparkfl.gov/DocumentCenter/View/11252/81622-SM-Agenda?bidId=', quote: 'SPECIAL MAGISTRATE' },
+        { page: 'https://oaklandparkfl.gov/DocumentCenter/View/11252/81622-SM-Agenda?bidId=', quote: '40 YEAR BUILDING SAFETY INSPECTION REPORTS' },
+        { page: 'https://oaklandparkfl.gov/DocumentCenter/View/11252/81622-SM-Agenda?bidId=', quote: 'FBC (BCA) 110.15' },
+        { page: 'https://oaklandparkfl.gov/584/Building-Permitting-FAQs', quote: 'Building Safety Inspection-Orders Imposing Penalty/Lien' },
+      ],
+      'local 7: Older names': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: '25 Year Building Safety Inspection' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: '50/60 Year Building Safety Inspection' },
+        { page: 'https://oaklandparkfl.gov/DocumentCenter/View/11252/81622-SM-Agenda?bidId=', quote: '40 YEAR BUILDING SAFETY INSPECTION REPORTS' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/13805/FY-2025-Budget-Message-PDF', quote: '40-Year Building Inspection program' },
+      ],
+      'faq 1': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Please make sure your package includes the following with this cover sheet:' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Broward County Building Safety Inspection Report Forms' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'The website for submitting online reports can be found at:' },
+      ],
+      'faq 2': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Only the latest Broward County Board of Rules and' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Appeals INSPECTIONS FORMS will be approved.' },
+        { page: 'https://www.oaklandparkfl.gov/172/Building-Permit-Applications-Forms', quote: 'Building Safety Inspection Form-Electrical' },
+        { page: 'https://www.oaklandparkfl.gov/172/Building-Permit-Applications-Forms', quote: 'Building Safety Inspection Submittal Form' },
+      ],
+      'faq 3': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'FOR ALL INQUIRIES RELATED TO THE BUILDING SAFETY INSPECTION PROGRAM PLEASE CALL' },
+        { page: 'https://oaklandparkfl.gov/Directory.aspx?DID=8', quote: 'Administrative Assistant/Building Safety Inspections Program' },
+        { page: 'https://oaklandparkfl.gov/584/Building-Permitting-FAQs', quote: 'BUILDING DIVISION MAIN NUMBER' },
+      ],
+      'faq 4': [
+        { page: 'https://oaklandparkfl.gov/DocumentCenter/View/11252/81622-SM-Agenda?bidId=', quote: '40 YEAR BUILDING SAFETY INSPECTION REPORTS' },
+        { page: 'https://oaklandparkfl.gov/584/Building-Permitting-FAQs', quote: 'Building Safety Inspection-Orders Imposing Penalty/Lien' },
+      ],
+      'faq 5': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'DATE OF SUBMITTAL' },
+      ],
+      'nextStep': [
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Year Built' },
+        { page: 'https://www.oaklandparkfl.gov/DocumentCenter/View/16078/2026-Building-Safety-Inspection-Submittal-Form', quote: 'Please make sure your package includes the following with this cover sheet:' },
+      ],
+    },
+  },
+  'broward-bsip/pembroke-park': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: '3150 SW 52nd Avenue, Pembroke Park, Florida, 33023' },
+      { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Phone: 954-966-4600' },
+      { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'Town Hall 3150 SW 52nd Ave. Pembroke Park, FL 33023 Phone: 954-966-4600' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'BSIP Recertification Application' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Building Safety Inspection Report Submittal Application' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Please make sure your package includes the following with this application:' },
+      ],
+      'lede': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Town of Pembroke Park Building Department' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'Town Hall' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'BSIP Master Packet' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'BSIP Recertification Application (Building Safety Inspection Report Submittal Application Form)' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'Broward County Uniform Building Permit Application' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'Property Appraiser Report' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'Board Policy 05-05' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'BSIP ELECTRICAL Inspection Form' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'BSIP STRUCTURAL Inspection Form' },
+      ],
+      'local 1: The Town’s application': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Building Safety Inspection Report Submittal Application' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Folio #' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Building Sq. Ft.' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Owner\'s Agent' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Associated Professional # 1:' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Repairs Required Submittal' },
+      ],
+      'local 2: Its checklist': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Please make sure your package includes the following with this application:' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Broward County Uniform Building Permit Application' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Building Safety Inspection Report Form' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Broward County Property Appraisers Report' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Architect / Structural Engineer\'s Cover Letter (Including Repair Recommendations if required)' },
+      ],
+      'local 3: The notice number': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Tracking # from Notification:' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'By June of each year, BORA will provide each local jurisdiction with a list of buildings and structures due for' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'From June through August, the Building Official shall notify the building owner or association by certified' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'mail return receipt that their properties are due for inspection.' },
+      ],
+      'local 4: The master packet': [
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'BSIP Master Packet' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1205/BSIP-Master-Packet', quote: 'Building Safety Inspection Report Submittal Application' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1205/BSIP-Master-Packet', quote: 'PROPERTY APPRAISER REPORT' },
+      ],
+      'local 5: Sending it now': [
+        { page: 'https://www.tppfl.gov/AlertCenter.aspx?AID=Building-Department-System-Upgrade-16', quote: 'The Town of Pembroke Park Building Department is upgrading from Gov-Easy to CivicPlus to deliver faster, more efficient permitting services!' },
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'Dear Customers, we are currently transitioning to a New Online Permitting System with Civic Plus.' },
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'the current GOV-EASY system is offline for any self' },
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'You must email' },
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'Submit Applications, Forms, and Required Documents' },
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'Any Submissions missing a BDTF will be returned without further processing.' },
+      ],
+      'local 6: Repairs': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Repairs Required Submittal' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Permit Numbers for Repairs:' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Architect / Structural Engineer\'s Cover Letter (Including Repair Recommendations if required)' },
+      ],
+      'local 7: The policy posted': [
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'Board Policy 05-05' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'Effective Date: August 9, 2024' },
+      ],
+      'faq 1': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Building Safety Inspection Report Submittal Application' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Please make sure your package includes the following with this application:' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Broward County Uniform Building Permit Application' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Building Safety Inspection Report Form' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Broward County Property Appraisers Report' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Architect / Structural Engineer\'s Cover Letter (Including Repair Recommendations if required)' },
+      ],
+      'faq 2': [
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'Dear Customers, we are currently transitioning to a New Online Permitting System with Civic Plus.' },
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'You must email' },
+        { page: 'https://www.tppfl.gov/194/Online-Permitting-System', quote: 'Any Submissions missing a BDTF will be returned without further processing.' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1257/Building-Department-Document-Transmittal-Form-BTFD-', quote: 'Transmitted to Town of Pembroke Park Building Department VIA:' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1257/Building-Department-Document-Transmittal-Form-BTFD-', quote: 'Hand-Delivery' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1257/Building-Department-Document-Transmittal-Form-BTFD-', quote: 'US Postal Service' },
+      ],
+      'faq 3': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'By June of each year, BORA will provide each local jurisdiction with a list of buildings and structures due for' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'From June through August, the Building Official shall notify the building owner or association by certified' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'mail return receipt that their properties are due for inspection.' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Tracking # from Notification:' },
+      ],
+      'faq 4': [
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'Board Policy 05-05' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1173/Board-Policy-05-05', quote: 'Effective Date: August 9, 2024' },
+      ],
+      'faq 5': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: '40 Year Inspection' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Initial 25 Year Inspection' },
+        { page: 'https://www.tppfl.gov/338/Building-Safety-Inspection-Program-BSIP', quote: 'BSIP Recertification Application' },
+      ],
+      'nextStep': [
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Town of Pembroke Park Building Department' },
+        { page: 'https://www.tppfl.gov/DocumentCenter/View/1242/BSIP-Recertification-Application-Building-Safety-Inspection-Report-Submittal-Application-Form', quote: 'Please make sure your package includes the following with this application:' },
+      ],
+    },
+  },
+  'broward-bsip/tamarac': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'First Floor 6011 Nob Hill Road Tamarac, FL 33321-6200' },
+      { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Chief Building Official Phone: (954) 597-3420' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.tamarac.gov/DocumentCenter/View/9636', quote: 'BROWARD COUNTY UNIFORM BUILDING PERMIT APPLICATION' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Complete the Building Permit Application.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'After the application has been submitted and an application number has been assigned, email the number to the Building Department for compliance tracking.' },
+      ],
+      'lede': [
+        { page: 'https://www.tamarac.gov/1671/Building', quote: 'City of Tamarac Building Department' },
+        { page: 'https://www.tamarac.gov/1658/Flood-and-Safety-Information', quote: 'Access flood protection resources and Building Safety Inspection Program information for properties throughout the City of Tamarac.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'The Building Official issues a Notice of Required Inspection to the building owner or association when the property becomes due for inspection.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Complete the Building Permit Application.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Provide current ownership documentation from the Broward County Property Appraiser for the property under review.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'After the application has been submitted and an application number has been assigned, email the number to the Building Department for compliance tracking.' },
+      ],
+      'local 1: The notice': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'The Building Official issues a Notice of Required Inspection to the building owner or association when the property becomes due for inspection.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Each June, the Broward County Board of Rules and Appeals provides a list of properties that are due for participation in the Building Safety Inspection Program.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Properties due for their initial 25-year inspection.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Properties due for their 10-year re-certification.' },
+      ],
+      'local 2: Opening the application': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Complete the Building Permit Application.' },
+        { page: 'https://www.tamarac.gov/DocumentCenter/View/9636', quote: 'BROWARD COUNTY UNIFORM BUILDING PERMIT APPLICATION' },
+        { page: 'https://www.tamarac.gov/DocumentCenter/View/9636', quote: 'Description of Work: 40Yr/25Yr/10Yr [20____] Bldg Safety Insp Engineer Report' },
+      ],
+      'local 3: Proof of ownership': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Provide current ownership documentation from the Broward County Property Appraiser for the property under review.' },
+      ],
+      'local 4: The application number': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'After the application has been submitted and an application number has been assigned, email the number to the Building Department for compliance tracking.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Include the assigned application number so the Building Department can track compliance with the inspection program.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Complete and submit the Building Permit Application.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Retain the assigned application number.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Email the application number.' },
+      ],
+      'local 5: The report forms': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Download the official Building Safety Inspection Program forms, required checklists, and supporting documentation needed to complete your inspection submission from the Broward County Board of Rules and Appeals.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Inspections must conform to the minimum guidelines issued by the Broward County Board of Rules and Appeals, titled' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'General Considerations & Guidelines for Building Safety Inspections' },
+      ],
+      'local 6: Whose rules apply': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Broward County Board of Rules and Appeals Policy #05-05 supersedes State of Florida' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Senate Bill 154 for the Building Safety Inspection Program requirements applicable within Broward County.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'The Broward County Administrative Provisions of the Florida Building Code establish a Building Safety Inspection Program for our area.' },
+      ],
+      'local 7: What the page omits': [
+        { page: 'https://www.tamarac.gov/1674/EPermits-Online-Services', quote: 'ePermits is a document workflow solution that allows residents, contractors, and City staff to manage construction plan submission, review, and approval online.' },
+        { page: 'https://www.tamarac.gov/1674/EPermits-Online-Services', quote: 'Upload plans, supporting documents, and revisions through Electronic Plan Review.' },
+      ],
+      'faq 1': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'The Building Official issues a Notice of Required Inspection to the building owner or association when the property becomes due for inspection.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Each June, the Broward County Board of Rules and Appeals provides a list of properties that are due for participation in the Building Safety Inspection Program.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Complete the Building Permit Application.' },
+        { page: 'https://www.tamarac.gov/DocumentCenter/View/9636', quote: 'BROWARD COUNTY UNIFORM BUILDING PERMIT APPLICATION' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Provide current ownership documentation from the Broward County Property Appraiser for the property under review.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'After the application has been submitted and an application number has been assigned, email the number to the Building Department for compliance tracking.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Download the official Building Safety Inspection Program forms, required checklists, and supporting documentation needed to complete your inspection submission from the Broward County Board of Rules and Appeals.' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Inspections must conform to the minimum guidelines issued by the Broward County Board of Rules and Appeals, titled' },
+      ],
+      'faq 4': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Broward County Board of Rules and Appeals Policy #05-05 supersedes State of Florida' },
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'Senate Bill 154 for the Building Safety Inspection Program requirements applicable within Broward County.' },
+      ],
+      'faq 5': [
+        { page: 'https://www.tamarac.gov/DocumentCenter/View/9636', quote: 'Description of Work: 40Yr/25Yr/10Yr [20____] Bldg Safety Insp Engineer Report' },
+      ],
+      'nextStep': [
+        { page: 'https://www.tamarac.gov/1657/Building-Safety-Inspection-Program', quote: 'The Building Official issues a Notice of Required Inspection to the building owner or association when the property becomes due for inspection.' },
+        { page: 'https://www.tamarac.gov/1671/Building', quote: 'City of Tamarac Building Department' },
+      ],
+    },
+  },
+  'broward-bsip/weston': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.westonfl.org/government/building-code-services/contact-us', quote: 'Building Code Services offices are located inside the Administrative Services Center 17250 Royal Palm Boulevard Weston, FL 33326' },
+      { page: 'https://www.westonfl.org/government/building-code-services/contact-us', quote: 'Phone: 954-385-0500' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'NEED TO SUBMIT A BUILDING INSPECTION REPORT, YOU CAN SUBMIT REPORTS ONLINE IN OUR EPERMITS PORTAL' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'Create on-line account in our ePermits portal to upload all documents' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A Uniform Building Permit Application is required to be completed that has the correct folio, address and building number of each building.' },
+      ],
+      'lede': [
+        { page: 'https://www.westonfl.org/government/building-code-services/contact-us', quote: 'City of Weston Building Code Services' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'The Broward County Board of Rules and Appeals (BORA) adopted new regulations for Building Inspections (formerly known as the 40-Year Inspection Program).' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'NEED TO SUBMIT A BUILDING INSPECTION REPORT, YOU CAN SUBMIT REPORTS ONLINE IN OUR EPERMITS PORTAL' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A Uniform Building Permit Application is required to be completed that has the correct folio, address and building number of each building.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'One structural and one electrical report is required per building.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A photo of the building that includes the building number and address is required to be submitted.' },
+      ],
+      'local 1: The program’s name': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'The Broward County Board of Rules and Appeals (BORA) adopted new regulations for Building Inspections (formerly known as the 40-Year Inspection Program).' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'Per BORA, the Program was revised to be consistent with the requirements of Florida law, F.S.553.899.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'The major change to the program is that buildings will now be required to have that initial inspection at 25 years of age instead of 40.' },
+      ],
+      'local 2: Filing the report': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'NEED TO SUBMIT A BUILDING INSPECTION REPORT, YOU CAN SUBMIT REPORTS ONLINE IN OUR EPERMITS PORTAL' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'Create on-line account in our ePermits portal to upload all documents' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'for a step by step guide on how to register an account, associate a license and upload all required documents.' },
+      ],
+      'local 3: The permit application': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A Uniform Building Permit Application is required to be completed that has the correct folio, address and building number of each building.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'The application can be found on-line under Permitting Services.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'Incorrect information on the application will cause a delay in the review process.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'One application can be used for required reports.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'The owner is responsible for submitting the report.' },
+      ],
+      'local 4: What goes with it': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'One structural and one electrical report is required per building.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A photo of the building that includes the building number and address is required to be submitted.' },
+        { page: 'https://www.westonfl.org/government/building-code-services', quote: 'Plans must be submitted electronically for review online digitally/signed and sealed' },
+      ],
+      'local 5: After filing': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'If no work is required the file is closed out and archived.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'Once your account is created you may contact the Building Department for assistance if required' },
+        { page: 'https://www.westonfl.org/government/building-code-services/contact-us', quote: 'Phone: 954-385-0500' },
+      ],
+      'local 6: Repairs': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'If repairs are required a building permit must be applied for each discipline separately by a licensed general contractor and electrical contractor in accordance with all the provisions of the Florida Building Code.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'If no work is required the file is closed out and archived.' },
+      ],
+      'local 7: Who runs the office': [
+        { page: 'https://www.westonfl.org/government/building-code-services', quote: 'Weston\'s Building Code and Permitting Services Department enforces the Florida Building Code and Broward County regulations.' },
+        { page: 'https://www.westonfl.org/government/building-code-services', quote: 'Weston’s Building Official, Reginald Cox, oversees the department' },
+        { page: 'https://www.westonfl.org/government/building-code-services/contact-us', quote: 'Services provided by C.A.P. Government , Inc.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/contact-us', quote: 'Building Code Services offices are located inside the Administrative Services Center 17250 Royal Palm Boulevard Weston, FL 33326' },
+      ],
+      'local 8: The notice': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'For additional program information you may visit The Broward County Board of Rules and Appeals Website' },
+      ],
+      'faq 1': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'NEED TO SUBMIT A BUILDING INSPECTION REPORT, YOU CAN SUBMIT REPORTS ONLINE IN OUR EPERMITS PORTAL' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'Create on-line account in our ePermits portal to upload all documents' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'for a step by step guide on how to register an account, associate a license and upload all required documents.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A Uniform Building Permit Application is required to be completed that has the correct folio, address and building number of each building.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A photo of the building that includes the building number and address is required to be submitted.' },
+      ],
+      'faq 2': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'One structural and one electrical report is required per building.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'A Uniform Building Permit Application is required to be completed that has the correct folio, address and building number of each building.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'One application can be used for required reports.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'If repairs are required a building permit must be applied for each discipline separately by a licensed general contractor and electrical contractor in accordance with all the provisions of the Florida Building Code.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'If no work is required the file is closed out and archived.' },
+      ],
+      'faq 4': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'For additional program information you may visit The Broward County Board of Rules and Appeals Website' },
+      ],
+      'faq 5': [
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'The Broward County Board of Rules and Appeals (BORA) adopted new regulations for Building Inspections (formerly known as the 40-Year Inspection Program).' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'Per BORA, the Program was revised to be consistent with the requirements of Florida law, F.S.553.899.' },
+        { page: 'https://www.westonfl.org/government/building-code-services/25-year-or-older-building-inspection-program', quote: 'The major change to the program is that buildings will now be required to have that initial inspection at 25 years of age instead of 40.' },
+      ],
+      'nextStep': [
+        { page: 'https://www.westonfl.org/government/building-code-services/contact-us', quote: 'City of Weston Building Code Services' },
+      ],
+    },
+  },
+  'broward-bsip/wilton-manors': {
+    read: '2026-10-17',
+    office: [
+      { page: 'https://www.wiltonmanors.gov/Directory.aspx?did=18', quote: 'Physical Address 2020 Wilton Drive Wilton Manors, FL 33305' },
+      { page: 'https://www.wiltonmanors.gov/Directory.aspx?did=18', quote: 'Phone Number (954) 390-2180' },
+      { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'please contact the Community Development Services Department by calling (954) 390-2180' },
+    ],
+    rows: {
+      'heroSub': [
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building Safety Inspection Program' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP - FBC Chapter Section 110.15' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP Structural Inspection Form' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP Electrical Inspection Form' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Broward BORA Policy 05-05' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building permit applications and building permit inspection requests are now accepted online. Simply visit the Online Services page and click on the Building Permits link.' },
+      ],
+      'lede': [
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'please contact the Community Development Services Department by calling (954) 390-2180' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'The City has contracted with Calvin, Giordano & Associates, a SAFEBUILT Company, for building services assistance.' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building Safety Inspection Program' },
+        { page: 'https://www.wiltonmanors.gov/132/Construction-Services', quote: 'The Construction Services Division is responsible for the administration of the Florida Building Code, fire inspections, issuance of building permits and job-site inspections.' },
+      ],
+      'local 1: Where the documents are': [
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building Safety Inspection Program' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP - FBC Chapter Section 110.15' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP Structural Inspection Form' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP Electrical Inspection Form' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Broward BORA Policy 05-05' },
+      ],
+      'local 2: The code section': [
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'BROWARD COUNTY AMENDMENTS' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'BORA by written policy has established the guidelines' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'The Building Official shall enforce the Building' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building Official, Chief' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'The City has contracted with Calvin, Giordano & Associates, a SAFEBUILT Company, for building services assistance.' },
+      ],
+      'local 3: The report forms': [
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8467/FILLABLE-STRUCTURAL---BSIP-Inspection-Form-2023', quote: 'STRUCTURAL SAFETY INSPECTION REPORT FORM' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8467/FILLABLE-STRUCTURAL---BSIP-Inspection-Form-2023', quote: 'No Repairs Required' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8467/FILLABLE-STRUCTURAL---BSIP-Inspection-Form-2023', quote: 'Repairs are Required as Outlined in the Attached Inspection Report' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8467/FILLABLE-STRUCTURAL---BSIP-Inspection-Form-2023', quote: 'This report has been based upon the minimum inspection guidelines for building safety inspection as listed in the Broward County' },
+      ],
+      'local 4: Filing online': [
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building permit applications and building permit inspection requests are now accepted online. Simply visit the Online Services page and click on the Building Permits link.' },
+        { page: 'https://www.wiltonmanors.gov/132/Construction-Services', quote: 'All permits are now submitted online and can be monitored online.' },
+      ],
+      'local 5: Digital signatures': [
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Digital Signature Affidavit' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building Safety Inspection Program' },
+      ],
+      'local 6: Code compliance': [
+        { page: 'https://www.wiltonmanors.gov/AgendaCenter/ViewFile/Agenda/_07022025-1745', quote: 'CODE COMPLIANCE UNIT' },
+        { page: 'https://www.wiltonmanors.gov/AgendaCenter/ViewFile/Agenda/_07022025-1745', quote: 'Special Magistrate Hearing' },
+        { page: 'https://www.wiltonmanors.gov/AgendaCenter/ViewFile/Agenda/_07022025-1745', quote: 'FBC (2014) 110.15 40 Year Inspection Program, 40 Year Building Safety Inspection' },
+      ],
+      'local 7: An older policy copy': [
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8469/Broward-BORA-Policy-05-05', quote: 'Effective Date: May 11, 2023' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8469/Broward-BORA-Policy-05-05', quote: 'Within ninety (90) days of receiving the Notice of Required Building Safety Inspection, the owner or' },
+      ],
+      'local 8: Who is exempt': [
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'The following are exempt from this program:' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'U.S. Government Buildings' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'State of Florida Buildings' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'Buildings built on Indian Reservations' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'Broward County School Board' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'One- and Two-Family Dwellings' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'Fee Simple Townhouses as defined in the Florida' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'Minor Structures, defined as buildings or structures in' },
+      ],
+      'faq 1': [
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building Safety Inspection Program' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP - FBC Chapter Section 110.15' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP Structural Inspection Form' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'BSIP Electrical Inspection Form' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Broward BORA Policy 05-05' },
+      ],
+      'faq 2': [
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building permit applications and building permit inspection requests are now accepted online. Simply visit the Online Services page and click on the Building Permits link.' },
+        { page: 'https://www.wiltonmanors.gov/132/Construction-Services', quote: 'All permits are now submitted online and can be monitored online.' },
+      ],
+      'faq 3': [
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'The Building Official shall enforce the Building' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'The City has contracted with Calvin, Giordano & Associates, a SAFEBUILT Company, for building services assistance.' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Building Official, Chief' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'Please reach out to your plan reviewer or inspector to discuss plan review comments' },
+      ],
+      'faq 4': [
+        { page: 'https://www.wiltonmanors.gov/AgendaCenter/ViewFile/Agenda/_07022025-1745', quote: 'CODE COMPLIANCE UNIT' },
+        { page: 'https://www.wiltonmanors.gov/AgendaCenter/ViewFile/Agenda/_07022025-1745', quote: 'Special Magistrate Hearing' },
+        { page: 'https://www.wiltonmanors.gov/AgendaCenter/ViewFile/Agenda/_07022025-1745', quote: 'FBC (2014) 110.15 40 Year Inspection Program, 40 Year Building Safety Inspection' },
+      ],
+      'faq 5': [
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8469/Broward-BORA-Policy-05-05', quote: 'All buildings or structures that have performed a building safety inspection under the prior program ("40-Year' },
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8469/Broward-BORA-Policy-05-05', quote: 'Building Safety Inspection Program") are deemed compliant with F.S.553.899' },
+      ],
+      'nextStep': [
+        { page: 'https://www.wiltonmanors.gov/DocumentCenter/View/8466/BSIP---FBC-Chapter-1-Section-11015', quote: 'The Building Official shall enforce the Building' },
+        { page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications', quote: 'please contact the Community Development Services Department by calling (954) 390-2180' },
       ],
     },
   },

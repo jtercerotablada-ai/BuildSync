@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { imagery, regulatoryCheckedISO } from '@/lib/ttc/site';
-import { citiesChecked, citiesCheckedISO, cityPath, type CityPage } from '@/lib/ttc/cities';
+import { cityChecked, cityCheckedISO, cityPath, type CityPage } from '@/lib/ttc/cities';
 import { cityPagesOf, findCityPage } from '@/lib/ttc/city-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { cityFaqLd, cityServiceLd, cityWebPageLd } from '@/lib/ttc/city-structured-data';
@@ -262,7 +262,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
               ) : null}
             </p>
             <p className="mp-timing__src">
-              <Dated label={t.read(page.office.name)} date={citiesChecked[lang]} iso={citiesCheckedISO} />
+              <Dated label={t.read(page.office.name)} date={cityChecked(page, lang)} iso={cityCheckedISO(page)} />
             </p>
           </Reveal>
         </div>

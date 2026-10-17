@@ -1,4 +1,4 @@
-import { citiesCheckedISO, cityPath, type CityPage } from './cities';
+import { cityCheckedISO, cityPath, type CityPage } from './cities';
 import type { Lang } from './i18n';
 import { LD_LANG, ORGANIZATION, SPOKEN, WEBSITE, abs, type ServiceContent } from './structured-data';
 
@@ -66,7 +66,7 @@ export function cityWebPageLd(lang: Lang, page: CityPage, name: string) {
     about: { '@id': `${pageUrl}#service` },
     // The day the city's own pages were read — not the county rows' date,
     // which the page prints beside those rows.
-    lastReviewed: citiesCheckedISO,
+    lastReviewed: cityCheckedISO(page),
   };
 }
 
