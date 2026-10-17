@@ -58,6 +58,8 @@ export interface LayoutOptions {
   /** What numbers are set apart with, and the length unit written after a sag. */
   group: string;
   unit: string;
+  /** The words written before each sag: the sag where the two are one, the usual one, the one below the lower support, and the sag of each state. */
+  labels: { sag: string; sagMid: string; sagLow: string; state1: string; state2: string };
   /** The words beside the supports and at the lowest point, already written ("T = 13.46 kip"); none where null or left out. */
   texts?: { A?: string | null; B?: string | null; H?: string | null };
   /** Which pieces are drawn: the tensions, the sag dimension lines, the load arrows of a hanging cable, the parabola. */
@@ -234,11 +236,15 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
 
   /* Dimension lines. */
   const dims: DimShape[] = [];
-  const dimLine = (id: DimShape['id'], d: Dimension, symbol: string, anchor: 'start' | 'end', shift = 0): DimShape => {
+  const dimLine = (id: DimShape['id'], d: Dimension, label: string, anchor: 'start' | 'end', shift = 0): DimShape => {
     const x = clean(X(d.x) + shift);
     const y1 = clean(Y(d.zTop));
     const y2 = clean(Y(d.zBottom));
-    const text: TextShape = { value: `${symbol} = ${formatNumber(d.value, 4, o.group)} ${o.unit}`, x: clean(x + (anchor === 'start' ? 7 : -7)), y: clean((y1 + y2) / 2 + 4), anchor };
+    // A line too short to hold its words beside it carries them over the chord instead, clear of every line.
+    const short = Math.abs(y2 - y1) < 18;
+    // A sag measured from the lower support's level has its words over the level line it is measured from.
+    const textY = d.from !== undefined ? y1 - 6 : short ? Math.min(y1, y2) - 6 : (y1 + y2) / 2 + 4;
+    const text: TextShape = { value: `${label} ${formatNumber(d.value, 4, o.group)} ${o.unit}`, x: clean(x + (anchor === 'start' ? 7 : -7)), y: clean(textY), anchor };
     return {
       id,
       both: false,
@@ -254,25 +260,25 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
     const { mid, low, state1 } = drawing.sag;
     if (mode === 'state') {
       // What the visitor gave is state 1's sag.
-      if (state1) dims.push({ ...dimLine('state1', state1, 'd1', 'end', -6), given: drawing.sag.given === 'mid' });
-      if (mid) dims.push({ ...dimLine('mid', mid, 'd2', 'start'), given: false });
+      if (state1) dims.push({ ...dimLine('state1', state1, o.labels.state1, 'end', -6), given: drawing.sag.given === 'mid' });
+      if (mid) dims.push({ ...dimLine('mid', mid, o.labels.state2, 'start'), given: false });
     } else if (mid && low) {
       const same = Math.abs(X(mid.x) - X(low.x)) < 1 && Math.abs(Y(mid.zTop) - Y(low.zTop)) < 0.5 && Math.abs(Y(mid.zBottom) - Y(low.zBottom)) < 0.5;
       if (same) {
-        const d = dimLine('mid', mid, 'd = s', 'start');
+        const d = dimLine('mid', mid, o.labels.sag, 'start');
         dims.push({ ...d, both: true, given: drawing.sag.given !== null });
       } else {
         // The two labels point away from each other.
         const midLeft = mid.x < low.x;
-        dims.push({ ...dimLine('mid', mid, 'd', midLeft ? 'end' : 'start'), given: drawing.sag.given === 'mid' });
-        dims.push({ ...dimLine('low', low, 's', midLeft ? 'start' : 'end'), given: drawing.sag.given === 'low' });
+        dims.push({ ...dimLine('mid', mid, o.labels.sagMid, midLeft ? 'end' : 'start'), given: drawing.sag.given === 'mid' });
+        dims.push({ ...dimLine('low', low, o.labels.sagLow, midLeft ? 'start' : 'end'), given: drawing.sag.given === 'low' });
       }
     } else if (mid) {
       // At a load's own position the sag line would run down its arrow: it stands a little to the left of it, its words on that side.
       const onLoad = points && joints.some((j) => Math.abs(j.x - X(mid.x)) < 12);
-      dims.push({ ...dimLine('mid', mid, 'd', onLoad ? 'end' : 'start', onLoad ? -12 : 0), given: drawing.sag.given === 'mid' });
+      dims.push({ ...dimLine('mid', mid, points ? o.labels.sag : o.labels.sagMid, onLoad ? 'end' : 'start', onLoad ? -12 : 0), given: drawing.sag.given === 'mid' });
     }
-    else if (low) dims.push({ ...dimLine('low', low, 's', 'start'), given: drawing.sag.given === 'low' });
+    else if (low) dims.push({ ...dimLine('low', low, o.labels.sagLow, 'start'), given: drawing.sag.given === 'low' });
   }
 
   /* The tensions beside the supports: outside where there is room, over the support where there is not. */
@@ -284,9 +290,13 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
       const need = value.length * CHAR + 14;
       const room = side < 0 ? p.x : o.width - p.x;
       const outside = room >= need;
+      const x = clean(outside ? p.x + side * 10 : p.x - side * 2);
+      // Over the support it stands above the chord along all its length: a chord that climbs away from it would run through the words.
+      const far = x + (side < 0 ? 1 : -1) * value.length * CHAR;
+      const chordAt = B.x === A.x ? p.y : A.y + ((B.y - A.y) * (far - A.x)) / (B.x - A.x);
       tensions.push({
         id,
-        text: { value, x: clean(outside ? p.x + side * 10 : p.x - side * 2), y: clean(p.y - 10), anchor: outside ? (side < 0 ? 'end' : 'start') : side < 0 ? 'start' : 'end' },
+        text: { value, x, y: clean(outside ? p.y - 10 : Math.min(p.y, chordAt) - 9), anchor: outside ? (side < 0 ? 'end' : 'start') : side < 0 ? 'start' : 'end' },
       });
     }
   }
@@ -318,12 +328,17 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
     const count = Math.max(4, Math.min(13, Math.floor(o.width / 56)));
     const L = drawing.supports.B.x - drawing.supports.A.x;
     const len = clean(SHORT_ARROW * k);
-    const avoid = dims.map((d) => d.x);
+    // Clear of the sag lines and of the words beside them.
+    const avoid: { lo: number; hi: number; top: number; bottom: number }[] = dims.flatMap((d) => {
+      const w = d.text.value.length * CHAR;
+      const words = d.text.anchor === 'start' ? { lo: d.text.x - 4, hi: d.text.x + w + 4 } : { lo: d.text.x - w - 4, hi: d.text.x + 4 };
+      return [{ lo: d.x - 10, hi: d.x + 10, top: -Infinity, bottom: Infinity }, { ...words, top: d.text.y - 13, bottom: d.text.y + 4 }];
+    });
     for (let i = 1; i <= count; i++) {
       const x = drawing.supports.A.x + (L * i) / (count + 1);
       const px = clean(X(x));
-      if (avoid.some((a) => Math.abs(a - px) < 10)) continue;
       const tip = { x: px, y: clean(Y(levelAt(exact.points, x)) - 2) };
+      if (avoid.some((a) => px >= a.lo && px <= a.hi && tip.y >= a.top && tip.y - len <= a.bottom)) continue;
       loadArrows.push({ label: i, tail: { x: px, y: clean(tip.y - len) }, tip, text: null, magnitude: 0 });
     }
   }
@@ -410,8 +425,8 @@ export interface CableSchematicProps extends Omit<LayoutOptions, 'maxHeight'> {
 }
 
 export function CableSchematic({ drawing, summary, legend: words, ...options }: CableSchematicProps) {
-  const { width, group, unit, texts, tensions, dims, load, parabola, shares, maxHeight } = options;
-  const layout = useMemo(() => cableLayout(drawing, { width, group, unit, texts, tensions, dims, load, parabola, shares, maxHeight }), [drawing, width, group, unit, texts, tensions, dims, load, parabola, shares, maxHeight]);
+  const { width, group, unit, labels, texts, tensions, dims, load, parabola, shares, maxHeight } = options;
+  const layout = useMemo(() => cableLayout(drawing, { width, group, unit, labels, texts, tensions, dims, load, parabola, shares, maxHeight }), [drawing, width, group, unit, labels, texts, tensions, dims, load, parabola, shares, maxHeight]);
   return (
     <figure className="mp-cs-fig">
       <svg className="mp-plot__svg mp-cs-fig__svg" role="img" aria-label={summary} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
@@ -426,7 +441,7 @@ export function CableSchematic({ drawing, summary, legend: words, ...options }: 
           {layout.loadArrows.map((a) => (
             <Arrow key={`q${a.label}`} a={a} className="mp-cs-fig__load" />
           ))}
-          {layout.curves.map((c) => (
+          {[...layout.curves].sort((p, q) => Number(p.id === 'state1') - Number(q.id === 'state1')).map((c) => (
             <path key={c.id} className={`mp-cs-fig__curve mp-cs-fig__curve--${c.id}`} d={c.d} />
           ))}
           {layout.segments.map((s) => (
@@ -530,7 +545,7 @@ function LegendSwatch({ kind }: { kind: LegendKey }) {
         </g>
       ) : (
         <text className="mp-cs-fig__tension" x="15" y="11" textAnchor="middle">
-          T
+          12.3
         </text>
       )}
     </svg>

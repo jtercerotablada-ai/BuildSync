@@ -1,4 +1,4 @@
-import type { AnalysisIssue, AnalysisWarning } from '@/lib/calc/cable-sag/analysis';
+import type { AnalysisIssue, AnalysisWarning, CableSagAnalysis } from '@/lib/calc/cable-sag/analysis';
 import type { FormField } from '@/lib/calc/cable-sag/model';
 import type { CableSagUi } from '@/lib/calc/cable-sag/strings';
 
@@ -44,6 +44,9 @@ export interface Context {
   force: string;
   /** The span, in the length unit. */
   span: number;
+  /** The temperature and the line-load units on show (the reading under a change of state writes both). */
+  temp: string;
+  line: string;
 }
 
 /** The key by which the page ties a problem to the part of the form it is about; '' when it is about the case as a whole. */
@@ -144,4 +147,81 @@ export function percent(ratio: number, w: CableSagUi, group: string, format: (va
   if (p === 0 || !Number.isFinite(p)) return `${Number.isFinite(p) ? '0' : '—'} %`;
   if (Math.abs(p) < 0.001) return fill(w.results.compare.less, { value: '0.001' });
   return `${signed(format(Math.abs(p), 3, group), p)} %`;
+}
+
+/** The first letter of a name in lower case, for a name that stands in the middle of a sentence ("Load 2" is "load 2"). */
+const lowered = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);
+
+/**
+ * THE READING UNDER A DRAWING: one sentence, in plain words, built from the numbers of the solution, that says
+ * what the drawing shows to someone who has never seen a cable calculation. It follows what was GIVEN (a sag, the
+ * pretension, a tension, the length) and the real direction of each change (a pretension may fall, a sag may
+ * shrink). Null where there is no solution: the box of problems speaks then, and nothing is read.
+ *
+ * `form` is what the sentence takes from the form and the analysis does not carry: the span and the two
+ * temperatures, as the form shows them.
+ */
+export function readingOf(a: CableSagAnalysis, w: CableSagUi, ctx: Context, form: { span: number; T1: number; T2: number }): string | null {
+  const r = w.results.reading;
+  const n = ctx.num;
+  const withUnit = (v: number, unit: string, sig = 4) => `${n(v, sig)} ${unit}`;
+  const L = ctx.length;
+  const F = ctx.force;
+
+  if (a.hanging) {
+    const e = a.hanging.exact;
+    const vars = {
+      span: withUnit(form.span, L),
+      d: withUnit(e.sagMid, L),
+      s: withUnit(e.sagLow, L),
+      H: withUnit(e.H, F),
+      len: withUnit(e.unstretched, L, 5),
+      T: withUnit(a.hanging.given === 'T-low' ? e.tension.low : e.tension.high, F),
+    };
+    const given = a.hanging.given;
+    const lead = given === 'sag-mid' ? r.hanging.sagMid : given === 'sag-low' ? r.hanging.sagLow : given === 'H' ? r.hanging.H : given === 'T-high' ? r.hanging.THigh : given === 'T-low' ? r.hanging.TLow : r.hanging.length;
+    const alike = n(e.tension.A) === n(e.tension.B);
+    const tail = alike ? fill(r.hanging.tailEqual, { T: withUnit(e.tension.A, F) }) : fill(r.hanging.tailDiff, { Ta: withUnit(e.tension.A, F), Tb: withUnit(e.tension.B, F) });
+    return fill(lead, vars) + tail;
+  }
+
+  if (a.state) {
+    const c = a.state.change;
+    const s1 = a.state.state1;
+    const s2 = a.state.state2;
+    const changed = (p: number, q: number) => n(p) !== n(q);
+    const parts: string[] = [];
+    if (changed(form.T1, form.T2)) parts.push(fill(r.state.temp, { a: withUnit(form.T1, ctx.temp), b: withUnit(form.T2, ctx.temp) }));
+    if (changed(c.loadPerLength.state1, c.loadPerLength.state2)) parts.push(fill(r.state.load, { a: withUnit(c.loadPerLength.state1, ctx.line), b: withUnit(c.loadPerLength.state2, ctx.line) }));
+    const cond = parts.length ? parts.join(` ${r.state.and} `) : r.state.none;
+    const h = { a: withUnit(s1.H, F), b: withUnit(s2.H, F) };
+    const d = { a: withUnit(s1.sagMid, L), b: withUnit(s2.sagMid, L) };
+    const hText = fill(!changed(s1.H, s2.H) ? r.state.hSame : s2.H > s1.H ? r.state.hRise : r.state.hFall, h);
+    const dText = fill(!changed(s1.sagMid, s2.sagMid) ? r.state.dSame : s2.sagMid > s1.sagMid ? r.state.dGrow : r.state.dShrink, d);
+    return fill(r.state.when, { cond, h: hText, d: dText });
+  }
+
+  if (a.points) {
+    const p = a.points;
+    const nameOf = (i: number) => {
+      const j = p.joints[i];
+      return lowered(j.kind === 'load' ? fill(w.results.joints.load1, { n: j.label }) : fill(w.results.joints.support, { name: j.kind }));
+    };
+    const t = w.results.headline;
+    const z = p.lowest.z;
+    const lowest = z === 0 ? t.levelA : fill(z < 0 ? t.belowA : t.aboveA, { value: withUnit(Math.abs(z), L) });
+    const vars = {
+      H: withUnit(p.H, F),
+      T: withUnit(p.tensionMax.value, F),
+      joint: nameOf(p.lowest.joint),
+      z: lowest,
+      d: p.sagAt ? withUnit(p.sagAt.value, L) : '',
+      x: p.sagAt ? withUnit(p.sagAt.x, L) : '',
+    };
+    const lead = p.given === 'sag' && p.sagAt ? r.points.sag : p.given === 'T-max' ? r.points.T : r.points.H;
+    const steep = p.segments[p.tensionMax.segment - 1];
+    const tail = steep ? fill(r.points.steepest, { a: nameOf(steep.from), b: nameOf(steep.to), T: withUnit(steep.tension, F) }) : '.';
+    return fill(lead, vars) + tail;
+  }
+  return null;
 }

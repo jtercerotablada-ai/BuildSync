@@ -12,7 +12,7 @@ import { fieldKey, fill, issueSentence, percent, rowSentence, signed, tableNote,
  */
 
 const LANGS = ['en', 'es'] as const;
-const ctx = (group = ','): Context => ({ num: (v, sig = 4) => formatNumber(v, sig, group).replace(/^-/, '−'), length: 'ft', force: 'kip', span: 100 });
+const ctx = (group = ','): Context => ({ num: (v, sig = 4) => formatNumber(v, sig, group).replace(/^-/, '−'), length: 'ft', force: 'kip', span: 100, temp: '°F', line: 'lb/ft' });
 const noise = /NaN|undefined|Infinity|\[object|\{|\}|(?:^|[\s>(=])-0(?![.\d])|−0(?![.\d])|\be[+-]\d/;
 
 describe('fill', () => {

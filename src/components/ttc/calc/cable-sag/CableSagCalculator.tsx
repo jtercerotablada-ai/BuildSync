@@ -31,7 +31,7 @@ import { arrow, settle } from '../shell/results';
 import { SheetStamp, useSheet } from '../shell/sheet';
 import { CableSchematic } from './CableSchematic';
 import { SweepChart, type ChartPoint } from './SweepChart';
-import { fieldKey, fill, issueSentence, percent, rowSentence, signed, tableNote, warningSentence, type Context, type TableName } from './text';
+import { fieldKey, fill, issueSentence, percent, readingOf, rowSentence, signed, tableNote, warningSentence, type Context, type TableName } from './text';
 import './cable-sag.css';
 
 /**
@@ -254,7 +254,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
       {num(Math.abs(v))} <span className="mp-app__dir">{v === 0 ? '' : arrow(v, plus, minus)}</span>
     </>
   );
-  const ctx: Context = { num, length: ru.length, force: ru.force, span: solved.span };
+  const ctx: Context = { num, length: ru.length, force: ru.force, span: solved.span, temp: ru.temp, line: ru.line };
   const levelText = (z: number, below: string, above: string, level: string) => (z === 0 ? level : fill(z < 0 ? below : above, { value: withUnit(Math.abs(z), ru.length) }));
 
   /* -- The faults, by field -- */
@@ -592,16 +592,23 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
   const shown: ShapeLine | null = hang ? hang.exact : st ? st.state2 : null;
   const texts = useMemo(() => {
     const unit = a.units.force;
-    const lab = (symbol: string, v: number) => `${symbol} = ${formatNumber(v, 4, group)} ${unit}`;
+    const words = w.results.labels;
+    const lab = (name: string, v: number) => `${name} ${formatNumber(v, 4, group)} ${unit}`;
     if (a.points) {
       const first = a.points.segments[0];
       const last = a.points.segments[a.points.segments.length - 1];
-      return { A: lab('T', first.tension), B: lab('T', last.tension), H: null };
+      return { A: lab(words.tension, first.tension), B: lab(words.tension, last.tension), H: null };
     }
+    // In a change of state the figures on the drawing are those of state 2, and say so.
+    const two = Boolean(a.state);
     const s = a.hanging?.exact ?? a.state?.state2 ?? null;
-    return s ? { A: lab('T', s.tension.A), B: lab('T', s.tension.B), H: lab('H', s.H) } : undefined;
-  }, [a, group]);
+    const T = two ? words.tension2 : words.tension;
+    return s ? { A: lab(T, s.tension.A), B: lab(T, s.tension.B), H: lab(two ? words.H2 : words.H, s.H) } : undefined;
+  }, [a, group, w]);
   const shares = useMemo(() => a.points?.segments.map((s) => s.share), [a]);
+
+  // The drawing read aloud in plain words, under it; nothing where there is no solution (the box of problems speaks then).
+  const reading = readingOf(a, w, ctx, { span: solved.span, T1: solved.state.T1, T2: solved.state.T2 });
 
   const summary = (() => {
     const span = withUnit(solved.span, ru.length);
@@ -849,7 +856,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
     });
   const sweepCols = (first: Col): Col[] => [first, { title: w.results.sweep.H, unit: ru.force }, { title: w.results.sweep.ratio }, { title: w.results.sweep.sag, unit: ru.length }, { title: w.results.sweep.tmax, unit: ru.force }, { title: w.results.sweep.length, unit: ru.length }];
   const chartPoints = (rows: StateTableRow[], pick: (r: StateTableRow) => number | undefined): ChartPoint[] => rows.map((r) => ({ x: r.value, y: r.ok ? (pick(r) ?? null) : null, current: r.isState2 }));
-  const aboutOf = (title: string, axis: string, points: ChartPoint[], xText: (v: number) => string, yText: (v: number) => string): string => {
+  const aboutOf = (title: string, points: ChartPoint[], xText: (v: number) => string, yText: (v: number) => string): string => {
     const ok = points.filter((p) => p.y !== null) as { x: number; y: number; current: boolean }[];
     if (ok.length === 0) return `${title}.`;
     const least = ok.reduce((m, p) => (p.y < m.y ? p : m));
@@ -858,7 +865,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
     const last = ok[ok.length - 1];
     const gaps = points.length - ok.length;
     return [
-      fill(w.results.sweep.chartAbout, { title, axis, first: yText(first.y), firstAt: xText(first.x), last: yText(last.y), lastAt: xText(last.x), least: yText(least.y), leastAt: xText(least.x), most: yText(most.y), mostAt: xText(most.x) }),
+      fill(w.results.sweep.chartAbout, { title, first: yText(first.y), firstAt: xText(first.x), last: yText(last.y), lastAt: xText(last.x), least: yText(least.y), leastAt: xText(least.x), most: yText(most.y), mostAt: xText(most.x) }),
       gaps ? fill(w.results.sweep.chartGaps, { count: gaps }) : '',
       ok.some((p) => p.current) ? w.results.sweep.chartCurrent : '',
     ]
@@ -872,6 +879,8 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
     const xText = (v: number) => (first.unit ? `${num(v)} ${first.unit}` : num(v));
     const sag = chartPoints(rows, (r) => r.sagMid);
     const H = chartPoints(rows, (r) => r.H);
+    const sagTitle = fill(w.results.sweep.sagTitle, { axis: w.results.sweep.axes[kind] });
+    const hTitle = fill(w.results.sweep.hTitle, { axis: w.results.sweep.axes[kind] });
     return card(
       copy.title,
       note || rows.length === 0 ? (
@@ -883,21 +892,22 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               points={sag}
               width={chartWidth}
               group={group}
-              title={w.results.sweep.chartSag}
+              title={sagTitle}
               xTitle={axisTitle}
               yTitle={`${w.results.sweep.chartSag} (${ru.length})`}
-              about={aboutOf(w.results.sweep.chartSag, first.title.toLowerCase(), sag, xText, (v) => withUnit(v, ru.length))}
+              about={aboutOf(sagTitle, sag, xText, (v) => withUnit(v, ru.length))}
             />
             <SweepChart
               points={H}
               width={chartWidth}
               group={group}
-              title={w.results.sweep.chartH}
+              title={hTitle}
               xTitle={axisTitle}
               yTitle={`${w.results.sweep.chartH} (${ru.force})`}
-              about={aboutOf(w.results.sweep.chartH, first.title.toLowerCase(), H, xText, (v) => withUnit(v, ru.force))}
+              about={aboutOf(hTitle, H, xText, (v) => withUnit(v, ru.force))}
             />
           </div>
+          {rows.some((r) => r.ok && r.isState2) ? <p className="mp-app__note">{w.results.sweep.chartCurrent}</p> : null}
           <DataTable cols={sweepCols(first)} rows={sweepRows(rows)} className="mp-cs__table--sweep" />
         </>
       ),
@@ -1180,6 +1190,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               width={width}
               group={group}
               unit={ru.length}
+              labels={w.results.labels}
               texts={texts}
               tensions={show.tensions}
               dims={show.dims}
@@ -1189,6 +1200,7 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               summary={summary}
               legend={w.results.legend}
             />
+            {reading ? <p className="mp-cs__reading">{reading}</p> : null}
             {shown || pts ? <p className="mp-app__note">{w.results.scale}</p> : <p className="mp-app__need">{w.results.waiting}</p>}
           </div>
         </section>

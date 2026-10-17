@@ -18,7 +18,7 @@
 .mp-cs {
   --mp-cs-cable: #1f5a99;
   --mp-cs-parabola: #a63a2a;
-  --mp-cs-state1: #7d7f7a;
+  --mp-cs-state1: #1b1d1b;
 }
 
 /* ── the form ─────────────────────────────────────────────────────────── */
@@ -168,6 +168,15 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   gap: var(--mp-4) 1.5rem;
 }
+/* The drawing read in plain words: the sentence a reader who has never seen a cable calculation starts from. */
+.mp-cs .mp-cs__reading {
+  margin: 0;
+  padding: var(--mp-2) var(--mp-4);
+  border-inline-start: 3px solid var(--mp-gold-ink);
+  font-size: var(--mp-t-small);
+  line-height: 1.55;
+  color: var(--mp-ink);
+}
 .mp-cs .mp-cs__verdict {
   max-width: 64rem;
 }
@@ -263,7 +272,7 @@ path.mp-cs-fig__curve {
 .mp-cs-fig__curve--state1,
 .mp-cs-fig__curve--state1 path {
   stroke: var(--mp-cs-state1);
-  stroke-width: 2.25;
+  stroke-width: 2;
   stroke-dasharray: 3 4;
 }
 .mp-cs-fig__piece {
@@ -458,6 +467,11 @@ path.mp-cs-fig__curve {
   .mp-cs .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend,
   .mp-cs .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend + .mp-app__note {
     break-after: avoid;
+  }
+  .mp-cs .mp-cs__reading {
+    padding: 0.5mm 2mm;
+    font-size: 8pt;
+    break-inside: avoid;
   }
   .mp-cs .mp-cs__warnings {
     padding: 1mm 2mm;

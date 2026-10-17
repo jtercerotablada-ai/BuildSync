@@ -17,7 +17,8 @@ const OPTIONS: LayoutOptions = {
   width: 720,
   group: ',',
   unit: 'ft',
-  texts: { A: 'T = 13.46 kip', B: 'T = 13.46 kip', H: 'H = 12.5 kip' },
+  labels: cableSagUi.en.results.labels,
+  texts: { A: 'tension 13.46 kip', B: 'tension 13.46 kip', H: 'pretension H 12.5 kip' },
   tensions: true,
   dims: true,
   load: true,
@@ -85,7 +86,8 @@ describe('the layout of the hanging example', () => {
     const d = layout.dims[0];
     expect(d.both).toBe(true);
     expect(d.given).toBe(true);
-    expect(d.text.value).toBe('d = s = 10 ft');
+    // Said in words, the one sag, not two letters.
+    expect(d.text.value).toBe('sag 10 ft');
     expect(d.text.anchor).toBe('start');
     // From the chord at mid-span down to the cable.
     expect(d.x).toBeCloseTo(layout.chord.x1 + 50 * layout.scale, 1);
@@ -96,10 +98,10 @@ describe('the layout of the hanging example', () => {
   });
 
   it('writes the tensions over the supports, inside them, where the margin is narrower than the words', () => {
-    // 14 % of the span is 79 px here, and “T = 13.46 kip” is 100.
+    // 14 % of the span is 79 px here, and “tension 13.46 kip” is 126.
     expect(layout.tensions.map((t) => [t.id, t.text.value, t.text.anchor])).toEqual([
-      ['A', 'T = 13.46 kip', 'start'],
-      ['B', 'T = 13.46 kip', 'end'],
+      ['A', 'tension 13.46 kip', 'start'],
+      ['B', 'tension 13.46 kip', 'end'],
     ]);
     const [A, B] = layout.supports;
     expect(layout.tensions[0].text.x).toBeGreaterThanOrEqual(A.x);
@@ -108,7 +110,7 @@ describe('the layout of the hanging example', () => {
   });
 
   it('writes them outside the supports where there is room for them', () => {
-    const wide = layoutOf(base, { width: 1100 });
+    const wide = layoutOf(base, { width: 1400 });
     expect(wide.tensions.map((t) => t.text.anchor)).toEqual(['end', 'start']);
     const [A, B] = wide.supports;
     expect(wide.tensions[0].text.x).toBeLessThan(A.x);
@@ -123,7 +125,7 @@ describe('the layout of the hanging example', () => {
     expect(H.arrow.y).toBeGreaterThan(lowest.y);
     expect(H.arrow.x2).toBeGreaterThan(H.arrow.x1);
     expect(H.arrow.y).toBe(H.arrow.y);
-    expect(H.text.value).toBe('H = 12.5 kip');
+    expect(H.text.value).toBe('pretension H 12.5 kip');
     expect(H.text.y).toBeGreaterThan(H.arrow.y);
     expect(H.text.anchor).toBe('middle');
   });
@@ -207,8 +209,8 @@ describe('a span that is not level', () => {
     expect(mid.both || low.both).toBe(false);
     expect(low.given).toBe(true);
     expect(mid.given).toBe(false);
-    expect(low.text.value).toBe('s = 12 ft');
-    expect(mid.text.value).toMatch(/^d = /);
+    expect(low.text.value).toBe('sag below lower support 12 ft');
+    expect(mid.text.value).toMatch(/^sag at midspan [\d.]+ ft$/);
     // The lowest point is nearer the lower support, so its label points left and the other's right.
     expect(low.x).toBeLessThan(mid.x);
     expect(low.text.anchor).toBe('end');
@@ -222,6 +224,53 @@ describe('a span that is not level', () => {
     expect(low.level).toEqual({ x1: A.x, x2: low.x, y: A.y });
     expect(low.y1).toBe(A.y);
     expect(low.y2 - low.y1).toBeCloseTo(12 * layout.scale, 1);
+  });
+});
+
+describe('no label sits on a line', () => {
+  const words = (v: string) => v.length * 6.6;
+  it('lifts the tension over a support above the chord that climbs away from it, along all its length', () => {
+    const l = layoutOf({ ...base, rise: 80, sag: 5 }, { width: 390 });
+    const [A, B] = l.supports;
+    const a = l.tensions.find((t) => t.id === 'A')!.text;
+    const farX = a.x + words(a.value);
+    const chordAt = A.y + ((B.y - A.y) * (farX - A.x)) / (B.x - A.x);
+    expect(a.anchor).toBe('start');
+    expect(a.y).toBeLessThanOrEqual(chordAt - 8.9);
+    expect(a.y).toBeLessThan(A.y);
+  });
+
+  it('puts the words of a sag measured from the lower support over the level line it is measured from', () => {
+    const l = layoutOf(inclined);
+    const low = l.dims.find((d) => d.id === 'low')!;
+    expect(low.text.y).toBeLessThan(low.level!.y);
+  });
+
+  it('puts the words of a sag too short to hold them over the chord', () => {
+    const l = layoutOf(state);
+    for (const d of l.dims) expect(d.text.y).toBeLessThan(Math.min(d.y1, d.y2));
+  });
+
+  it('draws no load arrow through the words or the line of a sag', () => {
+    for (const form of [base, combined, inclined, steep]) {
+      const l = layoutOf(form);
+      for (const d of l.dims) {
+        const w = words(d.text.value);
+        const lo = d.text.anchor === 'start' ? d.text.x : d.text.x - w;
+        for (const a of l.loadArrows) {
+          const insideWords = a.tip.x >= lo - 4 && a.tip.x <= lo + w + 4 && a.tip.y >= d.text.y - 13 && a.tail.y <= d.text.y + 4;
+          expect(insideWords).toBe(false);
+          expect(Math.abs(a.tip.x - d.x)).toBeGreaterThanOrEqual(10);
+        }
+      }
+    }
+  });
+
+  it('draws state 1 over state 2, so that its dashes show on the thicker line', () => {
+    const out = show(state);
+    const drawn = out.slice(0, out.indexOf('<ul class="mp-cs-fig__legend">'));
+    expect(drawn.indexOf('mp-cs-fig__curve--state2')).toBeGreaterThan(-1);
+    expect(drawn.indexOf('mp-cs-fig__curve--state1')).toBeGreaterThan(drawn.indexOf('mp-cs-fig__curve--state2'));
   });
 });
 
@@ -281,8 +330,8 @@ describe('a change of state', () => {
     const deepest = (id: string) => Math.max(...curve(layout, id).points.map((p) => p.y));
     expect(deepest('state2')).toBeGreaterThan(deepest('state1'));
     expect(layout.dims.map((d) => [d.id, d.text.value, d.text.anchor])).toEqual([
-      ['state1', 'd1 = 6 ft', 'end'],
-      ['mid', 'd2 = 6.195 ft', 'start'],
+      ['state1', 'state 1 sag 6 ft', 'end'],
+      ['mid', 'state 2 sag 6.195 ft', 'start'],
     ]);
     // What was given is state 1's sag.
     expect(layout.dims.map((d) => d.given)).toEqual([true, false]);
@@ -293,7 +342,7 @@ describe('a change of state', () => {
 
 describe('a cable with point loads', () => {
   const shares = [1, 0.9, 0.9, 1];
-  const layout = layoutOf(points, { shares, texts: { A: 'T = 42.5 kip', B: 'T = 42.5 kip', H: null } });
+  const layout = layoutOf(points, { shares, texts: { A: 'tension 42.5 kip', B: 'tension 42.5 kip', H: null } });
 
   it('draws the polygon: four pieces between five points, heavier where the tension is larger', () => {
     expect(layout.curves.map((c) => c.id)).toEqual(['polygon']);
@@ -329,7 +378,7 @@ describe('a cable with point loads', () => {
 
   it('draws the sag that was given at its position, and says what it is', () => {
     expect(layout.dims).toHaveLength(1);
-    expect(layout.dims[0].text.value).toBe('d = 12 ft');
+    expect(layout.dims[0].text.value).toBe('sag 12 ft');
     expect(layout.dims[0].x).toBeCloseTo(layout.joints[1].x - 12, 3);
     expect(layout.dims[0].text.anchor).toBe('end');
     expect(layout.dims[0].y2 - layout.dims[0].y1).toBeCloseTo(12 * layout.scale, 1);
@@ -378,9 +427,9 @@ describe('the drawing, as the server sends it', () => {
     expect(html.match(/class="mp-cs-fig__dim mp-cs-fig__dim--mid mp-cs-fig__dim--given"/g)).toHaveLength(1);
     expect(html.match(/class="mp-cs-fig__load"/g)!.length).toBeGreaterThanOrEqual(4);
     expect(html).toContain('class="mp-cs-fig__harrow"');
-    expect(html).toContain('>d = s = 10 ft<');
-    expect(html).toContain('>T = 13.46 kip<');
-    expect(html).toContain('>H = 12.5 kip<');
+    expect(html).toContain('>sag 10 ft<');
+    expect(html).toContain('>tension 13.46 kip<');
+    expect(html).toContain('>pretension H 12.5 kip<');
     expect(html).toContain('<g class="mp-cs-fig__scale">');
     expect(html).toContain('>20 ft<');
   });
