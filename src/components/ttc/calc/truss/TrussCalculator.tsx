@@ -33,7 +33,7 @@ import { select } from '../shell/fields';
 import { PAPER_WIDTH, useTooTall, useWidth } from '../shell/layout';
 import { arrow } from '../shell/results';
 import { SheetStamp, useSheet } from '../shell/sheet';
-import { TrussSchematic, canDeform, forceText } from './TrussSchematic';
+import { TrussSchematic, canDeform, drawingFacts, forceText, stretchOffer } from './TrussSchematic';
 import { fill, focusAddedRow, formToSolve, issueSentence, keepsMarks, leaveBehind as leaveBehindWith, listOf, openWhole, sortMembers, type Order } from './text';
 import './truss.css';
 
@@ -130,7 +130,8 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   const [tpl, setTpl] = useState<TemplateState>(() => templateDefaults(FIRST_TEMPLATE, (initial ?? { units: 'us' }).units));
   // What "Load template" said it did; gone with the next edit of any kind.
   const [said, setSaid] = useState('');
-  const [show, setShow] = useState({ forces: true, numbers: false, deformed: false });
+  // How the drawing is looked at. `taller` and `every` are screen choices, kept while the page is open (not in the address); paper prints what is on screen.
+  const [show, setShow] = useState({ forces: true, numbers: false, deformed: false, taller: false, every: false });
   const [order, setOrder] = useState<Order>('member');
   // The member under the pointer or the keyboard's focus, and the one picked (pressed in a table or the drawing).
   const [hover, setHover] = useState<number | null>(null);
@@ -214,6 +215,12 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
   }, [a]);
 
   // Every number this page prints, with the page's own mark between thousands.
+  // What the drawing can offer: a stretch for a very flat (or very tall) truss, and "every force" when some are left off it.
+  const facts = useMemo(
+    () => drawingFacts(a.drawing, { forces: show.forces, numbers: show.numbers, deformed: show.deformed && canDeform(a.drawing), group, flagged, stretch: show.taller ? stretchOffer(a.drawing) : null }, width, !onPaper),
+    [a.drawing, show.forces, show.numbers, show.deformed, show.taller, group, flagged, width, onPaper],
+  );
+  const stretchNow = show.taller ? facts.offer : null;
   const num = (v: number, sig = 4) => formatNumber(v, sig, group);
   const signedNum = (v: number, sig = 4) => forceText(v, group, sig);
   const pointed = (v: number, plus: string, minus: string) => (
@@ -730,6 +737,7 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
       parts.push(fill(w.results.drawing.largest, { tension: extreme(r.largest.tension), compression: extreme(r.largest.compression) }));
       if (r.reactions.length) parts.push(fill(w.results.drawing.reactions, { list: r.reactions.map((x) => `${w.results.reaction.node} ${x.node}: ${num(x.magnitude)} ${ru.force}`).join('; ') }));
     } else parts.push(w.results.drawing.unsolved);
+    if (stretchNow) parts.push(fill(stretchNow.axis === 'heights' ? w.results.drawingNotes.stretchedHeights : w.results.drawingNotes.stretchedWidths, { n: stretchNow.n }));
     return parts.join(' ');
   };
   const summary = summaryOf();
@@ -740,7 +748,8 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
     const reactions = r.reactions.length ? fill(w.results.drawing.reactions, { list: r.reactions.map((x) => `${w.results.reaction.node} ${x.node}: ${num(x.magnitude)} ${ru.force}`).join('; ') }) : '';
     const largest = fill(w.results.drawing.largest, { tension: extreme(r.largest.tension), compression: extreme(r.largest.compression) });
     const noForce = r.largest.tension === null && r.largest.compression === null;
-    return fill(noForce ? w.results.reading.zero : w.results.reading.text, { largest, reactions }).trim();
+    const bent = stretchNow ? fill(stretchNow.axis === 'heights' ? w.results.reading.stretchedHeights : w.results.reading.stretchedWidths, { n: stretchNow.n }) : '';
+    return `${fill(noForce ? w.results.reading.zero : w.results.reading.text, { largest, reactions }).trim()} ${bent}`.trim();
   };
   const reading = readingOf();
   // A link that goes to a place on this page and leaves the address alone (a fragment would replace the truss in it).
@@ -1054,6 +1063,18 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
                 <span>{w.results.options.deformed}</span>
               </label>
             ) : null}
+            {facts.offer ? (
+              <label className="mp-app__check">
+                <input type="checkbox" checked={show.taller} onChange={(e) => setShow({ ...show, taller: e.target.checked })} />
+                <span>{fill(facts.offer.axis === 'heights' ? w.results.options.taller : w.results.options.wider, { n: facts.offer.n })}</span>
+              </label>
+            ) : null}
+            {facts.every ? (
+              <label className="mp-app__check">
+                <input type="checkbox" checked={show.every} onChange={(e) => setShow({ ...show, every: e.target.checked })} />
+                <span>{w.results.options.every}</span>
+              </label>
+            ) : null}
           </fieldset>
 
           <div className="mp-app__plots" ref={plotRef}>
@@ -1069,6 +1090,9 @@ export function TrussCalculator({ t, w, initial }: { t: TrussShared; w: TrussUi;
               drawing={a.drawing}
               width={width}
               widen={!onPaper}
+              paper={onPaper}
+              stretch={show.taller}
+              every={show.every}
               notes={w.results.drawingNotes}
               forces={show.forces}
               numbers={show.numbers}

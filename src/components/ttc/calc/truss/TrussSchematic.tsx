@@ -44,6 +44,20 @@ import { fill, signed } from './text';
  * truss, so a very flat truss is not given a drawing as tall as it is long and a
  * very tall one is not made wider than it is.
  *
+ * THE SIZE OF THE NUMBERS. A number on a member is set at 11 px; when a dense
+ * truss has no room for them all at that size they are set smaller, in steps
+ * (11, 10, 9, 8 px), the largest size at which every one finds a clear place -
+ * one size for the whole drawing, so that it stays uniform. Only when even 8 px
+ * leaves some without a place are those left off (the lightest forces; the
+ * count is stated). `everyWidth` is the width at which all of them fit at 8 px:
+ * the switch "Show every force" draws the truss that wide.
+ *
+ * A VERY FLAT (or very tall) TRUSS is drawn true to scale unless the visitor asks
+ * for `stretch`: its heights (or widths) are then drawn N times larger. Only the
+ * node positions and the member lines are stretched; every mark (supports,
+ * arrows, circles, numbers) is built in pixels and is not, and the drawing says
+ * that its angles are not true.
+ *
  * TENSION AND COMPRESSION ARE TOLD APART BY THREE THINGS, so that it works on a
  * black-and-white sheet and for a reader who does not see colour: the COLOUR
  * (blue for tension, red for compression), the PATTERN (a tension is a solid
@@ -97,10 +111,27 @@ const MAX_DRAWN = 2600;
 const FROM_LINE = 1.5;
 const FROM_BOX = 1.5;
 const FROM_LABEL = 2.5;
+/** The sizes (px) a member's number is tried at, the largest first; 11 is the size the CSS sets. */
+export const SIZES = [11, 10, 9, 8] as const;
+const BASE_SIZE = 11;
+/** The widest "Show every force" draws, in pixels. */
+const EVERY_MAX = 6000;
+/** A truss wider than this many times its height (or taller than this many times its width) is offered a stretch. */
+export const FLAT_RATIO = 8;
+export const TALL_RATIO = 3;
+/** The clean multipliers, and the share of the drawing's long side the short side should reach with one. */
+const STRETCH_STEPS = [2, 3, 4, 5, 6, 8, 10];
+const STRETCH_TARGET = 0.2;
 
 export type Point = { x: number; y: number };
 export type Rect = { x0: number; y0: number; x1: number; y1: number };
 type Seg = { x1: number; y1: number; x2: number; y2: number; pad: number };
+
+/** Which way the drawing is stretched, and by how many times: heights (a flat truss) or widths (a tall one). */
+export interface Stretch {
+  axis: 'heights' | 'widths';
+  n: number;
+}
 
 export interface LayoutOptions {
   /** The drawing's width in pixels. */
@@ -117,6 +148,12 @@ export interface LayoutOptions {
   flagged?: readonly number[];
   /** The tallest the drawing may be (px). */
   maxHeight?: number;
+  /** Heights (or widths) drawn N times larger than the other: node positions and member lines only. */
+  stretch?: Stretch | null;
+  /** The size (px) the members' numbers are set at; without it, the largest of `SIZES` at which every one fits. */
+  fontSize?: number;
+  /** Stop at the first number that finds no place: only `thinned` of the result is to be trusted. */
+  probe?: boolean;
 }
 
 /** Words on the drawing: where they are and where they are written. */
@@ -183,7 +220,7 @@ export interface ArrowShape {
   magnitude: number;
 }
 
-export type LegendKey = 'tension' | 'compression' | 'zero' | 'unsolved' | 'load' | 'reaction' | 'node' | 'flagged' | 'deformed';
+export type LegendKey = 'tension' | 'compression' | 'zero' | 'unsolved' | 'load' | 'reaction' | 'node' | 'flagged' | 'deformed' | 'stretched';
 
 export interface DeformedShape {
   members: { label: number; x1: number; y1: number; x2: number; y2: number }[];
@@ -194,8 +231,16 @@ export interface DeformedShape {
 export interface Layout {
   width: number;
   height: number;
-  /** Pixels per unit of length. */
+  /** Pixels per unit of length, true to scale; `scaleX` and `scaleY` are what was drawn (they differ when the drawing is stretched). */
   scale: number;
+  scaleX: number;
+  scaleY: number;
+  /** The size (px) of the numbers on the members. */
+  fontSize: number;
+  /** The stretch drawn, if any. */
+  stretch: Stretch | null;
+  /** Whether the drawing's size follows its width: a wider drawing is then a larger one. False for a tall truss, whose size follows its height. */
+  widthBound: boolean;
   members: MemberShape[];
   nodes: NodeShape[];
   supports: SupportShape[];
@@ -301,10 +346,28 @@ function spot(dir: Dir, p: Point, g: number, w: number, h: number): Rect {
   }
 }
 
-const labelAt = (value: string, rect: Rect): LabelBox => ({ value, x: clean((rect.x0 + rect.x1) / 2), y: clean(rect.y1 - 3.5), anchor: 'middle', rect });
+const labelAt = (value: string, rect: Rect, f = 1): LabelBox => ({ value, x: clean((rect.x0 + rect.x1) / 2), y: clean(rect.y1 - 3.5 * f), anchor: 'middle', rect });
 
 /** The characters a number takes: its exponent's caret and minus are one narrow glyph each, near enough. */
 const widthOf = (value: string, char = CHAR, pad = 4): number => value.length * char + pad;
+
+/**
+ * Whether a truss is flat enough (width : height over 8) or tall enough (height : width over 3) to offer a stretched drawing,
+ * and by how many times: the clean number (2, 3, 4, 5, 6, 8, 10) that brings the short side nearest a fifth of the long one.
+ */
+export function stretchOffer(drawing: TrussDrawing): Stretch | null {
+  const { width, height } = drawing.box;
+  // A truss on a line (all nodes level, or all upright) has no proportion to distort.
+  if (!(width > 0) || !(height > 0)) return null;
+  const flat = width / height > FLAT_RATIO;
+  const tall = height / width > TALL_RATIO;
+  if (!flat && !tall) return null;
+  const ratio = flat ? width / height : height / width;
+  const want = STRETCH_TARGET * ratio;
+  let n = STRETCH_STEPS[0];
+  for (const step of STRETCH_STEPS) if (Math.abs(Math.log(step / want)) < Math.abs(Math.log(n / want))) n = step;
+  return { axis: flat ? 'heights' : 'widths', n };
+}
 
 /* ── The room a drawing wants ───────────────────────────────────────────── */
 
@@ -347,14 +410,20 @@ export function trussLayout(drawing: TrussDrawing, o: LayoutOptions): Layout {
   const M = marginFor(W);
   const k = Math.max(0.9, Math.min(1, M / 60));
   const side = Math.max(box.width, box.height);
-  const sx = box.width > 0 ? (W - 2 * M) / box.width : Infinity;
-  const sy = box.height > 0 ? (maxHeight - 2 * M) / box.height : Infinity;
+  // A stretch multiplies the drawn height (or width) of the truss only: positions and lines, not the marks, which are pixels.
+  const stretch = o.stretch && o.stretch.n > 1 && side > 0 ? o.stretch : null;
+  const ax = stretch?.axis === 'widths' ? stretch.n : 1;
+  const ay = stretch?.axis === 'heights' ? stretch.n : 1;
+  const sx = box.width > 0 ? (W - 2 * M) / (box.width * ax) : Infinity;
+  const sy = box.height > 0 ? (maxHeight - 2 * M) / (box.height * ay) : Infinity;
   const scale = side > 0 ? Math.max(1e-9, Math.min(sx, sy)) : 1;
-  const drawnW = box.width * scale;
+  const scaleX = scale * ax;
+  const scaleY = scale * ay;
+  const drawnW = box.width * scaleX;
   const offX = (W - drawnW) / 2;
-  const H = clean(box.height * scale + 2 * M);
-  const X = (x: number) => offX + (x - box.x0) * scale;
-  const Y = (y: number) => M + (box.y1 - y) * scale;
+  const H = clean(box.height * scaleY + 2 * M);
+  const X = (x: number) => offX + (x - box.x0) * scaleX;
+  const Y = (y: number) => M + (box.y1 - y) * scaleY;
   const r = clean(6 + 2 * k);
   const flagged = new Set(o.flagged ?? []);
   const inside = (rect: Rect) => rect.x0 >= 3 && rect.x1 <= W - 3 && rect.y0 >= 3 && rect.y1 <= H - 3;
@@ -454,7 +523,8 @@ export function trussLayout(drawing: TrussDrawing, o: LayoutOptions): Layout {
   let deformedLines: { label: number; x1: number; y1: number; x2: number; y2: number }[] | null = null;
   const movedAt = new Map<number, Point>();
   if (o.deformed && s !== null && drawing.nodes.some((n) => n.ux !== null)) {
-    for (const n of drawing.nodes) if (n.ux !== null && n.uy !== null) movedAt.set(n.label, { x: clean(X(n.x + n.ux * s)), y: clean(Y(n.y + n.uy * s)) });
+    // The displacement is drawn at the true scale (the legend states how many times larger it is), from the node's drawn place.
+    for (const n of drawing.nodes) if (n.ux !== null && n.uy !== null) movedAt.set(n.label, { x: clean(X(n.x) + n.ux * s * scale), y: clean(Y(n.y) - n.uy * s * scale) });
     deformedLines = drawing.members.flatMap((m) => {
       const a = movedAt.get(m.i);
       const b = movedAt.get(m.j);
@@ -538,7 +608,6 @@ export function trussLayout(drawing: TrussDrawing, o: LayoutOptions): Layout {
   const reactions: ArrowShape[] = reactionsBare.map((a) => wordFor(a, { x: (a.tail.x + a.tip.x) / 2, y: (a.tail.y + a.tip.y) / 2 }, a.away));
 
   /* The members' words: the largest force first, each along its member and on one side or the other. */
-  let thinned = 0;
   const wanted = members
     .map((m, index) => {
       const src = drawing.members[index];
@@ -548,38 +617,73 @@ export function trussLayout(drawing: TrussDrawing, o: LayoutOptions): Layout {
     .filter((w) => w.value !== '');
   wanted.sort((p, q) => q.weight - p.weight || q.length - p.length || p.index - q.index);
   const ALONG = [0.5, 0.36, 0.64, 0.24, 0.76, 0.14, 0.86];
-  for (const { m, index, value, length } of wanted) {
-    const w = widthOf(value);
-    const len = length || 1;
-    const d = { x: (m.x2 - m.x1) / len, y: (m.y2 - m.y1) / len };
-    const vertical = Math.abs(d.x) < 0.05;
-    // The side the number prefers: above a member, to the right of an upright one.
-    let n = { x: d.y, y: -d.x };
-    if (vertical ? n.x < 0 : n.y > 0) n = { x: -n.x, y: -n.y };
-    // How far from the member's axis a w × h box must stand to clear its line: half the box's extent across it, and the line's half width.
-    const ext = Math.abs(n.x) * (w / 2) + Math.abs(n.y) * (LABEL_H / 2);
-    const off = m.strokeWidth / 2 + 3 + ext;
-    let best: { rect: Rect; hits: number } | null = null;
-    for (const t of ALONG) {
-      const px = m.x1 + (m.x2 - m.x1) * t;
-      const py = m.y1 + (m.y2 - m.y1) * t;
-      for (const sgn of [1, -1]) {
-        const cx = px + n.x * sgn * off;
-        const cy = py + n.y * sgn * off;
-        const rect = boxOf(cx, cy, w / 2, LABEL_H / 2);
-        const hits = touches(rect, best ? best.hits : Infinity);
-        if (!best || hits < best.hits) best = { rect, hits };
-        if (hits === 0) break;
+  const keptPlaced = placed.length;
+  /** Places the members' words at a size (px); returns how many found no clear place. The words that did are left in `placed`. */
+  const placeWords = (size: number, probe: boolean): number => {
+    const f = size / BASE_SIZE;
+    const labelH = LABEL_H * f;
+    placed.length = keptPlaced;
+    for (const mm of members) {
+      mm.text = null;
+      mm.spare = null;
+    }
+    let left = 0;
+    for (const { m, index, value, length } of wanted) {
+      const w = widthOf(value, CHAR * f, 4 * f);
+      const len = length || 1;
+      const d = { x: (m.x2 - m.x1) / len, y: (m.y2 - m.y1) / len };
+      const vertical = Math.abs(d.x) < 0.05;
+      // The side the number prefers: above a member, to the right of an upright one.
+      let n = { x: d.y, y: -d.x };
+      if (vertical ? n.x < 0 : n.y > 0) n = { x: -n.x, y: -n.y };
+      // How far from the member's axis a w x h box must stand to clear its line: half the box's extent across it, and the line's half width.
+      const ext = Math.abs(n.x) * (w / 2) + Math.abs(n.y) * (labelH / 2);
+      const off = m.strokeWidth / 2 + 3 + ext;
+      let best: { rect: Rect; hits: number } | null = null;
+      for (const t of ALONG) {
+        const px = m.x1 + (m.x2 - m.x1) * t;
+        const py = m.y1 + (m.y2 - m.y1) * t;
+        for (const sgn of [1, -1]) {
+          const cx = px + n.x * sgn * off;
+          const cy = py + n.y * sgn * off;
+          const rect = boxOf(cx, cy, w / 2, labelH / 2);
+          const hits = touches(rect, best ? best.hits : Infinity);
+          if (!best || hits < best.hits) best = { rect, hits };
+          if (hits === 0) break;
+        }
+        if (best && best.hits === 0) break;
       }
-      if (best && best.hits === 0) break;
+      if (best && best.hits === 0) {
+        placed.push(best.rect);
+        members[index].text = labelAt(value, best.rect, f);
+      } else {
+        left++;
+        if (probe) return left;
+        if (best) members[index].spare = labelAt(value, best.rect, f);
+      }
     }
-    if (best && best.hits === 0) {
-      placed.push(best.rect);
-      members[index].text = labelAt(value, best.rect);
-    } else {
-      thinned++;
-      if (best) members[index].spare = labelAt(value, best.rect);
+    return left;
+  };
+  // One size for the whole drawing: the largest at which every number has a clear place; failing that, the size that leaves the fewest off.
+  let fontSize: number = BASE_SIZE;
+  let thinned: number;
+  if (o.fontSize !== undefined) {
+    fontSize = o.fontSize;
+    thinned = placeWords(fontSize, o.probe === true);
+  } else {
+    let bestLeft = Infinity;
+    let lastTried: number = BASE_SIZE;
+    for (const size of SIZES) {
+      const left = placeWords(size, false);
+      lastTried = size;
+      if (left < bestLeft) {
+        bestLeft = left;
+        fontSize = size;
+      }
+      if (left === 0) break;
     }
+    thinned = bestLeft;
+    if (lastTried !== fontSize) placeWords(fontSize, false);
   }
 
   /* The deformed shape's words: each displaced node's number beside its diamond, the most displaced first. */
@@ -617,8 +721,75 @@ export function trussLayout(drawing: TrussDrawing, o: LayoutOptions): Layout {
   if (drawing.nodes.length > 0) legend.push('node');
   if (nodes.some((n) => n.flagged)) legend.push('flagged');
   if (deformed) legend.push('deformed');
+  if (stretch) legend.push('stretched');
 
-  return { width: W, height: H, scale: clean(scale), members, nodes, supports, loads, reactions, deformed, deformScale: deformed ? s : null, legend, thinned };
+  return { width: W, height: H, scale: clean(scale), scaleX: clean(scaleX), scaleY: clean(scaleY), fontSize, stretch, widthBound: sx <= sy, members, nodes, supports, loads, reactions, deformed, deformScale: deformed ? s : null, legend, thinned };
+}
+
+/* ── What the page asks of a drawing before it draws it ─────────────────── */
+
+const layouts = new WeakMap<TrussDrawing, Map<string, Layout>>();
+/** `trussLayout`, kept for the drawing it was made of: the page asks for the same layout twice (to draw it and to know whether to offer a switch). */
+export function layoutFor(drawing: TrussDrawing, o: LayoutOptions): Layout {
+  if (o.probe) return trussLayout(drawing, o);
+  const key = JSON.stringify([o.width, o.forces, o.numbers, o.deformed, o.group, o.flagged ?? null, o.maxHeight ?? null, o.stretch ?? null, o.fontSize ?? null]);
+  let held = layouts.get(drawing);
+  if (!held) layouts.set(drawing, (held = new Map()));
+  const found = held.get(key);
+  if (found) return found;
+  const made = trussLayout(drawing, o);
+  if (held.size >= 24) held.clear();
+  held.set(key, made);
+  return made;
+}
+
+export interface Looks {
+  forces: boolean;
+  numbers: boolean;
+  deformed: boolean;
+  group: string;
+  flagged?: readonly number[];
+  stretch?: Stretch | null;
+}
+
+/**
+ * The width that "Show every force" draws the truss at: the column's own (`base`, from `wantedWidth`) when every number
+ * already has a place, else the least width, up to 6,000 px, at which every number fits at the smallest size. `complete` is
+ * whether that was found: a drawing that is not wider for being wider (a tall truss) or that no width suits is left as it is
+ * (`width` is `base`, `complete` false), and then there is nothing to offer.
+ */
+export function everyWidth(drawing: TrussDrawing, o: Looks, base: number): { width: number; complete: boolean } {
+  const at = (width: number, extra: Partial<LayoutOptions> = {}) => ({ ...o, width, ...extra });
+  const first = layoutFor(drawing, at(base));
+  if (first.thinned === 0) return { width: base, complete: false };
+  if (!first.widthBound) return { width: base, complete: false };
+  const smallest = SIZES[SIZES.length - 1];
+  const fits = (width: number) => trussLayout(drawing, at(width, { fontSize: smallest, probe: true })).thinned === 0;
+  let lo = base;
+  let hi = Math.min(EVERY_MAX, Math.round(base * 1.35));
+  while (!fits(hi)) {
+    if (hi >= EVERY_MAX) return { width: base, complete: false };
+    lo = hi;
+    hi = Math.min(EVERY_MAX, Math.round(hi * 1.35));
+  }
+  for (let i = 0; i < 5 && hi - lo > 8; i++) {
+    const mid = Math.round((lo + hi) / 2);
+    if (fits(mid)) hi = mid;
+    else lo = mid;
+  }
+  return { width: hi, complete: true };
+}
+
+/**
+ * What the page needs to know to offer its switches: the stretch the truss may be offered (null when its proportions are
+ * ordinary), how many numbers the drawing, as it is drawn without "Show every force", leaves off, and whether widening it
+ * would put them all on (`every`: only then is the switch offered).
+ */
+export function drawingFacts(drawing: TrussDrawing, o: Looks, avail: number, widen: boolean): { offer: Stretch | null; omitted: number; every: boolean } {
+  const offer = stretchOffer(drawing);
+  const drawn = widen ? wantedWidth(drawing, o, avail) : avail;
+  const omitted = layoutFor(drawing, { ...o, width: drawn }).thinned;
+  return { offer, omitted, every: widen && omitted > 0 && everyWidth(drawing, o, drawn).complete };
 }
 
 /** Whether the drawing has a deformed shape to offer at all. */
@@ -677,6 +848,13 @@ export interface DrawingNotes {
   scroll: string;
   /** The name of the scrolling region, for a screen reader. */
   region: string;
+  /** The same as `thinned`, for paper: nothing to pick. */
+  thinnedPaper: string;
+  /** The drawing was widened by "Show every force". */
+  every: string;
+  /** Heights (or widths) are drawn {n} times larger: angles are not true. */
+  stretchedHeights: string;
+  stretchedWidths: string;
 }
 
 export interface TrussSchematicProps {
@@ -685,6 +863,12 @@ export interface TrussSchematicProps {
   width: number;
   /** False on paper, which cannot scroll: the drawing is then exactly `width`. */
   widen?: boolean;
+  /** On paper: the notes do not tell the reader to pick a member. */
+  paper?: boolean;
+  /** Draw the heights (or widths) larger, when the truss is flat (or tall) enough to be offered it. */
+  stretch?: boolean;
+  /** Widen the drawing until every force is written on it. */
+  every?: boolean;
   forces: boolean;
   numbers: boolean;
   deformed: boolean;
@@ -706,15 +890,22 @@ export interface TrussSchematicProps {
   id?: string;
 }
 
-export function TrussSchematic({ drawing, width, widen = true, forces, numbers, deformed, flagged, group, summary, active = null, onActive, onPick, legend: words, notes, id }: TrussSchematicProps) {
-  const drawn = widen ? wantedWidth(drawing, { forces, numbers, group }, width) : width;
-  const layout = useMemo(() => trussLayout(drawing, { width: drawn, forces, numbers, deformed, group, flagged }), [drawing, drawn, forces, numbers, deformed, group, flagged]);
+export function TrussSchematic({ drawing, width, widen = true, paper = false, stretch: stretched = false, every = false, forces, numbers, deformed, flagged, group, summary, active = null, onActive, onPick, legend: words, notes, id }: TrussSchematicProps) {
+  const offer = useMemo(() => stretchOffer(drawing), [drawing]);
+  const applied = stretched ? offer : null;
+  const { drawn, layout, widened } = useMemo(() => {
+    const looks: Looks = { forces, numbers, deformed, group, flagged, stretch: applied };
+    const basic = widen ? wantedWidth(drawing, looks, width) : width;
+    const wide = widen && every ? everyWidth(drawing, looks, basic).width : basic;
+    return { drawn: wide, widened: wide > basic, layout: layoutFor(drawing, { ...looks, width: wide }) };
+  }, [drawing, width, widen, every, forces, numbers, deformed, group, flagged, applied]);
   const ends = active === null ? null : layout.members.find((m) => m.label === active);
   const mouse = (label: number | null) => (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' || label === null) onActive?.(label);
   };
   const wide = drawn > width;
-  const thinnedNote = notes && layout.thinned > 0 ? fill(notes.thinned, { count: layout.thinned }) : '';
+  const thinnedNote = notes && layout.thinned > 0 ? fill(paper ? notes.thinnedPaper : notes.thinned, { count: layout.thinned }) : '';
+  const stretchNote = notes && layout.stretch ? fill(layout.stretch.axis === 'heights' ? notes.stretchedHeights : notes.stretchedWidths, { n: layout.stretch.n }) : '';
   return (
     <figure className="mp-truss-fig mp-truss__target" id={id} tabIndex={id ? -1 : undefined}>
       <div className={wide ? 'mp-truss-fig__scroll mp-truss-fig__scroll--wide' : 'mp-truss-fig__scroll'} role={wide ? 'group' : undefined} aria-label={wide ? notes?.region : undefined} tabIndex={wide ? 0 : undefined}>
@@ -754,7 +945,7 @@ export function TrussSchematic({ drawing, width, widen = true, forces, numbers, 
             {layout.members.map((m) => {
               const text = m.text ?? (active === m.label ? m.spare : null);
               return text ? (
-                <text key={`t${m.label}`} className={`mp-truss-fig__value${m.text ? '' : ' mp-truss-fig__value--picked'}`} x={text.x} y={text.y} textAnchor={text.anchor}>
+                <text key={`t${m.label}`} className={`mp-truss-fig__value${m.text ? '' : ' mp-truss-fig__value--picked'}`} x={text.x} y={text.y} textAnchor={text.anchor} style={layout.fontSize === 11 ? undefined : { fontSize: layout.fontSize }}>
                   {text.value}
                 </text>
               ) : null;
@@ -787,14 +978,21 @@ export function TrussSchematic({ drawing, width, widen = true, forces, numbers, 
           </g>
         </svg>
       </div>
-      {wide && notes ? <p className="mp-truss-fig__note mp-truss-fig__note--scroll">{notes.scroll}</p> : null}
+      {wide && notes ? <p className="mp-truss-fig__note mp-truss-fig__note--scroll">{widened ? notes.every : notes.scroll}</p> : null}
+      {stretchNote ? <p className="mp-truss-fig__note mp-truss-fig__note--stretched">{stretchNote}</p> : null}
       {thinnedNote ? <p className="mp-truss-fig__note mp-truss-fig__note--thinned">{thinnedNote}</p> : null}
       {layout.legend.length > 0 ? (
         <ul className="mp-truss-fig__legend">
           {layout.legend.map((key) => (
             <li key={key} className={`mp-truss-fig__key mp-truss-fig__key--${key}`}>
-              <LegendSwatch kind={key} />
-              <span>{key === 'deformed' && layout.deformScale !== null ? `${words[key]} ×${formatNumber(layout.deformScale, 3, group)}` : words[key]}</span>
+              <LegendSwatch kind={key} across={layout.stretch?.axis === 'widths'} />
+              <span>
+                {key === 'deformed' && layout.deformScale !== null
+                  ? `${words[key]} ×${formatNumber(layout.deformScale, 3, group)}`
+                  : key === 'stretched'
+                    ? fill(layout.stretch?.axis === 'widths' ? words.stretchedWidths : words.stretchedHeights, { n: layout.stretch?.n ?? 1 })
+                    : words[key]}
+              </span>
             </li>
           ))}
         </ul>
@@ -804,7 +1002,7 @@ export function TrussSchematic({ drawing, width, widen = true, forces, numbers, 
 }
 
 /** The small picture of a line or a mark, in the same classes as the drawing. */
-function LegendSwatch({ kind }: { kind: LegendKey }) {
+function LegendSwatch({ kind, across = false }: { kind: LegendKey; across?: boolean }) {
   return (
     <svg className="mp-truss-fig__swatch" width="30" height="14" viewBox="0 0 30 14" aria-hidden="true">
       {kind === 'tension' ? (
@@ -828,6 +1026,22 @@ function LegendSwatch({ kind }: { kind: LegendKey }) {
         <g className={kind === 'load' ? 'mp-truss-fig__load' : 'mp-truss-fig__reaction'}>
           <line x1="1" y1="7" x2="21" y2="7" />
           <polygon points="29,7 21,3.4 21,10.6" />
+        </g>
+      ) : kind === 'stretched' ? (
+        <g className="mp-truss-fig__stretch">
+          {across ? (
+            <>
+              <line x1="4" y1="7" x2="26" y2="7" />
+              <polygon points="1,7 6,4 6,10" />
+              <polygon points="29,7 24,4 24,10" />
+            </>
+          ) : (
+            <>
+              <line x1="15" y1="2" x2="15" y2="12" />
+              <polygon points="15,0 12,4 18,4" />
+              <polygon points="15,14 12,10 18,10" />
+            </>
+          )}
         </g>
       ) : kind === 'deformed' ? (
         <g>
