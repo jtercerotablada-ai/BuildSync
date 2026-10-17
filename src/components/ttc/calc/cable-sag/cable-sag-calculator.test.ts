@@ -574,10 +574,14 @@ describe('a change of state, as the server sends it', () => {
   it('draws both cables, state 1 dashed, with a sag line each', () => {
     expect(html).toContain('mp-cs-fig__curve--state1');
     expect(html).toContain('mp-cs-fig__curve--state2');
-    expect(html).toContain('>state 1 sag 6 ft<');
-    expect(html).toContain('>state 2 sag 6.195 ft<');
-    expect(html).toContain('>state 2 tension 4.751 kip<');
+    // The sag lines are tagged 1 and 2, and the figures are in a block above the drawing, not on the curves.
+    expect(html).toMatch(/<text class="mp-cs-fig__label mp-cs-fig__label--dim"[^>]*>1<\/text>/);
+    expect(html).toMatch(/<text class="mp-cs-fig__label mp-cs-fig__label--dim"[^>]*>2<\/text>/);
+    expect(html).toContain('>1 – State 1 (dashed line): sag 6 ft, pretension H 3.015 kip, tension 3.025 kip<');
+    expect(html).toContain('>2 – State 2 (solid line): sag 6.195 ft, pretension H 4.735 kip, tension 4.751 kip<');
     expect(html).toContain('>state 2 pretension H 4.735 kip<');
+    expect(html).not.toContain('>state 2 tension 4.751 kip<');
+    expect(html).toContain('Vertical scale drawn 11 times larger than the horizontal one');
     const svg = html.match(/<svg class="mp-plot__svg mp-cs-fig__svg"[^>]*>/)![0];
     expect(attr(svg, 'aria-label')).toBe('Cable over a span of 300 ft in two states. State 1: pretension 3.015 kip, sag 6 ft. State 2: pretension 4.735 kip, sag 6.195 ft.');
     expect(html).not.toContain('<span>Load arrows</span>');
@@ -815,14 +819,14 @@ describe('the reading under each drawing', () => {
   });
 
   it('reads a change of state in the direction each thing really goes', () => {
-    expect(readingOf(show('en', state))).toBe('When the temperature goes from 60 °F to 20 °F and the load per length goes from 1.608 lb/ft to 2.608 lb/ft, the pretension rises from 3.015 kip to 4.735 kip and the sag at midspan grows from 6 ft to 6.195 ft.');
-    expect(readingOf(show('es', state))).toBe('Cuando la temperatura pasa de 60 °F a 20 °F y la carga por longitud pasa de 1.608 lb/ft a 2.608 lb/ft, la pretensión sube de 3.015 kip a 4.735 kip y la flecha en el centro crece de 6 ft a 6.195 ft.');
+    expect(readingOf(show('en', state))).toBe('When the temperature goes from 60 °F to 20 °F and the load per length goes from 1.608 lb/ft to 2.608 lb/ft, the pretension rises from 3.015 kip to 4.735 kip and the sag at midspan grows from 6 ft to 6.195 ft. At midspan the two cables are 0.1952 ft apart.');
+    expect(readingOf(show('es', state))).toBe('Cuando la temperatura pasa de 60 °F a 20 °F y la carga por longitud pasa de 1.608 lb/ft a 2.608 lb/ft, la pretensión sube de 3.015 kip a 4.735 kip y la flecha en el centro crece de 6 ft a 6.195 ft. En el centro los dos cables quedan a 0.1952 ft de distancia.');
     // A warmer cable with the same load: the pretension falls and the sag grows.
     const warm = readingOf(show('en', stateOf({ T2: 100, ice: 0 })))!;
-    expect(warm).toMatch(/^When the temperature goes from 60 °F to 100 °F, the pretension falls from 3\.01\d* kip to [\d.]+ kip and the sag at midspan grows from 6 ft to [\d.]+ ft\.$/);
+    expect(warm).toMatch(/^When the temperature goes from 60 °F to 100 °F, the pretension falls from 3\.01\d* kip to [\d.]+ kip and the sag at midspan grows from 6 ft to [\d.]+ ft\. At midspan the two cables are [\d.]+ ft apart\.$/);
     // Heavy ice on a cold cable: the pretension rises while the sag shrinks.
-    expect(readingOf(show('en', stateOf({ ice: 3 }, { span: 100, sag: 15 })))).toMatch(/the pretension rises from [\d.]+ kip to [\d.]+ kip and the sag at midspan shrinks from 15 ft to 14\.9\d* ft\.$/);
-    expect(readingOf(show('es', stateOf({ ice: 3 }, { span: 100, sag: 15 })))).toMatch(/la pretensión sube de [\d.]+ kip a [\d.]+ kip y la flecha en el centro disminuye de 15 ft a 14\.9\d* ft\.$/);
+    expect(readingOf(show('en', stateOf({ ice: 3 }, { span: 100, sag: 15 })))).toMatch(/the pretension rises from [\d.]+ kip to [\d.]+ kip and the sag at midspan shrinks from 15 ft to 14\.9\d* ft\. At midspan the two cables are [\d.]+ ft apart\.$/);
+    expect(readingOf(show('es', stateOf({ ice: 3 }, { span: 100, sag: 15 })))).toMatch(/la pretensión sube de [\d.]+ kip a [\d.]+ kip y la flecha en el centro disminuye de 15 ft a 14\.9\d* ft\. En el centro los dos cables quedan a [\d.]+ ft de distancia\.$/);
     // Only the load changes.
     expect(readingOf(show('en', stateOf({ T2: 60 })))).toMatch(/^When the load per length goes from 1\.608 lb\/ft to 2\.608 lb\/ft, the pretension rises/);
     // Nothing changes.
@@ -887,7 +891,7 @@ describe('the reading under each drawing', () => {
       const html = show('en', form);
       const at = html.indexOf('class="mp-cs__reading"');
       expect(at).toBeGreaterThan(html.indexOf('mp-cs-fig__legend'));
-      expect(at).toBeLessThan(html.indexOf('Drawn to scale in length'));
+      expect(at).toBeLessThan(html.indexOf('Horizontal distances are to scale'));
     }
   });
 });
@@ -920,9 +924,30 @@ describe('what the drawing says in words', () => {
     const html = show('en', state);
     expect(html).toContain('<span>State 1: dashed line</span>');
     expect(html).toContain('<span>State 2: solid line</span>');
-    expect(html).toContain('>state 2 tension 4.751 kip<');
+    expect(html).toContain('>2 – State 2 (solid line): sag 6.195 ft, pretension H 4.735 kip, tension 4.751 kip<');
     const css = readFileSync(join(SRC, 'components/ttc/calc/cable-sag/cable-sag.css'), 'utf8').replace(/\r\n/g, '\n');
     expect(css).toMatch(/\.mp-cs-fig__curve--state1,\s*\.mp-cs-fig__curve--state1 path \{[^}]*stroke-dasharray: 3 4;/);
+  });
+
+  it('says under each drawing that the vertical scale is stretched, by how much, and that the scale bar is the horizontal one', () => {
+    const level = show('en');
+    expect(level).toContain('Vertical scale drawn 2 times larger than the horizontal one');
+    expect(level).toContain('>20 ft horizontal<');
+    const shallow = show('en', state);
+    expect(shallow).toContain('<p class="mp-cs-fig__stretch">Vertical scale drawn 11 times larger than the horizontal one, so that the sag can be seen. Widths are to scale; heights are not.</p>');
+    expect(shallow).toContain('<span>Heights drawn 11 times larger than widths</span>');
+    expect(shallow).toContain('>50 ft horizontal<');
+    const es = show('es', state);
+    expect(es).toContain('Escala vertical dibujada 11 veces mayor que la horizontal');
+    expect(es).toContain('>50 ft en horizontal<');
+    // A deep cable is drawn true.
+    expect(show('en', { ...base, sag: 30 })).not.toContain('Vertical scale drawn');
+  });
+
+  it('writes numbers as long as 1,234.56 kip in the block and on the drawing without a hole or an exponent', () => {
+    const heavy = show('en', { ...state, state: { ...state.state, ice: 3000, T2: 20 }, span: 3000, sag: 60 });
+    expect(heavy).not.toMatch(/NaN|undefined|Infinity|\{\w+\}/);
+    expect(heavy).toContain('<g class="mp-cs-fig__block">');
   });
 
   it('explains every mark: the tension swatch is a number, the load arrows and the point loads have their words', () => {

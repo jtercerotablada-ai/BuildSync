@@ -5,6 +5,7 @@ import { formatNumber } from '@/lib/calc/format';
 import type { CurveId, Dimension, Drawing } from '@/lib/calc/cable-sag/analysis';
 import type { CableSagUi } from '@/lib/calc/cable-sag/strings';
 import { niceStep } from './SweepChart';
+import { fill } from './text';
 
 /**
  * The cable as entered and — once solved — as it hangs: its curve, the supports, the chord
@@ -15,7 +16,8 @@ import { niceStep } from './SweepChart';
  *             dashed one; the two sags (the usual one at midspan, and the depth of the lowest
  *             point below the lower support) as two dimension lines; the load as a row of
  *             arrows onto the cable.
- *   state     the cable in state 1 (dashed) and in state 2 (solid), with a sag line for each.
+ *   state     the cable in state 1 (dashed) and in state 2 (solid), a sag line for each tagged
+ *             1 and 2, and a block of words above the drawing that gives the figures of each.
  *   points    the funicular polygon, its joints numbered, the loads as arrows with their sizes
  *             (longer for the larger), a line weight that follows the tension of each piece.
  *
@@ -24,9 +26,24 @@ import { niceStep } from './SweepChart';
  * supports and the chord).
  *
  * WHAT IS RECKONED AND WHAT IS DRAWN are two functions. `cableLayout` is arithmetic from end to
- * end: where every line, symbol, arrow and number goes, in pixels. `CableSchematic` writes what
- * it returns as SVG and adds nothing of its own, so the layout is held to its rules without
- * React (cable-sag-schematic.test.ts), and it is kept from one draw to the next (`useMemo`).
+ * end: where every line, symbol, arrow and word goes, in pixels. `CableSchematic` writes what it
+ * returns as SVG and adds nothing of its own, so the layout is held to its rules without React
+ * (cable-sag-schematic.test.ts), and it is kept from one draw to the next (`useMemo`).
+ *
+ * VERTICAL EXAGGERATION. A real cable is shallow (a sag of a fiftieth of the span is ordinary) and
+ * drawn true to scale it is a flat line. As in every textbook drawing of a cable, the vertical
+ * scale is made larger than the horizontal one — the SAME factor everywhere, so nothing is
+ * distorted but the proportion of height to width — until the cable's sag is about a quarter of
+ * the drawing's width, never beyond 25 times, and not at all for a cable already deep (a sag
+ * over 15 % of the span). The factor is whole (or a half) and is SAID under the drawing, in its
+ * legend and on its scale bar, which measures the horizontal direction only.
+ *
+ * NO WORD TOUCHES ANOTHER OR ANY LINE. Words are placed one at a time by `place`: each tries the
+ * spots around the thing it names, nearest first and in the direction it prefers, and takes the
+ * first where it touches no line (the cable, the chord, a sag line, an arrow, a support, another
+ * word). A word that has to stand away from what it names is tied to it by a thin leader line.
+ * The drawing is then cropped to what is on it (the view box), so a spot far from the cable costs
+ * no empty page where there is none.
  *
  * THE KINDS OF LINE ARE TOLD APART BY PATTERN AS WELL AS BY COLOUR, so that it works on a
  * black-and-white sheet and for a reader who does not see colour: a solid line is the exact
@@ -35,7 +52,7 @@ import { niceStep } from './SweepChart';
  * (`summary`) and its shapes are hidden from a screen reader.
  */
 
-/** Pixel sizes at full scale; `k` (0.5 to 1) takes them down when the margin round the cable is narrow. */
+/** Pixel sizes at full scale; `k` (0.6 to 1) takes them down on a narrow drawing. */
 const SUPPORT_DEPTH = 22;
 const LOAD_MIN = 16;
 const LOAD_SPAN = 18;
@@ -43,14 +60,20 @@ const SHORT_ARROW = 18;
 const H_ARROW = 28;
 const HEAD_LEN = 8;
 const HEAD_HALF = 3.6;
-/** A character of the drawing's 11 px mono, and what a label is kept clear of the edge by. */
+/** A character of the drawing's 11 px mono, and the height of a line of it. */
 const CHAR = 6.6;
+const WORD_H = 13;
 const MAX_HEIGHT = 560;
-/** The row under the drawing that holds its scale bar. */
-const SCALE_ROW = 22;
+/** The most the vertical scale is stretched, and the share of the drawing's width the sag is brought up to. */
+const EXAGGERATION_CAP = 25;
+const SAG_SHARE = 0.24;
+/** Beyond this share of the span the cable is deep and is not stretched. */
+const DEEP = 0.15;
+const GAPS = [5, 11, 20, 34, 52, 76, 104, 140, 190, 250];
 
 export type Point = { x: number; y: number };
-export type TextShape = { value: string; x: number; y: number; anchor: 'start' | 'middle' | 'end' };
+export type Rect = { x0: number; y0: number; x1: number; y1: number };
+export type Seg = { x1: number; y1: number; x2: number; y2: number };
 
 export interface LayoutOptions {
   /** The drawing's width in pixels. */
@@ -58,10 +81,12 @@ export interface LayoutOptions {
   /** What numbers are set apart with, and the length unit written after a sag. */
   group: string;
   unit: string;
-  /** The words written before each sag: the sag where the two are one, the usual one, the one below the lower support, and the sag of each state. */
-  labels: { sag: string; sagMid: string; sagLow: string; state1: string; state2: string };
-  /** The words beside the supports and at the lowest point, already written ("T = 13.46 kip"); none where null or left out. */
+  /** The words written on the drawing, before each number. */
+  labels: { sag: string; sagMid: string; sagLow: string; horizontal: string };
+  /** The words beside the supports and at the lowest point, already written ("tension 13.46 kip"); none where null or left out. */
   texts?: { A?: string | null; B?: string | null; H?: string | null };
+  /** For a change of state: the figures of each state, one paragraph each, written above the drawing. */
+  block?: readonly string[];
   /** Which pieces are drawn: the tensions, the sag dimension lines, the load arrows of a hanging cable, the parabola. */
   tensions: boolean;
   dims: boolean;
@@ -95,7 +120,6 @@ export interface JointShape {
   x: number;
   y: number;
   r: number;
-  text: TextShape;
 }
 
 export interface SupportShape {
@@ -105,7 +129,6 @@ export interface SupportShape {
   /** How far under its point the symbol reaches, and its half width. */
   depth: number;
   half: number;
-  letter: TextShape;
 }
 
 export interface DimShape {
@@ -119,37 +142,58 @@ export interface DimShape {
   y2: number;
   /** The level line a sag below the lower support is measured from; null for the others. */
   level: { x1: number; x2: number; y: number } | null;
-  text: TextShape;
 }
 
 export interface ArrowShape {
   label: number;
   tail: Point;
   tip: Point;
-  text: TextShape | null;
   magnitude: number;
 }
 
-export type LegendKey = 'cable' | 'parabola' | 'chord' | 'sagMid' | 'sagLow' | 'sagBoth' | 'sagAt' | 'load' | 'tension' | 'H' | 'state1' | 'state2' | 'polygon' | 'pointLoad' | 'joint' | 'support';
+/** A word on the drawing: where it is, the box it takes, and the leader that ties it to what it names where it stands away from it. */
+export interface LabelShape {
+  kind: 'dim' | 'tension' | 'H' | 'support' | 'joint' | 'load';
+  id: string;
+  value: string;
+  /** The middle of the word and its baseline. */
+  x: number;
+  y: number;
+  anchor: 'middle';
+  rect: Rect;
+  leader: Seg | null;
+  /** Whether it stands where it was wanted: false only if no free spot was found (never expected, and held by the tests). */
+  clear: boolean;
+}
+
+export type LegendKey = 'cable' | 'parabola' | 'chord' | 'sagMid' | 'sagLow' | 'sagBoth' | 'sagAt' | 'load' | 'tension' | 'H' | 'state1' | 'state2' | 'polygon' | 'pointLoad' | 'joint' | 'support' | 'vertical';
 
 export interface Layout {
   width: number;
+  /** The drawing's height, and where its view starts (the drawing is cropped to what is on it). */
   height: number;
-  /** Pixels per unit of length. */
+  viewTop: number;
+  /** Pixels per unit of length across the page. */
   scale: number;
-  chord: { x1: number; y1: number; x2: number; y2: number };
+  /** How many times larger the vertical scale is than the horizontal one: 1 where the cable is drawn true. */
+  exaggeration: number;
+  chord: Seg;
   supports: SupportShape[];
   curves: CurveShape[];
   segments: SegmentShape[];
   joints: JointShape[];
   dims: DimShape[];
-  tensions: { id: 'A' | 'B'; text: TextShape }[];
-  /** The pretension at the lowest point: a horizontal arrow under it and its words. Null where the lowest point is a support or none is wanted. */
-  H: { x: number; y: number; arrow: { x1: number; x2: number; y: number }; text: TextShape } | null;
-  /** A bar as long as a round length of the cable's own, under the drawing at its left. */
-  scaleBar: { x1: number; x2: number; y: number; length: number; text: TextShape };
+  labels: LabelShape[];
+  /** The arrow under the lowest point; null where the lowest point is a support or the pretension is not asked for. */
+  H: { x: number; y: number; arrow: { x1: number; x2: number; y: number } } | null;
+  /** A bar as long as a round length, under the drawing at its left, with its words: it measures the horizontal direction only. */
+  scaleBar: { x1: number; x2: number; y: number; length: number; text: { value: string; x: number; y: number; anchor: 'start' } };
+  /** The figures of a change of state, in lines (each paragraph wrapped to the width), above the drawing. */
+  block: { lines: { value: string; x: number; y: number }[]; rect: Rect } | null;
   loadArrows: ArrowShape[];
   pointLoads: ArrowShape[];
+  /** Every line that words are kept clear of, for the tests. */
+  obstacles: Seg[];
   legend: LegendKey[];
 }
 
@@ -162,6 +206,40 @@ const pixel = (v: number): string => String(Math.round(v * 100) / 100 || 0);
 
 /** A value with its sign, a true minus, a zero with none. */
 const withSign = (v: number, group: string): string => (v === 0 ? '0' : `${v < 0 ? '−' : ''}${formatNumber(Math.abs(v), 4, group)}`);
+
+/** Whether a segment touches a rectangle grown by `pad` all round. */
+export function segHitsRect(s: Seg, r: Rect, pad: number): boolean {
+  const x0 = r.x0 - pad;
+  const y0 = r.y0 - pad;
+  const x1 = r.x1 + pad;
+  const y1 = r.y1 + pad;
+  const dx = s.x2 - s.x1;
+  const dy = s.y2 - s.y1;
+  const p = [-dx, dx, -dy, dy];
+  const q = [s.x1 - x0, x1 - s.x1, s.y1 - y0, y1 - s.y1];
+  let t0 = 0;
+  let t1 = 1;
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return false;
+    } else {
+      const t = q[i] / p[i];
+      if (p[i] < 0) {
+        if (t > t1) return false;
+        if (t > t0) t0 = t;
+      } else {
+        if (t < t0) return false;
+        if (t < t1) t1 = t;
+      }
+    }
+  }
+  return true;
+}
+
+/** Whether two rectangles, the first grown by `pad`, overlap. */
+export function rectsHit(a: Rect, b: Rect, pad: number): boolean {
+  return a.x0 - pad < b.x1 && a.x1 + pad > b.x0 && a.y0 - pad < b.y1 && a.y1 + pad > b.y0;
+}
 
 /** The cable's level at a position, by its points (left to right). */
 function levelAt(points: readonly { x: number; z: number }[], x: number): number {
@@ -177,42 +255,100 @@ function levelAt(points: readonly { x: number; z: number }[], x: number): number
   return points[points.length - 1].z;
 }
 
-export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
-  const f = drawing.frame;
-  const maxHeight = o.maxHeight ?? MAX_HEIGHT;
-  const scale = Math.min(o.width / f.width, maxHeight / f.height);
-  const drawn = f.width * scale;
-  const offX = (o.width - drawn) / 2;
-  const padPx = drawing.pad * scale;
-  const k = Math.max(0.5, Math.min(1, padPx / 56));
-  const r = clean(3.2 + 1.2 * k);
+/** A paragraph broken into lines of at most `chars` characters, at its spaces. */
+export function wrap(text: string, chars: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    if (line && (line + ' ' + word).length > chars) {
+      lines.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 
+/** The directions a word may stand from the thing it names. */
+type Dir = 'r' | 'l' | 'u' | 'd' | 'ur' | 'ul' | 'dr' | 'dl' | 'us' | 'ue' | 'ds' | 'de';
+const ANY: Dir[] = ['r', 'l', 'u', 'd', 'ur', 'ul', 'dr', 'dl', 'us', 'ue', 'ds', 'de'];
+
+function spot(dir: Dir, p: Point, g: number, w: number): Rect {
+  const h = WORD_H;
+  switch (dir) {
+    case 'r':
+      return { x0: p.x + g, y0: p.y - h / 2, x1: p.x + g + w, y1: p.y + h / 2 };
+    case 'l':
+      return { x0: p.x - g - w, y0: p.y - h / 2, x1: p.x - g, y1: p.y + h / 2 };
+    case 'u':
+      return { x0: p.x - w / 2, y0: p.y - g - h, x1: p.x + w / 2, y1: p.y - g };
+    case 'd':
+      return { x0: p.x - w / 2, y0: p.y + g, x1: p.x + w / 2, y1: p.y + g + h };
+    case 'ur':
+      return { x0: p.x + g, y0: p.y - g - h, x1: p.x + g + w, y1: p.y - g };
+    case 'ul':
+      return { x0: p.x - g - w, y0: p.y - g - h, x1: p.x - g, y1: p.y - g };
+    case 'dr':
+      return { x0: p.x + g, y0: p.y + g, x1: p.x + g + w, y1: p.y + g + h };
+    case 'dl':
+      return { x0: p.x - g - w, y0: p.y + g, x1: p.x - g, y1: p.y + g + h };
+    case 'us':
+      return { x0: p.x, y0: p.y - g - h, x1: p.x + w, y1: p.y - g };
+    case 'ue':
+      return { x0: p.x - w, y0: p.y - g - h, x1: p.x, y1: p.y - g };
+    case 'ds':
+      return { x0: p.x, y0: p.y + g, x1: p.x + w, y1: p.y + g + h };
+    case 'de':
+      return { x0: p.x - w, y0: p.y + g, x1: p.x, y1: p.y + g + h };
+  }
+}
+
+export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
+  const W = o.width;
+  const mx = 16;
+  const box = drawing.box;
   const mode = drawing.mode;
   const points = mode === 'points';
-  // The room above and under what the frame leaves: an arrow with its number, a label, the pretension under the lowest point.
-  const topNeed = clean(Math.max(28, points ? (LOAD_MIN + LOAD_SPAN) * k + 22 : 0));
-  const bottomNeed = clean(40 * k + 6);
-  const top = Math.max(0, topNeed - padPx);
-  const bottom = Math.max(0, bottomNeed - padPx);
-  const X = (x: number) => offX + (x - f.x0) * scale;
-  const Y = (z: number) => top + (f.z1 - z) * scale;
-  const drawnHeight = clean(top + f.height * scale + bottom);
-  const height = clean(drawnHeight + SCALE_ROW);
+  const k = Math.max(0.6, Math.min(1, W / 600));
+  const lengthX = box.width > 0 ? box.width : 1;
+  const maxHeight = o.maxHeight ?? MAX_HEIGHT;
+
+  /* The scale: across the page, then the vertical stretch. */
+  const plotW = Math.max(40, W - 2 * mx);
+  const scale = Math.min(plotW / lengthX, (maxHeight * 0.8) / Math.max(box.height, 1e-9));
+  const offX = mx + (plotW - lengthX * scale) / 2;
+  const ch = drawing.chord;
+  const chordZ = (x: number) => (ch.x1 === ch.x0 ? ch.z0 : ch.z0 + ((ch.z1 - ch.z0) * (x - ch.x0)) / (ch.x1 - ch.x0));
+  let dev = 0;
+  for (const c of drawing.curves) for (const p of c.points) dev = Math.max(dev, chordZ(p.x) - p.z);
+  const ratio = dev / lengthX;
+  let ev = 1;
+  if (dev > 0 && ratio < DEEP) {
+    // Up to a tenth of the span the sag is brought to its share of the width; from there the stretch fades out, to none at DEEP.
+    const share = ratio <= 0.1 ? SAG_SHARE : SAG_SHARE - ((SAG_SHARE - DEEP) * (ratio - 0.1)) / (DEEP - 0.1);
+    ev = Math.min(EXAGGERATION_CAP, share / ratio);
+    // It must still fit the height.
+    ev = Math.min(ev, Math.max(1, (maxHeight * 0.8) / Math.max(box.height * scale, 1e-9)));
+    // A factor that can be said: whole above two, a half below.
+    ev = ev >= 2 ? Math.floor(ev + 1e-9) : Math.floor(ev * 2 + 1e-9) / 2;
+    if (ev < 1.5) ev = 1;
+  }
+  const X = (x: number) => offX + (x - box.x0) * scale;
+  const Y = (z: number) => (box.z1 - z) * scale * ev;
   const at = (p: { x: number; z: number }): Point => ({ x: clean(X(p.x)), y: clean(Y(p.z)) });
 
   const A = at(drawing.supports.A);
   const B = at(drawing.supports.B);
   const exact = drawing.curves.find((c) => c.id === 'exact' || c.id === 'state2' || c.id === 'polygon');
 
-  /* Supports. */
+  /* ── The things drawn ── */
   const half = clean(10 * k + 1);
   const depth = clean(SUPPORT_DEPTH * k);
   const supports: SupportShape[] = [
-    { id: 'A', x: A.x, y: A.y, depth, half, letter: { value: 'A', x: A.x, y: clean(A.y + depth + 12), anchor: 'middle' } },
-    { id: 'B', x: B.x, y: B.y, depth, half, letter: { value: 'B', x: B.x, y: clean(B.y + depth + 12), anchor: 'middle' } },
+    { id: 'A', x: A.x, y: A.y, depth, half },
+    { id: 'B', x: B.x, y: B.y, depth, half },
   ];
 
-  /* Curves, and for a polygon its pieces. */
   const curves: CurveShape[] = drawing.curves
     .filter((c) => c.id !== 'parabola' || o.parabola)
     .map((c) => {
@@ -227,131 +363,198 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
       segments.push({ label: i, x1: polygon.points[i - 1].x, y1: polygon.points[i - 1].y, x2: polygon.points[i].x, y2: polygon.points[i].y, width: clean(1.75 + 3 * share) });
     }
   }
-
-  /* Joints of a polygon: a dot on each load, its number under it. */
+  const r = clean(3.2 + 1.2 * k);
   const joints: JointShape[] = drawing.loads.map((l) => {
     const p = at(l);
-    return { label: l.label, x: p.x, y: p.y, r, text: { value: String(l.label), x: p.x, y: clean(p.y + r + 12), anchor: 'middle' } };
+    return { label: l.label, x: p.x, y: p.y, r };
   });
 
-  /* Dimension lines. */
+  /* Dimension lines: the lines only; their words are placed with the others. */
   const dims: DimShape[] = [];
-  const dimLine = (id: DimShape['id'], d: Dimension, label: string, anchor: 'start' | 'end', shift = 0): DimShape => {
+  const dimWords = new Map<string, string>();
+  const dimLine = (id: DimShape['id'], d: Dimension, word: string, shift = 0): DimShape => {
     const x = clean(X(d.x) + shift);
     const y1 = clean(Y(d.zTop));
     const y2 = clean(Y(d.zBottom));
-    // A line too short to hold its words beside it carries them over the chord instead, clear of every line.
-    const short = Math.abs(y2 - y1) < 18;
-    // A sag measured from the lower support's level has its words over the level line it is measured from.
-    const textY = d.from !== undefined ? y1 - 6 : short ? Math.min(y1, y2) - 6 : (y1 + y2) / 2 + 4;
-    const text: TextShape = { value: `${label} ${formatNumber(d.value, 4, o.group)} ${o.unit}`, x: clean(x + (anchor === 'start' ? 7 : -7)), y: clean(textY), anchor };
-    return {
-      id,
-      both: false,
-      given: false,
-      x,
-      y1,
-      y2,
-      level: d.from === undefined ? null : { x1: clean(X(d.from)), x2: x, y: y1 },
-      text,
-    };
+    dimWords.set(id, `${word} ${formatNumber(d.value, 4, o.group)} ${o.unit}`);
+    return { id, both: false, given: false, x, y1, y2, level: d.from === undefined ? null : { x1: clean(X(d.from)), x2: x, y: y1 } };
   };
   if (o.dims) {
     const { mid, low, state1 } = drawing.sag;
     if (mode === 'state') {
-      // What the visitor gave is state 1's sag.
-      if (state1) dims.push({ ...dimLine('state1', state1, o.labels.state1, 'end', -6), given: drawing.sag.given === 'mid' });
-      if (mid) dims.push({ ...dimLine('mid', mid, o.labels.state2, 'start'), given: false });
+      // Each state's sag line is tagged 1 and 2: the figures are in the block above the drawing.
+      if (state1) dims.push({ ...dimLine('state1', state1, '1', -5), given: drawing.sag.given === 'mid' });
+      if (mid) dims.push({ ...dimLine('mid', mid, '2', 5), given: false });
+      dimWords.set('state1', '1');
+      dimWords.set('mid', '2');
     } else if (mid && low) {
       const same = Math.abs(X(mid.x) - X(low.x)) < 1 && Math.abs(Y(mid.zTop) - Y(low.zTop)) < 0.5 && Math.abs(Y(mid.zBottom) - Y(low.zBottom)) < 0.5;
-      if (same) {
-        const d = dimLine('mid', mid, o.labels.sag, 'start');
-        dims.push({ ...d, both: true, given: drawing.sag.given !== null });
-      } else {
-        // The two labels point away from each other.
-        const midLeft = mid.x < low.x;
-        dims.push({ ...dimLine('mid', mid, o.labels.sagMid, midLeft ? 'end' : 'start'), given: drawing.sag.given === 'mid' });
-        dims.push({ ...dimLine('low', low, o.labels.sagLow, midLeft ? 'start' : 'end'), given: drawing.sag.given === 'low' });
+      if (same) dims.push({ ...dimLine('mid', mid, o.labels.sag), both: true, given: drawing.sag.given !== null });
+      else {
+        dims.push({ ...dimLine('mid', mid, o.labels.sagMid), given: drawing.sag.given === 'mid' });
+        dims.push({ ...dimLine('low', low, o.labels.sagLow), given: drawing.sag.given === 'low' });
       }
     } else if (mid) {
-      // At a load's own position the sag line would run down its arrow: it stands a little to the left of it, its words on that side.
+      // At a load's own position the sag line would run down its arrow: it stands a little to the left of it.
       const onLoad = points && joints.some((j) => Math.abs(j.x - X(mid.x)) < 12);
-      dims.push({ ...dimLine('mid', mid, points ? o.labels.sag : o.labels.sagMid, onLoad ? 'end' : 'start', onLoad ? -12 : 0), given: drawing.sag.given === 'mid' });
-    }
-    else if (low) dims.push({ ...dimLine('low', low, o.labels.sagLow, 'start'), given: drawing.sag.given === 'low' });
+      dims.push({ ...dimLine('mid', mid, points ? o.labels.sag : o.labels.sagMid, onLoad ? -12 : 0), given: drawing.sag.given === 'mid' });
+    } else if (low) dims.push({ ...dimLine('low', low, o.labels.sagLow), given: drawing.sag.given === 'low' });
   }
 
-  /* The tensions beside the supports: outside where there is room, over the support where there is not. */
-  const tensions: Layout['tensions'] = [];
-  if (o.tensions) {
-    for (const [id, p, side] of [['A', A, -1], ['B', B, 1]] as const) {
-      const value = o.texts?.[id];
-      if (!value) continue;
-      const need = value.length * CHAR + 14;
-      const room = side < 0 ? p.x : o.width - p.x;
-      const outside = room >= need;
-      const x = clean(outside ? p.x + side * 10 : p.x - side * 2);
-      // Over the support it stands above the chord along all its length: a chord that climbs away from it would run through the words.
-      const far = x + (side < 0 ? 1 : -1) * value.length * CHAR;
-      const chordAt = B.x === A.x ? p.y : A.y + ((B.y - A.y) * (far - A.x)) / (B.x - A.x);
-      tensions.push({
-        id,
-        text: { value, x, y: clean(outside ? p.y - 10 : Math.min(p.y, chordAt) - 9), anchor: outside ? (side < 0 ? 'end' : 'start') : side < 0 ? 'start' : 'end' },
-      });
-    }
-  }
-
-  /* The pretension: an arrow under the lowest point, and its words. */
+  /* The pretension: an arrow under the lowest point. */
   let H: Layout['H'] = null;
   const lowest = at(drawing.labels.H);
   const atSupport = (p: Point) => Math.abs(p.x - lowest.x) < 0.5 && Math.abs(p.y - lowest.y) < 0.5;
   if (o.tensions && o.texts?.H && !atSupport(A) && !atSupport(B)) {
     const arrowY = clean(lowest.y + 11 * k + 3);
-    H = {
-      x: lowest.x,
-      y: lowest.y,
-      arrow: { x1: clean(lowest.x - (H_ARROW * k) / 2), x2: clean(lowest.x + (H_ARROW * k) / 2), y: arrowY },
-      text: { value: o.texts.H, x: lowest.x, y: clean(arrowY + 15), anchor: 'middle' },
-    };
+    H = { x: lowest.x, y: lowest.y, arrow: { x1: clean(lowest.x - (H_ARROW * k) / 2), x2: clean(lowest.x + (H_ARROW * k) / 2), y: arrowY } };
   }
 
-  /* The scale: a bar of a round length, about a fifth of the drawing's width. */
-  const barLength = niceStep(f.width * 0.2, 1);
-  const barY = clean(drawnHeight + SCALE_ROW / 2 + 2);
-  const barX1 = clean(Math.max(4, offX + 4));
-  const barX2 = clean(barX1 + barLength * scale);
-  const scaleBar: Layout['scaleBar'] = { x1: barX1, x2: barX2, y: barY, length: barLength, text: { value: `${formatNumber(barLength, 4, o.group)} ${o.unit}`, x: clean(barX2 + 8), y: clean(barY + 4), anchor: 'start' } };
-
-  /* The load of a hanging cable: a row of arrows onto it. */
-  const loadArrows: ArrowShape[] = [];
-  if (mode === 'hanging' && o.load && exact) {
-    const count = Math.max(4, Math.min(13, Math.floor(o.width / 56)));
-    const L = drawing.supports.B.x - drawing.supports.A.x;
-    const len = clean(SHORT_ARROW * k);
-    // Clear of the sag lines and of the words beside them.
-    const avoid: { lo: number; hi: number; top: number; bottom: number }[] = dims.flatMap((d) => {
-      const w = d.text.value.length * CHAR;
-      const words = d.text.anchor === 'start' ? { lo: d.text.x - 4, hi: d.text.x + w + 4 } : { lo: d.text.x - w - 4, hi: d.text.x + 4 };
-      return [{ lo: d.x - 10, hi: d.x + 10, top: -Infinity, bottom: Infinity }, { ...words, top: d.text.y - 13, bottom: d.text.y + 4 }];
-    });
-    for (let i = 1; i <= count; i++) {
-      const x = drawing.supports.A.x + (L * i) / (count + 1);
-      const px = clean(X(x));
-      const tip = { x: px, y: clean(Y(levelAt(exact.points, x)) - 2) };
-      if (avoid.some((a) => px >= a.lo && px <= a.hi && tip.y >= a.top && tip.y - len <= a.bottom)) continue;
-      loadArrows.push({ label: i, tail: { x: px, y: clean(tip.y - len) }, tip, text: null, magnitude: 0 });
-    }
-  }
-
-  /* The point loads of a funicular cable: an arrow onto its joint, longer for the larger, with its size at the tail. */
+  /* Point loads: an arrow onto its joint, longer for the larger. */
   const pointLoads: ArrowShape[] = drawing.loads.map((l) => {
     const p = at(l);
     const len = clean((LOAD_MIN + LOAD_SPAN * l.share) * k);
     const down = l.P >= 0;
     const tip = { x: p.x, y: clean(down ? p.y - r - 1 : p.y + r + 1) };
     const tail = { x: p.x, y: clean(down ? tip.y - len : tip.y + len) };
-    return { label: l.label, tail, tip, text: { value: withSign(l.P, o.group), x: p.x, y: clean(down ? tail.y - 5 : tail.y + 13), anchor: 'middle' }, magnitude: Math.abs(l.P) };
+    return { label: l.label, tail, tip, magnitude: Math.abs(l.P) };
   });
+
+  /* ── What the words are kept clear of ── */
+  const obstacles: Seg[] = [];
+  const boxes: Rect[] = [];
+  const line = (x1: number, y1: number, x2: number, y2: number) => obstacles.push({ x1, y1, x2, y2 });
+  for (const c of curves) for (let i = 1; i < c.points.length; i++) line(c.points[i - 1].x, c.points[i - 1].y, c.points[i].x, c.points[i].y);
+  line(A.x, A.y, B.x, B.y);
+  for (const d of dims) {
+    line(d.x, d.y1, d.x, d.y2);
+    line(d.x - 4, d.y1, d.x + 4, d.y1);
+    line(d.x - 4, d.y2, d.x + 4, d.y2);
+    if (d.level) line(d.level.x1, d.level.y, d.level.x2, d.level.y);
+  }
+  if (H) {
+    line(H.arrow.x1, H.arrow.y, H.arrow.x2, H.arrow.y);
+    boxes.push({ x0: H.x - 4, y0: H.y - 4, x1: H.x + 4, y1: H.y + 4 });
+    boxes.push({ x0: H.arrow.x2 - HEAD_LEN, y0: H.arrow.y - HEAD_HALF, x1: H.arrow.x2, y1: H.arrow.y + HEAD_HALF });
+  }
+  for (const a of pointLoads) {
+    line(a.tail.x, a.tail.y, a.tip.x, a.tip.y);
+    boxes.push({ x0: a.tip.x - HEAD_HALF, y0: Math.min(a.tip.y, a.tip.y + (a.tail.y < a.tip.y ? -HEAD_LEN : HEAD_LEN)), x1: a.tip.x + HEAD_HALF, y1: Math.max(a.tip.y, a.tip.y + (a.tail.y < a.tip.y ? -HEAD_LEN : HEAD_LEN)) });
+  }
+  for (const s of supports) boxes.push({ x0: s.x - s.half - 4, y0: s.y - 1, x1: s.x + s.half + 4, y1: s.y + s.depth + 2 });
+  for (const j of joints) boxes.push({ x0: j.x - j.r - 1, y0: j.y - j.r - 1, x1: j.x + j.r + 1, y1: j.y + j.r + 1 });
+
+  /* The figures of a change of state, in a block above the drawing. */
+  let block: Layout['block'] = null;
+  if (o.block && o.block.length > 0) {
+    const chars = Math.max(10, Math.floor((W - 2 * mx) / CHAR));
+    const lines = o.block.flatMap((paragraph) => wrap(paragraph, chars));
+    const rowH = 15;
+    // Clear of the top of the drawing by room for the words that stand over the chord (the tags of the two sag lines).
+    const y0 = -(lines.length * rowH) - 34;
+    block = { lines: lines.map((value, i) => ({ value, x: mx, y: clean(y0 + (i + 1) * rowH - 4) })), rect: { x0: mx - 2, y0, x1: Math.min(W - 2, mx + Math.max(...lines.map((l) => l.length)) * CHAR + 2), y1: y0 + lines.length * rowH } };
+    boxes.push(block.rect);
+  }
+
+  /* ── The words ── */
+  const placed: LabelShape[] = [];
+  const free = (rect: Rect, leader: Seg | null): number => {
+    // The number of things the spot touches (0: it is clear).
+    let hits = 0;
+    if (rect.x0 < 2 || rect.x1 > W - 2) hits += 100;
+    for (const s of obstacles) if (segHitsRect(s, rect, 2.5)) hits++;
+    for (const b of boxes) if (rectsHit(rect, b, 2)) hits++;
+    for (const p of placed) if (rectsHit(rect, p.rect, 3)) hits++;
+    // A leader may cross a line but not a word.
+    if (leader) {
+      for (const p of placed) if (segHitsRect(leader, p.rect, 1)) hits++;
+      // (It starts on what it names, which is itself in `boxes`: only the block above the drawing is kept clear of it.)
+      if (block && segHitsRect(leader, block.rect, 1)) hits++;
+    }
+    return hits;
+  };
+  const place = (kind: LabelShape['kind'], id: string, value: string, p: Point, prefer: Dir[], first = 0): LabelShape => {
+    const w = value.length * CHAR + 4;
+    const order = [...prefer, ...ANY.filter((d) => !prefer.includes(d))];
+    // The spots, the nearest first, a direction further down the list costing the same as a gap of twelve pixels more.
+    const spots = GAPS.slice(first).flatMap((g) => order.map((dir, i) => ({ g, dir, cost: g + 12 * i }))).sort((a, b) => a.cost - b.cost);
+    let best: { rect: Rect; leader: Seg | null; hits: number } | null = null;
+    for (const { g, dir } of spots) {
+      const rect = spot(dir, p, g, w);
+      const cx = Math.min(Math.max(p.x, rect.x0), rect.x1);
+      const cy = Math.min(Math.max(p.y, rect.y0), rect.y1);
+      const leader: Seg | null = g > 12 ? { x1: p.x, y1: p.y, x2: cx, y2: cy } : null;
+      const hits = free(rect, leader);
+      if (!best || hits < best.hits) best = { rect, leader, hits };
+      if (hits === 0) break;
+    }
+    const chosen = best!;
+    if (chosen.leader) obstacles.push(chosen.leader);
+    const label: LabelShape = { kind, id, value, x: clean((chosen.rect.x0 + chosen.rect.x1) / 2), y: clean(chosen.rect.y1 - 3.5), anchor: 'middle', rect: chosen.rect, leader: chosen.leader, clear: chosen.hits === 0 };
+    placed.push(label);
+    return label;
+  };
+
+  // The supports' letters under their ground lines, the joints' numbers, the loads' sizes: what the drawing is made of.
+  for (const s of supports) place('support', s.id, s.id, { x: s.x, y: s.y + s.depth }, s.id === 'A' ? ['d', 'dl', 'dr'] : ['d', 'dr', 'dl'], 0);
+  for (const j of joints) place('joint', String(j.label), String(j.label), { x: j.x, y: j.y }, ['d', 'dl', 'dr', 'ul', 'ur'], 0);
+  drawing.loads.forEach((l, i) => {
+    const a = pointLoads[i];
+    place('load', String(l.label), withSign(l.P, o.group), a.tail, l.P >= 0 ? ['u', 'ul', 'ur'] : ['d', 'dl', 'dr'], 0);
+  });
+  // Each sag beside its line, on the side that is free.
+  for (const d of dims) {
+    const value = dimWords.get(d.id) ?? '';
+    const middle = { x: d.x, y: (d.y1 + d.y2) / 2 };
+    if (mode === 'state') place('dim', d.id, value, { x: d.x, y: Math.min(d.y1, d.y2) }, d.id === 'state1' ? ['ul', 'u'] : ['ur', 'u']);
+    else place('dim', d.id, value, middle, d.level ? ['l', 'r'] : ['r', 'l', 'ur', 'ul']);
+  }
+  // The pretension under the lowest point; the tensions below and outside the supports.
+  if (H && o.texts?.H) place('H', 'H', o.texts.H, { x: H.x, y: H.arrow.y }, ['d', 'dl', 'dr', 'l', 'r']);
+  if (o.tensions) {
+    if (o.texts?.A) place('tension', 'A', o.texts.A, A, ['l', 'dl', 'd', 'ul', 'u']);
+    if (o.texts?.B) place('tension', 'B', o.texts.B, B, ['r', 'dr', 'd', 'ur', 'u']);
+  }
+  const wordBoxes = placed.map((p) => p.rect);
+
+  /* The load of a hanging cable: a row of arrows onto it, kept clear of every word and sag line. */
+  const loadArrows: ArrowShape[] = [];
+  if (mode === 'hanging' && o.load && exact) {
+    const count = Math.max(4, Math.min(13, Math.floor(W / 56)));
+    const L = drawing.supports.B.x - drawing.supports.A.x;
+    const len = clean(SHORT_ARROW * k);
+    for (let i = 1; i <= count; i++) {
+      const x = drawing.supports.A.x + (L * i) / (count + 1);
+      const px = clean(X(x));
+      const tip = { x: px, y: clean(Y(levelAt(exact.points, x)) - 2) };
+      const arrow: Rect = { x0: px - HEAD_HALF, y0: tip.y - len, x1: px + HEAD_HALF, y1: tip.y };
+      if (wordBoxes.some((b) => rectsHit(arrow, b, 3))) continue;
+      if (obstacles.some((s) => s.x1 === s.x2 && segHitsRect(s, arrow, 4) && Math.abs(s.y2 - s.y1) > 0)) continue;
+      if (boxes.some((b) => rectsHit(arrow, b, 2))) continue;
+      loadArrows.push({ label: i, tail: { x: px, y: clean(tip.y - len) }, tip, magnitude: 0 });
+    }
+  }
+
+  /* ── The view: cropped to what is on the drawing, with the scale bar under it ── */
+  let top = 0;
+  let bottom = 0;
+  const grow = (y0: number, y1: number) => {
+    top = Math.min(top, y0);
+    bottom = Math.max(bottom, y1);
+  };
+  for (const c of curves) for (const p of c.points) grow(p.y, p.y);
+  for (const s of supports) grow(s.y, s.y + s.depth + 2);
+  for (const b of [...wordBoxes, ...boxes]) grow(b.y0, b.y1);
+  for (const s of obstacles) grow(Math.min(s.y1, s.y2), Math.max(s.y1, s.y2));
+  for (const a of loadArrows) grow(a.tail.y, a.tip.y);
+  const barLength = niceStep(lengthX * 0.2, 1);
+  const barY = clean(bottom + 22);
+  const barX1 = clean(mx);
+  const barX2 = clean(barX1 + barLength * scale);
+  const barText = `${formatNumber(barLength, 4, o.group)} ${o.unit} ${o.labels.horizontal}`;
+  const scaleBar: Layout['scaleBar'] = { x1: barX1, x2: barX2, y: barY, length: barLength, text: { value: barText, x: clean(barX2 + 8), y: clean(barY + 4), anchor: 'start' } };
+  const viewTop = clean(top - 6);
+  const height = clean(barY + 10 - viewTop);
 
   /* What the legend has to explain. */
   const legend: LegendKey[] = [];
@@ -370,25 +573,30 @@ export function cableLayout(drawing: Drawing, o: LayoutOptions): Layout {
   if (loadArrows.length > 0) legend.push('load');
   if (pointLoads.length > 0) legend.push('pointLoad');
   if (joints.length > 0) legend.push('joint');
-  if (tensions.length > 0) legend.push('tension');
+  if (placed.some((p) => p.kind === 'tension')) legend.push('tension');
   if (H) legend.push('H');
   legend.push('support');
+  if (ev > 1) legend.push('vertical');
 
   return {
-    width: o.width,
+    width: W,
     height,
+    viewTop,
     scale: clean(scale),
+    exaggeration: ev,
     chord: { x1: A.x, y1: A.y, x2: B.x, y2: B.y },
     supports,
     curves,
     segments,
     joints,
     dims,
-    tensions,
+    labels: placed,
     H,
     scaleBar,
+    block,
     loadArrows,
     pointLoads,
+    obstacles,
     legend,
   };
 }
@@ -406,11 +614,6 @@ function Arrow({ a, className }: { a: ArrowShape; className: string }) {
     <g className={className}>
       <line x1={a.tail.x} y1={a.tail.y} x2={base.x} y2={base.y} />
       <polygon points={head} />
-      {a.text ? (
-        <text x={a.text.x} y={a.text.y} textAnchor={a.text.anchor}>
-          {a.text.value}
-        </text>
-      ) : null}
     </g>
   );
 }
@@ -419,18 +622,33 @@ export interface CableSchematicProps extends Omit<LayoutOptions, 'maxHeight'> {
   drawing: Drawing;
   /** The drawing in one sentence, for whoever cannot see it. */
   summary: string;
-  /** The legend's words. */
+  /** The legend's words; `vertical` has {n} where the factor goes. */
   legend: CableSagUi['results']['legend'];
+  /** The note under the drawing that says the vertical scale is stretched, with {n}. */
+  stretch: string;
   maxHeight?: number;
 }
 
-export function CableSchematic({ drawing, summary, legend: words, ...options }: CableSchematicProps) {
-  const { width, group, unit, labels, texts, tensions, dims, load, parabola, shares, maxHeight } = options;
-  const layout = useMemo(() => cableLayout(drawing, { width, group, unit, labels, texts, tensions, dims, load, parabola, shares, maxHeight }), [drawing, width, group, unit, labels, texts, tensions, dims, load, parabola, shares, maxHeight]);
+/** The factor as it is said: whole, or with a half. */
+const factorText = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+export function CableSchematic({ drawing, summary, legend: words, stretch, ...options }: CableSchematicProps) {
+  const { width, group, unit, labels, texts, block, tensions, dims, load, parabola, shares, maxHeight } = options;
+  const layout = useMemo(() => cableLayout(drawing, { width, group, unit, labels, texts, block, tensions, dims, load, parabola, shares, maxHeight }), [drawing, width, group, unit, labels, texts, block, tensions, dims, load, parabola, shares, maxHeight]);
+  const n = factorText(layout.exaggeration);
   return (
     <figure className="mp-cs-fig">
-      <svg className="mp-plot__svg mp-cs-fig__svg" role="img" aria-label={summary} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
+      <svg className="mp-plot__svg mp-cs-fig__svg" role="img" aria-label={summary} viewBox={`0 ${layout.viewTop} ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
         <g aria-hidden="true">
+          {layout.block ? (
+            <g className="mp-cs-fig__block">
+              {layout.block.lines.map((l, i) => (
+                <text key={i} x={l.x} y={l.y} textAnchor="start">
+                  {l.value}
+                </text>
+              ))}
+            </g>
+          ) : null}
           {layout.supports.map((s) => (
             <g key={`s${s.id}`} className="mp-cs-fig__support" transform={`translate(${s.x} ${s.y})`}>
               <polygon points={`0,0 ${-s.half},${s.depth - 2} ${s.half},${s.depth - 2}`} />
@@ -453,9 +671,6 @@ export function CableSchematic({ drawing, summary, legend: words, ...options }: 
               <line x1={d.x} y1={d.y1} x2={d.x} y2={d.y2} />
               <line x1={d.x - 4} y1={d.y1} x2={d.x + 4} y2={d.y1} />
               <line x1={d.x - 4} y1={d.y2} x2={d.x + 4} y2={d.y2} />
-              <text x={d.text.x} y={d.text.y} textAnchor={d.text.anchor}>
-                {d.text.value}
-              </text>
             </g>
           ))}
           {layout.pointLoads.map((a) => (
@@ -464,19 +679,20 @@ export function CableSchematic({ drawing, summary, legend: words, ...options }: 
           {layout.joints.map((j) => (
             <g key={`j${j.label}`} className="mp-cs-fig__joint">
               <circle cx={j.x} cy={j.y} r={j.r} />
-              <text x={j.text.x} y={j.text.y} textAnchor={j.text.anchor}>
-                {j.text.value}
-              </text>
             </g>
           ))}
-          {layout.supports.map((s) => (
-            <text key={`t${s.id}`} className="mp-cs-fig__letter" x={s.letter.x} y={s.letter.y} textAnchor={s.letter.anchor}>
-              {s.letter.value}
-            </text>
-          ))}
-          {layout.tensions.map((t) => (
-            <text key={`T${t.id}`} className="mp-cs-fig__tension" x={t.text.x} y={t.text.y} textAnchor={t.text.anchor}>
-              {t.text.value}
+          {layout.H ? (
+            <g className="mp-cs-fig__h">
+              <circle cx={layout.H.x} cy={layout.H.y} r={3} />
+              <Arrow a={{ label: 0, tail: { x: layout.H.arrow.x1, y: layout.H.arrow.y }, tip: { x: layout.H.arrow.x2, y: layout.H.arrow.y }, magnitude: 0 }} className="mp-cs-fig__harrow" />
+            </g>
+          ) : null}
+          {layout.labels.map((l) =>
+            l.leader ? <line key={`k${l.kind}${l.id}`} className="mp-cs-fig__leader" x1={l.leader.x1} y1={l.leader.y1} x2={l.leader.x2} y2={l.leader.y2} /> : null,
+          )}
+          {layout.labels.map((l) => (
+            <text key={`w${l.kind}${l.id}`} className={`mp-cs-fig__label mp-cs-fig__label--${l.kind}`} x={l.x} y={l.y} textAnchor={l.anchor}>
+              {l.value}
             </text>
           ))}
           <g className="mp-cs-fig__scale">
@@ -487,19 +703,14 @@ export function CableSchematic({ drawing, summary, legend: words, ...options }: 
               {layout.scaleBar.text.value}
             </text>
           </g>
-          {layout.H ? (
-            <g className="mp-cs-fig__h">
-              <circle cx={layout.H.x} cy={layout.H.y} r={3} />
-              <Arrow a={{ label: 0, tail: { x: layout.H.arrow.x1, y: layout.H.arrow.y }, tip: { x: layout.H.arrow.x2, y: layout.H.arrow.y }, text: layout.H.text, magnitude: 0 }} className="mp-cs-fig__harrow" />
-            </g>
-          ) : null}
         </g>
       </svg>
+      {layout.exaggeration > 1 ? <p className="mp-cs-fig__stretch">{fill(stretch, { n })}</p> : null}
       <ul className="mp-cs-fig__legend">
         {layout.legend.map((key) => (
           <li key={key} className={`mp-cs-fig__key mp-cs-fig__key--${key}`}>
             <LegendSwatch kind={key} />
-            <span>{words[key]}</span>
+            <span>{fill(words[key], { n })}</span>
           </li>
         ))}
       </ul>
@@ -524,7 +735,7 @@ function LegendSwatch({ kind }: { kind: LegendKey }) {
         <line className="mp-cs-fig__piece" x1="1" y1="4" x2="15" y2="11" strokeWidth="3.5" />
       ) : kind === 'chord' ? (
         line('mp-cs-fig__chord')
-      ) : kind === 'sagMid' || kind === 'sagLow' || kind === 'sagBoth' || kind === 'sagAt' ? (
+      ) : kind === 'sagMid' || kind === 'sagLow' || kind === 'sagBoth' || kind === 'sagAt' || kind === 'vertical' ? (
         <g className="mp-cs-fig__dim">
           <line x1="15" y1="1" x2="15" y2="13" />
           <line x1="11" y1="1" x2="19" y2="1" />
@@ -544,7 +755,7 @@ function LegendSwatch({ kind }: { kind: LegendKey }) {
           <polygon points="15,1 9,12 21,12" />
         </g>
       ) : (
-        <text className="mp-cs-fig__tension" x="15" y="11" textAnchor="middle">
+        <text className="mp-cs-fig__label" x="15" y="11" textAnchor="middle">
           12.3
         </text>
       )}

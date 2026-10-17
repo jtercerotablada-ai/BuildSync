@@ -198,7 +198,8 @@ export function readingOf(a: CableSagAnalysis, w: CableSagUi, ctx: Context, form
     const d = { a: withUnit(s1.sagMid, L), b: withUnit(s2.sagMid, L) };
     const hText = fill(!changed(s1.H, s2.H) ? r.state.hSame : s2.H > s1.H ? r.state.hRise : r.state.hFall, h);
     const dText = fill(!changed(s1.sagMid, s2.sagMid) ? r.state.dSame : s2.sagMid > s1.sagMid ? r.state.dGrow : r.state.dShrink, d);
-    return fill(r.state.when, { cond, h: hText, d: dText });
+    const gap = Math.abs(c.deltaSagMid);
+    return fill(r.state.when, { cond, h: hText, d: dText }) + (changed(s1.sagMid, s2.sagMid) ? ` ${fill(r.state.gap, { g: withUnit(gap, L) })}` : '');
   }
 
   if (a.points) {

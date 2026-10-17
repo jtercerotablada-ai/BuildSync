@@ -599,11 +599,27 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
       const last = a.points.segments[a.points.segments.length - 1];
       return { A: lab(words.tension, first.tension), B: lab(words.tension, last.tension), H: null };
     }
-    // In a change of state the figures on the drawing are those of state 2, and say so.
-    const two = Boolean(a.state);
-    const s = a.hanging?.exact ?? a.state?.state2 ?? null;
-    const T = two ? words.tension2 : words.tension;
-    return s ? { A: lab(T, s.tension.A), B: lab(T, s.tension.B), H: lab(two ? words.H2 : words.H, s.H) } : undefined;
+    // In a change of state the figures of each state are in the block above the drawing; the arrow under the lowest point is state 2's.
+    if (a.state) return { A: null, B: null, H: lab(words.H2, a.state.state2.H) };
+    const s = a.hanging?.exact ?? null;
+    return s ? { A: lab(words.tension, s.tension.A), B: lab(words.tension, s.tension.B), H: lab(words.H, s.H) } : undefined;
+  }, [a, group, w]);
+  // The figures of a change of state, a paragraph for each state.
+  const block = useMemo(() => {
+    if (!a.state) return undefined;
+    const words = w.results.labels;
+    const one = (n: number, title: string, s: ShapeLine) =>
+      fill(w.results.blockLine, {
+        n,
+        title,
+        sag: words.sag,
+        d: `${formatNumber(s.sagMid, 4, group)} ${a.units.length}`,
+        H: words.H,
+        Hv: `${formatNumber(s.H, 4, group)} ${a.units.force}`,
+        tension: words.tension,
+        T: `${formatNumber(s.tension.max, 4, group)} ${a.units.force}`,
+      });
+    return [one(1, words.state1Title, a.state.state1), one(2, words.state2Title, a.state.state2)];
   }, [a, group, w]);
   const shares = useMemo(() => a.points?.segments.map((s) => s.share), [a]);
 
@@ -1191,7 +1207,9 @@ export function CableSagCalculator({ t, w, initial }: { t: CableSagShared; w: Ca
               group={group}
               unit={ru.length}
               labels={w.results.labels}
+              stretch={w.results.verticalNote}
               texts={texts}
+              block={block}
               tensions={show.tensions}
               dims={show.dims}
               load={show.load}
