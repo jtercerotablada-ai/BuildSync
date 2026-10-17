@@ -35,6 +35,8 @@ import { TRUSS_PATH, TrussView } from './TrussView';
 import { cablePage } from '@/lib/calc/cable/page-strings';
 import { CABLE_PATH, CableView } from './CableView';
 import { CABLE_SAG_PATH, CableSagView } from './CableSagView';
+import { framePage } from '@/lib/calc/frame/page-strings';
+import { FRAME_PATH, FrameView } from './FrameView';
 import { CalculatorsView } from './CalculatorsView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
@@ -107,6 +109,7 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     [TRUSS_PATH, { title: trussPage[lang].title, description: trussPage[lang].description }] as const,
     [CABLE_PATH, { title: cablePage[lang].title, description: cablePage[lang].description }] as const,
     [CABLE_SAG_PATH, { title: cableSagPage[lang].title, description: cableSagPage[lang].description }] as const,
+    [FRAME_PATH, { title: framePage[lang].title, description: framePage[lang].description }] as const,
   ].map(([path, seo]) => {
     const meta = pageMeta(lang, path, seo);
     return {
@@ -396,6 +399,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [TRUSS_PATH, h(TrussView, { lang })],
     [CABLE_PATH, h(CableView, { lang })],
     [CABLE_SAG_PATH, h(CableSagView, { lang })],
+    [FRAME_PATH, h(FrameView, { lang })],
   ];
 }
 

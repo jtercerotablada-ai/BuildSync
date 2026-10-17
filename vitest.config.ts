@@ -6,6 +6,9 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
+    // Several calculators carry heavy generated-case and whole-page tests: on a loaded machine a full run
+    // goes past vitest's 5 s default (page-copy and 49-node render tests passed alone, timed out together).
+    testTimeout: 60_000,
     // Enforced, not aspirational. The include glob above is only a file
     // filter — it cannot stop a test from importing the Prisma client. The
     // reason nothing reaches the database today is Vite's default envPrefix

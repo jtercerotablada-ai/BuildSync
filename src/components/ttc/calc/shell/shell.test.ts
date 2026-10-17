@@ -477,7 +477,7 @@ describe('calculator shell: what it carries, and what it cannot do', () => {
     expect(address.match(/addEventListener\('keydown'/g)).toHaveLength(1);
     expect(address).toMatch(/window\.addEventListener\('click', flush, true\);\s*window\.addEventListener\('keydown', reloading, true\);\s*document\.addEventListener\('visibilitychange', hidden\);/);
     // No calculator keeps a listener of its own for it: the shell's is the one.
-    for (const page of ['beam/BeamCalculator.tsx', 'continuous/ContinuousCalculator.tsx', 'shaft/ShaftCalculator.tsx', 'truss/TrussCalculator.tsx', 'cable/CableCalculator.tsx', 'cable-sag/CableSagCalculator.tsx']) {
+    for (const page of ['beam/BeamCalculator.tsx', 'continuous/ContinuousCalculator.tsx', 'shaft/ShaftCalculator.tsx', 'truss/TrussCalculator.tsx', 'cable/CableCalculator.tsx', 'cable-sag/CableSagCalculator.tsx', 'frame/FrameCalculator.tsx']) {
       expect(readFileSync(join(SRC, 'components/ttc/calc', page), 'utf8'), page).not.toMatch(/'F5'|addEventListener\('keydown'/);
     }
   });

@@ -31,11 +31,14 @@ import type { Lang } from './i18n';
  * a plane truss of pinned members, solved by joint equilibrium or, when it is
  * indeterminate, by direct stiffness. The sixth, "Cable tension and elongation"
  * (/resources/cable-tension-elongation), is a straight cable under a load: a
- * sling, a block pulled against friction, and a cable round a drum.
- * indeterminate, by direct stiffness. The seventh, "Cable sag and pretension"
+ * sling, a block pulled against friction, and a cable round a drum. The
+ * seventh, "Cable sag and pretension"
  * (/resources/cable-sag-pretension), hangs a cable between two supports: the
  * horizontal tension a given sag needs, the change of state with load and
- * temperature, and the cable with point loads.
+ * temperature, and the cable with point loads. The eighth, "Plane frame
+ * analysis" (/resources/plane-frame-analysis), is the first of the frames: a
+ * 2D frame of straight members, rigid or hinged, by direct stiffness, with its
+ * moment, shear and axial force diagrams, reactions and deflected shape.
  *
  * THE FAMILIES AND THEIR ICONS. The owner drew sixteen icons, one per
  * general subject ("los 16 iconos corresponden a temas generales; varios
@@ -245,7 +248,7 @@ export const calculatorFamilies: CalculatorFamily[] = [
     title: { en: 'Frames', es: 'Pórticos' },
     icons: ['frame'],
     items: [
-      { name: { en: 'Plane frame analysis', es: 'Análisis de pórticos planos' }, does: { en: 'Moments, shears, axial forces and reactions of a 2D frame.', es: 'Momentos, cortantes, fuerzas axiales y reacciones de un pórtico 2D.' } },
+      { name: { en: 'Plane frame analysis', es: 'Análisis de pórticos planos' }, does: { en: 'Moments, shears, axial forces and reactions of a 2D frame.', es: 'Momentos, cortantes, fuerzas axiales y reacciones de un pórtico 2D.' }, href: '/resources/plane-frame-analysis' },
       { name: { en: 'Stiffness matrix, step by step', es: 'Matriz de rigidez, paso a paso' }, does: { en: 'Local and global stiffness matrices, displacements and reactions of 2D members, with every step shown.', es: 'Matrices de rigidez locales y globales, desplazamientos y reacciones de elementos 2D, con cada paso a la vista.' } },
     ],
   },
