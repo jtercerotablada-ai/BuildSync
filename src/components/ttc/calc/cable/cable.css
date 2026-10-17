@@ -393,17 +393,50 @@
   stroke: var(--mp-ink);
   stroke-width: 2;
 }
-.mp-cable-fig__wrap path,
 .mp-cable-fig__wrap {
   fill: none;
   stroke: var(--mp-ink);
-  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mp-cable-fig__wrap path {
+  fill: none;
+}
+.mp-cable-fig__load-end line,
+.mp-cable-fig__hold-end line {
   stroke-linecap: butt;
 }
-.mp-cable-fig__wrap circle.mp-cable-fig__ring-turn {
+.mp-cable-fig__load-end line {
+  stroke: var(--mp-cable-tension);
+}
+.mp-cable-fig__load-end polygon {
+  fill: var(--mp-cable-tension);
+}
+.mp-cable-fig__hold-end line {
+  stroke: var(--mp-gold-ink);
+}
+.mp-cable-fig__hold-end polygon {
+  fill: var(--mp-gold-ink);
+}
+.mp-cable-fig__dim path {
   fill: none;
-  stroke: var(--mp-ink-3);
-  stroke-width: 1.5;
+  stroke: var(--mp-ink-2);
+  stroke-width: 1.25;
+}
+.mp-cable-fig__dim polygon {
+  fill: var(--mp-ink-2);
+}
+.mp-cable-fig__taper {
+  fill: var(--mp-ink);
+}
+.mp-cable-fig__tag-name {
+  font-weight: 700;
+}
+.mp-cable-fig__tag--load {
+  fill: var(--mp-cable-tension);
+}
+.mp-cable-fig__tag--hold {
+  fill: var(--mp-gold-ink);
 }
 /* The chart. */
 .mp-cable-fig__tick text,
@@ -565,8 +598,16 @@
   .mp-cable-fig__curve--accel {
     stroke: #000;
   }
-  .mp-cable-fig__resultant line {
+  .mp-cable-fig__resultant line,
+  .mp-cable-fig__load-end line,
+  .mp-cable-fig__hold-end line {
     stroke: #000;
+  }
+  .mp-cable-fig__load-end polygon,
+  .mp-cable-fig__hold-end polygon,
+  .mp-cable-fig__tag--load,
+  .mp-cable-fig__tag--hold {
+    fill: #000;
   }
   .mp-cable-fig__resultant polygon,
   .mp-cable-fig__resultant text {

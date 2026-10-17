@@ -17,7 +17,7 @@ import { PullCurve } from './PullCurve';
 import { PullSchematic } from './PullSchematic';
 import { SlingSchematic } from './SlingSchematic';
 import { DataTable, Head, type Column, type Row } from './tables';
-import { bodySummary, curveSummary, drumSummary, fill, issueSentence, materialForRope, regimeName, regimeSentences, ropeForMaterial, signed, slingSummary, unitText, warningSentence, whereOf, type Ctx } from './text';
+import { bodyReading, bodySummary, curveReading, curveSummary, drumReading, drumSummary, fill, issueSentence, materialForRope, regimeName, regimeSentences, ropeForMaterial, signed, slingReading, slingSummary, unitText, warningSentence, whereOf, type Ctx } from './text';
 import './cable.css';
 
 /**
@@ -737,8 +737,20 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
   const bodyText = bodySummary(a, bodyRegime, w, ctx);
   const curveText = curveSummary(a, w, ctx);
   const drumText = drumSummary(a, w, ctx);
-  const names = w.drum.symbols;
-  const wrapText = D ? `β = ${num(D.betaDeg)}° (${num(D.turns)} ${D.turns === 1 ? w.words.turn : w.words.turns})` : '';
+  const slingRead = slingReading(a, w, ctx, moved);
+  const bodyRead = bodyReading(a, bodyRegime, w, ctx);
+  const curveRead = curveReading(a, w, ctx);
+  const drumRead = drumReading(a, w, ctx);
+  const fig = w.results.drumFig;
+  const drumWords = {
+    load: fig.load,
+    hold: fig.hold,
+    symbols: w.drum.symbols,
+    wrap: D ? fill(fig.wrap, { wrap: `${num(D.betaDeg)}°` }) : '',
+    turns: D && D.turns >= 1 ? fill(fig.turnsLine, { n: num(D.turns) }) : '',
+    coil: D && D.turns > 1 ? fill(fig.coil, { n: num(D.turns) }) : '',
+    taper: D ? fill(fig.taper, { ratio: num(D.ratio, 3), mu: num(D.mu, 3) }) : '',
+  };
   const sling = a.drawing.sling;
   const curveLegend = P
     ? [
@@ -901,12 +913,13 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
             </p>
             {solvedMode === 'load' ? (
               <>
-                <SlingSchematic drawing={sling} width={width} moved={moved} group={group} unit={rf} summary={slingText} legend={w.results.legend} />
-                {moved && sling && sling.moveScale !== null && sling.displaced ? <p className="mp-app__note">{fill(w.results.scale, { scale: num(sling.moveScale, 3) })}</p> : null}
+                <SlingSchematic drawing={sling} width={width} moved={moved} scaleText={w.results.moveTag} group={group} unit={rf} summary={slingText} legend={w.results.legend} />
+                {slingRead ? <p className="mp-app__note mp-cable__reading">{slingRead}</p> : null}
               </>
             ) : solvedMode === 'pull' ? (
               <>
                 <PullSchematic pull={P} regime={bodyRegime} width={width} group={group} unit={rf} summary={bodyText} legend={w.results.legend} />
+                {bodyRead ? <p className="mp-app__note mp-cable__reading">{bodyRead}</p> : null}
                 <p className="mp-plot__title">{w.results.schematic.curve}</p>
                 <PullCurve
                   curves={P ? P.curves : []}
@@ -920,9 +933,14 @@ export function CableCalculator({ t, w, initial }: { t: CableShared; w: CableUi;
                   summary={curveText}
                   legend={curveLegend}
                 />
+                {curveRead ? <p className="mp-app__note mp-cable__reading">{curveRead}</p> : null}
               </>
             ) : (
-              <DrumSchematic drawing={a.drawing.drum} width={width} group={group} unit={rf} names={names} wrap={wrapText} summary={drumText} legend={w.results.legend} />
+              <>
+                <DrumSchematic drawing={a.drawing.drum} width={width} group={group} unit={rf} words={drumWords} summary={drumText} legend={w.results.legend} />
+                {drumRead ? <p className="mp-app__note mp-cable__reading">{drumRead}</p> : null}
+                {D ? <p className="mp-app__note">{w.results.logNote}</p> : null}
+              </>
             )}
             {solvedOk ? null : <p className="mp-app__need">{w.results.waiting}</p>}
           </div>

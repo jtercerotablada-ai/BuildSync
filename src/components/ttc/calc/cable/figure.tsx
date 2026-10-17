@@ -112,23 +112,48 @@ const NUDGES: [number, number][] = [
   [0, 39],
   [28, 0],
   [-28, 0],
+  [0, -52],
+  [0, 52],
+  [30, -26],
+  [-30, -26],
+  [30, 26],
+  [-30, 26],
+  [44, 0],
+  [-44, 0],
 ];
+
+/** A straight line of a drawing, as x1, y1, x2, y2: what a label must keep clear of. */
+export type Seg = [number, number, number, number];
+
+/** Whether a line passes through a box (a few pixels of air round it counted): checked along the line, every three pixels. */
+export function segHits(b: Box, s: Seg, pad = 2): boolean {
+  const len = Math.hypot(s[2] - s[0], s[3] - s[1]);
+  const n = Math.max(1, Math.ceil(len / 3));
+  for (let i = 0; i <= n; i++) {
+    const x = s[0] + ((s[2] - s[0]) * i) / n;
+    const y = s[1] + ((s[3] - s[1]) * i) / n;
+    if (x > b.x0 - pad && x < b.x1 + pad && y > b.y0 - pad && y < b.y1 + pad) return true;
+  }
+  return false;
+}
+export const hitsAny = (b: Box, segs: Seg[]): boolean => segs.some((s) => segHits(b, s));
 
 /**
  * Labels that do not lie on one another. Taken in order - the first is where it
  * was put - each later one is moved to the nearest of a few places where it
- * touches none of the labels before it (and stays inside the drawing); one that
+ * touches none of the labels before it and none of the lines of the drawing
+ * (`segs`: a label is never drawn over the cable), and stays inside it; one that
  * finds no place stays where it was put. The labels are the layout's own, made for
  * this drawing, and are moved in place.
  */
-export function declutter(labels: Label[], width: number, height: number): void {
+export function declutter(labels: Label[], width: number, height: number, segs: Seg[] = []): void {
   const placed: Box[] = [];
   for (const l of labels) {
     const home = { x: l.x, y: l.y, anchor: l.anchor };
     let chosen: Label | null = null;
     for (const [dx, dy] of NUDGES) {
       const c = place(l.text, home.x + dx, home.y + dy, home.anchor, width, height);
-      if (!placed.some((b) => overlap(boxOf(c), b))) {
+      if (!placed.some((b) => overlap(boxOf(c), b)) && !hitsAny(boxOf(c), segs)) {
         chosen = c;
         break;
       }
@@ -138,6 +163,57 @@ export function declutter(labels: Label[], width: number, height: number): void 
     l.y = c.y;
     placed.push(boxOf(l));
   }
+}
+
+/** A label of several lines, for the drum: the box it takes and the place it was put. */
+export interface Tag {
+  lines: string[];
+  x: number;
+  y: number;
+  anchor: Anchor;
+  /** The first line is a name (set heavier). */
+  named: boolean;
+}
+export const LINE = 13;
+export function tagBox(t: Tag): Box {
+  const w = Math.max(...t.lines.map((l) => l.length)) * GLYPH;
+  const x0 = t.anchor === 'start' ? t.x : t.anchor === 'end' ? t.x - w : t.x - w / 2;
+  return { x0, x1: x0 + w, y0: t.y - FONT, y1: t.y + (t.lines.length - 1) * LINE + 3 };
+}
+/** A tag kept inside the drawing: moved sideways and up or down until its box is. */
+export function fitTag(t: Tag, width: number, height: number, pad = 4): Tag {
+  const b = tagBox(t);
+  let dx = 0;
+  let dy = 0;
+  if (b.x0 < pad) dx = pad - b.x0;
+  else if (b.x1 > width - pad) dx = width - pad - b.x1;
+  if (b.y0 < pad) dy = pad - b.y0;
+  else if (b.y1 > height - pad) dy = height - pad - b.y1;
+  return dx === 0 && dy === 0 ? t : { ...t, x: clean(t.x + dx), y: clean(t.y + dy) };
+}
+/** Words broken into lines no longer than `max` characters. */
+export function wrapLines(text: string, max: number): string[] {
+  const lines: string[] = [];
+  let cur = '';
+  for (const word of text.split(' ')) {
+    if (cur && (cur + ' ' + word).length > max) {
+      lines.push(cur);
+      cur = word;
+    } else cur = cur ? `${cur} ${word}` : word;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+export function TagText({ t, className }: { t: Tag; className?: string }) {
+  return (
+    <text className={className} x={t.x} y={t.y} textAnchor={t.anchor}>
+      {t.lines.map((line, i) => (
+        <tspan key={i} x={t.x} dy={i === 0 ? 0 : LINE} className={t.named && i === 0 ? 'mp-cable-fig__tag-name' : undefined}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
 }
 
 export interface ArrowShape {
@@ -200,7 +276,13 @@ export type LegendKey =
   | 'lift'
   | 'start'
   | 'run'
-  | 'accel';
+  | 'accel'
+  | 'loadEnd'
+  | 'holdEnd'
+  | 'centre'
+  | 'dimension'
+  | 'taper'
+  | 'block';
 
 /** The small picture of a line or a mark in a legend, in the same classes as the drawings. */
 export function Swatch({ kind }: { kind: LegendKey }) {
@@ -242,6 +324,21 @@ export function Swatch({ kind }: { kind: LegendKey }) {
           <line x1="14" y1="5" x2="10" y2="10" />
           <line x1="22" y1="5" x2="18" y2="10" />
         </g>
+      ) : kind === 'loadEnd' ? (
+        arrow('mp-cable-fig__load-end')
+      ) : kind === 'holdEnd' ? (
+        arrow('mp-cable-fig__hold-end')
+      ) : kind === 'centre' ? (
+        <circle className="mp-cable-fig__node" cx="15" cy="7" r="2.5" />
+      ) : kind === 'dimension' ? (
+        <g className="mp-cable-fig__dim">
+          <path d="M 5 11 A 10 10 0 0 1 22 4" />
+          <polygon points="25,6 19,3 20,8" />
+        </g>
+      ) : kind === 'taper' ? (
+        <polygon className="mp-cable-fig__taper" points="1,6 29,3 29,11 1,8" />
+      ) : kind === 'block' ? (
+        <rect className="mp-cable-fig__block" x="7" y="2" width="16" height="10" />
       ) : kind === 'drum' ? (
         <circle className="mp-cable-fig__drum" cx="15" cy="7" r="5.5" />
       ) : kind === 'wrap' ? (

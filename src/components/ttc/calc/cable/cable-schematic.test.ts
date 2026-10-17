@@ -10,7 +10,9 @@ import { DrumSchematic, drumLayout, type DrumLayout } from './DrumSchematic';
 import { PullCurve, clipRun, curveLayout, niceScale } from './PullCurve';
 import { PullSchematic, bodyLayout, type BodyLayout } from './PullSchematic';
 import { SlingSchematic, slingLayout, type SlingLayout } from './SlingSchematic';
-import { arcPath, fitLabel, labelSpan, polar, type Label } from './figure';
+import { arcPath, fitLabel, hitsAny, labelSpan, polar, tagBox, type Label } from './figure';
+import { fill } from './text';
+import { formatNumber } from '@/lib/calc/format';
 
 /**
  * THE CABLE'S FOUR DRAWINGS - what is reckoned (`slingLayout`, `bodyLayout`,
@@ -31,13 +33,28 @@ const deg = (rad: number) => (rad * 180) / Math.PI;
 const seen = (dx: number, dy: number) => deg(Math.atan2(-dy, dx));
 
 const slingOf = (form: CableForm) => analyseSafely(form).drawing.sling;
-const sling = (form: CableForm, width = 720, moved = true) => slingLayout(slingOf(form), { width, moved, group: ',', unit: form.forceUnit === 'large' ? 'kip' : 'lbf' });
+const sling = (form: CableForm, width = 720, moved = true) => slingLayout(slingOf(form), { width, moved, group: ',', unit: form.forceUnit === 'large' ? 'kip' : 'lbf', scaleText: cableUi.en.results.moveTag });
 const pullOf = (form: CableForm) => analyseSafely(form).pull;
 const body = (form: CableForm, id: 'start' | 'run' | 'accel' = 'run', width = 720) => {
   const p = pullOf(form);
   return bodyLayout(p, p?.regimes.find((r) => r.id === id) ?? null, { width, group: ',', unit: 'lbf' });
 };
-const drum = (form: CableForm, width = 720) => drumLayout(analyseSafely(form).drawing.drum, { width, group: ',', unit: 'lbf', names: { big: 'T big', small: 'T small', resultant: 'R' }, wrap: 'β' });
+/** The words on the drum, as the calculator makes them from the case. */
+const wordsOf = (form: CableForm) => {
+  const d = analyseSafely(form).drum;
+  const f = cableUi.en.results.drumFig;
+  const num = (v: number, sig = 4) => formatNumber(v, sig, ',');
+  return {
+    load: f.load,
+    hold: f.hold,
+    symbols: cableUi.en.drum.symbols,
+    wrap: d ? fill(f.wrap, { wrap: `${num(d.betaDeg)}°` }) : '',
+    turns: d && d.turns >= 1 ? fill(f.turnsLine, { n: num(d.turns) }) : '',
+    coil: d && d.turns > 1 ? fill(f.coil, { n: num(d.turns) }) : '',
+    taper: d ? fill(f.taper, { ratio: num(d.ratio, 3), mu: num(d.mu, 3) }) : '',
+  };
+};
+const drum = (form: CableForm, width = 720) => drumLayout(analyseSafely(form).drawing.drum, { width, group: ',', unit: 'lbf', words: wordsOf(form) });
 const curves = (form: CableForm, width = 720, phi = form.pull.phi) => {
   const p = pullOf(form);
   return curveLayout(p?.curves ?? [], p?.regimes ?? [], { width, group: ',', axisX: 'φ (°)', axisY: 'T (lbf)', phi, lift: (v) => `lift-off ${v}°` });
@@ -68,7 +85,6 @@ function expectInside(labels: Label[], width: number, height: number, what: stri
 }
 const labelsOfSling = (l: SlingLayout): Label[] => [...l.legs.flatMap((x) => [x.tension, ...(x.arc ? [x.arc.label] : [])]), ...l.arrows.map((a) => a.label), ...(l.moved ? [l.moved.label] : [])];
 const labelsOfBody = (l: BodyLayout): Label[] => [...l.arrows.map((a) => a.label), ...(l.phiArc ? [l.phiArc.label] : []), ...(l.thetaArc ? [l.thetaArc.label] : [])];
-const labelsOfDrum = (l: DrumLayout): Label[] => [...l.arrows.map((a) => a.label), ...(l.wrapLabel ? [l.wrapLabel] : [])];
 
 describe('the little geometry the drawings share', () => {
   it('finds a point on a circle by the angle a reader sees, counter-clockwise, y up the page', () => {
@@ -211,7 +227,7 @@ describe('the sling', () => {
     const m = layout.moved!;
     expect(m).not.toBeNull();
     expect(m.factor).toBe(d.moveScale);
-    expect(m.label.text).toBe(`×${Math.round(d.moveScale!)}`);
+    expect(m.label.text).toBe(`drawn ${Math.round(d.moveScale!)} times larger`);
     // The factor is applied to the real move: 0.1124 in down, drawn as factor × 0.1124 in = about an eighth of the sling’s larger side (10 ft).
     expect(m.point.x).toBeCloseTo(layout.node.x, 6);
     const drawn = (m.point.y - layout.node.y) / layout.scale;
@@ -249,12 +265,12 @@ describe('the sling', () => {
   });
 
   it('leaves the drawing empty, and the page says so, when the case cannot be solved', () => {
-    const bad = slingLayout(null, { width: 390, moved: true, group: ',', unit: 'lbf' });
+    const bad = slingLayout(null, { width: 390, moved: true, group: ',', unit: 'lbf', scaleText: '' });
     expect(bad).toMatchObject({ width: 390, height: 120, legs: [], arrows: [], moved: null, legend: [] });
   });
 
   it('writes the SVG with an accessible name, the legs in groups and a legend of what is drawn', () => {
-    const html = renderToStaticMarkup(h(SlingSchematic, { drawing: slingOf(defaultCase()), width: 720, moved: true, group: ',', unit: 'lbf', summary: 'A sling.', legend: cableUi.en.results.legend }));
+    const html = renderToStaticMarkup(h(SlingSchematic, { drawing: slingOf(defaultCase()), width: 720, moved: true, scaleText: 'drawn {scale} times larger', group: ',', unit: 'lbf', summary: 'A sling.', legend: cableUi.en.results.legend }));
     const svg = html.match(/<svg[^>]*>/)![0];
     expect(attr(svg, 'role')).toBe('img');
     expect(attr(svg, 'aria-label')).toBe('A sling.');
@@ -351,7 +367,7 @@ describe('the free body', () => {
   it('draws only the weight where the cable cannot pull the block', () => {
     const stays = body(withPull({ travel: 'against', phi: 0, theta: 0 }));
     expect(stays.arrows.map((a) => a.id)).toEqual(['W']);
-    expect(stays.legend).toEqual(['weight', 'slope']);
+    expect(stays.legend).toEqual(['weight', 'block', 'slope']);
     expect(stays.block).toHaveLength(4);
   });
 
@@ -386,7 +402,7 @@ describe('the free body', () => {
     expect(attr(html.match(/<svg[^>]*>/)![0], 'role')).toBe('img');
     for (const id of ['T', 'W', 'N', 'F']) expect(html).toContain(`data-arrow="${id}"`);
     expect(html).toContain('<polygon class="mp-cable-fig__block"');
-    expect(html.match(/<li class="mp-cable-fig__key">/g)).toHaveLength(6);
+    expect(html.match(/<li class="mp-cable-fig__key">/g)).toHaveLength(7);
   });
 });
 
@@ -587,106 +603,195 @@ describe('the chart T(φ)', () => {
 
 describe('the drum', () => {
   const layout = drum(exampleOf('drum'));
-  const arrow = (l: DrumLayout, id: string) => l.arrows.find((a) => a.id === id)!;
+  const deg = (rad: number) => (rad * 180) / Math.PI;
+  const at = (l: DrumLayout, id: 'load' | 'hold' | 'taper') => l.tags.find((t) => t.id === id)?.tag;
+  const len = (a: { from: { x: number; y: number }; tip: { x: number; y: number } }) => Math.hypot(a.tip.x - a.from.x, a.tip.y - a.from.y);
 
-  it('draws the drum as a circle about its centre, and the cable on it through the wrap', () => {
-    expect(layout.drum.r).toBeGreaterThan(20);
-    expect(layout.drum.x).toBeGreaterThan(0);
-    expect(layout.wrap).not.toBeNull();
-    // Two turns: a whole circle and one ring beyond it.
-    expect(layout.wrap!.rings).toHaveLength(1);
-    expect(layout.wrap!.d.match(/ A /g)).toHaveLength(2);
-    expect(layout.wrap!.rings[0]).toBeGreaterThan(layout.wrap!.r);
-    expect(layout.wrapLabel?.text).toBe('β');
+  it('draws the drum as a circle with its centre marked, and the cable on it from the load end through the wrap', () => {
+    expect(layout.drum.r).toBeGreaterThan(40);
+    expect(layout.cable).not.toBeNull();
+    expect(layout.legend).toEqual(['drum', 'centre', 'taper', 'dimension', 'loadEnd', 'holdEnd']);
+    // The cable starts at the right of the drum, level with its centre, where the large tension hangs down.
+    const first = layout.cable!.chunks[0].d.match(/^M ([\d.-]+) ([\d.-]+)/)!;
+    expect(Number(first[1])).toBeGreaterThan(layout.drum.x + layout.drum.r);
+    expect(Number(first[2])).toBeCloseTo(layout.drum.y, 3);
   });
 
-  it('draws the large tension leaving the drum at the right of it, pulling downward, and the small one at the end of the wrap', () => {
-    const big = arrow(layout, 'big');
-    expect(big.tail.x).toBeCloseTo(layout.drum.x + layout.drum.r, 6);
-    expect(big.tail.y).toBeCloseTo(layout.drum.y, 6);
-    expect(big.dir).toEqual({ x: 0, y: 1 });
-    expect(big.label.text).toBe('T big = 1,000 lbf');
-    const small = arrow(layout, 'small');
-    // Two turns end where they began; the small tension leaves upward.
-    expect(small.tail.x).toBeCloseTo(layout.drum.x + layout.drum.r, 6);
-    expect(small.dir.y).toBeCloseTo(-1, 6);
-    expect(small.label.text).toBe('T small = 23.05 lbf');
-    // The large tension is the longer arrow.
-    const len = (a: typeof big) => Math.hypot(a.tip.x - a.tail.x, a.tip.y - a.tail.y);
-    expect(len(big)).toBeGreaterThan(len(small));
+  it('hangs the load end down from the right of the drum and names it in words, with its tension', () => {
+    const load = layout.load!;
+    expect(load.dir).toEqual({ x: 0, y: 1 });
+    expect(load.from.x).toBeGreaterThan(layout.drum.x + layout.drum.r);
+    expect(load.from.y).toBeCloseTo(layout.drum.y, 3);
+    expect(load.tip.y).toBeGreaterThan(load.from.y);
+    expect(at(layout, 'load')!.lines).toEqual(['Load end', 'T big = 1,000 lbf']);
+    expect(at(layout, 'load')!.named).toBe(true);
   });
 
-  it('draws the force on the drum from its centre, in the direction the analysis found', () => {
-    const r = arrow(layout, 'resultant');
-    expect([r.tail.x, r.tail.y]).toEqual([layout.drum.x, layout.drum.y]);
-    const d = analyseSafely(exampleOf('drum')).drum!;
-    expect(seen(r.tip.x - r.tail.x, r.tip.y - r.tail.y)).toBeCloseTo(d.resultant.angle, 3);
-    expect(r.label.text).toBe('R = 976.9 lbf');
-    expect(r.magnitude).toBeCloseTo(d.resultant.magnitude, 6);
-  });
-
-  it('draws a quarter of a turn as one arc, with the small tension leaving at the top, pulling to the left', () => {
-    const quarter = drum(withDrum({ wrap: 90, wrapUnit: 'deg', Tsmall: null }));
-    expect(quarter.wrap!.rings).toEqual([]);
-    expect(quarter.wrap!.d.match(/ A /g)).toHaveLength(1);
-    const small = arrow(quarter, 'small');
-    expect(small.tail.x).toBeCloseTo(quarter.drum.x, 3);
-    expect(small.tail.y).toBeCloseTo(quarter.drum.y - quarter.drum.r, 3);
-    expect(small.dir.x).toBeCloseTo(-1, 6);
-    expect(small.dir.y).toBeCloseTo(0, 6);
-    // Tbig + Tsmall at a half turn: the resultant is the sum of the two tensions.
-    const half = analyseSafely(withDrum({ wrap: 180, wrapUnit: 'deg', Tsmall: null })).drum!;
-    expect(half.resultant.magnitude).toBeCloseTo(half.Tbig + half.Tsmall, 6);
-  });
-
-  it('draws no cable on a drum that is not wrapped, and no force where the tensions cancel', () => {
-    const none = drum(withDrum({ wrap: 0, Tsmall: null }));
-    expect(none.wrap).toBeNull();
-    expect(none.wrapLabel).toBeNull();
-    expect(none.legend).not.toContain('wrap');
-    const cancel = drum(withDrum({ wrap: 1, wrapUnit: 'turns', mu: 0, Tsmall: 1000, Tbig: 1000 }));
-    // Both given and mu given: nothing is blank, so it cannot be solved. The case that does solve and cancels:
-    const flat = drum(withDrum({ wrap: 1, wrapUnit: 'turns', mu: 0, Tbig: 1000, Tsmall: null }));
-    expect(cancel.arrows).toEqual([]);
-    expect(flat.arrows.map((a) => a.id).sort()).toEqual(['big', 'small']);
-    expect(flat.legend).not.toContain('resultant');
-  });
-
-  it('shows at most four rings for a drum wrapped many times', () => {
-    const many = drum(withDrum({ wrap: 30, wrapUnit: 'turns', mu: 0.1, Tbig: 1000, Tsmall: null }));
-    expect(many.wrap!.rings).toHaveLength(4);
-  });
-
-  it('keeps every label and every arrow inside the drawing, at the width of a phone and of a sheet, whatever the wrap', () => {
-    for (const wrap of [0, 45, 90, 180, 270, 360, 450, 720]) {
-      for (const width of [280, 390, 720]) {
-        const l = drum(withDrum({ wrap, wrapUnit: 'deg', mu: 0.3, Tbig: 1000, Tsmall: null }), width);
-        expect(l.width).toBe(width);
-        expect(l.height).toBeLessThanOrEqual(340);
-        expectInside(labelsOfDrum(l), width, l.height, `${wrap}° ${width}px`);
-        for (const a of l.arrows) for (const v of [a.tail.x, a.tail.y, a.tip.x, a.tip.y]) expect(Number.isFinite(v)).toBe(true);
-        for (const a of l.arrows) {
-          expect(a.tip.x).toBeGreaterThanOrEqual(-0.5);
-          expect(a.tip.x).toBeLessThanOrEqual(width + 0.5);
-          expect(a.tip.y).toBeGreaterThanOrEqual(-0.5);
-          expect(a.tip.y).toBeLessThanOrEqual(l.height + 0.5);
-        }
-      }
+  it('leaves the holding end where the wrap ends, away from the drum along the tangent, and names it in words', () => {
+    // Two turns end where they began, going up.
+    expect(layout.hold!.dir.y).toBeCloseTo(-1, 6);
+    expect(at(layout, 'hold')!.lines).toEqual(['Holding end', 'T small = 23.05 lbf']);
+    // The direction of the analysis, (−sin β, cos β) with y up, is (−sin β, −cos β) on the page.
+    for (const wrap of [90, 120, 180, 270]) {
+      const l = drum(withDrum({ wrap, wrapUnit: 'deg', Tsmall: null }));
+      const b = (wrap * Math.PI) / 180;
+      expect(l.hold!.dir.x, `${wrap}°`).toBeCloseTo(-Math.sin(b), 4);
+      expect(l.hold!.dir.y, `${wrap}°`).toBeCloseTo(-Math.cos(b), 4);
     }
   });
 
-  it('leaves the drawing empty when the case cannot be solved', () => {
-    const l = drumLayout(null, { width: 390, group: ',', unit: 'lbf', names: { big: 'a', small: 'b', resultant: 'R' }, wrap: '' });
-    expect(l).toMatchObject({ width: 390, wrap: null, arrows: [], wrapLabel: null, legend: [] });
+  it('makes the large end longer and heavier than the small one, by the logarithm of the tension, and no more than a thousandfold counts', () => {
+    expect(len(layout.load!)).toBeGreaterThan(len(layout.hold!));
+    expect(layout.load!.width).toBeGreaterThan(layout.hold!.width);
+    const mild = drum(withDrum({ mu: 0.05, wrap: 1, Tsmall: null }));
+    const rough = drum(withDrum({ mu: 0.3, wrap: 2, Tsmall: null }));
+    const huge = drum(withDrum({ mu: 3, wrap: 5, Tsmall: null }));
+    const lots = drum(withDrum({ mu: 0.3, wrap: 5, Tsmall: null }));
+    // The rougher the drum, the smaller the holding end is drawn; a ratio of millions is drawn as a ratio of a thousand.
+    expect(len(mild.hold!)).toBeGreaterThan(len(rough.hold!));
+    expect(mild.hold!.width).toBeGreaterThan(rough.hold!.width);
+    expect(len(huge.hold!)).toBeCloseTo(len(lots.hold!), 6);
+    expect(huge.hold!.width).toBeCloseTo(lots.hold!.width, 6);
+    // No friction gain: both ends drawn alike.
+    const plain = drum(withDrum({ mu: 0, Tsmall: null }));
+    expect(len(plain.hold!)).toBeCloseTo(len(plain.load!), 6);
+    expect(plain.hold!.width).toBeCloseTo(plain.load!.width, 6);
   });
 
-  it('writes the SVG with an accessible name, the drum, the wrap and the arrows, and a legend', () => {
-    const html = renderToStaticMarkup(h(DrumSchematic, { drawing: analyseSafely(exampleOf('drum')).drawing.drum, width: 720, group: ',', unit: 'lbf', names: { big: 'T big', small: 'T small', resultant: 'R' }, wrap: 'β = 720°', summary: 'A drum.', legend: cableUi.en.results.legend }));
+  it('tapers the cable on the drum from thick at the load end to thin at the holding end, as far as the friction does', () => {
+    const w = layout.cable!.chunks.map((c) => c.w);
+    for (let i = 1; i < w.length; i++) expect(w[i]).toBeLessThan(w[i - 1]);
+    expect(w[0]).toBeCloseTo(layout.load!.width, 0);
+    expect(w[w.length - 1]).toBeCloseTo(layout.hold!.width, 0);
+    expect(w[0] - w[w.length - 1]).toBeGreaterThan(1);
+    // Hardly any friction: hardly any taper.
+    const tiny = drum(withDrum({ mu: 0.001, Tsmall: null })).cable!.chunks.map((c) => c.w);
+    expect(tiny[0] - tiny[tiny.length - 1]).toBeLessThan(0.2);
+  });
+
+  it('draws more than one turn as a coil of loops told apart, at most six', () => {
+    const loops = (wrap: number, unit: 'deg' | 'turns' = 'turns') => drum(withDrum({ wrap, wrapUnit: unit, Tsmall: null })).cable?.loops;
+    expect(loops(0.5)).toBe(1);
+    expect(loops(120, 'deg')).toBe(1);
+    expect(loops(360, 'deg')).toBe(1);
+    expect(loops(2)).toBe(2);
+    expect(loops(2.5)).toBe(3);
+    expect(loops(5)).toBe(5);
+    expect(loops(30)).toBe(6);
+    expect(drum(withDrum({ wrap: 0, Tsmall: null })).cable).toBeNull();
+    // The loops are at least 4 px apart, so that they do not pile up on one circle.
+    for (const turns of [2, 3, 5, 6]) {
+      const l = drum(withDrum({ wrap: turns, Tsmall: null }), 390);
+      const growth = l.cable!.outer - 1.06 * l.drum.r;
+      expect(growth / (turns - 1), `${turns} turns`).toBeGreaterThanOrEqual(4);
+    }
+    const one = drum(withDrum({ wrap: 1, Tsmall: null }));
+    expect(one.cable!.outer).toBeCloseTo(1.06 * one.drum.r, 3);
+  });
+
+  it('draws the wrap angle inside the drum, as an arc with a head between two radii, and writes it', () => {
+    const part = drum(withDrum({ wrap: 120, wrapUnit: 'deg', Tsmall: null }));
+    const c = part.drum;
+    const tip = part.dim!.head[0];
+    expect(deg(Math.atan2(-(tip.y - c.y), tip.x - c.x))).toBeCloseTo(120, 3);
+    expect(Math.hypot(tip.x - c.x, tip.y - c.y)).toBeLessThan(c.r);
+    expect(part.dim!.d.match(/ A /g)).toHaveLength(1);
+    expect(part.dim!.radials).toHaveLength(2);
+    expect(part.dim!.tag.lines).toEqual(['β = 120°']);
+    // A whole turn or more is a whole circle, with its head where it began.
+    const two = layout.dim!;
+    expect(two.d.match(/ A /g)).toHaveLength(2);
+    expect(two.radials).toHaveLength(1);
+    expect(two.tag.lines).toEqual(['β = 720°', '2 turns']);
+    expect(drum(withDrum({ wrap: 360, wrapUnit: 'deg', Tsmall: null })).dim!.tag.lines).toEqual(['β = 360°', '1 turn']);
+    // The words are inside the arc, round the centre.
+    expect(Math.abs(layout.dim!.tag.x - layout.drum.x)).toBeLessThan(2);
+    expect(layout.dim!.r).toBeLessThan(layout.drum.r);
+  });
+
+  it('says on the picture that friction multiplies the tension, with the number, and names a coil', () => {
+    expect(at(layout, 'taper')!.lines.join(' ')).toBe('wrapped 2 turns friction multiplies the tension by 43.4 (= e^μβ), μ = 0.3');
+    expect(at(layout, 'taper')!.named).toBe(true);
+    expect(at(drum(withDrum({ wrap: 120, wrapUnit: 'deg', Tsmall: null })), 'taper')!.lines.join(' ')).toBe('friction multiplies the tension by 1.87 (= e^μβ), μ = 0.3');
+    expect(layout.leaders).toHaveLength(1);
+  });
+
+  const CASES: [string, CableForm][] = [
+    ['the default', exampleOf('drum')],
+    ['the large tension unknown', withDrum({ Tbig: null, Tsmall: 23.05 })],
+    ['the wrap unknown', withDrum({ wrap: null, Tsmall: 23.05 })],
+    ['a wrap under 180°', withDrum({ wrap: 120, wrapUnit: 'deg', Tsmall: null })],
+    ['a wrap of 90°', withDrum({ wrap: 90, wrapUnit: 'deg', Tsmall: null })],
+    ['exactly 360°', withDrum({ wrap: 360, wrapUnit: 'deg', Tsmall: null })],
+    ['five turns', withDrum({ wrap: 5, Tsmall: null })],
+    ['tiny μ', withDrum({ mu: 0.001, Tsmall: null })],
+    ['huge μ, a ratio of millions', withDrum({ mu: 3, wrap: 5, Tsmall: null })],
+    ['thirty turns', withDrum({ wrap: 30, mu: 0.1, Tsmall: null })],
+  ];
+  for (const [name, form] of CASES) {
+    it(`keeps every label clear of every line and of every other label: ${name}`, () => {
+      for (const width of [390, 720]) {
+        const l = drum(form, width);
+        expect(l.width).toBe(width);
+        const boxes = [...l.tags.map((t) => ({ id: t.id as string, box: tagBox(t.tag) })), ...(l.dim ? [{ id: 'dim', box: tagBox(l.dim.tag) }] : [])];
+        expect(boxes.length, name).toBeGreaterThanOrEqual(3);
+        for (const { id, box } of boxes) {
+          expect(box.x0, `${name} ${width}px ${id}`).toBeGreaterThanOrEqual(2.5);
+          expect(box.x1, `${name} ${width}px ${id}`).toBeLessThanOrEqual(width - 2.5);
+          expect(box.y0, `${name} ${width}px ${id}`).toBeGreaterThanOrEqual(2.5);
+          expect(box.y1, `${name} ${width}px ${id}`).toBeLessThanOrEqual(l.height - 2.5);
+          expect(hitsAny(box, l.lines), `${name} ${width}px: ${id} lies on a line`).toBe(false);
+        }
+        for (let i = 0; i < boxes.length; i++) {
+          for (let j = i + 1; j < boxes.length; j++) {
+            const a = boxes[i].box;
+            const b = boxes[j].box;
+            expect(a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1, `${name} ${width}px: ${boxes[i].id} lies on ${boxes[j].id}`).toBe(false);
+          }
+        }
+        // Every arrow and the drum stay inside the drawing.
+        for (const a of [l.load, l.hold]) {
+          if (!a) continue;
+          for (const p of [a.from, a.tip]) {
+            expect(p.x).toBeGreaterThanOrEqual(0);
+            expect(p.x).toBeLessThanOrEqual(width);
+            expect(p.y).toBeGreaterThanOrEqual(0);
+            expect(p.y).toBeLessThanOrEqual(l.height);
+          }
+        }
+        expect(l.drum.x - l.drum.r).toBeGreaterThanOrEqual(0);
+        expect(l.drum.x + l.drum.r).toBeLessThanOrEqual(width);
+      }
+    });
+  }
+
+  it('draws no cable, no angle and no friction sentence on a drum that is not wrapped, and still names both ends', () => {
+    const none = drum(withDrum({ wrap: 0, Tsmall: null }));
+    expect(none.cable).toBeNull();
+    expect(none.dim).toBeNull();
+    expect(none.tags.map((t) => t.id)).toEqual(['load', 'hold']);
+    expect(none.legend).not.toContain('taper');
+  });
+
+  it('leaves the drawing empty when the case cannot be solved', () => {
+    const l = drumLayout(null, { width: 390, group: ',', unit: 'lbf', words: { load: '', hold: '', symbols: { big: 'a', small: 'b' }, wrap: '', turns: '', coil: '', taper: '' } });
+    expect(l).toMatchObject({ width: 390, cable: null, load: null, hold: null, dim: null, tags: [], legend: [] });
+  });
+
+  it('does not draw the force on the drum: it is in the table, and from the centre it lay on the angle', () => {
+    expect(read('components/ttc/calc/cable/DrumSchematic.tsx')).not.toContain('mp-cable-fig__resultant');
+    expect(layout.legend).not.toContain('resultant');
+  });
+
+  it('writes the SVG with an accessible name, the two ends named, the coil and a legend that explains every mark', () => {
+    const f = exampleOf('drum');
+    const html = renderToStaticMarkup(h(DrumSchematic, { drawing: analyseSafely(f).drawing.drum, width: 720, group: ',', unit: 'lbf', words: wordsOf(f), summary: 'A drum.', legend: cableUi.en.results.legend }));
     expect(attr(html.match(/<svg[^>]*>/)![0], 'aria-label')).toBe('A drum.');
-    for (const id of ['big', 'small', 'resultant']) expect(html).toContain(`data-arrow="${id}"`);
-    expect(html).toContain('β = 720°');
-    expect(html).toContain('mp-cable-fig__ring-turn');
-    expect(html.match(/<li class="mp-cable-fig__key">/g)).toHaveLength(4);
+    for (const t of ['Load end', 'T big = 1,000 lbf', 'Holding end', 'T small = 23.05 lbf', 'β = 720°', '2 turns', 'wrapped 2 turns']) expect(html).toContain(`>${t}<`);
+    expect(html.match(/<g class="mp-cable-fig__wrap">[\s\S]*?<\/g>/)![0].match(/<path /g)).toHaveLength(14);
+    const keys = [...html.matchAll(/<li class="mp-cable-fig__key">[\s\S]*?<span>([^<]*)<\/span>/g)].map((m) => m[1]);
+    expect(keys).toEqual(['Drum', 'Centre of the drum', 'Cable on the drum, thinner toward the holding end', 'Wrap angle β', 'Load end: the large tension', 'Holding end: the small tension']);
+    expect(html).not.toMatch(/NaN|undefined|Infinity/);
   });
 });
 
@@ -709,7 +814,7 @@ describe('the drawings in the sheet', () => {
     const source = read('components/ttc/calc/cable/PullSchematic.tsx');
     expect(source).toContain('`${f.id} = ${num(f.magnitude)} ${o.unit}`');
     expect(read('components/ttc/calc/cable/SlingSchematic.tsx')).toContain('`${a.id} = ${num(a.magnitude)} ${o.unit}`');
-    expect(read('components/ttc/calc/cable/DrumSchematic.tsx')).toContain('`${names[w.id]} = ${num(magnitude)} ${o.unit}`');
+    expect(read('components/ttc/calc/cable/DrumSchematic.tsx')).toContain('`${o.words.symbols.big} = ${num(big)} ${o.unit}`');
   });
 
   it('carries neither language: the drawings take their words as props and import the strings as types only', () => {

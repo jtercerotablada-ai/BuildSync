@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { formatNumber } from '@/lib/calc/format';
 import type { PullResults, RegimeLine } from '@/lib/calc/cable/analysis';
 import type { CableUi } from '@/lib/calc/cable/strings';
-import { ArrowGlyph, Swatch, anchorOf, arcPath, arrowFrom, clean, declutter, flip, place, polar, pt, type ArrowShape, type Label, type LegendKey, type Pt } from './figure';
+import { ArrowGlyph, Swatch, anchorOf, arcPath, arrowFrom, clean, declutter, flip, place, polar, pt, type ArrowShape, type Label, type LegendKey, type Pt, type Seg } from './figure';
 
 /**
  * THE FREE BODY - the block on its surface with the four forces on it.
@@ -52,13 +52,15 @@ export interface BodyLayout {
   /** The slope angle, between a horizontal and the surface. */
   thetaArc: { d: string; r: number; label: Label; at: Pt; ref: { x1: number; y1: number; x2: number; y2: number } } | null;
   legend: LegendKey[];
+  /** Every line a label must keep clear of. */
+  lines: Seg[];
 }
 
 export function bodyLayout(pull: PullResults | null, regime: RegimeLine | null, o: BodyOptions): BodyLayout {
   const maxH = o.maxHeight ?? MAX_HEIGHT;
   const height = clean(Math.max(MIN_HEIGHT, Math.min(maxH, o.width * 0.62)));
   const centre = pt(o.width / 2, height * 0.5);
-  if (!pull || !regime) return { width: o.width, height, centre, block: [], surface: { x1: 0, y1: 0, x2: 0, y2: 0 }, hatch: [], arrows: [], phiArc: null, thetaArc: null, legend: [] };
+  if (!pull || !regime) return { width: o.width, height, centre, block: [], surface: { x1: 0, y1: 0, x2: 0, y2: 0 }, hatch: [], arrows: [], phiArc: null, thetaArc: null, legend: [], lines: [] };
 
   const k = Math.max(0.7, Math.min(1, o.width / 520));
   const a = 26 * k;
@@ -138,15 +140,20 @@ export function bodyLayout(pull: PullResults | null, regime: RegimeLine | null, 
   }
 
   // The forces' names first, then the angles': a later one gives way.
-  declutter([...arrows.map((a) => a.label), ...(phiArc ? [phiArc.label] : []), ...(thetaArc ? [thetaArc.label] : [])], o.width, height);
+  const lines: Seg[] = [
+    [surface.x1, surface.y1, surface.x2, surface.y2],
+    ...block.map((p, i): Seg => [p.x, p.y, block[(i + 1) % block.length].x, block[(i + 1) % block.length].y]),
+    ...arrows.map((a): Seg => [a.tail.x, a.tail.y, a.tip.x, a.tip.y]),
+  ];
+  declutter([...arrows.map((a) => a.label), ...(phiArc ? [phiArc.label] : []), ...(thetaArc ? [thetaArc.label] : [])], o.width, height, lines);
 
   const legend: LegendKey[] = ['weight'];
   if (arrows.some((x) => x.id === 'N')) legend.push('normal');
   if (arrows.some((x) => x.id === 'F')) legend.push('friction');
   if (T) legend.push('tension');
-  legend.push('slope');
+  legend.push('block', 'slope');
   if (phiArc || thetaArc) legend.push('angle');
-  return { width: o.width, height, centre, block, surface, hatch, arrows, phiArc, thetaArc, legend };
+  return { width: o.width, height, centre, block, surface, hatch, arrows, phiArc, thetaArc, legend, lines };
 }
 
 export interface PullSchematicProps extends BodyOptions {
@@ -194,7 +201,6 @@ export function PullSchematic({ pull, regime, width, group, unit, maxHeight, sum
               {layout.arrows.map((a) => (
                 <ArrowGlyph key={a.id} a={a} className={ARROW_CLASS[a.id] ?? 'mp-cable-fig__load'} />
               ))}
-              <circle className="mp-cable-fig__node" cx={layout.centre.x} cy={layout.centre.y} r="3" />
             </>
           ) : null}
         </g>

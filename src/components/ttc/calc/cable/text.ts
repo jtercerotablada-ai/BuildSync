@@ -262,6 +262,77 @@ export function drumSummary(a: CableAnalysis, w: CableUi, c: Ctx): string {
   );
 }
 
+/* ── One plain sentence under each drawing ─────────────────────────────── */
+
+/** "0.1124 in down and 0.02 in to the right": where the load point goes, in the words of the page. */
+function moveParts(a: CableAnalysis, w: CableUi, c: Ctx): string[] {
+  const load = a.load;
+  if (!load) return [];
+  const m = load.move.exact ?? load.move.linear;
+  const parts: string[] = [];
+  if (m.dy !== 0) parts.push(`${c.num(Math.abs(m.dy))} ${c.units.stretch} ${m.dy < 0 ? w.words.down : w.words.up}`);
+  if (m.dx !== 0) parts.push(`${c.num(Math.abs(m.dx))} ${c.units.stretch} ${m.dx < 0 ? w.words.left : w.words.right}`);
+  return parts;
+}
+
+export function slingReading(a: CableAnalysis, w: CableUi, c: Ctx, drawnMove: boolean): string {
+  const load = a.load;
+  const sling = a.drawing.sling;
+  if (!load || !sling) return '';
+  const r = w.reading.sling;
+  const unit = forceUnit(c);
+  const legs = load.legs;
+  const pulls =
+    legs.length === 1
+      ? fill(r.one, { T: c.num(legs[0].T), unit })
+      : fill(r.legs, {
+          tensions: c.num(legs[0].T) === c.num(legs[1].T) ? fill(r.same, { T: c.num(legs[0].T), unit }) : fill(r.differ, { T1: c.num(legs[0].T), T2: c.num(legs[1].T), unit }),
+        });
+  const parts = moveParts(a, w, c);
+  const joined = parts.join(` ${w.words.and} `);
+  const move = parts.length === 0 ? r.still : drawnMove && sling.moveScale !== null ? fill(r.move, { parts: joined, scale: c.num(sling.moveScale, 3) }) : fill(r.movePlain, { parts: joined });
+  return tidy(`${pulls} ${move}`);
+}
+
+export function bodyReading(a: CableAnalysis, regime: RegimeLine | null, w: CableUi, c: Ctx): string {
+  if (!a.pull || !regime) return '';
+  if (regime.status !== 'pull' || regime.T === null || regime.N === null) return regimeSentences(regime, w, c).join(' ');
+  return tidy(fill(w.reading.body[regime.id], { T: c.num(regime.T), phi: c.num(a.pull.phi), N: c.num(regime.N), F: c.num(regime.F ?? 0), unit: forceUnit(c) }));
+}
+
+const lowerFirst = (t: string): string => t.charAt(0).toLocaleLowerCase() + t.slice(1);
+
+export function curveReading(a: CableAnalysis, w: CableUi, c: Ctx): string {
+  const P = a.pull;
+  if (!P) return '';
+  const r = w.reading.curve;
+  const unit = forceUnit(c);
+  const ids = P.curves.map((x) => x.regime);
+  const joined = (items: string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} ${w.words.and} ${items[items.length - 1]}`);
+  const head = fill(r.head, { list: joined(ids.map((id) => r[id])) });
+  const least = P.curves.filter((x) => x.optimum).map((x) => fill(r.itemAt, { regime: lowerFirst(regimeName(x.regime, w)), T: c.num(x.optimum!.T), phi: c.num(x.optimum!.phi), unit }));
+  if (least.length === 0) return tidy(`${head} ${r.none}`);
+  const at = P.regimes.filter((x) => x.T !== null).map((x) => fill(r.item, { regime: lowerFirst(regimeName(x.id, w)), T: c.num(x.T as number), unit }));
+  return tidy([head, fill(r.least, { list: least.join('; ') }), at.length ? fill(r.at, { phi: c.num(P.phi), list: at.join('; ') }) : ''].filter(Boolean).join(' '));
+}
+
+/** What a wrap is called in a sentence: the turns when the page was given turns, the degrees otherwise. */
+export function wrapWords(a: CableAnalysis, w: CableUi, c: Ctx): string {
+  const d = a.drum;
+  if (!d) return '';
+  return c.form.drum.wrapUnit === 'turns' ? `${c.num(d.turns)} ${d.turns === 1 ? w.words.turn : w.words.turns}` : `${c.num(d.betaDeg)}°`;
+}
+
+export function drumReading(a: CableAnalysis, w: CableUi, c: Ctx): string {
+  const d = a.drum;
+  if (!d) return '';
+  const r = w.reading.drum;
+  const unit = forceUnit(c);
+  const held = fill(r.held, { Ts: c.num(d.Tsmall), unit });
+  if (d.ratio === 1 || c.num(d.ratio) === '1') return tidy(fill(r.equal, { Ts: c.num(d.Tsmall), unit }));
+  return tidy(`${held} ${fill(r.gain, { wrap: wrapWords(a, w, c), mu: c.num(d.mu, 3), ratio: c.num(d.ratio), Tb: c.num(d.Tbig), unit })}`);
+}
+
 /* ── Which rope goes with which material ───────────────────────────────── */
 
 /**

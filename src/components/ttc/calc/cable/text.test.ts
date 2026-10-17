@@ -6,8 +6,11 @@ import { cableUi } from '@/lib/calc/cable/strings';
 import type { Lang } from '@/lib/ttc/i18n';
 import {
   angleBetweenLegs,
+  bodyReading,
   bodySummary,
+  curveReading,
   curveSummary,
+  drumReading,
   drumSummary,
   fieldKey,
   fill,
@@ -18,6 +21,7 @@ import {
   ropeForMaterial,
   rowUnit,
   signed,
+  slingReading,
   slingSummary,
   unitText,
   warningSentence,
@@ -361,5 +365,118 @@ describe('the drawings in words', () => {
         for (const text of [slingSummary(a, w, c, true), bodySummary(a, regime, w, c), curveSummary(a, w, c), drumSummary(a, w, c)]) expect(text).not.toMatch(noise);
       }
     }
+  });
+});
+
+describe('the reading under each drawing', () => {
+  const read = (form: CableForm, lang: Lang = 'en') => {
+    const a = analyseSafely(form);
+    const c = ctxOf(form, lang);
+    return { a, c, w: cableUi[lang] };
+  };
+  const drumForm = (patch: Partial<CableForm['drum']>): CableForm => {
+    const f = exampleOf('drum');
+    return { ...f, drum: { ...f.drum, ...patch } };
+  };
+  const pullForm = (patch: Partial<CableForm['pull']>): CableForm => {
+    const f = exampleOf('pull');
+    return { ...f, pull: { ...f.pull, ...patch } };
+  };
+
+  it('drum: reads the capstan in plain words, whichever of the four is the unknown', () => {
+    const { a, c, w } = read(drumForm({}));
+    expect(drumReading(a, w, c)).toBe('The cable is held at the holding end with 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 1,000 lbf.');
+    const es = read(drumForm({}), 'es');
+    expect(drumReading(es.a, es.w, es.c)).toBe('El cable se sujeta por el extremo que sujeta con 23.05 lbf. Un envolvimiento de 2 vueltas con μ = 0.3 lo multiplica por 43.38, así que el extremo de la carga puede soportar 1 000 lbf.');
+    // The large tension unknown: the same relation, with the answer 999.8.
+    const big = read(drumForm({ Tbig: null, Tsmall: 23.05 }));
+    expect(drumReading(big.a, big.w, big.c)).toBe('The cable is held at the holding end with 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 999.8 lbf.');
+    // μ unknown.
+    const mu = read(drumForm({ mu: null, Tsmall: 23.05 }));
+    expect(drumReading(mu.a, mu.w, mu.c)).toMatch(/with μ = 0\.3 multiplies that by 43\.3\d/);
+    // The wrap unknown, given in degrees: the answer is read in degrees.
+    const wrap = read(drumForm({ wrap: null, Tsmall: 23.05, wrapUnit: 'deg' }));
+    expect(drumReading(wrap.a, wrap.w, wrap.c)).toMatch(/^The cable is held at the holding end with 23\.05 lbf\. A wrap of 72\d(\.\d+)?° with μ = 0\.3 multiplies that by 43\.3\d/);
+    // In turns: the turns.
+    const turns = read(drumForm({ wrap: null, Tsmall: 23.05 }));
+    expect(drumReading(turns.a, turns.w, turns.c)).toMatch(/A wrap of 2(\.\d+)? turns with/);
+    // One turn is "1 turn"; a quarter turn is read in degrees.
+    const one = read(drumForm({ wrap: 1 }));
+    expect(drumReading(one.a, one.w, one.c)).toContain('A wrap of 1 turn with');
+    const deg = read(drumForm({ wrap: 90, wrapUnit: 'deg' }));
+    expect(drumReading(deg.a, deg.w, deg.c)).toContain('A wrap of 90° with μ = 0.3 multiplies that by 1.602');
+  });
+
+  it('drum: says that friction gains nothing when it gains nothing, and nothing at all when it cannot be solved', () => {
+    for (const patch of [{ mu: 0 }, { wrap: 0 }]) {
+      const { a, c, w } = read(drumForm(patch));
+      expect(drumReading(a, w, c)).toBe('Friction gains nothing here (the ratio is 1), so both ends carry 1,000 lbf.');
+    }
+    const es = read(drumForm({ mu: 0 }), 'es');
+    expect(drumReading(es.a, es.w, es.c)).toBe('Aquí la fricción no gana nada (la relación es 1), así que los dos extremos soportan 1 000 lbf.');
+    const bad = read(drumForm({ Tsmall: 3 }));
+    expect(drumReading(bad.a, bad.w, bad.c)).toBe('');
+  });
+
+  it('drum: stays clean in every case, with no hole, noise or double space', () => {
+    for (const patch of [{}, { Tbig: null, Tsmall: 23.05 }, { mu: null, Tsmall: 23.05 }, { wrap: null, Tsmall: 23.05 }, { wrap: 30, mu: 3 }, { wrap: 5, mu: 0.001 }, { wrap: 360, wrapUnit: 'deg' as const }]) {
+      for (const lang of LANGS) {
+        const { a, c, w } = read(drumForm(patch), lang);
+        const t = drumReading(a, w, c);
+        expect(t, JSON.stringify(patch)).not.toBe('');
+        expect(t).not.toMatch(noise);
+        expect(t).not.toMatch(/ {2}/);
+      }
+    }
+  });
+
+  it('sling: says what each leg pulls with and where the load point goes, drawn how much larger', () => {
+    const { a, c, w } = read(defaultCase());
+    expect(slingReading(a, w, c, true)).toBe('The legs pull with 1,155 lbf each. When the cable stretches, the load point moves 0.1124 in down (the dashed lines show it, drawn 133 times larger).');
+    expect(slingReading(a, w, c, false)).toBe('The legs pull with 1,155 lbf each. When the cable stretches, the load point moves 0.1124 in down.');
+    const es = read(defaultCase(), 'es');
+    expect(slingReading(es.a, es.w, es.c, true)).toBe('Los ramales tiran con 1 155 lbf cada uno. Cuando el cable se alarga, el punto de carga se mueve 0.1124 in hacia abajo (las líneas discontinuas lo muestran, dibujado 133 veces mayor).');
+  });
+
+  it('sling: tells the legs apart when they differ, reads a single cable, a sideways move and a load that does not move', () => {
+    const f = defaultCase();
+    const unequal = read({ ...f, load: { ...f.load, leg1: { angle: 30, side: 'left', length: 8 }, leg2: { angle: 70, side: 'right', length: 12 } } });
+    expect(slingReading(unequal.a, unequal.w, unequal.c, true)).toMatch(/^The legs pull with [\d,.]+ lbf \(leg 1\) and [\d,.]+ lbf \(leg 2\)\./);
+    const one = read({ ...f, load: { ...f.load, legs: 1, H: 1500 } });
+    expect(slingReading(one.a, one.w, one.c, true)).toMatch(/^The cable pulls with 2,500 lbf\. When the cable stretches, the load point moves [\d.]+ in down and [\d.]+ in to the (left|right) /);
+    const still = read({ ...f, load: { ...f.load, W: 0 } });
+    expect(slingReading(still.a, still.w, still.c, true)).toMatch(/The load point does not move\.$/);
+    const bad = read({ ...f, load: { ...f.load, W: Number.NaN } });
+    expect(slingReading(bad.a, bad.w, bad.c, true)).toBe('');
+  });
+
+  it('free body: says what the cable must pull with and what the surface and the friction do, in each case', () => {
+    const { a, c, w } = read(pullForm({}));
+    const [start, run] = a.pull!.regimes;
+    expect(bodyReading(a, start, w, c)).toBe('To start the block moving, the cable must pull with 44.8 lbf at 30° above the surface; the surface pushes back with 77.6 lbf and friction is 38.8 lbf.');
+    expect(bodyReading(a, run, w, c)).toBe('To keep the block moving at constant speed, the cable must pull with 37.52 lbf at 30° above the surface; the surface pushes back with 81.24 lbf and friction is 32.5 lbf.');
+    const acc = read(pullForm({ accel: 3 }));
+    expect(bodyReading(acc.a, acc.a.pull!.regimes[2], acc.w, acc.c)).toMatch(/^To speed the block up as asked, the cable must pull with [\d.]+ lbf at 30°/);
+    const es = read(pullForm({}), 'es');
+    expect(bodyReading(es.a, es.a.pull!.regimes[0], es.w, es.c)).toBe('Para poner el bloque en movimiento, el cable debe tirar con 44.8 lbf a 30° sobre la superficie; la superficie empuja con 77.6 lbf y la fricción es de 38.8 lbf.');
+    // A case the cable cannot pull is read with the sentence of its status.
+    const stays = read(pullForm({ travel: 'against', theta: 0, phi: 0 }));
+    expect(bodyReading(stays.a, stays.a.pull!.regimes[1], stays.w, stays.c)).toContain('does not move this way on its own');
+    expect(bodyReading(stays.a, null, stays.w, stays.c)).toBe('');
+  });
+
+  it('chart: says what the curves are, where the least tension is and what it takes at the chosen angle', () => {
+    const { a, c, w } = read(pullForm({}));
+    expect(curveReading(a, w, c)).toBe(
+      'Each curve is the cable tension needed at each cable angle to start the block moving (solid line) and to keep it moving (dashed line). The least tension, marked with a diamond, is 44.72 lbf at 26.57° (to start it moving); 37.14 lbf at 21.8° (to keep it moving). At your angle, 30°, it takes 44.8 lbf (to start it moving); 37.52 lbf (to keep it moving).',
+    );
+    const acc = read(pullForm({ accel: 3 }));
+    expect(curveReading(acc.a, acc.w, acc.c)).toMatch(/to start the block moving \(solid line\), to keep it moving \(dashed line\) and to speed it up \(dotted line\)\./);
+    const es = read(pullForm({}), 'es');
+    expect(curveReading(es.a, es.w, es.c)).toMatch(/^Cada curva es la tensión del cable que hace falta con cada ángulo para poner el bloque en movimiento \(línea continua\) y para mantenerlo en movimiento \(línea de trazos\)\. La tensión mínima, marcada con un rombo, es 44\.72 lbf con 26\.57° \(para ponerlo en movimiento\)/);
+    const none = read(pullForm({ travel: 'against', theta: 0, muS: 0, muK: 0, phi: 0 }));
+    expect(curveReading(none.a, none.w, none.c)).toMatch(/No cable angle pulls the block in this case\.$/);
+    const d = drumForm({});
+    expect(curveReading(read(d).a, cableUi.en, ctxOf(d))).toBe('');
   });
 });

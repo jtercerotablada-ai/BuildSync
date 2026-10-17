@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { formatNumber } from '@/lib/calc/format';
 import type { SlingDrawing } from '@/lib/calc/cable/analysis';
 import type { CableUi } from '@/lib/calc/cable/strings';
-import { ArrowGlyph, Swatch, anchorOf, arcPath, arrowFrom, clean, declutter, flip, place, polar, pt, type ArrowShape, type Label, type LegendKey, type Pt } from './figure';
+import { ArrowGlyph, Swatch, anchorOf, arcPath, arrowFrom, clean, declutter, flip, place, polar, pt, type ArrowShape, type Label, type LegendKey, type Pt, type Seg } from './figure';
 
 /**
  * THE SLING - the load on one cable or two, as the calculator found it.
@@ -37,6 +37,8 @@ export interface SlingOptions {
   group: string;
   /** The force unit written after a size. */
   unit: string;
+  /** The words by the dashed position, with {scale} where the factor goes. */
+  scaleText: string;
   /** The tallest the drawing may be (px). */
   maxHeight?: number;
 }
@@ -78,10 +80,12 @@ export interface SlingLayout {
   arrows: ArrowShape[];
   moved: MovedShape | null;
   legend: LegendKey[];
+  /** Every line a label must keep clear of. */
+  lines: Seg[];
 }
 
 export function slingLayout(d: SlingDrawing | null, o: SlingOptions): SlingLayout {
-  if (!d) return { width: o.width, height: 120, scale: 0, node: { x: clean(o.width / 2), y: 60, r: NODE_R }, legs: [], arrows: [], moved: null, legend: [] };
+  if (!d) return { width: o.width, height: 120, scale: 0, node: { x: clean(o.width / 2), y: 60, r: NODE_R }, legs: [], arrows: [], moved: null, legend: [], lines: [] };
   const maxH = o.maxHeight ?? MAX_HEIGHT;
   const factor = o.moved && d.displaced && d.moveScale !== null ? d.moveScale : null;
   const shown = factor !== null && d.displaced ? { x: d.displaced.x * factor, y: d.displaced.y * factor } : null;
@@ -155,18 +159,25 @@ export function slingLayout(d: SlingDrawing | null, o: SlingOptions): SlingLayou
       factor,
       links: legs.map((l) => ({ x1: l.x2, y1: l.y2, x2: P.x, y2: P.y })),
       move: { x1: node.x, y1: node.y, x2: P.x, y2: P.y },
-      label: place(`×${num(factor, 3)}`, P.x + NODE_R + 5, P.y + 4, 'start', o.width, height),
+      label: place(o.scaleText.replace('{scale}', num(factor, 3)), P.x + NODE_R + 6, P.y + 4, 'start', o.width, height),
     };
   }
 
   // The loads' names first, then the legs', then the angles': a later one gives way.
-  declutter([...arrows.map((a) => a.label), ...legs.map((l) => l.tension), ...legs.flatMap((l) => (l.arc ? [l.arc.label] : [])), ...(moved ? [moved.label] : [])], o.width, height);
+  // …and none of them is drawn over a line of the sling.
+  const lines: Seg[] = [
+    ...legs.map((l): Seg => [l.x1, l.y1, l.x2, l.y2]),
+    ...legs.flatMap((l) => l.anchor.plate.length ? [[l.anchor.plate[0].x, l.anchor.plate[0].y, l.anchor.plate[1].x, l.anchor.plate[1].y] as Seg] : []),
+    ...arrows.map((a): Seg => [a.tail.x, a.tail.y, a.tip.x, a.tip.y]),
+    ...(moved ? moved.links.map((k): Seg => [k.x1, k.y1, k.x2, k.y2]) : []),
+  ];
+  declutter([...arrows.map((a) => a.label), ...legs.map((l) => l.tension), ...legs.flatMap((l) => (l.arc ? [l.arc.label] : [])), ...(moved ? [moved.label] : [])], o.width, height, lines);
 
   const legend: LegendKey[] = ['cable', 'anchor'];
   if (arrows.length) legend.push('load');
   if (legs.some((l) => l.arc)) legend.push('angle');
   if (moved) legend.push('moved');
-  return { width: o.width, height, scale: clean(scale), node, legs, arrows, moved, legend };
+  return { width: o.width, height, scale: clean(scale), node, legs, arrows, moved, legend, lines };
 }
 
 export interface SlingSchematicProps extends SlingOptions {
@@ -177,8 +188,8 @@ export interface SlingSchematicProps extends SlingOptions {
   legend: CableUi['results']['legend'];
 }
 
-export function SlingSchematic({ drawing, width, moved, group, unit, maxHeight, summary, legend: words }: SlingSchematicProps) {
-  const layout = useMemo(() => slingLayout(drawing, { width, moved, group, unit, maxHeight }), [drawing, width, moved, group, unit, maxHeight]);
+export function SlingSchematic({ drawing, width, moved, group, unit, scaleText, maxHeight, summary, legend: words }: SlingSchematicProps) {
+  const layout = useMemo(() => slingLayout(drawing, { width, moved, group, unit, scaleText, maxHeight }), [drawing, width, moved, group, unit, scaleText, maxHeight]);
   return (
     <figure className="mp-cable-fig">
       <svg className="mp-plot__svg mp-cable-fig__svg" role="img" aria-label={summary} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
@@ -188,7 +199,6 @@ export function SlingSchematic({ drawing, width, moved, group, unit, maxHeight, 
               {layout.moved.links.map((l, k) => (
                 <line key={k} className="mp-cable-fig__ghost" x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} />
               ))}
-              <line className="mp-cable-fig__path" x1={layout.moved.move.x1} y1={layout.moved.move.y1} x2={layout.moved.move.x2} y2={layout.moved.move.y2} />
               <circle className="mp-cable-fig__ring" cx={layout.moved.point.x} cy={layout.moved.point.y} r={NODE_R} />
               <text className="mp-cable-fig__value" x={layout.moved.label.x} y={layout.moved.label.y} textAnchor={layout.moved.label.anchor}>
                 {layout.moved.label.text}

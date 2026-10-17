@@ -654,6 +654,34 @@ describe('the address, at component level', () => {
   });
 });
 
+describe('one plain sentence under each drawing', () => {
+  const reading = (html: string) => [...html.matchAll(/<p class="mp-app__note mp-cable__reading">([\s\S]*?)<\/p>/g)].map((m) => text(m[1]));
+
+  it('reads the sling, the free body and the chart, and the drum, in both languages', () => {
+    expect(reading(show(undefined))).toEqual(['The legs pull with 1,155 lbf each. When the cable stretches, the load point moves 0.1124 in down (the dashed lines show it, drawn 133 times larger).']);
+    const pull = reading(show(exampleOf('pull')));
+    expect(pull).toHaveLength(2);
+    expect(pull[0]).toMatch(/^To start the block moving, the cable must pull with 44\.8 lbf at 30° above the surface/);
+    expect(pull[1]).toMatch(/^Each curve is the cable tension needed at each cable angle to start the block moving \(solid line\)/);
+    expect(reading(show(exampleOf('drum')))).toEqual(['The cable is held at the holding end with 23.05 lbf. A wrap of 2 turns with μ = 0.3 multiplies that by 43.38, so the load end can carry 1,000 lbf.']);
+    expect(reading(show(exampleOf('drum'), 'es'))[0]).toMatch(/^El cable se sujeta por el extremo que sujeta con 23\.05 lbf\./);
+    expect(reading(show(undefined, 'es'))[0]).toMatch(/^Los ramales tiran con/);
+  });
+
+  it('says in words that the arrows of the drum follow the logarithm, and names the ends on the drawing', () => {
+    const html = show(exampleOf('drum'));
+    expect(text(html)).toContain('Arrow length and thickness follow the logarithm of the tension');
+    for (const t of ['Load end', 'Holding end', 'T big = 1,000 lbf', 'T small = 23.05 lbf', 'wrapped 2 turns']) expect(html).toContain(`>${t}<`);
+    expect(text(html)).toContain('friction multiplies the tension by 43.4');
+    expect(text(show(exampleOf('drum'), 'es'))).toContain('La longitud y el grosor de las flechas siguen el logaritmo de la tensión');
+  });
+
+  it('says nothing under a drawing of a case that cannot be solved', () => {
+    expect(reading(show(withLoad({ W: Number.NaN })))).toEqual([]);
+    expect(reading(show(withDrum({ Tsmall: 5 })))).toEqual([]);
+  });
+});
+
 describe('the rules of the tool, as they stand in its source', () => {
   const src = source('components/ttc/calc/cable/CableCalculator.tsx');
   const css = source('components/ttc/calc/cable/cable.css');

@@ -232,7 +232,23 @@ const EN = {
       start: 'To start it moving',
       run: 'To keep it moving',
       accel: 'Accelerating',
+      loadEnd: 'Load end: the large tension',
+      holdEnd: 'Holding end: the small tension',
+      centre: 'Centre of the drum',
+      dimension: 'Wrap angle β',
+      taper: 'Cable on the drum, thinner toward the holding end',
+      block: 'Block',
     },
+    logNote: 'Arrow length and thickness follow the logarithm of the tension: a tension a thousand times larger is not drawn a thousand times longer.',
+    drumFig: {
+      load: 'Load end',
+      hold: 'Holding end',
+      wrap: 'β = {wrap}',
+      turnsLine: '{n} {n|turn|turns}',
+      coil: 'wrapped {n} {n|turn|turns}',
+      taper: 'friction multiplies the tension by {ratio} (= e^μβ), μ = {mu}',
+    },
+    moveTag: 'drawn {scale} times larger',
     options: { title: 'On the drawing', moved: 'Show the position after the stretch', body: 'Free body of' },
     scale: 'The move is drawn {scale} times larger than it is.',
 
@@ -417,6 +433,40 @@ const EN = {
     curveUnsolved: 'Chart: not solved yet. What is wrong is named next to it.',
     drum: 'Drum drawing. A cable wrapped {wrap}° ({turns} {turnWord}) round a drum: {Tbig} {unit} on the large side, {Tsmall} {unit} on the small side, ratio {ratio}. The force on the drum is {R} {unit}.',
     drumUnsolved: 'Drum drawing: not solved yet. What is wrong is named next to it.',
+  },
+
+  /** One plain sentence under each drawing, built from its numbers. */
+  reading: {
+    sling: {
+      one: 'The cable pulls with {T} {unit}.',
+      legs: 'The legs pull with {tensions}.',
+      same: '{T} {unit} each',
+      differ: '{T1} {unit} (leg 1) and {T2} {unit} (leg 2)',
+      move: 'When the cable stretches, the load point moves {parts} (the dashed lines show it, drawn {scale} times larger).',
+      movePlain: 'When the cable stretches, the load point moves {parts}.',
+      still: 'The load point does not move.',
+    },
+    body: {
+      start: 'To start the block moving, the cable must pull with {T} {unit} at {phi}° above the surface; the surface pushes back with {N} {unit} and friction is {F} {unit}.',
+      run: 'To keep the block moving at constant speed, the cable must pull with {T} {unit} at {phi}° above the surface; the surface pushes back with {N} {unit} and friction is {F} {unit}.',
+      accel: 'To speed the block up as asked, the cable must pull with {T} {unit} at {phi}° above the surface; the surface pushes back with {N} {unit} and friction is {F} {unit}.',
+    },
+    curve: {
+      head: 'Each curve is the cable tension needed at each cable angle {list}.',
+      start: 'to start the block moving (solid line)',
+      run: 'to keep it moving (dashed line)',
+      accel: 'to speed it up (dotted line)',
+      least: 'The least tension, marked with a diamond, is {list}.',
+      at: 'At your angle, {phi}°, it takes {list}.',
+      none: 'No cable angle pulls the block in this case.',
+      item: '{T} {unit} ({regime})',
+      itemAt: '{T} {unit} at {phi}° ({regime})',
+    },
+    drum: {
+      held: 'The cable is held at the holding end with {Ts} {unit}.',
+      gain: 'A wrap of {wrap} with μ = {mu} multiplies that by {ratio}, so the load end can carry {Tb} {unit}.',
+      equal: 'Friction gains nothing here (the ratio is 1), so both ends carry {Ts} {unit}.',
+    },
   },
 
   /** Notes printed once. */
@@ -671,7 +721,23 @@ const ES: CableUi = {
       start: 'Para ponerlo en movimiento',
       run: 'Para mantenerlo en movimiento',
       accel: 'Con aceleración',
+      loadEnd: 'Extremo de la carga: la tensión mayor',
+      holdEnd: 'Extremo que sujeta: la tensión menor',
+      centre: 'Centro del tambor',
+      dimension: 'Ángulo de envolvimiento β',
+      taper: 'Cable sobre el tambor, más fino hacia el extremo que sujeta',
+      block: 'Bloque',
     },
+    logNote: 'La longitud y el grosor de las flechas siguen el logaritmo de la tensión: una tensión mil veces mayor no se dibuja mil veces más larga.',
+    drumFig: {
+      load: 'Extremo de la carga',
+      hold: 'Extremo que sujeta',
+      wrap: 'β = {wrap}',
+      turnsLine: '{n} {n|vuelta|vueltas}',
+      coil: 'enrollado {n} {n|vuelta|vueltas}',
+      taper: 'la fricción multiplica la tensión por {ratio} (= e^μβ), μ = {mu}',
+    },
+    moveTag: 'dibujado {scale} veces mayor',
     options: { title: 'En el dibujo', moved: 'Mostrar la posición tras el alargamiento', body: 'Cuerpo libre de' },
     scale: 'El desplazamiento se dibuja {scale} veces mayor de lo que es.',
 
@@ -852,6 +918,39 @@ const ES: CableUi = {
     curveUnsolved: 'Gráfico: sin resolver todavía. Lo que está mal se indica junto a él.',
     drum: 'Dibujo del tambor. Un cable enrollado {wrap}° ({turns} {turnWord}) alrededor de un tambor: {Tbig} {unit} del lado mayor, {Tsmall} {unit} del lado menor, relación {ratio}. La fuerza sobre el tambor es de {R} {unit}.',
     drumUnsolved: 'Dibujo del tambor: sin resolver todavía. Lo que está mal se indica junto a él.',
+  },
+
+  reading: {
+    sling: {
+      one: 'El cable tira con {T} {unit}.',
+      legs: 'Los ramales tiran con {tensions}.',
+      same: '{T} {unit} cada uno',
+      differ: '{T1} {unit} (ramal 1) y {T2} {unit} (ramal 2)',
+      move: 'Cuando el cable se alarga, el punto de carga se mueve {parts} (las líneas discontinuas lo muestran, dibujado {scale} veces mayor).',
+      movePlain: 'Cuando el cable se alarga, el punto de carga se mueve {parts}.',
+      still: 'El punto de carga no se mueve.',
+    },
+    body: {
+      start: 'Para poner el bloque en movimiento, el cable debe tirar con {T} {unit} a {phi}° sobre la superficie; la superficie empuja con {N} {unit} y la fricción es de {F} {unit}.',
+      run: 'Para mantener el bloque a velocidad constante, el cable debe tirar con {T} {unit} a {phi}° sobre la superficie; la superficie empuja con {N} {unit} y la fricción es de {F} {unit}.',
+      accel: 'Para acelerar el bloque como se pide, el cable debe tirar con {T} {unit} a {phi}° sobre la superficie; la superficie empuja con {N} {unit} y la fricción es de {F} {unit}.',
+    },
+    curve: {
+      head: 'Cada curva es la tensión del cable que hace falta con cada ángulo {list}.',
+      start: 'para poner el bloque en movimiento (línea continua)',
+      run: 'para mantenerlo en movimiento (línea de trazos)',
+      accel: 'para acelerarlo (línea de puntos)',
+      least: 'La tensión mínima, marcada con un rombo, es {list}.',
+      at: 'Con su ángulo, {phi}°, hacen falta {list}.',
+      none: 'Ningún ángulo del cable tira del bloque en este caso.',
+      item: '{T} {unit} ({regime})',
+      itemAt: '{T} {unit} con {phi}° ({regime})',
+    },
+    drum: {
+      held: 'El cable se sujeta por el extremo que sujeta con {Ts} {unit}.',
+      gain: 'Un envolvimiento de {wrap} con μ = {mu} lo multiplica por {ratio}, así que el extremo de la carga puede soportar {Tb} {unit}.',
+      equal: 'Aquí la fricción no gana nada (la relación es 1), así que los dos extremos soportan {Ts} {unit}.',
+    },
   },
 
   notes: {
