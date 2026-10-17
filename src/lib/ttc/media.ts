@@ -389,6 +389,47 @@ const catalogue = {
     'Worker in a hard hat patching the underside of a concrete beam with a trowel',
     'Trabajador con casco que repara con una llana la cara inferior de una viga de concreto',
   ),
+
+  /* ── The owners' guides (GuideView.tsx), one each ─────────────────────
+     Chosen 2026-10-17 (Pexels; ids in docs/IMAGE-CREDITS.md). Each is the
+     hero of its guide and the picture on its card on /guides — one
+     placement seen from two doors. */
+  guideNoticeMailboxes: p(
+    'guide-notice-mailboxes', 2000, 1333,
+    'A hand slipping a letter into a row of apartment mailboxes',
+    'Una mano que deja una carta en una fila de buzones de apartamentos',
+  ),
+  guideBrowardWaterway: p(
+    'guide-broward-waterway', 2000, 1333,
+    'A waterway with a bridge, docks and mid-rise buildings at sunset',
+    'Un canal con un puente, muelles y edificios de altura media al atardecer',
+  ),
+  guideOlderCondoTower: p(
+    'guide-older-condo-tower', 2000, 1333,
+    'An older high-rise residential tower seen from below, framed by trees',
+    'Una torre residencial antigua vista desde abajo, enmarcada por árboles',
+  ),
+  guideWhiteCondoBalconies: p(
+    'guide-white-condo-balconies', 2000, 2666,
+    'White residential building with rows of balconies under a summer sky',
+    'Edificio residencial blanco con filas de balcones bajo un cielo de verano',
+    '50% 65%',
+  ),
+  guideCoastalCondoTowers: p(
+    'guide-coastal-condo-towers', 2000, 1500,
+    'Aerial view of residential towers along a beach and a waterway',
+    'Vista aérea de torres residenciales a lo largo de una playa y un canal',
+  ),
+  guideSpalledConcrete: p(
+    'guide-spalled-concrete', 2000, 1142,
+    'Spalled concrete on a painted wall, with the rusted reinforcing bar exposed',
+    'Concreto desprendido en un muro pintado, con la varilla oxidada a la vista',
+  ),
+  guideParkingLotNight: p(
+    'guide-parking-lot-night', 2000, 1160,
+    'A parking lot at night seen from above, lit by its light poles',
+    'Un estacionamiento de noche visto desde arriba, iluminado por sus postes',
+  ),
 } as const;
 
 export const photo = catalogue;

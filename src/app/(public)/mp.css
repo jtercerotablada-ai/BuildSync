@@ -6550,11 +6550,11 @@ a.mp-menu__mail {
   margin: var(--mp-6) 0 var(--mp-8);
   max-width: var(--mp-w-text);
 }
-.mp-guide .mp-guide__rows {
+.mp-guide__facts .mp-guide__rows {
   margin: 0 0 var(--mp-3);
   border-block-end: 1px solid var(--mp-line);
 }
-.mp-guide .mp-guide__rows li {
+.mp-guide__facts .mp-guide__rows li {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--mp-1);
@@ -6564,19 +6564,25 @@ a.mp-menu__mail {
   line-height: 1.6;
   color: var(--mp-ink-2);
 }
-.mp-guide .mp-guide__rows li::before {
+.mp-guide__facts .mp-guide__rows li::before {
   content: none;
 }
-.mp-guide .mp-guide__rows b {
+/* Inside a guide's LegalDoc body: the rows are a table, not prose. */
+.mp-guide__facts .mp-guide__rows li {
+  max-width: none;
+  text-align: left;
+  hyphens: manual;
+}
+.mp-guide__facts .mp-guide__rows b {
   font-weight: 500;
   color: var(--mp-ink);
 }
-.mp-guide .mp-timing__src {
+.mp-guide__facts .mp-timing__src {
   font-size: var(--mp-t-small);
   line-height: 1.6;
 }
 @media (min-width: 640px) {
-  .mp-guide .mp-guide__rows li {
+  .mp-guide__facts .mp-guide__rows li {
     grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
     gap: var(--mp-4);
   }
@@ -6664,4 +6670,21 @@ a.mp-menu__mail {
 }
 .mp-guide__more--svc ul {
   margin-block-start: var(--mp-3);
+}
+/* A guide's photograph on its card in /guides. */
+.mp-guides__photo {
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  margin-block-end: var(--mp-4);
+  background: var(--mp-line);
+}
+.mp-guides__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mp-guides li {
+  border-block-start: 0;
+  padding-block-start: 0;
 }

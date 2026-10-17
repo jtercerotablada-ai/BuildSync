@@ -7,6 +7,9 @@ import { GUIDES_PATH, guidePath, guidesReviewed, guidesReviewedISO, type GuideFa
 import { findGuide, getGuides, guideLabels, guidesIndex } from '@/lib/ttc/guide-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { LD_LANG, ORGANIZATION, WEBSITE } from '@/lib/ttc/structured-data';
+import { photo, type Photo } from '@/lib/ttc/media';
+import { Img } from '@/components/ttc/mp/media';
+import { LegalDoc } from '@/components/ttc/mp/LegalDoc';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
@@ -32,6 +35,17 @@ import { breadcrumbLd, JsonLd } from './meta';
  * states its own date") are never cut — with the county's name in front of
  * the label, so the block is this page's and not the program page's row.
  */
+
+/** One photograph per guide: its hero, and its card on /guides (media.ts). */
+const GUIDE_PHOTO: Record<string, Photo> = {
+  'recertification-notice': photo.guideNoticeMailboxes,
+  'broward-bsip-notice': photo.guideBrowardWaterway,
+  'is-my-building-due': photo.guideOlderCondoTower,
+  'recertification-30-40-50-year': photo.guideWhiteCondoBalconies,
+  'milestone-recertification-sirs': photo.guideCoastalCondoTowers,
+  'failed-recertification': photo.guideSpalledConcrete,
+  'parking-lot-illumination-guardrail': photo.guideParkingLotNight,
+};
 
 const PLACE: Record<GuideFacts['service'], Record<Lang, string>> = {
   'building-recertification': { en: 'Miami-Dade', es: 'Miami-Dade' },
@@ -141,38 +155,37 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         titleLines={[g.h1]}
         sub={g.heroSub}
         actions={[{ href: `/contact?service=${own.slug}`, label: own.program!.cta, variant: 'solid' }]}
+        photo={GUIDE_PHOTO[g.slug]}
       >
         <EngineerCredential lang={lang} brief />
         <ReachRow c={c} />
       </PageHero>
 
-      {/* 01 — the answer */}
-      <section className="mp-section mp-surface--paper">
-        <div className="mp-shell">
-          <SectionHeading n="01" label={t.eyebrow} />
-          <article className="mp-prose mp-guide">
-            <div className="mp-guide__reviewed">
-              <Dated label={t.reviewed} date={date} iso={guidesReviewedISO} />
-            </div>
-            {g.sections.map((s) => (
-              <React.Fragment key={s.title}>
-                <h2>{s.title}</h2>
-                {s.paras.map((p) => (
-                  <p key={p}>{p}</p>
-                ))}
-                {s.list ? (
-                  <ul>
-                    {s.list.map((li) => (
-                      <li key={li}>{li}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                {s.facts?.map((b) => <FactBlock key={b.service} lang={lang} block={b} c={c} />)}
-              </React.Fragment>
-            ))}
-          </article>
-        </div>
-      </section>
+      {/* 01 — the answer, laid out like the legal pages: the contents in a
+          column of their own from 901px, the sections beside them. */}
+      <LegalDoc
+        label={t.eyebrow}
+        tocLabel={c.ui.onThisPage}
+        updated={<Dated label={t.reviewed} date={date} iso={guidesReviewedISO} />}
+        sections={g.sections.map((s) => ({
+          h: s.title,
+          body: (
+            <>
+              {s.paras.map((p) => (
+                <p key={p}>{p}</p>
+              ))}
+              {s.list ? (
+                <ul>
+                  {s.list.map((li) => (
+                    <li key={li}>{li}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {s.facts?.map((b) => <FactBlock key={b.service} lang={lang} block={b} c={c} />)}
+            </>
+          ),
+        }))}
+      />
 
       {/* 02 — questions */}
       <section className="mp-section mp-surface--concrete" aria-labelledby="mp-guide-faq">
@@ -288,6 +301,9 @@ export function GuidesView({ lang }: { lang: Lang }) {
           <ol className="mp-guides">
             {list.map((g, i) => (
               <li key={g.slug}>
+                <div className="mp-guides__photo">
+                  <Img photo={GUIDE_PHOTO[g.slug]} sizes="(max-width: 640px) 100vw, (max-width: 900px) 50vw, 33vw" />
+                </div>
                 <span className="mp-secnum" aria-hidden="true">
                   {String(i + 1).padStart(2, '0')}
                 </span>

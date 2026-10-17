@@ -33,7 +33,7 @@ export function LegalDoc({
   /** Accessible name of the contents. */
   tocLabel: string;
   /** "Last updated: …", printed under the contents. */
-  updated?: string;
+  updated?: React.ReactNode;
   sections: readonly LegalDocSection[];
   /** After the last section: the closing "Contact" block. */
   children?: React.ReactNode;

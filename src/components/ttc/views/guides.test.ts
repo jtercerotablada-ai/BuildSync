@@ -243,7 +243,9 @@ describe('guides: the page a visitor gets', () => {
 
       it(`${name}: prints its own text whole, once`, () => {
         expect(main).toContain(esc(g.h1));
-        for (const line of [g.heroSub, g.faqTitle, ...g.sections.flatMap((s) => [s.title, ...s.paras, ...(s.list ?? [])]), ...g.faq.flatMap((f) => [f.q, f.a])]) {
+        // A section's title is its h2 and its line in the contents beside it.
+        for (const s of g.sections) expect(main.split(esc(s.title)).length - 1, s.title).toBe(2);
+        for (const line of [g.heroSub, g.faqTitle, ...g.sections.flatMap((s) => [...s.paras, ...(s.list ?? [])]), ...g.faq.flatMap((f) => [f.q, f.a])]) {
           expect(main.split(esc(line)).length - 1, line).toBe(1);
         }
       });
