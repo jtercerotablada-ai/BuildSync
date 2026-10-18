@@ -295,6 +295,7 @@ describe('links out: the hosts the site may link', () => {
     'library.municode.com', // Miami-Dade's timing row: the county code
     'www.broward.org', // Broward's timing row and forms: the Board of Rules and Appeals
     'www.facebook.com', // the footer: the firm's Facebook page
+    'www.instagram.com', // the footer: the firm's Instagram
     'www.leg.state.fl.us', // the milestone page's timing row: the statute
     'www.linkedin.com', // the footer: the firm's LinkedIn page
     'www.miamidade.gov', // Miami-Dade's forms: the county's recertification page
@@ -307,7 +308,7 @@ describe('links out: the hosts the site may link', () => {
       .map((href) => new URL(href))
       .filter((u) => !getContent('en').company.url.includes(u.hostname));
 
-  it('every outbound link on every page, in both languages, goes to one of eight hosts', () => {
+  it('every outbound link on every page, in both languages, goes to one of nine hosts', () => {
     const hosts = new Set<string>();
     for (const { html } of pages.values()) for (const u of out(html)) hosts.add(u.hostname);
     expect([...hosts].sort()).toEqual(MAY_LINK);

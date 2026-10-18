@@ -1300,6 +1300,7 @@ export const es: SiteContent = {
     social: {
       linkedin: 'https://www.linkedin.com/company/ttcivilstructural/',
       facebook: 'https://www.facebook.com/ttcivilstructural/',
+      instagram: 'https://www.instagram.com/ttcivilstructural/',
       nextdoor: 'https://nextdoor.com/page/tercero-tablada-civil-and-structural-engineering-inc-miami-fl/',
     },
     responseNote:
@@ -1405,6 +1406,7 @@ export const es: SiteContent = {
       navigate: 'Navegar',
       linkedin: 'LinkedIn',
       facebook: 'Facebook',
+      instagram: 'Instagram',
       imageCredits: 'Créditos de imágenes',
     },
     engineer: {
