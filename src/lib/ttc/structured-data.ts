@@ -24,7 +24,8 @@ import { absoluteUrl, company, contact, municipalities, regulatoryCheckedISO } f
  *     every page. What it carried — the offer catalogue, the area served —
  *     is valid on Organization, so it lives there, and each service page's
  *     Service names #organization as its `provider`.
- *   • No `sameAs`: no public profile exists yet (`contact.social`).
+ *   • `sameAs` lists the firm's public profiles (`contact.social`), the
+ *     ones the owner has published; empty entries are left out.
  *   • No Person node. The engineer is referenced by @id only; the node
  *     itself lives on /about (AboutView), in that page's language.
  */
@@ -63,6 +64,7 @@ export function siteGraph(lang: Lang, image: { url: string; width: number; heigh
   // "FL Engineering Business No. 40285" → "40285". The printed line stays
   // the single source; the markup only lifts the number out of it.
   const registryNumber = company.registry?.match(/\d+/)?.[0];
+  const sameAs = Object.values(contact.social).filter((u): u is string => Boolean(u));
 
   return {
     '@context': 'https://schema.org',
@@ -86,6 +88,7 @@ export function siteGraph(lang: Lang, image: { url: string; width: number; heigh
           height: image.height,
         },
         email: contact.email,
+        ...(sameAs.length ? { sameAs } : {}),
         ...(telephone ? { telephone } : {}),
         description: c.company.description,
         // The firm's state registration: the one credential that belongs to

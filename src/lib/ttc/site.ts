@@ -240,8 +240,15 @@ export const contact = {
   } | null,
   serviceAreaLabel: 'Miami-Dade & Broward County, Florida',
   /** Social profiles — only add a URL once the profile actually exists. */
+  /* The firm's public profiles, created by the owner on October 17, 2026.
+     The footer links LinkedIn and Facebook; all of them go into the
+     Organization's `sameAs` (structured-data.ts), so search engines tie each
+     profile to this site. Add Yelp, BBB, Apple Maps and the Google Business
+     Profile here once each is published. */
   social: {
-    linkedin: null as string | null,
+    linkedin: 'https://www.linkedin.com/company/ttcivilstructural/' as string | null,
+    facebook: 'https://www.facebook.com/ttcivilstructural/' as string | null,
+    nextdoor: 'https://nextdoor.com/page/tercero-tablada-civil-and-structural-engineering-inc-miami-fl/' as string | null,
   },
   /** Shown near the form. The reply time is the owner's own figure (October
    *  6, 2026: "immediate, more or less one or two hours later"), printed as
@@ -400,6 +407,7 @@ export const ui = {
     contact: 'Contact',
     navigate: 'Navigate',
     linkedin: 'LinkedIn',
+    facebook: 'Facebook',
     imageCredits: 'Image Credits',
   },
   engineer: {

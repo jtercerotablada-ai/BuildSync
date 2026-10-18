@@ -50,12 +50,15 @@ describe('site-wide graph: the firm', () => {
       expect(org.logo.url.startsWith(`${company.url}/`)).toBe(true);
     });
 
-    it(`(${lang}) stays a plain Organization: no address, no profiles, no Person`, () => {
+    it(`(${lang}) stays a plain Organization: no address, its own profiles, no Person`, () => {
       const graph = siteGraph(lang, CARD)['@graph'];
       const org = graph[0] as Record<string, unknown>;
       expect(org['@type']).toBe('Organization');
       expect(org).not.toHaveProperty('address');
-      expect(org).not.toHaveProperty('sameAs');
+      // The firm's public profiles (contact.social), each an https address.
+      const sameAs = org.sameAs as string[];
+      expect(sameAs).toEqual(expect.arrayContaining(['https://www.facebook.com/ttcivilstructural/', 'https://www.linkedin.com/company/ttcivilstructural/']));
+      for (const u of sameAs) expect(u).toMatch(/^https:\/\//);
       expect(graph.map((node) => node['@type'])).toEqual(['Organization', 'WebSite']);
     });
   }

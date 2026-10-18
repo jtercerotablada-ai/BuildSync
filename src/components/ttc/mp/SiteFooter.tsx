@@ -131,6 +131,15 @@ export function SiteFooter() {
                   {c.ui.footer.linkedin}
                 </a>
               ) : null}
+              {c.contact.social.facebook ? (
+                <a
+                  href={c.contact.social.facebook}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {c.ui.footer.facebook}
+                </a>
+              ) : null}
             </div>
           </div>
         </div>

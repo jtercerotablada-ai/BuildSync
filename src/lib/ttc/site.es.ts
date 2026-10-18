@@ -1298,7 +1298,9 @@ export const es: SiteContent = {
     address: null,
     serviceAreaLabel: 'Condados de Miami-Dade y Broward, Florida',
     social: {
-      linkedin: null,
+      linkedin: 'https://www.linkedin.com/company/ttcivilstructural/',
+      facebook: 'https://www.facebook.com/ttcivilstructural/',
+      nextdoor: 'https://nextdoor.com/page/tercero-tablada-civil-and-structural-engineering-inc-miami-fl/',
     },
     responseNote:
       'Cada consulta la lee y la responde el ingeniero, no un centro de llamadas — normalmente en menos de dos horas.',
@@ -1402,6 +1404,7 @@ export const es: SiteContent = {
       contact: 'Contacto',
       navigate: 'Navegar',
       linkedin: 'LinkedIn',
+      facebook: 'Facebook',
       imageCredits: 'Créditos de imágenes',
     },
     engineer: {

@@ -485,13 +485,17 @@ describe('measurement on: what the earlier releases settled still holds', () => 
     }
   });
 
-  it('the site links the same six outside hosts and no other', () => {
+  // Eight since October 17, 2026: the footer links the firm's Facebook and
+  // LinkedIn pages (contact.social).
+  it('the site links the same eight outside hosts and no other', () => {
     const hosts = (s: Site) => [...new Set(s.pages.flatMap((p) => outboundHosts(p.html)))].sort();
     expect(hosts(on)).toEqual([
       'api.whatsapp.com',
       'library.municode.com',
       'www.broward.org',
+      'www.facebook.com',
       'www.leg.state.fl.us',
+      'www.linkedin.com',
       'www.miamidade.gov',
       'www.myfloridalicense.com',
     ]);
