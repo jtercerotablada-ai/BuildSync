@@ -2690,7 +2690,14 @@ export const leadership = {
   role: 'Principal Engineer · Founder',
   credential: 'Florida Professional Engineer',
   /** Path under /public, e.g. '/ttc/img/leadership/juan-tercero.jpg' — null until a real portrait exists. */
-  portrait: null as { src: string; alt: string; w: number; h: number } | null,
+  /* The owner's own portrait, from the firm's Instagram profile
+     (@ttcivilstructural), October 18, 2026. 800 px, shown at 4:5. */
+  portrait: {
+    src: '/ttc/img/leadership/juan-tercero.jpg',
+    alt: 'Juan Tercero, PE., M.Sc., in a dark suit and tie',
+    w: 800,
+    h: 814,
+  } as { src: string; alt: string; w: number; h: number } | null,
     /* Verified in the Florida DBPR registry on October 6, 2026: Professional
      Engineer 105256, "Current, Active", expires 02/28/2027. The registry has
      no stable per-licence URL, so the link opens its search page. */

@@ -1706,7 +1706,12 @@ export const es: SiteContent = {
     firstName: 'Juan',
     role: 'Ingeniero Principal · Fundador',
     credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
-    portrait: null,
+    portrait: {
+      src: '/ttc/img/leadership/juan-tercero.jpg',
+      alt: 'Juan Tercero, PE., M.Sc., con traje oscuro y corbata',
+      w: 800,
+      h: 814,
+    },
     license: {
       number: 'PE 105256',
       url: 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=',

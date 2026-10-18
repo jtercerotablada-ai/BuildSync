@@ -37,6 +37,7 @@ export function AboutView({ lang }: { lang: Lang }) {
     description: e.bio[0],
     url: `${company.url}${localePath('/about#engineer', lang)}`,
     worksFor: { '@id': `${company.url}/#organization` },
+    ...(e.portrait ? { image: `${company.url}${e.portrait.src}` } : {}),
     hasCredential: [
       { '@type': 'EducationalOccupationalCredential', credentialCategory: 'license', name: 'Professional Engineer (P.E.), State of Florida', ...(e.license ? { identifier: e.license.number, url: e.license.url } : {}) },
       { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Master in Construction Project Management, Universidad de Barcelona' },

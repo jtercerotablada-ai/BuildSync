@@ -3883,6 +3883,7 @@ a.mp-menu__mail {
   width: 100%;
   aspect-ratio: 4 / 5;
   object-fit: cover;
+  object-position: 50% 30%;
   display: block;
 }
 /* Only with a real portrait (EngineerSection renders it then): a photograph

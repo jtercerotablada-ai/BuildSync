@@ -190,7 +190,11 @@ describe('images: every <img> the public pages send', () => {
       const spoken = imgs(html)
         .filter((tag) => attr(tag, 'aria-hidden') !== 'true')
         .map((tag) => attr(tag, 'src'));
-      expect(spoken).toEqual([getContent(lang).company.logo.lockupLightSm]);
+      // The engineer's portrait (leadership.portrait) is content too: it is
+      // read out wherever EngineerSection renders it (home teaser, About).
+      const c = getContent(lang);
+      const portrait = c.leadership.portrait && (path === '/' || path === '/about') ? [c.leadership.portrait.src] : [];
+      expect(spoken).toEqual([...portrait, c.company.logo.lockupLightSm]);
     });
   }
 
