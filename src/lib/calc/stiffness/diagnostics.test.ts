@@ -207,7 +207,9 @@ describe('the stability', () => {
       memberLoads: [],
     };
     const i = one(m, 'mechanism');
-    expect(i).toMatchObject({ code: 'mechanism', dof: 4, node: 2, kind: 'rigid-body', nodes: [2], ratio: 0, count: 1 });
+    expect(i).toMatchObject({ code: 'mechanism', dof: 4, node: 2, kind: 'rigid-body', nodes: [2], count: 1 });
+    // (the pivot is exactly zero, and so is the rounding in it: there is no share to state)
+    expect(i.ratio).toBeUndefined();
     expect(i.shape).toEqual([0, 0, 0, 1]);
   });
   it("'mechanism' of a sway: a rectangle of four bars has no diagonal, and the shape moves its free corners", () => {
@@ -405,31 +407,62 @@ describe('the warnings: a solution with a note', () => {
     // in truss mode a rotation restraint alone restrains nothing
     expect(warnings(bar({ supports: [...bar().supports, { node: 1, ux: false, uy: false, rz: true }] }))).toEqual([{ code: 'empty-support', nodes: [2] }]);
   });
-  it("'near-mechanism': solved, but the smallest pivot is under a millionth of the diagonal it started as", () => {
-    // two nearly parallel bars into an apex: the stiffness across them is the square of the angle between them
-    const angle = 5e-4;
-    const m: StiffnessModel = {
-      mode: 'truss',
-      nodes: [{ x: 0, y: 0 }, { x: 10 * Math.cos(0.5), y: 10 * Math.sin(0.5) }, { x: 10 * Math.cos(0.5 + angle) * 1.0, y: 10 * Math.sin(0.5 + angle) }, { x: 20 * Math.cos(0.5 + angle / 2), y: 20 * Math.sin(0.5 + angle / 2) }],
-      members: [{ i: 0, j: 1 }, { i: 0, j: 2 }, { i: 1, j: 3 }, { i: 2, j: 3 }],
-      supports: [{ node: 0, ux: true, uy: true, rz: false }, { node: 3, ux: true, uy: true, rz: false }],
-      loads: [{ node: 1, fx: 1, fy: 1, m: 0 }],
-      memberLoads: [],
-      E: 1000,
-      A: 1,
-    };
-    const out = solve(m);
-    if (!out.ok) {
-      // too near a mechanism to solve: that is the other side of the same line
-      expect(out.issues[0].code).toBe('mechanism');
-      return;
-    }
+  it("'near-mechanism': solved, but the arithmetic guarantees fewer than six figures of a pivot: a very stiff bar beside soft ones, and the figures are counted", () => {
+    // the two-bar truss of the page, with one bar 1e10 in² (the way a rigid link is imitated): the pivot of the free node over its own diagonal is about 1e-7, which is nothing wrong
+    const base = toEngine(reduce(emptyStiffness(), { type: 'template', template: 'truss-two-bar' })).model;
+    const stiff = { ...base, members: [{ ...base.members[0], A: 1e10 / 144 }, base.members[1]] };
+    const out = solve(stiff);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
     const w = out.warnings.find((x) => x.code === 'near-mechanism');
     expect(w).toBeDefined();
-    expect(w!.ratio!).toBeLessThan(1e-6);
-    expect(w!.ratio!).toBeGreaterThan(1e-9);
+    expect(w!.ratio!).toBeGreaterThan(1e-6);
+    expect(w!.ratio!).toBeLessThan(0.1);
+    expect(w!.count).toBe(Math.floor(-Math.log10(w!.ratio!)));
     expect(w!.dofs).toHaveLength(1);
     seenWarnings.add('near-mechanism');
+    // the same bars with ordinary sections lose no figure
+    expect(warnings(base)).toEqual([]);
+  });
+  it("'stiffness-range': a stable structure whose pivot is lost in rounding is NOT a mechanism: a movement that strains a member, and the right words for it", () => {
+    // the portal of the page with an area of 1e14 in²: the sway of the beam is held by the columns' bending alone, a hundred trillionth of the axial stiffness around it
+    const portal = reduce(emptyStiffness(), { type: 'template', template: 'frame-portal' });
+    const huge = reduce(portal, { type: 'section', patch: { A: 1e14 } });
+    const a = analyseSafely(huge);
+    expect(a.issues.map((x) => x.code)).toEqual(['stiffness-range']);
+    expect(a.issues[0]).toMatchObject({ code: 'stiffness-range', node: 4, dofLabel: '4x', nodes: [4] });
+    seen.add('stiffness-range');
+    // not unstable: the count of the portal (3 + 3 + 6 ... a degree) says what it says, and a mechanism it is not
+    expect(a.determinacy.word).toBeNull();
+    expect(a.results).toBeNull();
+    // the step that stopped it is marked and says why
+    const last = a.partial[a.partial.length - 1];
+    expect(last.id).toBe('forward-pass');
+    expect(last.facts).toMatchObject({ singular: true, cause: 'range' });
+    expect(last.facts.error as number).toBeGreaterThan(0);
+    expect(last.formulas).toEqual([]);
+    // a real mechanism, by contrast, is a mechanism whatever the sections
+    for (const A of [1e-3, 10, 1e14]) {
+      const m = solve({ mode: 'truss', nodes: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }], members: [{ i: 0, j: 1 }, { i: 1, j: 2 }], supports: [{ node: 0, ux: true, uy: true, rz: false }, { node: 2, ux: true, uy: true, rz: false }], loads: [{ node: 1, fx: 0, fy: -1, m: 0 }], memberLoads: [], E: 100, A });
+      expect(m.ok, `A = ${A}`).toBe(false);
+      if (!m.ok) expect(m.issues[0], `A = ${A}`).toMatchObject({ code: 'mechanism', dof: 4 });
+    }
+  });
+  it("'large-displacements': first order only; a member whose chord turns by more than a tenth, and which one", () => {
+    // the two-bar truss with its apex 0.001 ft off the line of the span: 10 kip down moves it thousands of its own length
+    const flat = toEngine(reduce(emptyStiffness(), { type: 'template', template: 'truss-two-bar' })).model;
+    const shallow = { ...flat, nodes: [flat.nodes[0], flat.nodes[1], { x: 8, y: 0.001 }] };
+    const out = solve(shallow);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const w = out.warnings.find((x) => x.code === 'large-displacements')!;
+    expect(w).toBeDefined();
+    expect(w.ratio!).toBeGreaterThan(0.1);
+    expect([1, 2]).toContain(w.count);
+    expect(w.nodes).toHaveLength(2);
+    seenWarnings.add('large-displacements');
+    // the ordinary one has none
+    expect(warnings(flat).map((x) => x.code)).not.toContain('large-displacements');
   });
   it('a sound structure has no warning', () => {
     expect(warnings(bar())).toEqual([]);
@@ -445,7 +478,8 @@ describe('through the form', () => {
     const a = analyseSafely(f);
     expect(a.issues).toEqual([
       { code: 'number', row: { list: 'nodes', id: f.nodes[2].id, field: 'y' }, at: 3 },
-      { code: 'section', row: { list: 'model', field: 'I' } },
+      // (the structure's own field, with a value of zero or below: the sentence is told both, so that it says 'greater than zero' and does not say 'leave it blank')
+      { code: 'section', row: { list: 'model', field: 'I' }, count: 1, max: 1 },
       { code: 'number', row: { list: 'loads', id: f.loads[0].id, field: 'fy' }, at: 1 },
     ]);
     expect(a.results).toBeNull();

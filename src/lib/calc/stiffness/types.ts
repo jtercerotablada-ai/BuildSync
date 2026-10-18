@@ -77,22 +77,40 @@
  * The elimination of step 10 is recorded pass by pass when there are at most RECORD_LIMIT = 12
  * free DOFs; above that only its result is.
  *
+ * ── THE ARITHMETIC'S OWN ROUNDING ────────────────────────────────────────────
+ * A pivot is judged against ROUNDING, not against the stiffness its DOF started with: a stiff member beside soft ones makes a stable pivot that is a
+ * millionth of its starting diagonal (a very large A, a very small I, a very short member), and nothing is wrong with it. The elimination carries,
+ * beside every entry, the largest error the arithmetic could have put in it (a running forward-error bound: the rounding of the terms that made the
+ * entry, and the errors of the entries it was made from, grown by every multiplier). A pivot is a zero for the arithmetic when that error reaches
+ * RESOLVE of the pivot itself; whether the structure is then a mechanism or only too badly scaled to solve is told by the movement it allows
+ * (STRAIN, below). Measured on 383 random mechanisms the pivot is never more than a twentieth of its error bound (0.042); on 634 random stable structures
+ * never under a million times it (3.9 million). (The bound is a worst case: the error really made is a hundred times smaller or so, so a figure count taken from it is a floor.)
+ *   EPSILON   2⁻⁵²   The relative size of one rounding of a double.
+ *   ASSEMBLY  8      Units of EPSILON assumed in one entry of a member's matrix K_e (the arithmetic of c, s, EA/L and Tᵀ·k·T) and of each equivalent load.
+ *
  * ── THE TOLERANCES (each written once, used by the engine, the analysis and the copy) ─────────
- *   SINGULAR  1e-9   A pivot of the elimination under this fraction of the diagonal entry it
- *                    started as (the stiffness of that DOF alone) is zero: the structure can move
- *                    without any member deforming ('mechanism').
+ *   RESOLVE   0.1    A pivot whose rounding reaches this share of its size is zero for the arithmetic (not one good figure in it): the structure is refused,
+ *                    as a 'mechanism' when the movement it allows strains no member, as a 'stiffness-range' otherwise.
+ *   WEAK      1e-6   A pivot whose rounding is between this share of it and RESOLVE is a WARNING ('near-mechanism'): solved, but the displacements are
+ *                    guaranteed to fewer than six figures. The warning says how many.
+ *   STRAIN    1e-6   A member whose deformation in the movement of a zero pivot (its elongation over its length, and the turn of each end beyond the turn
+ *                    of its chord) is under this share of the movement it takes part in (its largest translation over its length, or its largest turn) is
+ *                    not strained by it; so is a member that moves by under this share of the largest movement of all. A mechanism strains no member.
  *   RESIDUAL  1e-8   After the solve every equation is satisfied to this fraction of its own size
  *                    (|rhs| + Σ|K·u|); past it the answer is not trusted ('ill-conditioned'). The
  *                    equilibrium checks of step 14 use the same fraction of the problem's force scale.
  *                    (A safety net: a structure that passes the pivot test is solved to about 1e-15 of
  *                    this, so it is reached only by arithmetic that went wrong, never by a model.)
  *   ZERO      1e-9   The analysis prints as 0 a value under this fraction of the largest of its block
- *                    (its scale for a force, a moment, a displacement): rounding, never −0.
+ *                    (its scale for a force, a moment, a displacement): rounding, never −0. A member's end forces are measured against the
+ *                    force scale of the whole structure, so a bar that carries nothing is 'no force' and not a tension of 1e-15.
+ *   AGREE     1e-12  Two numbers that are the same one are the same to this share of the largest of their kind: the closed form of a bar against
+ *                    the product, K against its transpose, a rigid-body basis that is not independent, the eigenvalues of a mechanism.
  *   NEAR      1e-9   Two nodes closer than this fraction of the structure's size are one node typed twice.
  *   SHORT     1e-5   A member shorter than this fraction of the structure's size is refused.
- *   WEAK      1e-6   A smallest pivot above SINGULAR but under this fraction of its starting diagonal is a WARNING ('near-mechanism'): solved, but the structure
- *                    is almost a mechanism and its displacements are very sensitive to a small change of any stiffness.
  *   RIGID     1e-6   The share of a null mode that is not a rigid-body motion for it to be called one.
+ *   LARGE     0.1    A member whose chord turns by more than this (radians) in the solution is past what small-displacement theory holds
+ *                    ('large-displacements'): the result is first order and is no longer a description of the structure.
  *   LIMIT     1e30   Every input number must be finite and at most this in size; sections in [1e-30, 1e30].
  */
 
@@ -106,13 +124,18 @@ export const MAX_DOFS = 36;
 /** The elimination is recorded pass by pass up to this many free DOFs. */
 export const RECORD_LIMIT = 12;
 
-export const SINGULAR = 1e-9;
+export const EPSILON = 2.220446049250313e-16;
+export const ASSEMBLY = 8;
+export const RESOLVE = 0.1;
+export const WEAK = 1e-6;
+export const STRAIN = 1e-6;
 export const RESIDUAL = 1e-8;
 export const ZERO = 1e-9;
+export const AGREE = 1e-12;
 export const NEAR = 1e-9;
 export const SHORT = 1e-5;
 export const RIGID = 1e-6;
-export const WEAK = 1e-6;
+export const LARGE = 0.1;
 export const LIMIT = 1e30;
 const SECTION_LOW = 1e-30;
 export { SECTION_LOW };
@@ -220,12 +243,17 @@ export interface StiffnessModel {
  *  'few-supports'       fewer than 3 restrained DOFs: a rigid body in a plane needs 3.  count = how many
  *                       (Reported alone: the elimination is not tried.)
  *  'mechanism'          the structure can move with no member deforming (to first        dof = the DOF number whose pivot vanished, node = its node;
- *                       order): a zero pivot in the elimination. 'sway': parts move      kind 'sway' | 'rigid-body'; nodes = those that move in the
- *                       relative to each other (too few members, a joint of two bars on   null mode (at least a quarter as much as the one that moves
- *                       one line…). 'rigid-body': the whole structure can translate or    most, ascending); shape = the null mode (one entry per DOF,
- *                       turn (restraints that do not hold it: three roller reactions      the largest translation 1); ratio = the pivot over the diagonal
- *                       on parallel lines…).                                              it started as; count = independent motions (eigenvalues of
- *                                                                                         the unit-diagonal K_FF under SINGULAR)
+ *                       order): a pivot of the elimination that rounding cannot tell      kind 'sway' | 'rigid-body'; nodes = those that move in the
+ *                       from zero (RESOLVE) AND a movement, the pivot's DOF set to 1,     null mode (at least a quarter as much as the one that moves
+ *                       that strains no member (STRAIN). 'sway': parts move relative      most, ascending); shape = the null mode (one entry per DOF,
+ *                       to each other (too few members, a joint of two bars on one        the largest translation 1); ratio = the rounding of the pivot
+ *                       line…). 'rigid-body': the whole structure can translate or        over the pivot (absent when the pivot is not above zero);
+ *                       turn (restraints that do not hold it: three roller reactions      count = independent motions (eigenvalues of the unit-diagonal
+ *                       on parallel lines…).                                              K_FF under AGREE)
+ *  'stiffness-range'    a pivot that rounding cannot tell from zero, and a movement     dof, node, nodes = [node]; ratio as above. A structure whose
+ *                       that does strain a member (to STRAIN): not a mechanism as far    stiffnesses differ so much (a very large A or I beside ordinary
+ *                       as the arithmetic can find, but it cannot say how far the        members, or members almost in line, or very short) that its
+ *                       softest movement goes. (The copy does not swear it is not one.)  softest movement is lost in the rounding of the rest.
  *  'ill-conditioned'    the answer does not satisfy the equations to the figures      residual (relative, the largest departure); limit = RESIDUAL
  *                       printed: the solved equations leave a residual above RESIDUAL
  *                       of their own size, or a check of step 14 fails by more than
@@ -258,6 +286,7 @@ export type IssueCode =
   | 'load-position'
   | 'few-supports'
   | 'mechanism'
+  | 'stiffness-range'
   | 'ill-conditioned'
   | 'size'
   | 'stopped';
@@ -292,10 +321,15 @@ export interface Issue {
  *  'member-loads-ignored'  truss mode with member loads in the model (count): a bar has loads at its nodes only; they are not used.
  *  'settlement-ignored'    a prescribed displacement typed on a DOF that is not restrained (dofs = the DOF numbers): it has no effect.
  *  'empty-support'         a support that restrains nothing (nodes = the labels).
- *  'near-mechanism'        the structure is solved but almost a mechanism: the smallest pivot of the elimination (dofs = [its DOF number]) is `ratio` of the
- *                          diagonal entry it started as, under WEAK = 1e-6 and over SINGULAR = 1e-9. Its displacements are very sensitive to any stiffness.
+ *  'near-mechanism'        solved, but one pivot (dofs = [its DOF number]) is guaranteed to fewer than six figures: the rounding the arithmetic could have put in it is
+ *                          `ratio` of it, over WEAK = 1e-6 and under RESOLVE = 0.1; `count` = the figures the displacements are guaranteed to (⌊−log10 ratio⌋, from 1 to 5).
+ *                          The cause is a large range of stiffness (a very large A or I beside ordinary members, a very short member) or members almost in line:
+ *                          the structure is NOT called a mechanism.
+ *  'large-displacements'   solved to first order, but the chord of a member turns by more than LARGE = 0.1 rad in the solution (ratio = the largest turn in radians;
+ *                          count = that member's label; nodes = its two nodes): small-displacement theory no longer describes the structure, and the numbers are those of
+ *                          the theory, not of the structure.
  */
-export type WarningCode = 'no-load' | 'member-loads-ignored' | 'settlement-ignored' | 'empty-support' | 'near-mechanism';
+export type WarningCode = 'no-load' | 'member-loads-ignored' | 'settlement-ignored' | 'empty-support' | 'near-mechanism' | 'large-displacements';
 export interface Warning {
   code: WarningCode;
   count?: number;
@@ -399,17 +433,18 @@ export interface SolvedMember {
  *  transformation     facts member            blocks matrix:T (sym; rows local DOFs, columns the member's global DOFs) | scalar:c, s
  *  global-member      facts member [, difference, agree: truss only]
  *                     blocks matrix:kT | matrix:K_e (labels: the member's global DOFs) | vector:code (the DOF numbers) | truss: matrix:K_e_closed (sym, with factor 'EA/L')
- *  assembly           facts member, cells     blocks matrix:contribution (N × N, highlights 'position') | matrix:running (N × N after this member, highlights 'contributed' with `members`)
+ *  assembly           facts member, cells     blocks matrix:contribution (N × N, highlights 'position') | matrix:running (N × N after this member, highlights 'contributed' on EVERY cell the members added so far have written into, with those `members`)
  *  assembled          facts dofs, symmetric, asymmetry      blocks matrix:K (highlights 'contributed' | 'shared' with `members` for every cell some member touches)
  *  nodal-loads        facts loads             blocks vector:P_nodal
  *  member-loads       facts member, loads     blocks scalar:L | per load, scalar:w | P, a, b | q [tag 'udl#n' | 'point#n' | 'axial#n', n the row of the load in the model's list]
  *                            | vector:f_FE [same tag] (sym) | vector:f_FE [tag 'total'] | vector:f_FE_global | vector:equivalent
  *  load-vector        facts loadedMembers     blocks [frame: vector:P_nodal, vector:P_equivalent] | vector:P
  *  partition          facts free, restrained  blocks matrix:K_FF, K_FR, K_RF, K_RR | vector:P_F, P_R, u_R (highlights 'prescribed')
- *  reduced            facts free              blocks vector:P_F | vector:K_FR·u_R | vector:rhs
+ *  reduced            facts free, settles (some prescribed displacement is not zero)     blocks vector:P_F | vector:K_FR·u_R | vector:rhs
  *  augmented          facts size              blocks matrix:augmented ([K_FF | rhs]; the last column is labelled 'rhs')
- *  forward-pass       facts pass, pivotDof, pivot, rows [, singular: true]
- *                     blocks scalar:pivot [tag 'pass#n'] | vector:multipliers [same tag; labels the rows below the pivot] | matrix:augmented [same tag; highlights 'pivot' | 'eliminated' | 'updated', or 'zero-pivot']
+ *  forward-pass       facts pass, pivotDof, pivot, rows [, singular: true, error (the rounding in the pivot), cause: 'mechanism' | 'range']
+ *                     blocks scalar:pivot [tag 'pass#n'] | vector:multipliers [same tag; labels the rows below the pivot] | matrix:augmented [same tag; highlights 'pivot' | 'eliminated' (the entries under the pivot that were not zero) | 'updated' (entries whose value changed), or 'zero-pivot']
+ *                            | a singular pass also scalar:rounding [same tag]
  *  back-substitution  facts unknown (position among the free DOFs), dof, value      blocks scalar:pivot [tag 'unknown#n'] | vector:u [same tag; the unknowns solved so far, this one first]
  *  solution           facts recorded, [why: 'too-many-free-dofs', limit], free, residual (the largest of any equation), relativeResidual, equationScale
  *                     blocks vector:u_F | vector:residual | scalar:max|residual|

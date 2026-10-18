@@ -31,10 +31,14 @@ import { FNum } from './FNum';
 import { drawingFacts, type Looks } from './layout';
 import { Results } from './Results';
 import { LoadRowView, MemberLoadRowView, MemberRowView, NodeRowView, SupportRowView, type RowEnv } from './Rows';
+import { anchorFor, scrollTarget } from './print-place';
+import { filledLine, keepOpen, settlementOpen } from './rows-state';
+import { solutionOf } from './solution-state';
 import { FigureGuard, StiffnessSchematic } from './Schematic';
 import { Solution } from './Solution';
-import { answerLine, checkTextbook, verdictLine } from './textbook';
-import { fill, flaggedNodes, focusAddedRow, formToSolve, issueSentence, keepsMarks, largestNode, largestReaction, leaveBehind as leaveBehindWith, noticeText, openWhole, readingSentence, restartsRows, signed, warningSentence, type Fmt } from './text';
+import { showFor, startShow, type Show } from './show';
+import { answerLine, checkTextbook, panelOf, templateMatching, templatePlan, verdictLine } from './textbook';
+import { fill, flaggedNodes, focusAddedRow, formToSolve, issueSentence, keepsMarks, largestNode, largestReaction, largestRotation, leaveBehind as leaveBehindWith, noticeText, openWhole, readingSentence, restartsRows, signed, warningSentence, type Fmt } from './text';
 import './stiffness.css';
 
 /**
@@ -85,8 +89,6 @@ export function caseIn(hash: string): StiffnessForm | null | undefined {
   return decodeStiffness(text);
 }
 
-const FIRST_TEMPLATE: TemplateId = 'truss-two-bar';
-
 /** The issues that are about a node's place and are shown on its row. */
 const NODE_CODES = new Set(['duplicate-node', 'node-unconnected', 'duplicate-support']);
 
@@ -98,21 +100,6 @@ const shapeValues = (shape: { A: number; Ix: number }, units: StiffnessForm['uni
   I: Number((units === 'us' ? shape.Ix : shape.Ix * STIFFNESS_US_TO_SI.inertia).toPrecision(6)),
 });
 
-/** A set of settled looks for the drawing. */
-interface Show {
-  loads: boolean;
-  reactions: boolean;
-  deformed: boolean;
-  dofs: boolean;
-  nodeNumbers: boolean;
-  memberNumbers: boolean;
-  values: boolean;
-  every: boolean;
-}
-const SHOW: Show = { loads: true, reactions: true, deformed: true, dofs: true, nodeNumbers: true, memberNumbers: true, values: true, every: false };
-/** A structure of many members or nodes has no room for a tag on each: those start switched off (the switch is the visitor's). */
-const showFor = (form: StiffnessForm, s: Show = SHOW): Show => ({ ...s, memberNumbers: form.members.length <= 12, dofs: form.nodes.length <= 6 });
-
 /**
  * `initial`: the structure it opens with, where that is not the example - for the tests, which can neither type nor press.
  */
@@ -121,11 +108,14 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   // The structure last put on screen whole - opened from the address, or the example on "Start over": that one is
   // solved in the render that shows it (`solved`, below), never a moment later under the results of the structure before.
   const [whole, setWhole] = useState<StiffnessForm | null>(null);
-  const [tplId, setTplId] = useState<TemplateId>(FIRST_TEMPLATE);
+  // The problem the visitor picked in the list of textbook problems; none: the list follows the structure on screen (textbook.ts, `panelOf`).
+  const [pick, setPick] = useState<TemplateId | 'own' | null>(null);
+  // The problem the structure on screen last was: an edit of it leaves the list on that problem (and the panel says the structure now differs from it).
+  const [last, setLast] = useState<TemplateId | null>(() => templateMatching(encodeStiffness(initial ?? defaultStiffness()), (initial ?? defaultStiffness()).units));
   // What "Load problem" said it did; gone with the next edit of any kind.
   const [said, setSaid] = useState('');
-  // How the drawing is looked at: screen choices, kept while the page is open (not in the address).
-  const [show, setShow] = useState<Show>(() => showFor(initial ?? defaultStiffness()));
+  // How the drawing is looked at: screen choices, kept while the page is open (not in the address) and across the structures opened (show.ts).
+  const [show, setShow] = useState<Show>(() => startShow(initial ?? defaultStiffness()));
   // Which supports show their settlement fields, and the shape picker.
   const [more, setMore] = useState<ReadonlySet<number>>(() => new Set());
   const [picking, setPicking] = useState(false);
@@ -138,10 +128,13 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   const drawingId = `${uid}drawing`;
   const resultsId = `${uid}results`;
   const stepsId = `${uid}steps`;
+  const formId = `${uid}form`;
+  const afterId = `${uid}after`;
   // The calculator itself: a structure opened from the address asks whether the focus is in one of its fields.
   const root = useRef<HTMLDivElement>(null);
   const [plotRef, windowWidth] = useWidth<HTMLDivElement>();
-  const [outRef, tooTall] = useTooTall<HTMLElement>();
+  // Only the drawing and the sentence that reads it stay in view while the form is filled in; the rest of the answer scrolls with the page.
+  const [pinRef, tooTall] = useTooTall<HTMLDivElement>();
   const u = STIFFNESS_UNITS[form.units];
   const group = t.numbers.group;
   const frame = form.mode === 'frame';
@@ -182,10 +175,37 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
           setShow((s) => showFor(opened, s));
         },
         remember: setWhole,
-        template: () => setTplId(FIRST_TEMPLATE),
+        template: () => {
+          setPick(null);
+          setLast(null);
+        },
       }),
   });
   const { linkError } = address;
+  // PRINTING KEEPS THE READER'S PLACE. The sheet is a different page (every card open, the drawings at the sheet's size) and the screen comes back
+  // shorter: the card nearest the top of the screen is remembered before the sheet is made (this listener comes before the sheet's), and put back at the top after.
+  useEffect(() => {
+    let kept: { el: Element; offset: number } | null = null;
+    const before = () => {
+      const marks = [...(root.current?.querySelectorAll('.mp-st__card, .mp-st__target, .mp-app__form') ?? [])];
+      const found = anchorFor(marks.map((el) => el.getBoundingClientRect().top));
+      kept = found ? { el: marks[found.index], offset: found.offset } : null;
+    };
+    const after = () => {
+      const back = () => {
+        if (kept) window.scrollTo({ top: scrollTarget(window.scrollY, kept.el.getBoundingClientRect().top, kept.offset) });
+      };
+      // The sheet is taken down by a render of its own, and the cards drawn near the screen after it: put back twice.
+      window.setTimeout(back, 60);
+      window.setTimeout(back, 500);
+    };
+    window.addEventListener('beforeprint', before);
+    window.addEventListener('afterprint', after);
+    return () => {
+      window.removeEventListener('beforeprint', before);
+      window.removeEventListener('afterprint', after);
+    };
+  }, []);
   // The printed sheet gives the address that opens this very structure, and while it prints the drawings are the sheet's size.
   const { stamp, onPaper } = useSheet({ locale: t.sheet.locale, url: () => address.link(encodeStiffness(form)) });
   const width = onPaper ? PAPER_WIDTH : windowWidth;
@@ -206,7 +226,8 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   const r = a.results;
   const ru = a.units;
   // The worked solution is the heaviest thing on the page: it is drawn in a render of its own, after the form, the drawing and the answer.
-  const shownAnalysis = useDeferredValue(a);
+  const deferredAnalysis = useDeferredValue(a);
+  const solutionShown = solutionOf({ fresh: a, deferred: deferredAnalysis, onPaper });
   const flagged = useMemo(() => flaggedNodes(a), [a]);
 
   // Every number this page prints in a sentence, with the page's own mark between thousands and a true minus.
@@ -339,7 +360,15 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
           )),
     [memberKey],
   );
-  const patch = useCallback((list: StiffnessList, id: number, p: Record<string, unknown>) => dispatch({ type: 'patch', list, id, patch: p }), [dispatch]);
+  const patch = useCallback(
+    (list: StiffnessList, id: number, p: Record<string, unknown>) => {
+      // A settlement being typed keeps its fields open until the visitor closes them: a value on its way through 0 ("0", then "0.25") must not close
+      // the row under the cursor (the fields are open by themselves only while there is a settlement).
+      setMore((prev) => keepOpen(prev, list, id, p));
+      dispatch({ type: 'patch', list, id, patch: p });
+    },
+    [dispatch],
+  );
   // A row removed WITH THE KEYBOARD took the focus away with it, and the browser left it on nothing. It is given to the first control of the row
   // that takes the place - the next one, else the one before - or to the group's "add" button when no row is left. Not after a click or a tap.
   const removeRow = useCallback(
@@ -391,17 +420,28 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   );
 
   /* -- The textbook problems -- */
-  const check = useMemo(() => checkTextbook(tplId, form.units), [tplId, form.units]);
-  const answerOf = (values: Record<string, number>): string => answerLine(w, tplId, values, { force: u.force, moment: u.moment, displacement: u.displacement }, num);
+  // The hand answer and the tool's line are about the PROBLEM, and they are shown only while the structure on screen is that problem as it loads (textbook.ts).
+  const formCode = useMemo(() => encodeStiffness(form), [form]);
+  const matched = templateMatching(formCode, form.units);
+  if (matched !== null && matched !== last) setLast(matched);
+  const panel = panelOf({ code: formCode, units: form.units, pick, last });
+  const selected = panel.selected;
+  const check = useMemo(() => (selected ? checkTextbook(selected, form.units) : null), [selected, form.units]);
+  const answerOf = (values: Record<string, number>): string => (selected ? answerLine(w, selected, values, { force: u.force, moment: u.moment, displacement: u.displacement }, num) : '');
   const applyTemplate = () => {
-    const action: StiffnessAction = { type: 'template', template: tplId };
-    const built = reduceStiffness(form, action);
+    if (!selected) return;
+    // A structure that replaces the one before is put on screen WHOLE (the same object as `whole`): it is solved in the render that shows it, never a
+    // moment later under the results of the structure before - which a problem loaded over a copy of itself with other numbers used to be.
+    const plan = templatePlan(form, selected);
+    const built = plan.whole;
     const left = leaveBehind(built);
-    dispatch(action);
+    dispatch(plan.action);
+    setWhole(plan.whole);
+    setPick(selected);
     setShow((s) => showFor(built, s));
     setSaid(
       [
-        fill(w.template.done, { template: w.template.names[tplId], nodes: built.nodes.length, members: built.members.length, supports: built.supports.length, loads: built.loads.length, memberLoads: built.memberLoads.length }),
+        fill(w.template.done, { template: w.template.names[selected], nodes: built.nodes.length, members: built.members.length, supports: built.supports.length, loads: built.loads.length, memberLoads: built.memberLoads.length }),
         left ? w.template.back : '',
       ]
         .filter(Boolean)
@@ -430,12 +470,11 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
     if (!chosenShape || !shown) return;
     if (target === 'structure') dispatch({ type: 'section', patch: frame ? { A: shown.A, I: shown.I } : { A: shown.A } });
     else dispatch({ type: 'patch', list: 'members', id: target, patch: frame ? { A: shown.A, I: shown.I } : { A: shown.A } });
-    const label = target === 'structure' ? w.section.structureTarget : fill(w.section.memberTarget, { member: form.members.findIndex((m) => m.id === target) + 1 });
-    setFilled(fill(w.section.filled, { shape: chosenShape.designation, target: label }));
+    setFilled(filledLine(w, chosenShape.designation, target === 'structure' ? 'structure' : form.members.findIndex((m) => m.id === target) + 1));
   };
 
   /* -- The drawing in words -- */
-  const drawn = { deformed: looks.deformed };
+  const drawn = { deformed: looks.deformed, nodeNumbers: show.nodeNumbers };
   const reading = readingSentence(a, drawn, w, { ...fmt, mode: form.mode });
   // How far each support that settles moves: said in a line under the drawing (the badge on the drawing says which support).
   const settleLine = (() => {
@@ -446,7 +485,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
     });
     return parts.length ? fill(w.drawing.notes.settlements, { list: parts.join('; ') }) : '';
   })();
-  const summary = a.drawing.nodes.length === 0 ? w.drawing.summary.empty : [fill(w.drawing.summary.structure, { nodes: solved.nodes.length, members: solved.members.length, supports: solved.supports.length, loads: solved.loads.length, memberLoads: solved.memberLoads.length }), reading, settleLine].filter(Boolean).join(' ');
+  const summary = a.drawing.nodes.length === 0 ? w.drawing.summary.empty : fill(w.drawing.summary.structure, { nodes: solved.nodes.length, members: solved.members.length, supports: solved.supports.length, loads: solved.loads.length, memberLoads: solved.memberLoads.length });
   // A link that goes to a place on this page and leaves the address alone (a fragment would replace the structure in it).
   const goTo = (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
     const el = document.getElementById(id);
@@ -459,6 +498,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   const degree = a.determinacy.degree;
   const word = a.determinacy.word;
   const farthest = largestNode(a);
+  const turning = farthest ? null : largestRotation(a);
   const biggest = largestReaction(a);
   const members = r?.members ?? [];
   const topForce = frame ? null : members.reduce<{ member: number; value: number } | null>((best, m) => (m.bar && Math.abs(m.bar.N) > Math.abs(best?.value ?? 0) ? { member: m.label, value: m.bar.N } : best), null);
@@ -490,7 +530,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   const words = useMemo(() => ({ legend: w.drawing.legend, notes: w.drawing.notes, broken: w.drawing.broken }), [w]);
   const figureUnits = useMemo(() => ({ length: ru.length, displacement: ru.displacement }), [ru.length, ru.displacement]);
   const paperLooks = (rest: Partial<Looks>): Looks => ({ ...looks, values: true, nodeNumbers: true, memberNumbers: true, ...rest });
-  const check1 = (key: keyof Show, label: string) => (
+  const check1 = (key: Exclude<keyof Show, 'few'>, label: string) => (
     <label key={key} className="mp-app__check">
       <input type="checkbox" checked={show[key]} onChange={(e) => setShow({ ...show, [key]: e.target.checked })} />
       <span>{label}</span>
@@ -514,7 +554,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
       </nav>
       <div className="mp-app__top">
         {/* -- the form -- */}
-        <form className="mp-app__form" onSubmit={(e) => e.preventDefault()} noValidate>
+        <form className="mp-app__form mp-st__target" id={formId} tabIndex={-1} onSubmit={(e) => e.preventDefault()} noValidate>
           <div className="mp-app__bar">
             <fieldset className="mp-seg">
               <legend className="mp-num__label">{w.toolbar.mode}</legend>
@@ -540,13 +580,24 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
           {/* A starting point, not part of the case: it is not printed. */}
           <fieldset className="mp-app__group mp-st__template">
             <legend>{w.template.title}</legend>
-            {select<TemplateId>(w.template.pick, tplId, TEMPLATE_IDS.map((id) => [id, w.template.names[id]] as [TemplateId, string]), setTplId)}
-            <p className="mp-app__computed mp-st__answer">{fill(w.template.answer, { answer: answerOf(check.expected) })}</p>
-            <p className="mp-app__computed mp-st__answer">{check.got ? fill(w.template.got, { answer: answerOf(check.got) }) : w.template.unsolved}</p>
-            <p className="mp-app__note mp-st__verdict" data-agrees={check.agrees ? 'true' : 'false'}>
-              {verdictLine(w, check, group)}
-            </p>
-            <button type="button" className="mp-app__btn" onClick={applyTemplate}>
+            {select<TemplateId | ''>(
+              w.template.pick,
+              selected ?? '',
+              [['', w.template.own], ...TEMPLATE_IDS.map((id) => [id, w.template.names[id]] as [TemplateId, string])],
+              (v) => setPick(v === '' ? 'own' : v),
+            )}
+            {panel.kind === 'compare' && check ? (
+              <>
+                <p className="mp-app__computed mp-st__answer">{fill(w.template.answer, { answer: answerOf(check.expected) })}</p>
+                <p className="mp-app__computed mp-st__answer">{check.got ? fill(w.template.got, { answer: answerOf(check.got) }) : w.template.unsolved}</p>
+                <p className="mp-app__note mp-st__verdict" data-agrees={check.agrees ? 'true' : 'false'}>
+                  {verdictLine(w, check, group)}
+                </p>
+              </>
+            ) : (
+              <p className="mp-app__note mp-st__neutral">{panel.kind === 'differs' ? w.template.differsFromBook : w.template.pickOne}</p>
+            )}
+            <button type="button" className="mp-app__btn" onClick={applyTemplate} disabled={selected === null}>
               {w.template.apply}
             </button>
             <p className="mp-app__computed mp-st__said" role="status">
@@ -582,8 +633,8 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
             <p className="mp-app__note">{w.supports.note}</p>
             {form.supports.length === 0 ? <p className="mp-app__none">{w.empty.supports}</p> : null}
             {form.supports.map((s, i) => {
-              const settles = (s.ux && s.dx !== 0) || (s.uy && s.dy !== 0) || (frame && s.rz && s.dr !== 0);
-              return <SupportRowView key={s.id} {...rowProps('supports', s.id, i)} row={s} open={more.has(s.id) || settles} forced={settles} toggle={toggleMore} />;
+              const { open, forced } = settlementOpen(more, s, frame);
+              return <SupportRowView key={s.id} {...rowProps('supports', s.id, i)} row={s} open={open} forced={forced} toggle={toggleMore} nodeLabel={form.nodes.findIndex((n) => n.id === s.node) + 1} />;
             })}
             {addButton('supports', w.supports.add)}
             {status('supports', 'mp-st__notice')}
@@ -735,8 +786,9 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
               // Where the way back is said (the line under "Load problem").
               if (left) setSaid(w.template.back);
               setWhole(example);
-              setTplId(FIRST_TEMPLATE);
-              setShow(showFor(example, SHOW));
+              setPick(null);
+              setLast(null);
+              setShow(startShow(example));
               // The address goes bare - if what is after the # is a structure.
               address.take(EXAMPLE);
             }}
@@ -744,7 +796,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
         </form>
 
         {/* -- the answer -- */}
-        <section className={tooTall ? 'mp-app__out mp-app__out--tall' : 'mp-app__out'} aria-label={t.results.title} ref={outRef} aria-busy={catching ? true : undefined}>
+        <section className="mp-app__out mp-st__out" aria-label={t.results.title} aria-busy={catching ? true : undefined}>
           {box}
 
           {/* Mounted before it has anything to say, so that a reader who cannot see it is told when it fills. */}
@@ -783,7 +835,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
             <dl className="mp-app__dl mp-st__largest">
               <div>
                 <dt>{w.results.headline.displacement}</dt>
-                <dd>{farthest ? fill(w.results.headline.atNode, { value: num(farthest.magnitude), unit: ru.displacement, node: farthest.node }) : w.results.headline.none}</dd>
+                <dd>{farthest ? fill(w.results.headline.atNode, { value: num(farthest.magnitude), unit: ru.displacement, node: farthest.node }) : turning ? fill(w.results.headline.turnAtNode, { value: num(turning.value), node: turning.node }) : w.results.headline.none}</dd>
               </div>
               <div>
                 <dt>{w.results.headline.reaction}</dt>
@@ -818,14 +870,21 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
             </fieldset>
           </div>
 
+          {/* The drawing and the sentence that reads it are what stays in view beside the form (stiffness.css); the notices, the status and the switches above scroll away. */}
+          <div className={tooTall ? 'mp-st__pin mp-st__pin--tall' : 'mp-st__pin'} ref={pinRef}>
           <div className="mp-app__plots" ref={plotRef}>
-            <p className="mp-plot__title mp-plot__title--first">
-              {w.drawing.title}
-              <span className="mp-plot__unit">
-                {' '}
-                · {ru.length}, {ru.force}
-              </span>
-            </p>
+            {onPaper ? (
+              // The sheet's figures carry their own titles: here only the units.
+              <p className="mp-st__unitsline">{fill(w.matrix.unitsLine, { units: `${ru.length}, ${ru.force}` })}</p>
+            ) : (
+              <p className="mp-plot__title mp-plot__title--first">
+                {w.drawing.title}
+                <span className="mp-plot__unit">
+                  {' '}
+                  · {ru.length}, {ru.force}
+                </span>
+              </p>
+            )}
             {onPaper ? (
               <div className="mp-st__sheetfigs">
                 <Schematic drawing={a.drawing} width={PAPER_WIDTH} widen={false} paper maxHeight={420} looks={paperLooks({ deformed: false, loads: true, reactions: r !== null, dofs: true })} summary={summary} words={words} units={figureUnits} caption={w.drawing.sheet.structure} />
@@ -833,12 +892,13 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
               </div>
             ) : (
               <FigureGuard message={w.drawing.failed} reset={a.drawing}>
-                <Schematic id={drawingId} drawing={a.drawing} width={width} widen every={show.every && facts.every} canWiden={omitted === 0 ? null : everyOk} onThinned={setOmitted} looks={looks} summary={summary} words={words} units={figureUnits} />
+                <Schematic id={drawingId} drawing={a.drawing} width={width} widen every={show.every && facts.every} canWiden={omitted === 0 ? null : everyOk} onThinned={setOmitted} looks={looks} summary={summary} describedBy={idOf('reading')} words={words} units={figureUnits} />
               </FigureGuard>
             )}
-            {reading ? <p className="mp-st__reading">{reading}</p> : null}
+            {reading ? <p id={idOf('reading')} className="mp-st__reading">{reading}</p> : null}
             {settleLine ? <p className="mp-st__reading mp-st__settle">{settleLine}</p> : null}
             {r ? null : <p className="mp-app__need">{w.results.waiting}</p>}
+          </div>
           </div>
         </section>
       </div>
@@ -848,7 +908,16 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
       <p className="mp-app__note mp-st__method">{w.results.method}</p>
 
       {/* -- the worked solution -- */}
-      <Solution w={w} analysis={shownAnalysis} system={form.units} mode={shownAnalysis.mode} group={group} onPaper={onPaper} busy={catching || shownAnalysis !== a} id={stepsId} epoch={epoch} />
+      <Solution w={w} analysis={solutionShown.analysis} group={group} onPaper={onPaper} busy={catching || solutionShown.behind} id={stepsId} epoch={epoch} after={{ id: afterId, go: goTo(afterId) }} />
+      {/* The way back: skip links only went forward, and a keyboard reader at the foot of a long solution had the whole of it to cross again. */}
+      <nav className="mp-st__back mp-st__target" id={afterId} tabIndex={-1} aria-label={w.jump.label}>
+        <a href={`#${formId}`} onClick={goTo(formId)}>
+          {w.jump.form}
+        </a>
+        <a href={`#${drawingId}`} onClick={goTo(drawingId)}>
+          {w.jump.drawing}
+        </a>
+      </nav>
 
       <p className="mp-app__privacy">{t.results.privacy}</p>
       {/* On paper only: when the sheet was printed, and the address that opens this very structure again. */}

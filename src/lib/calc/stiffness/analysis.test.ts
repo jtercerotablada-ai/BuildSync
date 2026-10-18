@@ -319,7 +319,8 @@ describe('the faults, by row', () => {
     let f = ofTemplate('truss-two-bar');
     f = edit(f, { type: 'patch', list: 'members', id: f.members[1].id, patch: { A: -2 } });
     const a = analyseSafely(f);
-    expect(a.issues).toEqual([{ code: 'section', row: { list: 'members', id: f.members[1].id, field: 'A' }, at: 2 }]);
+    // (a member's own area, minus 2: the sentence is told that it is a member's (blank takes the structure's) and that the value is zero or below)
+    expect(a.issues).toEqual([{ code: 'section', row: { list: 'members', id: f.members[1].id, field: 'A' }, at: 2, count: 0, max: 1 }]);
     expect(a.results).toBeNull();
     expect(a.drawing.nodes).toHaveLength(3);
     expect(a.counts.dofs).toBe(6);

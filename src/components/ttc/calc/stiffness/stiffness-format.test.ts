@@ -180,7 +180,9 @@ describe('a matrix as a table', () => {
   it('writes the tsv with the labels, tab-separated, in numbers a spreadsheet reads', () => {
     const sol = solved();
     const t = matrixTable(matrix(sol, 'local-stiffness#1', 'k'), opts('k', 'stiffness'));
-    expect(t.tsv).toBe('\tu1\tu3\nu1\t29000\t-29000\nu3\t-29000\t29000');
+    // (the corner cell carries the units, so that the first row of what is pasted names them; the minus is the plain hyphen a spreadsheet and the tool's own fields read)
+    expect(t.tsv).toBe('kip/ft\tu1\tu3\nu1\t29000\t-29000\nu3\t-29000\t29000');
+    expect(t.tsv).not.toMatch(/[−–]/);
     const wide = matrixTable(matrix(sol, 'assembled', 'K'), opts('K', 'stiffness'));
     const rows = wide.tsv.split('\n');
     expect(rows).toHaveLength(7);
@@ -230,7 +232,12 @@ describe('a matrix as a table', () => {
     const sol = solved(reduceStiffness(emptyStiffness('us'), { type: 'template', template: 'frame-portal' }));
     const pass = matrixTable(matrix(sol, 'forward-pass#1', 'augmented'), opts('a', 'augmented'));
     expect(pass.cells[0][0].hl).toBe('pivot');
-    expect(pass.cells[1][0].hl).toBe('eliminated');
+    // (a row marked is one whose multiplier is not zero: a row whose entry under the pivot is already 0 has nothing made zero in it, and nothing changed)
+    const multipliers = vector(sol, 'forward-pass#1', 'multipliers').values;
+    expect(multipliers[0]).toBe(0);
+    expect(pass.cells[1][0].hl).toBeNull();
+    expect(pass.cells[2][0].hl).toBe('eliminated');
+    expect(multipliers[1]).not.toBe(0);
     expect(pass.legend[0]).toBe('pivot');
     expect(pass.legend).toContain('eliminated');
     expect(pass.units).toContain('right-hand side');
@@ -284,7 +291,7 @@ describe('vectors as one table, a column to each', () => {
     expect(t.rowLabels).toEqual(['1x', '1y', '2x', '2y']);
     expect(t.colHeads).toEqual(names);
     expect(t.cells.map((r) => r[3].text)).toEqual(['10', '7.5', '−30', '22.5']);
-    expect(t.tsv.split('\n')[0]).toBe('\tK_RF·u_F\tK_RR·u_R\tP_R\tR');
+    expect(t.tsv.split('\n')[0]).toBe('kip\tK_RF·u_F\tK_RR·u_R\tP_R\tR');
     expect(t.units).toBe('Units: kip.');
   });
   it('marks a held DOF on its row, and a multiplier’s one symbol is said once, in the head', () => {

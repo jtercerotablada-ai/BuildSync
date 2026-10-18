@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { emptyStiffness, reduceStiffness, type UnitSystem } from '@/lib/calc/stiffness/model';
+import { convertStiffness, decodeStiffness, defaultStiffness, emptyStiffness, encodeStiffness, reduceStiffness, type UnitSystem } from '@/lib/calc/stiffness/model';
 import { stiffnessUi } from '@/lib/calc/stiffness/strings';
 import { analyseSafely } from '@/lib/calc/stiffness/analysis';
+import { fill } from './text';
 import { TEMPLATE_IDS } from '@/lib/calc/stiffness/templates';
 import type { Lang } from '@/lib/ttc/i18n';
-import { INEXTENSIBLE, TOLERANCE, answerLine, checkTextbook, compareValues, gapText, textbookOf, toolValues, unitOfAnswer, verdictLine, type TextbookCheck } from './textbook';
+import { INEXTENSIBLE, TOLERANCE, answerLine, checkTextbook, compareValues, gapText, panelOf, templateCode, templateMatching, textbookOf, toolValues, unitOfAnswer, verdictLine, type TextbookCheck } from './textbook';
 
 /**
  * THE TEXTBOOK ANSWERS, which are the tool's own proof that it is right: seven problems with an answer a student finds by hand, written out as
@@ -199,19 +200,145 @@ describe('the sentences about the answers', () => {
 
   it('the verdict: agrees (to what), differs (by how much), could not be solved; and the portal’s reason, once', () => {
     const base: TextbookCheck = { expected: { N1: 1 }, got: { N1: 1 }, worst: 0, tolerance: 1e-6, agrees: true, inextensible: false };
-    expect(verdictLine(stiffnessUi.en, base, ',')).toBe('The check passes: the tool solved this problem and every value agrees with the textbook’s to within 1 × 10^−6 of the largest value of its kind.');
+    // About the PROBLEM and its hand answer - not a verdict on a structure, and not "the check passes".
+    expect(verdictLine(stiffnessUi.en, base, ',')).toBe('For this problem the tool agrees with the hand answer to within 1 × 10^−6 of the largest value of its kind.');
+    expect(verdictLine(stiffnessUi.es, base, ',')).toBe('En este problema la herramienta coincide con la respuesta a mano con una diferencia máxima de 1 × 10^−6 del mayor valor de su tipo.');
     const bad: TextbookCheck = { ...base, got: { N1: 1.1 }, worst: 0.1, agrees: false };
     const said = verdictLine(stiffnessUi.en, bad, ',');
-    expect(said).toContain('10 %');
-    expect(said).not.toContain('The check passes');
+    expect(said).toBe('For this problem the tool and the hand answer differ by as much as 10 % of the largest value of their kind.');
+    expect(said).not.toMatch(/\bpass(es)?\b|\bfails?\b/);
     expect(said).not.toMatch(noise);
     const none: TextbookCheck = { ...base, got: null, worst: Infinity, agrees: false };
     expect(verdictLine(stiffnessUi.en, none, ',')).toBe(stiffnessUi.en.template.unsolved);
     const portal = verdictLine(stiffnessUi.en, checkTextbook('frame-portal', 'us'), ',');
     expect(portal).toContain('to within 3 %');
     expect(portal.endsWith(stiffnessUi.en.template.inextensible)).toBe(true);
+    expect(stiffnessUi.en.template.unsolved).toBe('The tool could not solve this problem.');
     expect(portal.split(stiffnessUi.en.template.inextensible).length).toBe(2);
     expect(verdictLine(stiffnessUi.en, checkTextbook('truss-two-bar', 'us'), ',')).not.toContain(stiffnessUi.en.template.inextensible);
     for (const lang of LANGS) for (const id of TEMPLATE_IDS) expect(verdictLine(stiffnessUi[lang], checkTextbook(id, 'us'), ','), `${lang} ${id}`).not.toMatch(noise);
+  });
+});
+
+describe('which structure the panel is about', () => {
+  const tpl = (id: (typeof TEMPLATE_IDS)[number], units: UnitSystem = 'us') => reduceStiffness(emptyStiffness(units), { type: 'template', template: id });
+  const code = (f: ReturnType<typeof defaultStiffness>) => encodeStiffness(f);
+  const panel = (f: ReturnType<typeof defaultStiffness>, pick: (typeof TEMPLATE_IDS)[number] | 'own' | null = null, last: (typeof TEMPLATE_IDS)[number] | null = null) => panelOf({ code: code(f), units: f.units, pick, last });
+  const first = TEMPLATE_IDS[0];
+
+  it('the structure the page opens with IS the first problem as it loads: its hand answer is about what is on screen', () => {
+    expect(code(defaultStiffness())).toBe(templateCode(first, 'us'));
+    expect(panel(defaultStiffness())).toEqual({ selected: first, kind: 'compare' });
+  });
+
+  it('every problem, loaded, is the problem the panel compares: in both unit systems, and found by its address alone', () => {
+    for (const id of TEMPLATE_IDS) {
+      for (const units of ['us', 'si'] as const) {
+        const f = tpl(id, units);
+        expect(templateMatching(code(f), units), `${id} ${units}`).toBe(id);
+        expect(panel(f), `${id} ${units}`).toEqual({ selected: id, kind: 'compare' });
+        expect(panel(f, id), `${id} ${units}`).toEqual({ selected: id, kind: 'compare' });
+      }
+    }
+  });
+
+  it('an edit takes the answers away, and putting the number back brings them again (the panel follows the structure, not a flag)', () => {
+    const base = defaultStiffness();
+    const edited = reduceStiffness(base, { type: 'patch', list: 'nodes', id: base.nodes[2].id, patch: { y: 7 } });
+    // The list stays on the problem the structure was (the page remembers it), and the panel says the structure differs from it.
+    expect(panel(edited, null, first)).toEqual({ selected: first, kind: 'differs' });
+    const back = reduceStiffness(edited, { type: 'patch', list: 'nodes', id: base.nodes[2].id, patch: { y: 6 } });
+    expect(panel(back, null, first)).toEqual({ selected: first, kind: 'compare' });
+    // A load typed over is an edit too.
+    const heavier = reduceStiffness(base, { type: 'patch', list: 'loads', id: base.loads[0].id, patch: { fy: -99 } });
+    expect(panel(heavier, null, first).kind).toBe('differs');
+    // A structure that was never one of them: no problem is named.
+    expect(panel(edited)).toEqual({ selected: null, kind: 'pick' });
+  });
+
+  it('switching the units is not the same problem (the metric set is a quarter of the lengths and four times the loads), so no answer is quoted over the converted structure', () => {
+    const converted = convertStiffness(defaultStiffness(), 'si');
+    expect(code(converted)).not.toBe(templateCode(first, 'si'));
+    expect(panel(converted)).toEqual({ selected: null, kind: 'pick' });
+    // The list stands on the problem the visitor had picked: the answers are not shown for it, the way to compare is.
+    expect(panel(converted, first)).toEqual({ selected: first, kind: 'differs' });
+    // The metric problem itself, loaded, compares: -50 kN is the answer of THAT structure.
+    expect(panel(tpl(first, 'si'))).toEqual({ selected: first, kind: 'compare' });
+    expect(textbookOf(first, 'si').N1).toBeCloseTo(-50, 9);
+    expect(textbookOf(first, 'us').N1).toBeCloseTo(-12.5, 9);
+  });
+
+  it('a change of the kind of structure is a different structure', () => {
+    expect(panel(reduceStiffness(defaultStiffness(), { type: 'mode', mode: 'frame' })).kind).toBe('pick');
+  });
+
+  it('the list follows the structure the page shows after Back, Forward or an opened link, and says "your own structure" when it is none of them', () => {
+    // An address opened: the portal frame on screen, nothing picked.
+    const opened = decodeStiffness(encodeStiffness(tpl('frame-portal')))!;
+    expect(panel(opened)).toEqual({ selected: 'frame-portal', kind: 'compare' });
+    // A structure of the visitor's own that is none of the seven.
+    const own = reduceStiffness(tpl('frame-portal'), { type: 'patch', list: 'loads', id: tpl('frame-portal').loads[0].id, patch: { fx: 11 } });
+    expect(panel(own)).toEqual({ selected: null, kind: 'pick' });
+    // …and once the page has forgotten what the structure was (Back onto another structure), the list does not stay on a problem that is not on screen.
+    expect(panel(opened, null, 'truss-two-bar')).toEqual({ selected: 'frame-portal', kind: 'compare' });
+  });
+
+  it('"your own structure" chosen in the list is a choice: the list stands on none, even on a structure that is a problem, and nothing is offered to load', () => {
+    expect(panel(defaultStiffness(), 'own')).toEqual({ selected: null, kind: 'pick' });
+    expect(panel(defaultStiffness(), 'own', first)).toEqual({ selected: null, kind: 'pick' });
+    // Without that choice the list follows the structure again.
+    expect(panel(defaultStiffness(), null, first)).toEqual({ selected: first, kind: 'compare' });
+  });
+
+  it('a problem the visitor picked while another is on screen is not compared with it: the panel says it differs, whichever way round', () => {
+    expect(panel(tpl('frame-portal'), first)).toEqual({ selected: first, kind: 'differs' });
+    expect(panel(defaultStiffness(), 'frame-l')).toEqual({ selected: 'frame-l', kind: 'differs' });
+  });
+
+  it('keeps the address of each problem once: asking again gives the same string, and the seven are seven different structures', () => {
+    expect(templateCode('frame-l', 'us')).toBe(templateCode('frame-l', 'us'));
+    expect(new Set(TEMPLATE_IDS.map((id) => templateCode(id, 'us'))).size).toBe(TEMPLATE_IDS.length);
+    expect(new Set(TEMPLATE_IDS.map((id) => templateCode(id, 'si'))).size).toBe(TEMPLATE_IDS.length);
+  });
+});
+
+describe('what the list of problems says of each', () => {
+  it('tags none of the problems as indeterminate (one of seven was, and four are): the status over the drawing says it, from the engine’s own count, once the problem is loaded', () => {
+    let indeterminate = 0;
+    for (const id of TEMPLATE_IDS) {
+      expect(stiffnessUi.en.template.names[id], `en ${id}`).not.toMatch(/indeterminate/i);
+      expect(stiffnessUi.es.template.names[id], `es ${id}`).not.toMatch(/hiperest|indetermin/i);
+      if (analyseSafely(reduceStiffness(emptyStiffness('us'), { type: 'template', template: id })).determinacy.word === 'indeterminate') indeterminate++;
+    }
+    expect(indeterminate).toBeGreaterThanOrEqual(4);
+  });
+
+  it('keeps every name short enough for the list of a phone (the longest name is what the closed list shows)', () => {
+    for (const lang of ['en', 'es'] as const) for (const id of TEMPLATE_IDS) expect(stiffnessUi[lang].template.names[id].length, `${lang} ${id}`).toBeLessThanOrEqual(31);
+  });
+
+  it('every hand answer that gives a moment, a rotation or an axial force says which way is positive', () => {
+    const en = stiffnessUi.en.template.answers;
+    const es = stiffnessUi.es.template.answers;
+    for (const id of ['frame-propped', 'frame-l', 'frame-fixed-point'] as const) {
+      expect(en[id], id).toContain('counter-clockwise is positive');
+      expect(es[id], id).toContain('el sentido antihorario es positivo');
+    }
+    expect(en['frame-l']).toContain('a minus sign is compression');
+    expect(es['frame-l']).toContain('un signo menos es compresión');
+    expect(en['truss-two-bar']).toContain('a minus sign is compression');
+    for (const id of ['frame-propped', 'frame-portal', 'frame-fixed-point'] as const) expect(en[id], id).toContain('(upward is positive)');
+  });
+
+  it('says what was loaded with each count agreeing with its noun, one member and one member load in the singular, and the same in Spanish', () => {
+    const tpl = (id: (typeof TEMPLATE_IDS)[number]) => reduceStiffness(emptyStiffness('us'), { type: 'template', template: id });
+    const said = (lang: 'en' | 'es', id: (typeof TEMPLATE_IDS)[number]) => {
+      const f = tpl(id);
+      const w = stiffnessUi[lang].template;
+      return fill(w.done, { template: w.names[id], nodes: f.nodes.length, members: f.members.length, supports: f.supports.length, loads: f.loads.length, memberLoads: f.memberLoads.length });
+    };
+    expect(said('en', 'frame-fixed-point')).toBe('Loaded: Fixed beam with a point load. It has 2 supports on 2 nodes joined by 1 member, with 0 nodal loads and 1 member load.');
+    expect(said('es', 'frame-fixed-point')).toBe('Se cargó: Viga empotrada, carga puntual. Tiene 2 apoyos sobre 2 nudos unidos por 1 barra, con 0 cargas nodales y 1 carga sobre barra.');
+    expect(said('en', 'truss-two-bar')).toBe('Loaded: Two-bar truss. It has 2 supports on 3 nodes joined by 2 members, with 1 nodal load and 0 member loads.');
   });
 });

@@ -1,8 +1,8 @@
 import { formatNumber } from '@/lib/calc/format';
 import { analyseSafely, type StiffnessAnalysis } from '@/lib/calc/stiffness/analysis';
-import { FROM_ENGINE, TO_ENGINE, emptyStiffness, reduceStiffness, type UnitSystem } from '@/lib/calc/stiffness/model';
+import { FROM_ENGINE, TO_ENGINE, emptyStiffness, encodeStiffness, reduceStiffness, type StiffnessAction, type StiffnessForm, type UnitSystem } from '@/lib/calc/stiffness/model';
 import type { StiffnessUi } from '@/lib/calc/stiffness/strings';
-import { buildTemplate, type TemplateId } from '@/lib/calc/stiffness/templates';
+import { TEMPLATE_IDS, buildTemplate, type TemplateId } from '@/lib/calc/stiffness/templates';
 import { fill } from './text';
 
 /**
@@ -12,6 +12,12 @@ import { fill } from './text';
  * of the problem's own numbers - so it holds in feet and kips and in metres and kilonewtons alike - and put beside what the tool gives.
  * The check solves the selected problem ITSELF, apart from the structure on screen (which the visitor may have edited since), and
  * compares the two, value by value, each against the largest value of its own kind (a force with forces, a moment with moments).
+ *
+ * WHICH STRUCTURE THE PANEL IS ABOUT. The hand answer and the tool's line are about the PROBLEM AS LISTED - not about whatever is on
+ * screen. So the panel shows them only while the structure on screen IS that problem as it loads in the units now shown (`panelOf`:
+ * the address of the form equals the address of the problem); after an edit, a switch of the units, a change of the kind of structure,
+ * or Back and Forward onto another structure, it says that the structure differs and offers the problem. A problem is never quoted
+ * beside results it did not give.
  *
  * The portal frame is the one place the textbook and the tool differ in method: the textbook takes the members as inextensible, the tool
  * counts their stretching, so they agree to a few percent (3 %) and not to the last figure; every other problem agrees to the figures
@@ -170,6 +176,54 @@ export function checkTextbook(id: TemplateId, units: UnitSystem): TextbookCheck 
   const made: TextbookCheck = { expected, got, worst, tolerance, agrees: got !== null && worst <= tolerance, inextensible: INEXTENSIBLE[id] };
   checks.set(key, made);
   return made;
+}
+
+/* ── Which structure the panel is about ───────────────────────────────── */
+
+const codes = new Map<string, string>();
+
+/** The address of a problem as it loads in these units: what the form's address equals while the structure on screen IS that problem. */
+export function templateCode(id: TemplateId, units: UnitSystem): string {
+  const key = `${id}|${units}`;
+  let code = codes.get(key);
+  if (code === undefined) {
+    code = encodeStiffness(reduceStiffness(emptyStiffness(units), { type: 'template', template: id }));
+    codes.set(key, code);
+  }
+  return code;
+}
+
+/**
+ * What "Load problem" does: the structure the problem makes of the one on screen, and the action that puts it there. It goes in as a WHOLE structure
+ * (the action is 'load', which hands back the very object it is given, and the calculator remembers that object as the one opened whole): the next
+ * render solves it, instead of showing for a moment the results of the structure before - which a problem loaded over an edited copy of itself did, since
+ * only numbers had changed and the page solves a numbers-only change a moment later.
+ */
+export function templatePlan(form: StiffnessForm, id: TemplateId): { action: StiffnessAction; whole: StiffnessForm } {
+  const whole = reduceStiffness(form, { type: 'template', template: id });
+  return { action: { type: 'load', form: whole }, whole };
+}
+
+/** The problem whose address is `code`, in these units; null when the structure is none of them. */
+export const templateMatching = (code: string, units: UnitSystem): TemplateId | null => TEMPLATE_IDS.find((id) => templateCode(id, units) === code) ?? null;
+
+/**
+ * What the template panel shows. `selected` is the problem the list stands on: the visitor's pick, else the problem the structure on
+ * screen is (so that Back, Forward and an opened link bring the list along), else the problem it LAST was (an edit of the example leaves the list
+ * on the example's problem, which the panel then says the structure differs from), else none ("your own structure").
+ *   'compare'  the structure on screen is the selected problem as it loads: its hand answer and the tool's line are about it.
+ *   'differs'  a problem is selected and the structure on screen is not it (edited, other units, other kind): one line says so.
+ *   'pick'     no problem is selected and the structure is none of them.
+ */
+export interface Panel {
+  selected: TemplateId | null;
+  kind: 'compare' | 'differs' | 'pick';
+}
+export function panelOf(o: { code: string; units: UnitSystem; pick: TemplateId | 'own' | null; last?: TemplateId | null }): Panel {
+  // "Your own structure" chosen in the list is a choice too: the list stands on none, and there is nothing to compare or to load.
+  const selected = o.pick === 'own' ? null : (o.pick ?? templateMatching(o.code, o.units) ?? o.last ?? null);
+  if (selected === null) return { selected, kind: 'pick' };
+  return { selected, kind: templateCode(selected, o.units) === o.code ? 'compare' : 'differs' };
 }
 
 /* ── The sentences: the words are the page's (lib/calc/stiffness/strings.ts) ───────────────────────────────────────────────────── */

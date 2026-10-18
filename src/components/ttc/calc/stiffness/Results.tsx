@@ -34,12 +34,12 @@ const head = (title: string, unit?: string) => (
     {unit ? <span className="mp-plot__unit"> ({unit})</span> : null}
   </>
 );
-/** The same head inside a cell, for a phone: there a row is laid out as lines of its own and each cell stands under its head. Silent: the table's own heads are read. */
-const under = (title: string, unit?: string) => (
-  <span className="mp-st__head" aria-hidden="true">
-    {head(title, unit)}
-  </span>
-);
+/**
+ * The same head as a cell's own label, for a phone: there a row is laid out as lines of its own and each cell stands under its head. The label is an
+ * attribute that the sheet draws (`content: attr(data-label)`, with an empty alternative so that a reader is not told it twice: the table's own heads are read),
+ * and not an element in each of the cells of a table of nine columns.
+ */
+const labelOf = (title: string, unit?: string) => (unit ? `${title} (${unit})` : title);
 
 export function Results({ a, w, t, fmt, id, busy }: ResultsProps) {
   const r = a.results;
@@ -76,31 +76,25 @@ export function Results({ a, w, t, fmt, id, busy }: ResultsProps) {
           <tbody role="rowgroup">
             {r.displacements.map((d) => (
               <tr key={d.node} role="row">
-                <th scope="row" role="rowheader">
-                  {under(s.displacements.node)}
+                <th scope="row" role="rowheader" data-label={labelOf(s.displacements.node)}>
                   {d.node}
                 </th>
-                <td role="cell">
-                  {under(s.displacements.ux, ru.displacement)}
+                <td role="cell" data-label={labelOf(s.displacements.ux, ru.displacement)}>
                   {val(d.ux)}
                 </td>
-                <td role="cell">
-                  {under(s.displacements.uy, ru.displacement)}
+                <td role="cell" data-label={labelOf(s.displacements.uy, ru.displacement)}>
                   {val(d.uy)}
                 </td>
-                <td role="cell">
-                  {under(s.displacements.size, ru.displacement)}
+                <td role="cell" data-label={labelOf(s.displacements.size, ru.displacement)}>
                   {num(d.magnitude)}
                 </td>
                 {frame ? (
-                  <td role="cell">
-                    {under(s.displacements.rotation, ru.rotation)}
+                  <td role="cell" data-label={labelOf(s.displacements.rotation, ru.rotation)}>
                     {d.rotation === null ? '—' : val(d.rotation)}
                   </td>
                 ) : null}
                 {frame ? (
-                  <td role="cell">
-                    {under(s.displacements.degrees, '°')}
+                  <td role="cell" data-label={labelOf(s.displacements.degrees, '°')}>
                     {d.rotationDegrees === null ? '—' : val(d.rotationDegrees)}
                   </td>
                 ) : null}
@@ -128,25 +122,20 @@ export function Results({ a, w, t, fmt, id, busy }: ResultsProps) {
           <tbody role="rowgroup">
             {r.reactions.map((x) => (
               <tr key={x.label} role="row">
-                <th scope="row" role="rowheader">
-                  {under(t.supports.title)}
+                <th scope="row" role="rowheader" data-label={labelOf(t.supports.title)}>
                   {x.label}
                 </th>
-                <td role="cell">
-                  {under(s.reactions.node)}
+                <td role="cell" data-label={labelOf(s.reactions.node)}>
                   {x.node}
                 </td>
-                <td role="cell">
-                  {under(s.reactions.rx, ru.force)}
+                <td role="cell" data-label={labelOf(s.reactions.rx, ru.force)}>
                   {x.rx === null ? s.reactions.free : val(x.rx)}
                 </td>
-                <td role="cell">
-                  {under(s.reactions.ry, ru.force)}
+                <td role="cell" data-label={labelOf(s.reactions.ry, ru.force)}>
                   {x.ry === null ? s.reactions.free : val(x.ry)}
                 </td>
                 {hasMoment ? (
-                  <td role="cell">
-                    {under(s.reactions.rm, ru.moment)}
+                  <td role="cell" data-label={labelOf(s.reactions.rm, ru.moment)}>
                     {x.rm === null ? s.reactions.free : val(x.rm)}
                   </td>
                 ) : null}
@@ -179,40 +168,31 @@ export function Results({ a, w, t, fmt, id, busy }: ResultsProps) {
             <tbody role="rowgroup">
               {r.members.map((m) => (
                 <tr key={m.label} role="row">
-                  <th scope="row" role="rowheader">
-                    {under(s.members.member)}
+                  <th scope="row" role="rowheader" data-label={labelOf(s.members.member)}>
                     {m.label}
                   </th>
-                  <td role="cell">
-                    {under(s.members.nodes)}
+                  <td role="cell" data-label={labelOf(s.members.nodes)}>
                     {m.i} – {m.j}
                   </td>
-                  <td role="cell">
-                    {under(s.members.length, ru.length)}
+                  <td role="cell" data-label={labelOf(s.members.length, ru.length)}>
                     {num(m.length)}
                   </td>
-                  <td role="cell">
-                    {under(s.members.Ni, ru.force)}
+                  <td role="cell" data-label={labelOf(s.members.Ni, ru.force)}>
                     {val(m.start.N)}
                   </td>
-                  <td role="cell">
-                    {under(s.members.Vi, ru.force)}
+                  <td role="cell" data-label={labelOf(s.members.Vi, ru.force)}>
                     {val(m.start.V)}
                   </td>
-                  <td role="cell">
-                    {under(s.members.Mi, ru.moment)}
+                  <td role="cell" data-label={labelOf(s.members.Mi, ru.moment)}>
                     {val(m.start.M)}
                   </td>
-                  <td role="cell">
-                    {under(s.members.Nj, ru.force)}
+                  <td role="cell" data-label={labelOf(s.members.Nj, ru.force)}>
                     {val(m.end.N)}
                   </td>
-                  <td role="cell">
-                    {under(s.members.Vj, ru.force)}
+                  <td role="cell" data-label={labelOf(s.members.Vj, ru.force)}>
                     {val(m.end.V)}
                   </td>
-                  <td role="cell">
-                    {under(s.members.Mj, ru.moment)}
+                  <td role="cell" data-label={labelOf(s.members.Mj, ru.moment)}>
                     {val(m.end.M)}
                   </td>
                 </tr>
@@ -241,32 +221,25 @@ export function Results({ a, w, t, fmt, id, busy }: ResultsProps) {
             <tbody role="rowgroup">
               {r.members.map((m) => (
                 <tr key={m.label} role="row">
-                  <th scope="row" role="rowheader">
-                    {under(s.bars.member)}
+                  <th scope="row" role="rowheader" data-label={labelOf(s.bars.member)}>
                     {m.label}
                   </th>
-                  <td role="cell">
-                    {under(s.bars.nodes)}
+                  <td role="cell" data-label={labelOf(s.bars.nodes)}>
                     {m.i} – {m.j}
                   </td>
-                  <td role="cell">
-                    {under(s.bars.length, ru.length)}
+                  <td role="cell" data-label={labelOf(s.bars.length, ru.length)}>
                     {num(m.length)}
                   </td>
-                  <td role="cell">
-                    {under(s.bars.N, ru.force)}
+                  <td role="cell" data-label={labelOf(s.bars.N, ru.force)}>
                     {m.bar ? val(m.bar.N) : '—'}
                   </td>
-                  <td role="cell">
-                    {under(s.bars.state)}
+                  <td role="cell" data-label={labelOf(s.bars.state)}>
                     {m.bar ? s.bars.states[m.bar.state] : '—'}
                   </td>
-                  <td role="cell">
-                    {under(s.bars.stress, ru.stress)}
+                  <td role="cell" data-label={labelOf(s.bars.stress, ru.stress)}>
                     {m.bar ? val(m.bar.stress) : '—'}
                   </td>
-                  <td role="cell">
-                    {under(s.bars.elongation, ru.displacement)}
+                  <td role="cell" data-label={labelOf(s.bars.elongation, ru.displacement)}>
                     {m.bar ? val(m.bar.elongation) : '—'}
                   </td>
                 </tr>

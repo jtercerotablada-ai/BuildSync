@@ -9,6 +9,7 @@
    A MARK ON A TABLE HAS A PATTERN AS WELL AS A COLOUR (hatching one way or the other, dots, stripes, an inverted cell), and a name in the
    legend under the table, so that a black-and-white sheet and a reader who does not tell blue from green lose nothing. */
 .mp-st {
+  position: relative;
   --mp-st-axial: 31, 90, 153;
   --mp-st-bending: 26, 106, 79;
   --mp-st-shared: 122, 59, 115;
@@ -93,6 +94,25 @@
   justify-self: start;
   grid-column: 1 / -1;
 }
+.mp-st .mp-st__stray {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mp-2) var(--mp-4);
+  padding: var(--mp-2) var(--mp-3);
+  border-inline-start: 3px solid var(--mp-gold-ink);
+  font-size: 0.8125rem;
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__stray p {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+/* A placeholder is a hint, and a long one is cut: it is set a little smaller than the value that will stand there. */
+.mp-st .mp-num__input::placeholder {
+  font-size: 0.8125rem;
+}
 .mp-st .mp-st__subtitle {
   margin: var(--mp-2) 0 0;
   font-size: 0.875rem;
@@ -146,11 +166,22 @@
   border-inline-start-color: var(--mp-error);
   border-inline-start-style: dashed;
 }
+/* The structure on screen is not the problem listed: no answer is quoted beside it, one line says why. */
+.mp-st .mp-st__neutral {
+  margin: 0;
+  padding: var(--mp-2) var(--mp-3);
+  border-inline-start: 3px solid var(--mp-line-strong);
+}
 /* A line that says what just happened is in the page before it has anything to say (a screen reader hears it arrive): empty, it takes no room. */
 .mp-st .mp-st__notice:empty,
 .mp-st .mp-st__limit:empty,
 .mp-st .mp-st__said:empty,
-.mp-st .mp-st__filled:empty {
+.mp-st .mp-st__announce:empty,
+.mp-st .mp-st__filled:empty,
+.mp-st .mp-st__warnings[data-empty],
+.mp-st .mp-st__partial[data-empty],
+.mp-st .mp-app__issues:empty,
+.mp-st .mp-st__copied:empty {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -159,6 +190,10 @@
   overflow: hidden;
   border: 0;
   clip-path: inset(50%);
+}
+/* The box of problems is the sheet's own (calc.css hides it with display: none while it is empty, which takes it out of the accessibility tree too): here it is there. */
+.mp-st .mp-app__issues:empty {
+  display: block;
 }
 /* Announced, not seen: the status region of a number field (FNum.tsx), and the text only a screen reader needs. */
 .mp-st .mp-st__sr {
@@ -175,6 +210,25 @@
 
 /* ── the answer ───────────────────────────────────────────────────────── */
 
+/* The column of the answer is as tall as the form beside it, and what stays in view in it is the drawing and the sentence that reads it: the notices, the
+   status, the headline numbers and the switches above scroll with the page. (The shared sheet pins the whole column, which at an ordinary laptop's height
+   is taller than the window, and then lets it go: the drawing was never in view where the form was being filled in.) */
+.mp-st .mp-app__out.mp-st__out {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+.mp-st .mp-st__pin {
+  position: sticky;
+  top: calc(var(--mp-header-h, 6rem) + var(--mp-4));
+  z-index: 1;
+  min-width: 0;
+}
+/* Taller than the window under the header: not pinned (the part under the fold could not be reached). */
+.mp-st .mp-st__pin.mp-st__pin--tall {
+  position: static;
+}
 .mp-st .mp-st__status {
   display: grid;
   gap: var(--mp-1);
@@ -192,9 +246,6 @@
   font-size: var(--mp-t-h4);
   font-weight: 500;
   letter-spacing: -0.01em;
-}
-.mp-st .mp-st__warnings[data-empty] {
-  display: none;
 }
 .mp-st .mp-st__warnings {
   padding: var(--mp-4);
@@ -257,8 +308,48 @@
     inset-inline-start: -9999px;
   }
   .mp-st .mp-st__jumps:focus-within {
-    position: static;
+    inset-inline-start: 0;
+    inset-block-start: 0;
+    z-index: 5;
+    padding-inline: var(--mp-4);
+    background: var(--mp-paper);
+    border: 1px solid var(--mp-ink);
   }
+}
+/* The same on a narrow page: the links that are laid out there do not move either. */
+.mp-st .mp-st__skip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.mp-st .mp-st__skip:focus {
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  z-index: 5;
+  padding: var(--mp-2) var(--mp-3);
+  background: var(--mp-paper);
+  border: 1px solid var(--mp-ink);
+  color: var(--mp-ink);
+}
+/* The way back, after the solution. */
+.mp-st .mp-st__back {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  font-size: 0.875rem;
+}
+.mp-st .mp-st__back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 .mp-st .mp-st__target {
   scroll-margin-top: calc(var(--mp-header-h, 6rem) + var(--mp-4));
@@ -281,9 +372,6 @@
 }
 .mp-st .mp-st__table td {
   white-space: normal;
-}
-.mp-st .mp-st__head {
-  display: none;
 }
 @media screen {
   .mp-st .mp-app__card--wide {
@@ -331,16 +419,15 @@
     padding-block: 0.3rem;
     border-block-end: 0;
   }
-  .mp-st .mp-st__table .mp-st__head {
+  /* The head each cell stands under is its own attribute, drawn here (the empty alternative keeps a reader from being told it twice). */
+  .mp-st .mp-st__table td::before,
+  .mp-st .mp-st__table th[scope='row']::before {
+    content: attr(data-label);
+    content: attr(data-label) / '';
     display: block;
     font-size: 0.6875rem;
     font-weight: 400;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--mp-ink-3);
-  }
-  .mp-st .mp-st__table .mp-st__head .mp-plot__unit {
-    text-transform: none;
   }
 }
 
@@ -372,9 +459,6 @@
   font-size: var(--mp-t-small);
   color: var(--mp-ink-2);
 }
-.mp-st .mp-st__partial[data-empty] {
-  display: none;
-}
 /* How the numbers are shown: one row of choices that holds for every table. */
 .mp-st .mp-st__looks {
   display: flex;
@@ -387,6 +471,10 @@
 }
 .mp-st .mp-st__looks > .mp-num--select {
   flex: 0 1 15rem;
+}
+/* What the sheet carries is a sentence: it has the room to be read. */
+.mp-st .mp-st__looks > .mp-st__scope {
+  flex-basis: 24rem;
 }
 .mp-st .mp-st__layout {
   display: grid;
@@ -422,8 +510,24 @@
   color: var(--mp-ink-3);
   font-variant-numeric: tabular-nums;
 }
-.mp-st .mp-st__jump {
+.mp-st .mp-st__announce {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--mp-ink-2);
+}
+/* The bar at the foot of the screen is for a tablet or a phone (below): beside a wide screen the outline and the buttons stand in the column. */
+.mp-st .mp-st__stepbar {
   display: none;
+}
+/* The room a card keeps for the tables it has not drawn (it draws them when it comes near the screen). With scripts off they never come: no room. */
+.mp-st .mp-st__later {
+  min-width: 0;
+  border: 1px dashed var(--mp-line);
+}
+@media (scripting: none) {
+  .mp-st .mp-st__later {
+    display: none;
+  }
 }
 .mp-st .mp-st__stages,
 .mp-st .mp-st__chips {
@@ -655,9 +759,6 @@
   font-size: 0.8125rem;
   color: var(--mp-ink-2);
 }
-.mp-st .mp-st__copied:empty {
-  display: none;
-}
 .mp-st .mp-st__factor,
 .mp-st .mp-st__note,
 .mp-st .mp-st__units,
@@ -747,15 +848,14 @@
   color: var(--mp-ink);
 }
 /* Zeros: the pattern of a matrix reads when its zeros do not shout. */
-.mp-st .mp-st__zero--light {
-  color: var(--mp-ink-faint);
-}
-.mp-st .mp-st__zero--light .mp-st__num,
-.mp-st .mp-st__zero--light .mp-st__sym {
-  opacity: 0.55;
+/* (A quiet zero is lighter than the digits by its colour and not by a veil of opacity: a veil over a coloured cell was 2:1, and this reads at 5:1 or more on paper and on every mark.) */
+.mp-st .mp-st__zero--light,
+.mp-st .mp-st__zero--light .mp-st__sym,
+.mp-st .mp-st__matrix td.mp-st__zero--light .mp-st__sym:only-child {
+  color: var(--mp-ink-3);
 }
 .mp-st .mp-st__zero--dot {
-  color: var(--mp-ink-faint);
+  color: var(--mp-ink-3);
 }
 /* The lines between the blocks of a partition. */
 .mp-st .mp-st__matrix .mp-st__cut-col {
@@ -765,21 +865,24 @@
 .mp-st .mp-st__matrix .mp-st__cut-row > td {
   border-block-start: 2px solid var(--mp-ink);
 }
-.mp-st .mp-st__matrix .mp-st__named {
-  padding-top: 1.2rem;
-}
-.mp-st .mp-st__block {
-  position: absolute;
-  top: 2px;
-  left: 3px;
-  padding: 0 3px;
-  border: 1px solid var(--mp-ink);
+/* The names of the blocks (K_FF, K_FR, K_RF, K_RR; P_F, P_R) stand in a thin row over each group of rows, never inside a cell: a name in a cell pushed its number down. */
+.mp-st .mp-st__matrix .mp-st__blockrow > td {
+  min-width: 0;
+  padding: 0.12rem 0.55rem;
+  border-block-end: 1px solid var(--mp-line);
   background: var(--mp-paper);
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1.2;
+  text-align: start;
   color: var(--mp-ink);
-  pointer-events: none;
+}
+.mp-st .mp-st__matrix .mp-st__blockrow > td.mp-st__blockhead {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 2.6rem;
+  border-inline-end: 1px solid var(--mp-line-strong);
 }
 /* The marks. A held DOF's row header is hatched; every other mark is on the cell. */
 .mp-st .mp-st__matrix .mp-st__rowmark--restrained,
@@ -815,10 +918,19 @@
 }
 .mp-st .mp-st__matrix .mp-st__hl--shared,
 .mp-st .mp-st__swatch.mp-st__hl--shared {
-  background-color: rgba(var(--mp-st-shared), 0.16);
-  background-image: repeating-linear-gradient(45deg, rgba(var(--mp-st-shared), 0.4) 0 1px, transparent 1px 7px), repeating-linear-gradient(135deg, rgba(var(--mp-st-shared), 0.4) 0 1px, transparent 1px 7px);
+  background-color: rgba(var(--mp-st-shared), 0.14);
+  background-image: repeating-linear-gradient(45deg, rgba(var(--mp-st-shared), 0.26) 0 1px, transparent 1px 9px);
   box-shadow: inset 0 -2px 0 rgba(var(--mp-st-shared), 0.9);
   font-weight: 600;
+}
+/* A line of a hatch passes behind a digit, never through it: the digits of a marked cell are set on a halo of the paper's colour. */
+.mp-st .mp-st__matrix .mp-st__hl .mp-st__num,
+.mp-st .mp-st__matrix .mp-st__hl .mp-st__sym {
+  text-shadow: 0 0 2px var(--mp-paper), 0 0 2px var(--mp-paper), 0 0 3px var(--mp-paper);
+}
+.mp-st .mp-st__matrix .mp-st__hl--pivot .mp-st__num,
+.mp-st .mp-st__matrix .mp-st__hl--pivot .mp-st__sym {
+  text-shadow: none;
 }
 .mp-st .mp-st__matrix .mp-st__hl--pivot,
 .mp-st .mp-st__swatch.mp-st__hl--pivot {
@@ -860,6 +972,73 @@
   background-color: rgba(var(--mp-st-gold), 0.2);
   background-image: radial-gradient(rgba(var(--mp-st-gold), 0.9) 1.1px, transparent 1.5px);
   background-size: 5px 5px;
+}
+/* FORCED COLORS (Windows High Contrast and its kin): a background is dropped, so a mark that was a hatch is an outline of its own kind of line - dotted, dashed,
+   solid, double, thin or thick - in a system colour; the legend's swatches follow the cells. The words in the cells (stiffness.css .mp-st__sr) say the same. */
+@media (forced-colors: active) {
+  .mp-st .mp-st__matrix .mp-st__hl,
+  .mp-st .mp-st__swatch.mp-st__hl,
+  .mp-st .mp-st__matrix .mp-st__rowmark {
+    outline-offset: -2px;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--axial,
+  .mp-st .mp-st__swatch.mp-st__hl--axial {
+    outline: 1px dotted CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--bending,
+  .mp-st .mp-st__swatch.mp-st__hl--bending {
+    outline: 1px dashed CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--position,
+  .mp-st .mp-st__swatch.mp-st__hl--position {
+    outline: 2px dashed CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--contributed,
+  .mp-st .mp-st__swatch.mp-st__hl--contributed {
+    outline: 1px solid CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--shared,
+  .mp-st .mp-st__swatch.mp-st__hl--shared {
+    outline: 2px solid CanvasText;
+    text-decoration: underline;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--pivot,
+  .mp-st .mp-st__swatch.mp-st__hl--pivot {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    outline: 2px solid HighlightText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--pivot .mp-st__sym,
+  .mp-st .mp-st__matrix .mp-st__hl--pivot .mp-st__num {
+    color: HighlightText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--eliminated,
+  .mp-st .mp-st__swatch.mp-st__hl--eliminated {
+    outline: 2px dotted CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--updated,
+  .mp-st .mp-st__swatch.mp-st__hl--updated {
+    outline: 3px dotted CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--zero-pivot,
+  .mp-st .mp-st__swatch.mp-st__hl--zero-pivot {
+    outline: 3px double CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--restrained,
+  .mp-st .mp-st__swatch.mp-st__hl--restrained,
+  .mp-st .mp-st__matrix .mp-st__rowmark--restrained {
+    outline: 1px dashed CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--prescribed,
+  .mp-st .mp-st__swatch.mp-st__hl--prescribed,
+  .mp-st .mp-st__matrix .mp-st__rowmark--prescribed {
+    outline: 2px dotted CanvasText;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl .mp-st__num,
+  .mp-st .mp-st__matrix .mp-st__hl .mp-st__sym {
+    text-shadow: none;
+  }
 }
 .mp-st .mp-st__legend {
   display: flex;
@@ -995,13 +1174,31 @@
 .mp-st-fig__badge circle {
   fill: var(--mp-paper);
   stroke: var(--mp-ink);
-  stroke-width: 1.25;
+  stroke-width: 1.5;
 }
 .mp-st-fig__badge text {
   font-family: var(--mp-mono);
-  font-size: 9.5px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   fill: var(--mp-ink);
+}
+/* The hairline that ties a number, or a settlement badge, to its mark when it cannot stand beside it. */
+.mp-st-fig__leader {
+  stroke: var(--mp-ink-3);
+  stroke-width: 0.9;
+}
+.mp-st-fig__leader-dot {
+  fill: var(--mp-ink-3);
+}
+/* A support drawn over a member (every side it may stand on has one): a halo of the paper's colour keeps it whole. */
+.mp-st-fig__halo polygon,
+.mp-st-fig__halo circle,
+.mp-st-fig__halo rect,
+.mp-st-fig__halo line {
+  fill: var(--mp-paper);
+  stroke: var(--mp-paper);
+  stroke-width: 6;
+  stroke-linejoin: round;
 }
 .mp-st-fig__load line,
 .mp-st-fig__reaction line,
@@ -1020,8 +1217,22 @@
 .mp-st-fig__reaction path {
   stroke: var(--mp-gold-ink);
 }
-.mp-st-fig__reaction polygon {
-  fill: var(--mp-gold-ink);
+/* A reaction is told from a load by its SHAPE, so that it is on a sheet printed in black: a dashed shaft and an open head, where a load has a solid shaft and a solid head. */
+.mp-st-fig__reaction .mp-st-fig__shaft {
+  stroke-dasharray: 5 3;
+}
+.mp-st-fig__open {
+  fill: none;
+  stroke: var(--mp-gold-ink);
+  stroke-width: 1.9;
+  stroke-linejoin: miter;
+  stroke-linecap: butt;
+}
+.mp-st-fig__exp {
+  font-variant-numeric: tabular-nums;
+}
+.mp-st-fig__word--swatch {
+  stroke-width: 3px;
 }
 .mp-st-fig__mline {
   stroke: var(--mp-ink);
@@ -1100,8 +1311,29 @@
   .mp-st .mp-st__scrollnote,
   .mp-st .mp-st__jumps,
   .mp-st .mp-st__chev,
+  .mp-st .mp-st__stepbar,
+  .mp-st .mp-st__back,
+  .mp-st .mp-st__printnote,
+  .mp-st .mp-st__announce,
+  .mp-st .mp-st__skip,
+  .mp-st .mp-st__later,
+  .mp-st .mp-st__stray .mp-app__btn,
   .mp-st .mp-st-fig__note--scroll {
     display: none !important;
+  }
+  .mp-st .mp-st__pin {
+    position: static;
+  }
+  .mp-st .mp-st__unitsline,
+  .mp-st .mp-st__skipped {
+    margin: 0;
+    font-size: 7pt;
+    color: #000;
+  }
+  .mp-st .mp-st__stray {
+    padding: 0.5mm 1.5mm;
+    font-size: 6.5pt;
+    color: #000;
   }
   /* A row of the input: its name, then its fields on a line. */
   .mp-st .mp-st__item {
@@ -1216,7 +1448,7 @@
     border: 0;
   }
   .mp-st .mp-st__matrix {
-    font-size: 6.25pt;
+    font-size: 7pt;
   }
   .mp-st .mp-st__matrix th,
   .mp-st .mp-st__matrix td {
@@ -1232,20 +1464,36 @@
     position: static;
   }
   .mp-st .mp-st__sym {
-    font-size: 5.5pt;
+    font-size: 6.5pt;
     color: #000;
   }
+  /* A quiet zero on paper: a grey that still reads (5.7:1), not a veil. */
   .mp-st .mp-st__zero--light,
-  .mp-st .mp-st__zero--dot {
-    color: #777;
+  .mp-st .mp-st__zero--dot,
+  .mp-st .mp-st__zero--light .mp-st__sym,
+  .mp-st .mp-st__matrix td.mp-st__zero--light .mp-st__sym:only-child {
+    color: #666;
+  }
+  .mp-st .mp-st__matrix .mp-st__blockrow > td {
+    font-size: 6.5pt;
+    color: #000;
+    background-color: #fff;
   }
   .mp-st .mp-st__factor,
   .mp-st .mp-st__note,
   .mp-st .mp-st__units,
   .mp-st .mp-st__band,
   .mp-st .mp-st__legend {
-    font-size: 6pt;
+    font-size: 6.5pt;
     color: #000;
+  }
+  /* The size beside a caption, and a subscript, are not set smaller than the type of the sheet can read. */
+  .mp-st .mp-st__size {
+    font-size: 6.5pt;
+  }
+  .mp-st .mp-st__sub,
+  .mp-st .mp-st__sup {
+    font-size: 0.85em;
   }
   /* The marks print: the patterns stay, the colours go to black on white, and the pivot is still an inverted cell. */
   .mp-st {
@@ -1299,11 +1547,17 @@
     fill: #000;
   }
   .mp-st-fig__reaction line,
-  .mp-st-fig__reaction path {
+  .mp-st-fig__reaction path,
+  .mp-st-fig__open {
     stroke: #000;
   }
-  .mp-st-fig__reaction polygon {
-    fill: #000;
+  /* The leader's and the halo's paper is white on a sheet. */
+  .mp-st-fig__halo polygon,
+  .mp-st-fig__halo circle,
+  .mp-st-fig__halo rect,
+  .mp-st-fig__halo line {
+    fill: #fff;
+    stroke: #fff;
   }
   .mp-st-fig__legend {
     font-size: 6.5pt;
@@ -1317,23 +1571,84 @@
   }
 }
 
-/* ── a narrow page: the outline becomes a menu ───────────────────────── */
+/* ── a narrow page: the outline becomes a bar at the foot of the screen ─ */
 
 @media screen and (max-width: 1100px) {
+  html:has(.mp-st__stepbar) {
+    scroll-padding-bottom: 6rem;
+  }
+}
+
+@media screen and (max-width: 1100px) {
+  /* A column, not a grid: the bar that comes after the cards must be able to stay at the foot of the screen for as long as the cards go by, and a bar that is a
+     grid item can only stay inside its own row. */
   .mp-st .mp-st__layout {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
   }
   .mp-st .mp-st__aside {
-    position: static;
+    position: relative;
     max-height: none;
     overflow: visible;
     padding-inline-end: 0;
   }
-  .mp-st .mp-st__nav {
+  .mp-st .mp-st__nav,
+  .mp-st .mp-st__bar--steps,
+  .mp-st .mp-st__position--aside {
     display: none;
   }
-  .mp-st .mp-st__jump {
+  /* Previous, the step and where it is, Next: at the foot of the screen, 44 px to press, under the site's header (z-index 70) and clear of the mobile action bar
+     (which the site does not put on a calculator's page). */
+  .mp-st .mp-st__stepbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
     display: grid;
+    gap: 2px;
+    padding: 0.35rem var(--mp-3) calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    background: var(--mp-paper);
+    border-block-start: 1px solid var(--mp-ink);
+  }
+  .mp-st .mp-st__stepbar .mp-st__position {
+    text-align: center;
+    font-size: 0.75rem;
+  }
+  .mp-st .mp-st__stepbar-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--mp-2);
+    align-items: center;
+  }
+  .mp-st .mp-st__stepbar .mp-app__btn {
+    min-height: 44px;
+    padding-inline: var(--mp-3);
+    justify-content: center;
+  }
+  .mp-st .mp-st__jump {
+    display: block;
+    min-width: 0;
+  }
+  .mp-st .mp-st__jump select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 var(--mp-2);
+    border: 1px solid var(--mp-line-strong);
+    background: var(--mp-paper);
+    font: inherit;
+    font-size: 1rem;
+    color: var(--mp-ink);
+    text-overflow: ellipsis;
+  }
+  /* The card a step lands on is not hidden under the bar when it is the last thing on a short screen. */
+  .mp-st .mp-st__card {
+    scroll-margin-bottom: 6rem;
+  }
+  .mp-st .mp-app__out.mp-st__out {
+    align-self: auto;
+  }
+  .mp-st .mp-st__pin {
+    position: static;
   }
 }
 @media screen and (max-width: 640px) {

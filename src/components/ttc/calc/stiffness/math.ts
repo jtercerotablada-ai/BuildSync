@@ -48,9 +48,6 @@ export function notation(text: string): NotationPart[] {
   return parts;
 }
 
-/** The text as plain characters for a place that cannot show a subscript (a title attribute, a copied line): the same alphabet, unchanged. */
-export const plainNotation = (text: string): string => text;
-
 /** A formula or a symbol in a sentence a screen reader reads: "K sub FF", "T transpose". */
 export function spoken(text: string): string {
   return notation(text)

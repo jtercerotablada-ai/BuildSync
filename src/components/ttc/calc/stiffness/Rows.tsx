@@ -6,6 +6,7 @@ import { STIFFNESS_UNITS, type LoadRow, type MemberLoadRow, type MemberRow, type
 import type { StiffnessShared, StiffnessUi } from '@/lib/calc/stiffness/strings';
 import type { Mode } from '@/lib/calc/stiffness/types';
 import { FNum } from './FNum';
+import { fill } from './text';
 
 /**
  * THE ROWS OF THE FIVE TABLES, one component each. A keystroke in a field changes ONE row of the form (the reducer hands every other row
@@ -47,11 +48,47 @@ interface RowProps {
   texts: string[];
 }
 
+/**
+ * The fields a fault that names none is about, by its code: a member from a node to itself is about its two nodes and nothing else (its modulus and
+ * its area are not "invalid"). A code not listed is about every field of the row.
+ */
+const FIELDS_OF: Partial<Record<AnalysisIssue['code'], string[]>> = {
+  'zero-length': ['i', 'j'],
+  'short-member': ['i', 'j'],
+  'duplicate-member': ['i', 'j'],
+  'member-node': ['i', 'j'],
+  'duplicate-support': ['node'],
+  'support-node': ['node'],
+  'load-node': ['node'],
+  'load-member': ['member'],
+  'duplicate-node': ['x', 'y'],
+};
+/** Whether a fault is about the field: it names it, or names none and its code is about it (or about every field). */
+export const faultIsAbout = (issue: Pick<AnalysisIssue, 'code' | 'row'>, field: string): boolean => (issue.row?.field ? issue.row.field === field : (FIELDS_OF[issue.code]?.includes(field) ?? true));
+
 /** A field of a row at fault: marked, and tied to the row's message. The field the fault is about - every field, when it names none. */
 const faultOf = (env: RowEnv, list: StiffnessList, id: number, issues: AnalysisIssue[], ...fields: string[]) => {
-  const mine = issues.filter((i) => !i.row?.field || fields.length === 0 || fields.includes(i.row.field));
+  const mine = issues.filter((i) => fields.length === 0 || fields.some((f) => faultIsAbout(i, f)));
   return mine.length ? { invalid: true, describedBy: `${env.uid}${rowKey({ list, id })}` } : {};
 };
+
+/** A settlement typed on a movement the support does not hold: it is kept, hidden, and has no effect - the row says so. */
+export interface Stray {
+  field: 'dx' | 'dy' | 'dr';
+  /** The DOF it is typed for: '4x'. */
+  dof: string;
+  value: number;
+  unit: string;
+}
+export function straySettlements(s: SupportRow, node: number, frame: boolean, unit: { displacement: string; rotation: string }): Stray[] {
+  const out: Stray[] = [];
+  const typed = (v: number) => Number.isFinite(v) && v !== 0;
+  if (!s.ux && typed(s.dx)) out.push({ field: 'dx', dof: `${node}x`, value: s.dx, unit: unit.displacement });
+  if (!s.uy && typed(s.dy)) out.push({ field: 'dy', dof: `${node}y`, value: s.dy, unit: unit.displacement });
+  // A truss has no rotation to hold: a rotation typed while the frame was shown is kept for the frame, not a thing to be told of here.
+  if (frame && !s.rz && typed(s.dr)) out.push({ field: 'dr', dof: `${node}θ`, value: s.dr, unit: unit.rotation });
+  return out;
+}
 
 const same = (a: RowProps & { row: unknown }, b: RowProps & { row: unknown }, extra: unknown[] = [], more: unknown[] = []): boolean =>
   a.row === b.row && a.index === b.index && a.env === b.env && JSON.stringify(a.issues) === JSON.stringify(b.issues) && JSON.stringify(a.texts) === JSON.stringify(b.texts) && extra.every((x, k) => x === more[k]);
@@ -181,7 +218,7 @@ export const MemberRowView = memo(
 /* ── Supports ─────────────────────────────────────────────────────────── */
 
 export const SupportRowView = memo(
-  function SupportRowView(p: RowProps & { row: SupportRow; open: boolean; forced: boolean; toggle: (id: number) => void }) {
+  function SupportRowView(p: RowProps & { row: SupportRow; open: boolean; forced: boolean; toggle: (id: number) => void; nodeLabel: number }) {
     const { env, row: s, index, open } = p;
     const { w, u } = env;
     const frame = env.mode === 'frame';
@@ -189,6 +226,7 @@ export const SupportRowView = memo(
     const f = (...fields: string[]) => faultOf(env, 'supports', s.id, p.issues, ...fields);
     const patch = (x: Record<string, unknown>) => env.patch('supports', s.id, x);
     const anyHeld = s.ux || s.uy || (frame && s.rz);
+    const strays = straySettlements(s, p.nodeLabel, frame, u);
     return (
       <Shell {...p} list="supports" id={s.id}>
         <Pick label={w.supports.node} rowName={name} value={s.node} onChange={(id) => patch({ node: id })} options={env.nodeOptions} extra={f('node')} />
@@ -210,10 +248,18 @@ export const SupportRowView = memo(
             {open ? w.supports.less : w.supports.more}
           </button>
         )}
+        {strays.map((x) => (
+          <div key={x.field} className="mp-st__stray">
+            <p>{fill(w.supports.stray, { value: env.format(x.value), unit: x.unit, dof: x.dof })}</p>
+            <button type="button" className="mp-app__btn mp-app__btn--quiet" onClick={() => patch({ [x.field]: 0 })}>
+              {w.supports.strayClear}
+            </button>
+          </div>
+        ))}
       </Shell>
     );
   },
-  (a, b) => same(a, b, [a.open, a.forced, a.toggle], [b.open, b.forced, b.toggle]),
+  (a, b) => same(a, b, [a.open, a.forced, a.toggle, a.nodeLabel], [b.open, b.forced, b.toggle, b.nodeLabel]),
 );
 
 /* ── Loads at nodes ───────────────────────────────────────────────────── */

@@ -184,10 +184,12 @@ describe('what the drawing holds', () => {
 
   it('puts in the legend only what is on the drawing, and a ghost in place of the member when the shape is drawn deformed', () => {
     const l = at();
-    expect(l.legend).toEqual(['ghost', 'node', 'deformed', 'pin', 'load', 'reaction', 'dofTag', 'tag']);
+    expect(l.legend).toEqual(['ghost', 'node', 'deformed', 'pin', 'load', 'reaction', 'values', 'dofTag', 'tag']);
     const plain = at({ deformed: false, dofs: false, memberNumbers: false, reactions: false, loads: false });
     expect(plain.legend).toEqual(['member', 'node', 'pin']);
-    expect(at({ nodeNumbers: false }).legend).toContain('node');
+    // Without node numbers the nodes are dots, and the legend says so (a node "with its number" is not drawn).
+    expect(at({ nodeNumbers: false }).legend).toContain('nodeDot');
+    expect(at({ nodeNumbers: false }).legend).not.toContain('node');
     const mech = draw(line, 720);
     expect(mech.l.legend).toContain('member');
     expect(draw(tpl('frame-portal'), 720).l.legend).toContain('fixed');

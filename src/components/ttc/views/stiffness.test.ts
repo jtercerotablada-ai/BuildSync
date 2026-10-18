@@ -435,7 +435,7 @@ describe('stiffness page: how the method goes, step by step', () => {
     ['nodal-loads', 'Loads come next', 'Siguen las cargas'],
     ['partition', 'The DOFs are then split into free (F) and restrained (R)', 'Los GDL se separan después en libres (F) y restringidos (R)'],
     ['forward-pass', 'This reduced equation is solved by Gaussian elimination', 'Esta ecuación reducida se resuelve por eliminación de Gauss'],
-    ['displacements', 'The free displacements and the prescribed ones', 'Los desplazamientos de los GDL libres y los impuestos'],
+    ['displacements', 'The free displacements and the prescribed ones', 'Los desplazamientos de los GDL libres y los prescritos'],
     ['end-forces', 'Each member then reads its end movements', 'Cada barra toma luego sus movimientos de extremo'],
     ['checks', 'Step 14 tests the answer', 'El paso 14 somete la respuesta a prueba'],
   ] as const;
@@ -742,20 +742,25 @@ describe('stiffness page: what it refuses, and the numbers it says it refuses at
     expect(three.issues[0].kind).toBe('rigid-body');
   });
 
-  it('a pivot under a billionth of the diagonal it started as is a mechanism; one between a billionth and a millionth is solved with a warning', () => {
-    expect([TOLERANCES.singular, TOLERANCES.weak, TOLERANCES.residual]).toEqual([1e-9, 1e-6, 1e-8]);
+  it('a pivot that rounding cannot tell from zero is a mechanism when no member is strained by the movement; a pivot whose rounding is a millionth of it or more is solved with a warning that counts the figures', () => {
+    expect([TOLERANCES.resolve, TOLERANCES.weak, TOLERANCES.residual]).toEqual([0.1, 1e-6, 1e-8]);
     // two pinned bars into one free node an angle δ apart: the stiffness across them is sin²δ of the stiffness along them
     const model = (delta: number): StiffnessModel => {
       const t1 = Math.PI / 4 - delta / 2;
       const t2 = Math.PI / 4 + delta / 2;
       return { mode: 'truss', E: 1000, A: 1, nodes: [{ x: 0, y: 0 }, { x: 10 * Math.cos(t1), y: 10 * Math.sin(t1) }, { x: 10 * Math.cos(t2), y: 10 * Math.sin(t2) }], members: [{ i: 1, j: 0 }, { i: 2, j: 0 }], supports: [{ node: 1, ...pin }, { node: 2, ...pin }], loads: [{ node: 0, fx: 0, fy: -1, m: 0 }], memberLoads: [] };
     };
-    expect(codes(model(2e-5))).toEqual(['mechanism']);
-    const weak = solved(model(6e-5));
-    expect(weak.warnings.map((w) => w.code)).toEqual(['near-mechanism']);
-    expect(weak.warnings[0].ratio!).toBeGreaterThan(TOLERANCES.singular);
-    expect(weak.warnings[0].ratio!).toBeLessThan(TOLERANCES.weak);
-    expect(solved(model(0.05)).warnings).toEqual([]);
+    // bars 1e-7 rad apart: the pivot is lost in its rounding and the movement strains nothing to speak of: a mechanism
+    expect(codes(model(1e-7))).toEqual(['mechanism']);
+    // 2e-5 rad apart: a pivot of 4e-10 of its diagonal, which the test of the pivot against its diagonal called a mechanism; it is stable, it is solved
+    const loose = solved(model(2e-5));
+    const w = loose.warnings.find((x) => x.code === 'near-mechanism');
+    expect(w).toBeDefined();
+    expect(w!.ratio!).toBeGreaterThan(TOLERANCES.weak);
+    expect(w!.ratio!).toBeLessThan(TOLERANCES.resolve);
+    expect(w!.count!).toBeGreaterThanOrEqual(1);
+    // 0.05 rad apart is a weak structure (a unit load moves it a length or so) but a well-scaled one: no figure is lost to rounding
+    expect(solved(model(0.05)).warnings.map((x) => x.code)).not.toContain('near-mechanism');
   });
 
   it('each fault the page lists is refused with its entry named', () => {
@@ -826,21 +831,28 @@ describe('stiffness page: what it refuses, and the numbers it says it refuses at
   });
 
   it('the tolerances said in words are the engine’s: a billionth, a millionth, a hundred-millionth, a hundred-thousandth, and a value under a billionth of its matrix is printed as 0', () => {
-    expect(TOLERANCES.singular).toBe(1e-9);
+    expect(TOLERANCES.resolve).toBe(0.1);
     expect(TOLERANCES.weak).toBe(1e-6);
+    expect(TOLERANCES.large).toBe(0.1);
     expect(TOLERANCES.residual).toBe(1e-8);
     expect(TOLERANCES.short).toBe(1e-5);
     expect(TOLERANCES.zero).toBe(1e-9);
     const method = prose('en', 'method');
-    expect(method).toMatch(/A pivot under a billionth of the diagonal entry it started as is taken as zero/);
-    expect(method).toMatch(/under a millionth of its start, but above a billionth/);
+    expect(method).toMatch(/a pivot no more than ten times its own error is taken as zero/);
+    expect(method).toMatch(/A pivot whose error could be a millionth of it or more, but under a tenth, is solved with a warning/);
     expect(method).toMatch(/with a limit of a hundred-millionth/);
+    expect(prose('en', 'assumes')).toMatch(/move across it by more than a tenth of its length/);
+    // the one tolerance for “the same number”: the closed form of a bar against the product, K against its transpose
+    expect(TOLERANCES.agree).toBe(1e-12);
+    expect(method).toMatch(/the tool tests it to a millionth of a millionth of the largest entry/);
     expect(prose('en', 'limits')).toMatch(/under a hundred-thousandth of the structure’s size/);
     expect(prose('en', 'signs')).toMatch(/A value under a billionth of the largest in its own matrix or vector is printed as 0/);
     const metodo = prose('es', 'method');
-    expect(metodo).toMatch(/Un pivote menor que una milmillonésima del término diagonal con que empezó se toma como cero/);
-    expect(metodo).toMatch(/menor que una millonésima de su valor inicial pero mayor que una milmillonésima/);
+    expect(metodo).toMatch(/un pivote que no pasa de diez veces su propio error se toma como cero/);
+    expect(metodo).toMatch(/Un pivote cuyo error pudiera ser una millonésima de él o más, pero menos de una décima, se resuelve con una advertencia/);
     expect(metodo).toMatch(/con un límite de una cienmillonésima/);
+    expect(prose('es', 'assumes')).toMatch(/se desplazan transversalmente a ella más de una décima de su longitud/);
+    expect(metodo).toMatch(/la herramienta lo comprueba con una diferencia máxima de una millonésima de millonésima del mayor término/);
     expect(prose('es', 'limits')).toMatch(/menor que una cienmilésima del tamaño de la estructura/);
     expect(prose('es', 'signs')).toMatch(/menor que una milmillonésima del mayor de su matriz o vector se imprime como 0/);
   });
@@ -953,8 +965,11 @@ describe('stiffness page: the words', () => {
   it('the search words are in the title and the description, each in its own language', () => {
     for (const re of [/stiffness/i, /matri/i, /truss/i, /frame/i, /step/i]) expect(stiffnessPage.en.title + stiffnessPage.en.h1).toMatch(re);
     for (const re of [/matriz/i, /rigidez/i, /cerchas/i, /pórticos/i, /paso/i]) expect(stiffnessPage.es.title + stiffnessPage.es.h1).toMatch(re);
-    for (const re of [/^Local and global stiffness matrices/, /direct stiffness method/, /assembly/, /displacements/, /reactions/, /truss/, /frame/, /every step/]) expect(stiffnessPage.en.description).toMatch(re);
-    for (const re of [/^Matriz de rigidez local y global/, /rigidez directa/, /ensamblaje/, /desplazamientos/, /reacciones/, /cercha/, /pórtico/, /paso a paso/]) expect(stiffnessPage.es.description).toMatch(re);
+    for (const re of [/^Stiffness matrix calculator for 2D trusses and frames, step by step/, /local and global matrices/, /assembly/, /displacements/, /reactions/, /truss/, /frame/, /member forces/]) expect(stiffnessPage.en.description).toMatch(re);
+    // a title may not say a word twice, so “step by step” is in the h1 and the description, and the title says what the page is
+    expect(stiffnessPage.en.title).toMatch(/Stiffness Matrix Calculator/);
+    expect(stiffnessPage.es.title).toMatch(/Calculadora de matriz de rigidez/);
+    for (const re of [/^Calculadora de matriz de rigidez de cerchas y pórticos 2D, paso a paso/, /matrices locales y globales/, /ensamblaje/, /desplazamientos/, /reacciones/, /cercha/, /pórtico/, /fuerzas/]) expect(stiffnessPage.es.description).toMatch(re);
   });
 
   it('says what it leaves out, each by name: second-order effects and buckling, prismatic members, shear deformation, no releases, member loads, settlements, typical moduli, a single case, no design check, the cap, the refusals', () => {

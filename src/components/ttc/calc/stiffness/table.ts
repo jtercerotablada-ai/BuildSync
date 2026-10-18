@@ -176,6 +176,8 @@ interface Spec {
   split?: TableModel['split'];
   factor?: TableModel['factor'];
   units: string;
+  /** What the corner cell of the spreadsheet text says: the units of the entries (the first row of what is pasted names them). */
+  corner?: string;
 }
 
 function build(spec: Spec, format: NumFormat): TableModel {
@@ -202,7 +204,7 @@ function build(spec: Spec, format: NumFormat): TableModel {
     }),
   );
   const heads = spec.tsvHeads ?? spec.colHeads;
-  const tsv = [['', ...heads].join('\t'), ...spec.values.map((row, r) => [spec.rowLabels[r], ...row.map(spreadsheetNumber)].join('\t'))].join('\n');
+  const tsv = [[spec.corner ?? '', ...heads].join('\t'), ...spec.values.map((row, r) => [spec.rowLabels[r], ...row.map(spreadsheetNumber)].join('\t'))].join('\n');
   return {
     id: spec.id,
     name: spec.name,
@@ -262,6 +264,7 @@ export function matrixTable(block: MatrixBlock, o: TableOptions): TableModel {
       marks: marksOf(block.highlights, cols),
       factor,
       units: unitsLine(o.w, o.system, o.quantity, block.rowLabels, block.colLabels),
+      corner: unitsBody(o.w, o.system, o.quantity, block.rowLabels, block.colLabels),
     },
     o.format,
   );
@@ -296,6 +299,7 @@ export function vectorsTable(blocks: readonly VectorBlock[], heads: readonly str
       symbolic,
       rowMarks,
       units: unitsLine(o.w, o.system, o.quantity, labels, []),
+      corner: unitsBody(o.w, o.system, o.quantity, labels, []),
     },
     o.format,
   );
@@ -325,6 +329,7 @@ export function partitionTable(blocks: { FF: MatrixBlock | undefined; FR: Matrix
       rowMarks: rowLabels.map((_, r) => (r >= free ? 'restrained' : null)),
       split: { rows: free, cols: free, names: [free > 0 ? 'K_FF' : '', free > 0 ? 'K_FR' : '', free > 0 ? 'K_RF' : '', 'K_RR'] },
       units: unitsLine(o.w, o.system, 'stiffness', rowLabels, colHeads),
+      corner: unitsBody(o.w, o.system, 'stiffness', rowLabels, colHeads),
     },
     o.format,
   );
@@ -342,6 +347,7 @@ export function loadsTable(
   const free = PF ? PF.labels.length : 0;
   const rowLabels = [...(PF ? PF.labels : []), ...PR.labels];
   const values = [...(PF ? PF.values.map((v) => [v, 0]) : []), ...PR.values.map((v, k) => [v, uR.values[k]])];
+  const both = `${o.heads[0]}: ${unitsBody(o.w, o.system, 'force', rowLabels, [])}; ${o.heads[1]}: ${unitsBody(o.w, o.system, 'displacement', rowLabels, [])}`;
   const model = build(
     {
       id: o.id,
@@ -353,7 +359,7 @@ export function loadsTable(
       rowMarks: rowLabels.map((_, r) => (r >= free ? 'restrained' : null)),
       split: { rows: free, cols: 0, names: [free > 0 ? 'P_F' : '', '', 'P_R', ''] },
       // Two kinds of quantity in one table: each column says its own.
-      units: fill(o.w.matrix.unitsLine, { units: `${o.heads[0]}: ${unitsBody(o.w, o.system, 'force', rowLabels, [])}; ${o.heads[1]}: ${unitsBody(o.w, o.system, 'displacement', rowLabels, [])}` }),
+      units: fill(o.w.matrix.unitsLine, { units: both }),
     },
     o.format,
   );
@@ -361,6 +367,6 @@ export function loadsTable(
   for (let r = 0; r < free; r++) {
     model.cells[r][1] = { ...model.cells[r][1], text: unknown, zero: false, pad: 0 };
   }
-  model.tsv = [['', ...o.heads].join('\t'), ...values.map((row, r) => [rowLabels[r], spreadsheetNumber(row[0]), r < free ? unknown : spreadsheetNumber(row[1])].join('\t'))].join('\n');
+  model.tsv = [[both, ...o.heads].join('\t'), ...values.map((row, r) => [rowLabels[r], spreadsheetNumber(row[0]), r < free ? unknown : spreadsheetNumber(row[1])].join('\t'))].join('\n');
   return model;
 }

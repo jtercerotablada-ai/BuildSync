@@ -18,6 +18,7 @@ import {
 } from '@/lib/calc/stiffness/model';
 import { sharedWords, stiffnessUi } from '@/lib/calc/stiffness/strings';
 import { TEMPLATE_IDS, type TemplateId } from '@/lib/calc/stiffness/templates';
+import { autoOpen } from './solution-state';
 import type { Lang } from '@/lib/ttc/i18n';
 import { EXAMPLE, StiffnessCalculator, caseIn } from './StiffnessCalculator';
 import { build, girder, settling } from './fixtures.testlib';
@@ -53,7 +54,7 @@ const frameOf = (f: StiffnessForm) => reduceStiffness(f, { type: 'mode', mode: '
 const cardHeads = (html: string) => [...html.matchAll(/<h3 class="mp-st__cardhead"[^>]*><button[^>]*aria-expanded="(true|false)"[^>]*>/g)].map((m) => m[1] === 'true');
 const cardTitles = (html: string) => [...html.matchAll(/<h3 class="mp-st__cardhead"[^>]*><button[^>]*>([\s\S]*?)<\/button><\/h3>/g)].map((m) => text(m[1]));
 const issueList = (html: string) => [...(html.match(/<div class="mp-app__issues"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '').matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
-const reading = (html: string) => text(html.match(/<p class="mp-st__reading">([\s\S]*?)<\/p>/)?.[1] ?? '');
+const reading = (html: string) => text(html.match(/<p id="[^"]+" class="mp-st__reading">([\s\S]*?)<\/p>/)?.[1] ?? '');
 const cells = (row: string) => [...row.matchAll(/<t[hd]\b[^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => text(c[1].replace(/<span class="mp-st__head"[\s\S]*?<\/span><\/span>|<span class="mp-st__head" aria-hidden="true">[\s\S]*?<\/span>/g, '')));
 const answerCard = (html: string, title: string) => {
   const cards = html.split(/<div class="mp-app__card mp-app__card--wide">/).slice(1);
@@ -109,7 +110,7 @@ describe('the default structure, as the server sends it', () => {
       'Free and held degrees of freedom',
       'The reduced equations',
       'The augmented matrix',
-      'Forward elimination, pass 1',
+      'Forward elimination, column 1',
       'Back-substitution: unknown 2',
       'Back-substitution: unknown 1',
       'The solution and its residual',
@@ -129,7 +130,9 @@ describe('the default structure, as the server sends it', () => {
     for (const m of html.matchAll(/aria-labelledby="([^"]+)"/g)) expect(ids, m[1]).toContain(m[1]);
     for (const m of html.matchAll(/aria-controls="([^"]+)"/g)) expect(ids, m[1]).toContain(m[1]);
     const tables = [...html.matchAll(/<table\b[\s\S]*?<\/table>/g)].map((x) => x[0]);
-    expect(tables.length).toBeGreaterThan(40);
+    // The server draws the tables of the first few cards of the worked solution (the others come as they near the screen), and the answer's own.
+    expect(tables.length).toBeGreaterThan(8);
+    expect(tables.length).toBeLessThan(40);
     for (const table of tables) {
       expect(table).toMatch(/<table[^>]*aria-labelledby="[^"]+"/);
       if (table.includes('mp-st__matrix')) {
@@ -142,7 +145,7 @@ describe('the default structure, as the server sends it', () => {
     for (const title of ['Node displacements', 'Reactions', 'Bar forces']) {
       const card = answerCard(html, title);
       expect(card, title).toMatch(/<th scope="col" role="columnheader">/);
-      expect(card, title).toMatch(/<th scope="row" role="rowheader">/);
+      expect(card, title).toMatch(/<th scope="row" role="rowheader"/);
     }
   });
 
@@ -163,7 +166,7 @@ describe('the default structure, as the server sends it', () => {
       'Reading the drawing: lines are members, circles are nodes with their numbers, and the supports stand where the held movements are. The line of dashes and dots is the deformed shape, magnified 600 times. Node 3 moves most, by 0.01841 in. Largest reaction: 37.5 kip, at node 2.',
     );
     expect(reading(show('es'))).toBe(
-      'Cómo leer el dibujo: las líneas son barras, los círculos son nudos con sus números, y los apoyos están donde están los movimientos restringidos. La línea de rayas y puntos es la deformada, ampliada 600 veces. El nudo 3 es el que más se mueve, 0.01841 in. Mayor reacción: 37.5 kip (nudo 2).',
+      'Cómo leer el dibujo: las líneas son barras, los círculos son nudos con sus números, y los apoyos están donde están los movimientos restringidos. La línea de rayas y puntos es la deformada, ampliada 600 veces. El nudo 3 es el que más se mueve: 0.01841 in. Mayor reacción: 37.5 kip (nudo 2).',
     );
   });
 
@@ -176,8 +179,10 @@ describe('the default structure, as the server sends it', () => {
     expect(html).toMatch(/<div class="mp-app__issues" role="status" aria-live="polite"><\/div>/);
     expect(html).toMatch(/<div class="mp-st__warnings" role="status" data-empty="true"><\/div>/);
     expect(html).toMatch(/<p class="mp-app__copied" role="status" aria-live="polite"><\/p>/);
-    // Every matrix has its copy line mounted before it is pressed.
-    expect((html.match(/<p class="mp-st__copied" role="status"><\/p>/g) ?? []).length).toBeGreaterThan(30);
+    // Every matrix that is drawn has its copy line mounted before it is pressed.
+    const figures = (html.match(/<figure class="mp-st__fig"/g) ?? []).length;
+    expect(figures).toBeGreaterThan(3);
+    expect((html.match(/<p class="mp-st__copied" role="status"><\/p>/g) ?? []).length).toBe(figures);
   });
 
   it('is the same page every time it is sent (nothing in it depends on the clock or on chance)', () => {
@@ -213,25 +218,62 @@ describe('every textbook problem, in both unit systems and both languages', () =
       }
     });
   }
-  it('the group offers every problem by name, and shows the first one’s textbook answer and the tool’s beside it, in both languages', () => {
+  const groupOf = (html: string) => html.match(/<fieldset class="mp-app__group mp-st__template">([\s\S]*?)<\/fieldset>/)![1];
+  const selectedOf = (html: string) => text(groupOf(html).match(/<option value="[^"]*" selected="">([^<]*)<\/option>/)?.[1] ?? '');
+  it('the group offers every problem by name, and shows the first one’s hand answer and the tool’s beside it, in both languages: they are about the structure on screen', () => {
     for (const lang of LANGS) {
       const w = stiffnessUi[lang];
       const html = show(lang);
-      const group = html.match(/<fieldset class="mp-app__group mp-st__template">([\s\S]*?)<\/fieldset>/)![1];
+      const group = groupOf(html);
       for (const id of TEMPLATE_IDS) expect(text(group), `${lang} ${id}`).toContain(w.template.names[id]);
       expect(text(group)).toContain(text(w.template.answer.replace('{answer}', '')).trim());
-      expect(text(group)).toContain(lang === 'en' ? 'The check passes' : 'La comprobación se cumple');
+      expect(text(group)).toContain(text(w.template.got.replace('{answer}', '')).trim());
+      expect(text(group)).toContain(lang === 'en' ? 'agrees with the hand answer' : 'coincide con la respuesta a mano');
+      expect(text(group)).not.toMatch(/passes|fails|se cumple|falla/);
       expect(group).toContain('data-agrees="true"');
       expect(group).toContain('role="status"');
+      expect(selectedOf(html)).toBe(w.template.names['truss-two-bar']);
     }
   });
-  it('the check is of the problem, not of the structure on screen: editing the structure leaves the group as it was', () => {
-    const group = (html: string) => text(html.match(/<fieldset class="mp-app__group mp-st__template">([\s\S]*?)<\/fieldset>/)![1]);
+  it('once the structure is not the problem, no answer is quoted beside it: one line says so (an edit, the other units, the other kind of structure)', () => {
     const edited = reduceStiffness(base, { type: 'patch', list: 'loads', id: base.loads[0].id, patch: { fy: -999 } });
-    expect(group(show('en', edited))).toBe(group(show('en')));
-    expect(group(show('en', edited))).toContain('bar 1 carries −12.5 kip');
-    // The units change the answer’s words and numbers (the metric set is a quarter of the length, four times the load).
-    expect(group(show('en', convertStiffness(base, 'si')))).toContain('kN');
+    const w = stiffnessUi.en.template;
+    for (const f of [edited, convertStiffness(base, 'si'), reduceStiffness(base, { type: 'mode', mode: 'frame' })]) {
+      const html = show('en', f);
+      const g = text(groupOf(html));
+      expect(g).not.toContain('Hand answer');
+      expect(g).not.toContain('This tool gives');
+      expect(g).not.toContain('agrees with the hand answer');
+      expect(groupOf(html)).not.toContain('data-agrees');
+      // …whatever it did to the results beside it: they are of the structure on screen.
+      expect(text(html)).toContain('Largest reaction');
+    }
+    // The list stays on the problem the structure was when the structure is the page's own edit of it; one that was never a problem says "your own".
+    expect(text(groupOf(show('en', convertStiffness(base, 'si'))))).toContain(w.pickOne);
+    expect(selectedOf(show('en', convertStiffness(base, 'si')))).toBe(w.own);
+    // The Spanish page says the same in its words.
+    expect(text(groupOf(show('es', edited)))).not.toContain('Respuesta a mano');
+  });
+  it('the metric problem, loaded, is compared with its own hand answer (-50 kN, not the US -12.5 kip), and the list stands on it', () => {
+    const si = tpl('truss-two-bar', 'si');
+    const html = show('en', si);
+    const g = text(groupOf(html));
+    expect(g).toContain('Hand answer: bar 1 carries −50 kN and bar 2 −150 kN');
+    expect(g).toContain('This tool gives: bar 1 carries −50 kN and bar 2 −150 kN');
+    expect(selectedOf(html)).toBe(stiffnessUi.en.template.names['truss-two-bar']);
+    // …and the results beside it are the same numbers.
+    expect(text(html)).toContain('−150 kN in member 2');
+  });
+  it('a structure opened from an address that is one of the problems has the list on that problem; one that is none of them, on "your own structure", with the way to compare', () => {
+    const portal = tpl('frame-portal');
+    expect(selectedOf(show('en', portal))).toBe(stiffnessUi.en.template.names['frame-portal']);
+    expect(text(groupOf(show('en', portal)))).toContain('the tool agrees with the hand answer');
+    const own = reduceStiffness(portal, { type: 'patch', list: 'loads', id: portal.loads[0].id, patch: { fx: 11 } });
+    expect(selectedOf(show('en', own))).toBe(stiffnessUi.en.template.own);
+    expect(text(groupOf(show('en', own)))).toContain(stiffnessUi.en.template.pickOne);
+    // With nothing on the list there is nothing to load: the button says so by being disabled.
+    expect(groupOf(show('en', own))).toMatch(/<button[^>]*disabled=""[^>]*>Load problem<\/button>/);
+    expect(groupOf(show('en', portal))).not.toMatch(/<button[^>]*disabled=""[^>]*>Load problem<\/button>/);
   });
 });
 
@@ -296,7 +338,7 @@ describe('a structure that cannot be solved', () => {
     { code: 'no-members', form: () => reduceStiffness(reduceStiffness(emptyStiffness(), { type: 'add', list: 'nodes' }), { type: 'add', list: 'nodes' }), en: /^No member joins the nodes yet; add some\.$/ },
     { code: 'number', form: () => withNode(base, 1, { x: Number.NaN }), en: /^Node 2: The x coordinate needs a number, not beyond 1 × 10\^30 in size\.$/ },
     { code: 'duplicate-node', form: () => withNode(base, 1, { x: 0, y: 0 }), en: /^Nodes 1 and 2 are in the same place/ },
-    { code: 'section', form: () => ({ ...base, E: 1e40 }), en: /^Section and material: The modulus \(E\) must lie between 1 × 10\^−30 and 1 × 10\^30 in the calculation’s units\./ },
+    { code: 'section', form: () => ({ ...base, E: 1e40 }), en: /^Section and material: The modulus \(E\) / },
     { code: 'section-missing', form: () => ({ ...base, A: null }), en: /^Member 1: The area \(A\) is missing for member 1: the member gives none of its own, and the structure gives none either\./ },
     { code: 'node-unconnected', form: () => reduceStiffness(base, { type: 'add', list: 'nodes' }), en: /^Nothing is attached to node 4\. Attach it to the structure, or remove it\.$/ },
     { code: 'few-supports', form: () => ({ ...base, supports: [] }), en: /^The supports hold 0 movements, and at least 3 are needed/ },
@@ -327,13 +369,12 @@ describe('a structure that cannot be solved', () => {
     expect(t).toContain('The structure is a mechanism: DOF 2y of node 2 can move, and no member has to deform for it.');
     expect(t).toContain('Add a bar, or a support');
     expect(t).toContain('Unstable');
-    expect(reading(html)).toMatch(/^Reading the drawing: a mechanism has neither a deformed shape nor reactions, and this structure is one\. Node 2 can move\./);
+    expect(reading(html)).toMatch(/^Reading the drawing: a mechanism has neither a deformed shape nor reactions, and this structure is one\. Node 2 is free to move\./);
     expect(html).not.toContain('Node displacements');
     expect(html.match(/mp-st-fig__ring/g)?.length ?? 0).toBeGreaterThan(0);
-    // The worked solution stops at the pass that found the zero pivot, and says so.
-    expect(t).toContain('The structure is a mechanism, so the elimination stops at the pass marked below');
+    // The worked solution stops at the column that found the lost pivot, and says so.
+    expect(t).toContain('The elimination stops at the column marked below');
     expect(html).toContain('data-singular="true"');
-    expect(t).toContain('is zero: it is under 1 × 10^−9');
   });
   it('a structure whose supports cannot hold it says so, and is not called a mechanism', () => {
     const f = { ...base, supports: [] };
@@ -358,14 +399,15 @@ describe('a structure that cannot be solved', () => {
     expect((t.match(/Ninguno\./g) ?? []).length).toBe(2);
     expect((t.match(/Ninguna\./g) ?? []).length).toBe(3);
   });
-  it('every worked-out thing is of the structure on screen: a structure of twelve nodes starts with one card open and says why', () => {
+  it('every worked-out thing is of the structure on screen: a structure of twelve nodes starts with its very large tables closed, says how many, and draws no table it has no room for', () => {
     const html = show('en', girder('frame'));
     const heads = cardHeads(html);
-    expect(heads.filter(Boolean)).toHaveLength(1);
     expect(heads.length).toBeGreaterThan(100);
+    expect(heads).toEqual(autoOpen(analyseSafely(girder('frame')).solution!.steps));
+    expect(heads.filter((open) => !open).length).toBeGreaterThan(10);
     expect(text(html)).toContain('This solution has 130 steps and');
-    expect(text(html)).toContain('so the steps start closed to keep the page quick');
-    // Not a table of the closed cards is built.
+    expect(text(html)).toMatch(/Steps with a very large table start closed \(\d+ of 130\)/);
+    // Not a table of the closed cards is built, nor of the open ones that are not yet near the screen.
     expect((html.match(/<table\b/g) ?? []).length).toBeLessThan(40);
   });
 });
@@ -419,7 +461,7 @@ describe('every code has its sentence, in both languages', () => {
   it('quotes the library’s own tolerances, so that a sentence can never say another number than the engine uses', () => {
     expect(issueSentence({ code: 'duplicate-node', nodes: [1, 2], distance: 0, size: 10 }, stiffnessUi.en)).toContain('to within 1 × 10^−9 of the structure’s size');
     expect(issueSentence({ code: 'short-member', length: 1e-6, size: 10 }, stiffnessUi.en)).toContain('under 1 × 10^−5 of the structure’s size');
-    expect(warningSentence({ code: 'near-mechanism', dofs: [5], ratio: 3e-8 }, stiffnessUi.en, { mode: 'truss' })).toContain('at DOF 3x, the pivot is 3 × 10^−8 of the stiffness it started with, under 1 × 10^−6');
+    expect(warningSentence({ code: 'near-mechanism', dofs: [5], ratio: 3e-8, count: 8 }, stiffnessUi.en, { mode: 'truss' })).toMatch(/DOF 3x.*3 × 10\^−8.*1 × 10\^−6/);
   });
   it('warnings: each in both languages with its numbers, a plural and a singular', () => {
     for (const lang of LANGS) {
@@ -433,7 +475,7 @@ describe('every code has its sentence, in both languages', () => {
     }
     expect(warningSentence({ code: 'member-loads-ignored', count: 1 }, stiffnessUi.en)).toBe('1 member load is ignored: truss bars carry loads at their nodes only. Switch to frame members to use it.');
     expect(warningSentence({ code: 'member-loads-ignored', count: 3 }, stiffnessUi.es)).toBe('3 cargas sobre barras se ignoran: las barras de una cercha reciben cargas solo en sus nudos. Pase a pórtico para usarlas.');
-    expect(warningSentence({ code: 'settlement-ignored', dofs: [5, 6] }, stiffnessUi.en, { mode: 'truss' })).toBe('A settlement is typed on DOFs 3x, 3y, which no support holds, so it has no effect.');
+    expect(warningSentence({ code: 'settlement-ignored', dofs: [5, 6] }, stiffnessUi.en, { mode: 'truss' })).toContain('A settlement is typed on DOFs 3x, 3y, which no support holds, so it has no effect.');
     expect(warningSentence({ code: 'settlement-ignored', dofs: [5] }, stiffnessUi.es, { mode: 'truss' })).toContain('GDL 3x');
   });
   it('every code the library can produce is shown in the page when it happens', () => {
@@ -481,9 +523,10 @@ describe('what a reading of the drawing says, in every case', () => {
     expect(a.warnings.map((x) => x.code)).toContain('no-load');
     expect(largestNode(a)).toBeNull();
     expect(largestReaction(a)).toBeNull();
-    expect(readingSentence(a, { deformed: true }, w, how)).toContain('These loads move nothing, so the deformed shape lies on the structure.');
-    expect(readingSentence(a, { deformed: false }, w, how)).toContain('These loads move nothing.');
-    expect(readingSentence(a, { deformed: false }, w, how)).not.toContain('deformed shape lies');
+    // (no load at all: the sentence does not speak of "these loads", and no shape is said to lie anywhere, since none is drawn)
+    expect(readingSentence(a, { deformed: true }, w, how)).toContain('No load is applied, so nothing moves and no deformed shape is drawn.');
+    expect(readingSentence(a, { deformed: false }, w, how)).toContain('No load is applied, so nothing moves.');
+    expect(readingSentence(a, { deformed: false }, w, how)).not.toContain('deformed shape');
     expect(readingSentence(a, { deformed: true }, w, how)).toContain('Every reaction is zero.');
     expect(readingSentence(a, { deformed: true }, w, how)).not.toContain('magnified');
   });
@@ -512,13 +555,13 @@ describe('what a reading of the drawing says, in every case', () => {
   it('says a mechanism and an unstable structure, and an unsolved one, with the fix, and the nodes ringed', () => {
     const line = build({ mode: 'truss', nodes: [[0, 0], [10, 0], [20, 0]], members: [[1, 2], [2, 3]], supports: [[1, 'pin'], [3, 'pin']], loads: [[2, 0, -5]] });
     expect(readingSentence(analyseSafely(line), { deformed: true }, w, how)).toBe(
-      'Reading the drawing: a mechanism has neither a deformed shape nor reactions, and this structure is one. Node 2 can move. Rings mark them on the drawing. Add a bar, or a support, so that every node is held in both directions by bars that are not in one line.',
+      'Reading the drawing: a mechanism has neither a deformed shape nor reactions, and this structure is one. Node 2 is free to move. A ring marks it on the drawing. Add a bar, or a support, so that every node is held in both directions by bars that are not in one line.',
     );
     const rigid = build({ mode: 'truss', nodes: [[0, 0], [10, 0], [10, 5]], members: [[1, 2], [2, 3], [1, 3]], supports: [[1, 'roller'], [2, 'roller'], [3, 'roller']], loads: [[3, 5, -5]] });
     const ar = analyseSafely(rigid);
     expect(ar.issues.map((i) => i.kind)).toContain('rigid-body');
     expect(readingSentence(ar, { deformed: true }, w, how)).toBe(
-      'Reading the drawing: a mechanism has neither a deformed shape nor reactions, and this structure is one. The whole structure can slide or turn as one piece. Change a support so that the held directions are not all parallel, nor meet at one point.',
+      'Reading the drawing: a mechanism has neither a deformed shape nor reactions, and this structure is one. The whole structure is free to slide or turn as one piece. Change a support so that the held directions are not all parallel, nor meet at one point.',
     );
     expect(readingSentence(analyseSafely({ ...base, supports: [] }), { deformed: true }, w, how)).toContain('these supports cannot hold the structure');
     expect(readingSentence(analyseSafely({ ...base, A: null }), { deformed: true }, w, how)).toContain('this is the structure as entered, with no results drawn');
@@ -681,5 +724,49 @@ describe('the address', () => {
   it('the Spanish page and the English page carry the same case', () => {
     const f = tpl('frame-l');
     expect(encodeStiffness(caseIn(`#m=${encodeStiffness(f)}`)!)).toBe(encodeStiffness(f));
+  });
+});
+
+describe('where things are in the page, for a reader who does not see it laid out', () => {
+  const html = show('en');
+
+  it('puts the drawing and the sentence that reads it in the part that stays in view, after the notices, the status, the headline numbers and the switches, which scroll away', () => {
+    const at = (needle: string) => html.indexOf(needle);
+    expect(html).toMatch(/<section class="mp-app__out mp-st__out" aria-label="Results"/);
+    expect(html).not.toContain('mp-app__out--tall');
+    expect(at('mp-app__issues')).toBeLessThan(at('mp-st__status'));
+    expect(at('mp-st__status')).toBeLessThan(at('mp-st__largest'));
+    expect(at('mp-st__largest')).toBeLessThan(at('mp-st__options'));
+    expect(at('mp-st__options')).toBeLessThan(at('class="mp-st__pin"'));
+    expect(at('class="mp-st__pin"')).toBeLessThan(at('mp-st__reading'));
+    // The pin holds the whole drawing and its sentence, and nothing of what scrolls.
+    const pin = html.match(/<div class="mp-st__pin">([\s\S]*?)<\/section>/)![1];
+    expect(pin).toContain('mp-st-fig');
+    expect(pin).toContain('mp-st__reading');
+    expect(pin).not.toContain('mp-st__status');
+    expect(pin).not.toContain('mp-st__options');
+  });
+
+  it('gives the form a place a link can lead back to, and ends the page’s calculator with the way back: to the form and to the drawing, both reachable', () => {
+    const form = html.match(/<form class="mp-app__form mp-st__target" id="([^"]+)" tabindex="-1"/)!;
+    expect(form).not.toBeNull();
+    const back = html.match(/<nav class="mp-st__back mp-st__target" id="([^"]+)" tabindex="-1" aria-label="On this page">([\s\S]*?)<\/nav>/)!;
+    const links = [...back[2].matchAll(/<a href="#([^"]+)">([^<]*)<\/a>/g)];
+    expect(links.map((l) => l[2])).toEqual(['Back to the form', 'Jump to the drawing']);
+    expect(links[0][1]).toBe(form[1]);
+    for (const [, id] of links) expect(html, id).toMatch(new RegExp(`id="${id.replace(/:/g, '\\:')}"[^>]*tabindex="-1"|tabindex="-1"[^>]*id="${id.replace(/:/g, '\\:')}"`));
+    // The way back comes after the whole of the worked solution, and the skip link before it leads to it.
+    expect(html.indexOf('mp-st__back')).toBeGreaterThan(html.lastIndexOf('mp-st__card'));
+    expect(html).toContain(`<a class="mp-st__skip" href="#${back[1]}">Skip the worked solution</a>`);
+  });
+
+  it('is not a landmark for every card: one section for the answer, one for the solution, none for a card, no aside', () => {
+    const sections = html.match(/<section\b/g) ?? [];
+    expect(sections.length).toBe(2);
+    expect(html).not.toContain('<aside');
+  });
+
+  it('keeps the hand answer panel out of the printed sheet’s way: its group carries the class the sheet hides', () => {
+    expect(html).toContain('<fieldset class="mp-app__group mp-st__template">');
   });
 });

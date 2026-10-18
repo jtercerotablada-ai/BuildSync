@@ -49,8 +49,6 @@ export interface StepView {
   /** '6.2' (or '6' for a stage of one step). */
   label: string;
   title: string;
-  /** The outline's shorter name for it: 'member 2', 'pass 3', 'assembled K'. */
-  short: string;
   paragraphs: string[];
   formulas: string[];
 }
@@ -76,16 +74,6 @@ const memberOf = (s: Step): number => (s.scope.kind === 'member' ? s.scope.membe
 /** The title of a step, with its member, pass or unknown in it. */
 export function titleOf(step: Step, w: StiffnessUi): string {
   return fill(w.steps.titles[step.id], { member: memberOf(step), pass: Number(step.facts.pass ?? step.sub ?? 0), unknown: Number(step.facts.unknown ?? step.sub ?? 0) });
-}
-
-/** The short name the outline gives a step inside its stage. */
-export function shortOf(step: Step, w: StiffnessUi): string {
-  const s = w.solution;
-  if (step.scope.kind === 'member') return fill(s.member, { member: step.scope.member });
-  if (step.id === 'forward-pass') return fill(s.pass, { pass: Number(step.facts.pass ?? step.sub ?? 0) });
-  if (step.id === 'back-substitution') return fill(s.unknown, { unknown: Number(step.facts.unknown ?? step.sub ?? 0) });
-  if (step.id === 'assembled') return s.assembled;
-  return fill(w.steps.titles[step.id], { member: 0, pass: 0, unknown: 0 });
 }
 
 /* ── Looking inside a step ────────────────────────────────────────────── */
@@ -171,12 +159,14 @@ function paragraphsOf(step: Step, c: StepContext): string[] {
   switch (step.id) {
     case 'structure': {
       const prescribed = (vectorOf(step, 'prescribed')?.highlights ?? []).some((h) => h.reason === 'prescribed');
-      const entered = frame ? `${shown.E}, ${shown.area}, ${shown.inertia}` : `${shown.E}, ${shown.area}`;
-      const worked = frame ? `${calc.E}, ${calc.area}, ${calc.inertia}` : `${calc.E}, ${calc.area}`;
+      // Each unit stands with its symbol ('E in ksi, A in in², I in in⁴'): a bare run of units reads as one list of what was entered and what is worked.
+      const named = (E: string, A: string, I: string) => [fill(w.matrix.unitIn, { symbol: 'E', unit: E }), fill(w.matrix.unitIn, { symbol: 'A', unit: A }), ...(frame ? [fill(w.matrix.unitIn, { symbol: 'I', unit: I })] : [])].join(', ');
+      const entered = named(shown.E, shown.area, shown.inertia);
+      const worked = named(calc.E, calc.area, calc.inertia);
       return [
         t.structure[mode],
         fill(t.structure.counts, { nodes: num(step, 'nodes'), members: num(step, 'members'), dofs: num(step, 'dofs'), restrained: num(step, 'restrained'), free: num(step, 'free') }),
-        num(step, 'free') === 0 ? t.structure.noFree : '',
+        num(step, 'free') === 0 ? (prescribed ? t.structure.noFreeSettles : t.structure.noFree) : '',
         t.structure.held,
         prescribed ? t.structure.prescribed : t.structure.noPrescribed,
         fill(t.structure.units, { entered, worked, force: calc.force, length: calc.length }),
@@ -212,11 +202,11 @@ function paragraphsOf(step: Step, c: StepContext): string[] {
       ];
     }
     case 'assembled':
-      return [fill(t.assembled.lead, { members: step.from.length }), step.facts.symmetric === true ? t.assembled.symmetric : fill(t.assembled.notSymmetric, { asymmetry: cell(num(step, 'asymmetry')) })];
+      return [step.from.length === 1 ? t.assembled.leadOne : fill(t.assembled.lead, { members: step.from.length }), step.facts.symmetric === true ? t.assembled.symmetric : fill(t.assembled.notSymmetric, { asymmetry: cell(num(step, 'asymmetry')) })];
     case 'nodal-loads':
       return [t['nodal-loads'].lead, num(step, 'loads') === 0 ? t['nodal-loads'].none : fill(t['nodal-loads'].some, { loads: num(step, 'loads') })];
     case 'member-loads':
-      return [t['member-loads'].lead, fill(t['member-loads'].count, { member, loads: num(step, 'loads') }), t['member-loads'].signs];
+      return [t['member-loads'].lead, num(step, 'loads') === 1 ? fill(t['member-loads'].countOne, { member }) : fill(t['member-loads'].count, { member, loads: num(step, 'loads') }), t['member-loads'].signs];
     case 'load-vector':
       return [t['load-vector'].lead, frame ? (num(step, 'loadedMembers') > 0 ? t['load-vector'].frame : t['load-vector'].frameNone) : t['load-vector'].truss];
     case 'partition': {
@@ -229,7 +219,7 @@ function paragraphsOf(step: Step, c: StepContext): string[] {
       ];
     }
     case 'reduced': {
-      if (num(step, 'free') === 0) return [t.reduced.empty];
+      if (num(step, 'free') === 0) return [step.facts.settles === true ? t.reduced.emptySettles : t.reduced.empty];
       const term = vectorOf(step, 'K_FR·u_R');
       const zero = (term?.values ?? []).every((v) => v === 0);
       return [t.reduced.lead, zero ? t.reduced.zero : t.reduced.nonzero];
@@ -239,7 +229,12 @@ function paragraphsOf(step: Step, c: StepContext): string[] {
     case 'forward-pass': {
       const pivot = scalarOf(step, 'pivot')?.value ?? 0;
       const dof = dofName(num(step, 'pivotDof'), mode);
-      if (step.facts.singular === true) return [fill(t['forward-pass'].singular, { dof, pivot: cell(pivot), limit: power(TOLERANCES.singular) })];
+      if (step.facts.singular === true) {
+        // A pivot the arithmetic cannot tell from zero: a mechanism, or a stable structure whose stiffnesses are too far apart for it.
+        const stiff = scalarUnit('pivot', system, labelKind(dof));
+        const sentence = step.facts.cause === 'range' ? t['forward-pass'].singularRange : pivot === 0 && num(step, 'error') === 0 ? t['forward-pass'].singularZero : t['forward-pass'].singular;
+        return [fill(sentence, { dof, pivot: cell(pivot), rounding: cell(num(step, 'error')), stiff })];
+      }
       const rows = num(step, 'rows');
       return [
         fill(t['forward-pass'].lead, { pass: num(step, 'pass'), dof, pivot: cell(pivot), stiff: scalarUnit('pivot', system, labelKind(dof)) }),
@@ -262,11 +257,13 @@ function paragraphsOf(step: Step, c: StepContext): string[] {
       if (step.facts.recorded === false) out.push(fill(t.solution.tooMany, { free, limit: num(step, 'limit') || TOLERANCES.record }));
       out.push(t.solution.recorded);
       const residual = num(step, 'residual');
-      out.push(residual === 0 ? t.solution.zero : fill(t.solution.residual, { residual: cell(residual), scale: cell(num(step, 'equationScale')) }));
+      // (a row of a rotation is a moment: a frame says both)
+      const unit = frame ? `${calc.force} ${w.words.or} ${calc.moment}` : calc.force;
+      out.push(residual === 0 ? t.solution.zero : fill(t.solution.residual, { residual: cell(residual), scale: cell(num(step, 'equationScale')), unit }));
       return out;
     }
     case 'displacements':
-      return [t.displacements.lead, fill(t.displacements.units, { length: calc.length, shown: shown.displacement })];
+      return [t.displacements.lead, fill(t.displacements.units, { length: calc.length, shown: t.displacements.shown[system] })];
     case 'reactions':
       return [t.reactions.lead];
     case 'end-forces': {
@@ -297,7 +294,6 @@ export function stepView(step: Step, labels: Map<string, string>, c: StepContext
     stage: step.number,
     label: labels.get(step.key) ?? String(step.number),
     title: titleOf(step, c.w),
-    short: shortOf(step, c.w),
     paragraphs: paragraphsOf(step, c),
     formulas: equationsOf(step),
   };
@@ -401,6 +397,8 @@ export function stepBody(step: Step, c: StepContext): BodyItem[] {
     if (Array.isArray(entry)) {
       flush('values');
       const first = entry[0];
+      // A vector with no entry (the unknowns of a structure with no free DOF) is not a table.
+      if (first.labels.length === 0) continue;
       const id = `${step.key}-${first.name}${first.tag ? `-${first.tag}` : ''}`;
       const heads = entry.map((b) => headOf(b.name, w));
       const quantity = quantityOfVector(first.name);
@@ -428,7 +426,7 @@ export function stepBody(step: Step, c: StepContext): BodyItem[] {
           caption = w.tables.unknownTable;
           break;
         case 'solution':
-          caption = w.tables.solution;
+          caption = first.name === 'residual' ? w.tables.residualTable : w.tables.solution;
           break;
         case 'displacements':
           caption = w.tables.displacements;
@@ -443,7 +441,7 @@ export function stepBody(step: Step, c: StepContext): BodyItem[] {
           caption = first.name === 'u_e' ? fill(w.tables.endGlobal, { member }) : first.name === 'u_local' ? fill(w.tables.endLocalMovements, { member }) : fill(w.tables.endLocalForces, { member });
           break;
         case 'checks':
-          caption = w.tables.joint;
+          caption = first.name === 'joint' ? w.tables.joint : w.tables.systemTable;
           break;
         default:
           caption = first.name;

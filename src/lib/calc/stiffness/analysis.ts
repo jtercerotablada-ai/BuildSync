@@ -1,7 +1,7 @@
 import { solve } from './engine';
 import { maxAbs, maxAbsMat } from './linalg';
 import { FROM_ENGINE, STIFFNESS_UNITS, issueRow, settlementOf, toEngine, type StiffnessForm, type StiffnessList, type StiffnessRow, type StiffnessUnitNames } from './model';
-import { LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RIGID, SHORT, SINGULAR, WEAK, ZERO, type Block, type Check, type Dof, type DofKind, type EndLine, type Failure, type Issue, type Mode, type Solution, type Step, type Warning } from './types';
+import { AGREE, LARGE, LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RESOLVE, RIGID, SHORT, STRAIN, WEAK, ZERO, type Block, type Check, type Dof, type DofKind, type EndLine, type Failure, type Issue, type Mode, type Solution, type Step, type Warning } from './types';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -21,8 +21,12 @@ import { LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RIGID, SHORT, SINGULAR, WEAK, ZERO
  * THE SETTLING (ZERO = 1e-9, types.ts). The engine's `Solution` is raw. `analyse` returns it SETTLED: in every matrix and vector of every step but the
  * first (the inputs), an entry whose size is under ZERO of the largest of its block is exactly 0 (never −0, never 1e-14); the step 14 checks are
  * settled against the force scale of the problem (the moments against it times the size of the structure); the residual of step 10 against the largest
- * equation. The tables are made from the settled numbers, so they are the same numbers the steps print. Scalars are left as they are (a −0 apart).
+ * equation; the forces at the ends of a member against the force scale of the whole structure (a bar that carries nothing is 'no force', not a tension of
+ * 1e-15). The tables are made from the settled numbers, so they are the same numbers the steps print. Scalars are left as they are (a −0 apart).
  * Settling a block changes nothing it stands for beyond one part in 10⁹ of its largest entry; replay.testlib.ts recomputes the settled solution to 1e-8.
+ * EXCEPT the stiffness matrices K and the elimination (`EXACT_MATRICES`): the engine has already made an entry exactly 0 when it is no larger than the
+ * error the arithmetic could have put in it, so what is printed is what was computed, and a floor measured against the largest entry of a poorly scaled
+ * matrix cannot zero a real one (the last triangle printed gives the unknowns printed).
  *
  * UNITS. The steps are in the calculation units (feet, kips, radians; or metres, kilonewtons, radians: `calculation`, model.ts). The TABLES (`results`)
  * are in the units the form shows: displacements in inches or millimetres (a rotation in radians and degrees), stresses in ksi or MPa, forces and
@@ -31,7 +35,7 @@ import { LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RIGID, SHORT, SINGULAR, WEAK, ZERO
  */
 
 /** The tolerances of types.ts, in one object for the copy: the sentences quote these numbers, so a sentence can never say 10⁻⁹ where the engine uses another. */
-export const TOLERANCES = { singular: SINGULAR, weak: WEAK, residual: RESIDUAL, zero: ZERO, near: NEAR, short: SHORT, rigid: RIGID, limit: LIMIT, record: RECORD_LIMIT } as const;
+export const TOLERANCES = { resolve: RESOLVE, weak: WEAK, strain: STRAIN, residual: RESIDUAL, zero: ZERO, agree: AGREE, near: NEAR, short: SHORT, rigid: RIGID, large: LARGE, limit: LIMIT, record: RECORD_LIMIT } as const;
 
 export type SupportSymbol = 'fixed' | 'pin' | 'roller-y' | 'roller-x' | 'guide-x' | 'guide-y' | 'rotation' | 'none';
 
@@ -51,7 +55,7 @@ export interface AnalysisIssue {
   distance?: number;
   size?: number;
   dof?: number;
-  /** 'mechanism': the DOF's label ('3y') and the node of it. */
+  /** 'mechanism' and 'stiffness-range': the DOF's label ('3y') and the node of it. */
   dofLabel?: string;
   node?: number;
   kind?: 'sway' | 'rigid-body';
@@ -240,8 +244,16 @@ export interface DrawingMemberForce {
   share: { N: number; V: number; M: number };
 }
 export interface Deformed {
-  /** The exaggeration (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8 × 10ⁿ). Null: nothing moves. */
+  /**
+   * The factor the displacements are multiplied by to be drawn (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8 × 10ⁿ). Null: nothing moves. BELOW 1 it is a REDUCTION, not an
+   * exaggeration (the movement is a large share of the structure: the shape is drawn smaller than it was computed): `shrink` is then the clean number it is drawn
+   * 1/N of (the factor is exactly 1/shrink), and the copy says 'drawn at 1/N of its computed size', never 'magnified 0.6 times'.
+   */
   factor: number | null;
+  /** When the factor is under 1, the clean number N (1.5, 2, 2.5, 3, 4, 5, 6, 8 × 10ⁿ) such that the shape is drawn at 1/N of its computed size; otherwise null. */
+  shrink: number | null;
+  /** The solution carries the 'large-displacements' warning (a member's chord turns by more than TOLERANCES.large): first order does not hold, and the drawn shape is the theory's. */
+  large: boolean;
   /** The largest displacement of any point drawn — a node, or a point of a member bent by its loads (inches, mm) — and what it is drawn as a share of the larger side of the box (0.05 to 0.08). */
   maxDisplacement: number;
   share: number | null;
@@ -336,6 +348,13 @@ function settleBlock(b: Block, floor?: number): Block {
 /** `fixed` is the part of a step the settling leaves alone: the inputs. */
 const UNTOUCHED = new Set(['structure']);
 
+/**
+ * The matrices the engine itself has already freed of rounding, entry by entry (an entry no larger than the error the arithmetic could have put in it is exactly 0
+ * there): the stiffness of the structure at each stage of the assembly, its partition, and the elimination. They are printed as they were computed, so that the
+ * triangle on the page gives the answer on the page; a floor measured against the largest entry of the whole matrix would zero a real entry of a poorly scaled one.
+ */
+const EXACT_MATRICES = new Set(['K', 'running', 'K_FF', 'K_FR', 'K_RF', 'K_RR', 'augmented']);
+
 function settleSteps(steps: readonly Step[], context: { scale: number; size: number; dofs: Dof[] } | null): Step[] {
   return steps.map((step) => {
     if (UNTOUCHED.has(step.id)) return noNegativeZero(step);
@@ -356,6 +375,20 @@ function settleSteps(steps: readonly Step[], context: { scale: number; size: num
       });
       return { ...step, blocks };
     }
+    if (step.id === 'end-forces' && context) {
+      // The forces at the ends of a member are measured against the forces of the whole structure: a bar that carries nothing has 1e-15 of rounding in it, and
+      // that is not a tension. (The movements are measured against the movements of the block.)
+      const force = ZERO * context.scale;
+      const moment = ZERO * context.scale * Math.max(context.size, 1e-300);
+      const forces = new Set(['k·u_local', 'f_FE', 'f']);
+      return {
+        ...step,
+        blocks: step.blocks.map((b): Block => {
+          if (b.type === 'vector' && forces.has(b.name)) return { ...b, values: settleVector(b.values, (k) => (b.labels[k].startsWith('θ') ? moment : force)) };
+          return settleBlock(b);
+        }),
+      };
+    }
     if (step.id === 'solution') {
       const equation = typeof step.facts.equationScale === 'number' ? step.facts.equationScale : 0;
       const blocks = step.blocks.map((b): Block => {
@@ -365,7 +398,7 @@ function settleSteps(steps: readonly Step[], context: { scale: number; size: num
       });
       return { ...step, blocks };
     }
-    return { ...step, blocks: step.blocks.map((b) => settleBlock(b)) };
+    return { ...step, blocks: step.blocks.map((b) => (b.type === 'matrix' && EXACT_MATRICES.has(b.name) ? settleBlock(b, 0) : settleBlock(b))) };
   });
 }
 
@@ -393,7 +426,8 @@ export function settleSolution(sol: Solution): Solution {
     const start = frame ? { N: clean(0 - fv[0]), V: clean(fv[1]), M: clean(0 - fv[2]) } : { N: clean(0 - fv[0]), V: 0, M: 0 };
     const end = frame ? { N: clean(fv[3]), V: clean(0 - fv[4]), M: clean(fv[5]) } : { N: clean(fv[1]), V: 0, M: 0 };
     // (an elongation is the difference of two displacements: what is rounding in it is measured against them, so a bar that carries nothing does not lengthen)
-    const bar = f.bar ? { N: end.N, stress: clean(end.N / sol.members[k].A), elongation: settle(uLocal[1] - uLocal[0], ZERO * Math.max(Math.abs(uLocal[0]), Math.abs(uLocal[1]))) } : null;
+    // (and a bar that carries no force does not lengthen: N = EA·δ/L, so a δ that is rounding goes with an N that is)
+    const bar = f.bar ? { N: end.N, stress: clean(end.N / sol.members[k].A), elongation: end.N === 0 ? 0 : settle(uLocal[1] - uLocal[0], ZERO * Math.max(Math.abs(uLocal[0]), Math.abs(uLocal[1]))) } : null;
     return { ...f, f: fv, uGlobal, uLocal, fixedEnd, start, end, bar };
   });
   // The ends block and the scalars of an end-forces step are made again from the settled vector, so that they are the numbers the table has.
@@ -634,11 +668,30 @@ function deformedOf(sol: Solution, drawing: StiffnessDrawing, toShown: number, f
   for (const c of curves) for (const d of c.shift) maxDisp = Math.max(maxDisp, Math.hypot(d.x, d.y));
   const side = drawing.side;
   let factor: number | null = null;
-  if (maxDisp > 0 && side > 0 && Number.isFinite(maxDisp)) factor = nice((0.065 * side) / maxDisp);
+  let shrink: number | null = null;
+  if (maxDisp > 0 && side > 0 && Number.isFinite(maxDisp)) {
+    const target = (0.065 * side) / maxDisp;
+    // A movement bigger than the share the drawing gives it is drawn at 1/N of the computed size, with N a clean number: the factor is exactly 1/N.
+    if (target >= 1) factor = nice(target);
+    else {
+      shrink = nice(1 / target);
+      factor = shrink > 1 ? 1 / shrink : 1;
+      if (!(shrink > 1)) shrink = null;
+    }
+  }
   const f = factor ?? 0;
   const nodes = sol.nodes.map((n, k) => ({ node: n.label, x: n.x + f * nodeShift[k].x, y: n.y + f * nodeShift[k].y }));
   const members = sol.members.map((m, k) => ({ member: m.label, points: curves[k].base.map((p, q) => ({ x: p.x + f * curves[k].shift[q].x, y: p.y + f * curves[k].shift[q].y })) }));
-  return { factor, maxDisplacement: maxDisp * toShown, share: factor === null || side === 0 ? null : (factor * maxDisp) / side, nodes, members };
+  // Under 1 the movement is so large beside the structure that the shape is drawn SMALLER than computed: it is said as 1/N, and N is a clean number.
+  return {
+    factor,
+    shrink,
+    large: sol.warnings.some((w) => w.code === 'large-displacements'),
+    maxDisplacement: maxDisp * toShown,
+    share: factor === null || side === 0 ? null : (factor * maxDisp) / side,
+    nodes,
+    members,
+  };
 }
 
 /* ── The results ──────────────────────────────────────────────────────── */
@@ -785,7 +838,14 @@ function analysisIssues(form: StiffnessForm, rows: ReturnType<typeof toEngine>['
       out.row = row;
       if (row.list !== 'model') out.at = form[row.list].findIndex((r) => r.id === row.id) + 1;
     }
-    if (i.code === 'mechanism' && i.dof !== undefined) {
+    if (i.code === 'section' && row && (row.field === 'E' || row.field === 'A' || row.field === 'I')) {
+      // The sentence is chosen by two numbers it is handed through the holes it already has (`{count|…|…}` and `{max|…|…}`): whether the field is the STRUCTURE's own (1: it
+      // cannot be left blank, members take it) or a member's (0: blank takes the structure's), and whether the value typed is zero or below (1: 'must be greater than zero').
+      const value = row.list === 'model' ? form[row.field] : row.list === 'members' ? form.members.find((m) => m.id === row.id)?.[row.field] : null;
+      out.count = row.list === 'model' ? 1 : 0;
+      out.max = typeof value === 'number' && value > 0 ? 0 : 1;
+    }
+    if ((i.code === 'mechanism' || i.code === 'stiffness-range') && i.dof !== undefined) {
       const nd = form.mode === 'frame' ? 3 : 2;
       const kinds = form.mode === 'frame' ? ['x', 'y', 'θ'] : ['x', 'y'];
       out.dofLabel = `${Math.floor((i.dof - 1) / nd) + 1}${kinds[(i.dof - 1) % nd]}`;

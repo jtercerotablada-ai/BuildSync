@@ -52,10 +52,10 @@ describe('labels and titles', () => {
     expect(labels.get('displacements')).toBe('11');
     expect(labels.get('checks')).toBe('14');
   });
-  it('gives every step a title in both languages, with its member, pass or unknown in it', () => {
+  it('gives every step a title in both languages, with its member, column or unknown in it', () => {
     const v = views(tpl('frame-portal'));
     expect(v.find((x) => x.step.key === 'geometry#2')!.view.title).toBe('Geometry of member 2');
-    expect(v.find((x) => x.step.key === 'forward-pass#3')!.view.title).toBe('Forward elimination, pass 3');
+    expect(v.find((x) => x.step.key === 'forward-pass#3')!.view.title).toBe('Forward elimination, column 3');
     expect(v.find((x) => x.step.key === 'back-substitution#1')!.view.title).toBe('Back-substitution: unknown 6');
     const es = views(tpl('frame-portal'), 'es');
     expect(es.find((x) => x.step.key === 'assembly#1')!.view.title).toBe('Ensamblaje: se agrega la barra 1 a K');
@@ -170,8 +170,9 @@ describe('each sentence is true in the branch it is written in', () => {
     for (const id of TEMPLATE_IDS.filter((x) => x !== 'frame-fixed-point')) expect(text(tpl(id), 'structure')[0], id).not.toContain('Nothing is free to move');
   });
   it('the section’s units are the ones the form shows and the ones the steps work in', () => {
-    expect(text(tpl('truss-two-bar'), 'structure')[0]).toContain('entered in ksi, in² and the calculation works in kip/ft², ft²');
-    expect(text(tpl('frame-portal', 'si'), 'structure')[0]).toContain('entered in GPa, mm², 10⁶ mm⁴ and the calculation works in kN/m², m², m⁴');
+    // each unit stands with its symbol, so that the two lists cannot be read as one
+    expect(text(tpl('truss-two-bar'), 'structure')[0]).toContain('entered with E in ksi, A in in²; the calculation works with E in kip/ft², A in ft².');
+    expect(text(tpl('frame-portal', 'si'), 'structure')[0]).toContain('entered with E in GPa, A in mm², I in 10⁶ mm⁴; the calculation works with E in kN/m², A in m², I in m⁴.');
     expect(text(tpl('frame-portal', 'si'), 'structure')[0]).toContain('in kN and m');
   });
   it('geometry names the two nodes; the local stiffness of a bar and of a member say what they are', () => {
@@ -220,7 +221,7 @@ describe('each sentence is true in the branch it is written in', () => {
     expect(views(tpl('frame-portal')).some((v) => v.step.id === 'member-loads')).toBe(false);
     expect(views(tpl('truss-two-bar')).some((v) => v.step.id === 'member-loads')).toBe(false);
     const loaded = text(tpl('frame-propped'), 'member-loads')[0];
-    expect(loaded).toContain('Member 1 carries 1 load;');
+    expect(loaded).toContain('Member 1 carries one load; its fixed-end forces are the whole of f_FE.');
     expect(loaded).toContain('fixed-end forces');
     expect(loaded).toContain('−T^T·f_FE');
     // The load vector: a bar’s is the nodal loads; a frame without member loads says so; one with them adds them.
@@ -280,7 +281,7 @@ describe('each sentence is true in the branch it is written in', () => {
     expect(last.step.id).toBe('forward-pass');
     expect(last.step.facts.singular).toBe(true);
     expect(last.view.paragraphs).toHaveLength(1);
-    expect(last.view.paragraphs[0]).toContain('is zero: it is under 1 × 10^−9');
+    expect(last.view.paragraphs[0]).toContain('nothing in the structure resists this movement');
     expect(last.view.paragraphs[0]).toContain('The structure can move at this DOF without any member deforming');
     expect(last.view.formulas).toEqual(['a_kk = 0']);
     // The steps before the zero pivot are those of a structure that can be solved: nothing in them is about a solution.
@@ -288,7 +289,8 @@ describe('each sentence is true in the branch it is written in', () => {
   });
   it('the solution step: recorded, too long to record, and nothing to solve', () => {
     expect(text(tpl('frame-portal'), 'solution')[0]).toContain('put back into the original equations');
-    expect(text(tpl('frame-portal'), 'solution')[0]).toMatch(/The largest residual is (zero to the figures shown|[\d.]+( × 10\^−\d+)?, against)/);
+    // (the residual has its unit: a force, and for a frame a moment too)
+    expect(text(tpl('frame-portal'), 'solution').join(' ')).toMatch(/The largest residual is (zero to the figures shown|[\d.]+( × 10\^−\d+)? kip or kip·ft, against equations whose terms are as large as [\d,.]+( × 10\^\d+)? kip or kip·ft)/);
     const big = girder('frame');
     const s = text(big, 'solution')[0];
     expect(s).toContain('30 free DOFs, more than the 12');
@@ -313,14 +315,16 @@ describe('each sentence is true in the branch it is written in', () => {
   it('the checks quote the library’s tolerance, the centre of the structure and the balance', () => {
     const t = text(tpl('truss-two-bar'), 'checks')[0];
     expect(t).toContain('centre of the structure (8, 3)');
-    expect(t).toContain('no larger than 1 × 10^−8 of the problem’s force scale, 60 kip');
-    expect(t).toContain('Balanced: every check passes.');
+    expect(t).toContain('Each is measured against one tolerance, 1 × 10^−8 of the force scale, 60 kip: the largest of the loads added up, the largest reaction or end force, and the largest sum of the sizes of the terms in one equation.');
+    expect(t).toContain('Balanced: every check is within its tolerance.');
+    expect(t).not.toMatch(/\bpass(es)?\b/i);
     expect(t).not.toContain('Not balanced');
     const steps = stepsOf(tpl('truss-two-bar'));
     const bent = steps.map((s) => (s.id === 'checks' ? { ...s, facts: { ...s.facts, allOk: false } } : s));
     const v = stepView(bent.find((s) => s.id === 'checks')!, labelsOf(bent), ctxOf(tpl('truss-two-bar')));
     expect(v.paragraphs.join(' ')).toContain('Not balanced');
-    expect(v.paragraphs.join(' ')).not.toContain('Balanced: every check passes');
+    expect(v.paragraphs.join(' ')).not.toContain('Balanced: every check is within');
+    expect(v.paragraphs.join(' ')).not.toMatch(/\bfails?\b/i);
   });
 });
 

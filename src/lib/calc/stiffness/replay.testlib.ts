@@ -179,6 +179,8 @@ export function replay(sol: Solution, model: StiffnessModel, options: { settled?
     compare(key, 'contribution', mat(key, 'contribution').values, contribution);
     K = K.map((row, a) => row.map((v, b) => v + contribution[a][b]));
     compare(key, 'running K', mat(key, 'running').values, K);
+    // (the next member is added to the K as printed: a cell the arithmetic cannot tell from rounding is printed 0)
+    K = mat(key, 'running').values.map((row) => row.slice());
     const marked = (mat(key, 'contribution').highlights ?? []).length;
     compare(key, 'cells', [marked], [code.length * code.length]);
   }
@@ -292,7 +294,9 @@ export function replay(sol: Solution, model: StiffnessModel, options: { settled?
       compare(key, 'pivot', [sca(key, 'pivot', `pass#${k + 1}`)], [pivot]);
       compare(key, 'multipliers', vec(key, 'multipliers', `pass#${k + 1}`).values, multipliers);
       compare(key, 'augmented matrix', mat(key, 'augmented', `pass#${k + 1}`).values, next);
-      aug = next;
+      // The next pass is redone from the matrix AS PRINTED (an entry the arithmetic cannot tell from rounding is printed 0), the way a reader redoes it: so the last triangle
+      // printed must give the unknowns printed.
+      aug = mat(key, 'augmented', `pass#${k + 1}`).values.map((row) => row.slice());
     }
     uF = new Array<number>(nF).fill(0);
     for (let k = nF - 1; k >= 0; k--) {

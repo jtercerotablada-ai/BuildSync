@@ -1,3 +1,5 @@
+// The address's check and number grammar, and the unit factors, are the first calculator's (beam/model.ts), the way every calculator's are: a link is the same kind of
+// string on all of them. A change there is a change to every link already shared, so model.test.ts pins an address of this calculator.
 import { NAMED, NUMBER, US_TO_SI, checkOf, checked, type UnitSystem } from '../beam/model';
 import { TEMPLATE_IDS, buildTemplate, type TemplateId } from './templates';
 import {
@@ -6,6 +8,7 @@ import {
   MAX_MEMBER_LOADS,
   MAX_NODES,
   MAX_SUPPORTS,
+  NEAR,
   type Issue,
   type ListName,
   type Mode,
@@ -41,8 +44,10 @@ export { MAX_LOADS, MAX_MEMBERS, MAX_MEMBER_LOADS, MAX_NODES, MAX_SUPPORTS };
  *
  * The engine takes any consistent set and is given feet and kips or metres and kilonewtons (and radians). EVERY conversion lives in
  * this file: the section and the settlements cross in ONE place (`TO_ENGINE`), the displacements come back through `FROM_ENGINE`, and
- * the other system's numbers are made by `convertStiffness` (`STIFFNESS_US_TO_SI`). A value of up to EIGHT significant figures comes
- * back from the other system as the very number it was.
+ * the other system's numbers are made by `convertStiffness` (`STIFFNESS_US_TO_SI`). A value of up to EIGHT significant figures (the most a field
+ * shows) comes back from the other system as the very number it was; a pasted number with more figures keeps all of them and comes back to within
+ * a part in 10¹⁴ (its fifteenth figure is the rounding of a double, which a conversion cannot give back). The one value that is not converted is a
+ * listed modulus: 29,000 ksi and 200 GPa stand for each other (0.026 percent apart), as do aluminum's 10,100 ksi and 69.6 GPa.
  *
  * IDENTITY AND NUMBERS. Every row has an `id` that only ever grows (a removed row's is never reused). A member, a support and a load name their
  * node BY ITS ID, a member load its member. What the visitor sees are LABELS: a row's place in its list, from 1. Deleting a node
@@ -322,7 +327,9 @@ export function emptyStiffness(units: UnitSystem = 'us', mode: Mode = 'truss'): 
 
 /**
  * A converted value, to fifteen significant figures (the rounding of a double and no more), or to the shortest number of up to eight figures
- * within the noise of that: a value of up to EIGHT figures (what a field holds) comes back from the other system as the very number it was.
+ * within the noise of that: a value of up to EIGHT figures (what a field holds) comes back from the other system as the very number it was. (More
+ * is not promised: the rounding to fifteen figures is a few parts in 10¹⁵ of noise, and a number with nine or more figures cannot be told from it
+ * at the tolerance that keeps a thirteenth figure from being taken for noise. A pasted number of twelve figures returns to within 10⁻¹⁴ of itself.)
  */
 const exact = (v: number): number => {
   if (v === 0 || !Number.isFinite(v)) return v;
@@ -415,7 +422,7 @@ export function memberLength(form: StiffnessForm, m: MemberRow): number {
   return Number.isFinite(L) ? L : 0;
 }
 
-const near = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+const near = (a: number, b: number) => Math.abs(a - b) <= NEAR * Math.max(1, Math.abs(a), Math.abs(b));
 
 /** A position along a member that is strictly inside it and that no point load of the member (other than the row `except`) is at. */
 export function freePosition(form: StiffnessForm, member: number, except?: number): number {
@@ -690,11 +697,21 @@ function startKind(form: StiffnessForm, row: MemberLoadRow): MemberLoadRow {
   return out;
 }
 
-/** A support's settlement as the engine takes it: only on a restrained DOF (the typed value is kept while the restraint is off, and means nothing then). */
+/** A support's settlement as it COUNTS: only on a restrained DOF (the typed value is kept while the restraint is off, and means nothing then). */
 export const settlementOf = (s: Pick<SupportRow, 'ux' | 'uy' | 'rz' | 'dx' | 'dy' | 'dr'>, mode: Mode = 'frame'): { dx: number; dy: number; dr: number } => ({
   dx: s.ux ? s.dx : 0,
   dy: s.uy ? s.dy : 0,
   dr: mode === 'frame' && s.rz ? s.dr : 0,
+});
+
+/**
+ * A settlement typed on a DOF the support does NOT hold: kept in the row (and in the address, so that ticking the restraint again finds it), without effect.
+ * Which of the three it is on, for a row to show; a rotation counts only in frame mode. The engine is given these too, and warns of them ('settlement-ignored').
+ */
+export const strayOf = (s: Pick<SupportRow, 'ux' | 'uy' | 'rz' | 'dx' | 'dy' | 'dr'>, mode: Mode = 'frame'): { dx: boolean; dy: boolean; dr: boolean } => ({
+  dx: !s.ux && s.dx !== 0,
+  dy: !s.uy && s.dy !== 0,
+  dr: mode === 'frame' && !s.rz && s.dr !== 0,
 });
 
 /* ── From the form to the engine ──────────────────────────────────────── */
@@ -727,17 +744,19 @@ export function toEngine(form: StiffnessForm): EngineInput {
       ...(m.A !== null ? { A: m.A * k.area } : {}),
       ...(m.I !== null ? { I: m.I * k.inertia } : {}),
     })),
+    // A settlement typed on a DOF the support does not restrain has no effect, and the engine says so ('settlement-ignored'): it is passed on all the same, so that
+    // the visitor who unticked a restraint after typing its settlement is told that the value is not being used.
     supports: form.supports.map((s) => {
-      // A settlement typed on a DOF the support does not restrain means nothing, and the form hides it: it is not passed on.
-      const settle = settlementOf(s, form.mode);
+      // (a value that is not a number is a fault only where it is held: a hidden field cannot be corrected, and nothing is read from it)
+      const given = (held: boolean, v: number) => v !== 0 && (held || Number.isFinite(v));
       return {
         node: at(s.node),
         ux: s.ux,
         uy: s.uy,
         rz: s.rz,
-        ...(settle.dx !== 0 ? { dx: settle.dx * k.settlement } : {}),
-        ...(settle.dy !== 0 ? { dy: settle.dy * k.settlement } : {}),
-        ...(settle.dr !== 0 ? { dr: settle.dr } : {}),
+        ...(given(s.ux, s.dx) ? { dx: s.dx * k.settlement } : {}),
+        ...(given(s.uy, s.dy) ? { dy: s.dy * k.settlement } : {}),
+        ...(form.mode === 'frame' && given(s.rz, s.dr) ? { dr: s.dr } : {}),
       };
     }),
     loads: form.loads.map((l) => ({ node: at(l.node), fx: l.fx, fy: l.fy, m: l.m })),

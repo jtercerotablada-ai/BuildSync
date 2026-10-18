@@ -28,6 +28,7 @@ import {
   presetOf,
   reduce,
   settlementOf,
+  strayOf,
   toEngine,
   type StiffnessForm,
 } from './model';
@@ -471,15 +472,34 @@ describe('from the form to the engine', () => {
     const out = solve(model);
     expect(out.ok).toBe(false);
   });
-  it('a settlement counts only on a restrained DOF; the form hides one that does not', () => {
+  it('a settlement counts only on a restrained DOF; the form hides one that does not, and the engine is told of it so that it can warn', () => {
     let f = reduce(emptyStiffness(), { type: 'template', template: 'frame-propped' });
     const s = f.supports[1]; // roller: uy only
     f = reduce(f, { type: 'patch', list: 'supports', id: s.id, patch: { dx: 3, dy: -0.5, dr: 0.1 } });
     expect(settlementOf(f.supports[1], 'frame')).toEqual({ dx: 0, dy: -0.5, dr: 0 });
+    expect(strayOf(f.supports[1], 'frame')).toEqual({ dx: true, dy: false, dr: true });
+    // a rotation means nothing in a truss, and is not stray there
+    expect(strayOf(f.supports[1], 'truss')).toEqual({ dx: true, dy: false, dr: false });
     const { model } = toEngine(f);
-    expect(model.supports[1]).toEqual({ node: 1, ux: false, uy: true, rz: false, dy: -0.5 / 12 });
-    // an engine told of it warns; the form never does
-    expect(solve(model).ok).toBe(true);
+    // (the values are passed on, in the calculation's units: 3 in and 0.1 rad on the DOFs the support leaves free)
+    expect(model.supports[1]).toEqual({ node: 1, ux: false, uy: true, rz: false, dx: 3 / 12, dy: -0.5 / 12, dr: 0.1 });
+    const out = solve(model);
+    expect(out.ok).toBe(true);
+    // the engine warns of them, by DOF: 2x of node 2 is the DOF 4 and its rotation the DOF 6 (the propped cantilever has two nodes of three DOFs)
+    if (out.ok) expect(out.warnings).toContainEqual({ code: 'settlement-ignored', dofs: [4, 6] });
+    // a truss gives no rotation to the engine
+    let t = reduce(emptyStiffness(), { type: 'template', template: 'truss-two-bar' });
+    t = reduce(t, { type: 'patch', list: 'supports', id: t.supports[1].id, patch: { dr: 0.2 } });
+    expect(toEngine(t).model.supports[1]).toEqual({ node: 1, ux: true, uy: true, rz: false });
+  });
+  it('a hidden settlement that is not a number is not told to the engine: nothing can be corrected in a field the form does not show', () => {
+    let f = reduce(emptyStiffness(), { type: 'template', template: 'frame-propped' });
+    f = reduce(f, { type: 'patch', list: 'supports', id: f.supports[1].id, patch: { dx: Number.NaN } });
+    expect(toEngine(f).model.supports[1]).toEqual({ node: 1, ux: false, uy: true, rz: false });
+    expect(solve(toEngine(f).model).ok).toBe(true);
+    // …but one on a DOF the support holds is a fault the engine reports
+    f = reduce(f, { type: 'patch', list: 'supports', id: f.supports[1].id, patch: { dy: Number.NaN } });
+    expect(solve(toEngine(f).model).ok).toBe(false);
   });
   it('an issue is mapped to the row of the form that has the fault', () => {
     let f = defaultCase();

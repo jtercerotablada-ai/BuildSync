@@ -573,7 +573,10 @@ describe('the worked solution: its steps', () => {
     for (let i = 1; i < 6; i++) expect(aug.values[i][0]).toBe(0);
     close(aug.values[1][6], rhs[1] - mult.values[0] * rhs[0], 1e-12, 1e-12);
     expect(aug.highlights!.find((h) => h.reason === 'pivot')).toEqual({ row: 0, col: 0, reason: 'pivot' });
-    expect(aug.highlights!.filter((h) => h.reason === 'eliminated')).toHaveLength(5);
+    // (marked: the entries under the pivot that were not already 0, which are the rows whose multiplier is not 0; and only entries whose value changed are 'updated')
+    expect(aug.highlights!.filter((h) => h.reason === 'eliminated')).toHaveLength(mult.values.filter((l) => l !== 0).length);
+    expect(mult.values.some((l) => l === 0)).toBe(true);
+    expect(mult.values.some((l) => l !== 0)).toBe(true);
     // after the last pass the matrix is upper triangular
     const lastAug = passes[4].blocks.find((b): b is MatrixBlock => b.type === 'matrix')!;
     for (let i = 0; i < 6; i++) for (let j = 0; j < i; j++) expect(lastAug.values[i][j]).toBe(0);
