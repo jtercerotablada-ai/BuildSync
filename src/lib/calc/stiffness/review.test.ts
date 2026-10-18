@@ -173,29 +173,27 @@ describe('E2: a bar that carries nothing carries nothing', () => {
       expect(f4.values.every((v) => v === 0)).toBe(true);
     }
   });
-  it('300 solved structures: no end force is a value under a billionth of the force scale that is not exactly 0 (a bar is in tension or in compression, or it is idle)', () => {
+  it('300 solved structures: every end force is exactly 0 or larger than what rounding could have put into it (a bar is in tension or in compression, or it is idle), and settling changes no force by more than that', () => {
     let checked = 0;
     for (let seed = 1; seed <= 1500 && checked < 300; seed++) {
       const a = analyseSafely(randomForm(seed, 30));
       if (!a.solution) continue;
       checked++;
-      const sol = a.solution;
-      const floor = ZERO * sol.scale;
-      const moment = floor * Math.max(sol.size, 1e-300);
-      for (const m of a.results!.members) {
-        for (const v of [m.start.N, m.end.N, m.start.V, m.end.V]) expect(v === 0 || Math.abs(v) > floor, `seed ${seed}: ${v}`).toBe(true);
-        for (const v of [m.start.M, m.end.M]) expect(v === 0 || Math.abs(v) > moment, `seed ${seed}: ${v}`).toBe(true);
-        if (m.bar) expect(m.bar.state === 'zero', `seed ${seed}`).toBe(m.bar.N === 0);
-      }
-      // …and settling changes no end force by more than that floor: the numbers are the engine's
       const raw = solve(toEngine(randomForm(seed, 30)).model);
-      if (raw.ok) {
-        raw.forces.forEach((f, k) => {
-          const m = a.results!.members[k];
-          for (const [mine, theirs] of [[m.start.N, f.start.N], [m.end.N, f.end.N], [m.start.V, f.start.V], [m.end.V, f.end.V]]) expect(Math.abs(mine - theirs), `seed ${seed}`).toBeLessThanOrEqual(floor * 1.0000001);
-          for (const [mine, theirs] of [[m.start.M, f.start.M], [m.end.M, f.end.M]]) expect(Math.abs(mine - theirs), `seed ${seed}`).toBeLessThanOrEqual(moment * 1.0000001);
+      if (!raw.ok) continue;
+      raw.forces.forEach((f, k) => {
+        const m = a.results!.members[k];
+        // the components of f in the engine's own order: [N_i, V_i, M_i, N_j, V_j, M_j] (a bar [f_i, f_j]); a printed component is f's, or 0 when f is no larger than its floor
+        const printed = a.solution!.forces[k].f;
+        f.f.forEach((v, q) => {
+          const settledTo = Math.abs(v) > f.floor[q] ? v : 0;
+          expect(printed[q], `seed ${seed} member ${k + 1} component ${q}`).toBe(settledTo);
         });
-      }
+        for (const [mine, theirs] of [[m.start.N, f.start.N], [m.end.N, f.end.N], [m.start.V, f.start.V], [m.end.V, f.end.V], [m.start.M, f.start.M], [m.end.M, f.end.M]]) {
+          expect(Math.abs(mine - theirs), `seed ${seed}`).toBeLessThanOrEqual(Math.max(...f.floor) * 1.0000001);
+        }
+        if (m.bar) expect(m.bar.state === 'zero', `seed ${seed}`).toBe(m.bar.N === 0);
+      });
     }
     expect(checked).toBeGreaterThan(100);
   });

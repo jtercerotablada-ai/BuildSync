@@ -1108,7 +1108,10 @@ function run(model: StiffnessModel): Outcome {
       blocks.push(vec('f', sm.localLabels, f), sca('N', N, 'f_2'), sca('σ', stress, 'N/A'), sca('δ', elongation, 'u_j − u_i'));
       formulas.push('f = k·u_local', 'N = f_2 = (EA/L)(u_j − u_i)', 'σ = N/A', 'δ = u_j − u_i');
     }
-    forces.push({ member: k + 1, uGlobal, uLocal, f, fixedEnd: fe, start, end, bar });
+    // What rounding could have put into each component of f: the terms k·u that were added up to make it (a stiff member beside soft ones adds terms far larger
+    // than its force), and the fixed-end force. Measured against the whole structure's loads instead, a member much stiffer than the rest would lose real forces.
+    const floor = f.map((_, q) => 8 * Number.EPSILON * (kk[q].reduce((sum, v, j) => sum + Math.abs(v * uLocal[j]), 0) + (fe ? Math.abs(fe[q]) : 0)));
+    forces.push({ member: k + 1, uGlobal, uLocal, f, fixedEnd: fe, start, end, bar, floor });
     add('end-forces', 13, k + 1, scope(k), [`local-stiffness#${k + 1}`, `transformation#${k + 1}`, 'displacements', ...(fe ? [`member-loads#${k + 1}`] : [])], facts, formulas, blocks);
   });
 

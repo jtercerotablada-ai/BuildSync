@@ -587,6 +587,12 @@ export interface MemberForces {
   end: EndLine;
   /** Truss mode: the axial force N (tension +), the stress N/A (F/L²) and the elongation N·L/(E·A) (L). Null in frame mode. */
   bar: { N: number; stress: number; elongation: number } | null;
+  /**
+   * What rounding could have put into each component of `f` (same order and units): 8 × the machine epsilon × (the terms k·u_local added up in it + the
+   * fixed-end force). A component no larger than this is a rounding and is printed as 0; one larger is a force, however small it is beside the rest of the
+   * structure (a member a million times stiffer than another carries forces that are small only beside its own terms).
+   */
+  floor: number[];
 }
 
 export interface ReactionEntry {

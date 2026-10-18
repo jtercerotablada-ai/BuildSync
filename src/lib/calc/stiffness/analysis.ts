@@ -355,7 +355,7 @@ const UNTOUCHED = new Set(['structure']);
  */
 const EXACT_MATRICES = new Set(['K', 'running', 'K_FF', 'K_FR', 'K_RF', 'K_RR', 'augmented']);
 
-function settleSteps(steps: readonly Step[], context: { scale: number; size: number; dofs: Dof[] } | null): Step[] {
+function settleSteps(steps: readonly Step[], context: { scale: number; size: number; dofs: Dof[]; floors: readonly (readonly number[])[] } | null): Step[] {
   return steps.map((step) => {
     if (UNTOUCHED.has(step.id)) return noNegativeZero(step);
     if (step.id === 'checks' && context) {
@@ -376,15 +376,17 @@ function settleSteps(steps: readonly Step[], context: { scale: number; size: num
       return { ...step, blocks };
     }
     if (step.id === 'end-forces' && context) {
-      // The forces at the ends of a member are measured against the forces of the whole structure: a bar that carries nothing has 1e-15 of rounding in it, and
-      // that is not a tension. (The movements are measured against the movements of the block.)
-      const force = ZERO * context.scale;
-      const moment = ZERO * context.scale * Math.max(context.size, 1e-300);
-      const forces = new Set(['k·u_local', 'f_FE', 'f']);
+      // The forces at the ends of a member are measured against what rounding could have put into each of them (the engine's `floor`, from the terms that were
+      // added up to make it): a bar that carries nothing has 1e-15 of rounding in it and that is not a tension, and a member much stiffer than the rest keeps its
+      // real forces however small they are beside the terms of its own stiffness. The fixed-end forces are exact, never rounding. (The movements are measured
+      // against the movements of the block.)
+      const floor = step.scope.kind === 'member' ? context.floors[step.scope.member - 1] : undefined;
+      const forces = new Set(['k·u_local', 'f']);
       return {
         ...step,
         blocks: step.blocks.map((b): Block => {
-          if (b.type === 'vector' && forces.has(b.name)) return { ...b, values: settleVector(b.values, (k) => (b.labels[k].startsWith('θ') ? moment : force)) };
+          if (b.type === 'vector' && b.name === 'f_FE') return { ...b, values: b.values.map(clean) };
+          if (b.type === 'vector' && forces.has(b.name) && floor) return { ...b, values: settleVector(b.values, (k) => floor[k] ?? 0) };
           return settleBlock(b);
         }),
       };
@@ -409,7 +411,7 @@ function block<T extends Block['type']>(steps: readonly Step[], key: string, nam
 
 /** The solution with the settling applied to its steps, and its own arrays brought to the same numbers (so the tables and the steps agree). */
 export function settleSolution(sol: Solution): Solution {
-  const steps = settleSteps(sol.steps, { scale: sol.scale, size: sol.size, dofs: sol.dofs });
+  const steps = settleSteps(sol.steps, { scale: sol.scale, size: sol.size, dofs: sol.dofs, floors: sol.forces.map((f) => f.floor) });
   const u = block(steps, 'displacements', 'u', 'vector')?.values ?? sol.u;
   const P = block(steps, 'load-vector', 'P', 'vector')?.values ?? sol.P;
   const K = block(steps, 'assembled', 'K', 'matrix')?.values ?? sol.K;
