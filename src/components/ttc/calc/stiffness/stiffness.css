@@ -1,0 +1,1353 @@
+/* STIFFNESS MATRIX, STEP BY STEP (.mp-st) - the ninth calculator
+   (stiffness/StiffnessCalculator.tsx), its worked solution (Solution.tsx, MatrixTable.tsx) and its drawing (Schematic.tsx).
+
+   Imported by the calculator itself, so it travels with this page and no other. The page lays the calculator out by the shared sheet
+   (calc/calc.css: .mp-app, .mp-num, .mp-seg, .mp-plot, the cards and the print rules); what follows is only what a worked solution of
+   many tables needs. Every rule here is written with the weight of two classes (.mp-st ...) so that it holds whichever of the two
+   sheets the browser reads last; the drawing's classes are its own, every one (.mp-st-fig__*).
+
+   A MARK ON A TABLE HAS A PATTERN AS WELL AS A COLOUR (hatching one way or the other, dots, stripes, an inverted cell), and a name in the
+   legend under the table, so that a black-and-white sheet and a reader who does not tell blue from green lose nothing. */
+.mp-st {
+  --mp-st-axial: 31, 90, 153;
+  --mp-st-bending: 26, 106, 79;
+  --mp-st-shared: 122, 59, 115;
+  --mp-st-gold: 201, 154, 56;
+  --mp-st-error: 166, 58, 42;
+  --mp-st-held: 82, 85, 79;
+  --mp-st-pos: 11, 12, 13;
+}
+
+/* ── the form ─────────────────────────────────────────────────────────── */
+
+/* A field and its line are laid out in the grid of the form as if the wrapper were not there. */
+.mp-st .mp-st__f {
+  display: contents;
+}
+.mp-st .mp-st__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  column-gap: var(--mp-4);
+  row-gap: var(--mp-2);
+}
+.mp-st .mp-st__item > .mp-app__row--rm {
+  display: contents;
+}
+.mp-st .mp-st__item > .mp-app__row--rm > .mp-app__remove {
+  grid-area: 1 / 2;
+}
+.mp-st .mp-st__item > .mp-app__row--rm > .mp-st__fields,
+.mp-st .mp-st__item > .mp-app__row-error {
+  grid-column: 1 / -1;
+}
+.mp-st .mp-st__name {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
+  gap: var(--mp-3) var(--mp-4);
+  align-items: end;
+  min-width: 0;
+}
+.mp-st .mp-st__fields > .mp-num__hint,
+.mp-st .mp-st__fields .mp-num__hint {
+  grid-column: 1 / -1;
+}
+.mp-st .mp-st__fields > .mp-num--dir {
+  grid-column: span 2;
+}
+@media screen {
+  .mp-st .mp-num__input {
+    text-overflow: ellipsis;
+  }
+}
+.mp-st .mp-st__material > .mp-num--select {
+  flex-basis: 11rem;
+}
+.mp-st .mp-st__check {
+  align-self: end;
+  min-height: 44px;
+}
+/* The movements a support holds: a group of boxes under one legend. */
+.mp-st .mp-st__holds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0 var(--mp-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  grid-column: span 2;
+}
+.mp-st .mp-st__holds > legend {
+  width: 100%;
+  padding: 0;
+}
+.mp-st .mp-st__more {
+  justify-self: start;
+  grid-column: 1 / -1;
+}
+.mp-st .mp-st__subtitle {
+  margin: var(--mp-2) 0 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.mp-st .mp-st__shapes {
+  display: grid;
+  gap: var(--mp-3);
+}
+.mp-st .mp-st__shape-open {
+  justify-self: start;
+}
+.mp-st .mp-st__notice,
+.mp-st .mp-st__limit,
+.mp-st .mp-st__filled {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.mp-st .mp-st__notice {
+  padding: var(--mp-2) var(--mp-3);
+  border-inline-start: 3px solid var(--mp-gold-ink);
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__limit {
+  color: var(--mp-ink-3);
+}
+.mp-st .mp-st__said {
+  margin: 0;
+}
+.mp-st .mp-app__add[aria-disabled='true'],
+.mp-st .mp-app__btn[aria-disabled='true'] {
+  color: var(--mp-ink-faint);
+  cursor: default;
+  text-decoration: none;
+}
+.mp-st .mp-st__template > .mp-app__btn {
+  justify-self: start;
+}
+/* The textbook answer and what the tool gives: one under the other, the verdict marked by a rule. */
+.mp-st .mp-st__answer {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mp-st .mp-st__verdict {
+  margin: 0;
+  padding: var(--mp-2) var(--mp-3);
+  border-inline-start: 3px solid var(--mp-ink);
+}
+.mp-st .mp-st__verdict[data-agrees='false'] {
+  border-inline-start-color: var(--mp-error);
+  border-inline-start-style: dashed;
+}
+/* A line that says what just happened is in the page before it has anything to say (a screen reader hears it arrive): empty, it takes no room. */
+.mp-st .mp-st__notice:empty,
+.mp-st .mp-st__limit:empty,
+.mp-st .mp-st__said:empty,
+.mp-st .mp-st__filled:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+}
+/* Announced, not seen: the status region of a number field (FNum.tsx), and the text only a screen reader needs. */
+.mp-st .mp-st__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── the answer ───────────────────────────────────────────────────────── */
+
+.mp-st .mp-st__status {
+  display: grid;
+  gap: var(--mp-1);
+  padding: var(--mp-2) var(--mp-4);
+  border-inline-start: 3px solid var(--mp-ink);
+}
+.mp-st .mp-st__status--indeterminate {
+  border-inline-start-color: var(--mp-gold-ink);
+}
+.mp-st .mp-st__status--unstable {
+  border-inline-start-color: var(--mp-error);
+}
+.mp-st .mp-st__word {
+  margin: 0;
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mp-st .mp-st__warnings[data-empty] {
+  display: none;
+}
+.mp-st .mp-st__warnings {
+  padding: var(--mp-4);
+  border: 1px solid var(--mp-gold-ink);
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__warnings ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+}
+.mp-st .mp-st__warnings .mp-app__issues-title {
+  color: var(--mp-gold-ink);
+}
+.mp-st .mp-st__options {
+  display: grid;
+  gap: var(--mp-3);
+  min-width: 0;
+}
+.mp-st .mp-st__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--mp-6);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mp-st .mp-st__checks > legend {
+  width: 100%;
+  padding: 0;
+}
+/* Links at the head of the page for a phone, where the drawing is a long scroll below the inputs. */
+.mp-st .mp-st__jumps {
+  display: none;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+}
+.mp-st .mp-st__jumps a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--mp-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+@media screen and (max-width: 1100px) {
+  .mp-st .mp-st__jumps {
+    display: flex;
+  }
+}
+/* On a wide screen they are still there for the keyboard: out of sight until one has the focus. */
+@media screen and (min-width: 1101px) {
+  .mp-st .mp-st__jumps {
+    display: flex;
+    position: absolute;
+    inset-inline-start: -9999px;
+  }
+  .mp-st .mp-st__jumps:focus-within {
+    position: static;
+  }
+}
+.mp-st .mp-st__target {
+  scroll-margin-top: calc(var(--mp-header-h, 6rem) + var(--mp-4));
+}
+.mp-st [tabindex='-1']:focus {
+  outline: none;
+}
+/* One plain sentence under the drawing: what to read in it. */
+.mp-st .mp-st__reading {
+  margin: var(--mp-2) 0 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+
+/* ── the numbers of the answer ────────────────────────────────────────── */
+
+.mp-st .mp-st__table {
+  max-width: 72rem;
+}
+.mp-st .mp-st__table td {
+  white-space: normal;
+}
+.mp-st .mp-st__head {
+  display: none;
+}
+@media screen {
+  .mp-st .mp-app__card--wide {
+    overflow-x: auto;
+  }
+}
+.mp-st .mp-st__equilibrium {
+  max-width: 40rem;
+}
+.mp-st .mp-st__balanced {
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__unbalanced {
+  color: var(--mp-error-ink);
+  font-weight: 500;
+}
+.mp-st .mp-st__method {
+  max-width: 64rem;
+}
+/* On a phone a row is laid out two cells to a line, each under its own head: a table of nine columns was thrice the width of its card. */
+@media screen and (max-width: 640px) {
+  .mp-st .mp-st__table,
+  .mp-st .mp-st__table > tbody {
+    display: block;
+  }
+  .mp-st .mp-st__table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .mp-st .mp-st__table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding-block: 0.35rem;
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-st .mp-st__table tbody th,
+  .mp-st .mp-st__table td {
+    flex: 0 0 50%;
+    min-width: 0;
+    padding-block: 0.3rem;
+    border-block-end: 0;
+  }
+  .mp-st .mp-st__table .mp-st__head {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mp-ink-3);
+  }
+  .mp-st .mp-st__table .mp-st__head .mp-plot__unit {
+    text-transform: none;
+  }
+}
+
+/* ── the worked solution ──────────────────────────────────────────────── */
+
+.mp-st .mp-st__solution {
+  display: grid;
+  gap: var(--mp-4);
+  min-width: 0;
+}
+.mp-st .mp-st__h {
+  margin: 0;
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-ink);
+  font-size: var(--mp-t-h3);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.mp-st .mp-st__intro,
+.mp-st .mp-st__looknote,
+.mp-st .mp-st__long {
+  max-width: 64rem;
+  margin: 0;
+}
+.mp-st .mp-st__partial {
+  margin: 0;
+  padding: var(--mp-3) var(--mp-4);
+  border-inline-start: 3px solid var(--mp-error);
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__partial[data-empty] {
+  display: none;
+}
+/* How the numbers are shown: one row of choices that holds for every table. */
+.mp-st .mp-st__looks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--mp-4) var(--mp-6);
+}
+.mp-st .mp-st__looks .mp-seg {
+  flex-wrap: wrap;
+}
+.mp-st .mp-st__looks > .mp-num--select {
+  flex: 0 1 15rem;
+}
+.mp-st .mp-st__layout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: var(--mp-6) clamp(1.25rem, 3vw, 3rem);
+  align-items: start;
+  min-width: 0;
+}
+.mp-st .mp-st__aside {
+  position: sticky;
+  top: calc(var(--mp-header-h, 6rem) + var(--mp-4));
+  display: grid;
+  gap: var(--mp-3);
+  max-height: calc(100vh - var(--mp-header-h, 6rem) - 2 * var(--mp-4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: var(--mp-2);
+  min-width: 0;
+}
+.mp-st .mp-st__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2);
+}
+.mp-st .mp-st__bar .mp-app__btn {
+  flex: 1 1 6.5rem;
+  min-height: 44px;
+  justify-content: center;
+}
+.mp-st .mp-st__position {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--mp-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.mp-st .mp-st__jump {
+  display: none;
+}
+.mp-st .mp-st__stages,
+.mp-st .mp-st__chips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-st .mp-st__stagelink {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mp-2);
+  min-height: 44px;
+  padding-block: 0.4rem;
+  border-block-start: 1px solid var(--mp-line);
+  color: var(--mp-ink);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.mp-st .mp-st__stagelink[aria-current='step'] {
+  font-weight: 600;
+}
+.mp-st .mp-st__stagenum {
+  min-width: 1.6em;
+  font-family: var(--mp-mono);
+  font-size: 0.75rem;
+  color: var(--mp-ink-3);
+}
+.mp-st .mp-st__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding-block-end: var(--mp-2);
+  padding-inline-start: 2em;
+}
+.mp-st .mp-st__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--mp-line-strong);
+  font-family: var(--mp-mono);
+  font-size: 0.8125rem;
+  color: var(--mp-ink);
+  text-decoration: none;
+}
+.mp-st .mp-st__chip[aria-current='step'] {
+  background: var(--mp-ink);
+  color: var(--mp-paper);
+}
+.mp-st .mp-st__stagelink:focus-visible,
+.mp-st .mp-st__chip:focus-visible,
+.mp-st .mp-st__toggle:focus-visible,
+.mp-st .mp-st__scroll:focus-visible {
+  outline: 2px solid var(--mp-gold-ink);
+  outline-offset: 2px;
+}
+.mp-st .mp-st__cards {
+  display: grid;
+  gap: var(--mp-4);
+  min-width: 0;
+}
+.mp-st .mp-st__card {
+  min-width: 0;
+  padding-block-start: var(--mp-1);
+  border-block-start: 1px solid var(--mp-line-strong);
+  scroll-margin-top: calc(var(--mp-header-h, 6rem) + var(--mp-4));
+}
+.mp-st .mp-st__card[data-current='true'] {
+  border-block-start-color: var(--mp-ink);
+  border-block-start-width: 2px;
+}
+.mp-st .mp-st__card[data-singular='true'] {
+  border-inline-start: 3px solid var(--mp-error);
+  padding-inline-start: var(--mp-3);
+}
+.mp-st .mp-st__cardhead {
+  margin: 0;
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mp-st .mp-st__toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mp-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--mp-2) 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  color: var(--mp-ink);
+  cursor: pointer;
+}
+.mp-st .mp-st__stepnum {
+  flex: none;
+  font-family: var(--mp-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-st .mp-st__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mp-st .mp-st__chev {
+  flex: none;
+  font-family: var(--mp-mono);
+  color: var(--mp-ink-3);
+}
+.mp-st .mp-st__body {
+  display: grid;
+  gap: var(--mp-3);
+  min-width: 0;
+  padding-block-end: var(--mp-4);
+}
+.mp-st .mp-st__body[hidden] {
+  display: none;
+}
+.mp-st .mp-st__text {
+  max-width: 64rem;
+  margin: 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.65;
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__formulas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  margin: 0;
+  padding: var(--mp-2) var(--mp-3);
+  list-style: none;
+  border-inline-start: 3px solid var(--mp-gold-ink);
+  background: var(--mp-gold-soft);
+  font-size: var(--mp-t-small);
+}
+.mp-st .mp-st__formulas li {
+  overflow-wrap: anywhere;
+}
+.mp-st .mp-st__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--mp-6) var(--mp-8);
+  min-width: 0;
+}
+.mp-st .mp-st__sub {
+  font-size: 0.72em;
+  line-height: 0;
+}
+.mp-st .mp-st__sup {
+  font-size: 0.72em;
+  line-height: 0;
+}
+/* The values of a step: one line each, its name and what it is. */
+.mp-st .mp-st__values {
+  flex: 1 1 100%;
+  max-width: 44rem;
+  margin: 0;
+  font-size: var(--mp-t-small);
+}
+.mp-st .mp-st__values > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.1rem var(--mp-4);
+  padding-block: 0.4rem;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-st .mp-st__values dt {
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__values dd {
+  margin: 0;
+  font-family: var(--mp-mono);
+  font-size: 0.8125rem;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+.mp-st .mp-st__value {
+  font-weight: 600;
+}
+.mp-st .mp-st__unit {
+  color: var(--mp-ink-3);
+}
+
+/* ── one matrix ───────────────────────────────────────────────────────── */
+
+.mp-st .mp-st__fig {
+  display: grid;
+  gap: var(--mp-2);
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+.mp-st .mp-st__fig[data-wide='true'] {
+  flex: 1 1 100%;
+}
+.mp-st .mp-st__tabhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mp-2) var(--mp-4);
+}
+.mp-st .mp-st__caption {
+  flex: 1 1 9rem;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mp-ink);
+}
+.mp-st .mp-st__size {
+  font-family: var(--mp-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--mp-ink-3);
+}
+.mp-st .mp-st__copy {
+  flex: none;
+  min-height: 44px;
+}
+.mp-st .mp-st__copied {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__copied:empty {
+  display: none;
+}
+.mp-st .mp-st__factor,
+.mp-st .mp-st__note,
+.mp-st .mp-st__units,
+.mp-st .mp-st__band,
+.mp-st .mp-st__scrollnote {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__band {
+  font-weight: 600;
+}
+.mp-st .mp-st__scrollnote {
+  display: none;
+}
+@media screen and (max-width: 720px) {
+  .mp-st .mp-st__scrollnote {
+    display: block;
+  }
+}
+/* The table scrolls inside the card, both ways, and its headers stay. */
+.mp-st .mp-st__scroll {
+  width: fit-content;
+  max-width: 100%;
+  max-height: min(70vh, 40rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--mp-line);
+}
+.mp-st .mp-st__matrix {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--mp-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.mp-st .mp-st__matrix th,
+.mp-st .mp-st__matrix td {
+  position: relative;
+  min-width: 3.4rem;
+  padding: 0.3rem 0.55rem;
+  border-block-end: 1px solid var(--mp-line);
+  border-inline-end: 1px solid var(--mp-line-soft);
+  text-align: end;
+  white-space: nowrap;
+  background: var(--mp-paper);
+}
+.mp-st .mp-st__matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-weight: 600;
+  color: var(--mp-ink-2);
+  border-block-end: 1px solid var(--mp-line-strong);
+}
+.mp-st .mp-st__matrix tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  font-weight: 600;
+  color: var(--mp-ink-2);
+  border-inline-end: 1px solid var(--mp-line-strong);
+  text-align: start;
+}
+.mp-st .mp-st__matrix .mp-st__corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  min-width: 2.6rem;
+  border-block-end: 1px solid var(--mp-line-strong);
+  border-inline-end: 1px solid var(--mp-line-strong);
+}
+.mp-st .mp-st__num {
+  display: block;
+  white-space: nowrap;
+}
+.mp-st .mp-st__sym {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--mp-ink-3);
+}
+.mp-st .mp-st__matrix td .mp-st__sym:only-child {
+  font-size: 0.8125rem;
+  color: var(--mp-ink);
+}
+/* Zeros: the pattern of a matrix reads when its zeros do not shout. */
+.mp-st .mp-st__zero--light {
+  color: var(--mp-ink-faint);
+}
+.mp-st .mp-st__zero--light .mp-st__num,
+.mp-st .mp-st__zero--light .mp-st__sym {
+  opacity: 0.55;
+}
+.mp-st .mp-st__zero--dot {
+  color: var(--mp-ink-faint);
+}
+/* The lines between the blocks of a partition. */
+.mp-st .mp-st__matrix .mp-st__cut-col {
+  border-inline-start: 2px solid var(--mp-ink);
+}
+.mp-st .mp-st__matrix .mp-st__cut-row > th,
+.mp-st .mp-st__matrix .mp-st__cut-row > td {
+  border-block-start: 2px solid var(--mp-ink);
+}
+.mp-st .mp-st__matrix .mp-st__named {
+  padding-top: 1.2rem;
+}
+.mp-st .mp-st__block {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  padding: 0 3px;
+  border: 1px solid var(--mp-ink);
+  background: var(--mp-paper);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--mp-ink);
+  pointer-events: none;
+}
+/* The marks. A held DOF's row header is hatched; every other mark is on the cell. */
+.mp-st .mp-st__matrix .mp-st__rowmark--restrained,
+.mp-st .mp-st__matrix .mp-st__rowmark--prescribed {
+  background-image: repeating-linear-gradient(135deg, rgba(var(--mp-st-held), 0.4) 0 1px, transparent 1px 5px);
+  background-color: var(--mp-paper);
+}
+.mp-st .mp-st__matrix .mp-st__rowmark--prescribed {
+  background-image: radial-gradient(rgba(var(--mp-st-gold), 0.9) 1.1px, transparent 1.5px);
+  background-size: 5px 5px;
+}
+.mp-st .mp-st__matrix .mp-st__hl--axial,
+.mp-st .mp-st__swatch.mp-st__hl--axial {
+  background-color: rgba(var(--mp-st-axial), 0.12);
+  background-image: repeating-linear-gradient(45deg, rgba(var(--mp-st-axial), 0.32) 0 1px, transparent 1px 7px);
+}
+.mp-st .mp-st__matrix .mp-st__hl--bending,
+.mp-st .mp-st__swatch.mp-st__hl--bending {
+  background-color: rgba(var(--mp-st-bending), 0.1);
+  background-image: radial-gradient(rgba(var(--mp-st-bending), 0.55) 0.9px, transparent 1.3px);
+  background-size: 7px 7px;
+}
+.mp-st .mp-st__matrix .mp-st__hl--position,
+.mp-st .mp-st__swatch.mp-st__hl--position {
+  background-color: rgba(var(--mp-st-gold), 0.24);
+  background-image: repeating-linear-gradient(135deg, rgba(var(--mp-st-gold), 0.55) 0 1px, transparent 1px 7px);
+}
+.mp-st .mp-st__matrix .mp-st__hl--contributed,
+.mp-st .mp-st__swatch.mp-st__hl--contributed {
+  background-color: rgba(var(--mp-st-gold), 0.28);
+  box-shadow: inset 0 -2px 0 rgba(var(--mp-st-gold), 0.9);
+  font-weight: 600;
+}
+.mp-st .mp-st__matrix .mp-st__hl--shared,
+.mp-st .mp-st__swatch.mp-st__hl--shared {
+  background-color: rgba(var(--mp-st-shared), 0.16);
+  background-image: repeating-linear-gradient(45deg, rgba(var(--mp-st-shared), 0.4) 0 1px, transparent 1px 7px), repeating-linear-gradient(135deg, rgba(var(--mp-st-shared), 0.4) 0 1px, transparent 1px 7px);
+  box-shadow: inset 0 -2px 0 rgba(var(--mp-st-shared), 0.9);
+  font-weight: 600;
+}
+.mp-st .mp-st__matrix .mp-st__hl--pivot,
+.mp-st .mp-st__swatch.mp-st__hl--pivot {
+  background: var(--mp-ink);
+  color: var(--mp-paper);
+  font-weight: 700;
+  outline: 2px solid var(--mp-ink);
+  outline-offset: -2px;
+}
+.mp-st .mp-st__matrix .mp-st__hl--pivot .mp-st__sym {
+  color: var(--mp-paper);
+}
+.mp-st .mp-st__matrix .mp-st__hl--eliminated,
+.mp-st .mp-st__swatch.mp-st__hl--eliminated {
+  background-color: rgba(var(--mp-st-error), 0.1);
+  background-image: repeating-linear-gradient(90deg, rgba(var(--mp-st-error), 0.4) 0 1px, transparent 1px 7px);
+}
+.mp-st .mp-st__matrix .mp-st__hl--updated,
+.mp-st .mp-st__swatch.mp-st__hl--updated {
+  background-color: rgba(var(--mp-st-gold), 0.2);
+  background-image: repeating-linear-gradient(0deg, rgba(var(--mp-st-gold), 0.65) 0 1px, transparent 1px 7px);
+  font-weight: 600;
+}
+.mp-st .mp-st__matrix .mp-st__hl--zero-pivot,
+.mp-st .mp-st__swatch.mp-st__hl--zero-pivot {
+  background-color: rgba(var(--mp-st-error), 0.18);
+  background-image: repeating-linear-gradient(45deg, rgba(var(--mp-st-error), 0.6) 0 1px, transparent 1px 4px), repeating-linear-gradient(135deg, rgba(var(--mp-st-error), 0.6) 0 1px, transparent 1px 4px);
+  outline: 2px dashed var(--mp-error);
+  outline-offset: -2px;
+  font-weight: 700;
+}
+.mp-st .mp-st__matrix .mp-st__hl--restrained,
+.mp-st .mp-st__swatch.mp-st__hl--restrained {
+  background-color: rgba(var(--mp-st-held), 0.12);
+  background-image: repeating-linear-gradient(135deg, rgba(var(--mp-st-held), 0.4) 0 1px, transparent 1px 5px);
+}
+.mp-st .mp-st__matrix .mp-st__hl--prescribed,
+.mp-st .mp-st__swatch.mp-st__hl--prescribed {
+  background-color: rgba(var(--mp-st-gold), 0.2);
+  background-image: radial-gradient(rgba(var(--mp-st-gold), 0.9) 1.1px, transparent 1.5px);
+  background-size: 5px 5px;
+}
+.mp-st .mp-st__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-1) var(--mp-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--mp-ink-2);
+}
+.mp-st .mp-st__legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-2);
+}
+.mp-st .mp-st__swatch {
+  flex: none;
+  display: inline-block;
+  width: 1.6rem;
+  height: 0.9rem;
+  border: 1px solid var(--mp-line-strong);
+}
+
+/* ── the drawing ──────────────────────────────────────────────────────── */
+
+.mp-st .mp-st-fig {
+  display: grid;
+  gap: var(--mp-3);
+  min-width: 0;
+  margin: 0;
+}
+.mp-st .mp-st-fig__caption {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mp-ink);
+}
+.mp-st .mp-st-fig__svg {
+  height: auto;
+}
+/* A drawing wider than its column scrolls sideways inside the figure, at its own size (the words must stay readable). */
+.mp-st .mp-st-fig__scroll {
+  min-width: 0;
+}
+@media screen {
+  .mp-st .mp-st-fig__svg {
+    max-width: 100%;
+  }
+  .mp-st .mp-st-fig__scroll--wide .mp-st-fig__svg {
+    max-width: none;
+  }
+  .mp-st .mp-st-fig__scroll--wide {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border-block-end: 1px dashed var(--mp-line-strong);
+  }
+  .mp-st .mp-st-fig__scroll--wide:focus-visible,
+  .mp-st .mp-st-fig:focus-visible {
+    outline: 2px solid var(--mp-gold-ink);
+    outline-offset: 2px;
+  }
+}
+.mp-st .mp-st-fig__note {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mp-ink-2);
+}
+.mp-st-fig__member {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 4;
+  stroke-linecap: butt;
+}
+.mp-st-fig__member--thin {
+  stroke: var(--mp-ink-3);
+  stroke-width: 1.5;
+}
+.mp-st-fig__ghost {
+  stroke: var(--mp-ink-3);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+.mp-st-fig__deformed {
+  fill: none;
+  stroke: var(--mp-ink);
+  stroke-width: 2.25;
+  /* Dash, dot: not a plain dash, so the deformed line does not read as a dashed member on a grey-scale sheet. */
+  stroke-dasharray: 10 3 2 3;
+  stroke-linejoin: round;
+}
+.mp-st-fig__node circle {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-st-fig__node--dot circle {
+  fill: var(--mp-ink);
+}
+.mp-st-fig__node text {
+  font-family: var(--mp-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  fill: var(--mp-ink);
+  pointer-events: none;
+}
+/* A node that is part of a problem: ringed, dashed. */
+.mp-st-fig__node circle.mp-st-fig__ring {
+  fill: none;
+  stroke: var(--mp-error);
+  stroke-width: 1.75;
+  stroke-dasharray: 3 2;
+}
+.mp-st-fig__support polygon,
+.mp-st-fig__support circle,
+.mp-st-fig__support rect {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-st-fig__support line {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-st-fig__ground {
+  stroke: var(--mp-ink);
+  stroke-width: 2;
+}
+.mp-st-fig__tick {
+  stroke: var(--mp-ink);
+  stroke-width: 1.1;
+}
+.mp-st-fig__badge circle {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1.25;
+}
+.mp-st-fig__badge text {
+  font-family: var(--mp-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  fill: var(--mp-ink);
+}
+.mp-st-fig__load line,
+.mp-st-fig__reaction line,
+.mp-st-fig__load path,
+.mp-st-fig__reaction path {
+  stroke-width: 1.75;
+}
+.mp-st-fig__load line,
+.mp-st-fig__load path {
+  stroke: var(--mp-ink);
+}
+.mp-st-fig__load polygon {
+  fill: var(--mp-ink);
+}
+.mp-st-fig__reaction line,
+.mp-st-fig__reaction path {
+  stroke: var(--mp-gold-ink);
+}
+.mp-st-fig__reaction polygon {
+  fill: var(--mp-gold-ink);
+}
+.mp-st-fig__mline {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-st-fig__word {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--mp-ink);
+  /* A line that passes a number goes behind it. */
+  paint-order: stroke;
+  stroke: var(--mp-paper);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.mp-st-fig__word--reaction {
+  fill: var(--mp-gold-ink);
+}
+.mp-st-fig__tag rect,
+.mp-st-fig__dof rect {
+  fill: var(--mp-paper);
+  stroke: var(--mp-ink);
+  stroke-width: 1;
+}
+.mp-st-fig__dof rect {
+  stroke: var(--mp-ink-3);
+  stroke-dasharray: 2 2;
+}
+.mp-st-fig__tag text,
+.mp-st-fig__dof text {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--mp-ink);
+}
+.mp-st-fig__held {
+  stroke: var(--mp-ink);
+  stroke-width: 1.5;
+}
+.mp-st-fig__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--mp-ink-2);
+}
+.mp-st-fig__key {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-2);
+}
+.mp-st-fig__swatch {
+  flex: none;
+  overflow: visible;
+}
+
+/* ── on paper ─────────────────────────────────────────────────────────── */
+
+@media print {
+  /* A template is a way to start, a switch is a way to look, a button copies: none of them is on the sheet. */
+  .mp-st .mp-st__template,
+  .mp-st .mp-st__options,
+  .mp-st .mp-st__limit,
+  .mp-st .mp-st__shapes,
+  .mp-st .mp-st__shape-open,
+  .mp-st .mp-st__more,
+  .mp-st .mp-st__aside,
+  .mp-st .mp-st__looks,
+  .mp-st .mp-st__looknote,
+  .mp-st .mp-st__long,
+  .mp-st .mp-st__copy,
+  .mp-st .mp-st__scrollnote,
+  .mp-st .mp-st__jumps,
+  .mp-st .mp-st__chev,
+  .mp-st .mp-st-fig__note--scroll {
+    display: none !important;
+  }
+  /* A row of the input: its name, then its fields on a line. */
+  .mp-st .mp-st__item {
+    display: block;
+  }
+  .mp-st .mp-st__item > .mp-app__row--rm {
+    display: block;
+  }
+  .mp-st .mp-st__fields {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .mp-st .mp-st__holds {
+    display: inline-flex;
+  }
+  .mp-st .mp-st__name {
+    font-size: 6.5pt;
+    font-weight: 600;
+    color: #000;
+  }
+  .mp-st .mp-app__group:has(> .mp-app__item:nth-of-type(5)) {
+    break-inside: auto;
+  }
+  .mp-st .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend,
+  .mp-st .mp-app__group:has(> .mp-app__item:nth-of-type(5)) > legend + .mp-app__note {
+    break-after: avoid;
+  }
+  .mp-st .mp-st__notice {
+    padding: 0.5mm 1.5mm;
+    font-size: 6.5pt;
+  }
+  .mp-st .mp-st__status,
+  .mp-st .mp-st__warnings,
+  .mp-st .mp-st__partial {
+    padding: 1mm 2mm;
+    break-inside: avoid;
+    font-size: 8pt;
+  }
+  .mp-st .mp-st__word {
+    font-size: 9pt;
+  }
+  .mp-st .mp-st__table {
+    max-width: none;
+  }
+  .mp-st .mp-st__table tbody tr {
+    break-inside: avoid;
+  }
+  .mp-st .mp-st__method,
+  .mp-st .mp-st__reading {
+    font-size: 6.5pt;
+  }
+  /* The worked solution: every card is open, one under the other, whole figures kept together. */
+  .mp-st .mp-st__layout {
+    display: block;
+  }
+  .mp-st .mp-st__h {
+    break-after: avoid;
+    font-size: 11pt;
+  }
+  .mp-st .mp-st__cards {
+    display: block;
+  }
+  .mp-st .mp-st__card {
+    margin: 0 0 2mm;
+    padding-block-start: 0.5mm;
+    border-block-start: 0.75pt solid #000;
+  }
+  .mp-st .mp-st__cardhead {
+    break-after: avoid;
+    font-size: 9pt;
+    font-weight: 600;
+  }
+  .mp-st .mp-st__toggle {
+    min-height: 0;
+    padding: 0;
+  }
+  .mp-st .mp-st__stepnum {
+    font-size: 6.5pt;
+    color: #000;
+  }
+  .mp-st .mp-st__text {
+    font-size: 7.5pt;
+    line-height: 1.4;
+    color: #000;
+  }
+  .mp-st .mp-st__formulas {
+    padding: 0.5mm 2mm;
+    border-inline-start-color: #000;
+    background: none;
+    font-size: 7.5pt;
+  }
+  .mp-st .mp-st__values {
+    font-size: 7.5pt;
+  }
+  .mp-st .mp-st__values dd {
+    font-size: 7.5pt;
+  }
+  .mp-st .mp-st__items {
+    display: block;
+  }
+  .mp-st .mp-st__fig {
+    display: block;
+    margin: 0 0 2mm;
+    break-inside: avoid;
+  }
+  .mp-st .mp-st__caption {
+    font-size: 7.5pt;
+  }
+  .mp-st .mp-st__scroll {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+  }
+  .mp-st .mp-st__matrix {
+    font-size: 6.25pt;
+  }
+  .mp-st .mp-st__matrix th,
+  .mp-st .mp-st__matrix td {
+    position: relative;
+    min-width: 0;
+    padding: 0.4mm 1.2mm;
+    background-color: #fff;
+    color: #000;
+  }
+  .mp-st .mp-st__matrix thead th,
+  .mp-st .mp-st__matrix tbody th,
+  .mp-st .mp-st__matrix .mp-st__corner {
+    position: static;
+  }
+  .mp-st .mp-st__sym {
+    font-size: 5.5pt;
+    color: #000;
+  }
+  .mp-st .mp-st__zero--light,
+  .mp-st .mp-st__zero--dot {
+    color: #777;
+  }
+  .mp-st .mp-st__factor,
+  .mp-st .mp-st__note,
+  .mp-st .mp-st__units,
+  .mp-st .mp-st__band,
+  .mp-st .mp-st__legend {
+    font-size: 6pt;
+    color: #000;
+  }
+  /* The marks print: the patterns stay, the colours go to black on white, and the pivot is still an inverted cell. */
+  .mp-st {
+    --mp-st-axial: 0, 0, 0;
+    --mp-st-bending: 0, 0, 0;
+    --mp-st-shared: 0, 0, 0;
+    --mp-st-gold: 0, 0, 0;
+    --mp-st-error: 0, 0, 0;
+    --mp-st-held: 0, 0, 0;
+  }
+  .mp-st .mp-st__matrix td,
+  .mp-st .mp-st__matrix th,
+  .mp-st .mp-st__swatch {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--pivot,
+.mp-st .mp-st__swatch.mp-st__hl--pivot {
+    background: #000;
+    color: #fff;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--pivot .mp-st__sym {
+    color: #fff;
+  }
+  .mp-st .mp-st__matrix .mp-st__hl--zero-pivot,
+.mp-st .mp-st__swatch.mp-st__hl--zero-pivot {
+    outline-color: #000;
+  }
+  /* The drawings: the structure whole on one sheet, then the deformed shape, each its own small figure. */
+  .mp-st .mp-st__sheetfigs {
+    display: grid;
+    gap: 2mm;
+  }
+  .mp-st .mp-st-fig {
+    break-inside: avoid;
+  }
+  .mp-st .mp-st-fig__caption {
+    font-size: 7.5pt;
+  }
+  .mp-st-fig__scroll {
+    overflow: visible !important;
+  }
+  /* A value keeps its halo on paper (white): the sign of a number must not be lost where a line passes it. */
+  .mp-st-fig__word {
+    paint-order: stroke;
+    stroke: #fff !important;
+    stroke-width: 3.5px !important;
+    stroke-linejoin: round;
+  }
+  .mp-st-fig__word--reaction {
+    fill: #000;
+  }
+  .mp-st-fig__reaction line,
+  .mp-st-fig__reaction path {
+    stroke: #000;
+  }
+  .mp-st-fig__reaction polygon {
+    fill: #000;
+  }
+  .mp-st-fig__legend {
+    font-size: 6.5pt;
+    gap: 1mm 5mm;
+  }
+  .mp-st-fig__note {
+    font-size: 6.5pt;
+  }
+  .mp-st h3 {
+    break-after: avoid;
+  }
+}
+
+/* ── a narrow page: the outline becomes a menu ───────────────────────── */
+
+@media screen and (max-width: 1100px) {
+  .mp-st .mp-st__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-st .mp-st__aside {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-inline-end: 0;
+  }
+  .mp-st .mp-st__nav {
+    display: none;
+  }
+  .mp-st .mp-st__jump {
+    display: grid;
+  }
+}
+@media screen and (max-width: 640px) {
+  .mp-st .mp-st__looks > .mp-num--select {
+    flex: 1 1 100%;
+  }
+  .mp-st .mp-st__matrix {
+    font-size: 0.75rem;
+  }
+  .mp-st .mp-st__matrix th,
+  .mp-st .mp-st__matrix td {
+    padding: 0.3rem 0.4rem;
+  }
+  .mp-st .mp-st__items {
+    gap: var(--mp-4);
+  }
+}

@@ -38,7 +38,12 @@ import type { Lang } from './i18n';
  * temperature, and the cable with point loads. The eighth, "Plane frame
  * analysis" (/resources/plane-frame-analysis), is the first of the frames: a
  * 2D frame of straight members, rigid or hinged, by direct stiffness, with its
- * moment, shear and axial force diagrams, reactions and deflected shape.
+ * moment, shear and axial force diagrams, reactions and deflected shape. The
+ * ninth, "Stiffness matrix, step by step"
+ * (/resources/stiffness-matrix-step-by-step), solves a small 2D truss or frame
+ * by the same method with every matrix and every step written out: the member
+ * matrices in local and global axes, the assembly, the partition, the
+ * elimination, the reactions and the member end forces.
  *
  * THE FAMILIES AND THEIR ICONS. The owner drew sixteen icons, one per
  * general subject ("los 16 iconos corresponden a temas generales; varios
@@ -249,7 +254,7 @@ export const calculatorFamilies: CalculatorFamily[] = [
     icons: ['frame'],
     items: [
       { name: { en: 'Plane frame analysis', es: 'Análisis de pórticos planos' }, does: { en: 'Moments, shears, axial forces and reactions of a 2D frame.', es: 'Momentos, cortantes, fuerzas axiales y reacciones de un pórtico 2D.' }, href: '/resources/plane-frame-analysis' },
-      { name: { en: 'Stiffness matrix, step by step', es: 'Matriz de rigidez, paso a paso' }, does: { en: 'Local and global stiffness matrices, displacements and reactions of 2D members, with every step shown.', es: 'Matrices de rigidez locales y globales, desplazamientos y reacciones de elementos 2D, con cada paso a la vista.' } },
+      { name: { en: 'Stiffness matrix, step by step', es: 'Matriz de rigidez, paso a paso' }, does: { en: 'Local and global stiffness matrices, displacements and reactions of 2D members, with every step shown.', es: 'Matrices de rigidez locales y globales, desplazamientos y reacciones de elementos 2D, con cada paso a la vista.' }, href: '/resources/stiffness-matrix-step-by-step' },
     ],
   },
   {

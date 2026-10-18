@@ -13,6 +13,7 @@ import { trussPage } from '@/lib/calc/truss/page-strings';
 import { cablePage } from '@/lib/calc/cable/page-strings';
 import { cableSagPage } from '@/lib/calc/cable-sag/page-strings';
 import { framePage } from '@/lib/calc/frame/page-strings';
+import { stiffnessPage } from '@/lib/calc/stiffness/page-strings';
 import {
   CALCULATOR_ICON_PX,
   calculatorCount,
@@ -137,7 +138,7 @@ describe('calculators: the list', () => {
     // Each of them a page of its own: a second calculator is not a second row that opens the first.
     expect(new Set(hrefs).size).toBe(hrefs.length);
     expect(openCalculatorCount).toBe(hrefs.length);
-    // Eight are open — the general beam, the single span, the continuous beam, the shaft on bearings, the truss, the cable, the cable sag and the plane frame — and the loop below is run for each.
+    // Nine are open — the general beam, the single span, the continuous beam, the shaft on bearings, the truss, the cable, the cable sag, the plane frame and the stiffness matrix — and the loop below is run for each.
     expect(openCalculatorCount).toBeGreaterThanOrEqual(6);
     for (const href of hrefs) {
       expect(href).toMatch(/^\/resources\/[a-z-]+$/);
@@ -380,7 +381,7 @@ describe('calculators: where the page is', () => {
     expect(publicNotFoundTarget('/resources')).toBeNull();
     expect(publicNotFoundTarget('/es/resources')).toBeNull();
     // Beside each open calculator's address — one segment deeper, one letter longer — there is nothing.
-    for (const path of ['/resources/truss', '/resources/steel-member', '/resources/load-gen', '/resources/a/b', '/resources/single-span', '/resources/continuous', '/resources/shaft', '/resources/shaft-on-bearing', '/resources/truss-member-force', '/resources/cable-tension', '/resources/cable-sag', '/resources/cable-sag-pretensions', '/resources/plane-frame', '/resources/plane-frame-analyses', ...openCalculatorPaths.flatMap((open) => [`${open}/x`, `${open}s`])]) {
+    for (const path of ['/resources/truss', '/resources/steel-member', '/resources/load-gen', '/resources/a/b', '/resources/single-span', '/resources/continuous', '/resources/shaft', '/resources/shaft-on-bearing', '/resources/truss-member-force', '/resources/cable-tension', '/resources/cable-sag', '/resources/cable-sag-pretensions', '/resources/plane-frame', '/resources/plane-frame-analyses', '/resources/stiffness-matrix', '/resources/stiffness-matrix-step-by-steps', ...openCalculatorPaths.flatMap((open) => [`${open}/x`, `${open}s`])]) {
       expect(publicNotFoundTarget(path), path).toBe(PUBLIC_NOT_FOUND);
       expect(publicNotFoundTarget(`/es${path}`), path).toBe(PUBLIC_NOT_FOUND_ES);
     }
@@ -416,6 +417,7 @@ describe('calculators: where the page is', () => {
       '/resources/cable-tension-elongation': { en: cablePage.en.h1, es: cablePage.es.h1 },
       '/resources/cable-sag-pretension': { en: cableSagPage.en.h1, es: cableSagPage.es.h1 },
       '/resources/plane-frame-analysis': { en: framePage.en.h1, es: framePage.es.h1 },
+      '/resources/stiffness-matrix-step-by-step': { en: stiffnessPage.en.h1, es: stiffnessPage.es.h1 },
     };
     expect(Object.keys(h1)).toEqual([...openCalculatorPaths]);
     // Each calculator is a page of its own: no address, no title and no h1 is said by two of them.
@@ -446,7 +448,7 @@ describe('calculators: where the page is', () => {
         expect([...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => text(m[1])), where).toEqual([h1[href][lang]]);
       }
     }
-    // Twelve routes are imported and each page rendered with its example solved: seconds alone, more than the default five beside the other suites.
+    // Eighteen routes are imported and each page rendered with its example solved: seconds alone, more than the default five beside the other suites.
   }, 30_000);
 
   it('neither route keeps a calculator-less page’s noindex', () => {

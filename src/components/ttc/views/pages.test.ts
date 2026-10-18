@@ -26,6 +26,7 @@ import { TRUSS_PATH, TrussView } from './TrussView';
 import { CABLE_PATH, CableView } from './CableView';
 import { CABLE_SAG_PATH, CableSagView } from './CableSagView';
 import { FRAME_PATH, FrameView } from './FrameView';
+import { STIFFNESS_PATH, StiffnessView } from './StiffnessView';
 import { WorkView } from './WorkView';
 
 /**
@@ -71,6 +72,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [CABLE_PATH, h(CableView, { lang })],
     [CABLE_SAG_PATH, h(CableSagView, { lang })],
     [FRAME_PATH, h(FrameView, { lang })],
+    [STIFFNESS_PATH, h(StiffnessView, { lang })],
     ...getContent(lang).services.map(
       (s): [string, ReactElement] => [
         `/services/${s.slug}`,

@@ -15,4 +15,4 @@
  * calculator's page is listed for search engines, and has no bar lying over
  * its form.
  */
-export const openCalculatorPaths = ['/resources/beam', '/resources/single-span-beam', '/resources/continuous-beam', '/resources/shaft-on-bearings', '/resources/truss-member-forces', '/resources/cable-tension-elongation', '/resources/cable-sag-pretension', '/resources/plane-frame-analysis'] as const;
+export const openCalculatorPaths = ['/resources/beam', '/resources/single-span-beam', '/resources/continuous-beam', '/resources/shaft-on-bearings', '/resources/truss-member-forces', '/resources/cable-tension-elongation', '/resources/cable-sag-pretension', '/resources/plane-frame-analysis', '/resources/stiffness-matrix-step-by-step'] as const;

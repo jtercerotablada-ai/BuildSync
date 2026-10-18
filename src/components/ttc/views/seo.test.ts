@@ -37,6 +37,8 @@ import { CABLE_PATH, CableView } from './CableView';
 import { CABLE_SAG_PATH, CableSagView } from './CableSagView';
 import { framePage } from '@/lib/calc/frame/page-strings';
 import { FRAME_PATH, FrameView } from './FrameView';
+import { stiffnessPage } from '@/lib/calc/stiffness/page-strings';
+import { STIFFNESS_PATH, StiffnessView } from './StiffnessView';
 import { CalculatorsView } from './CalculatorsView';
 import { CostView } from './CostView';
 import { COST_PATH, costPage } from '@/lib/ttc/cost-page';
@@ -115,6 +117,7 @@ const pages: Page[] = LANGS.flatMap((lang) =>
     [CABLE_PATH, { title: cablePage[lang].title, description: cablePage[lang].description }] as const,
     [CABLE_SAG_PATH, { title: cableSagPage[lang].title, description: cableSagPage[lang].description }] as const,
     [FRAME_PATH, { title: framePage[lang].title, description: framePage[lang].description }] as const,
+    [STIFFNESS_PATH, { title: stiffnessPage[lang].title, description: stiffnessPage[lang].description }] as const,
     // The recertification cost page (cost-page.ts).
     [COST_PATH, { title: costPage(lang).seo.title, description: costPage(lang).seo.description }] as const,
     // The owners' guides and their index (guides.ts).
@@ -406,6 +409,7 @@ function views(lang: Lang): [path: string, view: ReactElement][] {
     [CABLE_PATH, h(CableView, { lang })],
     [CABLE_SAG_PATH, h(CableSagView, { lang })],
     [FRAME_PATH, h(FrameView, { lang })],
+    [STIFFNESS_PATH, h(StiffnessView, { lang })],
     [COST_PATH, h(CostView, { lang })],
     [GUIDES_PATH, h(GuidesView, { lang })],
     ...getGuides(lang).map((g): [string, ReactElement] => [guidePath(g.slug), h(GuideView, { lang, slug: g.slug })]),
