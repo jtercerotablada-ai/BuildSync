@@ -31,18 +31,21 @@ export const OG_IMAGE: Record<
 };
 
 /**
- * A title followed by the firm's FULL name. The owner, October 17, 2026:
- * the firm is "Tercero Tablada Civil and Structural Engineering Inc." and is
- * never called "Tercero Tablada" alone — titles included. Asked whether a
- * title should carry the full name although a search result then cuts its
- * end ("…"), he chose the full name. So the page's own words come first and
- * must fit a search result by themselves (seo.test.ts); the name follows on
- * every page, and a result may cut it. The public shell's title template is
- * this same function, for the few routes that do not go through pageMeta.
+ * THE <title> CARRIES NO BRAND. Two rules met here:
+ *   • the firm is "Tercero Tablada Civil and Structural Engineering Inc." and
+ *     is never called "Tercero Tablada" alone (the owner, October 17, 2026);
+ *   • the full name is 469 px of the ~580 a search result shows. With it after
+ *     every title, the owner's on-page check (October 18, 2026) flagged 166
+ *     titles as too long and repeating words, and the technical score fell
+ *     from 100 % to 79 %.
+ * So a title is the page's own words only. The firm's name still reaches the
+ * search result as the site name (og:site_name and the WebSite/Organization
+ * markup), the share card keeps it in full (og:title), and every page prints
+ * it in its footer. The public shell's title template is this same function.
  */
-export const brandedTitle = (title: string) => `${title} · ${company.name}`;
+export const brandedTitle = (title: string) => title;
 
-/** The <title> of a page: its own words, then the firm's full name. */
+/** The <title> of a page: its own words. */
 export function pageTitle(title: string): string {
   return brandedTitle(title);
 }

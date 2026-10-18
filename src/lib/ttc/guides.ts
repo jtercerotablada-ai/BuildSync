@@ -75,6 +75,9 @@ export type GuidesIndex = {
   sub: string;
   listLabel: string;
   listTitle: string;
+  /** Under the list: how to use the guides. */
+  howTitle: string;
+  how: string[];
 };
 
 /** The words of the guide view that are not any one guide's. */

@@ -316,7 +316,20 @@ export function GuidesView({ lang }: { lang: Lang }) {
           </ol>
         </div>
       </section>
-      <ContactCTA n="02" />
+      <section className="mp-section mp-surface--concrete" aria-labelledby="mp-guides-how">
+        <div className="mp-shell">
+          <SectionHeading n="02" label={idx.listLabel} />
+          <h2 id="mp-guides-how" className="mp-intro__title">
+            {idx.howTitle}
+          </h2>
+          <div className="mp-prose mp-guides__how">
+            {idx.how.map((p) => (
+              <p key={p}>{p}</p>
+            ))}
+          </div>
+        </div>
+      </section>
+      <ContactCTA n="03" />
     </>
   );
 }

@@ -38,6 +38,13 @@ export const index: GuidesIndex = {
   sub: 'Los dos programas, explicados en guías breves para juntas directivas, dueños y administradores en Miami-Dade y Broward. Cada una responde una pregunta que surge cuando un edificio alcanza la edad de inspección, y cada una remite a las reglas verificadas de su condado.',
   listLabel: 'Las guías',
   listTitle: 'Elija la pregunta que tiene hoy.',
+  howTitle: 'Cómo leer estas guías',
+  how: [
+    'Empiece por el condado. Miami-Dade y Broward tienen programas distintos, con sus propias edades, sus propios plazos y sus propios formularios, y una regla de un condado nunca se aplica a un edificio del otro. Cada guía dice de qué condado habla y, cuando trata los dos, los mantiene separados.',
+    'Las edades y los plazos de cada guía no se escriben a mano. Se imprimen desde las mismas filas verificadas de las páginas de cada programa, con la autoridad de la que vienen y la fecha de su última revisión, para que una guía nunca se aparte de las reglas que explica.',
+    'Una guía explica cómo funciona un programa en general; lo que manda en su edificio es su carta. Si una fecha de su notificación no coincide con lo que lee aquí, vale la de la notificación. Mándenos una foto y le decimos, en palabras sencillas, qué le piden y qué sigue.',
+    'Juntas, dueños y administradores usan estas páginas para preparar una reunión, responder a los propietarios o comparar propuestas. Puede compartirlas libremente; cada una lleva a la página completa del programa y a lo que cuesta el trabajo.',
+  ],
 };
 
 export const guides: Guide[] = [

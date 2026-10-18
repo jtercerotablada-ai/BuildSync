@@ -34,6 +34,13 @@ export const index: GuidesIndex = {
   sub: 'Short guides for boards, owners and managers in Miami-Dade and Broward. Each answers one question that comes up when a building reaches inspection age, and each points to the verified county rules.',
   listLabel: 'The guides',
   listTitle: 'Pick the question you have today.',
+  howTitle: 'How to read these guides',
+  how: [
+    'Start with the county. Miami-Dade and Broward run separate programs, with their own ages, their own clocks and their own forms, and a rule from one county never applies to a building in the other. Every guide says which county it is talking about, and when it covers both, it keeps them apart.',
+    'The ages and deadlines in each guide are not typed by hand. They are printed from the same verified rows as the program pages, with the authority they come from and the date they were last checked, so a guide cannot drift from the rules it explains.',
+    'A guide explains how a program works in general; your letter is what governs your building. If a date on your notice differs from what you read here, the notice wins. Send us a photo of it and we will tell you, in plain words, what it asks for and what comes next.',
+    'Boards, owners and property managers use these pages to prepare a meeting, answer unit owners or compare proposals. They are free to share, and each one links to the full program page and to what the work costs.',
+  ],
 };
 
 export const guides: Guide[] = [

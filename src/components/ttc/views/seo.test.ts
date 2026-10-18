@@ -208,12 +208,12 @@ describe('titles and descriptions: every page in the sitemap', () => {
         expect(repeatedWords(p.written)).toEqual([]);
       });
 
-      // The short name, and only through pageTitle: typed into a title, the
-      // firm would be there twice wherever the brand also fits.
-      it('title is written without the firm, and ends in its full name', () => {
-        expect(p.written).not.toContain(company.shortName);
+      // No brand in the <title> (meta.tsx): the page's own words, whole.
+      // The firm is named on the share card and as the site name instead.
+      it('title is the page’s own words, with no firm name in it', () => {
         expect(p.title).toBe(brandedTitle(p.written));
-        expect(p.title.split(company.name)).toHaveLength(2);
+        expect(p.title).toBe(p.written);
+        expect(p.title).not.toContain(company.shortName);
       });
 
       // A share card is not cut at 580 px: it keeps the full name.
@@ -234,10 +234,10 @@ describe('titles and descriptions: every page in the sitemap', () => {
     expect(new Set(pages.map((p) => p.description)).size).toBe(pages.length);
   });
 
-  it('the home page keeps the approved tagline, with the brand after it', () => {
+  it('the home page keeps the approved tagline', () => {
     const titles = pages.map((p) => p.title);
-    expect(titles).toContain(`Structural Engineering for South Florida · ${company.name}`);
-    expect(titles).toContain(`Ingeniería estructural para el Sur de Florida · ${company.name}`);
+    expect(titles).toContain('Structural Engineering for South Florida');
+    expect(titles).toContain('Ingeniería estructural para el Sur de Florida');
   });
 
   // The name people still type, as a former name — never dropped to save room.
