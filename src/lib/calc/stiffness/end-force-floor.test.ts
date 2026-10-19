@@ -77,7 +77,7 @@ describe('nothing smaller than its floor is printed as a force, nothing larger i
   it('on every template, in both units, with a stiff member in turn', () => {
     for (const template of ['truss-two-bar', 'truss-three-bar', 'truss-five-member', 'frame-propped', 'frame-l', 'frame-portal', 'frame-fixed-point'] as const) {
       for (const units of ['us', 'si'] as const) {
-        let base = reduceStiffness(emptyStiffness(units), { type: 'template', template });
+        const base = reduceStiffness(emptyStiffness(units), { type: 'template', template });
         for (const scale of [1, 1e6, 1e8]) {
           const form = base.members.length ? reduceStiffness(base, { type: 'patch', list: 'members', id: base.members[0].id, patch: { A: (base.A ?? 1) * scale } }) : base;
           const model = toEngine(form).model;

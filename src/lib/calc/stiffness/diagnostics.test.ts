@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { analyseSafely } from './analysis';
 import { ISSUE_CODES, WARNING_CODES } from './codes';
+import { exactSolve } from './bigoracle.testlib';
 import { illConditioned, solve } from './engine';
 import { emptyStiffness, reduce, toEngine, type StiffnessForm } from './model';
 import type { Check, Issue, IssueCode, StiffnessModel, WarningCode } from './types';
@@ -312,12 +313,12 @@ describe('the stability', () => {
     expect(out.issues[0]).toMatchObject({ code: 'mechanism', kind: 'sway' });
   });
   it("'ill-conditioned' is the safety net: a residual or a failed check beyond RESIDUAL, with the largest departure", () => {
-    const ok: Check[] = [{ id: 'sum-fx', value: 1e-12, scale: 10, ok: true }];
+    const ok: Check[] = [{ id: 'sum-fx', value: 1e-12, scale: 10, allowance: 0, ok: true }];
     expect(illConditioned(0, ok)).toBeNull();
     expect(illConditioned(1e-9, ok)).toBeNull();
     const bad = illConditioned(1e-3, ok)!;
     expect(bad).toEqual({ code: 'ill-conditioned', residual: 1e-3, limit: 1e-8 });
-    const failed: Check[] = [{ id: 'joints', value: 5e-3, scale: 10, ok: false }];
+    const failed: Check[] = [{ id: 'joints', value: 5e-3, scale: 10, allowance: 0, ok: false }];
     expect(illConditioned(0, failed)).toEqual({ code: 'ill-conditioned', residual: 5e-4, limit: 1e-8 });
     expect(illConditioned(Number.NaN, ok)).toEqual({ code: 'ill-conditioned', residual: 1, limit: 1e-8 });
     seen.add('ill-conditioned');
@@ -407,11 +408,19 @@ describe('the warnings: a solution with a note', () => {
     // in truss mode a rotation restraint alone restrains nothing
     expect(warnings(bar({ supports: [...bar().supports, { node: 1, ux: false, uy: false, rz: true }] }))).toEqual([{ code: 'empty-support', nodes: [2] }]);
   });
-  it("'near-mechanism': solved, but the arithmetic guarantees fewer than six figures of a pivot: a very stiff bar beside soft ones, and the figures are counted", () => {
-    // the two-bar truss of the page, with one bar 1e10 in² (the way a rigid link is imitated): the pivot of the free node over its own diagonal is about 1e-7, which is nothing wrong
-    const base = toEngine(reduce(emptyStiffness(), { type: 'template', template: 'truss-two-bar' })).model;
-    const stiff = { ...base, members: [{ ...base.members[0], A: 1e10 / 144 }, base.members[1]] };
-    const out = solve(stiff);
+  it("'near-mechanism': solved, but the results are guaranteed to fewer than six figures: a joint almost on the line of its two bars, and a very stiff bar beside soft ones, and the figures are counted and true", () => {
+    // two tilted bars with the free joint 1e-12 ft off their line: a pivot of 1e-26 of its diagonal, which thirty figures keep with a handful
+    const tilted = (e: number): StiffnessModel => ({
+      mode: 'truss',
+      nodes: [{ x: 0, y: 0 }, { x: 20, y: 20 }, { x: 10 + e, y: 10 - e }],
+      members: [{ i: 0, j: 2 }, { i: 1, j: 2 }],
+      supports: [{ node: 0, ux: true, uy: true, rz: false }, { node: 1, ux: true, uy: true, rz: false }],
+      loads: [{ node: 2, fx: 0, fy: -1, m: 0 }],
+      memberLoads: [],
+      E: 1000,
+      A: 1,
+    });
+    const out = solve(tilted(1e-12));
     expect(out.ok).toBe(true);
     if (!out.ok) return;
     const w = out.warnings.find((x) => x.code === 'near-mechanism');
@@ -420,19 +429,31 @@ describe('the warnings: a solution with a note', () => {
     expect(w!.ratio!).toBeLessThan(0.1);
     expect(w!.count).toBe(Math.floor(-Math.log10(w!.ratio!)));
     expect(w!.dofs).toHaveLength(1);
+    expect(out.accuracy).toBe(w!.ratio);
+    // the figures are true: the displacements are exact to the count
+    const exact = exactSolve(tilted(1e-12));
+    const error = Math.max(...out.u.map((v, d) => Math.abs(v - exact.u[d]))) / Math.max(...exact.u.map(Math.abs));
+    expect(error).toBeLessThan(10 ** -w!.count!);
     seenWarnings.add('near-mechanism');
+    // a bar of 10²⁵ in² beside ordinary ones (a rigid link a hundred thousand million million million times stiffer): thirty figures keep a few of the soft part, and the warning says how many
+    const base = toEngine(reduce(emptyStiffness(), { type: 'template', template: 'truss-two-bar' })).model;
+    const stiff = solve({ ...base, members: [{ ...base.members[0], A: 1e25 / 144 }, base.members[1]] });
+    expect(stiff.ok && stiff.warnings.map((x) => x.code)).toContain('near-mechanism');
+    // a bar of 10¹⁰ in² is imitated rigid and costs nothing: no figure is lost
+    const rigid = solve({ ...base, members: [{ ...base.members[0], A: 1e10 / 144 }, base.members[1]] });
+    expect(rigid.ok && rigid.warnings).toEqual([]);
     // the same bars with ordinary sections lose no figure
     expect(warnings(base)).toEqual([]);
   });
-  it("'stiffness-range': a stable structure whose pivot is lost in rounding is NOT a mechanism: a movement that strains a member, and the right words for it", () => {
-    // the portal of the page with an area of 1e14 in²: the sway of the beam is held by the columns' bending alone, a hundred trillionth of the axial stiffness around it
+  it("'stiffness-range': a stable structure whose pivot is lost in rounding, even in thirty figures, is NOT a mechanism: a movement that strains a member, and the right words for it", () => {
+    // the portal of the page with an area of 1e30 in² (the most an area may be): the sway of the beam is held by the columns' bending alone, 1e-30 of the axial stiffness around it
     const portal = reduce(emptyStiffness(), { type: 'template', template: 'frame-portal' });
-    const huge = reduce(portal, { type: 'section', patch: { A: 1e14 } });
+    const huge = reduce(portal, { type: 'section', patch: { A: 1e30 } });
     const a = analyseSafely(huge);
     expect(a.issues.map((x) => x.code)).toEqual(['stiffness-range']);
     expect(a.issues[0]).toMatchObject({ code: 'stiffness-range', node: 4, dofLabel: '4x', nodes: [4] });
     seen.add('stiffness-range');
-    // not unstable: the count of the portal (3 + 3 + 6 ... a degree) says what it says, and a mechanism it is not
+    // not unstable: the count of the portal says what it says, and a mechanism it is not
     expect(a.determinacy.word).toBeNull();
     expect(a.results).toBeNull();
     // the step that stopped it is marked and says why
@@ -441,8 +462,10 @@ describe('the warnings: a solution with a note', () => {
     expect(last.facts).toMatchObject({ singular: true, cause: 'range' });
     expect(last.facts.error as number).toBeGreaterThan(0);
     expect(last.formulas).toEqual([]);
+    // the same area, thirty orders of magnitude down, is solved with no word: it is the range of the arithmetic that was reached, not the structure that is at fault
+    expect(analyseSafely(reduce(portal, { type: 'section', patch: { A: 1e14 } })).issues).toEqual([]);
     // a real mechanism, by contrast, is a mechanism whatever the sections
-    for (const A of [1e-3, 10, 1e14]) {
+    for (const A of [1e-3, 10, 1e14, 1e30]) {
       const m = solve({ mode: 'truss', nodes: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }], members: [{ i: 0, j: 1 }, { i: 1, j: 2 }], supports: [{ node: 0, ux: true, uy: true, rz: false }, { node: 2, ux: true, uy: true, rz: false }], loads: [{ node: 1, fx: 0, fy: -1, m: 0 }], memberLoads: [], E: 100, A });
       expect(m.ok, `A = ${A}`).toBe(false);
       if (!m.ok) expect(m.issues[0], `A = ${A}`).toMatchObject({ code: 'mechanism', dof: 4 });
@@ -463,6 +486,51 @@ describe('the warnings: a solution with a note', () => {
     seenWarnings.add('large-displacements');
     // the ordinary one has none
     expect(warnings(flat).map((x) => x.code)).not.toContain('large-displacements');
+  });
+  it("'large-rotation' and 'large-stretch': first order only; an end that turns away from its chord, and a member that stretches, are told as such, and only they", () => {
+    // a beam of 20 ft that a unit load a foot bends until its ends turn 165 rad (the chord does not turn at all: the supports are level)
+    const beamModel = beam({ nodes: [{ x: 0, y: 0 }, { x: 20, y: 0 }], members: [{ i: 0, j: 1 }], supports: [{ node: 0, ux: true, uy: true, rz: false }, { node: 1, ux: false, uy: true, rz: false }], memberLoads: [{ kind: 'udl', member: 0, w: -1 }], E: 29000 * 144, A: 1, I: 0.01 / 20736 });
+    const bent = solve(beamModel);
+    expect(bent.ok).toBe(true);
+    if (bent.ok) {
+      const rotation = bent.warnings.find((x) => x.code === 'large-rotation')!;
+      expect(rotation).toBeDefined();
+      expect(rotation.count).toBe(1);
+      expect(rotation.nodes).toEqual([1, 2]);
+      expect(rotation.ratio!).toBeCloseTo(165.5, 0);
+      expect(bent.warnings.map((x) => x.code)).not.toContain('large-displacements');
+      expect(bent.warnings.map((x) => x.code)).not.toContain('large-stretch');
+      seenWarnings.add('large-rotation');
+    }
+    // the same beam stiff enough that its ends turn a hundredth of a radian: nothing to say
+    const stiffer = solve({ ...beamModel, I: 100 / 20736 });
+    expect(stiffer.ok && stiffer.warnings).toEqual([]);
+    // a cantilever whose tip turns 0.079 rad (the chord 0.053): nothing; whose tip turns 0.9 rad: its end has left its chord, and the chord has turned too
+    const cantilever = (rotation: number): StiffnessModel => {
+      const L = 10;
+      const EI = 29000 * 144 * (100 / 20736);
+      // tip rotation = P L² / (2 EI)
+      const P = (rotation * 2 * EI) / (L * L);
+      return beam({ nodes: [{ x: 0, y: 0 }, { x: L, y: 0 }], members: [{ i: 0, j: 1 }], supports: [{ node: 0, ux: true, uy: true, rz: true }], loads: [{ node: 1, fx: 0, fy: -P, m: 0 }], E: 29000 * 144, A: 10, I: 100 / 20736 });
+    };
+    const small = solve(cantilever(0.079));
+    expect(small.ok && small.warnings.map((x) => x.code)).toEqual([]);
+    const large = solve(cantilever(0.9));
+    expect(large.ok && large.warnings.map((x) => x.code)).toEqual(expect.arrayContaining(['large-displacements', 'large-rotation']));
+    // a bar of 10 ft that a pull of 10 kip stretches 345 times its length (A = 1e-6 in²); its chord does not turn
+    const bar: StiffnessModel = { mode: 'truss', nodes: [{ x: 0, y: 0 }, { x: 10, y: 0 }], members: [{ i: 0, j: 1 }], supports: [{ node: 0, ux: true, uy: true, rz: false }, { node: 1, ux: false, uy: true, rz: false }], loads: [{ node: 1, fx: 10, fy: 0, m: 0 }], memberLoads: [], E: 29000 * 144, A: 1e-6 / 144 };
+    const pulled = solve(bar);
+    expect(pulled.ok).toBe(true);
+    if (pulled.ok) {
+      const stretch = pulled.warnings.find((x) => x.code === 'large-stretch')!;
+      expect(stretch).toBeDefined();
+      expect(stretch.count).toBe(1);
+      expect(stretch.ratio!).toBeCloseTo(344.8, 0);
+      expect(pulled.warnings.map((x) => x.code)).not.toContain('large-displacements');
+      seenWarnings.add('large-stretch');
+    }
+    // an ordinary bar carries no such word
+    expect(solve({ ...bar, A: 10 / 144 }).ok && (solve({ ...bar, A: 10 / 144 }) as { warnings: unknown[] }).warnings).toEqual([]);
   });
   it('a sound structure has no warning', () => {
     expect(warnings(bar())).toEqual([]);

@@ -4,8 +4,8 @@ import React, { Component, useEffect, useMemo, useRef, useState, type ReactNode 
 import { formatNumber } from '@/lib/calc/format';
 import type { StiffnessDrawing } from '@/lib/calc/stiffness/analysis';
 import type { StiffnessUi } from '@/lib/calc/stiffness/strings';
-import { BADGE_R, figureWidth, layoutFor, type ArcShape, type ArrowShape, type LabelBox, type Layout, type LegendKey, type Looks, type SupportShape } from './layout';
-import { cautionLine, fill, raised, scalePhrase } from './text';
+import { BADGE_R, drawnOf, figureOf, type ArcShape, type ArrowShape, type DrawnFacts, type LabelBox, type Layout, type LegendKey, type Looks, type SupportShape } from './layout';
+import { cautionLine, fill, listOf, PRINT_FLOOR, FACTOR_CAP, raised, scalePhrase } from './text';
 
 /**
  * The structure as entered and - once solved - as it carries its load: members and nodes with their numbers, the supports by the movements
@@ -69,8 +69,11 @@ export interface SchematicProps {
   every?: boolean;
   /** Whether widening the drawing would put every left-off word on it (null while that is being found out). */
   canWiden?: boolean | null;
-  /** How many words the drawing leaves off, told whenever the drawing that is shown changes (the page offers its switch by it). */
-  onThinned?: (count: number) => void;
+  /**
+   * How many words the drawing leaves off, told whenever the drawing that is shown changes (the page offers its switch by it), with what the
+   * drawing shows that a sentence about it must follow: which nodes are dots, and what is drawn of the loads and the reactions.
+   */
+  onThinned?: (count: number, drawn: DrawnFacts) => void;
   looks: Looks;
   /** The tallest the drawing may be, px. */
   maxHeight?: number;
@@ -89,10 +92,55 @@ export interface SchematicProps {
 /** The note about the deformed shape's exaggeration, or the line that says nothing moves. */
 export function scaleNote(layout: Layout, looks: Looks, drawing: StiffnessDrawing, words: Pick<SchematicWords, 'notes'>, units: { displacement: string }): string {
   if (!looks.deformed || !drawing.deformed) return '';
+  // Nothing moves (still), or what moves is rounding, under the print floor: said as that, never as a movement of 0.
+  if (layout.tiny) return fill(words.notes.tiny, { floor: raised(formatNumber(PRINT_FLOOR, 1)), unit: units.displacement });
   if (layout.factor === null) return words.notes.still;
   const num = (v: number, significant: number) => formatNumber(v, significant, looks.group);
   // The same rounding as the sentence under the drawing and the tables: one number is one number.
   return fill(words.notes.scale, { scale: scalePhrase({ factor: layout.factor, shrink: drawing.deformed.shrink }, num, words.notes), value: raised(num(drawing.deformed.maxDisplacement, 4)), unit: units.displacement });
+}
+
+/** What a drawing on screen was made of: the structure, the width and the looks. */
+export interface FigureStamp {
+  drawing: unknown;
+  width: number;
+  widen: boolean;
+  every: boolean;
+  looks: Looks;
+  maxHeight: number | undefined;
+  paper: boolean;
+}
+/** Whether two sets of looks are the same looks (the page makes a new object of them whenever it is drawn again). */
+const sameLooks = (a: Looks, b: Looks): boolean =>
+  a === b || (a.loads === b.loads && a.reactions === b.reactions && a.deformed === b.deformed && a.dofs === b.dofs && a.nodeNumbers === b.nodeNumbers && a.memberNumbers === b.memberNumbers && a.values === b.values && a.group === b.group && (a.flagged ?? []).join() === (b.flagged ?? []).join());
+/** Whether the drawing on screen was made of what is asked for now. (Nothing is stale on paper: it is made at once.) */
+export const sameStamp = (a: FigureStamp, b: FigureStamp): boolean => a.drawing === b.drawing && a.width === b.width && a.widen === b.widen && a.every === b.every && sameLooks(a.looks, b.looks) && a.maxHeight === b.maxHeight && a.paper === b.paper;
+
+/** Whether what is asked for now is to widen the drawing and the one on screen was made without that (the switch was just ticked). */
+export const asksToWiden = (made: FigureStamp, now: FigureStamp): boolean => !now.paper && now.every && !made.every;
+
+/**
+ * The two notes under the drawing that follow its state. While the drawing on screen is not the one asked for and what was asked for is to widen it
+ * (the switch was just ticked: `widening`), it says that it is widening, and the note that tells the visitor to choose that switch is not shown (they
+ * have); once the drawing is made, the note that says how many words it leaves off follows what the drawing says (the switch is named only where there
+ * is one).
+ */
+export function figureNotes(o: { layout: Layout; widening: boolean; paper: boolean; canWiden: boolean | null; words: Pick<SchematicWords, 'notes'> }): { widening: string; thinned: string } {
+  const widening = o.widening && !o.paper;
+  const thinned = widening || o.layout.thinned === 0 ? '' : fill(o.paper ? o.words.notes.thinnedPaper : o.canWiden === false ? o.words.notes.thinnedRead : o.words.notes.thinned, { count: o.layout.thinned });
+  return { widening: widening ? o.words.notes.widening : '', thinned };
+}
+
+/** The line that says the exaggeration stopped at the cap (only when the deformed shape is drawn at it). */
+export function cappedNote(layout: Layout, looks: Looks, words: Pick<SchematicWords, 'notes'>): string {
+  if (!looks.deformed || layout.factor === null || !layout.capped) return '';
+  return fill(words.notes.capped, { cap: formatNumber(FACTOR_CAP, 5, looks.group) });
+}
+
+/** The line that says where the loads cancel and so nothing is drawn. */
+export function cancelledNote(layout: Layout, words: Pick<SchematicWords, 'notes'>): string {
+  if (layout.cancelled.length === 0) return '';
+  return fill(layout.cancelled.length === 1 ? words.notes.cancelledOne : words.notes.cancelledMany, { nodes: listOf(layout.cancelled, words.notes.and) });
 }
 
 /** The caution that the largest movement is no longer small beside the structure, when it is not (and only when a deformed shape is drawn). */
@@ -287,15 +335,14 @@ const Word = ({ box, className }: { box: LabelBox; className: string }) => (
 export function StiffnessSchematic({ drawing, width, widen = true, paper = false, every = false, canWiden = null, onThinned, looks, maxHeight, summary, describedBy, words, units, id, caption }: SchematicProps) {
   // The bays have a width of their own below which the loads and words of neighbouring bays run into each other: a drawing in a narrow
   // column is made that wide and scrolls, and says so. Paper cannot scroll, and keeps its width.
-  const make = () => {
-    const f = widen ? figureWidth(drawing, looks, width, every) : { drawn: width, room: width, widened: false };
-    return { drawn: f.drawn, widened: f.widened, layout: layoutFor(drawing, { ...looks, width: f.drawn, maxHeight }) };
-  };
+  const make = () => figureOf(drawing, looks, { width, widen, every, maxHeight });
   // THE LAYOUT IS NOT RECKONED INSIDE THE KEYSTROKE. Finding a clear place for every word of a structure of twelve nodes is a piece of arithmetic
   // the next key should not wait for. The first drawing - the server's, and the one the page opens with - is made at once; after it, a change of
   // the structure, the width or the looks is drawn a moment later, a task of its own, and until then the drawing on screen is the one before.
-  // Paper is made at once.
-  const [held, setHeld] = useState(make);
+  // Paper is made at once. WHAT THE VISITOR ASKED FOR SHOWS AT ONCE, though: the drawing on screen knows what it was made of (`stamp`), and while
+  // that is not what it is asked for it is dimmed and, where the switch that widens it was just ticked, says that it is widening.
+  const stamp = { drawing, width, widen, every, looks, maxHeight, paper };
+  const [held, setHeld] = useState(() => ({ ...make(), stamp }));
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -303,7 +350,7 @@ export function StiffnessSchematic({ drawing, width, widen = true, paper = false
       return;
     }
     if (paper) return;
-    const timer = setTimeout(() => setHeld(make()), 0);
+    const timer = setTimeout(() => setHeld({ ...make(), stamp }), 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing, width, widen, every, looks, maxHeight, paper]);
@@ -311,18 +358,21 @@ export function StiffnessSchematic({ drawing, width, widen = true, paper = false
     () => (paper ? make() : null), // eslint-disable-next-line react-hooks/exhaustive-deps
     [paper, drawing, width, widen, every, looks, maxHeight],
   );
-  const { drawn, layout, widened } = sync ?? held;
+  const { drawn, layout, widened, thinnedAtRoom } = sync ?? held;
+  const stale = sync === null && !sameStamp(held.stamp, stamp);
   useEffect(() => {
-    onThinned?.(layout.thinned);
-  }, [layout, onThinned]);
+    // (the page offers its switch by the words left off without it: not 0, because the switch was used)
+    onThinned?.(thinnedAtRoom, drawnOf(layout));
+  }, [layout, thinnedAtRoom, onThinned]);
   const wide = drawn > width;
   const noteText = scaleNote(layout, looks, drawing, words, units);
+  const cappedText = cappedNote(layout, looks, words);
+  const cancelledText = cancelledNote(layout, words);
   const cautionText = movementNote(layout, looks, drawing, words);
-  // What the note about the words left off tells the reader to do must be possible: the switch is named only where there is one.
-  const thinnedNote = layout.thinned > 0 ? fill(paper ? words.notes.thinnedPaper : canWiden === false ? words.notes.thinnedRead : words.notes.thinned, { count: layout.thinned }) : '';
+  const { widening: wideningNote, thinned: thinnedNote } = figureNotes({ layout, widening: stale && asksToWiden(held.stamp, stamp), paper, canWiden, words });
   const hasArrows = layout.loads.some((l) => l.arrows.length > 0 || l.arc) || layout.memberLoads.length > 0 || layout.reactions.some((r) => r.arrows.length > 0 || r.arc);
   return (
-    <figure className="mp-st-fig mp-st__target" id={id} tabIndex={id ? -1 : undefined}>
+    <figure className={stale ? 'mp-st-fig mp-st-fig--busy mp-st__target' : 'mp-st-fig mp-st__target'} id={id} tabIndex={id ? -1 : undefined} aria-busy={stale ? true : undefined}>
       {caption ? <figcaption className="mp-st-fig__caption">{caption}</figcaption> : null}
       <div className={wide ? 'mp-st-fig__scroll mp-st-fig__scroll--wide' : 'mp-st-fig__scroll'} role={wide ? 'group' : undefined} aria-label={wide ? words.notes.region : undefined} tabIndex={wide ? 0 : undefined}>
         <svg className="mp-plot__svg mp-st-fig__svg" role="img" aria-label={summary} aria-describedby={describedBy} viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height}>
@@ -412,11 +462,15 @@ export function StiffnessSchematic({ drawing, width, widen = true, paper = false
       </div>
       {layout.broken ? <p className="mp-st-fig__note mp-st-fig__note--broken">{words.broken}</p> : null}
       {wide ? <p className="mp-st-fig__note mp-st-fig__note--scroll">{widened ? words.notes.every : words.notes.scroll}</p> : null}
+      {wideningNote ? <p className="mp-st-fig__note mp-st-fig__note--widening">{wideningNote}</p> : null}
       {noteText ? <p className="mp-st-fig__note mp-st-fig__note--scale">{noteText}</p> : null}
+      {cappedText ? <p className="mp-st-fig__note mp-st-fig__note--capped">{cappedText}</p> : null}
+      {cancelledText ? <p className="mp-st-fig__note mp-st-fig__note--cancelled">{cancelledText}</p> : null}
       {cautionText ? <p className="mp-st-fig__note mp-st-fig__note--caution">{cautionText}</p> : null}
       {layout.summed.length > 0 ? <p className="mp-st-fig__note mp-st-fig__note--summed">{words.notes.summed}</p> : null}
       {hasArrows ? <p className="mp-st-fig__note mp-st-fig__note--arrows">{words.notes.arrows}</p> : null}
       {layout.dotted > 0 ? <p className="mp-st-fig__note mp-st-fig__note--dotted">{fill(words.notes.dotted, { count: layout.dotted })}</p> : null}
+      {layout.supportsOverlap ? <p className="mp-st-fig__note mp-st-fig__note--close">{words.notes.supportsClose}</p> : null}
       {thinnedNote ? <p className="mp-st-fig__note mp-st-fig__note--thinned">{thinnedNote}</p> : null}
       {layout.legend.length > 0 ? (
         <ul className="mp-st-fig__legend">
@@ -491,7 +545,7 @@ export function LegendSwatch({ kind }: { kind: LegendKey }) {
       ) : kind === 'reaction' ? (
         <ArrowMark a={{ tail: { x: 1, y: 8 }, tip: { x: 29, y: 8 } }} className="mp-st-fig__reaction" open />
       ) : kind === 'loadMoment' || kind === 'reactionMoment' ? (
-        <ArcMark a={{ cx: 15, cy: 8, r: 6, path: 'M 19.2 3.8 A 6 6 0 1 0 19.2 12.2', head: '19.2,12.2 15.8,14.8 22.4,15.4', text: null }} className={kind === 'loadMoment' ? 'mp-st-fig__load' : 'mp-st-fig__reaction'} open={kind === 'reactionMoment'} />
+        <ArcMark a={{ cx: 15, cy: 8, r: 6, path: 'M 19.2 3.8 A 6 6 0 1 0 19.2 12.2', head: '19.2,12.2 15.8,14.8 22.4,15.4', pts: [], text: null }} className={kind === 'loadMoment' ? 'mp-st-fig__load' : 'mp-st-fig__reaction'} open={kind === 'reactionMoment'} />
       ) : kind === 'distributed' ? (
         <g className="mp-st-fig__load">
           <line x1="3" y1="1.5" x2="27" y2="1.5" />

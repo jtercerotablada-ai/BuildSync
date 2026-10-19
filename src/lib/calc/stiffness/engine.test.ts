@@ -651,7 +651,8 @@ describe('the worked solution: its steps', () => {
     const KRR = vector(s, 'reactions', 'K_RR·u_R').values;
     const PR = vector(s, 'reactions', 'P_R').values;
     const R = vector(s, 'reactions', 'R').values;
-    R.forEach((v, k) => expect(v).toBe(KRF[k] + KRR[k] - PR[k]));
+    // (the reactions are worked in 32 digits and printed as doubles: the three printed parts, added in doubles, give R to the rounding of the parts, and a reaction that is 0 prints 0)
+    R.forEach((v, k) => expect(Math.abs(v - (KRF[k] + KRR[k] - PR[k]))).toBeLessThanOrEqual(1e-12 * (Math.abs(KRF[k]) + Math.abs(KRR[k]) + Math.abs(PR[k]))));
     expect(s.reactions.map((r) => r.value)).toEqual(R);
     // end forces of member 2 (the loaded beam): u_e is picked by the code vector, u_local = T u_e, f = k u_local + f_FE
     const ue = vector(s, 'end-forces#2', 'u_e').values;

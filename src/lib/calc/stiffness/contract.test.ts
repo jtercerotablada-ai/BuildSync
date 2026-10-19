@@ -3,7 +3,8 @@ import { TOLERANCES, analyseSafely } from './analysis';
 import { solve } from './engine';
 import { randomForm } from './forms.testlib';
 import { CALCULATION_UNITS, choicesOf, emptyStiffness, reduce, toEngine, unitOf, type StiffnessForm } from './model';
-import { AGREE, ASSEMBLY, EPSILON, LARGE, LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RESOLVE, RIGID, SHORT, STRAIN, WEAK, ZERO, dofKind, type StiffnessModel } from './types';
+import { exactSolve } from './bigoracle.testlib';
+import { AGREE, ASSEMBLY, EPSILON, EPSILON_DD, LARGE, LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RESOLVE, RIGID, ROUNDING, SHORT, STRAIN, WEAK, ZERO, dofKind, type StiffnessModel } from './types';
 
 describe('the units of an entry', () => {
   it('follow from the kinds of its DOFs', () => {
@@ -71,63 +72,60 @@ describe('the choices of a form', () => {
 
 describe('the tolerances', () => {
   it('are written once and handed to the copy as the engine uses them', () => {
-    expect(TOLERANCES).toEqual({ resolve: RESOLVE, weak: WEAK, strain: STRAIN, residual: RESIDUAL, zero: ZERO, agree: AGREE, near: NEAR, short: SHORT, rigid: RIGID, large: LARGE, limit: LIMIT, record: RECORD_LIMIT });
+    expect(TOLERANCES).toEqual({ resolve: RESOLVE, weak: WEAK, strain: STRAIN, residual: RESIDUAL, zero: ZERO, agree: AGREE, near: NEAR, short: SHORT, rigid: RIGID, large: LARGE, limit: LIMIT, record: RECORD_LIMIT, rounding: ROUNDING });
     expect([RESOLVE, WEAK, STRAIN, RESIDUAL, ZERO, AGREE, NEAR, SHORT, RIGID, LARGE, LIMIT, RECORD_LIMIT]).toEqual([0.1, 1e-6, 1e-6, 1e-8, 1e-9, 1e-12, 1e-9, 1e-5, 1e-6, 0.1, 1e30, 12]);
-    // the arithmetic's own constants: one rounding of a double, and the roundings assumed in one entry of a member's matrix
-    expect([EPSILON, ASSEMBLY]).toEqual([2 ** -52, 8]);
+    // the arithmetic's own constants: one rounding of a double, one of the 32-digit arithmetic the engine works in, the roundings assumed in one entry of a member's matrix, and the allowance of a check
+    expect([EPSILON, EPSILON_DD, ASSEMBLY, ROUNDING]).toEqual([2 ** -52, 2 ** -100, 8, 100]);
     // one list: the old pivot-over-diagonal tolerance is gone, and nothing else in it is called singular
     expect(Object.keys(TOLERANCES)).not.toContain('singular');
   });
-  it('a pivot is judged against the rounding of the terms that made it, not against the stiffness its DOF started with: two bars into one free node an angle δ apart (a pivot of about δ² of the diagonal) are a stable structure until the pivot is lost in its rounding', () => {
-    // the free node at the origin, held by two pinned bars of the same stiffness at 45° ∓ δ/2: the stiffness across them is sin²δ of the stiffness along them
-    const model = (delta: number): StiffnessModel => {
-      const t1 = Math.PI / 4 - delta / 2;
-      const t2 = Math.PI / 4 + delta / 2;
-      return {
-        mode: 'truss',
-        nodes: [{ x: 0, y: 0 }, { x: 10 * Math.cos(t1), y: 10 * Math.sin(t1) }, { x: 10 * Math.cos(t2), y: 10 * Math.sin(t2) }],
-        members: [{ i: 1, j: 0 }, { i: 2, j: 0 }],
-        supports: [{ node: 1, ux: true, uy: true, rz: false }, { node: 2, ux: true, uy: true, rz: false }],
-        loads: [{ node: 0, fx: 0, fy: -1, m: 0 }],
-        memberLoads: [],
-        E: 1000,
-        A: 1,
-      };
-    };
-    const ratioOf = (delta: number) => Math.sin(delta) ** 2;
-    // 2e-5 apart: a pivot of 4e-10 of its diagonal. The test of the pivot against its diagonal refused it as a mechanism; it is stable (the node moves a long way for a unit load, which
-    // is what first-order theory says of it), it is solved, and the warning says how many figures are guaranteed
-    const loose = solve(model(2e-5));
+  it('a pivot is judged against the rounding of the terms that made it, not against the stiffness its DOF started with: two bars into one free node an angle δ apart (a pivot of about δ² of the diagonal) are a stable structure until the pivot is lost in its rounding, which in thirty figures is a hundred trillion trillionth of it', () => {
+    // two bars on a line at 45° (one that is tilted: nothing in it is exactly zero), the free joint `e` off the line along the other diagonal: the stiffness across them is (e/L)² of the stiffness along them
+    const model = (e: number): StiffnessModel => ({
+      mode: 'truss',
+      nodes: [{ x: 0, y: 0 }, { x: 20, y: 20 }, { x: 10 + e, y: 10 - e }],
+      members: [{ i: 0, j: 2 }, { i: 1, j: 2 }],
+      supports: [{ node: 0, ux: true, uy: true, rz: false }, { node: 1, ux: true, uy: true, rz: false }],
+      loads: [{ node: 2, fx: 0, fy: -1, m: 0 }],
+      memberLoads: [],
+      E: 1000,
+      A: 1,
+    });
+    // 1e-8 off the line: a pivot of 1e-18 of its diagonal. It is stable, it is solved without a word about figures (thirty are worked), and it is exact to the figures the double holds
+    for (const e of [1e-4, 1e-8]) {
+      const out = solve(model(e));
+      expect(out.ok, `e = ${e}`).toBe(true);
+      if (!out.ok) continue;
+      expect(out.warnings.map((x) => x.code), `e = ${e}`).not.toContain('near-mechanism');
+      const exact = exactSolve(model(e));
+      const top = Math.max(...exact.u.map(Math.abs));
+      out.u.forEach((v, d) => expect(Math.abs(v - exact.u[d]) / top, `e = ${e} dof ${d + 1}`).toBeLessThan(1e-9));
+    }
+    // 1e-12 off the line: a pivot of 1e-26 of its diagonal, which thirty figures keep with a handful: it is stable, it is solved, and the warning counts the figures it is certain of
+    const loose = solve(model(1e-12));
     expect(loose.ok).toBe(true);
     if (loose.ok) {
-      expect(loose.warnings.map((x) => x.code)).toContain('near-mechanism');
       const w = loose.warnings.find((x) => x.code === 'near-mechanism')!;
+      expect(w).toBeDefined();
       expect(w.ratio!).toBeGreaterThan(WEAK);
       expect(w.ratio!).toBeLessThan(RESOLVE);
       expect(w.count).toBe(Math.floor(-Math.log10(w.ratio!)));
-      expect(w.dofs).toEqual([2]);
-      // the displacement of the free node is the closed form of the two bars' 2 × 2 stiffness
-      const k = (1000 * 1) / 10;
-      const t1 = Math.PI / 4 - 1e-5;
-      const t2 = Math.PI / 4 + 1e-5;
-      const stiffnessY = k * (Math.sin(t1) ** 2 + Math.sin(t2) ** 2);
-      const stiffnessX = k * (Math.cos(t1) ** 2 + Math.cos(t2) ** 2);
-      const crossXY = k * (Math.sin(t1) * Math.cos(t1) + Math.sin(t2) * Math.cos(t2));
-      // [kx cxy; cxy ky]·[ux uy] = [0 -1]: uy = -kx/(kx·ky - cxy²)
-      const det = stiffnessX * stiffnessY - crossXY * crossXY;
-      expect(loose.u[1] / (-stiffnessX / det)).toBeCloseTo(1, 4);
-      // a pivot of that size over its diagonal, as the bars give it
-      expect(ratioOf(2e-5)).toBeCloseTo(4e-10, 12);
+      expect(w.dofs).toHaveLength(1);
+      // the claim is true: the displacements are exact to the figures it counts
+      const exact = exactSolve(model(1e-12));
+      const top = Math.max(...exact.u.map(Math.abs));
+      const error = Math.max(...loose.u.map((v, d) => Math.abs(v - exact.u[d]))) / top;
+      expect(error).toBeLessThan(10 ** -w.count!);
     }
-    // 1e-7 apart: the pivot is lost in its rounding and the movement strains nothing to speak of: that one is a mechanism
-    const lost = solve(model(1e-7));
+    // 1e-14 off the line: the pivot is lost in its rounding even in thirty figures and the movement strains nothing to speak of: that one is a mechanism, at the free joint
+    const lost = solve(model(1e-14));
     expect(lost.ok).toBe(false);
     if (!lost.ok) {
       expect(lost.issues[0].code).toBe('mechanism');
-      expect(lost.issues[0].dof).toBe(2);
+      expect(lost.issues[0].dof).toBe(6);
     }
     // a sound one has neither
-    const firm = solve(model(0.05));
+    const firm = solve(model(0.5));
     expect(firm.ok && firm.warnings.map((x) => x.code)).not.toContain('near-mechanism');
     // the tolerances are the same numbers in the engine and in the copy
     expect(TOLERANCES.resolve).toBe(RESOLVE);

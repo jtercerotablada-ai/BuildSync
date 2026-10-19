@@ -1,32 +1,43 @@
 'use client';
 
-import React, { memo, startTransition, useCallback, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useReducer, useRef, useState, useTransition } from 'react';
 import { stagesOf, type StiffnessAnalysis } from '@/lib/calc/stiffness/analysis';
 import type { StiffnessUi } from '@/lib/calc/stiffness/strings';
 import type { Step } from '@/lib/calc/stiffness/types';
 import { MatrixTable, type MatrixForm } from './MatrixTable';
 import { Notation } from './Notation';
 import { SIG_MAX, SIG_MIN, type NumFormat, type NumStyle, type ZeroStyle } from './numfmt';
+import { Hold, Spy, stopGlide, type HoldAt } from './reader-place';
 import {
   FRESH,
+  LINE_BELOW_MARGIN,
   PRINT_BUDGET,
   PRINT_SKIPPED,
   applyNear,
   autoOpen,
+  cardAtLine,
   currentOf,
   estimateBody,
   groupDigits,
+  holdsLine,
+  holdsOf,
   isOpen,
+  keyMoves,
+  movedLine,
   openReducer,
   positionLine,
   printSteps,
   sameCard,
   seedNear,
+  settleSight,
+  SIGHT_EVERY,
   startClosed,
+  spokenTitle,
   startScope,
   stepTarget,
   systemOf,
   weightOf,
+  type OpenAction,
   type PrintScope,
   type SameCardProps,
 } from './solution-state';
@@ -131,11 +142,13 @@ interface CardProps {
   register: (key: string, el: HTMLElement | null) => void;
   /** The height each card's tables had when last drawn, by key: the room kept while they are not. */
   heights: Map<string, number>;
+  /** What the card holds, in a sentence (solution-state.ts, holdsLine): said in the room kept for its tables, to whoever reads the page and for whoever cannot wait for them. '' for a card with no table and no value. */
+  holds: string;
 }
 
 const NO_ITEMS: BodyItem[] = [];
 
-const StepCard = memo(function StepCard({ step, view, open, near, onToggle, ctx, form, zeros, w, bands, domId, current, singular, register, heights }: CardProps) {
+const StepCard = memo(function StepCard({ step, view, open, near, onToggle, ctx, form, zeros, w, bands, domId, current, singular, register, heights, holds }: CardProps) {
   // The body of the card is built when it is first drawn, and kept while the card stays the same step of the same solution.
   const built = useRef<{ step: Step; ctx: StepContext; items: BodyItem[] } | null>(null);
   const drawn = open && near;
@@ -190,9 +203,16 @@ const StepCard = memo(function StepCard({ step, view, open, near, onToggle, ctx,
               <div className="mp-st__items" ref={room}>
                 {items.map((item) => (item.kind === 'values' ? <Values key={item.id} rows={item.rows} form={form} /> : <MatrixTable key={item.id} model={item.model} form={form} zeros={zeros} w={w} bands={bands} />))}
               </div>
-            ) : (
-              <div className="mp-st__later" style={{ minHeight: `${heights.get(step.key) ?? estimateBody(step)}px` }} aria-hidden="true" />
-            )}
+            ) : holds ? (
+              // The room kept for the tables, and the words for them: what is coming (to a reader who cannot see the box, and to one who sees it for a moment as
+              // they scroll past) and, where there are no scripts, that it never will. The words are in the page, not drawn by it.
+              <div className="mp-st__later" style={{ minHeight: `${heights.get(step.key) ?? estimateBody(step)}px` }}>
+                <p className="mp-st__holds">
+                  {holds} <span className="mp-st__when">{w.solution.holdsLater}</span>
+                  <noscript> {w.solution.holdsOff}</noscript>
+                </p>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -249,6 +269,9 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
   const scope: PrintScope = heavy ? (chosenScope ?? startScope(all)) : 'all';
   const steps = useMemo(() => (onPaper ? printSteps(all, scope) : all), [all, onPaper, scope]);
   const skipped = all.length - steps.length;
+  // What a short sheet leaves out is said by what it leaves out in THIS solution: a structure too big for the elimination to be written has no steps of it to leave out.
+  const skippable = all.filter((s) => PRINT_SKIPPED.includes(s.id));
+  const leaves: 'both' | 'assembly' | 'elimination' = skippable.some((s) => s.id === 'assembly') ? (skippable.some((s) => s.id !== 'assembly') ? 'both' : 'assembly') : 'elimination';
   const keys = useMemo(() => steps.map((s) => s.key), [steps]);
 
   /* Which cards are open (the cards' own start, then what the visitor chose) and which the visitor was taken to. */
@@ -261,67 +284,192 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
   const cur = currentOf(open, keys);
   const toggle = useCallback((key: string, wasOpen: boolean) => dispatch({ type: 'toggle', key, wasOpen }), []);
 
-  /* Which cards are near the screen: the first few, until the page knows where the screen is, then what an observer says. */
+  /* Which cards are near the screen: the first few, until the page knows where the screen is, then what the observers say. Two of them: the cards IN or just
+     about to come into sight are drawn at once (a card the reader flicks past is not left an empty box), and those within two screens are drawn a turn at a time
+     behind them (`near`, as a transition: the reader's scrolling is never held up by a table). */
   const [near, setNear] = useState<ReadonlySet<string>>(() => seedNear(all));
+  const [sight, setSight] = useState<ReadonlySet<string>>(() => new Set());
+  const [drawing, startNear] = useTransition();
   const [watching, setWatching] = useState(true);
   const heights = useRef(new Map<string, number>());
   const nodes = useRef(new Map<string, HTMLElement>());
   const keyOf = useRef(new WeakMap<Element, string>());
-  const observer = useRef<IntersectionObserver | null>(null);
+  const observers = useRef<IntersectionObserver[]>([]);
+  // The heights remembered are those of the structure on screen: another structure has other tables.
+  useEffect(() => {
+    heights.current.clear();
+  }, [epoch]);
   useEffect(() => {
     if (onPaper) return;
     if (typeof IntersectionObserver === 'undefined') {
       setWatching(false);
       return;
     }
+    const changesOf = (entries: IntersectionObserverEntry[]) =>
+      entries.flatMap((e) => {
+        const key = keyOf.current.get(e.target);
+        return key === undefined ? [] : [{ key, on: e.isIntersecting }];
+      });
     // Two screens of room each way: a card is drawn before the reader reaches it.
     const margin = Math.max(900, Math.round(window.innerHeight * 1.5));
-    const obs = new IntersectionObserver(
+    const ahead = new IntersectionObserver((entries) => startNear(() => setNear((prev) => applyNear(prev, changesOf(entries)))), { rootMargin: `${margin}px 0px` });
+    // The cards in sight are drawn at once when the page has been still (a jump is not made to wait), and at most every SIGHT_EVERY ms while it scrolls.
+    const visible = new Set<string>();
+    let settle = 0;
+    let lastDraw = -Infinity;
+    const draw = () => {
+      settle = 0;
+      lastDraw = performance.now();
+      const now = new Set(visible);
+      setSight((prev) => settleSight(prev, now));
+    };
+    const inSight = new IntersectionObserver(
       (entries) => {
-        const changes = entries.flatMap((e) => {
-          const key = keyOf.current.get(e.target);
-          return key === undefined ? [] : [{ key, on: e.isIntersecting }];
-        });
-        startTransition(() => setNear((prev) => applyNear(prev, changes)));
+        for (const c of changesOf(entries)) {
+          if (c.on) visible.add(c.key);
+          else visible.delete(c.key);
+        }
+        const since = performance.now() - lastDraw;
+        if (since >= SIGHT_EVERY) {
+          window.clearTimeout(settle);
+          draw();
+        } else if (!settle) settle = window.setTimeout(draw, SIGHT_EVERY - since);
       },
-      { rootMargin: `${margin}px 0px` },
+      { rootMargin: '160px 0px' },
     );
-    observer.current = obs;
-    nodes.current.forEach((el) => obs.observe(el));
+    observers.current = [ahead, inSight];
+    nodes.current.forEach((el) => {
+      ahead.observe(el);
+      inSight.observe(el);
+    });
     return () => {
-      obs.disconnect();
-      observer.current = null;
+      window.clearTimeout(settle);
+      ahead.disconnect();
+      inSight.disconnect();
+      observers.current = [];
     };
   }, [onPaper]);
   const register = useCallback((key: string, el: HTMLElement | null) => {
     const had = nodes.current.get(key);
-    if (had && had !== el) observer.current?.unobserve(had);
+    if (had && had !== el) observers.current.forEach((o) => o.unobserve(had));
     if (el) {
       nodes.current.set(key, el);
       keyOf.current.set(el, key);
-      observer.current?.observe(el);
+      observers.current.forEach((o) => o.observe(el));
     } else if (had) {
       nodes.current.delete(key);
     }
   }, []);
-  const isNear = (key: string) => onPaper || !watching || near.has(key) || key === cur;
+  const isNear = (key: string) => onPaper || !watching || near.has(key) || sight.has(key) || key === cur;
 
-  /* Going to a card: it is opened, drawn, scrolled to and handed the focus. */
-  const goal = useRef<string | null>(null);
+  /* Going to a card: it is opened and drawn, and HELD where it was put until the reader moves the page (reader-place.ts: what is drawn above it as it comes
+     into range must not move it). Where the focus goes depends on what was pressed. A link of the outline is a place to go to, as a link to a place on a page
+     is: the focus goes to the card's heading, and Tab goes on from there. Previous, Next and the menu are controls to press again and again, and a menu is changed
+     with the arrow keys: the focus STAYS on them, and the arrival is told in words (`said`), so that the next press is one key and not forty. */
   const domId = useCallback((key: string) => `${uid}-${stepKey(key)}`, [uid]);
-  const go = useCallback((key: string) => {
-    goal.current = key;
-    dispatch({ type: 'go', key });
-  }, []);
+  const live = useRef({ keys, pending: false });
   useLayoutEffect(() => {
-    const key = goal.current;
-    if (!key) return;
-    const el = document.getElementById(domId(key));
-    if (!el) return;
-    goal.current = null;
-    el.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
-    el.scrollIntoView({ block: 'start' });
+    live.current = { keys, pending: drawing };
   });
+  const placeRef = useRef<{ hold: Hold; spy: Spy } | null>(null);
+  if (placeRef.current === null) {
+    const el = (key: string) => {
+      const found = nodes.current.get(key);
+      return found && found.isConnected ? found : null;
+    };
+    const marginOf = (node: Element) => parseFloat(getComputedStyle(node).scrollMarginTop) || 0;
+    const hold = new Hold({
+      now: () => performance.now(),
+      frame: (call) => requestAnimationFrame(call),
+      cancel: (handle) => cancelAnimationFrame(handle),
+      top: (key) => el(key)?.getBoundingClientRect().top ?? null,
+      want: (key, at) => (at === 'margin' ? marginOf(el(key) ?? document.documentElement) : at),
+      scrollBy: (dy) => {
+        const before = window.scrollY;
+        window.scrollBy({ top: dy, left: 0, behavior: 'instant' });
+        return window.scrollY - before;
+      },
+      waiting: () => live.current.pending,
+    });
+    const spy = new Spy({
+      now: () => performance.now(),
+      tops: () => live.current.keys.map((k) => el(k)?.getBoundingClientRect().top ?? null),
+      line: () => {
+        const first = nodes.current.values().next().value as HTMLElement | undefined;
+        return (first ? marginOf(first) : 96) + LINE_BELOW_MARGIN;
+      },
+      later: (call, ms) => window.setTimeout(call, ms),
+      clear: (handle) => window.clearTimeout(handle),
+      at: (index) => dispatch({ type: 'at', key: index === null ? null : (live.current.keys[index] ?? null) }),
+      holding: () => hold.active,
+    });
+    placeRef.current = { hold, spy };
+  }
+  const { hold, spy } = placeRef.current;
+  // The reader takes over: a wheel, a finger, a key, the scrollbar. The hold lets go, and where they scroll to is the step they are at.
+  useEffect(() => {
+    if (onPaper) return;
+    const input = (e: Event) => {
+      if (e.type === 'keydown' && !keyMoves((e as KeyboardEvent).key)) return;
+      hold.release();
+      spy.input();
+    };
+    const scrolled = () => spy.scrolled();
+    const events = ['wheel', 'touchstart', 'touchmove', 'keydown', 'pointerdown'] as const;
+    events.forEach((name) => window.addEventListener(name, input, { passive: true, capture: true }));
+    window.addEventListener('scroll', scrolled, { passive: true });
+    // A page that opens part-way down (a reload, a link back) is at the card at its top.
+    const first = window.setTimeout(() => spy.run(), 800);
+    return () => {
+      events.forEach((name) => window.removeEventListener(name, input, { capture: true }));
+      window.removeEventListener('scroll', scrolled);
+      window.clearTimeout(first);
+      spy.stop();
+      hold.release();
+    };
+  }, [onPaper, hold, spy]);
+  const handFocus = useRef<string | null>(null);
+  const go = useCallback(
+    (key: string, how: 'heading' | 'stay') => {
+      handFocus.current = how === 'heading' ? key : null;
+      stopGlide();
+      spy.settle();
+      hold.start(key, 'margin');
+      dispatch({ type: 'go', key, announce: how === 'stay' });
+    },
+    [hold, spy],
+  );
+  // After a render: a card that is held is put right before anything is painted, and the focus goes where it was sent.
+  useLayoutEffect(() => {
+    hold.align();
+    const key = handFocus.current;
+    if (!key) return;
+    const card = nodes.current.get(key);
+    if (!card) return;
+    handFocus.current = null;
+    card.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+  });
+  /* Expand all and Collapse all change the height of everything. The card at the top of the screen stays at the top of the screen. */
+  const reshape = useCallback(
+    (action: OpenAction) => {
+      const tops = live.current.keys.map((k) => nodes.current.get(k)?.getBoundingClientRect().top ?? null);
+      const first = nodes.current.values().next().value as HTMLElement | undefined;
+      const margin = first ? parseFloat(getComputedStyle(first).scrollMarginTop) || 0 : 0;
+      const at = cardAtLine(tops, margin + LINE_BELOW_MARGIN);
+      stopGlide();
+      spy.settle();
+      if (at !== null) {
+        // (a card the reader was part-way through shrinks to its heading when it is closed: its heading is what is kept in sight)
+        const top = tops[at] as number;
+        const where: HoldAt = action.type === 'collapse' ? Math.max(top, margin) : top;
+        hold.start(live.current.keys[at], where);
+      } else {
+        hold.release();
+      }
+      dispatch(action);
+    },
+    [hold, spy],
+  );
   const previous = stepTarget(cur, keys, -1);
   const next = stepTarget(cur, keys, 1);
   const at = cur === null ? -1 : keys.indexOf(cur);
@@ -351,7 +499,7 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
                   aria-current={cur !== null && stage.steps.some((s) => s.key === cur) ? 'step' : undefined}
                   onClick={(e) => {
                     e.preventDefault();
-                    go(first.key);
+                    go(first.key, 'heading');
                   }}
                 >
                   <span className="mp-st__stagenum">{stage.number}</span> {stageTitle(stage.number)}
@@ -370,7 +518,7 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
                             aria-current={cur === s.key ? 'step' : undefined}
                             onClick={(e) => {
                               e.preventDefault();
-                              go(s.key);
+                              go(s.key, 'heading');
                             }}
                           >
                             {chipOf(s, v, stage.steps.every((q) => q.id === first.id))}
@@ -403,6 +551,20 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
     [outlineKey],
   );
 
+  // The way into the card the reader is at, for a keyboard or a screen reader: the focus stays on Next, and this is one Tab and a press from the card's heading.
+  const readIt =
+    cur === null ? null : (
+      <a
+        className="mp-st__skip"
+        href={`#${domId(cur)}`}
+        onClick={(e) => {
+          e.preventDefault();
+          go(cur, 'heading');
+        }}
+      >
+        {w.solution.readThis}
+      </a>
+    );
   const radio = (name: string, value: string, text: string, checked: boolean, onChange: () => void) => (
     <label key={value} className="mp-seg__item">
       <input type="radio" name={name} checked={checked} onChange={onChange} />
@@ -410,7 +572,14 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
     </label>
   );
 
+  // What the lines that are told when they arrive say: the last of Expand all and Collapse all (on screen as well), and where Previous, Next or the menu took the reader
+  // (in words for whoever cannot see the card scroll into place - the focus stayed on the control; the counter says it on screen, and goes on with the scroll).
   const said = open.said === 'expanded' ? fill(w.solution.expanded, { total: keys.length }) : open.said === 'collapsed' ? w.solution.collapsed : '';
+  const movedAt = open.movedTo === null ? -1 : keys.indexOf(open.movedTo);
+  const movedView = movedAt < 0 ? null : views[indexOf.get(keys[movedAt]) ?? 0];
+  const moved = movedView ? movedLine(w.solution, movedView.label, movedAt, keys.length, spokenTitle(movedView.title, w.solution)) : '';
+  // What each card will hold, said in the room kept for it (it is read once for all the cards, and again only when the words or the tables change).
+  const holds = useMemo(() => all.map((s) => holdsLine(w, holdsOf(s))), [all, w]);
 
   return (
     <section className="mp-st__solution" id={id} tabIndex={-1} aria-labelledby={`${uid}-title`} aria-busy={busy ? true : undefined}>
@@ -418,6 +587,11 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
         {w.solution.title}
       </h2>
       <p className="mp-app__note mp-st__intro">{steps.length === 0 ? w.solution.noSteps : fill(solved ? w.solution.intro : w.solution.shortIntro, { stages: stages.length })}</p>
+      {steps.length > 0 ? (
+        <noscript>
+          <p className="mp-app__note mp-st__noscript">{w.solution.noScripts}</p>
+        </noscript>
+      ) : null}
       {!solved && steps.length > 0 ? (
         <p className="mp-st__partial" role="status">
           {singularKey !== null ? w.solution.partial : w.solution.partialOther}
@@ -485,7 +659,7 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
           </div>
           <p className="mp-app__note mp-st__looknote">{w.look.note}</p>
           {closedAtStart > 0 ? <p className="mp-app__note mp-st__long">{fill(w.solution.long, { steps: all.length, cells: groupDigits(weight, group), closed: closedAtStart })}</p> : null}
-          {heavy ? <p className="mp-app__note mp-st__printnote">{fill(w.solution.printNote, { count: all.filter((s) => PRINT_SKIPPED.includes(s.id)).length })}</p> : null}
+          {heavy ? <p className="mp-app__note mp-st__printnote">{fill(w.solution.printNote, { count: skippable.length, what: w.solution.printWhat[leaves] })}</p> : null}
 
           <div className="mp-st__layout">
             <div className="mp-st__aside">
@@ -495,18 +669,19 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
                 </a>
               ) : null}
               <div className="mp-st__bar mp-st__bar--steps">
-                <button type="button" className="mp-app__btn" onClick={() => previous && go(previous)} disabled={previous === null}>
+                <button type="button" className="mp-app__btn" onClick={() => previous && go(previous, 'stay')} aria-disabled={previous === null ? true : undefined}>
                   {w.solution.previous}
                 </button>
-                <button type="button" className="mp-app__btn" onClick={() => next && go(next)} disabled={next === null}>
+                <button type="button" className="mp-app__btn" onClick={() => next && go(next, 'stay')} aria-disabled={next === null ? true : undefined}>
                   {w.solution.next}
                 </button>
+                {readIt}
               </div>
               <div className="mp-st__bar">
-                <button type="button" className="mp-app__btn" onClick={() => dispatch({ type: 'expand' })}>
+                <button type="button" className="mp-app__btn" onClick={() => reshape({ type: 'expand' })}>
                   {w.solution.expandAll}
                 </button>
-                <button type="button" className="mp-app__btn" onClick={() => dispatch({ type: 'collapse' })}>
+                <button type="button" className="mp-app__btn" onClick={() => reshape({ type: 'collapse' })}>
                   {w.solution.collapseAll}
                 </button>
               </div>
@@ -514,10 +689,13 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
               <p className="mp-st__announce" role="status">
                 {said}
               </p>
+              <p className="mp-st__sr" role="status">
+                {moved}
+              </p>
               {outline}
             </div>
             <div className="mp-st__cards">
-              {onPaper && skipped > 0 ? <p className="mp-st__skipped">{fill(w.solution.printSkipped, { count: skipped })}</p> : null}
+              {onPaper && skipped > 0 ? <p className="mp-st__skipped">{fill(w.solution.printSkipped, { count: skipped, what: w.solution.printLeft[leaves] })}</p> : null}
               {steps.map((s) => {
                 const k = indexOf.get(s.key) ?? 0;
                 return (
@@ -538,6 +716,7 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
                     singular={s.key === singularKey}
                     register={register}
                     heights={heights.current}
+                    holds={holds[k]}
                   />
                 );
               })}
@@ -546,19 +725,20 @@ export function Solution({ w, analysis, group, onPaper, busy, id, epoch, after }
             <div className="mp-st__stepbar" role="group" aria-label={w.solution.stepBar}>
               <p className="mp-st__position">{where}</p>
               <div className="mp-st__stepbar-row">
-                <button type="button" className="mp-app__btn" onClick={() => previous && go(previous)} disabled={previous === null} aria-label={w.solution.previous}>
+                <button type="button" className="mp-app__btn" onClick={() => previous && go(previous, 'stay')} aria-disabled={previous === null ? true : undefined} aria-label={w.solution.previous}>
                   {w.solution.previousShort}
                 </button>
                 <label className="mp-st__jump">
                   <span className="mp-st__sr">{w.solution.jump}</span>
-                  <select value={cur ?? ''} onChange={(e) => (e.target.value ? go(e.target.value) : undefined)}>
+                  <select value={cur ?? ''} onChange={(e) => (e.target.value ? go(e.target.value, 'stay') : undefined)}>
                     <option value="">{w.solution.jump}</option>
                     {jumpOptions}
                   </select>
                 </label>
-                <button type="button" className="mp-app__btn" onClick={() => next && go(next)} disabled={next === null} aria-label={w.solution.next}>
+                <button type="button" className="mp-app__btn" onClick={() => next && go(next, 'stay')} aria-disabled={next === null ? true : undefined} aria-label={w.solution.next}>
                   {w.solution.nextShort}
                 </button>
+                {readIt}
               </div>
             </div>
           </div>

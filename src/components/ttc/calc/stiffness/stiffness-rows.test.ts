@@ -66,6 +66,18 @@ describe('a settlement being typed keeps its fields open', () => {
     expect([...keepOpen(none, 'supports', id, { dx: 0 })]).toEqual([id]);
   });
 
+  it('a settlement on a movement the support leaves free is not a settlement: it moves nothing, and the row is not forced open for it', () => {
+    // a roller that holds y alone, given an x settlement; a pin that holds x and y with none
+    const roller = patchSupport(patchSupport(base, 0, { ux: false, uy: true }), 0, { dx: 3 }).supports[0];
+    expect(settles(roller, false)).toBe(false);
+    expect(settlementOpen(none, roller, false)).toEqual({ open: false, forced: false });
+    const holdsX = patchSupport(patchSupport(base, 0, { ux: true, uy: false }), 0, { dy: -2 }).supports[0];
+    expect(settles(holdsX, false)).toBe(false);
+    // …and one on the movement it does hold is
+    const holdsY = patchSupport(patchSupport(base, 0, { ux: false, uy: true }), 0, { dy: -2 }).supports[0];
+    expect(settles(holdsY, false)).toBe(true);
+  });
+
   it('a rotation counts only in a frame', () => {
     const f = reduceStiffness(base, { type: 'mode', mode: 'frame' });
     const s = patchSupport(patchSupport(f, 0, { rz: true }), 0, { dr: 0.01 }).supports[0];

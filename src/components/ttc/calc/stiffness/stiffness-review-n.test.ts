@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { analyseSafely } from '@/lib/calc/stiffness/analysis';
-import { decodeStiffness, defaultStiffness, emptyStiffness, reduceStiffness, type StiffnessForm } from '@/lib/calc/stiffness/model';
+import { defaultStiffness, emptyStiffness, reduceStiffness, type StiffnessForm } from '@/lib/calc/stiffness/model';
+import { stiffnessPage } from '@/lib/calc/stiffness/page-strings';
 import { stiffnessUi } from '@/lib/calc/stiffness/strings';
 import { TEMPLATE_IDS, type TemplateId } from '@/lib/calc/stiffness/templates';
 import type { MatrixBlock, Step } from '@/lib/calc/stiffness/types';
@@ -92,8 +93,9 @@ describe('E10/T6/B16/U11/T19: the round of the elimination is a column, and a ch
     }
     const t = text(tpl('truss-two-bar'), 'checks')[0];
     expect(t).toContain('Three checks catch a mistake.');
-    expect(t).toContain('the force scale, 60 kip: the largest of the loads added up, the largest reaction or end force, and the largest sum of the sizes of the terms in one equation');
-    // 60 kip is not “the problem’s” load: the loads are 20 and 30 kip, the largest reaction 37.5 kip, and the force scale is the sum of the loads (50) or the largest sum of terms in an equation
+    // the force scale is the loads added up (20 + 30 kip), the largest reaction (30) or the largest end force (37.5): 50 kip. It is not inflated by the sum of the sizes of the terms of an equation
+    expect(t).toContain('the force scale, 50 kip (the largest of the loads added up, the largest reaction and the largest end force)');
+    expect(t).not.toContain('sum of the sizes of the terms in one equation');
     expect(t).not.toContain('problem’s force scale');
     expect(text(tpl('truss-two-bar'), 'checks', 'es')[0]).toContain('Tres comprobaciones detectan un error');
   });
@@ -148,27 +150,36 @@ describe('E1/T1: the pivot the elimination stops at is described for what it is'
     expect(last).not.toMatch(/started with|which is zero|10\^−9/);
     expect(last).toContain('The structure can move at this DOF without any member deforming');
   });
-  it('a portal of 10¹⁴ in² beside its bending: the pivot is lost in rounding, the structure is not called a mechanism, and the card gives the pivot and the rounding with their unit', () => {
-    const f = reduceStiffness(tpl('frame-portal'), { type: 'section', patch: { A: 1e14 } });
+  it('a portal of 10³⁰ in² beside its bending (beyond even thirty figures): the pivot is lost in rounding, the structure is not called a mechanism, and the card gives the pivot and the rounding with their unit', () => {
+    const f = reduceStiffness(tpl('frame-portal'), { type: 'section', patch: { A: 1e30 } });
     const a = analyseSafely(f);
     expect(a.issues.map((i) => i.code)).toEqual(['stiffness-range']);
     const last = text(f, 'forward-pass').at(-1)!;
-    expect(last).toMatch(/^The pivot of DOF 4x is [\d.,]+( × 10\^−?\d+)? kip\/ft, and the rounding in the terms that made it is as large as [\d.,]+( × 10\^−?\d+)? kip\/ft: the pivot is lost in it\./);
-    expect(last).toContain('most likely not a mechanism');
+    expect(last).toMatch(/^The pivot of DOF 4x is −?[\d.,]+( × 10[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)? kip\/ft, and the rounding in the terms that made it is as large as [\d.,]+( × 10[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)? kip\/ft: the pivot is lost in it\./);
+    // a movement that strains no member was looked for and not found: it is said so, and not that it is "most likely" not a mechanism
+    expect(last).toContain('searched for and not found, so this is not a mechanism');
+    expect(last).not.toContain('most likely');
     expect(last).not.toMatch(/The structure can move at this DOF without any member deforming/);
     // the same, in Spanish
-    expect(text(f, 'forward-pass', 'es').at(-1)!).toContain('lo más probable es que no sea un mecanismo');
+    expect(text(f, 'forward-pass', 'es').at(-1)!).toContain('no se encontró, así que no es un mecanismo');
+    expect(text(f, 'forward-pass', 'es').at(-1)!).not.toContain('lo más probable');
   });
   it('a solved structure with a pivot the arithmetic knows to few figures: the warning counts them and says what causes it, in both languages, with its numbers', () => {
     const w = (lang: Lang, count: number) => warningSentence({ code: 'near-mechanism', dofs: [10], count, ratio: 0.00003 }, stiffnessUi[lang], { mode: 'frame' });
-    expect(w('en', 4)).toBe('The arithmetic can vouch for only 4 figures of the displacements: at DOF 4x, one movement is held by so little stiffness beside the rest that rounding could be 3 × 10^−5 of its pivot, more than 1 × 10^−6. The structure is stable and is solved; a very large A or I, a very short member, or members almost in line cause it.');
-    expect(w('en', 1)).toContain('only 1 figure of the displacements');
-    expect(w('es', 4)).toContain('solo garantiza 4 cifras de los desplazamientos: en el GDL 4x,');
-    expect(w('es', 1)).toContain('solo garantiza 1 cifra de los desplazamientos');
+    // (the power of ten is the formatter's: a caret or a raised exponent; here both are read as the raised one)
+    const raised = (t: string) => t.replace(/10\^−(\d)/g, (_m, d: string) => `10⁻${'⁰¹²³⁴⁵⁶⁷⁸⁹'[Number(d)]}`);
+    expect(raised(w('en', 4))).toBe('These results are certain to only 4 figures: counting the rounding in the arithmetic at its worst, the result at DOF 4x could be off by 3 × 10⁻⁵ of the largest of its kind, more than 1 × 10⁻⁶. The structure is stable and is solved; a very large A or I, a very short member, or members almost in line cause it.');
+    expect(w('en', 1)).toContain('certain to only 1 figure:');
+    expect(w('es', 4)).toContain('seguros solo hasta 4 cifras: contando el redondeo de la aritmética en el peor caso, el resultado en el GDL 4x');
+    expect(w('es', 1)).toContain('seguros solo hasta 1 cifra:');
     // the other warnings of the round
     expect(warningSentence({ code: 'large-displacements', count: 2, ratio: 0.37, nodes: [1, 3] }, stiffnessUi.en)).toBe(
-      'The ends of member 2 move across it by 0.37 times its length, more than a tenth of it. The analysis is of first order, for small movements: the numbers describe that theory, not how the structure would really move.',
+      'The chord of member 2 turns by 0.37 rad, more than a tenth: its ends move across it by more than a tenth of its length. The analysis is of first order, for small movements: the numbers describe that theory, not how the structure would really move.',
     );
+    expect(warningSentence({ code: 'large-rotation', count: 3, ratio: 0.21, nodes: [2, 3] }, stiffnessUi.en)).toBe(
+      'An end of member 3 turns 0.21 rad away from its chord, more than a tenth of a radian. First-order theory takes slopes as small, so the numbers describe that theory, not how the member would really bend.',
+    );
+    expect(warningSentence({ code: 'large-stretch', count: 1, ratio: 0.5, nodes: [1, 2] }, stiffnessUi.es)).toContain('La barra 1 se alarga o se acorta 0.5 veces su longitud, más de una décima de ella.');
     expect(warningSentence({ code: 'settlement-ignored', dofs: [4, 6] }, stiffnessUi.es, { mode: 'frame' })).toBe(
       'Se escribió un asentamiento en los GDL 2x, 2θ, que ningún apoyo restringe, así que no tiene ningún efecto. Se queda en la fila del apoyo y vuelve a contar si se marca ese movimiento.',
     );
@@ -190,7 +201,7 @@ describe('T17/B12/U17: the sentence about a section says what is the matter and 
     for (const s of [sentence(own, 'en'), sentence(own, 'es'), sentence(member, 'en'), sentence(huge, 'es')]) expect(s).not.toMatch(/\{|undefined|NaN/);
   });
   it('the stiffness range and the ill-conditioned answer say what the arithmetic cannot do, and where, in both languages', () => {
-    const f = reduceStiffness(tpl('frame-portal'), { type: 'section', patch: { A: 1e14 } });
+    const f = reduceStiffness(tpl('frame-portal'), { type: 'section', patch: { A: 1e30 } });
     const issue = analyseSafely(f).issues[0];
     expect(issueSentence(issue, stiffnessUi.en, { mode: 'frame' })).toContain('at node 4, one movement is held by so little stiffness beside the rest that its size is lost in rounding');
     expect(issueSentence(issue, stiffnessUi.es, { mode: 'frame' })).toContain('en el nudo 4, un movimiento queda sujeto por tan poca rigidez frente al resto');
@@ -248,5 +259,47 @@ describe('T14/T15: the Spanish uses the other calculators’ words, and says wha
     expect(stiffnessUi.es.steps.structure.truss).toContain('(GDL, que las fórmulas escriben DOF)');
     expect(stiffnessUi.es.steps.reduced.lead).toContain('se le llama rhs, de las siglas inglesas del lado derecho');
     expect(stiffnessUi.es.steps.partition.lead).toContain('libres (F, por la palabra inglesa free)');
+  });
+});
+
+describe('second pass, D8/D9/D10/D13: the multiplier, the zero pivot of a mechanism, the page without scripts, the Spanish', () => {
+  it('the multiplier is m_ik: its head is not an "l" (which the monospace face sets as a "1"), the card defines it, and the formulas of the engine and of the page say the same', () => {
+    for (const lang of LANGS) {
+      expect(stiffnessUi[lang].columns.multipliers, lang).toBe('m_ik');
+      expect(JSON.stringify(stiffnessUi[lang]), lang).not.toMatch(/l_ik|"l = /);
+      expect(JSON.stringify(stiffnessPage[lang]), lang).not.toMatch(/l_ik/);
+    }
+    expect(text(tpl('frame-portal'), 'forward-pass')[0]).toContain('gets a multiplier m_ik, its own entry in the pivot column divided by the pivot');
+    expect(text(tpl('frame-portal'), 'forward-pass', 'es')[0]).toContain('recibe un multiplicador m_ik, su propia entrada en la columna del pivote dividida entre el pivote');
+    const first = stepsOf(tpl('frame-portal')).find((x) => x.key === 'forward-pass#1')!;
+    expect(first.formulas).toEqual(['m_ik = a_ik/a_kk', 'a_ij ← a_ij − m_ik·a_kj']);
+  });
+  it('the zero pivot of a mechanism is zero to the arithmetic, and is not said to be lost in rounding (that is for a stiffness range); the card of a mechanism says that nothing resists the movement', () => {
+    for (const lang of LANGS) {
+      const ui = stiffnessUi[lang];
+      for (const s of [ui.highlights['zero-pivot'], ui.marks['zero-pivot'], ui.solution.partial]) expect(s, lang).not.toMatch(/rounding|redondeo/);
+    }
+    expect(stiffnessUi.en.highlights['zero-pivot']).toBe('the pivot, zero to the arithmetic');
+    expect(stiffnessUi.en.solution.partial).toContain('where the pivot is zero as far as the arithmetic can tell');
+    // the two collinear bars: the pivot is exactly zero and the card says nothing resists the movement; the stiffness range keeps its own words
+    expect(stiffnessUi.en.steps['forward-pass'].singularZero).toContain('nothing in the structure resists this movement');
+    expect(stiffnessUi.en.steps['forward-pass'].singularRange).toContain('lost in it');
+  });
+  it('the page without scripts says that the tool needs them and that most steps have no matrix, in both languages', () => {
+    expect(stiffnessPage.en.noscript).toContain('The tool itself needs scripts');
+    expect(stiffnessPage.en.noscript).toContain('the matrices are drawn for the first steps only, so most steps have none');
+    expect(stiffnessPage.en.noscript).toContain('The method below and the worked example stay in full');
+    expect(stiffnessPage.es.noscript).toContain('La herramienta misma necesita scripts');
+    expect(stiffnessPage.es.noscript).toContain('las matrices se dibujan solo en los primeros pasos, así que la mayoría de los pasos no tiene ninguna');
+  });
+  it('the Spanish does not say "un A" or "un I" (it is an area A and an inertia I), nor "casi ningún largo" (a length almost nil), and the nodes that move are not named twice', () => {
+    const es = JSON.stringify(stiffnessUi.es) + JSON.stringify(stiffnessPage.es);
+    expect(es).not.toMatch(/un A|un I|casi ningún largo/);
+    expect(es).toContain('una barra de longitud casi nula');
+    const mechanism = { code: 'mechanism' as const, dof: 8, dofLabel: '4y', node: 4, nodes: [3, 4], kind: 'sway' as const, count: 1 };
+    expect(issueSentence(mechanism, stiffnessUi.es, { mode: 'truss' })).toContain('El movimiento es de los nudos 3 y 4.');
+    expect(issueSentence(mechanism, stiffnessUi.es, { mode: 'truss' })).not.toMatch(/Los nudos que se mueven son los nudos/);
+    expect(issueSentence(mechanism, stiffnessUi.en, { mode: 'truss' })).toContain('The movement is of nodes 3 and 4.');
+    expect(issueSentence(mechanism, stiffnessUi.en, { mode: 'truss' })).not.toMatch(/The nodes that move are nodes/);
   });
 });

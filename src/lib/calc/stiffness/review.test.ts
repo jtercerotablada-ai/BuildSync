@@ -68,12 +68,13 @@ describe('E1/T1: a stable structure with a very stiff member is not a mechanism'
       expect(error, `A = ${A}`).toBeLessThan(w ? 10 ** -w.count! : 1e-6);
     }
   });
-  it('the figures counted grow as the contrast does, from none at an ordinary area to one figure; a pivot lost in rounding is refused, as a stiffness range and not as a mechanism', () => {
-    const counts = [1e3, 1e8, 1e10, 1e12, 1e13].map((A) => analyseSafely(portal(A)).warnings.find((w) => w.code === 'near-mechanism')?.count ?? Infinity);
+  it('the figures counted fall as the contrast grows, from none at an ordinary area to one figure; a pivot lost in rounding even in thirty figures is refused, as a stiffness range and not as a mechanism', () => {
+    const counts = [1e3, 1e12, 1e22, 1e23, 1e24].map((A) => analyseSafely(portal(A)).warnings.find((w) => w.code === 'near-mechanism')?.count ?? Infinity);
     expect(counts[0]).toBe(Infinity);
+    expect(counts[1]).toBe(Infinity);
     for (let k = 1; k < counts.length; k++) expect(counts[k]).toBeLessThanOrEqual(counts[k - 1]);
-    expect(counts[counts.length - 1]).toBe(1);
-    const lost = analyseSafely(portal(1e14));
+    expect(counts[counts.length - 1]).toBeLessThanOrEqual(5);
+    const lost = analyseSafely(portal(1e30));
     expect(lost.issues.map((i) => i.code)).toEqual(['stiffness-range']);
     expect(lost.determinacy.word).toBeNull();
     expect(lost.partial[lost.partial.length - 1].facts).toMatchObject({ singular: true, cause: 'range' });
@@ -90,13 +91,16 @@ describe('E1/T1: a stable structure with a very stiff member is not a mechanism'
       expect(a.solution, `stub ${stub}`).not.toBeNull();
     }
   });
-  it('one truss bar of 10¹⁰ in² (a rigid link) is solved, and says how many figures stand', () => {
+  it('one truss bar of 10¹⁰ in² (a rigid link) is solved to every figure, with no word about figures; one of 10²⁵ says how many stand', () => {
     const f = defaultStiffness();
     const g = reduce(f, { type: 'patch', list: 'members', id: f.members[0].id, patch: { A: 1e10 } });
     const a = analyseSafely(g);
     expect(a.issues).toEqual([]);
-    expect(a.warnings.map((w) => w.code)).toEqual(['near-mechanism']);
-    expect(a.warnings[0].count).toBeGreaterThanOrEqual(3);
+    expect(a.warnings).toEqual([]);
+    const h = analyseSafely(reduce(f, { type: 'patch', list: 'members', id: f.members[0].id, patch: { A: 1e25 } }));
+    expect(h.issues).toEqual([]);
+    expect(h.warnings.map((w) => w.code)).toEqual(['near-mechanism']);
+    expect(h.warnings[0].count).toBeGreaterThanOrEqual(3);
   });
   it('a true mechanism is a mechanism whatever the sections, and names the right DOF, with a very stiff member in the structure or not', () => {
     for (const A of [1e-3, 10, 1e6, 1e12]) {
@@ -132,18 +136,19 @@ describe('E1/T1: a stable structure with a very stiff member is not a mechanism'
       if (exact === null) {
         mechanisms++;
         expect(mine.ok, `#${seed} a mechanism was solved`).toBe(false);
-        // (beside a member 10⁹ times stiffer the movement of a mechanism cannot be told from the stable one next to it, and the tool says 'stiffness range' and does not swear)
-        if (!mine.ok) expect(stiff >= 9 ? ['mechanism', 'few-supports', 'stiffness-range'] : ['mechanism', 'few-supports'], `#${seed}`).toContain(mine.issues[0].code);
+        // (a mechanism is a mechanism beside a member 10¹¹ times stiffer too: the movement is found in thirty figures and strains no member)
+        if (!mine.ok) expect(['mechanism', 'few-supports'], `#${seed}`).toContain(mine.issues[0].code);
       } else {
         solved++;
         if (!mine.ok) {
-          // a refusal of a structure that has a solution may only be for the arithmetic, never for a mechanism
-          expect(['stiffness-range', 'ill-conditioned'], `#${seed} ${JSON.stringify(mine.issues)}`).toContain(mine.issues[0].code);
+          // a stable structure is solved up to a member 10¹¹ times stiffer, and not once refused
+          throw new Error(`#${seed} stiff ${stiff}: refused ${JSON.stringify(mine.issues)}`);
         } else {
           const top = Math.max(...exact.u.map((q) => Math.abs(toNumber(q))), 1e-300);
           const error = Math.max(...mine.u.map((v, d) => Math.abs(v - toNumber(exact.u[d])))) / top;
           const w = mine.warnings.find((x) => x.code === 'near-mechanism');
-          expect(error, `#${seed}`).toBeLessThan(Math.max(w ? 10 ** -w.count! : 0, 1e-6));
+          expect(w, `#${seed}`).toBeUndefined();
+          expect(error, `#${seed}`).toBeLessThan(1e-9);
         }
       }
     }
@@ -328,6 +333,8 @@ describe('E6/B5: first order only', () => {
     for (const template of ['truss-two-bar', 'truss-three-bar', 'truss-five-member', 'frame-propped', 'frame-l', 'frame-portal', 'frame-fixed-point'] as const) {
       const a = analyseSafely(reduce(emptyStiffness(), { type: 'template', template }));
       expect(a.warnings.map((x) => x.code), template).not.toContain('large-displacements');
+      expect(a.warnings.map((x) => x.code), template).not.toContain('large-rotation');
+      expect(a.warnings.map((x) => x.code), template).not.toContain('large-stretch');
       const d = a.drawing.deformed!;
       expect(d.large, template).toBe(false);
       if (d.factor !== null) {

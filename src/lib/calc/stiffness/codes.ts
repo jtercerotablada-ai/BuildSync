@@ -54,7 +54,7 @@ export const ISSUE_CODES = all<IssueCode>()([
   'stopped',
 ] as const);
 
-export const WARNING_CODES = all<WarningCode>()(['no-load', 'member-loads-ignored', 'settlement-ignored', 'empty-support', 'near-mechanism', 'large-displacements'] as const);
+export const WARNING_CODES = all<WarningCode>()(['no-load', 'member-loads-ignored', 'settlement-ignored', 'empty-support', 'near-mechanism', 'large-displacements', 'large-rotation', 'large-stretch'] as const);
 
 export const NOTICE_CODES = all<StiffnessNotice['code']>()(['node-removed', 'member-removed', 'limit', 'nothing-to-add', 'template'] as const);
 

@@ -126,10 +126,12 @@ describe('the outline and the cards of a solved structure', () => {
     expect(html).toContain('>Collapse all steps<');
     expect(html).toContain(`<p class="mp-st__position mp-st__position--aside">${steps.length} steps, none chosen yet</p>`);
     expect(html).not.toMatch(/Step 0\b/);
-    // Previous is not offered where there is nowhere before: both copies of it (the column’s and the bar at the foot of a phone) are disabled; Next is not.
-    const buttons = [...html.matchAll(/<button type="button" class="mp-app__btn"( disabled="")?[^>]*>(Previous step|Next step|Previous|Next)<\/button>/g)];
-    expect(buttons.filter((b) => b[2].startsWith('Previous')).map((b) => b[1])).toEqual([' disabled=""', ' disabled=""']);
+    // Previous is not offered where there is nowhere before: both copies of it (the column’s and the bar at the foot of a phone) are marked so; Next is not. They are
+    // marked, not disabled: a control that is pressed to the last step must not take the keyboard focus away with it (a disabled button loses it).
+    const buttons = [...html.matchAll(/<button type="button" class="mp-app__btn"( aria-disabled="true")?[^>]*>(Previous step|Next step|Previous|Next)<\/button>/g)];
+    expect(buttons.filter((b) => b[2].startsWith('Previous')).map((b) => b[1])).toEqual([' aria-disabled="true"', ' aria-disabled="true"']);
     expect(buttons.filter((b) => b[2].startsWith('Next')).map((b) => b[1])).toEqual([undefined, undefined]);
+    expect(html).not.toMatch(/<button[^>]* disabled=/);
     const menu = html.match(/<label class="mp-st__jump">[\s\S]*?<select>([\s\S]*?)<\/select>/)![1];
     expect([...menu.matchAll(/<option/g)]).toHaveLength(steps.length + 1);
   });
@@ -256,7 +258,9 @@ describe('a solution with very large tables', () => {
     // An open card that is not drawn holds a room of its own, with a height, and an empty one a closed card holds nothing.
     const later = cards.filter((c) => c.includes('mp-st__later'));
     expect(later.length).toBeGreaterThan(50);
-    for (const c of later) expect(c).toMatch(/class="mp-st__later" style="min-height:\d+px" aria-hidden="true"/);
+    // …and says what it holds, in words that are in the page (no aria-hidden: a reader of the page is told, and so is whoever has no scripts).
+    for (const c of later) expect(c).toMatch(/<div class="mp-st__later" style="min-height:\d+px"><p class="mp-st__holds">This step holds [^<]+\. <span class="mp-st__when">They are drawn when you reach this step\.<\/span><noscript> Scripts are off, so they are not drawn here\.<\/noscript><\/p><\/div>/);
+    for (const c of later) expect(c).not.toContain('aria-hidden="true"><');
     const closed = cards.filter((c) => c.includes('aria-expanded="false"'));
     expect(closed.length).toBeGreaterThan(10);
     for (const c of closed) expect(c).toMatch(/<div id="[^"]+" class="mp-st__body" hidden=""><\/div>/);

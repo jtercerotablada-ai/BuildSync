@@ -282,6 +282,21 @@ describe('the switches under the drawing, across the structures opened', () => {
     expect(sizeClass(many)).toEqual({ members: false, nodes: false });
   });
 
+  it('the size where a tag has no room is a number: twelve members still have theirs, a thirteenth takes them away; six nodes keep their DOF numbers, a seventh does not', () => {
+    const grown = (members: number, nodes: number) => ({ members: Array.from({ length: members }), nodes: Array.from({ length: nodes }) });
+    expect(sizeClass(grown(12, 6))).toEqual({ members: true, nodes: true });
+    expect(sizeClass(grown(13, 7))).toEqual({ members: false, nodes: false });
+    expect(sizeClass(grown(12, 7))).toEqual({ members: true, nodes: false });
+    expect(sizeClass(grown(13, 6))).toEqual({ members: false, nodes: true });
+    expect(startShow(grown(12, 6))).toMatchObject({ memberNumbers: true, dofs: true });
+    expect(startShow(grown(13, 7))).toMatchObject({ memberNumbers: false, dofs: false });
+  });
+
+  it('every switch but "every word" starts on (the drawing leaves words off to stay readable, and widens only when asked)', () => {
+    const s = startShow(small);
+    expect(s).toMatchObject({ loads: true, reactions: true, deformed: true, nodeNumbers: true, values: true, every: false });
+  });
+
   it('a switch the visitor turned off stays off when another structure of the same size opens (it was undone silently)', () => {
     let s = startShow(small);
     s = { ...s, nodeNumbers: false, memberNumbers: false, dofs: false, values: false };

@@ -85,7 +85,9 @@ describe('the default structure, as the server sends it', () => {
     expect(text(answerCard(html, 'Equilibrium check'))).toContain('Balanced');
     expect(t).not.toContain('Not balanced');
     expect(t).toContain('0.01841 in at node 3');
-    expect(t).toContain('37.5 kip at node 2');
+    // The largest reaction is a number that is on an arrow of the drawing (30 kip along x, with its direction), not the resultant of the two arrows at the node (37.5).
+    expect(t).toContain('Rx = 30 kip to the left, at node 2');
+    expect(t).not.toContain('37.5 kip at node 2');
     expect(t).toContain('−37.5 kip in member 2');
   });
 
@@ -163,10 +165,10 @@ describe('the default structure, as the server sends it', () => {
 
   it('writes the one sentence under the drawing from the numbers, in both languages', () => {
     expect(reading(html)).toBe(
-      'Reading the drawing: lines are members, circles are nodes with their numbers, and the supports stand where the held movements are. The line of dashes and dots is the deformed shape, magnified 600 times. Node 3 moves most, by 0.01841 in. Largest reaction: 37.5 kip, at node 2.',
+      'Reading the drawing: lines are members, circles are nodes with their numbers, and the supports stand where the held movements are. The line of dashes and dots is the deformed shape, magnified 600 times. Node 3 moves most, by 0.01841 in. Largest reaction: 30 kip, horizontal, at node 2.',
     );
     expect(reading(show('es'))).toBe(
-      'Cómo leer el dibujo: las líneas son barras, los círculos son nudos con sus números, y los apoyos están donde están los movimientos restringidos. La línea de rayas y puntos es la deformada, ampliada 600 veces. El nudo 3 es el que más se mueve: 0.01841 in. Mayor reacción: 37.5 kip (nudo 2).',
+      'Cómo leer el dibujo: las líneas son barras, los círculos son nudos con sus números, y los apoyos están donde están los movimientos restringidos. La línea de rayas y puntos es la deformada, ampliada 600 veces. El nudo 3 es el que más se mueve: 0.01841 in. Mayor reacción: 30 kip, horizontal (nudo 2).',
     );
   });
 
@@ -452,7 +454,7 @@ describe('every code has its sentence, in both languages', () => {
     expect(one).toBe('The structure is a mechanism: DOF 2y of node 2 can move, and no member has to deform for it. Add a bar, or a support, so that every node is held in both directions by bars that are not in one line.');
     const many = issueSentence({ code: 'mechanism', dof: 4, dofLabel: '2y', node: 2, nodes: [2, 3, 4], kind: 'sway', count: 2 }, stiffnessUi.es, { mode: 'frame' });
     expect(many).toContain('el GDL 2y del nudo 2 puede moverse');
-    expect(many).toContain('Los nudos que se mueven son los nudos 2–4.');
+    expect(many).toContain('El movimiento es de los nudos 2–4.');
     expect(many).toContain('Hay 2 movimientos independientes.');
     expect(many).toContain('Agregue una barra o un apoyo');
     const rigid = issueSentence({ code: 'mechanism', dof: 1, dofLabel: '1x', node: 1, nodes: [1, 2], kind: 'rigid-body', count: 1 }, stiffnessUi.en, { mode: 'truss' });
@@ -507,9 +509,10 @@ describe('what a reading of the drawing says, in every case', () => {
   it('says what moves most and which reaction is largest, from the numbers', () => {
     const a = analyseSafely(base);
     expect(largestNode(a)).toEqual({ node: 3, magnitude: a.results!.displacements[2].magnitude });
-    expect(largestReaction(a)).toEqual({ node: 2, value: 37.5, moment: false });
+    // the largest number on an arrow (30 kip along x), not the resultant of the two arrows at the node (37.5)
+    expect(largestReaction(a)).toEqual({ node: 2, kind: 'x', value: 30, moment: false });
     expect(readingSentence(a, { deformed: true }, w, how)).toContain('Node 3 moves most, by 0.01841 in.');
-    expect(readingSentence(a, { deformed: true }, w, how)).toContain('Largest reaction: 37.5 kip, at node 2.');
+    expect(readingSentence(a, { deformed: true }, w, how)).toContain('Largest reaction: 30 kip, horizontal, at node 2.');
   });
   it('says the deformed shape only when it is drawn', () => {
     const a = analyseSafely(base);
@@ -750,7 +753,7 @@ describe('where things are in the page, for a reader who does not see it laid ou
   it('gives the form a place a link can lead back to, and ends the page’s calculator with the way back: to the form and to the drawing, both reachable', () => {
     const form = html.match(/<form class="mp-app__form mp-st__target" id="([^"]+)" tabindex="-1"/)!;
     expect(form).not.toBeNull();
-    const back = html.match(/<nav class="mp-st__back mp-st__target" id="([^"]+)" tabindex="-1" aria-label="On this page">([\s\S]*?)<\/nav>/)!;
+    const back = html.match(/<nav class="mp-st__back mp-st__target" id="([^"]+)" tabindex="-1" aria-label="Back to the form or the drawing">([\s\S]*?)<\/nav>/)!;
     const links = [...back[2].matchAll(/<a href="#([^"]+)">([^<]*)<\/a>/g)];
     expect(links.map((l) => l[2])).toEqual(['Back to the form', 'Jump to the drawing']);
     expect(links[0][1]).toBe(form[1]);

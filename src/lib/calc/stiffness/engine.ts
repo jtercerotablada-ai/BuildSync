@@ -1,8 +1,31 @@
-import { dot, jacobiEigen, matMul, matVec, maxAbs, transpose, zeros, type Mat } from './linalg';
+import { jacobiEigen, maxAbs, type Mat } from './linalg';
+import {
+  DD_ONE,
+  DD_ZERO,
+  dd,
+  ddAbs,
+  ddAdd,
+  ddAddD,
+  ddDiv,
+  ddDivD,
+  ddIsZero,
+  ddMatMul,
+  ddMatMulSize,
+  ddMul,
+  ddMulD,
+  ddNeg,
+  ddSqrt,
+  ddSub,
+  ddTranspose,
+  ddZeros,
+  prod2,
+  sum2,
+  type DD,
+} from './dd';
 import {
   AGREE,
   ASSEMBLY,
-  EPSILON,
+  EPSILON_DD,
   LARGE,
   LIMIT,
   MAX_LOADS,
@@ -15,6 +38,7 @@ import {
   RESIDUAL,
   RESOLVE,
   RIGID,
+  ROUNDING,
   SECTION_LOW,
   SHORT,
   STRAIN,
@@ -72,17 +96,27 @@ import {
  * step's formulas state, so that a student can redo each from the page: replay.testlib.ts recomputes each step from the
  * previous steps alone and compares.
  *
- * STABILITY. A structure is stable (to first order) exactly when K_FF is positive definite. The elimination finds out, and it does so
- * against the ROUNDING of the arithmetic and not against the stiffness a DOF started with (a stable structure with a very stiff member has a
- * pivot that is a millionth of its starting diagonal, and is not a mechanism): beside every entry it carries the largest error the arithmetic could
- * have put in it. A pivot that error reaches RESOLVE of is zero for the arithmetic. The movement it allows (the pivot's DOF set to 1, the rows
- * already eliminated solved for the rest: the null mode) is then tried on every member: if none is strained (STRAIN) the structure is a 'mechanism',
- * a rigid-body motion of the whole if it fits a translation and a rotation of the whole to RIGID, a 'sway' otherwise; if a member is strained the
- * structure is, as far as the movement can be found, stable and only too badly scaled for the arithmetic ('stiffness-range': the tool does not say
- * that it is NOT a mechanism: beside a very stiff member the movement of a mechanism is mixed by rounding with a stable movement next to it,
- * and the mixture strains the soft members). A pivot whose error reaches WEAK of it is solved with a
- * warning that says how many figures to trust. A structure with fewer than 3 restrained DOFs is refused first ('few-supports') and the elimination
- * is not tried.
+ * THE ARITHMETIC. Everything is worked in double-double numbers (dd.ts: two doubles, about 32 significant digits), and what a step prints is each number
+ * rounded to a double. A rigid link, an inextensible column, a member a million times stiffer than its neighbours make a stiffness matrix whose
+ * terms differ by that much: with 16 digits their sum keeps a few figures of the soft part or none; with 32 it keeps 16 or more, so the structures
+ * engineers write down are solved to the figures printed. Beside every entry the engine carries the largest error its arithmetic could have put in it
+ * (a running forward bound: the rounding of the terms that made the entry, the errors of the entries it was made from, grown by every multiplier), and
+ * every number it prints as zero is a number no larger than that bound: a value is never zero because it is small, and rounding is never a value.
+ *
+ * STABILITY. A structure is stable (to first order) exactly when K_FF is positive definite. The elimination finds out against the ROUNDING of the
+ * arithmetic and not against the stiffness a DOF started with: a pivot that its error reaches RESOLVE of is zero for the arithmetic. The movement it
+ * allows (the pivot's DOF set to 1, the rows already eliminated solved for the rest: the null mode) is then tried on every member: if none is strained
+ * (STRAIN) the structure is a 'mechanism', a rigid-body motion of the whole if it fits a translation and a rotation of the whole to RIGID, a 'sway'
+ * otherwise. The null mode is worked in the same 32 digits, so it is not blurred by a stiff member beside it; if it does strain a member, the structure
+ * is searched for a movement that does not (an elimination with the largest diagonal first: its null space; the eigenvectors of the unit-diagonal matrix),
+ * and only when none is found is it called 'stiffness-range': stable as far as the movements can be found, and too badly scaled for even the 32 digits.
+ * A structure with fewer than 3 restrained DOFs is refused first ('few-supports') and the elimination is not tried.
+ *
+ * HOW MANY FIGURES. What is uncertain in each equation (the residual the unknowns leave, the rounding of its terms, the errors of the stiffnesses and of the loads it is
+ * made of) is gathered, and the answer moves by the inverse of K_FF times that and by nothing else: so a displacement, a reaction and an end force each have a bound, in which
+ * a stiff member that holds two soft nodes together does not count its stiffness twice (the two ends of a rigid link move together). The largest of those bounds, each against
+ * the largest of its kind (a displacement against the largest displacement, a force against the force scale), is the `share` of the solution: over WEAK of it the answer is solved
+ * with a warning that says how many figures stand; over RESOLVE it is refused as 'stiffness-range'. A bound is a worst case: the error really made is far smaller.
  *
  * FORMULA ALPHABET. The strings in `formulas`, `symbolic` and `factor` use only: letters and digits, `_` for a subscript (x_j; the symbols' own subscripts
  * local, global, nodal, equivalent, FE, F, R), `^T` for a transpose, the superscripts ² and ³, `θ`, `σ`, `δ`, `√`, `Σ`, `·`, the true minus `−`, `+`, `/`, `=`,
@@ -98,7 +132,26 @@ const isIndex = (v: unknown, n: number): v is number => typeof v === 'number' &&
 const given = (v: unknown): boolean => v !== undefined && v !== null;
 /** 0 − v: never −0. */
 const neg = (v: number): number => 0 - v;
-const copyMat = (a: Mat): Mat => a.map((r) => r.slice());
+const E = EPSILON_DD;
+
+/** The double nearest to a double-double, never −0. */
+const H = (a: DD): number => a[0] + 0;
+const hiMat = (m: readonly (readonly DD[])[]): Mat => m.map((r) => r.map(H));
+const hiVec = (v: readonly DD[]): number[] => v.map(H);
+/** The matrix times the vector. */
+const mv = (a: readonly (readonly DD[])[], v: readonly DD[]): DD[] =>
+  a.map((row) => {
+    let s: DD = DD_ZERO;
+    for (let k = 0; k < row.length; k++) if (!ddIsZero(row[k]) && !ddIsZero(v[k])) s = ddAdd(s, ddMul(row[k], v[k]));
+    return s;
+  });
+/** The sizes Σ|a_ij|·|v_j| of the terms of a matrix times a vector. */
+const mvSize = (a: readonly (readonly DD[])[], v: readonly number[]): number[] => a.map((row) => row.reduce((s, x, k) => s + Math.abs(x[0]) * v[k], 0));
+/** What the arithmetic could have put into each entry of a matrix times a vector: the rounding of the sum of the sizes of its terms, and the errors of the entries of the matrix times the vector. */
+const mvFloor = (a: readonly (readonly DD[])[], v: readonly DD[], errA?: readonly (readonly number[])[]): number[] =>
+  a.map((row, i) => ASSEMBLY * E * row.reduce((s, x, j) => s + Math.abs(x[0] * v[j][0]), 0) + (errA ? errA[i].reduce((s, e, j) => s + e * Math.abs(v[j][0]), 0) : 0));
+/** The entries that are no larger than their floor are exactly 0: they are rounding. */
+const zeroUnder = (v: readonly DD[], floor: readonly number[]): DD[] => v.map((x, i) => (!ddIsZero(x) && Math.abs(x[0]) <= floor[i] ? DD_ZERO : x));
 
 /** The DOF numbers of node `label` (from 1): [2n − 1, 2n] or [3n − 2, 3n − 1, 3n]. */
 export function dofsOfNode(label: number, mode: Mode): number[] {
@@ -115,75 +168,102 @@ export const dofLabel = (node: number, kind: DofKind): string => `${node}${kind}
  * [u_i, v_i, θ_i, u_j, v_j, θ_j]: axial EA/L, bending 12EI/L³, 6EI/L², 4EI/L, 2EI/L.
  */
 export function localStiffness(mode: Mode, EA: number, EI: number, L: number): Mat {
-  const a = EA / L;
+  return hiMat(localStiffnessDD(mode, dd(EA), dd(EI), dd(L)));
+}
+
+function localStiffnessDD(mode: Mode, EA: DD, EI: DD, L: DD): DD[][] {
+  const a = ddDiv(EA, L);
   if (mode === 'truss') {
     return [
-      [a, neg(a)],
-      [neg(a), a],
+      [a, ddNeg(a)],
+      [ddNeg(a), a],
     ];
   }
-  const b = (12 * EI) / (L * L * L);
-  const c = (6 * EI) / (L * L);
-  const d = (4 * EI) / L;
-  const e = (2 * EI) / L;
-  const k = zeros(6);
+  const L2 = ddMul(L, L);
+  const L3 = ddMul(L2, L);
+  const b = ddDiv(ddMulD(EI, 12), L3);
+  const c = ddDiv(ddMulD(EI, 6), L2);
+  const d = ddDiv(ddMulD(EI, 4), L);
+  const e = ddDiv(ddMulD(EI, 2), L);
+  const k = ddZeros(6);
   k[0][0] = a;
-  k[0][3] = neg(a);
-  k[3][0] = neg(a);
+  k[0][3] = ddNeg(a);
+  k[3][0] = ddNeg(a);
   k[3][3] = a;
   k[1][1] = b;
   k[1][2] = c;
-  k[1][4] = neg(b);
+  k[1][4] = ddNeg(b);
   k[1][5] = c;
   k[2][1] = c;
   k[2][2] = d;
-  k[2][4] = neg(c);
+  k[2][4] = ddNeg(c);
   k[2][5] = e;
-  k[4][1] = neg(b);
-  k[4][2] = neg(c);
+  k[4][1] = ddNeg(b);
+  k[4][2] = ddNeg(c);
   k[4][4] = b;
-  k[4][5] = neg(c);
+  k[4][5] = ddNeg(c);
   k[5][1] = c;
   k[5][2] = e;
-  k[5][4] = neg(c);
+  k[5][4] = ddNeg(c);
   k[5][5] = d;
   return k;
 }
 
 /** The transformation u_local = T·u_global. A bar: the 2 × 4 [[c, s, 0, 0], [0, 0, c, s]]. A beam-column: the 6 × 6 block-diagonal of [[c, s, 0], [−s, c, 0], [0, 0, 1]]. */
 export function transformation(mode: Mode, c: number, s: number): Mat {
+  return hiMat(transformationDD(mode, dd(c), dd(s)));
+}
+
+function transformationDD(mode: Mode, c: DD, s: DD): DD[][] {
   if (mode === 'truss') {
     return [
-      [c, s, 0, 0],
-      [0, 0, c, s],
+      [c, s, DD_ZERO, DD_ZERO],
+      [DD_ZERO, DD_ZERO, c, s],
     ];
   }
-  const T = zeros(6);
+  const T = ddZeros(6);
   for (const o of [0, 3]) {
     T[o][o] = c;
     T[o][o + 1] = s;
-    T[o + 1][o] = neg(s);
+    T[o + 1][o] = ddNeg(s);
     T[o + 1][o + 1] = c;
-    T[o + 2][o + 2] = 1;
+    T[o + 2][o + 2] = DD_ONE;
   }
   return T;
 }
 
+type FixedEndLoad = { kind: 'udl'; w: number } | { kind: 'point'; a: number; P: number } | { kind: 'axial'; q: number };
+
 /** The fixed-end forces of one member load: what the clamps exert on the member with both ends held (local axes, [Fx_i, Fy_i, M_i, Fx_j, Fy_j, M_j]). */
-export function fixedEndForces(load: { kind: 'udl'; w: number } | { kind: 'point'; a: number; P: number } | { kind: 'axial'; q: number }, L: number): number[] {
+export function fixedEndForces(load: FixedEndLoad, L: number): number[] {
+  return fixedEndForcesDD(load, dd(L)).map(H);
+}
+
+function fixedEndForcesDD(load: FixedEndLoad, L: DD): DD[] {
   switch (load.kind) {
     case 'udl': {
-      const { w } = load;
-      return [0, neg((w * L) / 2), neg((w * L * L) / 12), 0, neg((w * L) / 2), (w * L * L) / 12];
+      const wL = ddMulD(L, load.w);
+      const half = ddNeg(ddDivD(wL, 2));
+      const m12 = ddDivD(ddMul(wL, L), 12);
+      return [DD_ZERO, half, ddNeg(m12), DD_ZERO, half, m12];
     }
     case 'point': {
-      const { a, P } = load;
-      const b = L - a;
-      return [0, neg((P * b * b * (3 * a + b)) / (L * L * L)), neg((P * a * b * b) / (L * L)), 0, neg((P * a * a * (a + 3 * b)) / (L * L * L)), (P * a * a * b) / (L * L)];
+      const a = dd(load.a);
+      const b = ddSub(L, a);
+      const P = load.P;
+      const L2 = ddMul(L, L);
+      const L3 = ddMul(L2, L);
+      const a2 = ddMul(a, a);
+      const b2 = ddMul(b, b);
+      const f2 = ddDiv(ddMul(ddMulD(b2, P), ddAdd(ddMulD(a, 3), b)), L3);
+      const f3 = ddDiv(ddMul(ddMulD(ddMul(a, b2), P), DD_ONE), L2);
+      const f5 = ddDiv(ddMul(ddMulD(a2, P), ddAdd(a, ddMulD(b, 3))), L3);
+      const f6 = ddDiv(ddMulD(ddMul(a2, b), P), L2);
+      return [DD_ZERO, ddNeg(f2), ddNeg(f3), DD_ZERO, ddNeg(f5), f6];
     }
     default: {
-      const { q } = load;
-      return [neg((q * L) / 2), 0, 0, neg((q * L) / 2), 0, 0];
+      const half = ddNeg(ddDivD(ddMulD(L, load.q), 2));
+      return [half, DD_ZERO, DD_ZERO, half, DD_ZERO, DD_ZERO];
     }
   }
 }
@@ -248,7 +328,10 @@ function validate(model: StiffnessModel | null | undefined): { issues: Issue[]; 
   supports.forEach((s, k) => {
     if (!s || typeof s !== 'object') return bad('supports', k, 'node', 'support-node');
     if (!isIndex(s.node, nodes.length)) bad('supports', k, 'node', 'support-node');
-    for (const f of frame ? (['dx', 'dy', 'dr'] as const) : (['dx', 'dy'] as const)) if (given(s[f]) && !isNum(s[f])) bad('supports', k, f);
+    // A settlement is a number only where the support holds the DOF: a value typed on one it does not hold has no effect (the engine says so) and is never a fault,
+    // whatever it is, for it is a field the visitor may not be able to see.
+    const held = { dx: s.ux, dy: s.uy, dr: s.rz };
+    for (const f of frame ? (['dx', 'dy', 'dr'] as const) : (['dx', 'dy'] as const)) if (given(s[f]) && Boolean(held[f]) && !isNum(s[f])) bad('supports', k, f);
   });
   loads.forEach((l, k) => {
     if (!l || typeof l !== 'object') return bad('loads', k, 'node', 'load-node');
@@ -276,7 +359,7 @@ interface Stuck {
   pivot: number;
   rounding: number;
   /** The augmented matrix at that moment (the rows above `at` are final). */
-  rows: Mat;
+  rows: DD[][];
 }
 
 interface Eliminated {
@@ -284,80 +367,164 @@ interface Eliminated {
   stuck: Stuck | null;
   /** Set when a number stopped being finite. */
   overflow: boolean;
-  u: number[];
+  u: DD[];
+  /** The multipliers of the forward elimination: l_ik under the diagonal, 0 elsewhere. */
+  lower: DD[][];
   /** The augmented matrix after the last forward pass (upper triangular). */
-  aug: Mat;
-  /** The largest share of a pivot that its rounding could be (error over size), and where (0-based among the free DOFs). */
-  weakest: { share: number; at: number };
+  aug: DD[][];
 }
 
 /**
- * Gaussian elimination without row exchanges on the augmented matrix [A | b], calling `onPass` after each forward pass and `onBack`
- * after each unknown. It carries beside every entry the largest error the arithmetic could have put in it (`errA`, `errB` are the errors of the
+ * Gaussian elimination without row exchanges on the augmented matrix [A | b], calling `pass` after each forward pass. It carries beside every entry the largest error the arithmetic could have put in it (`errA`, `errB` are the errors of the
  * matrix and of the right-hand side as given): the entry's own rounding, the errors of the entries it is made of, and the error of the multiplier
  * that scales them. A pivot whose error reaches RESOLVE of it (or that is not above zero) is zero for the arithmetic: the elimination stops
  * there. An entry no larger than its own error is exactly 0 (it cannot be told from rounding): the narrated elimination prints the numbers it computed.
  */
 function eliminate(
-  A: Mat,
-  b: number[],
-  errA: Mat,
-  errB: number[],
+  A: readonly (readonly DD[])[],
+  b: readonly DD[],
+  errA: readonly (readonly number[])[],
+  errB: readonly number[],
   hooks: {
-    pass?: (k: number, pivot: number, multipliers: number[], aug: Mat, changed: [number, number][], eliminated: number[]) => void;
-    back?: (k: number, value: number, known: number[], u: number[]) => void;
+    pass?: (k: number, pivot: DD, multipliers: DD[], aug: DD[][], changed: [number, number][], eliminated: number[]) => void;
   },
 ): Eliminated {
   const n = b.length;
-  const aug: Mat = A.map((row, i) => [...row, b[i]]);
-  const err: Mat = errA.map((row, i) => [...row, errB[i]]);
-  const weakest = { share: 0, at: 0 };
+  const aug: DD[][] = A.map((row, i) => [...row, b[i]]);
+  const err: number[][] = errA.map((row, i) => [...row, errB[i]]);
+  const lower: DD[][] = ddZeros(n);
+  const fail = (stuck: Stuck | null, overflow: boolean): Eliminated => ({ stuck, overflow, u: [], lower: [], aug: [] });
   for (let k = 0; k < n; k++) {
     const pivot = aug[k][k];
+    const p = pivot[0];
     const e = err[k][k];
-    if (!Number.isFinite(pivot) || !Number.isFinite(e)) return { stuck: null, overflow: true, u: [], aug: [], weakest };
-    if (!(pivot > 0) || !(pivot * RESOLVE > e)) return { stuck: { at: k, pivot, rounding: e, rows: copyMat(aug) }, overflow: false, u: [], aug: [], weakest };
-    if (e / pivot > weakest.share) {
-      weakest.share = e / pivot;
-      weakest.at = k;
-    }
+    if (!Number.isFinite(p) || !Number.isFinite(e)) return fail(null, true);
+    if (!(p > 0) || !(p * RESOLVE > e)) return fail({ at: k, pivot: p, rounding: e, rows: aug.map((r) => r.slice()) }, false);
     if (k === n - 1) break;
-    const multipliers: number[] = [];
+    const multipliers: DD[] = [];
     const changed: [number, number][] = [];
     const eliminated: number[] = [];
     for (let i = k + 1; i < n; i++) {
-      const l = aug[i][k] / pivot;
+      const l = ddDiv(aug[i][k], pivot);
+      const la = Math.abs(l[0]);
+      lower[i][k] = l;
       // the error of the multiplier: that of its numerator, that of the pivot (scaled by the multiplier itself), and its own rounding
-      const el = (err[i][k] + Math.abs(l) * e) / pivot + EPSILON * Math.abs(l);
+      const el = (err[i][k] + la * e) / p + E * la;
       multipliers.push(l);
-      if (l !== 0) eliminated.push(i);
+      if (la !== 0) eliminated.push(i);
       for (let j = k + 1; j <= n; j++) {
         const akj = aug[k][j];
         const before = aug[i][j];
         let v = before;
-        err[i][j] += Math.abs(l) * err[k][j] + Math.abs(akj) * el;
-        if (l !== 0 && akj !== 0) {
-          const product = l * akj;
-          v = before - product;
-          err[i][j] += EPSILON * (Math.abs(product) + Math.abs(v));
+        err[i][j] += la * err[k][j] + Math.abs(akj[0]) * el;
+        if (la !== 0 && !ddIsZero(akj)) {
+          const product = ddMul(l, akj);
+          v = ddSub(before, product);
+          err[i][j] += E * (Math.abs(product[0]) + Math.abs(v[0]));
         }
-        if (v !== 0 && Math.abs(v) <= err[i][j]) v = 0;
-        if (v !== before) changed.push([i, j]);
+        if (!ddIsZero(v) && Math.abs(v[0]) <= err[i][j]) v = DD_ZERO;
+        if (v[0] !== before[0] || v[1] !== before[1]) changed.push([i, j]);
         aug[i][j] = v;
       }
-      aug[i][k] = 0;
+      aug[i][k] = DD_ZERO;
     }
     hooks.pass?.(k, pivot, multipliers, aug, changed, eliminated);
   }
-  const u = new Array<number>(n).fill(0);
+  const u: DD[] = new Array<DD>(n).fill(DD_ZERO);
   for (let k = n - 1; k >= 0; k--) {
     let s = aug[k][n];
-    for (let j = k + 1; j < n; j++) s -= aug[k][j] * u[j];
-    u[k] = s / aug[k][k];
-    hooks.back?.(k, u[k], u.slice(k), u);
+    for (let j = k + 1; j < n; j++) if (!ddIsZero(aug[k][j]) && !ddIsZero(u[j])) s = ddSub(s, ddMul(aug[k][j], u[j]));
+    u[k] = ddDiv(s, aug[k][k]);
   }
-  if (!u.every(Number.isFinite)) return { stuck: null, overflow: true, u: [], aug: [], weakest };
-  return { stuck: null, overflow: false, u, aug, weakest };
+  if (!u.every((x) => Number.isFinite(x[0]))) return fail(null, true);
+  return { stuck: null, overflow: false, u, lower, aug };
+}
+
+/** The inverse of the matrix that was eliminated: each column solved from the multipliers and the triangle. */
+function inverseOf(lower: readonly (readonly DD[])[], upper: readonly (readonly DD[])[], n: number): DD[][] {
+  const X = ddZeros(n);
+  for (let c = 0; c < n; c++) {
+    const y: DD[] = new Array<DD>(n).fill(DD_ZERO);
+    y[c] = DD_ONE;
+    for (let k = c; k < n; k++) {
+      if (ddIsZero(y[k])) continue;
+      for (let i = k + 1; i < n; i++) if (!ddIsZero(lower[i][k])) y[i] = ddSub(y[i], ddMul(lower[i][k], y[k]));
+    }
+    const x: DD[] = new Array<DD>(n).fill(DD_ZERO);
+    for (let k = n - 1; k >= 0; k--) {
+      let s = y[k];
+      for (let j = k + 1; j < n; j++) if (!ddIsZero(upper[k][j]) && !ddIsZero(x[j])) s = ddSub(s, ddMul(upper[k][j], x[j]));
+      x[k] = ddDiv(s, upper[k][k]);
+    }
+    for (let i = 0; i < n; i++) X[i][c] = x[i];
+  }
+  return X;
+}
+
+/**
+ * The independent motions of a symmetric positive semi-definite matrix, as far as the arithmetic can tell: an elimination that takes the largest remaining
+ * diagonal as its pivot each time, stopped when the largest left is no larger than its own rounding (RESOLVE). What is left over is the null space; a basis of it
+ * (one vector per unresolved column, the resolved rows solved for) is returned in the order of the unknowns.
+ */
+function nullSpace(A: readonly (readonly DD[])[], errA: readonly (readonly number[])[]): { nullity: number; basis: DD[][] } {
+  const n = A.length;
+  const a: DD[][] = A.map((r) => r.slice());
+  const err: number[][] = errA.map((r) => r.slice());
+  const perm = Array.from({ length: n }, (_, i) => i);
+  let k = 0;
+  for (; k < n; k++) {
+    let best = k;
+    for (let i = k + 1; i < n; i++) if (a[i][i][0] > a[best][best][0]) best = i;
+    const p = a[best][best][0];
+    const e = err[best][best];
+    if (!(p > 0) || !(p * RESOLVE > e)) break;
+    if (best !== k) {
+      [a[k], a[best]] = [a[best], a[k]];
+      [err[k], err[best]] = [err[best], err[k]];
+      for (let i = 0; i < n; i++) {
+        [a[i][k], a[i][best]] = [a[i][best], a[i][k]];
+        [err[i][k], err[i][best]] = [err[i][best], err[i][k]];
+      }
+      [perm[k], perm[best]] = [perm[best], perm[k]];
+    }
+    const pivot = a[k][k];
+    for (let i = k + 1; i < n; i++) {
+      const l = ddDiv(a[i][k], pivot);
+      const la = Math.abs(l[0]);
+      const el = (err[i][k] + la * e) / p + E * la;
+      for (let j = k + 1; j < n; j++) {
+        const akj = a[k][j];
+        const before = a[i][j];
+        let v = before;
+        err[i][j] += la * err[k][j] + Math.abs(akj[0]) * el;
+        if (la !== 0 && !ddIsZero(akj)) {
+          const product = ddMul(l, akj);
+          v = ddSub(before, product);
+          err[i][j] += E * (Math.abs(product[0]) + Math.abs(v[0]));
+        }
+        if (!ddIsZero(v) && Math.abs(v[0]) <= err[i][j]) v = DD_ZERO;
+        a[i][j] = v;
+      }
+      a[i][k] = DD_ZERO;
+    }
+  }
+  const basis: DD[][] = [];
+  for (let c = k; c < n; c++) {
+    const v: DD[] = new Array<DD>(n).fill(DD_ZERO);
+    v[c] = DD_ONE;
+    for (let i = k - 1; i >= 0; i--) {
+      let s: DD = DD_ZERO;
+      for (let j = i + 1; j < k; j++) s = ddAdd(s, ddMul(a[i][j], v[j]));
+      s = ddAdd(s, a[i][c]);
+      v[i] = ddNeg(ddDiv(s, a[i][i]));
+    }
+    const original: DD[] = new Array<DD>(n).fill(DD_ZERO);
+    v.forEach((x, idx) => {
+      original[perm[idx]] = x;
+    });
+    basis.push(original);
+  }
+  return { nullity: n - k, basis };
 }
 
 /* ── The run ──────────────────────────────────────────────────────────── */
@@ -365,7 +532,7 @@ function eliminate(
 /**
  * The criterion of 'ill-conditioned', in one place: the answer is refused when the largest residual of the solved equations, against the size of its own
  * equation, is above RESIDUAL (`worstRatio`), or when any check of step 14 fails: a sum of loads and reactions, a joint, the energy identity or the
- * residual of K u = P + R above RESIDUAL of its scale. Returns the issue, with the largest relative departure, or null.
+ * residual of K u = P + R above RESIDUAL of its scale (and its rounding allowance). Returns the issue, with the largest relative departure, or null.
  */
 export function illConditioned(worstRatio: number, checks: readonly Check[]): Issue | null {
   const failed = checks.filter((c) => !c.ok);
@@ -382,7 +549,18 @@ export function solve(model: StiffnessModel): Outcome {
   }
 }
 
-const fail = (issues: Issue[], steps: Step[] = []): Failure => ({ ok: false, issues, steps });
+/** The leading steps whose numbers are all finite: a partial solution never carries a NaN or an Infinity. */
+function finiteSteps(steps: readonly Step[]): Step[] {
+  const out: Step[] = [];
+  for (const s of steps) {
+    const whole = s.blocks.every((b) => blockFinite(b)) && Object.values(s.facts).every((f) => typeof f !== 'number' || Number.isFinite(f));
+    if (!whole) break;
+    out.push(s);
+  }
+  return out;
+}
+
+const fail = (issues: Issue[], steps: Step[] = []): Failure => ({ ok: false, issues, steps: finiteSteps(steps) });
 
 function run(model: StiffnessModel): Outcome {
   const { issues, p } = validate(model);
@@ -406,8 +584,10 @@ function run(model: StiffnessModel): Outcome {
     y0 = Math.min(y0, q.y);
     y1 = Math.max(y1, q.y);
   }
-  const size = Math.hypot(x1 - x0, y1 - y0);
+  const extent = Math.hypot(x1 - x0, y1 - y0);
   const about = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+  // (the name `size` is the extent in the rest of this function: the checks, the drawing and the sentences all call it so)
+  const sz = extent;
 
   /* The faults that are not about the numbers: collected together. */
   const found: Issue[] = [];
@@ -421,14 +601,14 @@ function run(model: StiffnessModel): Outcome {
       }
       return a;
     };
-    for (let a = 0; a < nn; a++) for (let b = a + 1; b < nn; b++) if (Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y) <= NEAR * size) parent[root(a)] = root(b);
+    for (let a = 0; a < nn; a++) for (let b = a + 1; b < nn; b++) if (Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y) <= NEAR * sz) parent[root(a)] = root(b);
     const groups = new Map<number, number[]>();
     for (let k = 0; k < nn; k++) groups.set(root(k), [...(groups.get(root(k)) ?? []), k]);
     for (const g of groups.values()) {
       if (g.length < 2) continue;
       let distance = 0;
       for (const a of g) for (const b of g) distance = Math.max(distance, Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y));
-      found.push({ code: 'duplicate-node', nodes: g.map((k) => k + 1), distance, size });
+      found.push({ code: 'duplicate-node', nodes: g.map((k) => k + 1), distance, size: sz });
     }
   }
   const lengths: number[] = [];
@@ -439,7 +619,7 @@ function run(model: StiffnessModel): Outcome {
     const L = Math.hypot(b.x - a.x, b.y - a.y);
     lengths.push(L);
     if (m.i === m.j) found.push({ code: 'zero-length', where: { list: 'members', index: k }, members: [k + 1] });
-    else if (L > NEAR * size && L < SHORT * size) found.push({ code: 'short-member', where: { list: 'members', index: k }, members: [k + 1], length: L, size });
+    else if (L > NEAR * sz && L < SHORT * sz) found.push({ code: 'short-member', where: { list: 'members', index: k }, members: [k + 1], length: L, size: sz });
     const key = m.i < m.j ? `${m.i}-${m.j}` : `${m.j}-${m.i}`;
     const first = pair.get(key);
     if (first !== undefined) found.push({ code: 'duplicate-member', where: { list: 'members', index: k }, members: [first + 1, k + 1] });
@@ -562,31 +742,45 @@ function run(model: StiffnessModel): Outcome {
 
   /* 2–5 — each member: geometry, local stiffness, transformation, global matrix. */
   const solvedMembers: SolvedMember[] = [];
-  const kLocal: Mat[] = [];
-  const TMat: Mat[] = [];
-  const KeMat: Mat[] = [];
-  // The largest error the arithmetic could have put in each entry of K_e: ASSEMBLY roundings of the sum of the sizes of the terms that made it.
-  const KeErr: Mat[] = [];
+  // Per member, in double-double: the length and the direction, the rigidities, k, T, and K_e with the largest error its arithmetic could have put in each entry.
+  const LD: DD[] = [];
+  const cD: DD[] = [];
+  const sD: DD[] = [];
+  const dxD: DD[] = [];
+  const dyD: DD[] = [];
+  const EAD: DD[] = [];
+  const EID: DD[] = [];
+  const kD: DD[][][] = [];
+  const TD: DD[][][] = [];
+  const KeD: DD[][][] = [];
+  const KeErr: number[][][] = [];
   members.forEach((m, k) => {
     const a = nodes[m.i];
     const b = nodes[m.j];
-    // (+ 0: a coordinate typed as −0 is a plain zero, and so is a difference of two)
-    const dx = b.x - a.x + 0;
-    const dy = b.y - a.y + 0;
-    const L = Math.hypot(dx, dy);
-    const c = dx / L + 0;
-    const s = dy / L + 0;
-    let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-    if (c === 0 || s === 0) angle = c === 0 ? (s > 0 ? 90 : -90) : c > 0 ? 0 : 180;
+    // (the differences of coordinates are exact, and so a coordinate typed as −0 is a plain zero)
+    const dx = sum2(b.x, 0 - a.x);
+    const dy = sum2(b.y, 0 - a.y);
+    const L = ddIsZero(dy) ? ddAbs(dx) : ddIsZero(dx) ? ddAbs(dy) : ddSqrt(ddAdd(ddMul(dx, dx), ddMul(dy, dy)));
+    const c = ddIsZero(dx) ? DD_ZERO : ddIsZero(dy) ? (dx[0] > 0 ? DD_ONE : dd(-1)) : ddDiv(dx, L);
+    const s = ddIsZero(dy) ? DD_ZERO : ddIsZero(dx) ? (dy[0] > 0 ? DD_ONE : dd(-1)) : ddDiv(dy, L);
+    dxD.push(dx);
+    dyD.push(dy);
+    LD.push(L);
+    cD.push(c);
+    sD.push(s);
+    let angle = (Math.atan2(H(dy), H(dx)) * 180) / Math.PI;
+    if (H(c) === 0 || H(s) === 0) angle = H(c) === 0 ? (H(s) > 0 ? 90 : -90) : H(c) > 0 ? 0 : 180;
     const sec = sections[k];
     const code = [...dofsOfNode(m.i + 1, mode), ...dofsOfNode(m.j + 1, mode)];
+    EAD.push(prod2(sec.E as number, sec.A as number));
+    EID.push(frame ? prod2(sec.E as number, sec.I as number) : DD_ZERO);
     solvedMembers.push({
       label: k + 1,
       i: m.i + 1,
       j: m.j + 1,
-      length: L,
-      c,
-      s,
+      length: H(L),
+      c: H(c),
+      s: H(s),
       angle,
       E: sec.E as number,
       A: sec.A as number,
@@ -599,8 +793,6 @@ function run(model: StiffnessModel): Outcome {
   const scope = (k: number): StepScope => ({ kind: 'member', member: k + 1 });
   const geometryKey = (k: number) => `geometry#${k + 1}`;
   solvedMembers.forEach((sm, k) => {
-    const EA = sm.E * sm.A;
-    const EI = (sm.I ?? 0) * sm.E;
     add(
       'geometry',
       2,
@@ -610,8 +802,8 @@ function run(model: StiffnessModel): Outcome {
       { member: k + 1, i: sm.i, j: sm.j },
       ['dx = x_j − x_i', 'dy = y_j − y_i', 'L = √(dx² + dy²)', 'c = cosθ = dx/L', 's = sinθ = dy/L', 'c² + s² = 1'],
       [
-        sca('dx', nodes[members[k].j].x - nodes[members[k].i].x + 0, 'x_j − x_i'),
-        sca('dy', nodes[members[k].j].y - nodes[members[k].i].y + 0, 'y_j − y_i'),
+        sca('dx', H(dxD[k]), 'x_j − x_i'),
+        sca('dy', H(dyD[k]), 'y_j − y_i'),
         sca('L', sm.length, '√(dx² + dy²)'),
         sca('c', sm.c, 'dx/L'),
         sca('s', sm.s, 'dy/L'),
@@ -619,16 +811,15 @@ function run(model: StiffnessModel): Outcome {
         sca('E', sm.E),
         sca('A', sm.A),
         ...(frame ? [sca('I', sm.I as number)] : []),
-        sca('EA', EA, 'E·A'),
-        ...(frame ? [sca('EI', EI, 'E·I')] : []),
+        sca('EA', H(EAD[k]), 'E·A'),
+        ...(frame ? [sca('EI', H(EID[k]), 'E·I')] : []),
       ],
     );
   });
   solvedMembers.forEach((sm, k) => {
-    const EA = sm.E * sm.A;
-    const EI = (sm.I ?? 0) * sm.E;
-    const kk = localStiffness(mode, EA, EI, sm.length);
-    kLocal.push(kk);
+    const L = LD[k];
+    const kk = localStiffnessDD(mode, EAD[k], EID[k], L);
+    kD.push(kk);
     const sym = frame
       ? [
           ['EA/L', '0', '0', '−EA/L', '0', '0'],
@@ -644,11 +835,13 @@ function run(model: StiffnessModel): Outcome {
         ];
     const highlights: Highlight[] = [];
     kk.forEach((row, r) =>
-      row.forEach((v, q) => {
+      row.forEach((_v, q) => {
         if (sym[r][q] === '0') return;
         highlights.push({ row: r, col: q, reason: sym[r][q].includes('EI') ? 'bending' : 'axial' });
       }),
     );
+    const L2 = ddMul(L, L);
+    const L3 = ddMul(L2, L);
     add(
       'local-stiffness',
       3,
@@ -658,22 +851,22 @@ function run(model: StiffnessModel): Outcome {
       { member: k + 1, size: kk.length },
       frame ? ['EA/L', '12EI/L³', '6EI/L²', '4EI/L', '2EI/L', 'k·u_local = f_local'] : ['k = (EA/L)·[1 −1; −1 1]', 'k·u_local = f_local'],
       [
-        mat('k', sm.localLabels, sm.localLabels, kk, { symbolic: sym, highlights }),
-        sca('EA/L', EA / sm.length, 'EA/L'),
+        mat('k', sm.localLabels, sm.localLabels, hiMat(kk), { symbolic: sym, highlights }),
+        sca('EA/L', H(ddDiv(EAD[k], L)), 'EA/L'),
         ...(frame
           ? [
-              sca('12EI/L³', (12 * EI) / (sm.length * sm.length * sm.length), '12EI/L³'),
-              sca('6EI/L²', (6 * EI) / (sm.length * sm.length), '6EI/L²'),
-              sca('4EI/L', (4 * EI) / sm.length, '4EI/L'),
-              sca('2EI/L', (2 * EI) / sm.length, '2EI/L'),
+              sca('12EI/L³', H(ddDiv(ddMulD(EID[k], 12), L3)), '12EI/L³'),
+              sca('6EI/L²', H(ddDiv(ddMulD(EID[k], 6), L2)), '6EI/L²'),
+              sca('4EI/L', H(ddDiv(ddMulD(EID[k], 4), L)), '4EI/L'),
+              sca('2EI/L', H(ddDiv(ddMulD(EID[k], 2), L)), '2EI/L'),
             ]
           : []),
       ],
     );
   });
   solvedMembers.forEach((sm, k) => {
-    const T = transformation(mode, sm.c, sm.s);
-    TMat.push(T);
+    const T = transformationDD(mode, cD[k], sD[k]);
+    TD.push(T);
     const symT = frame
       ? [
           ['c', 's', '0', '0', '0', '0'],
@@ -695,45 +888,55 @@ function run(model: StiffnessModel): Outcome {
       [geometryKey(k)],
       { member: k + 1 },
       ['u_local = T·u_global', 'f_global = T^T·f_local', 'c = cosθ', 's = sinθ'],
-      [mat('T', sm.localLabels, sm.codeLabels, T, { symbolic: symT }), sca('c', sm.c), sca('s', sm.s)],
+      [mat('T', sm.localLabels, sm.codeLabels, hiMat(T), { symbolic: symT }), sca('c', sm.c), sca('s', sm.s)],
     );
   });
+  // An entry of a product that is no larger than the rounding of the terms that made it is exactly 0.
+  const settleEntries = (m: DD[][], terms: number[][]): DD[][] => m.map((row, r) => row.map((v, q) => (!ddIsZero(v) && Math.abs(v[0]) <= ASSEMBLY * E * terms[r][q] ? DD_ZERO : v)));
   solvedMembers.forEach((sm, k) => {
-    const T = TMat[k];
-    const kk = kLocal[k];
-    const kT = matMul(kk, T);
-    const Ke = matMul(transpose(T), kT);
-    KeMat.push(Ke);
-    KeErr.push(matMul(transpose(T.map((r) => r.map(Math.abs))), kT.map((r) => r.map(Math.abs))).map((r) => r.map((v) => ASSEMBLY * EPSILON * v)));
+    const T = TD[k];
+    const kk = kD[k];
+    const TT = ddTranspose(T);
+    const kTraw = ddMatMul(kk, T);
+    const kT = settleEntries(kTraw, ddMatMulSize(kk, T));
+    const KeTerms = ddMatMulSize(TT, kT);
+    const Ke = settleEntries(ddMatMul(TT, kT), KeTerms);
+    KeD.push(Ke);
+    // The largest error the arithmetic could have put in each entry of K_e: ASSEMBLY roundings of the sum of the sizes of the terms that made it.
+    KeErr.push(KeTerms.map((r) => r.map((v) => ASSEMBLY * E * v)));
     const blocks: Block[] = [
-      mat('kT', sm.localLabels, sm.codeLabels, kT),
-      mat('K_e', sm.codeLabels, sm.codeLabels, Ke),
+      mat('kT', sm.localLabels, sm.codeLabels, hiMat(kT)),
+      mat('K_e', sm.codeLabels, sm.codeLabels, hiMat(Ke)),
       vec('code', sm.codeLabels, sm.code),
     ];
     const facts: Step['facts'] = { member: k + 1 };
     const formulas = ['K_e = T^T·k·T', 'code = [DOF(i), DOF(j)]'];
     if (!frame) {
-      const f = (sm.E * sm.A) / sm.length;
-      const { c, s } = sm;
+      const f = ddDiv(EAD[k], LD[k]);
+      const c = cD[k];
+      const s = sD[k];
+      const cc = ddMul(f, ddMul(c, c));
+      const cs = ddMul(f, ddMul(c, s));
+      const ss = ddMul(f, ddMul(s, s));
       const closed = [
-        [f * (c * c), f * (c * s), neg(f * (c * c)), neg(f * (c * s))],
-        [f * (c * s), f * (s * s), neg(f * (c * s)), neg(f * (s * s))],
-        [neg(f * (c * c)), neg(f * (c * s)), f * (c * c), f * (c * s)],
-        [neg(f * (c * s)), neg(f * (s * s)), f * (c * s), f * (s * s)],
+        [cc, cs, ddNeg(cc), ddNeg(cs)],
+        [cs, ss, ddNeg(cs), ddNeg(ss)],
+        [ddNeg(cc), ddNeg(cs), cc, cs],
+        [ddNeg(cs), ddNeg(ss), cs, ss],
       ];
       let diff = 0;
       let top = 0;
       closed.forEach((row, r) =>
         row.forEach((v, q) => {
-          diff = Math.max(diff, Math.abs(v - Ke[r][q]));
-          top = Math.max(top, Math.abs(v));
+          diff = Math.max(diff, Math.abs(H(ddSub(v, Ke[r][q]))));
+          top = Math.max(top, Math.abs(v[0]));
         }),
       );
       facts.difference = diff;
       facts.agree = diff <= AGREE * top;
       formulas.push('K_e = (EA/L)·[c² cs −c² −cs; cs s² −cs −s²; −c² −cs c² cs; −cs −s² cs s²]');
       blocks.push(
-        mat('K_e_closed', sm.codeLabels, sm.codeLabels, closed, {
+        mat('K_e_closed', sm.codeLabels, sm.codeLabels, hiMat(closed), {
           symbolic: [
             ['c²', 'cs', '−c²', '−cs'],
             ['cs', 's²', '−cs', '−s²'],
@@ -741,7 +944,7 @@ function run(model: StiffnessModel): Outcome {
             ['−cs', '−s²', 'cs', 's²'],
           ],
           factor: 'EA/L',
-          factorValue: f,
+          factorValue: H(f),
         }),
       );
     }
@@ -749,26 +952,26 @@ function run(model: StiffnessModel): Outcome {
   });
 
   /* 6 — the assembly, member by member. */
-  const K = zeros(N);
+  const KD: DD[][] = ddZeros(N);
   // With K, the largest error the arithmetic could have put in each entry. An entry no larger than its error is exactly 0 in K: a sum of terms that
   // cancel (c·s of two members) leaves rounding, and rounding is not a stiffness. What is printed is what the elimination is given.
-  const errK = zeros(N);
+  const errK: number[][] = Array.from({ length: N }, () => new Array<number>(N).fill(0));
   const contributors: number[][][] = Array.from({ length: N }, () => Array.from({ length: N }, () => [] as number[]));
   solvedMembers.forEach((sm, k) => {
-    const Ke = KeMat[k];
-    const contribution = zeros(N);
+    const Ke = KeD[k];
+    const contribution: Mat = Array.from({ length: N }, () => new Array<number>(N).fill(0));
     const positions: Highlight[] = [];
     sm.code.forEach((da, pa) =>
       sm.code.forEach((db, pb) => {
-        contribution[da - 1][db - 1] = Ke[pa][pb];
-        const sum = K[da - 1][db - 1] + Ke[pa][pb];
-        errK[da - 1][db - 1] += KeErr[k][pa][pb] + EPSILON * Math.abs(sum);
-        K[da - 1][db - 1] = Math.abs(sum) <= errK[da - 1][db - 1] ? 0 : sum;
+        contribution[da - 1][db - 1] = H(Ke[pa][pb]);
+        const sum = ddAdd(KD[da - 1][db - 1], Ke[pa][pb]);
+        errK[da - 1][db - 1] += KeErr[k][pa][pb] + E * Math.abs(sum[0]);
+        KD[da - 1][db - 1] = Math.abs(sum[0]) <= errK[da - 1][db - 1] ? DD_ZERO : sum;
         contributors[da - 1][db - 1].push(k + 1);
         positions.push({ row: da - 1, col: db - 1, reason: 'position' });
       }),
     );
-    const running = copyMat(K);
+    const running = hiMat(KD);
     // The running K marks every cell that the members added so far have written into, with who they are (the cells of this member alone are marked on its contribution).
     const written: Highlight[] = [];
     for (let a = 0; a < N; a++)
@@ -787,12 +990,13 @@ function run(model: StiffnessModel): Outcome {
       [mat('contribution', dofLabels, dofLabels, contribution, { highlights: positions }), mat('running', dofLabels, dofLabels, running, { highlights: written })],
     );
   });
+  const K = hiMat(KD);
   if (!K.every((row) => row.every(Number.isFinite))) return fail([{ code: 'size' }], steps);
   let asymmetry = 0;
   let kMax = 0;
   for (let a = 0; a < N; a++)
     for (let b = 0; b < N; b++) {
-      asymmetry = Math.max(asymmetry, Math.abs(K[a][b] - K[b][a]));
+      asymmetry = Math.max(asymmetry, Math.abs(H(ddSub(KD[a][b], KD[b][a]))));
       kMax = Math.max(kMax, Math.abs(K[a][b]));
     }
   const finalHighlights: Highlight[] = [];
@@ -804,72 +1008,75 @@ function run(model: StiffnessModel): Outcome {
   add('assembled', 6, null, { kind: 'structure' }, members.map((_, k) => `assembly#${k + 1}`), { dofs: N, symmetric: asymmetry <= AGREE * kMax, asymmetry }, ['K = Σ K_e', 'K = K^T'], [mat('K', dofLabels, dofLabels, K, { highlights: finalHighlights })]);
 
   /* 7 — the load vector. */
-  const Pnodal = new Array<number>(N).fill(0);
+  const Pnodal: DD[] = new Array<DD>(N).fill(DD_ZERO);
   // The largest error the arithmetic could have put in each entry of P (the rounding of the sums of the loads, and of the equivalent loads).
   const errP = new Array<number>(N).fill(0);
   for (const l of p.loads) {
-    Pnodal[nd * l.node] += l.fx;
-    Pnodal[nd * l.node + 1] += l.fy;
-    errP[nd * l.node] += EPSILON * Math.abs(l.fx);
-    errP[nd * l.node + 1] += EPSILON * Math.abs(l.fy);
+    Pnodal[nd * l.node] = ddAddD(Pnodal[nd * l.node], l.fx);
+    Pnodal[nd * l.node + 1] = ddAddD(Pnodal[nd * l.node + 1], l.fy);
+    errP[nd * l.node] += E * Math.abs(l.fx);
+    errP[nd * l.node + 1] += E * Math.abs(l.fy);
     if (frame) {
-      Pnodal[nd * l.node + 2] += l.m;
-      errP[nd * l.node + 2] += EPSILON * Math.abs(l.m);
+      Pnodal[nd * l.node + 2] = ddAddD(Pnodal[nd * l.node + 2], l.m);
+      errP[nd * l.node + 2] += E * Math.abs(l.m);
     }
   }
-  add('nodal-loads', 7, null, { kind: 'structure' }, ['structure'], { loads: p.loads.length }, ['P_nodal(d) = ΣF(d)'], [vec('P_nodal', dofLabels, Pnodal)]);
+  add('nodal-loads', 7, null, { kind: 'structure' }, ['structure'], { loads: p.loads.length }, ['P_nodal(d) = ΣF(d)'], [vec('P_nodal', dofLabels, hiVec(Pnodal))]);
 
-  const Pequiv = new Array<number>(N).fill(0);
-  const fixedEnd: (number[] | null)[] = members.map(() => null);
+  const Pequiv: DD[] = new Array<DD>(N).fill(DD_ZERO);
+  const errEquiv = new Array<number>(N).fill(0);
+  const fixedEnd: (DD[] | null)[] = members.map(() => null);
   if (frame) {
     members.forEach((_, k) => {
       const mine = p.memberLoads.map((l, idx) => ({ l, idx })).filter(({ l }) => l.member === k);
       if (mine.length === 0) return;
       const sm = solvedMembers[k];
-      const L = sm.length;
-      const blocks: Block[] = [sca('L', L)];
+      const L = LD[k];
+      const blocks: Block[] = [sca('L', sm.length)];
       const formulas: string[] = [];
-      let total = [0, 0, 0, 0, 0, 0];
+      let total: DD[] = new Array<DD>(6).fill(DD_ZERO);
       for (const { l, idx } of mine) {
         const tag = `${l.kind}#${idx + 1}`;
-        let fe: number[];
+        let fe: DD[];
         let sym: string[];
         if (l.kind === 'udl') {
-          fe = fixedEndForces({ kind: 'udl', w: l.w }, L);
+          fe = fixedEndForcesDD({ kind: 'udl', w: l.w }, L);
           sym = ['0', '−wL/2', '−wL²/12', '0', '−wL/2', 'wL²/12'];
           formulas.push('wL/2', 'wL²/12');
           blocks.push(sca('w', l.w, undefined, tag));
         } else if (l.kind === 'point') {
-          fe = fixedEndForces({ kind: 'point', a: l.a, P: l.P }, L);
+          fe = fixedEndForcesDD({ kind: 'point', a: l.a, P: l.P }, L);
           sym = ['0', '−Pb²(3a+b)/L³', '−Pab²/L²', '0', '−Pa²(a+3b)/L³', 'Pa²b/L²'];
           formulas.push('b = L − a', 'Pb²(3a+b)/L³', 'Pab²/L²', 'Pa²(a+3b)/L³', 'Pa²b/L²');
-          blocks.push(sca('P', l.P, undefined, tag), sca('a', l.a, undefined, tag), sca('b', L - l.a, 'L − a', tag));
+          blocks.push(sca('P', l.P, undefined, tag), sca('a', l.a, undefined, tag), sca('b', H(ddSub(L, dd(l.a))), 'L − a', tag));
         } else {
-          fe = fixedEndForces({ kind: 'axial', q: l.q }, L);
+          fe = fixedEndForcesDD({ kind: 'axial', q: l.q }, L);
           sym = ['−qL/2', '0', '0', '−qL/2', '0', '0'];
           formulas.push('qL/2');
           blocks.push(sca('q', l.q, undefined, tag));
         }
-        blocks.push(vec('f_FE', sm.localLabels, fe, { symbolic: sym, tag }));
-        total = total.map((v, q) => v + fe[q]);
+        blocks.push(vec('f_FE', sm.localLabels, hiVec(fe), { symbolic: sym, tag }));
+        total = total.map((v, q) => ddAdd(v, fe[q]));
       }
       fixedEnd[k] = total;
-      const T = TMat[k];
-      const global = matVec(transpose(T), total);
-      const equivalent = global.map(neg);
+      const T = TD[k];
+      const TT = ddTranspose(T);
+      const global = zeroUnder(mv(TT, total), mvFloor(TT, total));
+      const equivalent = global.map(ddNeg);
       sm.code.forEach((d, q) => {
-        Pequiv[d - 1] += equivalent[q];
-        errP[d - 1] += ASSEMBLY * EPSILON * Math.abs(equivalent[q]);
+        Pequiv[d - 1] = ddAdd(Pequiv[d - 1], equivalent[q]);
+        errP[d - 1] += ASSEMBLY * E * Math.abs(equivalent[q][0]);
+        errEquiv[d - 1] += ASSEMBLY * E * Math.abs(equivalent[q][0]);
       });
-      blocks.push(
-        vec('f_FE', sm.localLabels, total, { tag: 'total' }),
-        vec('f_FE_global', sm.codeLabels, global),
-        vec('equivalent', sm.codeLabels, equivalent),
-      );
+      blocks.push(vec('f_FE', sm.localLabels, hiVec(total), { tag: 'total' }), vec('f_FE_global', sm.codeLabels, hiVec(global)), vec('equivalent', sm.codeLabels, hiVec(equivalent)));
       add('member-loads', 7, k + 1, scope(k), [`geometry#${k + 1}`, `transformation#${k + 1}`], { member: k + 1, loads: mine.length }, [...formulas.filter((f, q) => formulas.indexOf(f) === q), 'f_FE_global = T^T·f_FE', 'equivalent = −f_FE_global'], blocks);
     });
   }
-  const P = Pnodal.map((v, d) => v + Pequiv[d]);
+  const PD = Pnodal.map((v, d) => {
+    const total = ddAdd(v, Pequiv[d]);
+    return !ddIsZero(total) && Math.abs(total[0]) <= errP[d] ? DD_ZERO : total;
+  });
+  const P = hiVec(PD);
   add(
     'load-vector',
     7,
@@ -878,19 +1085,20 @@ function run(model: StiffnessModel): Outcome {
     ['nodal-loads', ...members.flatMap((_, k) => (fixedEnd[k] ? [`member-loads#${k + 1}`] : []))],
     { loadedMembers: fixedEnd.filter((f) => f !== null).length },
     frame ? ['P = P_nodal + P_equivalent'] : ['P = P_nodal'],
-    [...(frame ? [vec('P_nodal', dofLabels, Pnodal), vec('P_equivalent', dofLabels, Pequiv)] : []), vec('P', dofLabels, P)],
+    [...(frame ? [vec('P_nodal', dofLabels, hiVec(Pnodal)), vec('P_equivalent', dofLabels, hiVec(zeroUnder(Pequiv, errEquiv)))] : []), vec('P', dofLabels, P)],
   );
   if (!P.every(Number.isFinite)) return fail([{ code: 'size' }], steps);
 
   /* 8 — the partition. */
-  const pick = (rows: number[], cols: number[]): Mat => rows.map((r) => cols.map((c) => K[r - 1][c - 1]));
-  const KFF = pick(free, free);
-  const KFR = pick(free, restrained);
-  const KRF = pick(restrained, free);
-  const KRR = pick(restrained, restrained);
-  const PF = free.map((d) => P[d - 1]);
-  const PR = restrained.map((d) => P[d - 1]);
+  const pickD = (rows: number[], cols: number[]): DD[][] => rows.map((r) => cols.map((c) => KD[r - 1][c - 1]));
+  const KFF = pickD(free, free);
+  const KFR = pickD(free, restrained);
+  const KRF = pickD(restrained, free);
+  const KRR = pickD(restrained, restrained);
+  const PF = free.map((d) => PD[d - 1]);
+  const PR = restrained.map((d) => PD[d - 1]);
   const uR = restrained.map((d) => prescribed[d - 1]);
+  const uRD = uR.map(dd);
   add(
     'partition',
     8,
@@ -900,25 +1108,30 @@ function run(model: StiffnessModel): Outcome {
     { free: nF, restrained: nR },
     ['K = [K_FF K_FR; K_RF K_RR]', 'P = [P_F; P_R]', 'u = [u_F; u_R]'],
     [
-      mat('K_FF', freeLabels, freeLabels, KFF),
-      mat('K_FR', freeLabels, restrainedLabels, KFR),
-      mat('K_RF', restrainedLabels, freeLabels, KRF),
-      mat('K_RR', restrainedLabels, restrainedLabels, KRR),
-      vec('P_F', freeLabels, PF),
-      vec('P_R', restrainedLabels, PR),
+      mat('K_FF', freeLabels, freeLabels, hiMat(KFF)),
+      mat('K_FR', freeLabels, restrainedLabels, hiMat(KFR)),
+      mat('K_RF', restrainedLabels, freeLabels, hiMat(KRF)),
+      mat('K_RR', restrainedLabels, restrainedLabels, hiMat(KRR)),
+      vec('P_F', freeLabels, hiVec(PF)),
+      vec('P_R', restrainedLabels, hiVec(PR)),
       vec('u_R', restrainedLabels, uR, { highlights: uR.flatMap((v, k) => (v !== 0 ? [{ index: k, reason: 'prescribed' as const }] : [])) }),
     ],
   );
 
   /* 9 — the reduced equation. */
-  const KFRuR = matVec(KFR, uR);
+  const KFRuR = mv(KFR, uRD);
   // The right-hand side, and the largest error the arithmetic could have put in each entry of it. One no larger than its error is exactly 0
   // (a settlement that strains nothing leaves rounding there, and rounding is not a load).
   const errF = free.map((d) => errP[d - 1]);
-  const errRhs = PF.map((v, k) => errF[k] + EPSILON * (Math.abs(v) + KFR[k].reduce((s, x, j) => s + Math.abs(x * uR[j]), 0)) + restrained.reduce((s, r, j) => s + errK[free[k] - 1][r - 1] * Math.abs(uR[j]), 0));
+  const errRhs = PF.map(
+    (v, k) =>
+      errF[k] +
+      E * (Math.abs(v[0]) + KFR[k].reduce((s, x, j) => s + Math.abs(x[0] * uR[j]), 0)) +
+      restrained.reduce((s, r, j) => s + errK[free[k] - 1][r - 1] * Math.abs(uR[j]), 0),
+  );
   const rhs = PF.map((v, k) => {
-    const value = v - KFRuR[k];
-    return Math.abs(value) <= errRhs[k] ? 0 : value;
+    const value = ddSub(v, KFRuR[k]);
+    return !ddIsZero(value) && Math.abs(value[0]) <= errRhs[k] ? DD_ZERO : value;
   });
   add(
     'reduced',
@@ -928,18 +1141,16 @@ function run(model: StiffnessModel): Outcome {
     ['partition'],
     { free: nF, settles: uR.some((v) => v !== 0) },
     ['K_FF·u_F = P_F − K_FR·u_R'],
-    [vec('P_F', freeLabels, PF), vec('K_FR·u_R', freeLabels, KFRuR), vec('rhs', freeLabels, rhs)],
+    [vec('P_F', freeLabels, hiVec(PF)), vec('K_FR·u_R', freeLabels, hiVec(zeroUnder(KFRuR, errRhs))), vec('rhs', freeLabels, hiVec(rhs))],
   );
 
   /* 10 — the elimination. */
   const record = nF <= RECORD_LIMIT;
   const augLabels = [...freeLabels, 'rhs'];
-  const augOf = (aug: Mat): Mat => aug.map((r) => r.slice());
   if (record && nF > 0) {
-    const aug0: Mat = KFF.map((row, i) => [...row, rhs[i]]);
+    const aug0: Mat = KFF.map((row, i) => [...row.map(H), H(rhs[i])]);
     add('augmented', 10, null, { kind: 'structure' }, ['reduced', 'partition'], { size: nF }, ['[K_FF | rhs]'], [mat('augmented', freeLabels, augLabels, aug0)]);
   }
-  const backTemp: { k: number; value: number; known: number[] }[] = [];
   const errKFF = free.map((r) => free.map((c) => errK[r - 1][c - 1]));
   const out = eliminate(KFF, rhs, errKFF, errRhs, {
     pass: (k, pivot, multipliers, aug, changed, eliminated) => {
@@ -953,23 +1164,20 @@ function run(model: StiffnessModel): Outcome {
         k + 1,
         { kind: 'structure' },
         [k === 0 ? 'augmented' : `forward-pass#${k}`],
-        { pass: k + 1, pivotDof: free[k], pivot, rows: nF - k - 1 },
-        ['l_ik = a_ik/a_kk', 'a_ij ← a_ij − l_ik·a_kj'],
+        { pass: k + 1, pivotDof: free[k], pivot: H(pivot), rows: nF - k - 1 },
+        ['m_ik = a_ik/a_kk', 'a_ij ← a_ij − m_ik·a_kj'],
         [
-          sca('pivot', pivot, 'a_kk', `pass#${k + 1}`),
-          vec('multipliers', freeLabels.slice(k + 1), multipliers, { symbolic: multipliers.map(() => 'a_ik/a_kk'), tag: `pass#${k + 1}` }),
-          mat('augmented', freeLabels, augLabels, augOf(aug), { highlights, tag: `pass#${k + 1}` }),
+          sca('pivot', H(pivot), 'a_kk', `pass#${k + 1}`),
+          vec('multipliers', freeLabels.slice(k + 1), hiVec(multipliers), { symbolic: multipliers.map(() => 'a_ik/a_kk'), tag: `pass#${k + 1}` }),
+          mat('augmented', freeLabels, augLabels, hiMat(aug), { highlights, tag: `pass#${k + 1}` }),
         ],
       );
-    },
-    back: (k, value, known) => {
-      backTemp.push({ k, value, known });
     },
   });
   if (out.overflow) return fail([{ code: 'size' }], steps);
   if (out.stuck) {
     const stuck = out.stuck;
-    const verdict = mechanismOf(stuck, KFF, free, dofs, nodes, size, mode, N, solvedMembers);
+    const verdict = mechanismOf(stuck, KFF, errKFF, free, dofs, nodes, sz, mode, N, solvedMembers);
     if (record) {
       const k = stuck.at;
       add(
@@ -983,50 +1191,73 @@ function run(model: StiffnessModel): Outcome {
         [
           sca('pivot', stuck.pivot, 'a_kk', `pass#${k + 1}`),
           sca('rounding', stuck.rounding, undefined, `pass#${k + 1}`),
-          mat('augmented', freeLabels, augLabels, augOf(stuck.rows), { highlights: [{ row: k, col: k, reason: 'zero-pivot' }], tag: `pass#${k + 1}` }),
+          mat('augmented', freeLabels, augLabels, hiMat(stuck.rows), { highlights: [{ row: k, col: k, reason: 'zero-pivot' }], tag: `pass#${k + 1}` }),
         ],
       );
     }
     return fail([verdict], steps);
   }
-  const uF = out.u;
+  // The unknowns as the back-substitution gives them, before any is called zero.
+  const uFraw = out.u;
+  // The residual: the worst equation, against RESIDUAL of the size of its own terms (the sum of their sizes) and the rounding of the largest equation of the structure
+  // (ROUNDING units): an equation whose terms are all rounding — a node that does not move — leaves rounding, and rounding is measured against rounding and not against itself.
+  // `worstRatio` is the residual over that tolerance, times RESIDUAL: it is at most RESIDUAL when every equation is within it.
+  const residualD = KFF.map((row, i) => {
+    let s: DD = ddNeg(rhs[i]);
+    for (let j = 0; j < nF; j++) if (!ddIsZero(row[j]) && !ddIsZero(uFraw[j])) s = ddAdd(s, ddMul(row[j], uFraw[j]));
+    return s;
+  });
+  const residualVector = hiVec(residualD);
+  const equationSize = KFF.map((row, i) => Math.abs(rhs[i][0]) + row.reduce((s, x, j) => s + Math.abs(x[0] * uFraw[j][0]), 0));
+  const equationScale = Math.max(0, ...equationSize);
+  const floorTerm = (ROUNDING * E * equationScale) / RESIDUAL;
+  let worstRatio = 0;
+  let worstIndex = 0;
+  let worstSize = 0;
+  residualVector.forEach((r, i) => {
+    const sz2 = equationSize[i] + floorTerm;
+    const ratio = sz2 > 0 ? Math.abs(r) / sz2 : Math.abs(r) > 0 ? Infinity : 0;
+    if (ratio > worstRatio || (ratio === worstRatio && Math.abs(r) > Math.abs(residualVector[worstIndex]))) {
+      worstRatio = ratio;
+      worstIndex = i;
+      worstSize = sz2;
+    }
+  });
+  // `max|residual|` is the largest residual of any equation; the check 'solve' is about the equation whose residual is largest against its own size.
+  const maxResidual = Math.max(0, ...residualVector.map(Math.abs));
+  const worstResidual = nF > 0 ? Math.abs(residualVector[worstIndex]) : 0;
+
+  /*
+   * HOW FAR THE ANSWER CAN BE WRONG. The unknowns solve K_FF·u = rhs up to a residual r, so they are the exact answer to equations that differ from these by r; and the
+   * equations themselves are known only to the errors of the stiffnesses and of the loads they were made of, and to the rounding of the terms. Everything that is
+   * uncertain in equation j is gathered in floorEq[j]; the answer moves by the inverse of K_FF times that, and nothing else: a displacement, a reaction or a force that is a
+   * linear function of the unknowns is as uncertain as that function of the inverse says (a first-order bound, which is how an engineer reads the sensitivity of a solution).
+   * A stiff member shows how little this is: the two ends of a rigid link move together, so their difference — what the force in it is made of — is as certain as the
+   * inverse says it is, a million times more than the two displacements taken alone.
+   */
+  const X = nF > 0 ? inverseOf(out.lower, out.aug, nF) : [];
+  const absX = X.map((row) => row.map((x) => Math.abs(x[0])));
+  const floorEq = KFF.map((row, i) => Math.abs(residualVector[i]) + ASSEMBLY * E * equationSize[i] + row.reduce((s, _x, l) => s + errKFF[i][l] * Math.abs(uFraw[l][0]), 0) + errRhs[i]);
+  const duF = absX.map((row) => row.reduce((s, x, j) => s + x * floorEq[j], 0));
+  // an unknown no larger than what it could be wrong by is 0
+  const uFD = uFraw.map((v, k) => (!ddIsZero(v) && Math.abs(v[0]) <= duF[k] ? DD_ZERO : v));
+  const uF = hiVec(uFD);
   if (record) {
     // The back-substitution as recorded: the last unknown first.
-    backTemp.forEach((entry, q) => {
-      const k = entry.k;
-      const known = freeLabels.slice(k);
+    for (let q = 0; q < nF; q++) {
+      const k = nF - 1 - q;
       add(
         'back-substitution',
         10,
         q + 1,
         { kind: 'structure' },
         [q > 0 ? `back-substitution#${q}` : nF > 1 ? `forward-pass#${nF - 1}` : 'augmented'],
-        { unknown: k + 1, dof: free[k], value: entry.value },
+        { unknown: k + 1, dof: free[k], value: H(uFD[k]) },
         ['u_k = (b_k − Σ a_kj·u_j)/a_kk'],
-        [sca('pivot', out.aug[k][k], 'a_kk', `unknown#${k + 1}`), vec('u', known, entry.known, { tag: `unknown#${k + 1}` })],
+        [sca('pivot', H(out.aug[k][k]), 'a_kk', `unknown#${k + 1}`), vec('u', freeLabels.slice(k), hiVec(uFD.slice(k)), { tag: `unknown#${k + 1}` })],
       );
-    });
-  }
-  // The residual: the worst equation, componentwise.
-  const residualVector = matVec(KFF, uF).map((v, k) => v - rhs[k]);
-  let worstRatio = 0;
-  let worstIndex = 0;
-  let worstSize = 0;
-  let equationScale = 0;
-  residualVector.forEach((r, i) => {
-    let sz = Math.abs(rhs[i]);
-    for (let j = 0; j < nF; j++) sz += Math.abs(KFF[i][j] * uF[j]);
-    equationScale = Math.max(equationScale, sz);
-    const ratio = sz > 0 ? Math.abs(r) / sz : Math.abs(r) > 0 ? Infinity : 0;
-    if (ratio > worstRatio || (ratio === worstRatio && Math.abs(r) > Math.abs(residualVector[worstIndex]))) {
-      worstRatio = ratio;
-      worstIndex = i;
-      worstSize = sz;
     }
-  });
-  // `max|residual|` is the largest residual of any equation; the check 'solve' is about the equation whose residual is largest against its own size.
-  const maxResidual = Math.max(0, ...residualVector.map(Math.abs));
-  const worstResidual = nF > 0 ? Math.abs(residualVector[worstIndex]) : 0;
+  }
   add(
     'solution',
     10,
@@ -1041,7 +1272,11 @@ function run(model: StiffnessModel): Outcome {
   if (unsolved) return fail([unsolved], steps);
 
   /* 11 — the displacements. */
-  const u = dofs.map((d) => (d.free === null ? d.prescribed : uF[d.free - 1]));
+  // (the numbers every later step is worked from are the unknowns as solved; the ones printed have the unknowns that are rounding set to 0)
+  const uD: DD[] = dofs.map((d) => (d.free === null ? dd(d.prescribed) : uFraw[d.free - 1]));
+  const uPrinted: DD[] = dofs.map((d) => (d.free === null ? dd(d.prescribed) : uFD[d.free - 1]));
+  const duD: number[] = dofs.map((d) => (d.free === null ? 0 : duF[d.free - 1]));
+  const u = hiVec(uPrinted);
   add(
     'displacements',
     11,
@@ -1052,11 +1287,32 @@ function run(model: StiffnessModel): Outcome {
     ['u = [u_F; u_R]'],
     [vec('u', dofLabels, u, { highlights: dofs.flatMap((d, k) => (d.restrained ? [{ index: k, reason: d.prescribed !== 0 ? ('prescribed' as const) : ('restrained' as const) }] : [])) })],
   );
+  // The rows of the inverse for the global DOFs of a member (a held DOF does not move, so its row is 0).
+  const noMove: DD[] = new Array<DD>(nF).fill(DD_ZERO);
+  const inverseRows = (code: readonly number[]): DD[][] => code.map((d) => (dofs[d - 1].free === null ? noMove : X[(dofs[d - 1].free as number) - 1]));
 
   /* 12 — the reactions. */
-  const KRFuF = matVec(KRF, uF);
-  const KRRuR = matVec(KRR, uR);
-  const R = restrained.map((_, k) => KRFuF[k] + KRRuR[k] - PR[k]);
+  const KRFuF = mv(KRF, uFraw);
+  const KRRuR = mv(KRR, uRD);
+  const RD0 = restrained.map((_, k) => ddSub(ddAdd(KRFuF[k], KRRuR[k]), PR[k]));
+  // What the arithmetic could have put into each reaction: the roundings of its terms, the errors of the stiffnesses and of the loads they are made of, and the answer's own
+  // uncertainty seen through the stiffnesses that carry it to the support (the inverse again, so that a stiff member that holds two soft nodes together does not count twice).
+  const Wr = nF > 0 ? ddMatMul(KRF, X) : restrained.map(() => []);
+  const dR = restrained.map((r, k) => {
+    let bound = ASSEMBLY * E * (Math.abs(PR[k][0]) + KRF[k].reduce((s, x, j) => s + Math.abs(x[0] * uFraw[j][0]), 0) + KRR[k].reduce((s, x, j) => s + Math.abs(x[0] * uR[j]), 0)) + errP[r - 1];
+    KRF[k].forEach((_x, j) => {
+      bound += errK[r - 1][free[j] - 1] * Math.abs(uFraw[j][0]);
+    });
+    restrained.forEach((q, j) => {
+      bound += errK[r - 1][q - 1] * Math.abs(uR[j]);
+    });
+    Wr[k].forEach((w, j) => {
+      bound += Math.abs(w[0]) * floorEq[j];
+    });
+    return bound;
+  });
+  const RD = zeroUnder(RD0, dR);
+  const R = hiVec(RD);
   add(
     'reactions',
     12,
@@ -1065,31 +1321,53 @@ function run(model: StiffnessModel): Outcome {
     ['partition', 'solution'],
     { restrained: nR },
     ['R = K_RF·u_F + K_RR·u_R − P_R'],
-    [vec('K_RF·u_F', restrainedLabels, KRFuF), vec('K_RR·u_R', restrainedLabels, KRRuR), vec('P_R', restrainedLabels, PR), vec('R', restrainedLabels, R)],
+    [
+      // (the two parts that make a reaction are as uncertain as the reaction: one that is no larger than that is rounding, and is 0 beside a reaction that is 0)
+      vec('K_RF·u_F', restrainedLabels, hiVec(zeroUnder(KRFuF, dR))),
+      vec('K_RR·u_R', restrainedLabels, hiVec(zeroUnder(KRRuR, dR))),
+      vec('P_R', restrainedLabels, hiVec(PR)),
+      vec('R', restrainedLabels, R),
+    ],
   );
   const reactions: ReactionEntry[] = restrained.map((d, k) => ({ dof: d, label: dofLabels[d - 1], node: dofs[d - 1].node, kind: dofs[d - 1].kind, value: R[k] }));
 
   /* 13 — the member end forces. */
   const forces: MemberForces[] = [];
+  const fD: DD[][] = [];
+  const dFmember: number[][] = [];
   solvedMembers.forEach((sm, k) => {
-    const T = TMat[k];
-    const kk = kLocal[k];
-    const uGlobal = sm.code.map((d) => u[d - 1]);
-    const uLocal = matVec(T, uGlobal);
-    const fk = matVec(kk, uLocal);
+    const T = TD[k];
+    const kk = kD[k];
+    const uGlobal = sm.code.map((d) => uD[d - 1]);
+    const uLocal0 = mv(T, uGlobal);
+    // What the arithmetic could have put into each local displacement, each local force k·u and each end force f: the roundings of the terms, and the answer's own
+    // uncertainty seen through T and through k (by the inverse: see the reactions).
+    const GT = nF > 0 ? ddMatMul(T, inverseRows(sm.code)) : T.map(() => []);
+    const Gk = nF > 0 ? ddMatMul(kk, GT) : kk.map(() => []);
+    const seen = (G: DD[][], q: number) => G[q].reduce((s, x, j) => s + Math.abs(x[0]) * floorEq[j], 0);
+    const bl = T.map((row, q) => ASSEMBLY * E * row.reduce((s, x, j) => s + Math.abs(x[0] * uGlobal[j][0]), 0) + seen(GT, q));
+    const uLocal = zeroUnder(uLocal0, bl);
+    const fk0 = mv(kk, uLocal0);
+    const dk = kk.map((row, q) => ASSEMBLY * E * row.reduce((s, x, j) => s + Math.abs(x[0] * uLocal0[j][0]), 0) + seen(Gk, q));
+    const fk = zeroUnder(fk0, dk);
     const fe = fixedEnd[k];
-    const f = fe ? fk.map((v, q) => v + fe[q]) : fk.slice();
-    const blocks: Block[] = [vec('u_e', sm.codeLabels, uGlobal), vec('u_local', sm.localLabels, uLocal), vec('k·u_local', sm.localLabels, fk)];
+    const f0 = fe ? fk0.map((v, q) => ddAdd(v, fe[q])) : fk0.slice();
+    const floor = f0.map((_, q) => dk[q] + (fe ? ASSEMBLY * E * Math.abs(fe[q][0]) : 0));
+    const f = zeroUnder(f0, floor);
+    fD.push(f);
+    const uShown = sm.code.map((d) => uPrinted[d - 1]);
+    const blocks: Block[] = [vec('u_e', sm.codeLabels, hiVec(uShown)), vec('u_local', sm.localLabels, hiVec(uLocal)), vec('k·u_local', sm.localLabels, hiVec(fk))];
     let start: MemberForces['start'];
     let end: MemberForces['end'];
     let bar: MemberForces['bar'] = null;
     const facts: Step['facts'] = { member: k + 1 };
     const formulas: string[] = ['u_e = u(code)', 'u_local = T·u_e'];
+    const fh = hiVec(f);
     if (frame) {
-      if (fe) blocks.push(vec('f_FE', sm.localLabels, fe));
-      blocks.push(vec('f', sm.localLabels, f));
-      start = { N: neg(f[0]), V: f[1] + 0, M: neg(f[2]) };
-      end = { N: f[3] + 0, V: neg(f[4]), M: f[5] + 0 };
+      if (fe) blocks.push(vec('f_FE', sm.localLabels, hiVec(fe)));
+      blocks.push(vec('f', sm.localLabels, fh));
+      start = { N: neg(fh[0]), V: fh[1] + 0, M: neg(fh[2]) };
+      end = { N: fh[3] + 0, V: neg(fh[4]), M: fh[5] + 0 };
       blocks.push(
         mat('ends', ['N', 'V', 'M'], ['i', 'j'], [
           [start.N, end.N],
@@ -1099,155 +1377,217 @@ function run(model: StiffnessModel): Outcome {
       );
       formulas.push(fe ? 'f = k·u_local + f_FE' : 'f = k·u_local', 'N_i = −f_1', 'V_i = f_2', 'M_i = −f_3', 'N_j = f_4', 'V_j = −f_5', 'M_j = f_6');
     } else {
-      const N = f[1] + 0;
-      const elongation = uLocal[1] - uLocal[0];
-      const stress = N / sm.A;
-      start = { N: neg(f[0]), V: 0, M: 0 };
-      end = { N, V: 0, M: 0 };
-      bar = { N, stress, elongation };
-      blocks.push(vec('f', sm.localLabels, f), sca('N', N, 'f_2'), sca('σ', stress, 'N/A'), sca('δ', elongation, 'u_j − u_i'));
+      const Nn = fh[1] + 0;
+      const elongation = H(ddSub(uLocal0[1], uLocal0[0]));
+      const stress = H(ddDivD(f[1], sm.A));
+      start = { N: neg(fh[0]), V: 0, M: 0 };
+      end = { N: Nn, V: 0, M: 0 };
+      bar = { N: Nn, stress, elongation };
+      blocks.push(vec('f', sm.localLabels, fh), sca('N', Nn, 'f_2'), sca('σ', stress, 'N/A'), sca('δ', elongation, 'u_j − u_i'));
       formulas.push('f = k·u_local', 'N = f_2 = (EA/L)(u_j − u_i)', 'σ = N/A', 'δ = u_j − u_i');
     }
-    // What rounding could have put into each component of f: the terms k·u that were added up to make it (a stiff member beside soft ones adds terms far larger
-    // than its force), and the fixed-end force. Measured against the whole structure's loads instead, a member much stiffer than the rest would lose real forces.
-    const floor = f.map((_, q) => 8 * Number.EPSILON * (kk[q].reduce((sum, v, j) => sum + Math.abs(v * uLocal[j]), 0) + (fe ? Math.abs(fe[q]) : 0)));
-    forces.push({ member: k + 1, uGlobal, uLocal, f, fixedEnd: fe, start, end, bar, floor });
+    forces.push({ member: k + 1, uGlobal: hiVec(uShown), uLocal: hiVec(uLocal), f: fh, fixedEnd: fe ? hiVec(fe) : null, start, end, bar, floor });
     add('end-forces', 13, k + 1, scope(k), [`local-stiffness#${k + 1}`, `transformation#${k + 1}`, 'displacements', ...(fe ? [`member-loads#${k + 1}`] : [])], facts, formulas, blocks);
+    dFmember.push(floor);
   });
 
-  /* 14 — the checks. */
+  /* The force scale: the loads added up, or the largest reaction or end force (a moment over the size): what a force is measured against. */
   let loadScale = 0;
-  for (const l of p.loads) loadScale += Math.abs(l.fx) + Math.abs(l.fy) + (frame ? Math.abs(l.m) / Math.max(size, 1e-300) : 0);
-  const appliedMember: { x: number; y: number; fx: number; fy: number }[] = [];
+  for (const l of p.loads) loadScale += Math.abs(l.fx) + Math.abs(l.fy) + (frame ? Math.abs(l.m) / Math.max(sz, 1e-300) : 0);
+  const appliedMember: { x: DD; y: DD; fx: DD; fy: DD }[] = [];
   p.memberLoads.forEach((l) => {
-    const sm = solvedMembers[l.member];
-    const L = sm.length;
+    const L = LD[l.member];
     const a = nodes[members[l.member].i];
-    let t: number;
-    let flx = 0;
-    let fly = 0;
+    let t: DD;
+    let flx: DD = DD_ZERO;
+    let fly: DD = DD_ZERO;
     if (l.kind === 'udl') {
-      fly = l.w * L;
-      t = L / 2;
+      fly = ddMulD(L, l.w);
+      t = ddDivD(L, 2);
     } else if (l.kind === 'point') {
-      fly = l.P;
-      t = l.a;
+      fly = dd(l.P);
+      t = dd(l.a);
     } else {
-      flx = l.q * L;
-      t = L / 2;
+      flx = ddMulD(L, l.q);
+      t = ddDivD(L, 2);
     }
-    loadScale += Math.abs(flx) + Math.abs(fly);
-    appliedMember.push({ x: a.x + sm.c * t, y: a.y + sm.s * t, fx: sm.c * flx - sm.s * fly, fy: sm.s * flx + sm.c * fly });
+    loadScale += Math.abs(flx[0]) + Math.abs(fly[0]);
+    const c = cD[l.member];
+    const s = sD[l.member];
+    appliedMember.push({ x: ddAddD(ddMul(c, t), a.x), y: ddAddD(ddMul(s, t), a.y), fx: ddSub(ddMul(c, flx), ddMul(s, fly)), fy: ddAdd(ddMul(s, flx), ddMul(c, fly)) });
   });
   let magnitude = 0;
   restrained.forEach((d, k) => {
-    magnitude = Math.max(magnitude, Math.abs(R[k]) / (dofs[d - 1].kind === 'θ' ? Math.max(size, 1e-300) : 1));
+    magnitude = Math.max(magnitude, Math.abs(R[k]) / (dofs[d - 1].kind === 'θ' ? Math.max(sz, 1e-300) : 1));
   });
   for (const fo of forces)
     fo.f.forEach((v, q) => {
-      magnitude = Math.max(magnitude, Math.abs(v) / (frame && q % 3 === 2 ? Math.max(size, 1e-300) : 1));
+      magnitude = Math.max(magnitude, Math.abs(v) / (frame && q % 3 === 2 ? Math.max(sz, 1e-300) : 1));
     });
+  const scale = Math.max(loadScale, magnitude);
+
+  /* How many figures stand: the largest bound on an error of the results, the displacements, the reactions and the end forces, each against the largest of its kind. */
+  const reach = Math.max(sz, 1e-300);
+  const lengthOf = (d: number, v: number) => Math.abs(v) * (dofs[d].kind === 'θ' ? reach : 1);
+  const uTop = Math.max(0, ...u.map((v, d) => lengthOf(d, v)));
+  let share = 0;
+  let shareAt = free[0] ?? restrained[0] ?? 1;
+  const consider = (s: number, dof: number) => {
+    if (s > share) {
+      share = s;
+      shareAt = dof;
+    }
+  };
+  if (uTop > 0) duD.forEach((v, d) => consider(lengthOf(d, v) / uTop, d + 1));
+  if (scale > 0) {
+    restrained.forEach((d, k) => consider(dR[k] / (dofs[d - 1].kind === 'θ' ? reach : 1) / scale, d));
+    solvedMembers.forEach((sm, k) => dFmember[k].forEach((v, q) => consider(v / (frame && q % 3 === 2 ? reach : 1) / scale, sm.code[frame ? q : q === 0 ? 0 : 2])));
+  }
+
+  /* 14 — the checks. */
+  // The tolerance of a check: RESIDUAL of its scale, and the rounding of its own terms (ROUNDING units of the arithmetic's rounding). The scales are the force scale for forces,
+  // that times the size for moments, the work of the loads and reactions for the energy, and the size of the equation for the residual of the elimination.
+  const roundOf = (terms: number) => ROUNDING * E * terms;
   // Global equilibrium, the loads added up from their definitions (not from the equivalent loads the solve used).
-  let sumFx = 0;
-  let sumFy = 0;
-  let sumM = 0;
+  let sumFx: DD = DD_ZERO;
+  let sumFy: DD = DD_ZERO;
+  let sumM: DD = DD_ZERO;
+  let tFx = 0;
+  let tFy = 0;
+  let tM = 0;
+  const arm = (px: number, py: number): { x: DD; y: DD } => ({ x: sum2(px, 0 - about.x), y: sum2(py, 0 - about.y) });
   for (const l of p.loads) {
-    sumFx += l.fx;
-    sumFy += l.fy;
-    sumM += (nodes[l.node].x - about.x) * l.fy - (nodes[l.node].y - about.y) * l.fx + (frame ? l.m : 0);
+    sumFx = ddAddD(sumFx, l.fx);
+    sumFy = ddAddD(sumFy, l.fy);
+    tFx += Math.abs(l.fx);
+    tFy += Math.abs(l.fy);
+    const r = arm(nodes[l.node].x, nodes[l.node].y);
+    const m1 = ddMulD(r.x, l.fy);
+    const m2 = ddMulD(r.y, l.fx);
+    sumM = ddSub(ddAdd(sumM, m1), m2);
+    tM += Math.abs(m1[0]) + Math.abs(m2[0]);
+    if (frame) {
+      sumM = ddAddD(sumM, l.m);
+      tM += Math.abs(l.m);
+    }
   }
   for (const l of appliedMember) {
-    sumFx += l.fx;
-    sumFy += l.fy;
-    sumM += (l.x - about.x) * l.fy - (l.y - about.y) * l.fx;
+    sumFx = ddAdd(sumFx, l.fx);
+    sumFy = ddAdd(sumFy, l.fy);
+    tFx += Math.abs(l.fx[0]);
+    tFy += Math.abs(l.fy[0]);
+    const rx = ddAddD(l.x, 0 - about.x);
+    const ry = ddAddD(l.y, 0 - about.y);
+    const m1 = ddMul(rx, l.fy);
+    const m2 = ddMul(ry, l.fx);
+    sumM = ddSub(ddAdd(sumM, m1), m2);
+    tM += Math.abs(m1[0]) + Math.abs(m2[0]);
   }
   restrained.forEach((d, k) => {
     const dof = dofs[d - 1];
     const node = nodes[dof.node - 1];
+    const r = arm(node.x, node.y);
     if (dof.kind === 'x') {
-      sumFx += R[k];
-      sumM -= (node.y - about.y) * R[k];
+      sumFx = ddAdd(sumFx, RD[k]);
+      tFx += Math.abs(R[k]);
+      const m2 = ddMul(r.y, RD[k]);
+      sumM = ddSub(sumM, m2);
+      tM += Math.abs(m2[0]);
     } else if (dof.kind === 'y') {
-      sumFy += R[k];
-      sumM += (node.x - about.x) * R[k];
-    } else sumM += R[k];
+      sumFy = ddAdd(sumFy, RD[k]);
+      tFy += Math.abs(R[k]);
+      const m1 = ddMul(r.x, RD[k]);
+      sumM = ddAdd(sumM, m1);
+      tM += Math.abs(m1[0]);
+    } else {
+      sumM = ddAdd(sumM, RD[k]);
+      tM += Math.abs(R[k]);
+    }
   });
   // Joint equilibrium: P_nodal + R − Σ (member end forces on the joint, global) at every DOF.
-  const memberOnJoint = new Array<number>(N).fill(0);
+  const memberOnJoint: DD[] = new Array<DD>(N).fill(DD_ZERO);
+  const jointTerms = new Array<number>(N).fill(0);
   solvedMembers.forEach((sm, k) => {
-    const fg = matVec(transpose(TMat[k]), forces[k].f);
+    const fg = mv(ddTranspose(TD[k]), fD[k]);
     sm.code.forEach((d, q) => {
-      memberOnJoint[d - 1] += fg[q];
+      memberOnJoint[d - 1] = ddAdd(memberOnJoint[d - 1], fg[q]);
+      jointTerms[d - 1] += Math.abs(fg[q][0]);
     });
   });
-  const Rfull = new Array<number>(N).fill(0);
+  const RfullD: DD[] = new Array<DD>(N).fill(DD_ZERO);
   restrained.forEach((d, k) => {
-    Rfull[d - 1] = R[k];
+    RfullD[d - 1] = RD[k];
   });
-  const joint = Pnodal.map((v, d) => v + Rfull[d] - memberOnJoint[d]);
-  let jointWorst = 0;
-  joint.forEach((v, d) => {
-    jointWorst = Math.max(jointWorst, Math.abs(v) / (dofs[d].kind === 'θ' ? Math.max(size, 1e-300) : 1));
+  const joint = Pnodal.map((v, d) => ddSub(ddAdd(v, RfullD[d]), memberOnJoint[d]));
+  jointTerms.forEach((_, d) => {
+    jointTerms[d] += Math.abs(Pnodal[d][0]) + Math.abs(RfullD[d][0]);
   });
-  const Ku = matVec(K, u);
-  // The force scale: the loads added up, or the largest reaction or end force, or — where larger — the sizes of the terms that are added up to make an
-  // equation (Σ|K·u| + |P| at a DOF), which is what rounding is measured against: a settlement that strains nothing (a rigid-body motion) leaves forces that are
-  // all rounding, and a rounding is not a failure beside the terms it came from.
-  let terms = 0;
-  u.forEach((_, d) => {
-    let sz = Math.abs(P[d]);
-    for (let j = 0; j < N; j++) sz += Math.abs(K[d][j] * u[j]);
-    terms = Math.max(terms, dofs[d].kind === 'θ' ? sz / Math.max(size, 1e-300) : sz);
-  });
-  const scale = Math.max(loadScale, magnitude, terms);
-  const system = Ku.map((v, d) => v - P[d] - Rfull[d]);
-  let systemWorst = 0;
-  system.forEach((v, d) => {
-    systemWorst = Math.max(systemWorst, Math.abs(v) / (dofs[d].kind === 'θ' ? Math.max(size, 1e-300) : 1));
-  });
-  const U = 0.5 * dot(u, Ku);
-  const uRfull = restrained.map((d) => u[d - 1]);
-  const W = 0.5 * dot(u, P) + 0.5 * dot(uRfull, R);
-  // What rounding is measured against: the terms of the two sums, taken in size (energy that is the difference of large terms is not small). The terms of
-  // ½uᵀKu are every u_d·K_dj·u_j, not the sums of them: where a stiff member is beside soft ones the sum at a DOF is a small difference of large terms.
-  let energyScale = 0;
-  u.forEach((v, d) => {
-    let row = 0;
-    for (let j = 0; j < N; j++) row += Math.abs(K[d][j] * u[j]);
-    energyScale += 0.5 * (Math.abs(v) * row + Math.abs(v * P[d]));
-  });
-  uRfull.forEach((v, k) => {
-    energyScale += 0.5 * Math.abs(v * R[k]);
-  });
+  const KuD = mv(KD, uD);
+  const KuTerms = mvSize(KD, uD.map((v) => Math.abs(v[0])));
+  const system = KuD.map((v, d) => ddSub(ddSub(v, PD[d]), RfullD[d]));
+  const U = ddMulD(uD.reduce((s, v, d) => ddAdd(s, ddMul(v, KuD[d])), DD_ZERO), 0.5);
+  const uRfullD = restrained.map((d) => uD[d - 1]);
+  const W = ddMulD(ddAdd(uD.reduce((s, v, d) => ddAdd(s, ddMul(v, PD[d])), DD_ZERO), uRfullD.reduce((s, v, k) => ddAdd(s, ddMul(v, RD[k])), DD_ZERO)), 0.5);
+  // The work of the loads and reactions added up in size: what the energy check is measured against; the terms of ½uᵀKu, in size, are what its rounding is measured against.
+  const work = 0.5 * (uD.reduce((s, v, d) => s + Math.abs(v[0] * PD[d][0]), 0) + uRfullD.reduce((s, v, k) => s + Math.abs(v[0] * RD[k][0]), 0));
+  const energyTerms = work + 0.5 * uD.reduce((s, v, d) => s + Math.abs(v[0]) * KuTerms[d], 0);
+  // A check made of one number for each DOF is held, at each DOF, to RESIDUAL of the scale and to the rounding of the largest terms of any DOF (the elimination spreads
+  // the rounding of an equation over the others: an equation whose own terms are small is not freed of the rounding of the large ones).
+  const worstOf = (values: DD[], terms: number[]): { value: number; allowance: number } => {
+    const biggest = Math.max(0, ...terms.map((t, d) => t / (dofs[d].kind === 'θ' ? reach : 1)));
+    let pick = 0;
+    let top = -1;
+    values.forEach((v, d) => {
+      const per = dofs[d].kind === 'θ' ? reach : 1;
+      const tol = (RESIDUAL * scale + roundOf(biggest)) * per;
+      const ratio = tol > 0 ? Math.abs(v[0]) / tol : Math.abs(v[0]) > 0 ? Infinity : 0;
+      if (ratio > top) {
+        top = ratio;
+        pick = d;
+      }
+    });
+    const per = values.length && dofs[pick].kind === 'θ' ? reach : 1;
+    return { value: values.length ? H(values[pick]) / per : 0, allowance: roundOf(biggest) };
+  };
+  const jointWorst = worstOf(joint, jointTerms);
+  const systemWorst = worstOf(system, KuTerms.map((v, d) => v + Math.abs(PD[d][0]) + Math.abs(RfullD[d][0])));
+  const within = (value: number, sc: number, allowance: number) => Math.abs(value) <= RESIDUAL * sc + allowance;
+  const check = (id: Check['id'], value: number, sc: number, allowance: number): Check => ({ id, value, scale: sc, allowance, ok: within(value, sc, allowance) });
   const checks: Check[] = [
-    { id: 'sum-fx', value: sumFx, scale, ok: Math.abs(sumFx) <= RESIDUAL * scale },
-    { id: 'sum-fy', value: sumFy, scale, ok: Math.abs(sumFy) <= RESIDUAL * scale },
-    { id: 'sum-moment', value: sumM, scale: scale * Math.max(size, 1e-300), ok: Math.abs(sumM) <= RESIDUAL * scale * Math.max(size, 1e-300) },
-    { id: 'joints', value: jointWorst, scale, ok: jointWorst <= RESIDUAL * scale },
-    { id: 'energy', value: U - W, scale: energyScale, ok: Math.abs(U - W) <= RESIDUAL * energyScale },
-    { id: 'system', value: systemWorst, scale, ok: systemWorst <= RESIDUAL * scale },
-    { id: 'solve', value: worstResidual, scale: worstSize, ok: worstRatio <= RESIDUAL },
+    check('sum-fx', H(sumFx), scale, roundOf(tFx)),
+    check('sum-fy', H(sumFy), scale, roundOf(tFy)),
+    check('sum-moment', H(sumM), scale * Math.max(sz, 1e-300), roundOf(tM)),
+    check('joints', jointWorst.value, scale, jointWorst.allowance),
+    check('energy', H(ddSub(U, W)), work, roundOf(energyTerms)),
+    check('system', systemWorst.value, scale, systemWorst.allowance),
+    { id: 'solve', value: worstResidual, scale: worstSize, allowance: 0, ok: worstRatio <= RESIDUAL },
   ];
+  const allowanceTop = Math.max(0, ...checks.filter((c) => c.id !== 'solve' && c.id !== 'energy').map((c) => c.allowance / (c.id === 'sum-moment' ? Math.max(sz, 1e-300) : 1)));
   add(
     'checks',
     14,
     null,
     { kind: 'structure' },
     ['displacements', 'reactions', ...members.map((_, k) => `end-forces#${k + 1}`), 'load-vector', 'assembled'],
-    { scale, size, aboutX: about.x, aboutY: about.y, allOk: checks.every((c) => c.ok) },
+    { scale, size: sz, work, allowance: allowanceTop, aboutX: about.x, aboutY: about.y, allOk: checks.every((c) => c.ok) },
     ['ΣFx = 0', 'ΣFy = 0', 'ΣM = 0', 'P_nodal + R − Σ f_global = 0', 'U = ½·u^T·K·u = ½·u^T·P + ½·u_R^T·R', 'K·u = P + R'],
     [
-      sca('ΣFx', sumFx, 'ΣP_x + ΣR_x'),
-      sca('ΣFy', sumFy, 'ΣP_y + ΣR_y'),
-      sca('ΣM', sumM, 'ΣM(P) + ΣM(R)'),
-      vec('joint', dofLabels, joint, { symbolic: dofLabels.map(() => 'P_nodal + R − Σ f_global') }),
-      sca('U', U, '½·u^T·K·u'),
-      sca('W', W, '½·u^T·P + ½·u_R^T·R'),
-      vec('K·u − P − R', dofLabels, system),
+      sca('ΣFx', H(sumFx), 'ΣP_x + ΣR_x'),
+      sca('ΣFy', H(sumFy), 'ΣP_y + ΣR_y'),
+      sca('ΣM', H(sumM), 'ΣM(P) + ΣM(R)'),
+      vec('joint', dofLabels, hiVec(joint), { symbolic: dofLabels.map(() => 'P_nodal + R − Σ f_global') }),
+      sca('U', H(U), '½·u^T·K·u'),
+      sca('W', H(W), '½·u^T·P + ½·u_R^T·R'),
+      vec('K·u − P − R', dofLabels, hiVec(system)),
     ],
   );
   const unbalanced = illConditioned(worstRatio, checks);
   if (unbalanced) return fail([unbalanced], steps);
+  // The results have no figure to stand on: refused, the way a pivot lost in rounding is.
+  if (share >= RESOLVE) {
+    const node = dofs[shareAt - 1].node;
+    return fail([{ code: 'stiffness-range', dof: shareAt, node, nodes: [node], ratio: share }], steps);
+  }
 
   /* Warnings. */
   const zeroLoad = p.loads.every((l) => l.fx === 0 && l.fy === 0 && (!frame || l.m === 0)) && p.memberLoads.every((l) => (l.kind === 'udl' ? l.w === 0 : l.kind === 'point' ? l.P === 0 : l.q === 0)) && prescribed.every((v) => v === 0);
@@ -1255,19 +1595,18 @@ function run(model: StiffnessModel): Outcome {
   if (!frame && Array.isArray(model.memberLoads) && model.memberLoads.length > 0) warnings.push({ code: 'member-loads-ignored', count: model.memberLoads.length });
   if (ignoredSettlement.length > 0) warnings.push({ code: 'settlement-ignored', dofs: ignoredSettlement.sort((a, b) => a - b) });
   if (emptySupports.length > 0) warnings.push({ code: 'empty-support', nodes: emptySupports.sort((a, b) => a - b) });
-  // A pivot the arithmetic guarantees to fewer than six figures (more than WEAK of it could be rounding): how many it is good to is said.
-  if (out.weakest.share > WEAK) warnings.push({ code: 'near-mechanism', dofs: [free[out.weakest.at]], ratio: out.weakest.share, count: Math.max(1, Math.floor(-Math.log10(out.weakest.share))) });
-  // First order only: a member whose chord turns by more than LARGE has left the theory the numbers belong to.
-  const turn = largestChordTurn(solvedMembers, u);
-  if (turn.angle > LARGE) warnings.push({ code: 'large-displacements', ratio: turn.angle, count: turn.member, nodes: [solvedMembers[turn.member - 1].i, solvedMembers[turn.member - 1].j] });
+  // Fewer than six figures are guaranteed (more than WEAK of the largest result could be rounding): how many is said.
+  if (share > WEAK) warnings.push({ code: 'near-mechanism', dofs: [shareAt], ratio: share, count: Math.max(1, Math.floor(-Math.log10(share))) });
+  // First order only: a member that has left the theory the numbers belong to says so. A chord that turns, an end that turns away from its chord, a member that stretches.
+  warnings.push(...largeWarnings(solvedMembers, forces, u, mode));
 
   const solvedNodes: SolvedNode[] = nodes.map((q, k) => ({ label: k + 1, x: q.x, y: q.y, dofs: dofsOfNode(k + 1, mode) }));
-  const solution: Solution = { ok: true, mode, dofs, nodes: solvedNodes, members: solvedMembers, steps, free, restrained, u, P, K, reactions, forces, checks, size, about, scale, warnings };
+  const solution: Solution = { ok: true, mode, dofs, nodes: solvedNodes, members: solvedMembers, steps, free, restrained, u, uError: duD, accuracy: share, P, K, reactions, forces, checks, size: sz, about, scale, warnings };
   if (!everythingFinite(solution)) return fail([{ code: 'size' }], []);
   return solution;
 }
 
-/* ── A pivot the arithmetic cannot tell from zero: a mechanism or a stiffness range ─ */
+/* ── First order only ─────────────────────────────────────────────────── */
 
 /** The chord of each member turns, in the solution, by (the difference of the nodes' displacements across it) over its length: the largest of them, in radians, and whose it is (label from 1). */
 export function largestChordTurn(members: readonly SolvedMember[], u: readonly number[]): { angle: number; member: number } {
@@ -1286,18 +1625,57 @@ export function largestChordTurn(members: readonly SolvedMember[], u: readonly n
 }
 
 /**
+ * Small displacements are the theory the numbers belong to: a member that goes past LARGE (a tenth) in any of the three ways it can has left it, and the warning says which. Its
+ * chord turns (the ends move across it by more than a tenth of its length), an end of a frame member turns away from its chord by more than a tenth of a radian, or the member
+ * stretches or shortens by more than a tenth of its length. Each is reported once, for the member where it is largest.
+ */
+export function largeWarnings(members: readonly SolvedMember[], forces: readonly Pick<MemberForces, 'uLocal'>[], u: readonly number[], mode: Mode): Warning[] {
+  const out: Warning[] = [];
+  const turn = largestChordTurn(members, u);
+  if (turn.angle > LARGE) out.push({ code: 'large-displacements', ratio: turn.angle, count: turn.member, nodes: [members[turn.member - 1].i, members[turn.member - 1].j] });
+  let rotation = 0;
+  let rotationAt = 1;
+  let stretch = 0;
+  let stretchAt = 1;
+  members.forEach((m, k) => {
+    const ul = forces[k].uLocal;
+    const length = m.length;
+    const stretched = Math.abs(mode === 'frame' ? ul[3] - ul[0] : ul[1] - ul[0]) / length;
+    if (stretched > stretch) {
+      stretch = stretched;
+      stretchAt = m.label;
+    }
+    if (mode === 'frame') {
+      const chord = (ul[4] - ul[1]) / length;
+      const away = Math.max(Math.abs(ul[2] - chord), Math.abs(ul[5] - chord));
+      if (away > rotation) {
+        rotation = away;
+        rotationAt = m.label;
+      }
+    }
+  });
+  if (rotation > LARGE) out.push({ code: 'large-rotation', ratio: rotation, count: rotationAt, nodes: [members[rotationAt - 1].i, members[rotationAt - 1].j] });
+  if (stretch > LARGE) out.push({ code: 'large-stretch', ratio: stretch, count: stretchAt, nodes: [members[stretchAt - 1].i, members[stretchAt - 1].j] });
+  return out;
+}
+
+/* ── A pivot the arithmetic cannot tell from zero: a mechanism or a stiffness range ─ */
+
+/**
  * What a pivot that rounding cannot tell from zero is. The movement it allows (the pivot's DOF set to 1, the rows above solved for the rest) is tried on
  * every member: what the member deforms in it (its elongation over its length and the turn of its ends beyond that of its chord) against the size of the movement the
- * member takes part in. A mechanism deforms none of them (to STRAIN); if one is strained, the structure is as far as can be found stable and the stiffnesses of it
- * differ by more than the arithmetic can hold ('stiffness-range').
+ * member takes part in. A mechanism deforms none of them (to STRAIN). If one is strained the movement is searched for again, in the null space of the whole matrix (an
+ * elimination that takes the largest diagonal first, so that the unresolved columns are left over) and in the eigenvectors of the unit-diagonal matrix, and only if every
+ * one of them strains a member is the structure called stable and the stiffnesses of it too far apart for the arithmetic ('stiffness-range').
  */
 function mechanismOf(
-  sing: { at: number; pivot: number; rounding: number; rows: Mat },
-  KFF: Mat,
+  sing: Stuck,
+  KFF: readonly (readonly DD[])[],
+  errKFF: readonly (readonly number[])[],
   free: number[],
   dofs: Dof[],
   nodes: { x: number; y: number }[],
-  size: number,
+  extent: number,
   mode: Mode,
   N: number,
   members: readonly SolvedMember[],
@@ -1305,17 +1683,21 @@ function mechanismOf(
   const nF = free.length;
   const k = sing.at;
   // The null mode: the singular DOF set to 1, the DOFs already eliminated from the rows of the reduced matrix.
-  const v = new Array<number>(nF).fill(0);
-  v[k] = 1;
+  const v: DD[] = new Array<DD>(nF).fill(DD_ZERO);
+  v[k] = DD_ONE;
   for (let i = k - 1; i >= 0; i--) {
-    let s = 0;
-    for (let j = i + 1; j <= k; j++) s += sing.rows[i][j] * v[j];
-    v[i] = neg(s) / sing.rows[i][i];
+    let s: DD = DD_ZERO;
+    for (let j = i + 1; j <= k; j++) s = ddAdd(s, ddMul(sing.rows[i][j], v[j]));
+    v[i] = ddNeg(ddDiv(s, sing.rows[i][i]));
   }
-  let full = new Array<number>(N).fill(0);
-  free.forEach((d, q) => {
-    full[d - 1] = Number.isFinite(v[q]) ? v[q] : 0;
-  });
+  const spread = (vector: readonly number[]): number[] => {
+    const full = new Array<number>(N).fill(0);
+    free.forEach((d, q) => {
+      full[d - 1] = Number.isFinite(vector[q]) ? vector[q] : 0;
+    });
+    return full;
+  };
+  let full = spread(v.map(H));
   const dof = free[k];
   // The rounding over the pivot (absent where the pivot is not above zero: the share would be infinite).
   const share = sing.pivot > 0 ? sing.rounding / sing.pivot : undefined;
@@ -1324,7 +1706,7 @@ function mechanismOf(
   // chord - the numbers of no stiffness at all) against the size of the movement it takes part in (its largest translation over its length, or rotation). A member whose DOFs all
   // move by less than STRAIN of the largest movement (translations and rotations times the size, together) is not part of it: what it holds is the arithmetic's own noise in a
   // part that does not move. One that is part of it is taken with every DOF it has, the small ones too (the two ends of a very stiff bar, one of them under that line, are its strain).
-  const reach = Math.max(size, 1e-300);
+  const reach = Math.max(extent, 1e-300);
   const strainOf = (field: readonly number[]): number => {
     const lengthOf = (d: number) => Math.abs(field[d - 1]) * ((d - 1) % nd === 2 ? reach : 1);
     const biggest = Math.max(0, ...free.map(lengthOf));
@@ -1348,31 +1730,38 @@ function mechanismOf(
     }
     return worst;
   };
-  // K_FF scaled to a unit diagonal: its eigenvalues count the independent motions, and its smallest eigenvector is the movement that the rows above (solved with the
-  // arithmetic's errors in them) can only approximate when a very stiff member is in the structure.
-  const d = KFF.map((row, i) => (row[i] > 0 ? 1 / Math.sqrt(row[i]) : 0));
-  const scaled = KFF.map((row, i) => row.map((val, j) => val * d[i] * d[j]));
-  const { values, vectors } = jacobiEigen(scaled);
+  // The independent motions, as far as the arithmetic can tell (the null space of the matrix, in 32 digits).
+  const space = nullSpace(KFF, errKFF);
+  let count = Math.max(1, space.nullity);
   if (strainOf(full) > STRAIN) {
-    const sharper = new Array<number>(N).fill(0);
-    free.forEach((dd, q) => {
-      sharper[dd - 1] = (vectors[0]?.[q] ?? 0) * d[q];
-    });
-    if (values[0] <= AGREE && Number.isFinite(strainOf(sharper)) && strainOf(sharper) <= STRAIN) full = sharper;
+    // another movement of the null space that strains no member: a basis vector, or the eigenvector of the unit-diagonal matrix
+    const candidates: number[][] = space.basis.map((b) => spread(b.map(H)));
+    const hiKFF = KFF.map((r) => r.map(H));
+    const d = hiKFF.map((row, i) => (row[i] > 0 ? 1 / Math.sqrt(row[i]) : 0));
+    const scaled = hiKFF.map((row, i) => row.map((val, j) => val * d[i] * d[j]));
+    const { values, vectors } = jacobiEigen(scaled);
+    if (values[0] <= AGREE) {
+      const sharper = new Array<number>(N).fill(0);
+      free.forEach((dd2, q) => {
+        sharper[dd2 - 1] = (vectors[0]?.[q] ?? 0) * d[q];
+      });
+      candidates.push(sharper);
+    }
+    const better = candidates.find((c) => Number.isFinite(strainOf(c)) && strainOf(c) <= STRAIN);
+    if (better) full = better;
+    if (!better) return { code: 'stiffness-range', dof, node: dofs[dof - 1].node, nodes: [dofs[dof - 1].node], ...(share !== undefined ? { ratio: share } : {}) };
+    count = Math.max(count, 1);
   }
-  if (strainOf(full) > STRAIN) return { code: 'stiffness-range', dof, node: dofs[dof - 1].node, nodes: [dofs[dof - 1].node], ...(share !== undefined ? { ratio: share } : {}) };
   // Which nodes move: those that move at least a quarter as much as the one that moves most (a rotation counts for its size times the structure's).
   const move = nodes.map((_, n) => {
     const tx = full[nd * n];
     const ty = full[nd * n + 1];
-    const r = nd === 3 ? Math.abs(full[nd * n + 2]) * Math.max(size, 1e-300) : 0;
+    const r = nd === 3 ? Math.abs(full[nd * n + 2]) * Math.max(extent, 1e-300) : 0;
     return Math.max(Math.hypot(tx, ty), r);
   });
   const top = Math.max(...move, 0);
   const moving = move.flatMap((m, n) => (top > 0 && m >= 0.25 * top ? [n + 1] : []));
-  const rigid = isRigidMotion(full, nodes, size, nd);
-  // How many independent motions: the eigenvalues of K_FF scaled to a unit diagonal that are no more than rounding.
-  const count = Math.max(1, values.filter((e) => e <= AGREE).length);
+  const rigid = isRigidMotion(full, nodes, extent, nd);
   // The shape: the largest translation is 1 (or the largest rotation if nothing translates).
   let norm = 0;
   for (let n = 0; n < nodes.length; n++) norm = Math.max(norm, Math.hypot(full[nd * n], full[nd * n + 1]));
@@ -1385,10 +1774,11 @@ function mechanismOf(
 }
 
 /** Whether a displacement field (one entry per DOF) is a rigid-body motion of the whole structure: a translation and a small rotation, to RIGID of its size. */
-export function isRigidMotion(field: readonly number[], nodes: { x: number; y: number }[], size: number, nd: number): boolean {
+export function isRigidMotion(field: readonly number[], nodes: { x: number; y: number }[], extent: number, nd: number): boolean {
   const n = nodes.length;
-  const scale = Math.max(size, 1e-300);
+  const scale = Math.max(extent, 1e-300);
   const total = field.length;
+  const dot = (a: readonly number[], b: readonly number[]) => a.reduce((s, x, i) => s + x * b[i], 0);
   const g: number[][] = [new Array<number>(total).fill(0), new Array<number>(total).fill(0), new Array<number>(total).fill(0)];
   for (let q = 0; q < n; q++) {
     g[0][nd * q] = 1;
@@ -1428,17 +1818,17 @@ function blockFinite(b: Block): boolean {
 }
 
 function everythingFinite(s: Solution): boolean {
-  if (!s.u.every(Number.isFinite) || !s.P.every(Number.isFinite)) return false;
+  if (!s.u.every(Number.isFinite) || !s.P.every(Number.isFinite) || !s.uError.every(Number.isFinite) || !Number.isFinite(s.accuracy)) return false;
   if (!s.K.every((r) => r.every(Number.isFinite))) return false;
   if (!s.reactions.every((r) => Number.isFinite(r.value))) return false;
   if (!Number.isFinite(s.scale) || !Number.isFinite(s.size)) return false;
   for (const f of s.forces) {
-    if (![...f.f, ...f.uGlobal, ...f.uLocal, f.start.N, f.start.V, f.start.M, f.end.N, f.end.V, f.end.M].every(Number.isFinite)) return false;
+    if (![...f.f, ...f.uGlobal, ...f.uLocal, ...f.floor, f.start.N, f.start.V, f.start.M, f.end.N, f.end.V, f.end.M].every(Number.isFinite)) return false;
     if (f.bar && ![f.bar.N, f.bar.stress, f.bar.elongation].every(Number.isFinite)) return false;
   }
   for (const m of s.members) if (![m.length, m.c, m.s, m.angle, m.E, m.A].every(Number.isFinite)) return false;
   for (const st of s.steps) for (const b of st.blocks) if (!blockFinite(b)) return false;
-  for (const c of s.checks) if (!Number.isFinite(c.value) || !Number.isFinite(c.scale)) return false;
+  for (const c of s.checks) if (!Number.isFinite(c.value) || !Number.isFinite(c.scale) || !Number.isFinite(c.allowance)) return false;
   return true;
 }
 

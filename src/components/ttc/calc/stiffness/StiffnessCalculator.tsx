@@ -24,11 +24,13 @@ import { TEMPLATE_IDS, type TemplateId } from '@/lib/calc/stiffness/templates';
 import { Actions } from '../shell/Actions';
 import { useAddress } from '../shell/address';
 import { select } from '../shell/fields';
-import { PAPER_WIDTH, useTooTall, useWidth } from '../shell/layout';
+import { PAPER_WIDTH, useWidth } from '../shell/layout';
 import { SheetStamp, useSheet } from '../shell/sheet';
 import { useSteelShapes } from '../shell/steel';
 import { FNum } from './FNum';
+import { reactionDirection, reactionSymbol } from './headline';
 import { drawingFacts, type Looks } from './layout';
+import { PIN_START, usePinFit } from './pin-fit';
 import { Results } from './Results';
 import { LoadRowView, MemberLoadRowView, MemberRowView, NodeRowView, SupportRowView, type RowEnv } from './Rows';
 import { anchorFor, scrollTarget } from './print-place';
@@ -133,8 +135,10 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   // The calculator itself: a structure opened from the address asks whether the focus is in one of its fields.
   const root = useRef<HTMLDivElement>(null);
   const [plotRef, windowWidth] = useWidth<HTMLDivElement>();
-  // Only the drawing and the sentence that reads it stay in view while the form is filled in; the rest of the answer scrolls with the page.
-  const [pinRef, tooTall] = useTooTall<HTMLDivElement>();
+  // Only the drawing and the sentence that reads it stay in view while the form is filled in; the rest of the answer scrolls with the page. The drawing is
+  // made as tall as the window leaves room for (pin-fit.ts), and the sentence leaves the pin where the window is too short for both.
+  const pinRef = useRef<HTMLDivElement>(null);
+  const sayingRef = useRef<HTMLDivElement>(null);
   const u = STIFFNESS_UNITS[form.units];
   const group = t.numbers.group;
   const frame = form.mode === 'frame';
@@ -275,6 +279,21 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
     return () => clearTimeout(timer);
   }, [a.drawing, looks, width, onPaper, omitted]);
   const facts = { omitted, every: omitted > 0 && everyOk !== false };
+  // Ticking "Show every word" on a large structure is a search over widths that takes seconds: the drawing says so on screen (Schematic.tsx), and the page tells it
+  // to a screen reader until the drawing it makes arrives.
+  const [widening, setWidening] = useState(false);
+  // What the figure drew that the sentence under it must follow: the nodes it drew as dots, and whether it drew loads and reactions.
+  const [facts2, setDrawnFacts] = useState<{ dots: readonly number[]; loads: boolean; reactions: boolean } | null>(null);
+  const arrived = useCallback((count: number, seen?: { dots: readonly number[]; loads: boolean; reactions: boolean }) => {
+    setOmitted(count);
+    setWidening(false);
+    if (seen) setDrawnFacts((was) => (was && was.loads === seen.loads && was.reactions === seen.reactions && was.dots.length === seen.dots.length && was.dots.every((d, k) => d === seen.dots[k]) ? was : { dots: seen.dots, loads: seen.loads, reactions: seen.reactions }));
+  }, []);
+  useEffect(() => {
+    if (!widening) return;
+    const timer = window.setTimeout(() => setWidening(false), 20_000);
+    return () => window.clearTimeout(timer);
+  }, [widening]);
 
   /* -- The faults, by row -- */
   const listName: Record<StiffnessList, string> = { nodes: w.nodes.name, members: w.members.name, supports: w.supports.name, loads: w.loads.name, memberLoads: w.memberLoads.name };
@@ -474,7 +493,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   };
 
   /* -- The drawing in words -- */
-  const drawn = { deformed: looks.deformed, nodeNumbers: show.nodeNumbers };
+  const drawn = { deformed: looks.deformed, nodeNumbers: show.nodeNumbers, ...(facts2 && !onPaper ? { dots: facts2.dots, loads: facts2.loads, reactions: facts2.reactions } : { reactions: looks.reactions, loads: looks.loads }) };
   const reading = readingSentence(a, drawn, w, { ...fmt, mode: form.mode });
   // How far each support that settles moves: said in a line under the drawing (the badge on the drawing says which support).
   const settleLine = (() => {
@@ -485,6 +504,21 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
     });
     return parts.length ? fill(w.drawing.notes.settlements, { list: parts.join('; ') }) : '';
   })();
+  // The drawing is as tall as the window leaves room for; on paper it is the sheet's.
+  const fit = usePinFit({ pin: pinRef, saying: sayingRef }, a.drawing, onPaper);
+  const fitted = onPaper ? PIN_START : fit;
+  // What reads the drawing: the sentence, the line about a settlement, the line that waits. It stays in the pin, or - where the window is too short for both - under it.
+  const saying = (
+    <div className="mp-st__says" ref={sayingRef}>
+      {reading ? (
+        <p id={idOf('reading')} className="mp-st__reading">
+          {reading}
+        </p>
+      ) : null}
+      {settleLine ? <p className="mp-st__reading mp-st__settle">{settleLine}</p> : null}
+      {r ? null : <p className="mp-app__need">{w.results.waiting}</p>}
+    </div>
+  );
   const summary = a.drawing.nodes.length === 0 ? w.drawing.summary.empty : fill(w.drawing.summary.structure, { nodes: solved.nodes.length, members: solved.members.length, supports: solved.supports.length, loads: solved.loads.length, memberLoads: solved.memberLoads.length });
   // A link that goes to a place on this page and leaves the address alone (a fragment would replace the structure in it).
   const goTo = (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -500,6 +534,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   const farthest = largestNode(a);
   const turning = farthest ? null : largestRotation(a);
   const biggest = largestReaction(a);
+  const biggestWay = biggest ? reactionDirection(r?.reactions ?? [], biggest) : null;
   const members = r?.members ?? [];
   const topForce = frame ? null : members.reduce<{ member: number; value: number } | null>((best, m) => (m.bar && Math.abs(m.bar.N) > Math.abs(best?.value ?? 0) ? { member: m.label, value: m.bar.N } : best), null);
   const topMoment = frame
@@ -532,7 +567,14 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
   const paperLooks = (rest: Partial<Looks>): Looks => ({ ...looks, values: true, nodeNumbers: true, memberNumbers: true, ...rest });
   const check1 = (key: Exclude<keyof Show, 'few'>, label: string) => (
     <label key={key} className="mp-app__check">
-      <input type="checkbox" checked={show[key]} onChange={(e) => setShow({ ...show, [key]: e.target.checked })} />
+      <input
+        type="checkbox"
+        checked={show[key]}
+        onChange={(e) => {
+          if (key === 'every') setWidening(e.target.checked);
+          setShow({ ...show, [key]: e.target.checked });
+        }}
+      />
       <span>{label}</span>
     </label>
   );
@@ -839,7 +881,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
               </div>
               <div>
                 <dt>{w.results.headline.reaction}</dt>
-                <dd>{biggest ? fill(w.results.headline.atNode, { value: num(biggest.value), unit: biggest.moment ? ru.moment : ru.force, node: biggest.node }) : w.results.headline.none}</dd>
+                <dd>{biggest && biggestWay ? fill(w.results.headline.component, { symbol: reactionSymbol(biggest.kind), value: num(biggest.value), unit: biggest.moment ? ru.moment : ru.force, direction: w.results.headline.directions[biggestWay], node: biggest.node }) : w.results.headline.none}</dd>
               </div>
               {topForce ? (
                 <div>
@@ -867,11 +909,15 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
               {check1('memberNumbers', w.drawing.options.memberNumbers)}
               {check1('values', w.drawing.options.values)}
               {facts.every ? check1('every', w.drawing.options.every) : null}
+              {/* Told, not shown: the drawing itself says it is widening (Schematic.tsx); this is for whoever cannot see it do so. */}
+              <p className="mp-st__widening mp-st__sr" role="status">
+                {widening ? w.drawing.options.widening : ''}
+              </p>
             </fieldset>
           </div>
 
           {/* The drawing and the sentence that reads it are what stays in view beside the form (stiffness.css); the notices, the status and the switches above scroll away. */}
-          <div className={tooTall ? 'mp-st__pin mp-st__pin--tall' : 'mp-st__pin'} ref={pinRef}>
+          <div className={fitted.mode === 'free' ? 'mp-st__pin mp-st__pin--tall' : 'mp-st__pin'} ref={pinRef}>
           <div className="mp-app__plots" ref={plotRef}>
             {onPaper ? (
               // The sheet's figures carry their own titles: here only the units.
@@ -892,14 +938,13 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
               </div>
             ) : (
               <FigureGuard message={w.drawing.failed} reset={a.drawing}>
-                <Schematic id={drawingId} drawing={a.drawing} width={width} widen every={show.every && facts.every} canWiden={omitted === 0 ? null : everyOk} onThinned={setOmitted} looks={looks} summary={summary} describedBy={idOf('reading')} words={words} units={figureUnits} />
+                <Schematic id={drawingId} drawing={a.drawing} width={width} widen every={show.every && facts.every} canWiden={omitted === 0 ? null : everyOk} onThinned={arrived} maxHeight={fitted.cap ?? undefined} looks={looks} summary={summary} describedBy={idOf('reading')} words={words} units={figureUnits} />
               </FigureGuard>
             )}
-            {reading ? <p id={idOf('reading')} className="mp-st__reading">{reading}</p> : null}
-            {settleLine ? <p className="mp-st__reading mp-st__settle">{settleLine}</p> : null}
-            {r ? null : <p className="mp-app__need">{w.results.waiting}</p>}
+            {fitted.mode === 'drawing' ? null : saying}
           </div>
           </div>
+          {fitted.mode === 'drawing' ? saying : null}
         </section>
       </div>
 
@@ -910,7 +955,7 @@ export function StiffnessCalculator({ t, w, initial }: { t: StiffnessShared; w: 
       {/* -- the worked solution -- */}
       <Solution w={w} analysis={solutionShown.analysis} group={group} onPaper={onPaper} busy={catching || solutionShown.behind} id={stepsId} epoch={epoch} after={{ id: afterId, go: goTo(afterId) }} />
       {/* The way back: skip links only went forward, and a keyboard reader at the foot of a long solution had the whole of it to cross again. */}
-      <nav className="mp-st__back mp-st__target" id={afterId} tabIndex={-1} aria-label={w.jump.label}>
+      <nav className="mp-st__back mp-st__target" id={afterId} tabIndex={-1} aria-label={w.jump.back}>
         <a href={`#${formId}`} onClick={goTo(formId)}>
           {w.jump.form}
         </a>

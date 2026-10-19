@@ -224,10 +224,18 @@
   top: calc(var(--mp-header-h, 6rem) + var(--mp-4));
   z-index: 1;
   min-width: 0;
+  /* (opaque: where the sentence has left the pin it scrolls away under it) */
+  background: var(--mp-paper);
 }
-/* Taller than the window under the header: not pinned (the part under the fold could not be reached). */
+/* Even with the drawing made as short as it may be (pin-fit.ts) the window has no room for it under the header: not pinned (the part under the fold could not be reached). */
 .mp-st .mp-st__pin.mp-st__pin--tall {
   position: static;
+}
+/* The sentence that reads the drawing, with the line about a settlement and the line that waits: one block, so that it can stand in the pin or under it. */
+.mp-st .mp-st__says {
+  display: grid;
+  gap: var(--mp-1);
+  min-width: 0;
 }
 .mp-st .mp-st__status {
   display: grid;
@@ -519,15 +527,18 @@
 .mp-st .mp-st__stepbar {
   display: none;
 }
-/* The room a card keeps for the tables it has not drawn (it draws them when it comes near the screen). With scripts off they never come: no room. */
+/* The room a card keeps for the tables it has not drawn (it draws them when it comes near the screen), with the words that say what is coming. It is a quiet
+   box with a rule down one side, not a dashed frame: a reader who scrolls past it before it is drawn sees a note, not something broken. */
 .mp-st .mp-st__later {
   min-width: 0;
-  border: 1px dashed var(--mp-line);
+  padding: var(--mp-2) var(--mp-3);
+  border-inline-start: 3px solid var(--mp-line-strong);
 }
-@media (scripting: none) {
-  .mp-st .mp-st__later {
-    display: none;
-  }
+.mp-st .mp-st__holds {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--mp-ink-3);
 }
 .mp-st .mp-st__stages,
 .mp-st .mp-st__chips {
@@ -1107,6 +1118,28 @@
   line-height: 1.5;
   color: var(--mp-ink-2);
 }
+/* The drawing on screen is not yet the one asked for (a switch just ticked, a number just typed): it is dimmed until the new one is drawn, and a line says
+   so where the switch asked for the drawing to be widened. (On paper the drawing is made at once, and never stands dimmed.) */
+@media screen {
+  .mp-st .mp-st-fig__scroll {
+    transition: opacity 0.1s;
+  }
+  /* (it is dimmed after a fifth of a second: a drawing made again in a blink does not flash) */
+  .mp-st .mp-st-fig--busy .mp-st-fig__scroll {
+    opacity: 0.55;
+    transition: opacity 0.12s 0.2s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-st .mp-st-fig__scroll,
+  .mp-st .mp-st-fig--busy .mp-st-fig__scroll {
+    transition: none;
+  }
+}
+.mp-st .mp-st-fig__note--widening {
+  font-weight: 600;
+  color: var(--mp-ink);
+}
 .mp-st-fig__member {
   fill: none;
   stroke: var(--mp-ink);
@@ -1323,6 +1356,8 @@
   }
   .mp-st .mp-st__pin {
     position: static;
+    /* (the pin is opaque on screen; on paper a tint would print as a grey block) */
+    background: none;
   }
   .mp-st .mp-st__unitsline,
   .mp-st .mp-st__skipped {
@@ -1493,7 +1528,19 @@
   }
   .mp-st .mp-st__sub,
   .mp-st .mp-st__sup {
-    font-size: 0.85em;
+    font-size: max(6.5pt, 0.85em);
+  }
+  /* The shared sheet sets the form's labels at 5.25 pt, its units and stamp at 6 pt, its notes at 6.25 pt and the heads of the answer's tables at 5.5 pt: this
+     calculator's printed type is 6.5 pt at the least, as everything else on its sheet is. */
+  .mp-st .mp-num__label,
+  .mp-st .mp-num__unit,
+  .mp-st .mp-app__none,
+  .mp-st .mp-app__note,
+  .mp-st .mp-app__computed,
+  .mp-st .mp-app__need,
+  .mp-st .mp-app__table thead th,
+  .mp-st .mp-sheet__stamp {
+    font-size: 6.5pt;
   }
   /* The marks print: the patterns stay, the colours go to black on white, and the pivot is still an inverted cell. */
   .mp-st {
@@ -1574,8 +1621,9 @@
 /* ── a narrow page: the outline becomes a bar at the foot of the screen ─ */
 
 @media screen and (max-width: 1100px) {
+  /* (the bar is 9 rem tall when its row wraps, in large text or a narrow page) */
   html:has(.mp-st__stepbar) {
-    scroll-padding-bottom: 6rem;
+    scroll-padding-bottom: 9rem;
   }
 }
 
@@ -1586,9 +1634,13 @@
     display: flex;
     flex-direction: column;
     grid-template-columns: none;
+    /* (the wide layout's `start` would shrink each part to its content: the bar and the cards are the width of the column) */
+    align-items: stretch;
   }
   .mp-st .mp-st__aside {
     position: relative;
+    /* (the wide layout's `top` still moves a relative box: the aside stood 92 px down on top of the first card) */
+    top: auto;
     max-height: none;
     overflow: visible;
     padding-inline-end: 0;
@@ -1604,6 +1656,9 @@
     position: sticky;
     bottom: 0;
     z-index: 20;
+    align-self: stretch;
+    /* The row inside it wraps by the bar's own width (below), not the window's: large text and a narrow page need the same thing. */
+    container-type: inline-size;
     display: grid;
     gap: 2px;
     padding: 0.35rem var(--mp-3) calc(0.35rem + env(safe-area-inset-bottom, 0px));
@@ -1619,6 +1674,17 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: var(--mp-2);
     align-items: center;
+  }
+  /* Where the menu would be left under about 8 rem (a phone at 200 % text, a page under 380 px) the row takes two lines: Previous and Next side by side, the menu
+     under them across the whole width. Every control keeps its 44 px; nothing overlaps; nothing runs off the screen. */
+  @container (max-width: 20rem) {
+    .mp-st .mp-st__stepbar-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .mp-st .mp-st__stepbar-row > .mp-st__jump {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
   }
   .mp-st .mp-st__stepbar .mp-app__btn {
     min-height: 44px;
@@ -1640,9 +1706,14 @@
     color: var(--mp-ink);
     text-overflow: ellipsis;
   }
+  /* The way into the card the reader is at (a keyboard reader's, after Next): in the bar, above it, so that it covers neither Previous nor Next. */
+  .mp-st .mp-st__stepbar .mp-st__skip:focus {
+    inset-block-end: calc(100% + 4px);
+    inset-inline-start: var(--mp-3);
+  }
   /* The card a step lands on is not hidden under the bar when it is the last thing on a short screen. */
   .mp-st .mp-st__card {
-    scroll-margin-bottom: 6rem;
+    scroll-margin-bottom: 9rem;
   }
   .mp-st .mp-app__out.mp-st__out {
     align-self: auto;
@@ -1664,5 +1735,29 @@
   }
   .mp-st .mp-st__items {
     gap: var(--mp-4);
+  }
+}
+
+/* ── what does nothing without scripts ────────────────────────────────────────────────────────────────── */
+
+.mp-st .mp-st__noscript {
+  max-width: 64rem;
+  margin: 0;
+}
+/* With scripts off the tables of most cards never come, and the buttons that step through the cards, open and close them, and change how numbers are shown do
+   nothing: the cards say what they hold and that it is not drawn here, and the outline - ordinary links - still leads to each card. (This comes last, so that it
+   wins over the rule that shows the bar on a narrow page.) */
+@media (scripting: none) {
+  .mp-st .mp-st__later {
+    min-height: 0 !important;
+  }
+  .mp-st .mp-st__when,
+  .mp-st .mp-st__bar,
+  .mp-st .mp-st__position--aside,
+  .mp-st .mp-st__stepbar,
+  .mp-st .mp-st__looks,
+  .mp-st .mp-st__looknote,
+  .mp-st .mp-st__long {
+    display: none;
   }
 }

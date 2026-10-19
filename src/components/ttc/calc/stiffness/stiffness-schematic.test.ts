@@ -3,7 +3,9 @@ import { analyseSafely } from '@/lib/calc/stiffness/analysis';
 import { convertStiffness, defaultStiffness, emptyStiffness, reduceStiffness, type StiffnessForm } from '@/lib/calc/stiffness/model';
 import { TEMPLATE_IDS, type TemplateId } from '@/lib/calc/stiffness/templates';
 import { build, flat, girder, settling, tall } from './fixtures.testlib';
-import { everyWidth, layoutFor, rectsNear, segNear, stiffnessLayout, type Layout, type Looks, type Rect } from './layout';
+import { stiffnessUi } from '@/lib/calc/stiffness/strings';
+import { drawingFacts, everyWidth, figureOf, figureWidth, layoutFor, rectsNear, segNear, stiffnessLayout, type Layout, type Looks, type Rect } from './layout';
+import { asksToWiden, figureNotes, sameStamp, type FigureStamp } from './Schematic';
 
 vi.setConfig({ testTimeout: 120_000 });
 afterEach(() => new Promise<void>((done) => setTimeout(done, 0)));
@@ -277,5 +279,75 @@ describe('what the drawing holds', () => {
     const t0 = performance.now();
     stiffnessLayout(big.drawing, { ...looks(), width: 720 });
     expect(performance.now() - t0).toBeLessThan(1500);
+  });
+});
+
+/* ── Show every word answers at once, and the note follows the state ────────── */
+
+describe('the figure answers the switch that widens it at once, and its notes follow the state it is in', () => {
+  const words = { notes: stiffnessUi.en.drawing.notes };
+  const big = analyseSafely(girder('frame'));
+  const crowded = layoutFor(big.drawing, { ...looks(), width: 330 });
+  const stamp = (rest: Partial<FigureStamp> = {}): FigureStamp => ({ drawing: big.drawing, width: 330, widen: true, every: false, looks: looks(), maxHeight: undefined, paper: false, ...rest });
+
+  it('a drawing that leaves words off tells the visitor to choose the switch; the moment they have, it says it is widening instead', () => {
+    expect(crowded.thinned).toBeGreaterThan(0);
+    const before = figureNotes({ layout: crowded, widening: false, paper: false, canWiden: true, words });
+    expect(before.thinned).toContain('Choose Show every word');
+    expect(before.widening).toBe('');
+    // the switch is ticked: the drawing on screen is the old one (stale) and widening is what was asked for
+    const during = figureNotes({ layout: crowded, widening: asksToWiden(stamp(), stamp({ every: true })), paper: false, canWiden: true, words });
+    expect(during.widening).toBe('Widening the drawing so that every word has a place…');
+    expect(during.thinned).toBe('');
+    // the drawing is made: the note follows what it says (here every word has a place, so there is none to make)
+    const wide = layoutFor(big.drawing, { ...looks(), width: figureWidth(big.drawing, looks(), 330, true).drawn });
+    const after = figureNotes({ layout: wide, widening: false, paper: false, canWiden: true, words });
+    expect(after.widening).toBe('');
+    expect(after.thinned).toBe(wide.thinned > 0 ? after.thinned : '');
+    // a number typed (stale, but the switch is not what was asked) leaves the notes as they were; and paper is never stale
+    expect(figureNotes({ layout: crowded, widening: asksToWiden(stamp(), stamp({ width: 331 })), paper: false, canWiden: true, words }).widening).toBe('');
+    // (nor when the drawing is made again for the room it has, with the switch already on: it is not the switch that is awaited)
+    expect(asksToWiden(stamp({ every: true }), stamp({ every: true, width: 331 }))).toBe(false);
+    expect(figureNotes({ layout: crowded, widening: asksToWiden(stamp(), stamp({ every: true, paper: true })), paper: true, canWiden: null, words }).widening).toBe('');
+  });
+  it('the Spanish words say the same', () => {
+    const es = { notes: stiffnessUi.es.drawing.notes };
+    expect(figureNotes({ layout: crowded, widening: true, paper: false, canWiden: true, words: es }).widening).toBe('Ensanchando el dibujo para que cada palabra tenga su lugar…');
+    expect(figureNotes({ layout: crowded, widening: false, paper: false, canWiden: true, words: es }).thinned).toContain('Elija Mostrar todas las palabras');
+  });
+  it('the drawing on screen is stale exactly when it was made of something else than what is asked for now', () => {
+    const a = stamp();
+    expect(sameStamp(a, { ...a })).toBe(true);
+    expect(sameStamp(a, stamp({ every: true }))).toBe(false);
+    expect(sameStamp(a, stamp({ width: 331 }))).toBe(false);
+    // (new looks of the same content, as the page makes whenever it is drawn again, are the same looks; others are not)
+    expect(sameStamp(a, stamp({ looks: looks() }))).toBe(true);
+    expect(sameStamp(a, stamp({ looks: looks({ values: false }) }))).toBe(false);
+    expect(sameStamp(a, stamp({ looks: looks({ flagged: [2] }) }))).toBe(false);
+    expect(sameStamp(a, stamp({ drawing: analyseSafely(girder('frame')).drawing }))).toBe(false);
+  });
+  it('the count the page offers its switch by is the words left off WITHOUT the switch: once the switch has widened the drawing it is not 0 (the page would take the switch away, and the drawing would go on widening and narrowing)', () => {
+    const base = figureOf(big.drawing, looks(), { width: 330, widen: true, every: false });
+    expect(base.widened).toBe(false);
+    expect(base.thinnedAtRoom).toBe(base.layout.thinned);
+    expect(base.thinnedAtRoom).toBeGreaterThan(0);
+    const wide = figureOf(big.drawing, looks(), { width: 330, widen: true, every: true });
+    expect(wide.widened).toBe(true);
+    expect(wide.layout.thinned).toBeLessThan(base.thinnedAtRoom);
+    expect(wide.thinnedAtRoom).toBe(base.thinnedAtRoom);
+    // and a drawing with nothing left off says 0 either way
+    const five = analyseSafely(tpl('truss-five-member'));
+    expect(figureOf(five.drawing, looks(), { width: 650, widen: true, every: true }).thinnedAtRoom).toBe(0);
+  });
+  it('the width that shows every word is found once for a drawing: the page finds it after a key, and ticking the switch asks again for nothing', () => {
+    const facts = drawingFacts(big.drawing, looks(), 330);
+    expect(facts.omitted).toBeGreaterThan(0);
+    const first = everyWidth(big.drawing, looks(), 330);
+    expect(everyWidth(big.drawing, looks(), 330)).toBe(first);
+    // (the drawing's own width for the switch is that one)
+    const t0 = performance.now();
+    const f = figureWidth(big.drawing, looks(), 330, true);
+    expect(performance.now() - t0).toBeLessThan(250);
+    expect(f.drawn).toBeGreaterThanOrEqual(f.room);
   });
 });

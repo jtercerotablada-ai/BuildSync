@@ -179,17 +179,22 @@ describe('a verb, a noun and a pronoun agree with how many nodes there are', () 
 
 describe('a reduction is not called a magnification, and a number is not rounded twice', () => {
   const notes = (lang: Lang) => stiffnessUi[lang].drawing.notes;
-  it('over 1 magnified, 1 the true size, under 1 shrunk to 1/N of its size, and never 0', () => {
+  it('over 1 magnified, 1 the true size, under 1 shrunk to a percentage of its size (1/2.5 is not a number of parts), and never 0', () => {
     expect(scalePhrase({ factor: 600 }, num, notes('en'))).toBe('magnified 600 times');
     expect(scalePhrase({ factor: 1 }, num, notes('en'))).toBe('drawn at its true size');
-    expect(scalePhrase({ factor: 0.4, shrink: 2.5 }, num, notes('en'))).toBe('shrunk to 1/2.5 of its size');
-    expect(scalePhrase({ factor: 0.5 }, num, notes('en'))).toBe('shrunk to 1/2 of its size');
+    expect(scalePhrase({ factor: 0.4, shrink: 2.5 }, num, notes('en'))).toBe('shrunk to 40 % of its size');
+    expect(scalePhrase({ factor: 0.5 }, num, notes('en'))).toBe('shrunk to 50 % of its size');
+    expect(scalePhrase({ factor: 1 / 1.5, shrink: 1.5 }, num, notes('en'))).toBe('shrunk to 66.7 % of its size');
+    expect(scalePhrase({ factor: 1 / 8, shrink: 8 }, num, notes('en'))).toBe('shrunk to 12.5 % of its size');
+    // where a percentage would be a row of zeros the share is said as 1/N, and a power of ten is raised
+    expect(scalePhrase({ factor: 0.005, shrink: 200 }, num, notes('en'))).toBe('shrunk to 1/200 of its size');
     expect(scalePhrase({ factor: 3e-14 }, num, notes('en'))).toBe('shrunk to 1/(3.33 × 10¹³) of its size');
     expect(sayFactor(4e-5, num)).toBe('4 × 10⁻⁵');
     expect(sayFactor(2.5e20, num)).toBe('2.5 × 10²⁰');
     expect(scalePhrase({ factor: 600 }, num, notes('es'))).toBe('ampliada 600 veces');
     expect(scalePhrase({ factor: 1 }, num, notes('es'))).toBe('dibujada a su tamaño real');
-    expect(scalePhrase({ factor: 0.4, shrink: 2.5 }, num, notes('es'))).toBe('reducida a 1/2.5 de su tamaño');
+    expect(scalePhrase({ factor: 0.4, shrink: 2.5 }, num, notes('es'))).toBe('reducida al 40 % de su tamaño');
+    expect(scalePhrase({ factor: 3e-14 }, num, notes('es'))).toBe('reducida a 1/(3.33 × 10¹³) de su tamaño');
     expect(raised('4.5 × 10^−12 and 1 × 10^13')).toBe('4.5 × 10⁻¹² and 1 × 10¹³');
   });
   it('the sentence, the legend and the note of a shape drawn smaller than it is say so', () => {
@@ -198,12 +203,12 @@ describe('a reduction is not called a magnification, and a number is not rounded
       const a = analyseSafely(form);
       const f = a.drawing.deformed!.factor!;
       expect(f, key).toBeLessThan(1);
-      const n = sayFactor(a.drawing.deformed!.shrink ?? 1 / f, num);
+      const pct = num(100 / (a.drawing.deformed!.shrink ?? 1 / f), 3);
       const s = say(form, { deformed: true });
-      expect(s, key).toContain(`shrunk to 1/${n} of its size`);
-      expect(s, key).not.toMatch(/magnified 0|magnified [0-9.]+ times|drawn at [0-9.]+ of/);
+      expect(s, key).toContain(`shrunk to ${pct} % of its size`);
+      expect(s, key).not.toMatch(/magnified 0|magnified [0-9.]+ times|drawn at [0-9.]+ of|shrunk to 1\//);
       const l = stiffnessLayout(a.drawing, { ...looks(), width: 650 });
-      expect(scaleNote(l, looks(), a.drawing, { notes: notes('en') }, { displacement: 'in' }), key).toContain(`shrunk to 1/${n} of its size`);
+      expect(scaleNote(l, looks(), a.drawing, { notes: notes('en') }, { displacement: 'in' }), key).toContain(`shrunk to ${pct} % of its size`);
     }
   });
   it('a factor too small to print as a number is written as a power of ten, raised', () => {

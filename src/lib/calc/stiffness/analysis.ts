@@ -1,7 +1,6 @@
 import { solve } from './engine';
-import { maxAbs, maxAbsMat } from './linalg';
 import { FROM_ENGINE, STIFFNESS_UNITS, issueRow, settlementOf, toEngine, type StiffnessForm, type StiffnessList, type StiffnessRow, type StiffnessUnitNames } from './model';
-import { AGREE, LARGE, LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RESOLVE, RIGID, SHORT, STRAIN, WEAK, ZERO, type Block, type Check, type Dof, type DofKind, type EndLine, type Failure, type Issue, type Mode, type Solution, type Step, type Warning } from './types';
+import { AGREE, LARGE, LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RESOLVE, RIGID, ROUNDING, SHORT, STRAIN, WEAK, ZERO, type Block, type Check, type DofKind, type EndLine, type Failure, type Issue, type Mode, type Solution, type Step, type Warning } from './types';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -18,15 +17,12 @@ import { AGREE, LARGE, LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RESOLVE, RIGID, SHOR
  * NO WORDS. Where a word is wanted a STABLE MACHINE CODE and the numbers the sentence needs are given; the page writes the sentences, in both languages:
  *   issues[].code     IssueCode (types.ts has the numbers each carries);   warnings[].code  WarningCode;   support symbol: SupportSymbol below.
  *
- * THE SETTLING (ZERO = 1e-9, types.ts). The engine's `Solution` is raw. `analyse` returns it SETTLED: in every matrix and vector of every step but the
- * first (the inputs), an entry whose size is under ZERO of the largest of its block is exactly 0 (never −0, never 1e-14); the step 14 checks are
- * settled against the force scale of the problem (the moments against it times the size of the structure); the residual of step 10 against the largest
- * equation; the forces at the ends of a member against the force scale of the whole structure (a bar that carries nothing is 'no force', not a tension of
- * 1e-15). The tables are made from the settled numbers, so they are the same numbers the steps print. Scalars are left as they are (a −0 apart).
- * Settling a block changes nothing it stands for beyond one part in 10⁹ of its largest entry; replay.testlib.ts recomputes the settled solution to 1e-8.
- * EXCEPT the stiffness matrices K and the elimination (`EXACT_MATRICES`): the engine has already made an entry exactly 0 when it is no larger than the
- * error the arithmetic could have put in it, so what is printed is what was computed, and a floor measured against the largest entry of a poorly scaled
- * matrix cannot zero a real one (the last triangle printed gives the unknowns printed).
+ * THE SETTLING. The engine's `Solution` is already settled where it computes: an entry of a matrix or a vector of a step is exactly 0 when it is no larger than the
+ * error the arithmetic could have put in it (the running bound of engine.ts: the rounding of the terms that made it, the errors of the entries it is made of), and
+ * only then. A small value is never 0 for being small (the 12EI/L³ of a beam beside a rigid column is 146 whatever the 6EI/L² beside it), and rounding is never a value
+ * (a reaction that is 0 in the textbook is 0 here), so the steps, the tables and the drawing say the same, and what is printed is what was computed. `analyse` adds only
+ * what the page needs of the other numbers: no −0, the sums and residuals of step 14 under ZERO = 1e-9 of their own scale printed as 0, and the tables built from
+ * the very numbers of the steps.
  *
  * UNITS. The steps are in the calculation units (feet, kips, radians; or metres, kilonewtons, radians: `calculation`, model.ts). The TABLES (`results`)
  * are in the units the form shows: displacements in inches or millimetres (a rotation in radians and degrees), stresses in ksi or MPa, forces and
@@ -35,7 +31,7 @@ import { AGREE, LARGE, LIMIT, NEAR, RECORD_LIMIT, RESIDUAL, RESOLVE, RIGID, SHOR
  */
 
 /** The tolerances of types.ts, in one object for the copy: the sentences quote these numbers, so a sentence can never say 10⁻⁹ where the engine uses another. */
-export const TOLERANCES = { resolve: RESOLVE, weak: WEAK, strain: STRAIN, residual: RESIDUAL, zero: ZERO, agree: AGREE, near: NEAR, short: SHORT, rigid: RIGID, large: LARGE, limit: LIMIT, record: RECORD_LIMIT } as const;
+export const TOLERANCES = { resolve: RESOLVE, weak: WEAK, strain: STRAIN, residual: RESIDUAL, zero: ZERO, agree: AGREE, near: NEAR, short: SHORT, rigid: RIGID, large: LARGE, limit: LIMIT, record: RECORD_LIMIT, rounding: ROUNDING } as const;
 
 export type SupportSymbol = 'fixed' | 'pin' | 'roller-y' | 'roller-x' | 'guide-x' | 'guide-y' | 'rotation' | 'none';
 
@@ -337,25 +333,21 @@ function settleVector(values: readonly number[], floor: number | ((index: number
   return values.map((v, k) => settle(v, typeof floor === 'number' ? floor : floor(k)));
 }
 
-/** A block with its small entries settled. A matrix and a vector against the largest of their own entries (or `floor`); a scalar is only cleaned. */
-function settleBlock(b: Block, floor?: number): Block {
+/** A block with no −0 in it: its numbers are the engine's, which are already 0 where they are rounding. */
+function cleanBlock(b: Block): Block {
   if (b.type === 'scalar') return { ...b, value: clean(b.value) };
-  if (b.type === 'vector') return { ...b, values: settleVector(b.values, floor ?? ZERO * maxAbs(b.values)) };
-  const f = floor ?? ZERO * maxAbsMat(b.values);
-  return { ...b, values: b.values.map((row) => row.map((v) => settle(v, f))) };
+  if (b.type === 'vector') return { ...b, values: b.values.map(clean) };
+  return { ...b, values: b.values.map((row) => row.map(clean)) };
 }
 
 /** `fixed` is the part of a step the settling leaves alone: the inputs. */
 const UNTOUCHED = new Set(['structure']);
 
 /**
- * The matrices the engine itself has already freed of rounding, entry by entry (an entry no larger than the error the arithmetic could have put in it is exactly 0
- * there): the stiffness of the structure at each stage of the assembly, its partition, and the elimination. They are printed as they were computed, so that the
- * triangle on the page gives the answer on the page; a floor measured against the largest entry of the whole matrix would zero a real entry of a poorly scaled one.
+ * The steps as the page prints them. Every number of a step is the engine's (settled where it was computed, above); what is left here is the sums of step 14 and the residual
+ * of step 10, which are rounding when they are no larger than ZERO of their own scale, and a −0 anywhere.
  */
-const EXACT_MATRICES = new Set(['K', 'running', 'K_FF', 'K_FR', 'K_RF', 'K_RR', 'augmented']);
-
-function settleSteps(steps: readonly Step[], context: { scale: number; size: number; dofs: Dof[]; floors: readonly (readonly number[])[] } | null): Step[] {
+function settleSteps(steps: readonly Step[], context: { scale: number; size: number } | null): Step[] {
   return steps.map((step) => {
     if (UNTOUCHED.has(step.id)) return noNegativeZero(step);
     if (step.id === 'checks' && context) {
@@ -371,36 +363,20 @@ function settleSteps(steps: readonly Step[], context: { scale: number; size: num
           const kinds = b.labels.map((l) => l.charAt(l.length - 1));
           return { ...b, values: settleVector(b.values, (k) => (kinds[k] === 'θ' ? moment : force)) };
         }
-        return settleBlock(b);
+        return cleanBlock(b);
       });
       return { ...step, blocks };
-    }
-    if (step.id === 'end-forces' && context) {
-      // The forces at the ends of a member are measured against what rounding could have put into each of them (the engine's `floor`, from the terms that were
-      // added up to make it): a bar that carries nothing has 1e-15 of rounding in it and that is not a tension, and a member much stiffer than the rest keeps its
-      // real forces however small they are beside the terms of its own stiffness. The fixed-end forces are exact, never rounding. (The movements are measured
-      // against the movements of the block.)
-      const floor = step.scope.kind === 'member' ? context.floors[step.scope.member - 1] : undefined;
-      const forces = new Set(['k·u_local', 'f']);
-      return {
-        ...step,
-        blocks: step.blocks.map((b): Block => {
-          if (b.type === 'vector' && b.name === 'f_FE') return { ...b, values: b.values.map(clean) };
-          if (b.type === 'vector' && forces.has(b.name) && floor) return { ...b, values: settleVector(b.values, (k) => floor[k] ?? 0) };
-          return settleBlock(b);
-        }),
-      };
     }
     if (step.id === 'solution') {
       const equation = typeof step.facts.equationScale === 'number' ? step.facts.equationScale : 0;
       const blocks = step.blocks.map((b): Block => {
         if (b.type === 'vector' && b.name === 'residual') return { ...b, values: settleVector(b.values, ZERO * equation) };
         if (b.type === 'scalar' && b.name === 'max|residual|') return { ...b, value: settle(b.value, ZERO * equation) };
-        return settleBlock(b);
+        return cleanBlock(b);
       });
       return { ...step, blocks };
     }
-    return { ...step, blocks: step.blocks.map((b) => (b.type === 'matrix' && EXACT_MATRICES.has(b.name) ? settleBlock(b, 0) : settleBlock(b))) };
+    return { ...step, blocks: step.blocks.map(cleanBlock) };
   });
 }
 
@@ -411,7 +387,7 @@ function block<T extends Block['type']>(steps: readonly Step[], key: string, nam
 
 /** The solution with the settling applied to its steps, and its own arrays brought to the same numbers (so the tables and the steps agree). */
 export function settleSolution(sol: Solution): Solution {
-  const steps = settleSteps(sol.steps, { scale: sol.scale, size: sol.size, dofs: sol.dofs, floors: sol.forces.map((f) => f.floor) });
+  const steps = settleSteps(sol.steps, { scale: sol.scale, size: sol.size });
   const u = block(steps, 'displacements', 'u', 'vector')?.values ?? sol.u;
   const P = block(steps, 'load-vector', 'P', 'vector')?.values ?? sol.P;
   const K = block(steps, 'assembled', 'K', 'matrix')?.values ?? sol.K;
@@ -429,7 +405,7 @@ export function settleSolution(sol: Solution): Solution {
     const end = frame ? { N: clean(fv[3]), V: clean(0 - fv[4]), M: clean(fv[5]) } : { N: clean(fv[1]), V: 0, M: 0 };
     // (an elongation is the difference of two displacements: what is rounding in it is measured against them, so a bar that carries nothing does not lengthen)
     // (and a bar that carries no force does not lengthen: N = EA·δ/L, so a δ that is rounding goes with an N that is)
-    const bar = f.bar ? { N: end.N, stress: clean(end.N / sol.members[k].A), elongation: end.N === 0 ? 0 : settle(uLocal[1] - uLocal[0], ZERO * Math.max(Math.abs(uLocal[0]), Math.abs(uLocal[1]))) } : null;
+    const bar = f.bar ? { N: end.N, stress: clean(end.N / sol.members[k].A), elongation: end.N === 0 ? 0 : clean(f.bar.elongation) } : null;
     return { ...f, f: fv, uGlobal, uLocal, fixedEnd, start, end, bar };
   });
   // The ends block and the scalars of an end-forces step are made again from the settled vector, so that they are the numbers the table has.
@@ -688,7 +664,7 @@ function deformedOf(sol: Solution, drawing: StiffnessDrawing, toShown: number, f
   return {
     factor,
     shrink,
-    large: sol.warnings.some((w) => w.code === 'large-displacements'),
+    large: sol.warnings.some((w) => w.code === 'large-displacements' || w.code === 'large-rotation' || w.code === 'large-stretch'),
     maxDisplacement: maxDisp * toShown,
     share: factor === null || side === 0 ? null : (factor * maxDisp) / side,
     nodes,

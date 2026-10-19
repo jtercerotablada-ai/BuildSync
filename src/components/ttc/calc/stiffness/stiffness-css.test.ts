@@ -344,9 +344,67 @@ describe('the printed sheet reads', () => {
 });
 
 describe('the room kept for a table not drawn', () => {
-  it('is a box with a hairline, and is not there at all where scripts are off (the tables never come)', () => {
-    expect(bodyOf('.mp-st .mp-st__later')).toMatch(/border:\s*1px dashed/);
-    expect(noComments).toMatch(/@media \(scripting: none\)\s*\{\s*\.mp-st \.mp-st__later\s*\{\s*display:\s*none;/);
+  it('is a quiet box with a rule down one side, not a dashed frame, and it carries the words that say what is coming', () => {
+    expect(bodyOf('.mp-st .mp-st__later')).not.toMatch(/dashed/);
+    expect(bodyOf('.mp-st .mp-st__later')).toMatch(/border-inline-start:\s*3px solid/);
+    expect(bodyOf('.mp-st .mp-st__holds')).toMatch(/font-size:\s*0\.8125rem/);
+  });
+
+  it('where scripts are off gives its room back and drops the promise that the tables are drawn, and so for every control that does nothing without scripts', () => {
+    const block = noComments.match(/@media \(scripting: none\)\s*\{([\s\S]*?)\n\}/)![1];
+    expect(block).toMatch(/\.mp-st \.mp-st__later\s*\{\s*min-height:\s*0 !important;/);
+    for (const hidden of ['.mp-st__when', '.mp-st__bar', '.mp-st__stepbar', '.mp-st__looks', '.mp-st__position--aside']) expect(block, hidden).toContain(hidden);
+    expect(block).toMatch(/display:\s*none/);
+    // (it comes after the rule that shows the bar on a narrow page, or it would lose to it)
+    expect(noComments.lastIndexOf('@media (scripting: none)')).toBeGreaterThan(noComments.lastIndexOf('.mp-st .mp-st__stepbar {'));
+  });
+});
+
+describe('the bar of steps at the foot of a phone does not collapse at large text or a very narrow page', () => {
+  const bar = noComments;
+  it('is as wide as the column, on a tablet as on a phone (the wide layout’s align-items: start made every part as wide as its content)', () => {
+    expect(rulesOf(bar).filter((r) => r.selectors.includes('.mp-st .mp-st__layout')).map((r) => r.body).join('')).toMatch(/align-items:\s*stretch/);
+    expect(rulesOf(bar).filter((r) => r.selectors.includes('.mp-st .mp-st__stepbar')).map((r) => r.body).join('')).toMatch(/align-self:\s*stretch/);
+  });
+
+  it('wraps its row into two by its own width, in rem (so that large text wraps it as a narrow page does): Previous and Next side by side, the menu under them across the width', () => {
+    expect(bodyOf('.mp-st .mp-st__stepbar')).toMatch(/container-type:\s*inline-size/);
+    const query = bar.match(/@container \(max-width:\s*([\d.]+)rem\)\s*\{([\s\S]*?)\n  \}/);
+    expect(query).not.toBeNull();
+    // the width of Previous + a menu of eight rem + Next at the page's smallest type: wider than that stays one row (a 390 px phone is one row at ordinary text, two at 200 %)
+    expect(Number(query![1])).toBeGreaterThanOrEqual(20);
+    expect(Number(query![1])).toBeLessThanOrEqual(22);
+    expect(query![2]).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+    expect(query![2]).toMatch(/\.mp-st__jump\s*\{[^}]*grid-row:\s*2;[^}]*grid-column:\s*1 \/ -1/);
+  });
+
+  it('keeps the card a step lands on clear of a bar of two rows (9 rem), and the 44 px of every control in it', () => {
+    expect(rulesOf(bar).filter((r) => r.selectors.includes('.mp-st .mp-st__card')).map((r) => r.body).join('')).toMatch(/scroll-margin-bottom:\s*9rem/);
+    expect(bar).toMatch(/html:has\(\.mp-st__stepbar\)\s*\{\s*scroll-padding-bottom:\s*9rem/);
+    expect(rulesOf(bar).filter((r) => r.selectors.includes('.mp-st .mp-st__stepbar .mp-app__btn')).map((r) => r.body).join('')).toMatch(/min-height:\s*44px/);
+  });
+
+  it('puts the aside in its own place in the column of cards, not moved down by the wide layout’s top (a relative box is moved by it: it stood on the first card)', () => {
+    expect(rulesOf(bar).filter((r) => r.selectors.includes('.mp-st .mp-st__aside')).map((r) => r.body).join(' ')).toMatch(/position:\s*relative;[^}]*top:\s*auto/);
+  });
+
+  it('shows the way into the card above the bar when it has the focus, so that it covers neither Previous nor Next', () => {
+    expect(rulesOf(bar).filter((r) => r.selectors.includes('.mp-st .mp-st__stepbar .mp-st__skip:focus')).map((r) => r.body).join('')).toMatch(/inset-block-end:\s*calc\(100% \+ 4px\)/);
+  });
+});
+
+describe('the pin is sized to the window', () => {
+  it('is opaque, so that the sentence under it scrolls away behind it where the window has no room for both', () => {
+    expect(bodyOf('.mp-st .mp-st__pin')).toMatch(/background:\s*var\(--mp-paper\)/);
+  });
+
+  it('has one block for the sentence, a grid of its own, so that it can stand in the pin or under it with the same spacing', () => {
+    expect(bodyOf('.mp-st .mp-st__says')).toMatch(/display:\s*grid/);
+  });
+
+  it('has the line that says the drawing is being widened told and not shown (the drawing shows it itself), and in the page before it has anything to say', () => {
+    expect(bodyOf('.mp-st .mp-st__sr')).toMatch(/clip:\s*rect\(0 0 0 0\)/);
+    expect(noComments).not.toMatch(/\.mp-st \.mp-st__widening\s*\{/);
   });
 });
 

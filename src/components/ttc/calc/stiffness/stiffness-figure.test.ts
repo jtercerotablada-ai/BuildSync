@@ -8,6 +8,7 @@ import { stiffnessUi } from '@/lib/calc/stiffness/strings';
 import { TEMPLATE_IDS, type TemplateId } from '@/lib/calc/stiffness/templates';
 import { build, girder, settling, tall } from './fixtures.testlib';
 import { distPointRect, distRectSeg, figureWidth, nodeRadius, rectsNear, segNear, stiffnessLayout, TIE, type Layout, type Looks, type Rect, type Seg } from './layout';
+import { marksOf, type ScanMark } from './figure-scan.testlib';
 import { StiffnessSchematic } from './Schematic';
 import { flaggedNodes } from './text';
 
@@ -193,44 +194,17 @@ interface Labelled {
   box: Layout['placed'][number];
   leader: boolean;
   leaderLine: { x1: number; y1: number; x2: number; y2: number } | null;
-  own: { seg?: Seg; ring?: { cx: number; cy: number; r: number } }[];
-  others: { seg?: Seg; ring?: { cx: number; cy: number; r: number } }[];
+  own: ScanMark;
+  others: ScanMark[];
   isRing: boolean;
 }
 const seg = (t: { x: number; y: number }, u: { x: number; y: number }): Seg => ({ x1: t.x, y1: t.y, x2: u.x, y2: u.y, pad: 0 });
-const ringDistance = (r: Rect, c: { cx: number; cy: number; r: number }): number => {
-  let best = Infinity;
-  for (let k = 0; k < 72; k++) {
-    const a = (k / 72) * 2 * Math.PI;
-    best = Math.min(best, distPointRect(c.cx + c.r * Math.cos(a), c.cy + c.r * Math.sin(a), r));
-  }
-  return best;
-};
-/** Every number of a load, a reaction or a load on a member, with the mark it belongs to and every other mark. */
+/** Every number of a load, a reaction or a load on a member, with the mark it belongs to and every other mark: the INK of a ring is its arc, not the circle it is part of. */
 function labelled(l: Layout): Labelled[] {
-  type M = { id: string; seg?: Seg; ring?: { cx: number; cy: number; r: number }; word: Layout['loads'][number]['arrows'][number]['text'] };
-  const marks: M[] = [];
-  l.loads.forEach((x) => {
-    x.arrows.forEach((a, k) => marks.push({ id: `load${x.node}.${k}`, seg: seg(a.tail, a.tip), word: a.text }));
-    if (x.arc) marks.push({ id: `loadring${x.node}`, ring: { cx: x.arc.cx, cy: x.arc.cy, r: x.arc.r }, word: x.arc.text });
-  });
-  l.reactions.forEach((x) => {
-    x.arrows.forEach((a, k) => marks.push({ id: `react${x.label}.${k}`, seg: seg(a.tail, a.tip), word: a.text }));
-    if (x.arc) marks.push({ id: `reactring${x.label}`, ring: { cx: x.arc.cx, cy: x.arc.cy, r: x.arc.r }, word: x.arc.text });
-  });
-  const out: Labelled[] = [];
-  for (const m of marks) {
-    if (!m.word) continue;
-    out.push({ name: m.id, box: m.word.rect, leader: m.word.leader != null, leaderLine: m.word.leader ?? null, own: [{ seg: m.seg, ring: m.ring }], others: marks.filter((o) => o !== m).map((o) => ({ seg: o.seg, ring: o.ring })), isRing: m.ring !== undefined });
-  }
-  l.memberLoads.forEach((x) => {
-    if (!x.text) return;
-    const own = [...x.arrows.map((a) => ({ seg: seg(a.tail, a.tip) })), ...(x.line ?? []).slice(1).map((p, k) => ({ seg: seg(x.line![k], p) }))];
-    out.push({ name: `member load ${x.label}`, box: x.text.rect, leader: x.text.leader != null, leaderLine: x.text.leader ?? null, own, others: marks.map((o) => ({ seg: o.seg, ring: o.ring })), isRing: false });
-  });
-  return out;
+  const marks = marksOf(l);
+  return marks.filter((m) => m.text).map((m) => ({ name: m.id.replace(' ', ''), box: m.text!.rect, leader: m.text!.leader !== null, leaderLine: m.text!.leader, own: m, others: marks.filter((o) => o !== m), isRing: m.kind === 'ring' }));
 }
-const distTo = (box: Rect, m: { seg?: Seg; ring?: { cx: number; cy: number; r: number } }): number => (m.seg ? distRectSeg(box, m.seg) : ringDistance(box, m.ring!));
+const distTo = (box: Rect, m: ScanMark): number => Math.min(...m.segs.map((q) => distRectSeg(box, q)));
 
 /** A small seeded generator, so that a failure can be reproduced. */
 function rng(seed: number) {
@@ -300,16 +274,15 @@ describe('every number of a load or a reaction stands beside its own mark (withi
     const l = lay(form, width);
     for (const m of labelled(l)) {
       tally.n++;
-      const own = Math.min(...m.own.map((o) => distTo(m.box, o)));
+      const own = distTo(m.box, m.own);
       if (m.leader) {
         tally.leaders++;
         continue;
       }
-      expect(own, `${name} at ${width}px: the number of ${m.name} stands ${own.toFixed(1)} px from it`).toBeLessThanOrEqual(TIE + 0.5);
-      // (the two rings of a node are one inside the other: a ring's number is held to its cap only, as against other rings)
-      const others = m.others.filter((o) => !(m.isRing && o.ring));
-      if (others.length) {
-        const near = Math.min(...others.map((o) => distTo(m.box, o)));
+      expect(own, `${name} at ${width}px: the number of ${m.name} stands ${own.toFixed(1)} px from the ink of it`).toBeLessThanOrEqual(TIE + 0.5);
+      // (a ring is its arc: a number in the opening of a ring is as far from it as the arc's ends are, and the rings of one node count as marks too)
+      if (m.others.length) {
+        const near = Math.min(...m.others.map((o) => distTo(m.box, o)));
         expect(own, `${name} at ${width}px: the number of ${m.name} is ${own.toFixed(1)} px from its own mark and ${near.toFixed(1)} px from another`).toBeLessThanOrEqual(near + 0.75);
       }
     }
@@ -331,7 +304,7 @@ describe('every number of a load or a reaction stands beside its own mark (withi
         if (!m.leader) continue;
         tied++;
         const line = m.leaderLine!;
-        const own = Math.min(...m.own.map((o) => (o.seg ? distPointSeg2(line.x1, line.y1, o.seg) : Math.abs(Math.hypot(line.x1 - o.ring!.cx, line.y1 - o.ring!.cy) - o.ring!.r))));
+        const own = Math.min(...m.own.segs.map((q) => distPointSeg2(line.x1, line.y1, q)));
         expect(own, `${key} ${width}: the hairline of ${m.name} does not start on its mark`).toBeLessThan(1.5);
         expect(distPointRect(line.x2, line.y2, m.box), `${key} ${width}: the hairline of ${m.name} does not end at its number`).toBeLessThan(1);
         expect(Math.hypot(line.x2 - line.x1, line.y2 - line.y1), `${key} ${width}: the hairline of ${m.name} is long`).toBeLessThanOrEqual(46);
@@ -343,7 +316,7 @@ describe('every number of a load or a reaction stands beside its own mark (withi
     const l = lay(addr('upliftPin'));
     const at1 = labelled(l).filter((m) => m.name.endsWith('1.0') || m.name.endsWith('1.1'));
     expect(at1.length).toBeGreaterThan(1);
-    for (const m of at1) expect(Math.min(...m.own.map((o) => distTo(m.box, o))), m.name).toBeLessThanOrEqual(TIE + 0.5);
+    for (const m of at1) expect(distTo(m.box, m.own), m.name).toBeLessThanOrEqual(TIE + 0.5);
   });
 });
 

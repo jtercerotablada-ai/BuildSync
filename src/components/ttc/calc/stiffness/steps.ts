@@ -4,7 +4,7 @@ import type { StiffnessUi } from '@/lib/calc/stiffness/strings';
 import type { Block, MatrixBlock, Mode, ScalarBlock, Step, VectorBlock } from '@/lib/calc/stiffness/types';
 import { formatCell, type NumFormat } from './numfmt';
 import { labelKind, loadsTable, matrixTable, partitionTable, vectorsTable, type Kind, type Quantity, type TableModel, type TableOptions } from './table';
-import { dofName, fill } from './text';
+import { dofName, fill, raised } from './text';
 
 /**
  * ONE STEP OF THE WORKED SOLUTION, as data. For each step the library recorded (types.ts, Step) this file makes:
@@ -256,7 +256,8 @@ function paragraphsOf(step: Step, c: StepContext): string[] {
       const out: string[] = [];
       if (step.facts.recorded === false) out.push(fill(t.solution.tooMany, { free, limit: num(step, 'limit') || TOLERANCES.record }));
       out.push(t.solution.recorded);
-      const residual = num(step, 'residual');
+      // (the largest residual as the table above it prints it: under a billionth of the equations it is rounding, and is zero)
+      const residual = scalarOf(step, 'max|residual|')?.value ?? num(step, 'residual');
       // (a row of a rotation is a moment: a frame says both)
       const unit = frame ? `${calc.force} ${w.words.or} ${calc.moment}` : calc.force;
       out.push(residual === 0 ? t.solution.zero : fill(t.solution.residual, { residual: cell(residual), scale: cell(num(step, 'equationScale')), unit }));
@@ -277,7 +278,7 @@ function paragraphsOf(step: Step, c: StepContext): string[] {
     case 'checks':
       return [
         fill(t.checks.lead, { x: cell(num(step, 'aboutX')), y: cell(num(step, 'aboutY')) }),
-        fill(t.checks.tolerance, { tol: power(TOLERANCES.residual), scale: cell(num(step, 'scale')), unit: calc.force }),
+        fill(t.checks.tolerance, { tol: power(TOLERANCES.residual), scale: cell(num(step, 'scale')), unit: calc.force, work: cell(num(step, 'work')), energy: calc.moment, rounding: TOLERANCES.rounding, allowance: cell(num(step, 'allowance')) }),
         step.facts.allOk === true ? t.checks.balanced : t.checks.unbalanced,
       ];
   }
@@ -294,7 +295,7 @@ export function stepView(step: Step, labels: Map<string, string>, c: StepContext
     stage: step.number,
     label: labels.get(step.key) ?? String(step.number),
     title: titleOf(step, c.w),
-    paragraphs: paragraphsOf(step, c),
+    paragraphs: paragraphsOf(step, c).map(raised),
     formulas: equationsOf(step),
   };
 }
@@ -332,7 +333,7 @@ function valueRow(step: Step, b: ScalarBlock, c: StepContext): ValueRow {
   const gloss = (c.w.names as Record<string, string>)[b.name] ?? b.name;
   // A name that is a word ('pivot') is the gloss's, not a symbol: the value is headed by its formula alone.
   const word = b.name === 'pivot' || b.name === 'max|residual|';
-  return { key: b.tag ? `${b.name}#${b.tag}` : b.name, gloss, symbol: word ? '' : b.name, formula: b.symbolic ?? null, text: formatCell(b.value, c.format), unit: scalarUnit(b.name, c.system, kind) };
+  return { key: b.tag ? `${b.name}#${b.tag}` : b.name, gloss, symbol: word ? '' : b.name, formula: b.symbolic ?? null, text: raised(formatCell(b.value, c.format)), unit: scalarUnit(b.name, c.system, kind) };
 }
 
 /** The column head of a vector in a table of several. */

@@ -290,7 +290,7 @@ describe('each sentence is true in the branch it is written in', () => {
   it('the solution step: recorded, too long to record, and nothing to solve', () => {
     expect(text(tpl('frame-portal'), 'solution')[0]).toContain('put back into the original equations');
     // (the residual has its unit: a force, and for a frame a moment too)
-    expect(text(tpl('frame-portal'), 'solution').join(' ')).toMatch(/The largest residual is (zero to the figures shown|[\d.]+( × 10\^−\d+)? kip or kip·ft, against equations whose terms are as large as [\d,.]+( × 10\^\d+)? kip or kip·ft)/);
+    expect(text(tpl('frame-portal'), 'solution').join(' ')).toMatch(/The largest residual is (zero to the figures shown|[\d.]+( × 10[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)? kip or kip·ft, against equations whose terms are as large as [\d,.]+( × 10[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)? kip or kip·ft)/);
     const big = girder('frame');
     const s = text(big, 'solution')[0];
     expect(s).toContain('30 free DOFs, more than the 12');
@@ -315,7 +315,11 @@ describe('each sentence is true in the branch it is written in', () => {
   it('the checks quote the library’s tolerance, the centre of the structure and the balance', () => {
     const t = text(tpl('truss-two-bar'), 'checks')[0];
     expect(t).toContain('centre of the structure (8, 3)');
-    expect(t).toContain('Each is measured against one tolerance, 1 × 10^−8 of the force scale, 60 kip: the largest of the loads added up, the largest reaction or end force, and the largest sum of the sizes of the terms in one equation.');
+    // one tolerance, each check against its own scale: the force scale is the loads added up (20 + 30 kip), not the sum of the terms of an equation
+    expect(t).toContain('is within its tolerance when it is at most 1 × 10⁻⁸ of that scale plus the rounding of its own terms. The scale is the force scale, 50 kip (the largest of the loads added up, the largest reaction and the largest end force)');
+    expect(t).toContain('the work of the loads and the reactions added up in size, 0.02694 kip·ft, for the energy');
+    expect(t).toMatch(/The rounding allowed is 100 roundings of the arithmetic times the sizes of the terms added up, at most [\d.]+ × 10[⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+ kip here\./);
+    expect(t).not.toContain('^');
     expect(t).toContain('Balanced: every check is within its tolerance.');
     expect(t).not.toMatch(/\bpass(es)?\b/i);
     expect(t).not.toContain('Not balanced');

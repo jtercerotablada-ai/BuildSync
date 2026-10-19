@@ -78,39 +78,46 @@
  * free DOFs; above that only its result is.
  *
  * ── THE ARITHMETIC'S OWN ROUNDING ────────────────────────────────────────────
- * A pivot is judged against ROUNDING, not against the stiffness its DOF started with: a stiff member beside soft ones makes a stable pivot that is a
- * millionth of its starting diagonal (a very large A, a very small I, a very short member), and nothing is wrong with it. The elimination carries,
- * beside every entry, the largest error the arithmetic could have put in it (a running forward-error bound: the rounding of the terms that made the
- * entry, and the errors of the entries it was made from, grown by every multiplier). A pivot is a zero for the arithmetic when that error reaches
- * RESOLVE of the pivot itself; whether the structure is then a mechanism or only too badly scaled to solve is told by the movement it allows
- * (STRAIN, below). Measured on 383 random mechanisms the pivot is never more than a twentieth of its error bound (0.042); on 634 random stable structures
- * never under a million times it (3.9 million). (The bound is a worst case: the error really made is a hundred times smaller or so, so a figure count taken from it is a floor.)
- *   EPSILON   2⁻⁵²   The relative size of one rounding of a double.
- *   ASSEMBLY  8      Units of EPSILON assumed in one entry of a member's matrix K_e (the arithmetic of c, s, EA/L and Tᵀ·k·T) and of each equivalent load.
+ * The engine works in double-double numbers (dd.ts: about 32 significant digits) and prints each number rounded to a double. A structure with a very stiff member beside
+ * soft ones (a rigid link, an inextensible column: a member a million or a trillion times stiffer) is a stiffness matrix whose terms differ by that much, and with 16 digits
+ * the sum keeps a few figures of the soft part or none; with 32 it keeps 16 or more. Beside every entry the elimination carries the largest error the arithmetic could have
+ * put in it (a running forward bound: the rounding of the terms that made the entry, and the errors of the entries it was made from, grown by every multiplier), and a pivot is a
+ * zero for the arithmetic when that error reaches RESOLVE of the pivot itself; whether the structure is then a mechanism or only too badly scaled to solve is told by the
+ * movement it allows (STRAIN, below). How far the answer can be wrong is another matter, and is measured through the inverse of K_FF: what is uncertain in each equation (the
+ * residual the unknowns leave, the rounding of its terms, the errors of the stiffnesses and of the loads it is made of), seen through the inverse, bounds every displacement, and
+ * seen through the stiffnesses that carry it to a support or to the ends of a member, every reaction and end force. A printed number is exactly 0 only when it is no larger than
+ * that: a small value is never 0 for being small, and rounding is never a value. The bound is a worst case; the error really made is far smaller.
+ *   EPSILON      2⁻⁵²    The relative size of one rounding of a double (the numbers a reader sees, and a page's own arithmetic on them).
+ *   EPSILON_DD   2⁻¹⁰⁰   The relative size taken for one rounding of the engine's double-double arithmetic (a little over the 2⁻¹⁰⁴ of one operation).
+ *   ASSEMBLY     8       Units of EPSILON_DD assumed in one entry of a member's matrix K_e (the arithmetic of c, s, EA/L and Tᵀ·k·T), in each result of a product and in each equivalent load.
+ *   ROUNDING     100     Units of EPSILON_DD allowed, besides RESIDUAL of its scale, to a check of step 14 for the rounding of the terms that make it.
  *
  * ── THE TOLERANCES (each written once, used by the engine, the analysis and the copy) ─────────
  *   RESOLVE   0.1    A pivot whose rounding reaches this share of its size is zero for the arithmetic (not one good figure in it): the structure is refused,
- *                    as a 'mechanism' when the movement it allows strains no member, as a 'stiffness-range' otherwise.
- *   WEAK      1e-6   A pivot whose rounding is between this share of it and RESOLVE is a WARNING ('near-mechanism'): solved, but the displacements are
- *                    guaranteed to fewer than six figures. The warning says how many.
+ *                    as a 'mechanism' when a movement it allows strains no member, as a 'stiffness-range' otherwise. The same share, in the results, refuses them:
+ *                    a displacement, a reaction or an end force that could be wrong by this share of the largest of its kind has not one good figure.
+ *   WEAK      1e-6   A solution whose results could be wrong by more than this share of the largest of their kind (a bound on every displacement, reaction and end force:
+ *                    see above) and by less than RESOLVE is a WARNING ('near-mechanism'): solved, but guaranteed to fewer than six figures. The warning says how many.
  *   STRAIN    1e-6   A member whose deformation in the movement of a zero pivot (its elongation over its length, and the turn of each end beyond the turn
  *                    of its chord) is under this share of the movement it takes part in (its largest translation over its length, or its largest turn) is
  *                    not strained by it; so is a member that moves by under this share of the largest movement of all. A mechanism strains no member.
- *   RESIDUAL  1e-8   After the solve every equation is satisfied to this fraction of its own size
- *                    (|rhs| + Σ|K·u|); past it the answer is not trusted ('ill-conditioned'). The
- *                    equilibrium checks of step 14 use the same fraction of the problem's force scale.
- *                    (A safety net: a structure that passes the pivot test is solved to about 1e-15 of
- *                    this, so it is reached only by arithmetic that went wrong, never by a model.)
- *   ZERO      1e-9   The analysis prints as 0 a value under this fraction of the largest of its block
- *                    (its scale for a force, a moment, a displacement): rounding, never −0. A member's end forces are measured against the
- *                    force scale of the whole structure, so a bar that carries nothing is 'no force' and not a tension of 1e-15.
+ *   RESIDUAL  1e-8   After the solve every equation is satisfied to this fraction of its own size (|rhs| + Σ|K·u|, with the rounding of the largest equation of the
+ *                    structure as a floor, so that an equation of which every term is rounding is not measured against itself); past it the answer is not trusted
+ *                    ('ill-conditioned'). The checks of step 14 are held to the same fraction of THEIR OWN scale, each with the rounding allowance of its own terms
+ *                    (ROUNDING × EPSILON_DD × the sum of their sizes): the force scale (the loads added up, the largest reaction, the largest end force) for the sums,
+ *                    the joints and K·u − P − R; that times the size of the structure for the moment; the work of the loads and the reactions added up in size for the
+ *                    energy; the size of its own equation for the residual of the elimination. (A safety net: a structure that passes the pivot test is solved to about
+ *                    1e-30 of this, so it is reached only by arithmetic that went wrong, never by a model.)
+ *   ZERO      1e-9   A sum of step 14 or a residual under this fraction of its scale is printed as 0 in the checks (what is left is rounding, never −0). It is NOT how
+ *                    the other numbers of the steps are settled: those are 0 only when they are no larger than their own error bound (above).
  *   AGREE     1e-12  Two numbers that are the same one are the same to this share of the largest of their kind: the closed form of a bar against
  *                    the product, K against its transpose, a rigid-body basis that is not independent, the eigenvalues of a mechanism.
  *   NEAR      1e-9   Two nodes closer than this fraction of the structure's size are one node typed twice.
  *   SHORT     1e-5   A member shorter than this fraction of the structure's size is refused.
  *   RIGID     1e-6   The share of a null mode that is not a rigid-body motion for it to be called one.
- *   LARGE     0.1    A member whose chord turns by more than this (radians) in the solution is past what small-displacement theory holds
- *                    ('large-displacements'): the result is first order and is no longer a description of the structure.
+ *   LARGE     0.1    A member past what small-displacement theory holds, in any of three ways, in the solution: its chord turns by more than this (radians:
+ *                    'large-displacements'), an end of a frame member turns away from its chord by more than this ('large-rotation'), or it stretches or shortens
+ *                    by more than this fraction of its length ('large-stretch'). The result is first order and is no longer a description of the structure.
  *   LIMIT     1e30   Every input number must be finite and at most this in size; sections in [1e-30, 1e30].
  */
 
@@ -126,6 +133,8 @@ export const RECORD_LIMIT = 12;
 
 export const EPSILON = 2.220446049250313e-16;
 export const ASSEMBLY = 8;
+export const EPSILON_DD = 2 ** -100;
+export const ROUNDING = 100;
 export const RESOLVE = 0.1;
 export const WEAK = 1e-6;
 export const STRAIN = 1e-6;
@@ -250,16 +259,20 @@ export interface StiffnessModel {
  *                       line…). 'rigid-body': the whole structure can translate or        over the pivot (absent when the pivot is not above zero);
  *                       turn (restraints that do not hold it: three roller reactions      count = independent motions (eigenvalues of the unit-diagonal
  *                       on parallel lines…).                                              K_FF under AGREE)
- *  'stiffness-range'    a pivot that rounding cannot tell from zero, and a movement     dof, node, nodes = [node]; ratio as above. A structure whose
- *                       that does strain a member (to STRAIN): not a mechanism as far    stiffnesses differ so much (a very large A or I beside ordinary
- *                       as the arithmetic can find, but it cannot say how far the        members, or members almost in line, or very short) that its
- *                       softest movement goes. (The copy does not swear it is not one.)  softest movement is lost in the rounding of the rest.
+ *  'stiffness-range'    a pivot that rounding cannot tell from zero, and no movement   dof, node, nodes = [node]; ratio as above (or the share of the largest
+ *                       that strains no member (to STRAIN) can be found in the null    result that could be wrong, when it is the results that have no
+ *                       space of the matrix: the structure is stable as far as the     good figure). A structure whose stiffnesses differ so much (a very
+ *                       movements can be found, and its softest movement is lost in    large area or inertia beside ordinary members, members almost in
+ *                       the rounding of the rest, even in 32 digits. Or: the results   line, or very short) that even the 32 digits of the arithmetic leave
+ *                       carry a bound of RESOLVE of the largest of their kind or more. no figure of the answer. Not a mechanism: a movement that strains
+ *                       no member would have been found.
  *  'ill-conditioned'    the answer does not satisfy the equations to the figures      residual (relative, the largest departure); limit = RESIDUAL
  *                       printed: the solved equations leave a residual above RESIDUAL
  *                       of their own size, or a check of step 14 fails by more than
- *                       RESIDUAL of its scale (a safety net: a structure that is stable
- *                       by the pivots is solved to about 10⁻¹⁰ of its size, so this is
- *                       reached by arithmetic that went wrong, never by a model).
+ *                       RESIDUAL of its scale and its allowance (a safety net: a
+ *                       structure that is stable by the pivots is solved to about
+ *                       1e-30 of its size, so this is reached by arithmetic that went
+ *                       wrong, never by a model).
  *  'size'               a number in the results is not finite or is past what a double holds.
  *  'stopped'            the arithmetic threw (never expected).
  */
@@ -321,15 +334,18 @@ export interface Issue {
  *  'member-loads-ignored'  truss mode with member loads in the model (count): a bar has loads at its nodes only; they are not used.
  *  'settlement-ignored'    a prescribed displacement typed on a DOF that is not restrained (dofs = the DOF numbers): it has no effect.
  *  'empty-support'         a support that restrains nothing (nodes = the labels).
- *  'near-mechanism'        solved, but one pivot (dofs = [its DOF number]) is guaranteed to fewer than six figures: the rounding the arithmetic could have put in it is
- *                          `ratio` of it, over WEAK = 1e-6 and under RESOLVE = 0.1; `count` = the figures the displacements are guaranteed to (⌊−log10 ratio⌋, from 1 to 5).
- *                          The cause is a large range of stiffness (a very large A or I beside ordinary members, a very short member) or members almost in line:
- *                          the structure is NOT called a mechanism.
- *  'large-displacements'   solved to first order, but the chord of a member turns by more than LARGE = 0.1 rad in the solution (ratio = the largest turn in radians;
- *                          count = that member's label; nodes = its two nodes): small-displacement theory no longer describes the structure, and the numbers are those of
- *                          the theory, not of the structure.
+ *  'near-mechanism'        solved, but the results are guaranteed to fewer than six figures: a bound on the error of every displacement, reaction and end force, each against the largest of
+ *                          its kind, reaches `ratio` of it (over WEAK = 1e-6 and under RESOLVE = 0.1); dofs = [the DOF of the result with the largest bound]; `count` = the figures the
+ *                          results are guaranteed to (⌊−log10 ratio⌋, from 1 to 5). The cause is a large range of stiffness (a very large A or I beside ordinary members, a very short
+ *                          member) or members almost in line: the structure is NOT called a mechanism.
+ *  'large-displacements'   solved to first order, but the chord of a member turns by more than LARGE = 0.1 rad in the solution (ratio = the largest turn in radians; count = that
+ *                          member's label; nodes = its two nodes): small-displacement theory no longer describes the structure, and the numbers are those of the theory, not of the structure.
+ *  'large-rotation'        the same, for an END of a frame member that turns away from its chord by more than LARGE rad (ratio = the largest such turn; count = the member; nodes = its two nodes):
+ *                          a beam that bends so much that its ends have left the shape the theory assumes, whatever its chord does.
+ *  'large-stretch'         the same, for a member that stretches or shortens by more than LARGE of its length (ratio = the largest strain, as a fraction of the length; count = the member;
+ *                          nodes = its two nodes).
  */
-export type WarningCode = 'no-load' | 'member-loads-ignored' | 'settlement-ignored' | 'empty-support' | 'near-mechanism' | 'large-displacements';
+export type WarningCode = 'no-load' | 'member-loads-ignored' | 'settlement-ignored' | 'empty-support' | 'near-mechanism' | 'large-displacements' | 'large-rotation' | 'large-stretch';
 export interface Warning {
   code: WarningCode;
   count?: number;
@@ -453,7 +469,7 @@ export interface SolvedMember {
  *  end-forces         facts member
  *                     blocks vector:u_e | vector:u_local | vector:k·u_local | [frame, loaded member: vector:f_FE] | vector:f
  *                            | frame: matrix:ends (rows N, V, M; columns i, j) | truss: scalar:N, scalar:σ (N/A), scalar:δ (u_j − u_i)
- *  checks             facts scale, size, aboutX, aboutY, allOk
+ *  checks             facts scale (the force scale), size, work (the work of the loads and reactions, in size), allowance (the largest rounding allowance of a force check), aboutX, aboutY, allOk
  *                     blocks scalar:ΣFx, ΣFy, ΣM | vector:joint | scalar:U, W | vector:K·u − P − R   (the Check records are in `Solution.checks`)
  */
 export type StepId =
@@ -588,9 +604,9 @@ export interface MemberForces {
   /** Truss mode: the axial force N (tension +), the stress N/A (F/L²) and the elongation N·L/(E·A) (L). Null in frame mode. */
   bar: { N: number; stress: number; elongation: number } | null;
   /**
-   * What rounding could have put into each component of `f` (same order and units): 8 × the machine epsilon × (the terms k·u_local added up in it + the
-   * fixed-end force). A component no larger than this is a rounding and is printed as 0; one larger is a force, however small it is beside the rest of the
-   * structure (a member a million times stiffer than another carries forces that are small only beside its own terms).
+   * The largest error the arithmetic could have put into each component of `f` (same order and units): the rounding of the terms k·u_local added up in it and of the
+   * fixed-end force, and the error of the displacements they are made of. A component no larger than this is a rounding and is already 0 in `f`; one larger is a force,
+   * however small it is beside the rest of the structure (a member a million times stiffer than another carries forces that are small only beside its own terms).
    */
   floor: number[];
 }
@@ -608,16 +624,17 @@ export interface ReactionEntry {
 export type CheckId = 'sum-fx' | 'sum-fy' | 'sum-moment' | 'joints' | 'energy' | 'system' | 'solve';
 
 /**
- * One check of step 14. `value` is the quantity that must be zero (a sum of loads and reactions, the largest joint imbalance, the
- * difference of the two energies, the largest of K·u − P − R, the largest residual of the reduced equations); `scale` is what rounding is
- * measured against (a force scale; for the moment about a point, the force scale times the structure's size; for the energy, the sizes of the
- * terms of the two sums added up: ½Σ|u·K·u| + ½Σ|u·P| + ½Σ|u_R·R|);
- * `ok` is |value| ≤ RESIDUAL × scale. With a scale of 0 (nothing loaded, nothing moves) the value is 0 and ok.
+ * One check of step 14. `value` is the quantity that must be zero (a sum of loads and reactions, the largest joint imbalance, the difference of the two energies, the largest of
+ * K·u − P − R, the largest residual of the reduced equations); `scale` is what it is measured against (the force scale of the solution for a sum of forces, the joints and K·u − P − R;
+ * that times the size of the structure for the moment; the work of the loads and the reactions, ½Σ|u·P| + ½Σ|u_R·R|, for the energy; the size of its own equation for the residual of
+ * the elimination); `allowance` is what the rounding of the terms of the check could be (ROUNDING × EPSILON_DD × the sum of their sizes; 0 for the residual, which has its own floor);
+ * `ok` is |value| ≤ RESIDUAL × scale + allowance. With a scale of 0 (nothing loaded, nothing moves) the value is 0 and ok.
  */
 export interface Check {
   id: CheckId;
   value: number;
   scale: number;
+  allowance: number;
   ok: boolean;
 }
 
@@ -634,6 +651,13 @@ export interface Solution {
   restrained: number[];
   /** The results, the very numbers of the steps: u (one entry per DOF), P (the load vector), R (the reactions), the member forces. */
   u: number[];
+  /** The largest error the arithmetic could have put into each displacement (one entry per DOF; 0 where a displacement is prescribed). */
+  uError: number[];
+  /**
+   * The largest of the bounds on the error of the printed results (displacements, reactions, end forces), each against the largest of its kind (a rotation and a moment over
+   * the size of the structure): the `ratio` of the warning 'near-mechanism'. 0 when the arithmetic leaves nothing to say.
+   */
+  accuracy: number;
   P: number[];
   K: number[][];
   reactions: ReactionEntry[];
@@ -641,8 +665,8 @@ export interface Solution {
   checks: Check[];
   /**
    * The size of the structure (diagonal of the box around the nodes), the point the moments are taken about (its centre) and the force scale:
-   * the loads added up (every |load| and member load, a moment over the size), or the largest reaction or end force, or — where larger — the largest sum of
-   * the sizes of the terms of an equation, Σ|K·u| + |P| at a DOF (a moment over the size): what rounding is measured against.
+   * the loads added up (every |load| and member load, a moment over the size), or the largest reaction or end force (a moment over the size), whichever is larger.
+   * It is what a force of the solution is measured against. (It is not inflated by the terms that rounding is measured against: each check has its own allowance.)
    */
   size: number;
   about: { x: number; y: number };

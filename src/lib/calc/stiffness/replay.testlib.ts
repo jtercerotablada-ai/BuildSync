@@ -305,7 +305,8 @@ export function replay(sol: Solution, model: StiffnessModel, options: { settled?
       let s = aug[k][nF];
       for (let j = k + 1; j < nF; j++) s -= aug[k][j] * uF[j];
       uF[k] = s / aug[k][k];
-      compare(key, 'unknown', [Number(get(key).facts.value)], [uF[k]]);
+      // (an unknown that is rounding, a movement that nothing causes, is 0 in the engine and a hair in the replay: against the largest unknown)
+      compare(key, 'unknown', [Number(get(key).facts.value)], [uF[k]], Math.max(...vec('solution', 'u_F').values.map(Math.abs)));
       compare(key, 'known unknowns', vec(key, 'u', `unknown#${k + 1}`).values, uF.slice(k));
       compare(key, 'pivot', [sca(key, 'pivot', `unknown#${k + 1}`)], [aug[k][k]]);
     }
@@ -315,12 +316,13 @@ export function replay(sol: Solution, model: StiffnessModel, options: { settled?
     // Not recorded: the printed solution must at least satisfy the equations (below).
   }
   const residual = matvec(KFF, uF).map((v, k) => v - rhs[k]);
+  // (the engine works in 32 digits, so its residual is the rounding of 32 digits and the replay's, in doubles, is the rounding of 16: they are compared against the size of the equations)
+  const eqScale = Math.max(1e-300, ...rhs.map(Math.abs), ...KFF.flat().map(Math.abs).map((v) => v * Math.max(0, ...uF.map(Math.abs))));
   if (!options.settled) {
-    compare('solution', 'residual', vec('solution', 'residual').values, residual);
-    compare('solution', 'max|residual|', [sca('solution', 'max|residual|')], [Math.max(0, ...residual.map(Math.abs))]);
+    compare('solution', 'residual', vec('solution', 'residual').values, residual, eqScale);
+    compare('solution', 'max|residual|', [sca('solution', 'max|residual|')], [Math.max(0, ...residual.map(Math.abs))], eqScale);
   }
   // the equations are satisfied to rounding, whatever was recorded
-  const eqScale = Math.max(1e-300, ...rhs.map(Math.abs), ...KFF.flat().map(Math.abs).map((v) => v * Math.max(0, ...uF.map(Math.abs))));
   compare('solution', 'the printed u_F satisfies K_FF u_F = rhs', residual, residual.map(() => 0), eqScale);
 
   /* Stages 11 and 12. */
@@ -338,33 +340,43 @@ export function replay(sol: Solution, model: StiffnessModel, options: { settled?
 
   /* Stage 13: the member end forces. */
   const f: number[][] = [];
+  // (a member that moves as a rigid body takes no force: its k·u_local is a sum of terms that cancel, and the replay in doubles and the engine in 32 digits both leave only rounding of it;
+  // they are compared against the force scale of the structure, a moment against that times its size, and the displacements against the largest displacement)
+  const forceScale13 = Number(get('checks').facts.scale) * Math.max(1, Number(get('checks').facts.size));
+  const moveScale13 = Math.max(1e-300, ...u.map(Math.abs));
   for (let k = 0; k < members; k++) {
     const key = `end-forces#${k + 1}`;
     const ue = codeOf(k).map((d) => u[d - 1]);
     const ul = matvec(TMat[k], ue);
     const fk = matvec(kMat[k], ul);
-    compare(key, 'u_e', vec(key, 'u_e').values, ue);
-    compare(key, 'u_local = T u_e', vec(key, 'u_local').values, ul);
-    compare(key, 'k u_local', vec(key, 'k·u_local').values, fk);
+    compare(key, 'u_e', vec(key, 'u_e').values, ue, moveScale13);
+    compare(key, 'u_local = T u_e', vec(key, 'u_local').values, ul, moveScale13);
+    compare(key, 'k u_local', vec(key, 'k·u_local').values, fk, forceScale13);
     let fv = fk;
     if (frame && has(`member-loads#${k + 1}`)) {
       const fe = vec(`member-loads#${k + 1}`, 'f_FE', 'total').values;
       compare(key, 'f_FE', vec(key, 'f_FE').values, fe);
       fv = fk.map((v, q) => v + fe[q]);
     }
-    compare(key, 'f', vec(key, 'f').values, fv);
+    compare(key, 'f', vec(key, 'f').values, fv, forceScale13);
     f.push(fv);
     if (frame) {
       const ends = mat(key, 'ends').values;
-      compare(key, 'N, V, M at the ends', ends, [
-        [0 - fv[0], fv[3]],
-        [fv[1], 0 - fv[4]],
-        [0 - fv[2], fv[5]],
-      ]);
+      compare(
+        key,
+        'N, V, M at the ends',
+        ends,
+        [
+          [0 - fv[0], fv[3]],
+          [fv[1], 0 - fv[4]],
+          [0 - fv[2], fv[5]],
+        ],
+        forceScale13,
+      );
     } else {
-      compare(key, 'N', [sca(key, 'N')], [fv[1]]);
-      compare(key, 'σ = N/A', [sca(key, 'σ')], [fv[1] / sections[k][1]]);
-      compare(key, 'δ = u_j − u_i', [sca(key, 'δ')], [ul[1] - ul[0]]);
+      compare(key, 'N', [sca(key, 'N')], [fv[1]], forceScale13);
+      compare(key, 'σ = N/A', [sca(key, 'σ')], [fv[1] / sections[k][1]], forceScale13 / sections[k][1]);
+      compare(key, 'δ = u_j − u_i', [sca(key, 'δ')], [ul[1] - ul[0]], moveScale13);
       // (N L/EA is worked out another way: against the size of the displacements, which is what its rounding is)
       compare(key, 'δ = N L/EA', [sca(key, 'δ')], [(fv[1] * geom[k].L) / geom[k].EA], Math.max(Math.abs(ul[0]), Math.abs(ul[1])));
     }
@@ -383,13 +395,17 @@ export function replay(sol: Solution, model: StiffnessModel, options: { settled?
       codeOf(k).forEach((d, q) => (onJoint[d - 1] += fg[q]));
     }
     const joint = Pnodal.map((v, d) => v + Rfull[d] - onJoint[d]);
-    compare(key, 'joint', vec(key, 'joint').values, joint);
+    // (a check is what is left of a sum of large terms: the replay, in doubles, leaves 16 digits of them and the engine, in 32, leaves 32: they agree to the force scale)
+    const forceScale = Number(get(key).facts.scale);
+    compare(key, 'joint', vec(key, 'joint').values, joint, forceScale);
     const Ku = matvec(K, u);
-    compare(key, 'K u − P − R', vec(key, 'K·u − P − R').values, Ku.map((v, d) => v - P[d] - Rfull[d]));
+    compare(key, 'K u − P − R', vec(key, 'K·u − P − R').values, Ku.map((v, d) => v - P[d] - Rfull[d]), forceScale);
     const U = 0.5 * u.reduce((s, v, d) => s + v * Ku[d], 0);
     const W = 0.5 * u.reduce((s, v, d) => s + v * P[d], 0) + 0.5 * restrained.reduce((s, d, k) => s + u[d - 1] * R[k], 0);
-    compare(key, 'U', [sca(key, 'U')], [U]);
-    compare(key, 'W', [sca(key, 'W')], [W]);
+    // (the energy and the work are sums of terms that may nearly cancel: they are compared against the work of the loads and the reactions, added up in size)
+    const work = Number(get(key).facts.work);
+    compare(key, 'U', [sca(key, 'U')], [U], work);
+    compare(key, 'W', [sca(key, 'W')], [W], work);
     // the sums, from the loads' own definitions
     let sx = 0;
     let sy = 0;

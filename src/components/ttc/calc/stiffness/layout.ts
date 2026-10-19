@@ -1,6 +1,6 @@
 import { formatNumber } from '@/lib/calc/format';
 import type { DrawingMember, StiffnessDrawing, SupportSymbol } from '@/lib/calc/stiffness/analysis';
-import { signed } from './text';
+import { drawFloor, FACTOR_CAP, loadSums, PRINT_FLOOR, signed, type NodeSum } from './text';
 
 /**
  * THE STRUCTURE DRAWING, RECKONED. Where every line, symbol, arrow and word of the drawing goes, in pixels - with no React:
@@ -20,14 +20,24 @@ import { signed } from './text';
  * each component, one ring, and `summed` names the nodes where that was done.
  *
  * AN ARROW SHOWS THE DIRECTION OF A FORCE. It stands on the side of the node (or of the support) that is free of members and of the symbol:
- * with its head on the node when it points at it, and with its tail on the node when it points away. Lengths are NOT to scale (two sizes
- * only hint at which is the larger); the number beside it is the size.
+ * with its head on the node when it points at it, and with its tail on the node when it points away; it starts beyond the box of the node's
+ * own support, on whichever side it stands, and never runs through it. Lengths are NOT to scale (two sizes only hint at which is the
+ * larger); the number beside it is the size. A moment is a RING round the node, wide enough to clear the support's box, opening towards the
+ * arrows of its node (they pass through the opening and cross no ring; the opening is widened where an arrow's head would touch the ring's
+ * end) and carrying its number on the side most open; a node with a ring for a load and one for a reaction opens the outer one on the open
+ * side, so that the number of the inner one stands in its opening. A force or a moment that is only rounding (under the print floor, or a
+ * trillionth of the largest of its kind) is not drawn: no arrow carries a 0.
  *
  * THE WORDS ARE KEPT CLEAR AND TIED TO THEIR MARK. Every number written on the drawing - a load, a reaction, the number of a member, the
  * DOF numbers of a node - is put where it touches no line, no node, no support, no arrow and no other word. A load's or reaction's number
- * sits within `TIE` pixels of its own arrow's far end (or of the opening of its ring), the smaller text (10, 9, 8 px) is tried before it is
- * moved further, and a number that can only go further is joined to its mark by a hairline (`leader`); none of that fitting, it is left
- * off and counted. The words that are the visitor's to ask for (member numbers, DOF numbers) are tried at 11 px and then smaller (one
+ * sits within `TIE` pixels of the INK of its own mark (the arrow; the arc of a ring, not the circle it is part of), with no other mark
+ * nearer, at any of several places along it; the smaller text (10, 9, 8 px) is tried before it is moved further, and a number that can
+ * only go further is joined to its mark by a hairline (`leader`) that starts on the mark's ink and crosses no mark, no word and no badge
+ * (where there is no way across nothing, across a member or the deformed shape - the lines of the structure itself - and never across
+ * more); none of that fitting, it is left off and counted.
+ *
+ * NOTHING LEAVES THE BOX. A drawing whose marks run beyond its box (a support above its node with its reaction and the number beside it, on
+ * a phone) is made again with a margin that holds them, on that side only. The words that are the visitor's to ask for (member numbers, DOF numbers) are tried at 11 px and then smaller (one
  * size for the whole drawing, the largest at which every one finds a clear place); only when even 8 px leaves some without a place are the
  * lightest left off, and the count is stated (`thinned`): they are in the tables, and the switch "Show every word" draws the structure wide
  * enough for all of them. Nothing is ever drawn on a line "because there was no room".
@@ -55,8 +65,16 @@ const BADGE_BOX = 2 * BADGE_R + 3;
 export const SIZES = [11, 10, 9, 8] as const;
 const BASE_SIZE = 11;
 const EVERY_MAX = 6000;
-/** How far, at most, a load's or a reaction's number sits from the end of its own arrow (px) before it is moved by a leader. */
+/** How far, at most, a load's or a reaction's number sits from the ink of its own mark (px) before it is moved by a leader. */
 export const TIE = 12;
+/** The least a support symbol is drawn at beside its full size: where supports stand closer than that allows, they overlap (and the figure says so). */
+const MIN_SYMBOL = 0.4;
+/** How much of a hairline, from the mark it starts on, is not judged (px): it starts beside its own mark. */
+export const HAIRLINE_FREE = 3;
+/** Half the opening of a moment's ring (degrees): the ring is the rest of the circle. */
+const RING_HALF = 45;
+/** The most a ring's opening is widened to (half of it, degrees) to let the arrows of its node through. */
+const RING_HALF_MAX = 75;
 
 export type Point = { x: number; y: number };
 export type Rect = { x0: number; y0: number; x1: number; y1: number };
@@ -156,6 +174,8 @@ export interface ArcShape {
   path: string;
   /** The arrow head at the end of the arc. */
   head: string;
+  /** The points the ring is drawn through, from its start to the head. */
+  pts: Point[];
   text: LabelBox | null;
 }
 export interface MemberLoadShape {
@@ -213,11 +233,21 @@ export interface Layout {
   memberLoads: MemberLoadShape[];
   reactions: { label: number; arrows: ArrowShape[]; arc: ArcShape | null }[];
   deformed: DeformedShape | null;
-  /** The exaggeration of the deformed shape; null when there is none (or it is off). */
+  /** The exaggeration the deformed shape is drawn at (never more than FACTOR_CAP); null when there is none (or it is off, or its movement is too small to draw). */
   factor: number | null;
+  /** The analysis asked for more magnification than the cap allows: the shape is drawn at the cap. */
+  capped: boolean;
+  /** The deformed shape was asked for, and the biggest movement is under the print floor: nothing is drawn of it. */
+  tiny: boolean;
   legend: LegendKey[];
   /** The nodes (labels) where several loads are drawn as their sum. */
   summed: number[];
+  /** The nodes (labels) whose loads cancel one another: nothing is drawn there. */
+  cancelled: number[];
+  /** The nodes (labels) drawn as dots, though numbers were asked for, because they stand too close for a number. */
+  dots: number[];
+  /** Two support symbols overlap, though drawn as small as they go: supports stand closer than a symbol can be drawn. */
+  supportsOverlap: boolean;
   /** How many nodes are drawn as dots, though numbers were asked for, because they stand too close for a number. */
   dotted: number;
   /** How many words that were asked for have no place on the drawing. */
@@ -318,6 +348,15 @@ const unit = (x: number, y: number): Point => {
   const l = Math.hypot(x, y);
   return l === 0 ? { x: 0, y: 0 } : { x: x / l, y: y / l };
 };
+/** How far along the direction `u`, from a point p of a rectangle, the ray leaves it (0 when p is not in it). */
+function exitDist(r: Rect, p: Point, u: Point): number {
+  let t = Infinity;
+  if (u.x > 1e-9) t = Math.min(t, (r.x1 - p.x) / u.x);
+  else if (u.x < -1e-9) t = Math.min(t, (r.x0 - p.x) / u.x);
+  if (u.y > 1e-9) t = Math.min(t, (r.y1 - p.y) / u.y);
+  else if (u.y < -1e-9) t = Math.min(t, (r.y0 - p.y) / u.y);
+  return Number.isFinite(t) ? Math.max(0, t) : 0;
+}
 
 type Dir = 'r' | 'l' | 'u' | 'd' | 'ur' | 'ul' | 'dr' | 'dl';
 const DIRS: { dir: Dir; v: Point }[] = [
@@ -332,9 +371,14 @@ const DIRS: { dir: Dir; v: Point }[] = [
 ];
 /** The distances a number tries from the end of its mark: within `TIE`, and then - with a hairline - further. */
 const GAPS_TIED = [2, 4, 6, 9, 12];
-const GAPS_LEADER = [16, 22, 30, 40];
+const GAPS_LEADER = [14, 18, 24, 32, 42];
 const GAPS_OPTIONAL = [2, 5, 9, 15, 23, 33];
 const GAPS_BADGE = [3, 7, 12, 19, 28, 40];
+/** The same round a ring: how far outside its line a number stands, tied (within TIE) and then with a hairline. */
+const GAPS_RING = [2, 3.5, 5, 7, 9, 12];
+const GAPS_RING_LEADER = [14, 18, 24, 32, 42];
+/** The angles (from the side a ring's number prefers) a number is tried at round the ring. */
+const RING_TURNS = [0, 20, -20, 40, -40, 60, -60, 80, -80, 100, -100, 120, -120, 140, -140, 160, -160, 180];
 /** A rectangle of w x h standing off a point, in a direction, by a gap. */
 function spot(dir: Dir, p: Point, g: number, w: number, h: number): Rect {
   const d = g * 0.7;
@@ -371,47 +415,60 @@ const CELL = 48;
 const REACH = 8000;
 const cellKey = (cx: number, cy: number) => cx * 4099 + cy;
 
-/** The lines and boxes a word must stay clear of, in a grid, so that a word is tested against what is near it and not against the whole drawing. */
+/**
+ * The lines and boxes a word must stay clear of, in a grid, so that a word is tested against what is near it and not against the whole
+ * drawing. Things may be added at any time (a hairline, once its word is placed, is a line the next words keep clear of): each is indexed
+ * as it is added.
+ */
 class Obstacles {
   readonly segs: Seg[] = [];
   readonly boxes: Rect[] = [];
+  private items: { s: Seg | null; r: Rect | null }[] = [];
   private cells = new Map<number, number[]>();
-  private stamp: Int32Array = new Int32Array(0);
+  private stamp: Int32Array = new Int32Array(256);
   private round = 0;
-  private built = false;
   addSeg(s: Seg) {
     this.segs.push(s);
+    this.index({ s, r: null }, Math.min(s.x1, s.x2) - s.pad, Math.min(s.y1, s.y2) - s.pad, Math.max(s.x1, s.x2) + s.pad, Math.max(s.y1, s.y2) + s.pad);
   }
   addBox(r: Rect) {
     this.boxes.push(r);
+    this.index({ s: null, r }, r.x0, r.y0, r.x1, r.y1);
   }
-  /** Indexes everything added. Items are 0..segs.length-1 for lines, then boxes. */
+  /** A hairline: a line the words after it keep clear of, and that is not one of `segs` (the lines a word is held to; its own word ends on it). */
+  addHairline(s: Seg) {
+    this.index({ s, r: null }, Math.min(s.x1, s.x2) - s.pad, Math.min(s.y1, s.y2) - s.pad, Math.max(s.x1, s.x2) + s.pad, Math.max(s.y1, s.y2) + s.pad);
+  }
+  /** Kept for the callers that index everything at once: each item is indexed as it is added, so there is nothing left to do. */
   build() {
+    /* indexed as added */
+  }
+  private index(item: { s: Seg | null; r: Rect | null }, ax0: number, ay0: number, ax1: number, ay1: number) {
     // Whatever an item's coordinates, the cells it is put in are those of the page's reach: an item outside it is put at the edge, and a
     // list can never be longer than the drawing is large.
     const reach = (v: number) => Math.max(-REACH, Math.min(REACH, Number.isFinite(v) ? v : 0));
-    const put = (id: number, ax0: number, ay0: number, ax1: number, ay1: number) => {
-      const x0 = reach(ax0);
-      const y0 = reach(ay0);
-      const x1 = reach(ax1);
-      const y1 = reach(ay1);
-      for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
-        for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
-          const k = cellKey(cx, cy);
-          const list = this.cells.get(k);
-          if (list) list.push(id);
-          else this.cells.set(k, [id]);
-        }
+    const id = this.items.length;
+    this.items.push(item);
+    if (id >= this.stamp.length) {
+      const grown = new Int32Array(this.stamp.length * 2);
+      grown.set(this.stamp);
+      this.stamp = grown;
+    }
+    const x0 = reach(ax0);
+    const y0 = reach(ay0);
+    const x1 = reach(ax1);
+    const y1 = reach(ay1);
+    for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
+      for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
+        const k = cellKey(cx, cy);
+        const list = this.cells.get(k);
+        if (list) list.push(id);
+        else this.cells.set(k, [id]);
       }
-    };
-    this.segs.forEach((s, id) => put(id, Math.min(s.x1, s.x2) - s.pad, Math.min(s.y1, s.y2) - s.pad, Math.max(s.x1, s.x2) + s.pad, Math.max(s.y1, s.y2) + s.pad));
-    this.boxes.forEach((b, k) => put(this.segs.length + k, b.x0, b.y0, b.x1, b.y1));
-    this.stamp = new Int32Array(this.segs.length + this.boxes.length);
-    this.built = true;
+    }
   }
   /** How many of them the rectangle touches, counting up to `ceiling`. */
   touches(rect: Rect, ceiling: number): number {
-    if (!this.built) this.build();
     this.round++;
     const margin = 4 + FROM_LINE;
     let hits = 0;
@@ -424,12 +481,37 @@ class Obstacles {
         for (const id of list) {
           if (this.stamp[id] === this.round) continue;
           this.stamp[id] = this.round;
-          const near = id < this.segs.length ? segNear(this.segs[id], rect, FROM_LINE) : rectsNear(rect, this.boxes[id - this.segs.length], FROM_BOX);
+          const it = this.items[id];
+          const near = it.s ? segNear(it.s, rect, FROM_LINE) : rectsNear(rect, it.r!, FROM_BOX);
           if (near && ++hits >= ceiling) return hits;
         }
       }
     }
     return hits;
+  }
+  /**
+   * Whether a hairline passes within `clear` of a line or a box that is not one of `own` (what its own mark is made of). A line that is
+   * nearer to it than its own width and `clear` is crossed by it.
+   */
+  crosses(h: Seg, clear: number, own: ReadonlySet<object>): boolean {
+    this.round++;
+    const lim = clear + 4;
+    if (!(Math.abs(h.x1) <= REACH && Math.abs(h.x2) <= REACH && Math.abs(h.y1) <= REACH && Math.abs(h.y2) <= REACH)) return true;
+    for (let cx = Math.floor((Math.min(h.x1, h.x2) - lim) / CELL); cx <= Math.floor((Math.max(h.x1, h.x2) + lim) / CELL); cx++) {
+      for (let cy = Math.floor((Math.min(h.y1, h.y2) - lim) / CELL); cy <= Math.floor((Math.max(h.y1, h.y2) + lim) / CELL); cy++) {
+        const list = this.cells.get(cellKey(cx, cy));
+        if (!list) continue;
+        for (const id of list) {
+          if (this.stamp[id] === this.round) continue;
+          this.stamp[id] = this.round;
+          const it = this.items[id];
+          const item = it.s ?? it.r!;
+          if (own.has(item)) continue;
+          if (it.s ? distSegSeg(h, it.s) < it.s.pad + clear : segNear(h, it.r!, clear)) return true;
+        }
+      }
+    }
+    return false;
   }
 }
 
@@ -447,6 +529,23 @@ class PlacedIndex {
         else this.cells.set(k, [entry]);
       }
     }
+  }
+  /** Whether a hairline passes within `clear` of a word. */
+  crosses(h: Seg, clear: number): boolean {
+    this.round++;
+    const lim = clear + h.pad + 1;
+    for (let cx = Math.floor((Math.min(h.x1, h.x2) - lim) / CELL); cx <= Math.floor((Math.max(h.x1, h.x2) + lim) / CELL); cx++) {
+      for (let cy = Math.floor((Math.min(h.y1, h.y2) - lim) / CELL); cy <= Math.floor((Math.max(h.y1, h.y2) + lim) / CELL); cy++) {
+        const list = this.cells.get(cellKey(cx, cy));
+        if (!list) continue;
+        for (const e of list) {
+          if (e.stamp === this.round) continue;
+          e.stamp = this.round;
+          if (segNear(h, e.r, clear)) return true;
+        }
+      }
+    }
+    return false;
   }
   /** How many words are within `pad` of the rectangle, counting up to `ceiling`. */
   near(rect: Rect, pad: number, ceiling: number): number {
@@ -478,6 +577,32 @@ interface Extent {
   x1: number;
   y1: number;
 }
+/**
+ * The deformed shape as the drawing draws it: the analysis's, brought down to the cap (FACTOR_CAP) when its factor asks for more magnification, and
+ * null when the biggest movement is under the print floor (rounding left by loads that cancel: nothing is drawn of it). The analysis draws every
+ * point at `factor` times its movement from the member's straight line; the shape at another factor is the same movement at that.
+ */
+export function deformedShown(d: StiffnessDrawing): { factor: number; capped: boolean; nodes: { node: number; x: number; y: number }[]; members: { member: number; points: Point[] }[] } | null {
+  const df = d.deformed;
+  if (!df || df.factor === null || !(df.factor > 0) || !(df.maxDisplacement >= PRINT_FLOOR)) return null;
+  const shownFactor = Math.min(df.factor, FACTOR_CAP);
+  if (shownFactor === df.factor) return { factor: df.factor, capped: false, nodes: df.nodes, members: df.members };
+  const k = shownFactor / df.factor;
+  const home = new Map(d.nodes.map((n) => [n.label, n]));
+  const nodes = df.nodes.map((n) => {
+    const b = home.get(n.node);
+    return b ? { node: n.node, x: b.x + (n.x - b.x) * k, y: b.y + (n.y - b.y) * k } : n;
+  });
+  const lines = new Map(d.members.map((m) => [m.label, m]));
+  const members = df.members.map((dm) => {
+    const m = lines.get(dm.member);
+    if (!m) return dm;
+    const last = Math.max(1, dm.points.length - 1);
+    return { member: dm.member, points: dm.points.map((q, i) => ({ x: m.x1 + ((m.x2 - m.x1) * i) / last + (q.x - (m.x1 + ((m.x2 - m.x1) * i) / last)) * k, y: m.y1 + ((m.y2 - m.y1) * i) / last + (q.y - (m.y1 + ((m.y2 - m.y1) * i) / last)) * k })) };
+  });
+  return { factor: shownFactor, capped: true, nodes, members };
+}
+
 /** The structure and, when asked for, its deformed shape, in the length unit. */
 function extentOf(d: StiffnessDrawing, deformed: boolean): Extent {
   const e: Extent = { x0: d.box.x0, y0: d.box.y0, x1: d.box.x1, y1: d.box.y1 };
@@ -487,9 +612,10 @@ function extentOf(d: StiffnessDrawing, deformed: boolean): Extent {
     e.x1 = Math.max(e.x1, p.x);
     e.y1 = Math.max(e.y1, p.y);
   };
-  if (deformed && d.deformed && d.deformed.factor !== null) {
-    for (const m of d.deformed.members) for (const p of m.points) grow(p);
-    for (const n of d.deformed.nodes) grow(n);
+  const shown = deformed ? deformedShown(d) : null;
+  if (shown) {
+    for (const m of shown.members) for (const p of m.points) grow(p);
+    for (const n of shown.nodes) grow(n);
   }
   return e;
 }
@@ -558,8 +684,13 @@ function brokenLayout(W: number): Layout {
     reactions: [],
     deformed: null,
     factor: null,
+    capped: false,
+    tiny: false,
     legend: [],
     summed: [],
+    cancelled: [],
+    dots: [],
+    supportsOverlap: false,
     dotted: 0,
     thinned: 0,
     broken: true,
@@ -602,35 +733,154 @@ const KIND_OF: Record<SupportSymbol, { kind: SupportKind; axis: 'x' | 'y' | 'any
   none: null,
 };
 
-/** The loads at a node, added; a component that cancels to rounding is zero. */
-interface NodeLoad {
-  node: number;
-  fx: number;
-  fy: number;
-  m: number;
-  count: number;
+/** The room kept round the structure on each side (px): it grows on a side where a mark would leave the box. */
+interface Margins {
+  l: number;
+  r: number;
+  t: number;
+  b: number;
 }
 
+/** The least width the structure itself is left, whatever the marks round it ask for. */
+const LEAST_STRUCTURE_PX = 80;
+
+/**
+ * The rectangle that holds every mark of a layout: members, nodes, symbols, badges, arrows with their heads, rings, loads on members, the deformed
+ * shape, every word and every hairline.
+ */
+function inkBounds(l: Layout): Rect {
+  const b: Rect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  const at = (x: number, y: number) => {
+    b.x0 = Math.min(b.x0, x);
+    b.y0 = Math.min(b.y0, y);
+    b.x1 = Math.max(b.x1, x);
+    b.y1 = Math.max(b.y1, y);
+  };
+  const rect = (r: Rect) => {
+    at(r.x0, r.y0);
+    at(r.x1, r.y1);
+  };
+  const arrow = (a: { tail: Point; tip: Point }) => {
+    at(a.tail.x, a.tail.y);
+    at(a.tip.x, a.tip.y);
+    const u = unit(a.tip.x - a.tail.x, a.tip.y - a.tail.y);
+    const bx = a.tip.x - u.x * HEAD_LEN;
+    const by = a.tip.y - u.y * HEAD_LEN;
+    at(bx - u.y * HEAD_HALF, by + u.x * HEAD_HALF);
+    at(bx + u.y * HEAD_HALF, by - u.x * HEAD_HALF);
+  };
+  const word = (t: LabelBox | null) => {
+    if (!t) return;
+    rect(t.rect);
+    if (t.leader) {
+      at(t.leader.x1, t.leader.y1);
+      at(t.leader.x2, t.leader.y2);
+    }
+  };
+  for (const m of l.members) {
+    at(m.x1, m.y1);
+    at(m.x2, m.y2);
+    if (m.tag) rect(m.tag.rect);
+  }
+  for (const n of l.nodes) {
+    const r = n.r + (n.flagged ? 4 : 0);
+    at(n.x - r, n.y - r);
+    at(n.x + r, n.y + r);
+    if (n.dofTag) rect(n.dofTag.box.rect);
+  }
+  for (const s of l.supports) {
+    rect(s.box);
+    if (s.badge) {
+      at(s.badge.x - s.badge.r, s.badge.y - s.badge.r);
+      at(s.badge.x + s.badge.r, s.badge.y + s.badge.r);
+      if (s.badge.leader) {
+        at(s.badge.leader.x1, s.badge.leader.y1);
+        at(s.badge.leader.x2, s.badge.leader.y2);
+      }
+    }
+  }
+  for (const x of [...l.loads, ...l.reactions]) {
+    for (const a of x.arrows) {
+      arrow(a);
+      word(a.text);
+    }
+    if (x.arc) {
+      for (const p of x.arc.pts) at(p.x, p.y);
+      for (const q of x.arc.head.split(' ')) {
+        const [px, py] = q.split(',').map(Number);
+        if (Number.isFinite(px) && Number.isFinite(py)) at(px, py);
+      }
+      word(x.arc.text);
+    }
+  }
+  for (const x of l.memberLoads) {
+    for (const a of x.arrows) arrow(a);
+    for (const p of x.line ?? []) at(p.x, p.y);
+    word(x.text);
+  }
+  if (l.deformed) {
+    for (const d of l.deformed.members) {
+      for (const q of d.points.split(' ')) {
+        const [px, py] = q.split(',').map(Number);
+        if (Number.isFinite(px) && Number.isFinite(py)) at(px, py);
+      }
+    }
+  }
+  return b;
+}
+
+/** How far the marks of a layout run beyond its box on each side (px), or null when none does. */
+function overshoot(l: Layout): Margins | null {
+  const b = inkBounds(l);
+  if (!Number.isFinite(b.x0 + b.y0 + b.x1 + b.y1)) return null;
+  const over: Margins = { l: Math.max(0, -b.x0), r: Math.max(0, b.x1 - l.width), t: Math.max(0, -b.y0), b: Math.max(0, b.y1 - l.height) };
+  return over.l > 0.01 || over.r > 0.01 || over.t > 0.01 || over.b > 0.01 ? over : null;
+}
+
+/**
+ * THE LAYOUT OF A DRAWING. Whatever room the marks round the structure ask for, they get: a support above its node (a hung structure) with its
+ * reaction and the number beside it is taller than the margin a narrow drawing starts with, so a layout that has a mark outside its box is made
+ * again with a margin that holds it, on that side only (up to three times, and never leaving the structure itself less than 80 px).
+ */
 export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): Layout {
   const W = o.width;
   // TOTAL: whatever numbers the drawing is made of, this returns, and fast. A width that is not a width, or an extent that is not a finite
   // size, is not drawn (the page says so); everything else is scaled to the page, so every pixel below is within it.
   if (!(W > 0) || !Number.isFinite(W)) return brokenLayout(300);
+  const base = marginFor(W);
+  let m: Margins = { l: base, r: base, t: base, b: base };
+  let out = layoutOnce(drawing, o, m);
+  const room = Math.max(base, (W - LEAST_STRUCTURE_PX) / 2);
+  for (let pass = 0; pass < 3 && !out.broken; pass++) {
+    const over = overshoot(out);
+    if (!over) break;
+    const grow = (have: number, by: number) => (by > 0.01 ? Math.min(room, have + by + 2) : have);
+    const next: Margins = { l: grow(m.l, over.l), r: grow(m.r, over.r), t: grow(m.t, over.t), b: grow(m.b, over.b) };
+    if (next.l === m.l && next.r === m.r && next.t === m.t && next.b === m.b) break;
+    m = next;
+    out = layoutOnce(drawing, o, m);
+  }
+  return out;
+}
+
+function layoutOnce(drawing: StiffnessDrawing, o: LayoutOptions, M: Margins): Layout {
+  const W = o.width;
   const maxHeight = o.maxHeight ?? MAX_HEIGHT;
-  const M = marginFor(W);
+  const shown = o.deformed ? deformedShown(drawing) : null;
   const e = extentOf(drawing, o.deformed);
   const ew = e.x1 - e.x0;
   const eh = e.y1 - e.y0;
   if (![e.x0, e.y0, e.x1, e.y1, ew, eh].every(Number.isFinite)) return brokenLayout(W);
-  const sx = ew > 0 ? (W - 2 * M) / ew : Infinity;
-  const sy = eh > 0 ? (maxHeight - 2 * M) / eh : Infinity;
+  const aw = W - M.l - M.r;
+  const sx = ew > 0 ? aw / ew : Infinity;
+  const sy = eh > 0 ? (maxHeight - M.t - M.b) / eh : Infinity;
   const scale = ew > 0 || eh > 0 ? Math.min(sx, sy) : 1;
   if (!(scale > 0) || !Number.isFinite(scale)) return brokenLayout(W);
   const drawnW = ew * scale;
-  const offX = (W - drawnW) / 2;
-  const H = clean(Math.max(eh * scale + 2 * M, 2 * M));
+  const offX = M.l + (aw - drawnW) / 2;
+  const H = clean(Math.max(eh * scale + M.t + M.b, M.t + M.b));
   const X = (x: number) => offX + (x - e.x0) * scale;
-  const Y = (y: number) => M + (e.y1 - y) * scale;
+  const Y = (y: number) => M.t + (e.y1 - y) * scale;
   const P = (p: Point): Point => ({ x: X(p.x), y: Y(p.y) });
   const inside = (rect: Rect) => rect.x0 >= 3 && rect.x1 <= W - 3 && rect.y0 >= 3 && rect.y1 <= H - 3;
   const flagged = new Set(o.flagged ?? []);
@@ -640,7 +890,13 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
   const nodePos = new Map<number, Point>();
   for (const n of drawing.nodes) nodePos.set(n.label, { x: X(n.x), y: Y(n.y) });
   const members: MemberShape[] = drawing.members.map((m) => ({ label: m.label, i: m.i, j: m.j, x1: clean(X(m.x1)), y1: clean(Y(m.y1)), x2: clean(X(m.x2)), y2: clean(Y(m.y2)), tag: null }));
-  for (const m of members) obstacles.addSeg({ x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2, pad: MEMBER_W / 2 });
+  /** The lines of the structure itself (the members, the deformed shape): a hairline may cross these, where it has no way that crosses none. */
+  const structure = new Set<object>();
+  for (const m of members) {
+    const sg: Seg = { x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2, pad: MEMBER_W / 2 };
+    obstacles.addSeg(sg);
+    structure.add(sg);
+  }
   const nodes: NodeShape[] = drawing.nodes.map((n) => ({ label: n.label, x: clean(X(n.x)), y: clean(Y(n.y)), r: nodeRadius(n.label, o.nodeNumbers), numbered: o.nodeNumbers, flagged: flagged.has(n.label), dofTag: null }));
   // Nodes that fall on one place (a node typed twice) are set side by side, so that each number can be read and each ringed.
   {
@@ -656,7 +912,7 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     }
   }
   // Nodes that stand too close for their numbers (a very tall or very flat structure) are dots: the numbers are in the tables.
-  let dotted = 0;
+  const dots: number[] = [];
   if (o.nodeNumbers) {
     const crowded = new Set<NodeShape>();
     for (let a = 0; a < nodes.length; a++) {
@@ -670,14 +926,18 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     for (const n of crowded) {
       n.r = DOT_R;
       n.numbered = false;
-      dotted++;
+      dots.push(n.label);
     }
   }
+  const dotted = dots.length;
   const radius = new Map(nodes.map((n) => [n.label, n.r]));
   const radiusOf = (node: number): number => radius.get(node) ?? NODE_R;
+  const nodeBoxes = new Map<number, Rect>();
   for (const n of nodes) {
     const rr = n.r + (n.flagged ? 4 : 0) + 0.75;
-    obstacles.addBox(boxOf(n.x, n.y, rr, rr));
+    const box = boxOf(n.x, n.y, rr, rr);
+    nodeBoxes.set(n.label, box);
+    obstacles.addBox(box);
   }
   const around = (node: number): Point[] =>
     drawing.members.flatMap((m) => {
@@ -711,7 +971,7 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     return { x0: Math.min(...corners.map((c) => c.x)), y0: Math.min(...corners.map((c) => c.y)), x1: Math.max(...corners.map((c) => c.x)), y1: Math.max(...corners.map((c) => c.y)) };
   };
   const settles = new Set(drawing.supports.filter((s) => s.settle).map((s) => s.label));
-  // The symbols are drawn smaller (to 0.55 of their size) where two supports stand nearer than a symbol is wide: the feet of a tall mast, a close pair.
+  // The symbols are drawn smaller (to 0.4 of their size) where two supports stand nearer than a symbol is wide: the feet of a tall mast, a close pair.
   const symbolScale = (() => {
     const at = drawing.supports.flatMap((s) => {
       const p = nodePos.get(s.node);
@@ -721,7 +981,7 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     for (let a = 0; a < at.length; a++) {
       for (let b = a + 1; b < at.length; b++) {
         const dx = Math.abs(at[a].x - at[b].x);
-        if (dx > 1e-6 && dx < 34 && Math.abs(at[a].y - at[b].y) < 32) k = Math.min(k, Math.max(0.55, dx / 34));
+        if (dx > 1e-6 && dx < 34 && Math.abs(at[a].y - at[b].y) < 32) k = Math.min(k, Math.max(MIN_SYMBOL, dx / 34));
       }
     }
     return k;
@@ -739,6 +999,20 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
   });
   for (const s of supports) obstacles.addBox(s.box);
   const supportAt = new Map(supports.map((s) => [s.node, s]));
+  /** How far a node's own symbol reaches from the node (its box's farthest corner): a ring round the node keeps beyond it. */
+  const reachOf = (node: number): number => {
+    const s = supportAt.get(node);
+    const p = nodePos.get(node);
+    if (!s || !p) return 0;
+    return Math.max(Math.hypot(s.box.x0 - p.x, s.box.y0 - p.y), Math.hypot(s.box.x1 - p.x, s.box.y0 - p.y), Math.hypot(s.box.x0 - p.x, s.box.y1 - p.y), Math.hypot(s.box.x1 - p.x, s.box.y1 - p.y));
+  };
+  /** How far from a node, along the direction `u`, its own symbol's box ends: an arrow along `u` starts beyond it. */
+  const clearOf = (node: number, u: Point, least: number): number => {
+    const s = supportAt.get(node);
+    const p = nodePos.get(node);
+    if (!s || !p) return least;
+    return Math.max(least, exitDist(s.box, p, u) + 2);
+  };
   /* Arrow heads, arcs. */
   const headBox = (tail: Point, tip: Point): Rect => {
     const u = unit(tip.x - tail.x, tip.y - tail.y);
@@ -749,24 +1023,40 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
   /** Every arrow and ring drawn so far at each node, as lines: a new arrow at the same node keeps clear of them. */
   const arrowSegs = new Map<number, Seg[]>();
   const keepArrow = (node: number, s: Seg) => arrowSegs.set(node, [...(arrowSegs.get(node) ?? []), s]);
-  const arrowObstacle = (tail: Point, tip: Point, node = 0) => {
+  /** The force arrows of each node as the direction they leave the node by (page, unit vectors): a ring opens towards them. */
+  const arms = new Map<number, Point[]>();
+  const keepArm = (node: number, tail: Point, tip: Point) => {
+    const p = nodePos.get(node);
+    if (!p) return;
+    const far = Math.hypot(tail.x - p.x, tail.y - p.y) >= Math.hypot(tip.x - p.x, tip.y - p.y) ? tail : tip;
+    const mid = { x: (tail.x + tip.x) / 2, y: (tail.y + tip.y) / 2 };
+    const u = unit((far.x + mid.x) / 2 - p.x, (far.y + mid.y) / 2 - p.y);
+    if (u.x !== 0 || u.y !== 0) arms.set(node, [...(arms.get(node) ?? []), u]);
+  };
+  /** What an arrow is made of in the index of obstacles: its line and its head. */
+  const arrowObstacle = (tail: Point, tip: Point, node = 0): object[] => {
     const s: Seg = { x1: tail.x, y1: tail.y, x2: tip.x, y2: tip.y, pad: 1.5 };
     obstacles.addSeg(s);
-    if (node > 0) keepArrow(node, s);
-    obstacles.addBox(headBox(tail, tip));
+    if (node > 0) {
+      keepArrow(node, s);
+      keepArm(node, tail, tip);
+    }
+    const head = headBox(tail, tip);
+    obstacles.addBox(head);
+    return [s, head];
   };
   /** The members as lines on the page, for an arrow to keep clear of. */
   const memberSegs: Seg[] = members.map((m) => ({ x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2, pad: 0 }));
   /**
-   * What is wrong with an arrow standing here at a node: it runs through a support symbol (100), a node (40), a member (40: nearer than a
-   * node's own circle and a hair) or another arrow of the node (30). 0 is a clear place. `own`: the node's own symbol is not counted (a
-   * reaction is built against it).
+   * What is wrong with an arrow standing here at a node: it runs through a support symbol (100: the node's own too), a node (40), a member
+   * (40: nearer than a node's own circle and a hair) or another arrow of the node (30). 0 is a clear place. `own`: the node's own symbol is
+   * given no more than a hair (a reaction is built against it, a few pixels from it).
    */
   const penalty = (node: number, tail: Point, tip: Point, own: boolean): number => {
     const seg: Seg = { x1: tail.x, y1: tail.y, x2: tip.x, y2: tip.y, pad: 0 };
     const near = Math.min(5.5, radiusOf(node) + 1.2);
     let pen = 0;
-    for (const sp of supports) if (!(own && sp.node === node) && segNear(seg, sp.box, 3)) pen += 100;
+    for (const sp of supports) if (segNear(seg, sp.box, sp.node === node ? (own ? 0.5 : 2) : 3)) pen += 100;
     for (const m of memberSegs) if (distSegSeg(seg, m) < near) pen += 40;
     for (const nd of nodes) if (nd.label !== node && segNear(seg, boxOf(nd.x, nd.y, nd.r + 3, nd.r + 3), 0)) pen += 40;
     for (const other of arrowSegs.get(node) ?? []) if (distSegSeg(seg, other) < 10) pen += 30;
@@ -797,39 +1087,95 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     const u = unit(tip.x - tail.x, tip.y - tail.y);
     return [0, 9, -9, 18, -18].map((off) => ({ tail: { x: tail.x - u.y * off, y: tail.y + u.x * off }, tip: { x: tip.x - u.y * off, y: tip.y + u.x * off }, out }));
   };
-  /** The ring of a moment, as a path and as the lines it is made of. gap: the page angle (math, degrees) the opening is centred on. */
-  const arcShape = (c: Point, r: number, gap: number, ccw: boolean): { path: string; head: string; segs: Seg[]; mid: Point } => {
+
+  /**
+   * The ring of a moment, as a path, the points it is drawn through and the lines it is made of. `gap`: the page angle (math, degrees) the opening
+   * is centred on; `half`: half the opening (degrees).
+   */
+  const arcShape = (c: Point, r: number, gap: number, ccw: boolean, half = RING_HALF): { path: string; head: string; segs: Seg[]; pts: Point[]; mid: Point } => {
     const rad = (deg: number) => (deg * Math.PI) / 180;
     const at = (deg: number): Point => ({ x: c.x + r * Math.cos(rad(deg)), y: c.y - r * Math.sin(rad(deg)) });
-    const start = ccw ? gap + 45 : gap - 45;
-    const end = ccw ? gap + 315 : gap - 315;
+    const start = ccw ? gap + half : gap - half;
+    const end = ccw ? gap + (360 - half) : gap - (360 - half);
     const a = at(start);
     const b = at(end);
-    const path = `M ${clean(a.x)} ${clean(a.y)} A ${r} ${r} 0 1 ${ccw ? 0 : 1} ${clean(b.x)} ${clean(b.y)}`;
+    const path = `M ${clean(a.x)} ${clean(a.y)} A ${clean(r)} ${clean(r)} 0 1 ${ccw ? 0 : 1} ${clean(b.x)} ${clean(b.y)}`;
     // The head: the arc's direction of travel at its end.
     const th = rad(end);
     const t = ccw ? { x: -Math.sin(th), y: -Math.cos(th) } : { x: Math.sin(th), y: Math.cos(th) };
     const base = { x: b.x - t.x * HEAD_LEN, y: b.y - t.y * HEAD_LEN };
     const head = poly([b, { x: base.x - t.y * HEAD_HALF, y: base.y + t.x * HEAD_HALF }, { x: base.x + t.y * HEAD_HALF, y: base.y - t.x * HEAD_HALF }]);
     const segs: Seg[] = [];
+    const pts: Point[] = [a];
     let prev = a;
-    const steps = 16;
+    const steps = 24;
     for (let k = 1; k <= steps; k++) {
       const q = at(start + ((end - start) * k) / steps);
       segs.push({ x1: prev.x, y1: prev.y, x2: q.x, y2: q.y, pad: 1.5 });
+      pts.push(pt(q));
       prev = q;
     }
-    return { path, head, segs, mid: { x: c.x + Math.cos(rad(gap)) * r, y: c.y - Math.sin(rad(gap)) * r } };
+    return { path, head, segs, pts, mid: at(gap) };
   };
-  /** The page angle (math degrees, counter-clockwise) of the most open side of a node, for a ring's opening. */
-  const openSide = (node: number): number => {
-    let best = 90;
-    let bestClear = Infinity;
-    for (const deg of [45, 135, 225, 315, 90, 270, 0, 180]) {
-      const s = { x: Math.cos((deg * Math.PI) / 180), y: -Math.sin((deg * Math.PI) / 180) };
-      const c = clearance(node, s);
-      if (c < bestClear - 1e-9) {
-        bestClear = c;
+  /** The angle between two directions (degrees, 0 to 180). */
+  const angleBetween = (aDeg: number, bDeg: number): number => {
+    const d = Math.abs((((aDeg - bDeg) % 360) + 540) % 360 - 180);
+    return d;
+  };
+  const degOf = (u: Point): number => (Math.atan2(-u.y, u.x) * 180) / Math.PI;
+  const vecOf = (deg: number): Point => ({ x: Math.cos((deg * Math.PI) / 180), y: -Math.sin((deg * Math.PI) / 180) });
+  /** The page angles a ring's opening, and its number, are tried at: the diagonals first, then the axes, then the rest. */
+  const OPENINGS = [45, 135, 225, 315, 90, 270, 0, 180, 22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5];
+  /**
+   * The page angle a ring's opening is centred on. It faces the force arrows of its node, so that they pass through the opening and cross no
+   * ring; where there is none, the members (a beam's end: the beam passes through the opening); where there is none, the upper right.
+   */
+  const ringOpening = (node: number): number => {
+    const ar = arms.get(node) ?? [];
+    const mem = around(node);
+    if (ar.length === 0 && mem.length === 0) return 45;
+    let best = OPENINGS[0];
+    let bestScore = -Infinity;
+    for (const deg of OPENINGS) {
+      const score = (list: Point[], weight: number) => list.reduce((acc, u) => acc + weight * Math.max(0, 1 - angleBetween(deg, degOf(u)) / (RING_HALF + 5)), 0);
+      const total = score(ar, 3) + score(mem, 0.5);
+      if (total > bestScore + 1e-9) {
+        bestScore = total;
+        best = deg;
+      }
+    }
+    return best;
+  };
+  /**
+   * How wide a ring's opening is at `gap` (half of it, degrees): the 90 degrees it has, and more where the arrows of its node that cross the ring
+   * (or come within a few pixels of it, their heads) stand near its edge: the ring must not touch them.
+   */
+  const ringHalf = (node: number, gap: number, R: number): number => {
+    const p = nodePos.get(node);
+    if (!p) return RING_HALF;
+    let spread = 0;
+    for (const sg of arrowSegs.get(node) ?? []) {
+      for (let k = 0; k <= 24; k++) {
+        const q = { x: sg.x1 + ((sg.x2 - sg.x1) * k) / 24, y: sg.y1 + ((sg.y2 - sg.y1) * k) / 24 };
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (Math.abs(d - R) <= 7) {
+          const angle = angleBetween(gap, degOf(unit(q.x - p.x, q.y - p.y)));
+          if (angle <= 100) spread = Math.max(spread, angle);
+        }
+      }
+    }
+    return spread === 0 ? RING_HALF : Math.min(RING_HALF_MAX, Math.max(RING_HALF, spread + 14));
+  };
+  /** The page angle on which a ring's number stands: the side of the node most open - farthest from its members and its arrows. */
+  const ringSide = (node: number): number => {
+    const blockers = [...(arms.get(node) ?? []), ...around(node)].map(degOf);
+    if (blockers.length === 0) return OPENINGS[0];
+    let best = OPENINGS[0];
+    let bestFar = -1;
+    for (const deg of OPENINGS) {
+      const far = Math.min(...blockers.map((b) => angleBetween(deg, b)));
+      if (far > bestFar + 1e-9) {
+        bestFar = far;
         best = deg;
       }
     }
@@ -837,57 +1183,46 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
   };
 
   /** The lines of a load or a reaction (an arrow, a ring, the arrows of a load on a member): what a number beside it is the size of. */
-  type Mark = { segs: Seg[]; ring: { cx: number; cy: number; r: number } | null };
-  const markDistance = (rect: Rect, m: Mark): number => Math.min(...m.segs.map((q) => distRectSeg(rect, q)), m.ring ? distRectRing(rect, m.ring) : Infinity);
+  type Mark = { segs: Seg[]; owned: Set<object>; box: Rect };
+  const markDistance = (rect: Rect, m: Mark): number => Math.min(...m.segs.map((q) => distRectSeg(rect, q)));
   const marks: Mark[] = [];
-  /** A number that goes with a mark: where it hugs (the end of its arrow, the opening of its ring) and the way it prefers to stand. */
-  type Pending = { text: string; anchor: Point; prefer: Point; mark: Mark; set: (box: LabelBox) => void };
+  /** A number that goes with a mark: where it hugs (the end of its arrow), the way it prefers to stand, and - for a ring - the ring it stands round. */
+  type Pending = { text: string; anchor: Point; prefer: Point; mark: Mark; ring: { c: Point; R: number; side: number } | null; set: (box: LabelBox) => void };
   const mandatory: Pending[] = [];
-  const markOf = (segs: Seg[], ring: Mark['ring'] = null): Mark => {
-    const m: Mark = { segs, ring };
+  /** A mark: its ink as lines (width 0), and what it is made of in the index of obstacles (a hairline from its number starts on it, and is not across it). */
+  const markOf = (segs: Seg[], owned: readonly object[]): Mark => {
+    const xs = segs.flatMap((q) => [q.x1, q.x2]);
+    const ys = segs.flatMap((q) => [q.y1, q.y2]);
+    const m: Mark = { segs, owned: new Set(owned), box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
     marks.push(m);
     return m;
   };
   const lineOf = (tail: Point, tip: Point): Seg => ({ x1: tail.x, y1: tail.y, x2: tip.x, y2: tip.y, pad: 0 });
+  const inkOf = (segs: readonly Seg[]): Seg[] => segs.map((q) => ({ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, pad: 0 }));
 
   /* Nodal loads: the loads at one node are drawn as their sum, a component along each axis, as a reaction is drawn. */
-  const sums = new Map<number, NodeLoad>();
-  const terms = new Map<number, { fx: number; fy: number; m: number }>();
-  for (const l of drawing.loads) {
-    const s = sums.get(l.node) ?? { node: l.node, fx: 0, fy: 0, m: 0, count: 0 };
-    const t = terms.get(l.node) ?? { fx: 0, fy: 0, m: 0 };
-    s.fx += l.fx;
-    s.fy += l.fy;
-    s.m += l.m;
-    s.count++;
-    t.fx += Math.abs(l.fx);
-    t.fy += Math.abs(l.fy);
-    t.m += Math.abs(l.m);
-    sums.set(l.node, s);
-    terms.set(l.node, t);
-  }
-  const loadsAt: NodeLoad[] = [...sums.values()]
-    .sort((a, b) => a.node - b.node)
-    .map((s) => {
-      const t = terms.get(s.node)!;
-      const zero = (v: number, scale: number) => (Math.abs(v) <= 1e-12 * scale ? 0 : v);
-      return { ...s, fx: zero(s.fx, t.fx), fy: zero(s.fy, t.fy), m: zero(s.m, t.m) };
-    });
+  const loadsAt: NodeSum[] = loadSums(drawing.loads);
   const summed = loadsAt.filter((s) => s.count > 1).map((s) => s.node);
+  const cancelled = loadsAt.filter((s) => s.cancelled).map((s) => s.node);
   const maxLoad = Math.max(0, ...loadsAt.flatMap((l) => [Math.abs(l.fx), Math.abs(l.fy)]));
+  const maxMoment = Math.max(0, ...loadsAt.map((l) => Math.abs(l.m)));
   /**
    * A force's arrow at a node: it stands on the side the force comes from (head on the node) unless a member, another arrow or the symbol
-   * of the support is there; then on the side it goes to (tail on the node); then beside the node. Of these, the first that is clear.
+   * of the support is there; then on the side it goes to (tail on the node); then beside the node. Of these, the first that is clear. It starts
+   * beyond the symbol of the node's own support, on whichever side it stands.
    */
   const forceArrow = (node: number, p: Point, r: number, dir: Point, len: number): { tail: Point; tip: Point; far: Point; toward: Point } => {
     const back = { x: -dir.x, y: -dir.y };
-    const inFrom = { x: p.x + back.x * (r + 2), y: p.y + back.y * (r + 2) };
-    const outFrom = { x: p.x + dir.x * (r + 2), y: p.y + dir.y * (r + 2) };
+    const inAt = clearOf(node, back, r + 2);
+    const outAt = clearOf(node, dir, r + 2);
+    const inFrom = { x: p.x + back.x * inAt, y: p.y + back.y * inAt };
+    const outFrom = { x: p.x + dir.x * outAt, y: p.y + dir.y * outAt };
     const inArrow = { tail: { x: inFrom.x - dir.x * len, y: inFrom.y - dir.y * len }, tip: inFrom };
     const outArrow = { tail: outFrom, tip: { x: outFrom.x + dir.x * len, y: outFrom.y + dir.y * len } };
     const lat = { x: -dir.y, y: dir.x };
     const beside = [lat, { x: -lat.x, y: -lat.y }].map((side) => {
-      const from = { x: p.x + side.x * (r + 9), y: p.y + side.y * (r + 9) };
+      const off = clearOf(node, side, r + 9);
+      const from = { x: p.x + side.x * off, y: p.y + side.y * off };
       return { tail: { x: from.x - dir.x * len, y: from.y - dir.y * len }, tip: from };
     });
     const offered = [...shifted(inArrow.tail, inArrow.tip, false).slice(0, 1), ...shifted(outArrow.tail, outArrow.tip, true).slice(0, 1), ...shifted(inArrow.tail, inArrow.tip, false).slice(1, 3), ...shifted(outArrow.tail, outArrow.tip, true).slice(1, 3), ...beside.map((b) => ({ ...b, out: false }))];
@@ -895,37 +1230,29 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     return { tail: f.tail, tip: f.tip, far: f.out ? f.tip : f.tail, toward: f.out ? dir : back };
   };
   const loads: Layout['loads'] = [];
+  /** The lines of the rings round each node: a settlement's hairline may pass through them (it ends at the node they are round). */
+  const ringsAt = new Map<number, object[]>();
+  /** The rings to draw - a load's, then a reaction's, at each node - once every arrow is drawn: they open towards the arrows of their node, and a node with two of them has them open differently. */
+  const rings: { node: number; kind: 'load' | 'reaction'; m: number; entry: { arc: ArcShape | null } }[] = [];
   if (o.loads) {
     for (const l of loadsAt) {
       const p = nodePos.get(l.node);
       if (!p) continue;
       const r = radiusOf(l.node);
       const arrows: ArrowShape[] = [];
-      let arc: ArcShape | null = null;
       for (const [cx, cy, size] of [[Math.sign(l.fx), 0, Math.abs(l.fx)], [0, Math.sign(l.fy), Math.abs(l.fy)]] as const) {
-        if (!(size > 0)) continue;
+        if (!(size >= drawFloor(maxLoad))) continue;
         const len = 18 + 18 * (maxLoad > 0 ? size / maxLoad : 0);
         const f = forceArrow(l.node, p, r, { x: cx, y: -cy }, len);
         const arrow: ArrowShape = { tail: f.tail, tip: f.tip, text: null };
         arrows.push(arrow);
-        arrowObstacle(f.tail, f.tip, l.node);
-        const mark = markOf([lineOf(f.tail, f.tip)]);
-        if (o.values) mandatory.push({ text: plain(size, o.group), anchor: f.far, prefer: f.toward, mark, set: (b) => (arrow.text = b) });
+        const owned = arrowObstacle(f.tail, f.tip, l.node);
+        const mark = markOf([lineOf(f.tail, f.tip)], owned);
+        if (o.values) mandatory.push({ text: plain(size, o.group), anchor: f.far, prefer: f.toward, mark, ring: null, set: (b) => (arrow.text = b) });
       }
-      if (l.m !== 0) {
-        const gap = openSide(l.node);
-        const radiusRing = r + 10;
-        const a = arcShape(p, radiusRing, gap, l.m > 0);
-        for (const s of a.segs) {
-          obstacles.addSeg(s);
-          keepArrow(l.node, s);
-        }
-        arc = { cx: clean(p.x), cy: clean(p.y), r: radiusRing, path: a.path, head: a.head, text: null };
-        const target = arc;
-        const mark = markOf([], { cx: p.x, cy: p.y, r: radiusRing });
-        if (o.values) mandatory.push({ text: plain(l.m, o.group), anchor: a.mid, prefer: { x: Math.cos((gap * Math.PI) / 180), y: -Math.sin((gap * Math.PI) / 180) }, mark, set: (b) => (target.text = b) });
-      }
-      loads.push({ label: l.node, node: l.node, count: l.count, arrows, arc });
+      const entry: Layout['loads'][number] = { label: l.node, node: l.node, count: l.count, arrows, arc: null };
+      if (Math.abs(l.m) >= drawFloor(maxMoment) && l.m !== 0) rings.push({ node: l.node, kind: 'load', m: l.m, entry });
+      loads.push(entry);
     }
   }
 
@@ -933,17 +1260,16 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
   const reactions: Layout['reactions'] = [];
   if (o.reactions) {
     const topComp = Math.max(0, ...drawing.reactions.flatMap((r) => [Math.abs(r.rx), Math.abs(r.ry)]));
+    const topMoment = Math.max(0, ...drawing.reactions.map((r) => Math.abs(r.rm)));
     for (const r of drawing.reactions) {
       const p = nodePos.get(r.node);
       if (!p) continue;
-      const rn = radiusOf(r.node);
       const sup = supportAt.get(r.node);
       const sd = sup?.side ?? { x: 0, y: 1 };
       const depth = sup?.depth ?? 8;
-      const hwid = sup ? Math.max(6, (sup.box.x1 - sup.box.x0) / 2) : 8;
       const arrows: ArrowShape[] = [];
       const one = (fx: number, fy: number, magnitude: number) => {
-        if (!(magnitude > 0)) return;
+        if (!(magnitude >= drawFloor(topComp))) return;
         const dir = unit(fx, -fy);
         const len = 18 + 14 * (topComp > 0 ? magnitude / topComp : 0);
         const parallel = dir.x * sd.x + dir.y * sd.y;
@@ -956,44 +1282,59 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
           tip = toNode ? start : { x: start.x + dir.x * len, y: start.y + dir.y * len };
           tail = toNode ? { x: start.x - dir.x * len, y: start.y - dir.y * len } : start;
         } else {
-          // Across the symbol's axis: beside it, on the side the force points away from, pointing at the node.
+          // Across the symbol's axis: beside it, on the side the force points away from, pointing at the node. (Beside it is beyond the box of the
+          // symbol along the arrow's own line: the box is wider than deep on a symbol that stands to one side.)
           const lat = { x: -dir.x, y: -dir.y };
-          const centre = { x: p.x + sd.x * depth * 0.5, y: p.y + sd.y * depth * 0.5 };
-          tip = { x: centre.x + lat.x * (hwid + GAP), y: centre.y + lat.y * (hwid + GAP) };
+          const box = sup?.box ?? { x0: p.x - 8, y0: p.y, x1: p.x + 8, y1: p.y + depth };
+          const centre = { x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2 };
+          const half = Math.abs(lat.x) * ((box.x1 - box.x0) / 2) + Math.abs(lat.y) * ((box.y1 - box.y0) / 2);
+          tip = { x: centre.x + lat.x * (half + GAP), y: centre.y + lat.y * (half + GAP) };
           tail = { x: tip.x + lat.x * len, y: tip.y + lat.y * len };
           // The same force on the other side of the symbol, leaving it: where the first has no room (a foot at the edge of the drawing) or is taken.
-          const from = { x: centre.x + dir.x * (hwid + GAP), y: centre.y + dir.y * (hwid + GAP) };
+          const from = { x: centre.x + dir.x * (half + GAP), y: centre.y + dir.y * (half + GAP) };
           mirrored = { tail: from, tip: { x: from.x + dir.x * len, y: from.y + dir.y * len } };
         }
         // Clear of a load that stands at the same node, and of the edge of the drawing.
         const n = pickArrow(r.node, [...shifted(tail, tip), ...(mirrored ? shifted(mirrored.tail, mirrored.tip) : [])], true);
         const a: ArrowShape = { tail: n.tail, tip: n.tip, text: null };
         arrows.push(a);
-        arrowObstacle(a.tail, a.tip, r.node);
+        const owned = arrowObstacle(a.tail, a.tip, r.node);
         // The number hugs the end of the arrow that is away from the node, on its line.
         const farTail = Math.hypot(a.tail.x - p.x, a.tail.y - p.y) >= Math.hypot(a.tip.x - p.x, a.tip.y - p.y);
         const far = farTail ? a.tail : a.tip;
         const near = farTail ? a.tip : a.tail;
-        const mark = markOf([lineOf(a.tail, a.tip)]);
-        if (o.values) mandatory.push({ text: plain(magnitude, o.group), anchor: far, prefer: unit(far.x - near.x, far.y - near.y), mark, set: (b) => (a.text = b) });
+        const mark = markOf([lineOf(a.tail, a.tip)], owned);
+        if (o.values) mandatory.push({ text: plain(magnitude, o.group), anchor: far, prefer: unit(far.x - near.x, far.y - near.y), mark, ring: null, set: (b) => (a.text = b) });
       };
       one(r.rx, 0, Math.abs(r.rx));
       one(0, r.ry, Math.abs(r.ry));
-      let arc: ArcShape | null = null;
-      if (r.rm !== 0) {
-        const gap = openSide(r.node);
-        const radiusRing = rn + 17;
-        const a = arcShape(p, radiusRing, gap, r.rm > 0);
-        for (const s of a.segs) {
-          obstacles.addSeg(s);
-          keepArrow(r.node, s);
-        }
-        arc = { cx: clean(p.x), cy: clean(p.y), r: radiusRing, path: a.path, head: a.head, text: null };
-        const target = arc;
-        const mark = markOf([], { cx: p.x, cy: p.y, r: radiusRing });
-        if (o.values) mandatory.push({ text: plain(r.rm, o.group), anchor: a.mid, prefer: { x: Math.cos((gap * Math.PI) / 180), y: -Math.sin((gap * Math.PI) / 180) }, mark, set: (b) => (target.text = b) });
-      }
-      reactions.push({ label: r.node, arrows, arc });
+      const entry: Layout['reactions'][number] = { label: r.node, arrows, arc: null };
+      if (r.rm !== 0 && Math.abs(r.rm) >= drawFloor(topMoment)) rings.push({ node: r.node, kind: 'reaction', m: r.rm, entry });
+      reactions.push(entry);
+    }
+  }
+
+  /* The rings of the moments. */
+  {
+    const both = new Set(rings.filter((j) => j.kind === 'reaction' && rings.some((q) => q.node === j.node && q.kind === 'load')).map((j) => j.node));
+    const inner = new Map<number, number>();
+    for (const job of rings) {
+      const p = nodePos.get(job.node);
+      if (!p) continue;
+      const rn = radiusOf(job.node);
+      const radiusRing = job.kind === 'load' ? Math.max(rn + 10, reachOf(job.node) + 3) : Math.max(rn + 17, (inner.get(job.node) ?? 0) + 7, reachOf(job.node) + 3);
+      if (job.kind === 'load') inner.set(job.node, radiusRing);
+      // A node with a ring of each: the inner one opens towards the arrows, the outer one on the open side, so that the number of the inner one
+      // stands in the opening of the outer, and no hairline has a ring to cross.
+      const side = ringSide(job.node);
+      const gap = both.has(job.node) && job.kind === 'reaction' ? side : ringOpening(job.node);
+      const a = arcShape(p, radiusRing, gap, job.m > 0, both.has(job.node) && job.kind === 'reaction' ? RING_HALF : ringHalf(job.node, gap, radiusRing));
+      for (const sg of a.segs) obstacles.addSeg(sg);
+      ringsAt.set(job.node, [...(ringsAt.get(job.node) ?? []), ...a.segs]);
+      const arc: ArcShape = { cx: clean(p.x), cy: clean(p.y), r: clean(radiusRing), path: a.path, head: a.head, pts: a.pts, text: null };
+      job.entry.arc = arc;
+      const mark = markOf(inkOf(a.segs), a.segs);
+      if (o.values) mandatory.push({ text: plain(job.m, o.group), anchor: a.mid, prefer: vecOf(side), mark, ring: { c: p, R: radiusRing, side }, set: (b) => (arc.text = b) });
     }
   }
 
@@ -1042,19 +1383,26 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
           }
         }
         if (tails.length >= 2) shape.line = tails.map(pt);
-        for (const ar of shape.arrows) arrowObstacle(ar.tail, ar.tip);
-        if (shape.line) for (let k = 1; k < shape.line.length; k++) obstacles.addSeg({ x1: shape.line[k - 1].x, y1: shape.line[k - 1].y, x2: shape.line[k].x, y2: shape.line[k].y, pad: 1 });
-        const mark = markOf([...shape.arrows.map((q) => lineOf(q.tail, q.tip)), ...(shape.line ?? []).slice(1).map((q, k) => lineOf(shape.line![k], q))]);
-        if (textAt && o.values) mandatory.push({ text: plain(l.value, o.group), anchor: textAt, prefer: textPrefer, mark, set: (b) => (shape.text = b) });
+        const owned: object[] = [];
+        for (const ar of shape.arrows) owned.push(...arrowObstacle(ar.tail, ar.tip));
+        if (shape.line) {
+          for (let k = 1; k < shape.line.length; k++) {
+            const s: Seg = { x1: shape.line[k - 1].x, y1: shape.line[k - 1].y, x2: shape.line[k].x, y2: shape.line[k].y, pad: 1 };
+            obstacles.addSeg(s);
+            owned.push(s);
+          }
+        }
+        const mark = markOf([...shape.arrows.map((q) => lineOf(q.tail, q.tip)), ...(shape.line ?? []).slice(1).map((q, k) => lineOf(shape.line![k], q))], owned);
+        if (textAt && o.values) mandatory.push({ text: plain(l.value, o.group), anchor: textAt, prefer: textPrefer, mark, ring: null, set: (b) => (shape.text = b) });
       } else if (l.kind === 'point') {
         const base = at(l.a);
         const len = 20 + 14 * l.share;
         const tip = { x: base.x - push.x * 3, y: base.y - push.y * 3 };
         const tail = { x: tip.x - push.x * len, y: tip.y - push.y * len };
         shape.arrows.push({ tail: pt(tail), tip: pt(tip) });
-        arrowObstacle(tail, tip);
-        const mark = markOf([lineOf(tail, tip)]);
-        if (o.values) mandatory.push({ text: plain(l.value, o.group), anchor: tail, prefer: { x: tail.x - tip.x, y: tail.y - tip.y }, mark, set: (b) => (shape.text = b) });
+        const owned = arrowObstacle(tail, tip);
+        const mark = markOf([lineOf(tail, tip)], owned);
+        if (o.values) mandatory.push({ text: plain(l.value, o.group), anchor: tail, prefer: { x: tail.x - tip.x, y: tail.y - tip.y }, mark, ring: null, set: (b) => (shape.text = b) });
       } else {
         // Along the member: the arrows run beside it.
         const p1 = at(l.a);
@@ -1064,17 +1412,18 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
         const off = { x: nrm.x * 10, y: nrm.y * 10 };
         const len = 14 + 6 * l.share;
         let textAt: Point | null = null;
+        const owned: object[] = [];
         for (let k = 0; k < count; k++) {
           const u = k / (count - 1);
           const base = { x: p1.x + (p2.x - p1.x) * u + off.x, y: p1.y + (p2.y - p1.y) * u + off.y };
           const tipPoint = { x: base.x + push.x * len * 0.5, y: base.y + push.y * len * 0.5 };
           const tailPoint = { x: base.x - push.x * len * 0.5, y: base.y - push.y * len * 0.5 };
           shape.arrows.push({ tail: pt(tailPoint), tip: pt(tipPoint) });
-          arrowObstacle(tailPoint, tipPoint);
+          owned.push(...arrowObstacle(tailPoint, tipPoint));
           if (k === Math.floor((count - 1) / 2)) textAt = { x: base.x, y: base.y };
         }
-        const mark = markOf(shape.arrows.map((q) => lineOf(q.tail, q.tip)));
-        if (textAt && o.values) mandatory.push({ text: plain(l.value, o.group), anchor: textAt, prefer: nrm, mark, set: (b) => (shape.text = b) });
+        const mark = markOf(shape.arrows.map((q) => lineOf(q.tail, q.tip)), owned);
+        if (textAt && o.values) mandatory.push({ text: plain(l.value, o.group), anchor: textAt, prefer: nrm, mark, ring: null, set: (b) => (shape.text = b) });
       }
       memberLoads.push(shape);
     }
@@ -1083,16 +1432,24 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
   /* The deformed shape, in pixels. */
   let deformed: DeformedShape | null = null;
   let factor: number | null = null;
-  if (o.deformed && drawing.deformed && drawing.deformed.factor !== null) {
-    factor = drawing.deformed.factor;
+  let capped = false;
+  if (shown) {
+    factor = shown.factor;
+    capped = shown.capped;
     const shape: DeformedShape = { members: [] };
-    for (const dm of drawing.deformed.members) {
+    for (const dm of shown.members) {
       const line = dm.points.map((q) => pt(P(q)));
       shape.members.push({ member: dm.member, points: poly(line) });
-      for (let k = 1; k < line.length; k++) obstacles.addSeg({ x1: line[k - 1].x, y1: line[k - 1].y, x2: line[k].x, y2: line[k].y, pad: 1 });
+      for (let k = 1; k < line.length; k++) {
+        const sg: Seg = { x1: line[k - 1].x, y1: line[k - 1].y, x2: line[k].x, y2: line[k].y, pad: 1 };
+        obstacles.addSeg(sg);
+        structure.add(sg);
+      }
     }
     deformed = shape;
   }
+  // The deformed shape was asked for, there is one, and it is too small to draw at any magnification the drawing uses.
+  const tiny = o.deformed && drawing.deformed !== null && drawing.deformed.factor !== null && shown === null;
 
   /* The words the visitor asks for: member numbers, and the DOF numbers of each node. */
   interface Wanted {
@@ -1180,8 +1537,76 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     }
     return { rect: first!, hits: 1, gap: firstGap };
   };
+  /** The same round a ring: the places a word of w x h stands outside it, from the side `side` (page degrees) round, within `gaps` of its line. */
+  const searchRing = (ring: { c: Point; R: number; side: number }, w: number, h: number, gaps: readonly number[], accept?: (rect: Rect) => boolean): { rect: Rect; hits: number } => {
+    const spots: { rect: Rect; cost: number }[] = [];
+    for (const g of gaps) {
+      for (const d of RING_TURNS) {
+        const u = vecOf(ring.side + d);
+        const ext = Math.abs(u.x) * (w / 2) + Math.abs(u.y) * (h / 2);
+        const centre = { x: ring.c.x + u.x * (ring.R + ext + g), y: ring.c.y + u.y * (ring.R + ext + g) };
+        spots.push({ rect: { x0: centre.x - w / 2, y0: centre.y - h / 2, x1: centre.x + w / 2, y1: centre.y + h / 2 }, cost: g + Math.abs(d) * 0.1 });
+      }
+    }
+    spots.sort((a, b) => a.cost - b.cost);
+    for (const sp of spots) if (touches(sp.rect, 1) === 0 && (!accept || accept(sp.rect))) return { rect: sp.rect, hits: 0 };
+    return { rect: spots[0].rect, hits: 1 };
+  };
+  /** The same all round a point, in 24 directions (every 15 degrees): the places a rectangle of w x h stands off `p`, nearest first, those towards `prefer` before others. */
+  const searchAround = (p: Point, prefer: Point, w: number, h: number, gaps: readonly number[], accept?: (rect: Rect) => boolean): { rect: Rect; hits: number } => {
+    const want = degOf(prefer);
+    const spots: { rect: Rect; cost: number }[] = [];
+    for (const g of gaps) {
+      for (let k = 0; k < 24; k++) {
+        const deg = k * 15;
+        const u = vecOf(deg);
+        const ext = Math.abs(u.x) * (w / 2) + Math.abs(u.y) * (h / 2);
+        const centre = { x: p.x + u.x * (g + ext), y: p.y + u.y * (g + ext) };
+        spots.push({ rect: { x0: centre.x - w / 2, y0: centre.y - h / 2, x1: centre.x + w / 2, y1: centre.y + h / 2 }, cost: g + angleBetween(deg, want) * 0.12 });
+      }
+    }
+    spots.sort((a, b) => a.cost - b.cost);
+    for (const sp of spots) if (touches(sp.rect, 1) === 0 && (!accept || accept(sp.rect))) return { rect: sp.rect, hits: 0 };
+    return { rect: spots[0].rect, hits: 1 };
+  };
+  /** The hairline from a mark to a word: from the point of the mark nearest the word to the point of the word nearest that. */
+  const hairline = (mark: Mark, rect: Rect): Seg => {
+    const nearestInk = (q: Point): Point => {
+      let best = { x: mark.segs[0].x1, y: mark.segs[0].y1 };
+      let bestD = Infinity;
+      for (const s of mark.segs) {
+        const dx = s.x2 - s.x1;
+        const dy = s.y2 - s.y1;
+        const l2 = dx * dx + dy * dy;
+        const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((q.x - s.x1) * dx + (q.y - s.y1) * dy) / l2));
+        const c = { x: s.x1 + t * dx, y: s.y1 + t * dy };
+        const d = Math.hypot(q.x - c.x, q.y - c.y);
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      return best;
+    };
+    const onRect = (q: Point): Point => ({ x: Math.min(Math.max(q.x, rect.x0), rect.x1), y: Math.min(Math.max(q.y, rect.y0), rect.y1) });
+    const first = nearestInk({ x: (rect.x0 + rect.x1) / 2, y: (rect.y0 + rect.y1) / 2 });
+    const start = nearestInk(onRect(first));
+    const end = onRect(start);
+    return { x1: start.x, y1: start.y, x2: end.x, y2: end.y, pad: 0.75 };
+  };
+  /**
+   * Whether a hairline runs across a line, a box or a word that is not its own. It starts on its own mark, which may stand a hair from a node or a
+   * member: it is judged from 3 px out.
+   */
+  const hairlineCrosses = (h: Seg, own: ReadonlySet<object>): boolean => {
+    const len = Math.hypot(h.x2 - h.x1, h.y2 - h.y1);
+    const from = len > HAIRLINE_FREE + 1 ? HAIRLINE_FREE / len : 0;
+    const test: Seg = { x1: h.x1 + (h.x2 - h.x1) * from, y1: h.y1 + (h.y2 - h.y1) * from, x2: h.x2, y2: h.y2, pad: h.pad };
+    return obstacles.crosses(test, 0.75, own) || fixedWords.crosses(test, 0.75) || optionalWords.crosses(test, 0.75);
+  };
 
-  // The settlement badges: the first marks placed on the clear paper, each beside its node and clear of every line; the value is in the sentence under the drawing.
+  // The settlement badges: the first marks placed on the clear paper, each beside its node and clear of every line - and its hairline clear of every
+  // mark; the value is in the sentence under the drawing.
   for (const s of supports) {
     if (!settles.has(s.label)) continue;
     const away = around(s.node).reduce((acc, u) => ({ x: acc.x - u.x, y: acc.y - u.y }), { x: 0, y: 0 });
@@ -1189,62 +1614,110 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     const toward = unit(from.x, from.y);
     const prefer = toward.x === 0 && toward.y === 0 ? { x: -1, y: -1 } : toward;
     const reach = radiusOf(s.node);
-    const found = search({ x: s.x, y: s.y }, prefer, BADGE_BOX, BADGE_BOX, GAPS_BADGE.map((g) => g + reach));
+    const own = new Set<object>([s.box]);
+    const nb = nodeBoxes.get(s.node);
+    if (nb) own.add(nb);
+    /** The line that ties a badge standing at `rect` to its node, or null when it stands beside it. */
+    const tie = (rect: Rect) => {
+      const cx = clean((rect.x0 + rect.x1) / 2);
+      const cy = clean((rect.y0 + rect.y1) / 2);
+      const dist = Math.hypot(cx - s.x, cy - s.y);
+      const ux = (s.x - cx) / (dist || 1);
+      const uy = (s.y - cy) / (dist || 1);
+      const leader = dist > radiusOf(s.node) + BADGE_R + 6 ? { x1: clean(cx + ux * BADGE_R), y1: clean(cy + uy * BADGE_R), x2: clean(s.x - ux * radiusOf(s.node)), y2: clean(s.y - uy * radiusOf(s.node)) } : null;
+      return { cx, cy, leader };
+    };
+    // Across the rings round its own node is the way in to a node with a ring (it ends there), and is allowed where no way is clear of them too.
+    const through = new Set<object>([...own, ...(ringsAt.get(s.node) ?? [])]);
+    const crossed = (rect: Rect, owned: ReadonlySet<object>) => {
+      const t = tie(rect);
+      return t.leader !== null && hairlineCrosses({ x1: t.leader.x1, y1: t.leader.y1, x2: t.leader.x2, y2: t.leader.y2, pad: 0.75 }, owned);
+    };
+    // The nearest place with a hairline clear of every mark; failing that, one that crosses only its own node's rings; failing that, the nearest clear place.
+    const gaps = GAPS_BADGE.map((g) => g + reach);
+    const at = { x: s.x, y: s.y };
+    let found = searchAround(at, prefer, BADGE_BOX, BADGE_BOX, gaps, (rect) => !crossed(rect, own));
+    if (found.hits > 0) found = searchAround(at, prefer, BADGE_BOX, BADGE_BOX, gaps, (rect) => !crossed(rect, through));
+    if (found.hits > 0) found = searchAround(at, prefer, BADGE_BOX, BADGE_BOX, gaps);
     const rect = found.rect;
-    const cx = clean((rect.x0 + rect.x1) / 2);
-    const cy = clean((rect.y0 + rect.y1) / 2);
-    // The badge stands off the node; a short line ties it to the node when it is not next to it.
-    const dist = Math.hypot(cx - s.x, cy - s.y);
-    const ux = (s.x - cx) / (dist || 1);
-    const uy = (s.y - cy) / (dist || 1);
-    const leader = dist > radiusOf(s.node) + BADGE_R + 6 ? { x1: clean(cx + ux * BADGE_R), y1: clean(cy + uy * BADGE_R), x2: clean(s.x - ux * radiusOf(s.node)), y2: clean(s.y - uy * radiusOf(s.node)) } : null;
-    s.badge = { x: cx, y: cy, r: BADGE_R, leader };
+    const t = tie(rect);
+    s.badge = { x: t.cx, y: t.cy, r: BADGE_R, leader: t.leader };
     put(rect);
+    if (t.leader) obstacles.addHairline({ x1: t.leader.x1, y1: t.leader.y1, x2: t.leader.x2, y2: t.leader.y2, pad: 0.75 });
   }
 
-  // The words that are always written: a load's, a reaction's, a member load's. Each hugs the end of its mark (within `TIE`); the smaller
-  // text is tried before it is moved; a number that can only go further is tied to its mark by a hairline; one that finds no place on a
-  // crowded drawing is not written on it (never on a line "because there was no room"): it is counted, and it is in the tables.
+  // The words that are always written: a load's, a reaction's, a member load's. Each hugs its mark (within `TIE` of its ink); the smaller text
+  // is tried before it is moved; a number that can only go further is tied to its mark by a hairline that crosses no other mark and no other
+  // word; one that finds no place on a crowded drawing is not written on it (never on a line "because there was no room"): it is counted, and
+  // it is in the tables.
   let mandatoryLeft = 0;
+  /** Other places along a mark's ink to stand a number beside: its ends and middles, the nearest to the first choice first, none within 6 px of another. */
+  const alternates = (mark: Mark, first: Point): Point[] => {
+    const all: Point[] = [];
+    for (const q of mark.segs) all.push({ x: (q.x1 + q.x2) / 2, y: (q.y1 + q.y2) / 2 }, { x: q.x1, y: q.y1 }, { x: q.x2, y: q.y2 });
+    all.sort((a, b) => Math.hypot(a.x - first.x, a.y - first.y) - Math.hypot(b.x - first.x, b.y - first.y));
+    const out: Point[] = [];
+    for (const q of all) if ([first, ...out].every((o) => Math.hypot(o.x - q.x, o.y - q.y) >= 6) && out.length < 6) out.push(q);
+    return out;
+  };
   for (const m of mandatory) {
-    let done = false;
-    // A number belongs to the mark it is nearest: no other mark of the drawing is nearer to it than its own (a ring's number is not measured
-    // against the rings round the same node, which lie one in another). Only the marks near the number's own are looked at.
-    const near = (q: Mark): boolean => {
-      const c = q.ring ? { x: q.ring.cx, y: q.ring.cy } : { x: (q.segs[0].x1 + q.segs[0].x2) / 2, y: (q.segs[0].y1 + q.segs[0].y2) / 2 };
-      const reach = q.ring ? q.ring.r : Math.max(0, ...q.segs.map((z) => Math.hypot(z.x2 - z.x1, z.y2 - z.y1)));
-      return Math.hypot(c.x - m.anchor.x, c.y - m.anchor.y) < 90 + reach;
-    };
-    const rivals = marks.filter((q) => q !== m.mark && !(m.mark.ring && q.ring) && near(q));
+    // A number belongs to the mark it is nearest: no other mark of the drawing is nearer to it than its own. Only the marks near the number's are looked at.
+    const rivals = marks.filter((q) => q !== m.mark && distPointRect(m.anchor.x, m.anchor.y, q.box) < 90);
     const belongs = (rect: Rect): boolean => {
       const own = markDistance(rect, m.mark);
-      return rivals.every((q) => markDistance(rect, q) >= own - 0.75);
+      return own <= TIE + 0.25 && rivals.every((q) => markDistance(rect, q) >= own - 0.25);
     };
+    const wantText = (size: number) => ({ w: widthOf(m.text, CHAR * (size / BASE_SIZE), 4 * (size / BASE_SIZE)), h: LABEL_H * (size / BASE_SIZE) });
+    // Where a number may stand beside its mark: the place that suits it best (the end of the arrow away from the node, the opening of a ring)
+    // and then others along its ink - the middle of the arrow, its other end, the stretch of a load across a member.
+    const spots = m.ring ? [m.anchor] : [m.anchor, ...alternates(m.mark, m.anchor)];
+    let done = false;
     for (const size of SIZES) {
       const f = size / BASE_SIZE;
-      const found = search(m.anchor, m.prefer, widthOf(m.text, CHAR * f, 4 * f), LABEL_H * f, GAPS_TIED, belongs);
-      if (found.hits === 0) {
-        put(found.rect);
-        m.set(labelAt(m.text, found.rect, f));
-        done = true;
-        break;
+      const { w, h } = wantText(size);
+      for (const at of spots) {
+        const found = m.ring ? searchRing(m.ring, w, h, GAPS_RING, belongs) : search(at, m.prefer, w, h, GAPS_TIED, belongs);
+        if (found.hits === 0) {
+          put(found.rect);
+          m.set(labelAt(m.text, found.rect, f));
+          done = true;
+          break;
+        }
       }
+      if (done) break;
     }
     if (done) continue;
-    const far = search(m.anchor, m.prefer, widthOf(m.text), LABEL_H, GAPS_LEADER);
-    if (far.hits > 0) {
-      mandatoryLeft++;
-      continue;
+    // The hairline: from the mark to the word, across nothing; at the full size first, and smaller where that finds no way. Where there is no way
+    // across nothing, one across the lines of the structure itself (a member, the deformed shape) - never across a mark, a word or a badge.
+    for (const crossable of [m.mark.owned, new Set<object>([...m.mark.owned, ...structure])]) {
+      for (const size of SIZES) {
+        const f = size / BASE_SIZE;
+        const { w, h } = wantText(size);
+        for (const at of spots) {
+          const got: { hl: Seg | null } = { hl: null };
+          const ok = (rect: Rect) => {
+            const hl = hairline(m.mark, rect);
+            if (hairlineCrosses(hl, crossable)) return false;
+            got.hl = hl;
+            return true;
+          };
+          const far = m.ring ? searchRing(m.ring, w, h, GAPS_RING_LEADER, ok) : search(at, m.prefer, w, h, GAPS_LEADER, ok);
+          const hl = got.hl;
+          if (far.hits > 0 || hl === null) continue;
+          const box = labelAt(m.text, far.rect, f);
+          box.leader = { x1: clean(hl.x1), y1: clean(hl.y1), x2: clean(hl.x2), y2: clean(hl.y2) };
+          put(far.rect);
+          // The hairline is a line the words after it keep clear of.
+          obstacles.addHairline(hl);
+          m.set(box);
+          done = true;
+          break;
+        }
+        if (done) break;
+      }
+      if (done) break;
     }
-    // The hairline runs from the end of the mark to the nearest point of the word.
-    const nx = Math.min(Math.max(m.anchor.x, far.rect.x0), far.rect.x1);
-    const ny = Math.min(Math.max(m.anchor.y, far.rect.y0), far.rect.y1);
-    const box = labelAt(m.text, far.rect);
-    box.leader = { x1: clean(m.anchor.x), y1: clean(m.anchor.y), x2: clean(nx), y2: clean(ny) };
-    put(far.rect);
-    // The hairline is a line later words keep clear of.
-    fixedWords.add({ x0: Math.min(m.anchor.x, nx) - 1.5, y0: Math.min(m.anchor.y, ny) - 1.5, x1: Math.max(m.anchor.x, nx) + 1.5, y1: Math.max(m.anchor.y, ny) + 1.5 });
-    m.set(box);
+    if (!done) mandatoryLeft++;
   }
   const keptPlaced = placed.length;
   fixedPhase = false;
@@ -1333,9 +1806,14 @@ export function stiffnessLayout(drawing: StiffnessDrawing, o: LayoutOptions): La
     reactions,
     deformed,
     factor,
+    capped,
+    tiny,
     legend,
     summed: o.loads ? summed : [],
+    cancelled: o.loads ? cancelled : [],
     dotted,
+    dots: dots.sort((p, q) => p - q),
+    supportsOverlap: supports.some((a, i) => supports.slice(i + 1).some((b) => a.box.x0 < b.box.x1 && b.box.x0 < a.box.x1 && a.box.y0 < b.box.y1 && b.box.y0 < a.box.y1 && a.scale < 1)),
     thinned,
     broken: false,
     placed,
@@ -1360,12 +1838,34 @@ export function layoutFor(drawing: StiffnessDrawing, o: LayoutOptions): Layout {
   return made;
 }
 
+/** What a drawing shows that the sentence under it must follow: which nodes it drew as dots, whether it drew loads and reactions, and how many words it left off. */
+export interface DrawnFacts {
+  dots: readonly number[];
+  loads: boolean;
+  reactions: boolean;
+  thinned: number;
+}
+export const drawnOf = (l: Layout): DrawnFacts => ({ dots: l.dots, loads: l.loads.length > 0, reactions: l.reactions.length > 0, thinned: l.thinned });
+
+const everyKept = new WeakMap<StiffnessDrawing, Map<string, { width: number; complete: boolean }>>();
 /**
  * The width that "Show every word" draws the structure at: the column's own (`base`) when every word already has a place, else the least
  * width, up to 6,000 px, at which every word fits at the smallest size. `complete` is whether that was found: a drawing that is not wider
- * for being wider (a tall structure) or that no width suits is left as it is (`width` is `base`, `complete` false).
+ * for being wider (a tall structure) or that no width suits is left as it is (`width` is `base`, `complete` false). The answer is kept for the
+ * drawing it was found for: the page asks for it a moment after a key (to offer the switch), and the figure asks again when the switch is ticked.
  */
 export function everyWidth(drawing: StiffnessDrawing, o: Looks, base: number): { width: number; complete: boolean } {
+  const key = JSON.stringify([base, o.loads, o.reactions, o.deformed, o.dofs, o.nodeNumbers, o.memberNumbers, o.values, o.group, o.flagged ?? null]);
+  let held = everyKept.get(drawing);
+  if (!held) everyKept.set(drawing, (held = new Map()));
+  const found = held.get(key);
+  if (found) return found;
+  const made = searchEvery(drawing, o, base);
+  if (held.size >= 12) held.clear();
+  held.set(key, made);
+  return made;
+}
+function searchEvery(drawing: StiffnessDrawing, o: Looks, base: number): { width: number; complete: boolean } {
   const at = (width: number, extra: Partial<LayoutOptions> = {}) => ({ ...o, width, ...extra });
   const first = layoutFor(drawing, at(base));
   if (first.thinned === 0) return { width: base, complete: false };
@@ -1395,6 +1895,19 @@ export function figureWidth(drawing: StiffnessDrawing, o: Looks, column: number,
   const room = roomFor(drawing, o.deformed, column);
   const drawn = every ? Math.max(room, everyWidth(drawing, o, room).width) : room;
   return { drawn, room, widened: drawn > room };
+}
+
+/**
+ * THE DRAWING THE PAGE MAKES for a structure in a column: its width, whether it was widened, the layout, and how many words it leaves off AT THE
+ * WIDTH IT HAS WITHOUT THE SWITCH (`thinnedAtRoom`): the page offers "Show every word" by that count, and it must not fall to 0 because the
+ * switch was used - the page would take the switch away, the drawing would narrow, the count would be back, and the drawing would go on
+ * widening and narrowing.
+ */
+export function figureOf(drawing: StiffnessDrawing, looks: Looks, o: { width: number; widen: boolean; every: boolean; maxHeight?: number }): { drawn: number; widened: boolean; layout: Layout; thinnedAtRoom: number } {
+  const f = o.widen ? figureWidth(drawing, looks, o.width, o.every) : { drawn: o.width, room: o.width, widened: false };
+  const layout = layoutFor(drawing, { ...looks, width: f.drawn, maxHeight: o.maxHeight });
+  const thinnedAtRoom = f.widened ? layoutFor(drawing, { ...looks, width: f.room, maxHeight: o.maxHeight }).thinned : layout.thinned;
+  return { drawn: f.drawn, widened: f.widened, layout, thinnedAtRoom };
 }
 
 /**

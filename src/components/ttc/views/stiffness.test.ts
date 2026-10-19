@@ -20,6 +20,7 @@ import { TOLERANCES, stagesOf } from '@/lib/calc/stiffness/analysis';
 import { fixedEndForces, localStiffness, solve, transformation } from '@/lib/calc/stiffness/engine';
 import { matMul, matVec, positiveDefinite, transpose } from '@/lib/calc/stiffness/linalg';
 import { CALCULATION_UNITS, STIFFNESS_KEY, defaultCase, emptyStiffness, reduce, toEngine, unitOf } from '@/lib/calc/stiffness/model';
+import { compare, real } from '@/lib/calc/stiffness/families.testlib';
 import { stiffnessPage } from '@/lib/calc/stiffness/page-strings';
 import { TEMPLATE_IDS } from '@/lib/calc/stiffness/templates';
 import {
@@ -289,7 +290,7 @@ describe('stiffness page: the cantilever it works through', () => {
       const text = prose(lang, 'method');
       for (const written of [
         `K_FF = [12EI/L³ −6EI/L²; −6EI/L² 4EI/L] ${lang === 'en' ? 'with' : 'con'} P_F = [−P; 0]`,
-        'l = (−6EI/L²)/(12EI/L³) = −L/2',
+        'm = (−6EI/L²)/(12EI/L³) = −L/2',
         'EI/L',
         '−PL/2',
         'θ_2 = −PL²/(2EI) and v_2 = −PL³/(3EI)'.replace(' and ', lang === 'en' ? ' and ' : ' y '),
@@ -563,7 +564,7 @@ describe('stiffness page: how the method goes, step by step', () => {
     s.reactions.forEach((r, k) => near(r.value, R[k], 1e-9, 1e-9));
   });
 
-  it('the elimination: l_ik = a_ik/a_kk and a_ij ← a_ij − l_ik·a_kj, then u_k = (b_k − Σ a_kj·u_j)/a_kk from the bottom up; every pivot is positive and K_FF is positive definite', () => {
+  it('the elimination: m_ik = a_ik/a_kk and a_ij ← a_ij − m_ik·a_kj, then u_k = (b_k − Σ a_kj·u_j)/a_kk from the bottom up; every pivot is positive and K_FF is positive definite', () => {
     const s = solved(toEngine(reduce(emptyStiffness(), { type: 'template', template: 'frame-portal' })).model);
     const n = s.free.length;
     let aug = matrix(s, 'augmented', 'augmented');
@@ -596,11 +597,11 @@ describe('stiffness page: how the method goes, step by step', () => {
     expect(aug[n - 1][n - 1]).toBeGreaterThan(0);
   });
 
-  it('the checks: the sums, the joints, the energy ½·u^T·K·u = ½·u^T·P + ½·u_R^T·R, and K·u − P − R, each within a hundred-millionth of the size of its terms', () => {
+  it('the checks: the sums, the joints, the energy ½·u^T·K·u = ½·u^T·P + ½·u_R^T·R, and K·u − P − R, each within a hundred-millionth of its own scale and the rounding of its terms', () => {
     const settle = frameModel({ nodes: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 8 }], members: [{ i: 0, j: 1 }, { i: 1, j: 2 }], supports: [{ node: 0, ...FIX }, { node: 2, ux: true, uy: true, rz: false, dy: -0.03, dx: 0.01 }], loads: [{ node: 1, fx: 0, fy: -6, m: 0 }], memberLoads: [{ kind: 'udl', member: 0, w: -1 }] });
     const s = solved(settle);
     expect(s.checks.map((c) => c.id)).toEqual(['sum-fx', 'sum-fy', 'sum-moment', 'joints', 'energy', 'system', 'solve']);
-    for (const c of s.checks) expect(Math.abs(c.value), c.id).toBeLessThanOrEqual(TOLERANCES.residual * c.scale + 1e-300);
+    for (const c of s.checks) expect(Math.abs(c.value), c.id).toBeLessThanOrEqual(TOLERANCES.residual * c.scale + c.allowance + 1e-300);
     expect(s.checks.every((c) => c.ok)).toBe(true);
     const Ku = matVec(s.K, s.u);
     const U = 0.5 * s.u.reduce((acc, v, k) => acc + v * Ku[k], 0);
@@ -742,24 +743,20 @@ describe('stiffness page: what it refuses, and the numbers it says it refuses at
     expect(three.issues[0].kind).toBe('rigid-body');
   });
 
-  it('a pivot that rounding cannot tell from zero is a mechanism when no member is strained by the movement; a pivot whose rounding is a millionth of it or more is solved with a warning that counts the figures', () => {
+  it('a pivot that rounding cannot tell from zero is a mechanism when no member is strained by the movement; a solution whose results could be wrong by a millionth of the largest of their kind or more is solved with a warning that counts the figures', () => {
     expect([TOLERANCES.resolve, TOLERANCES.weak, TOLERANCES.residual]).toEqual([0.1, 1e-6, 1e-8]);
-    // two pinned bars into one free node an angle δ apart: the stiffness across them is sin²δ of the stiffness along them
-    const model = (delta: number): StiffnessModel => {
-      const t1 = Math.PI / 4 - delta / 2;
-      const t2 = Math.PI / 4 + delta / 2;
-      return { mode: 'truss', E: 1000, A: 1, nodes: [{ x: 0, y: 0 }, { x: 10 * Math.cos(t1), y: 10 * Math.sin(t1) }, { x: 10 * Math.cos(t2), y: 10 * Math.sin(t2) }], members: [{ i: 1, j: 0 }, { i: 2, j: 0 }], supports: [{ node: 1, ...pin }, { node: 2, ...pin }], loads: [{ node: 0, fx: 0, fy: -1, m: 0 }], memberLoads: [] };
-    };
-    // bars 1e-7 rad apart: the pivot is lost in its rounding and the movement strains nothing to speak of: a mechanism
-    expect(codes(model(1e-7))).toEqual(['mechanism']);
-    // 2e-5 rad apart: a pivot of 4e-10 of its diagonal, which the test of the pivot against its diagonal called a mechanism; it is stable, it is solved
-    const loose = solved(model(2e-5));
+    // two bars on a line at 45° (a tilted one: nothing is exactly zero in it), their joint `e` ft off the line along the other diagonal: the stiffness across them is (e/L)² of the stiffness along them
+    const model = (e: number): StiffnessModel => ({ mode: 'truss', E: 1000, A: 1, nodes: [{ x: 0, y: 0 }, { x: 20, y: 20 }, { x: 10 + e, y: 10 - e }], members: [{ i: 0, j: 2 }, { i: 1, j: 2 }], supports: [{ node: 0, ...pin }, { node: 1, ...pin }], loads: [{ node: 2, fx: 0, fy: -1, m: 0 }], memberLoads: [] });
+    // 1e-14 ft off the line: the pivot is a trillion trillion trillionth of its diagonal, under its own rounding even in thirty figures, and the movement strains nothing to speak of: a mechanism
+    expect(codes(model(1e-14))).toEqual(['mechanism']);
+    // 1e-12 ft: a pivot of 1e-26 of its diagonal, which the arithmetic keeps with a handful of figures: it is stable, it is solved, and the warning counts the figures
+    const loose = solved(model(1e-12));
     const w = loose.warnings.find((x) => x.code === 'near-mechanism');
     expect(w).toBeDefined();
     expect(w!.ratio!).toBeGreaterThan(TOLERANCES.weak);
     expect(w!.ratio!).toBeLessThan(TOLERANCES.resolve);
     expect(w!.count!).toBeGreaterThanOrEqual(1);
-    // 0.05 rad apart is a weak structure (a unit load moves it a length or so) but a well-scaled one: no figure is lost to rounding
+    // 0.05 ft off the line is a weak structure (a unit load moves it a length or so) but a well-scaled one: no figure is lost to rounding
     expect(solved(model(0.05)).warnings.map((x) => x.code)).not.toContain('near-mechanism');
   });
 
@@ -839,22 +836,41 @@ describe('stiffness page: what it refuses, and the numbers it says it refuses at
     expect(TOLERANCES.zero).toBe(1e-9);
     const method = prose('en', 'method');
     expect(method).toMatch(/a pivot no more than ten times its own error is taken as zero/);
-    expect(method).toMatch(/A pivot whose error could be a millionth of it or more, but under a tenth, is solved with a warning/);
-    expect(method).toMatch(/with a limit of a hundred-millionth/);
-    expect(prose('en', 'assumes')).toMatch(/move across it by more than a tenth of its length/);
+    expect(method).toMatch(/A solution whose results could be wrong by a millionth of the largest of their kind or more, but by less than a tenth, is solved with a warning/);
+    expect(method).toMatch(/Each is held to a hundred-millionth of a scale of its own, with an allowance for the rounding in its terms/);
+    expect(prose('en', 'assumes')).toMatch(/the chord of a member turns past a tenth of a radian, when an end of a frame member turns past a tenth of a radian away from its chord, or when a member stretches or shortens by over a tenth of its own length/);
     // the one tolerance for “the same number”: the closed form of a bar against the product, K against its transpose
     expect(TOLERANCES.agree).toBe(1e-12);
     expect(method).toMatch(/the tool tests it to a millionth of a millionth of the largest entry/);
     expect(prose('en', 'limits')).toMatch(/under a hundred-thousandth of the structure’s size/);
-    expect(prose('en', 'signs')).toMatch(/A value under a billionth of the largest in its own matrix or vector is printed as 0/);
+    expect(prose('en', 'signs')).toMatch(/A number is printed as 0 only when it is no larger than the rounding of the terms it was made of/);
+    expect(prose('en', 'signs')).toMatch(/a sum under a billionth of its scale is printed as 0/);
     const metodo = prose('es', 'method');
     expect(metodo).toMatch(/un pivote que no pasa de diez veces su propio error se toma como cero/);
-    expect(metodo).toMatch(/Un pivote cuyo error pudiera ser una millonésima de él o más, pero menos de una décima, se resuelve con una advertencia/);
-    expect(metodo).toMatch(/con un límite de una cienmillonésima/);
-    expect(prose('es', 'assumes')).toMatch(/se desplazan transversalmente a ella más de una décima de su longitud/);
+    expect(metodo).toMatch(/Una solución cuyos resultados pudieran errar en una millonésima del mayor de su clase o más, pero en menos de una décima, se resuelve con una advertencia/);
+    expect(metodo).toMatch(/Cada una se limita a una cienmillonésima de una escala propia, con un margen para el redondeo de sus términos/);
+    expect(prose('es', 'assumes')).toMatch(/una barra gira su cuerda más allá de una décima de radián, cuando un extremo de una barra de pórtico se separa de su cuerda más allá de una décima de radián, o cuando una barra se alarga o se acorta por encima de una décima de su propia longitud/);
     expect(metodo).toMatch(/la herramienta lo comprueba con una diferencia máxima de una millonésima de millonésima del mayor término/);
     expect(prose('es', 'limits')).toMatch(/menor que una cienmilésima del tamaño de la estructura/);
-    expect(prose('es', 'signs')).toMatch(/menor que una milmillonésima del mayor de su matriz o vector se imprime como 0/);
+    expect(prose('es', 'signs')).toMatch(/Un número se imprime como 0 solo cuando no es mayor que el redondeo de los términos con que se formó/);
+    expect(prose('es', 'signs')).toMatch(/una suma menor que una milmillonésima de su escala se imprime como 0/);
+  });
+
+  it('the stiffness range it states is the engine’s: a member up to some twenty orders of magnitude stiffer is solved to eight figures or more; beyond, a warning counts the figures and the checks refuse what they cannot hold', () => {
+    expect(stiffnessPage.en.limits.items.join(' ')).toContain('up to some twenty orders of magnitude stiffer than the rest is solved to eight figures or more');
+    expect(stiffnessPage.es.limits.items.join(' ')).toContain('hasta unos veinte órdenes de magnitud más rígida que el resto se resuelve con ocho cifras o más');
+    expect(stiffnessPage.en.limits.items.join(' ')).toContain('refused as ill-conditioned, and one with not a figure left as a stiffness range');
+    // a hundred structures with one member made 10²⁰ times stiffer in its area, against the 120-digit oracle
+    for (let s = 0; s < 50; s++) {
+      for (const mode of ['truss', 'frame'] as const) {
+        const c = compare(real(30000 + s, mode, 20, 'A', true));
+        if (c.exact === 'singular') continue;
+        expect(c.engine, `${mode} #${s}`).toBe('ok');
+        expect(c.errU, `${mode} #${s}`).toBeLessThan(1e-8);
+        expect(c.errR, `${mode} #${s}`).toBeLessThan(1e-8);
+        expect(c.errF, `${mode} #${s}`).toBeLessThan(1e-8);
+      }
+    }
   });
 
   it('the address is written after the key the form uses', () => {
@@ -907,7 +923,7 @@ describe('stiffness page: the words', () => {
     expect(stiffnessPage.es.method.paragraphs[1]).toContain('GDL; las fórmulas de la herramienta los llaman DOF');
     // the formulas are the same in both: a case's symbols are not translated
     const formulas = (s: string) =>
-      s.match(/12EI\/L³|6EI\/L²|4EI\/L|2EI\/L|EA\/L|wL²\/12|wL\/2|qL\/2|Pb²\(3a\+b\)\/L³|Pab²\/L²|Pa²\(a\+3b\)\/L³|Pa²b\/L²|K_FF·u_F = P_F − K_FR·u_R|K_e = T\^T·k·T|u_local = T·u_global|u_local = T·u_e|f = k·u_local|K ← K \+ K_e|−T\^T·f_FE|R = K_RF·u_F \+ K_RR·u_R − P_R|K·u = P \+ R|K·u − P − R|l_ik = a_ik\/a_kk|a_ij ← a_ij − l_ik·a_kj|u_k = \(b_k − Σ a_kj·u_j\)\/a_kk|U = ½·u\^T·K·u|PL²\/\(2EI\)|PL³\/\(3EI\)|Hh³\/\(24EI\)|24EI\/h³|12EI\/h³|l = \(−6EI\/L²\)\/\(12EI\/L³\) = −L\/2|f_FE = \[0, 10, 16\.667, 0, 10, −16\.667\]/g) ?? [];
+      s.match(/12EI\/L³|6EI\/L²|4EI\/L|2EI\/L|EA\/L|wL²\/12|wL\/2|qL\/2|Pb²\(3a\+b\)\/L³|Pab²\/L²|Pa²\(a\+3b\)\/L³|Pa²b\/L²|K_FF·u_F = P_F − K_FR·u_R|K_e = T\^T·k·T|u_local = T·u_global|u_local = T·u_e|f = k·u_local|K ← K \+ K_e|−T\^T·f_FE|R = K_RF·u_F \+ K_RR·u_R − P_R|K·u = P \+ R|K·u − P − R|m_ik = a_ik\/a_kk|a_ij ← a_ij − m_ik·a_kj|u_k = \(b_k − Σ a_kj·u_j\)\/a_kk|U = ½·u\^T·K·u|PL²\/\(2EI\)|PL³\/\(3EI\)|Hh³\/\(24EI\)|24EI\/h³|12EI\/h³|m = \(−6EI\/L²\)\/\(12EI\/L³\) = −L\/2|f_FE = \[0, 10, 16\.667, 0, 10, −16\.667\]/g) ?? [];
     en.forEach(([path, s], i) => expect(formulas(es[i][1]), path).toEqual(formulas(s)));
     expect(en.flatMap(([, s]) => formulas(s)).length).toBeGreaterThanOrEqual(45);
   });
