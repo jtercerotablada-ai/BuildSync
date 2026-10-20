@@ -6,17 +6,12 @@
  *
  * Miami-Dade: the County's list of municipalities (Islandia, dissolved, is
  * not listed). Broward: the 31 municipalities of the County.
+ *
+ * The home page shows each county's own mark and its `featured` cities
+ * first; the municipalities with no mark on file are named in a line right
+ * under them ("Also: …"), and every other mark opens under the county's
+ * "All N municipalities" disclosure.
  */
-/**
- * The marks the home page shows before each county's "All N municipalities"
- * disclosure, after the county's own: its seven most populous cities with a
- * mark on file (2020 census), largest first. Miami Beach has no mark on file
- * (see `marks`), so Miami-Dade's seventh is Coral Gables. Every other
- * municipality opens under the disclosure.
- */
-export const featuredMiamiDade = ['Miami', 'Hialeah', 'Miami Gardens', 'Homestead', 'Doral', 'North Miami', 'Coral Gables'] as const;
-export const featuredBroward = ['Fort Lauderdale', 'Pembroke Pines', 'Hollywood', 'Miramar', 'Coral Springs', 'Pompano Beach', 'Davie'] as const;
-
 export const miamiDadeMunicipalities = [
   'Aventura',
   'Bal Harbour',
@@ -87,6 +82,16 @@ export const browardMunicipalities = [
   'Weston',
   'Wilton Manors',
 ] as const;
+
+/**
+ * The cities the home page shows first, after the county's own mark: each
+ * county's seven most populous municipalities with a mark on file (2020
+ * census), largest first. Miami Beach has no mark on file (see `marks`), so
+ * it is named in the line under these instead, and Miami-Dade's seventh is
+ * Coral Gables.
+ */
+export const featuredMiamiDade = ['Miami', 'Hialeah', 'Miami Gardens', 'Homestead', 'Doral', 'North Miami', 'Coral Gables'] as const;
+export const featuredBroward = ['Fort Lauderdale', 'Pembroke Pines', 'Hollywood', 'Miramar', 'Coral Springs', 'Pompano Beach', 'Davie'] as const;
 
 /**
  * The current official mark of each office that has one on file, taken from

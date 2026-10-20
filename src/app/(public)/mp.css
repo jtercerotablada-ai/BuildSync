@@ -21,12 +21,12 @@
      04  Header / mobile menu
      05  Footer
      06  Hero
-     07  County programs (the two home-page program sections)
+     07  County programs (the home page's two county columns)
      08  Typologies
      09  Background-video pause toggle
      10  New buildings (model stage, service link list) + toolchain
      11  (retired)
-     12  Service area
+     12  (retired: the service area band left the home page, 2026-10-20)
      13  Closing CTA
      14  Internal pages (page hero, breadcrumbs, split, prose, cards…)
      15  Work + gallery
@@ -473,7 +473,7 @@ html:has(.mp) {
    surface token block below, and the header while it floats over a dark
    hero (04 · HEADER). A new dark context gets the right ring by joining one
    of those, not by being added to a list here. */
-.mp :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+.mp :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--mp-gold-ink);
   outline-offset: 3px;
 }
@@ -531,9 +531,15 @@ html:has(.mp) {
   white-space: nowrap;
 }
 
+/* A hyphenated name kept on one line ("Miami-Dade"): `keepHyphens` in
+   text.tsx. */
+.mp-nobr {
+  white-space: nowrap;
+}
+
 /* Hook classes — names the markup carries so a section or a column can be
    targeted, which need no rule of their own today:
-     .mp-eng  .mp-eng__copy  .mp-geo__copy  .mp-sechead__label
+     .mp-eng  .mp-eng__copy  .mp-sechead__label
      .mp-tools-sec
    Listed here so a "class with no rule" audit can tell a hook from a class
    whose styles were lost. */
@@ -611,10 +617,6 @@ html:has(.mp) {
 }
 
 /* ── Type utilities ──────────────────────────────────────────────────────── */
-.mp-h2 {
-  font-size: var(--mp-t-h2);
-  line-height: 1.04;
-}
 .mp-h3 {
   font-size: var(--mp-t-h3);
   line-height: 1.15;
@@ -1928,11 +1930,13 @@ a.mp-menu__mail {
   margin-block-start: var(--mp-6);
   align-self: start;
 }
+/* An instruction (what to send), so body size: a reader with reading
+   glasses must not have to lean in to learn what to do. */
 .mp-prog__ctanote {
   flex: 1 1 15rem;
   max-width: 40ch;
   margin: 0;
-  font-size: var(--mp-t-small);
+  font-size: var(--mp-t-body);
   line-height: 1.55;
   color: var(--mp-ink-3);
 }
@@ -1951,6 +1955,9 @@ a.mp-menu__mail {
   grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr);
   gap: var(--mp-4);
   align-items: baseline;
+  /* In a shared row taller than its own content (the other county's value
+     is longer), label and value stay together at the top. */
+  align-content: start;
   padding-block: 0.85rem;
   border-block-end: 1px solid var(--mp-line);
 }
@@ -1967,8 +1974,11 @@ a.mp-menu__mail {
   line-height: 1.55;
   color: var(--mp-ink);
 }
+/* Running text, not a label: the small size, not the 12px label step. */
 .mp-prog .mp-timing__src {
   margin: var(--mp-3) 0 0;
+  font-size: var(--mp-t-small);
+  letter-spacing: 0;
   line-height: 1.6;
 }
 .mp-prog__links {
@@ -1978,10 +1988,9 @@ a.mp-menu__mail {
   gap: var(--mp-3) var(--mp-8);
   margin: var(--mp-6) 0 0;
 }
-/* The county switch: phones and tablets only, and only once the page is
-   live (`data-ready`, set on hydration) — before that both columns show,
-   one after the other. Two equal halves of one outlined bar, the shown
-   county filled; 48px high, a whole half to tap. */
+/* The county switch: phones and tablets only (the rules under it). Two
+   equal halves of one outlined bar, the shown county filled; 48px high, a
+   whole half to tap. Its focus ring is the site's own (00). */
 .mp-progs__switch {
   display: none;
 }
@@ -2016,18 +2025,31 @@ a.mp-menu__mail {
   background: var(--mp-ink);
   color: var(--mp-paper);
 }
-.mp-progs__seg button:focus-visible {
-  outline: 2px solid var(--mp-gold);
-  outline-offset: 3px;
-}
-@media (max-width: 1023px) {
-  .mp-progs[data-ready] .mp-progs__switch {
+/* On screen only — a printed page gets both counties, one after the other.
+   `html.js` is set by the root layout's first script, before the page
+   paints, so the phone layout is right from the first frame: the switch is
+   there and the second county is hidden. Until React takes over
+   (`data-ready`), an address ending in #broward (`html[data-county]`, set by
+   the same script) shows Broward instead. Without script both columns show
+   and the switch stays hidden. */
+@media screen and (max-width: 1023px) {
+  html.js .mp-progs__switch {
     display: grid;
     gap: var(--mp-3);
     margin-block-end: var(--mp-8);
   }
-  .mp-progs[data-ready] .mp-prog[data-off] {
+  html.js .mp-progs[data-ready] .mp-prog[data-off],
+  html.js:not([data-county='broward']) .mp-progs:not([data-ready]) .mp-prog + .mp-prog,
+  html.js[data-county='broward'] .mp-progs:not([data-ready]) .mp-prog:first-child {
     display: none;
+  }
+  html[data-county='broward'] .mp-progs:not([data-ready]) .mp-progs__seg button:first-child {
+    background: transparent;
+    color: var(--mp-ink);
+  }
+  html[data-county='broward'] .mp-progs:not([data-ready]) .mp-progs__seg button:last-child {
+    background: var(--mp-ink);
+    color: var(--mp-paper);
   }
 }
 /* What the two programs share, once, under both columns: a label, the four
@@ -2441,57 +2463,6 @@ a.mp-menu__mail {
   line-height: 1.6;
   color: var(--mp-ink-faint);
   max-width: 78ch;
-}
-
-/* ═══ 12 · SERVICE AREA ═══════════════════════════════════════════════════ */
-
-.mp-geo__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(2.5rem, 6vw, 6rem);
-  align-items: center;
-}
-.mp-geo__photo {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  background: var(--mp-concrete);
-}
-.mp-geo__photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: saturate(0.8) contrast(1.04);
-}
-.mp-geo__body {
-  margin: var(--mp-6) 0 0;
-  max-width: 50ch;
-}
-.mp-geo__counties {
-  list-style: none;
-  margin: var(--mp-8) 0 0;
-  padding: 0;
-  border-block-start: 1px solid var(--mp-line);
-}
-.mp-geo__counties li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--mp-2) var(--mp-6);
-  padding-block: var(--mp-4);
-  border-block-end: 1px solid var(--mp-line);
-}
-.mp-geo__name {
-  font-size: var(--mp-t-h4);
-  font-weight: 500;
-  letter-spacing: -0.012em;
-}
-.mp-geo__note {
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-ink-faint);
 }
 
 /* ═══ 13 · CLOSING CTA ════════════════════════════════════════════════════ */
@@ -3547,7 +3518,6 @@ a.mp-menu__mail {
       0 0 3px rgba(11, 12, 13, 0.7);
   }
   .mp-bim__grid,
-  .mp-geo__grid,
   .mp-contact__grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4324,15 +4294,19 @@ a.mp-menu__mail {
 .mp-partner--full .mp-partner__cards {
   margin-block-start: clamp(2rem, 4vw, 3rem);
 }
+/* The mark's column is fixed (the mark's own height), so both cards' text
+   starts at the same x; the place row takes the spare height, so both
+   licence lists sit at the foot and line up when one firm's name wraps. */
 .mp-partner--full .mp-partner__card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: clamp(56px, 4.6vw, 72px) minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
   column-gap: clamp(1.25rem, 2.5vw, 2rem);
-  align-content: start;
   padding: clamp(1.25rem, 2.5vw, 2rem);
 }
 .mp-partner--full .mp-partner__logo {
   grid-row: 1 / span 3;
+  justify-self: center;
   height: clamp(56px, 4.6vw, 72px);
   margin: 0;
 }
@@ -4343,6 +4317,7 @@ a.mp-menu__mail {
 }
 .mp-partner--full .mp-partner__who {
   margin-block-end: 0;
+  align-self: start;
 }
 .mp-partner--full .mp-partner__lic {
   grid-column: 1 / -1;
@@ -5780,14 +5755,6 @@ a.mp-menu__mail {
   .mp-eng__figure {
     max-width: 520px;
   }
-  /* Stacked, the home teaser's eyebrow — his licensure and license number —
-     sits right under the plate that already lists LICENSURE: the same fact
-     twice in a row (the number itself is on the partner block, one section
-     down). Only the teaser: on /about the eyebrow is the kicker of the
-     engineer's name. */
-  .mp-eng--teaser .mp-eng__role {
-    display: none;
-  }
   .mp-steps {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -6248,9 +6215,6 @@ a.mp-menu__mail {
   color: var(--mp-ink-3);
   font-weight: 600;
 }
-.mp-cost__h--gap {
-  margin-block-start: var(--mp-8);
-}
 .mp-cost__list {
   list-style: none;
   margin: 0;
@@ -6276,22 +6240,23 @@ a.mp-menu__mail {
   color: var(--mp-gold-ink);
   font-weight: 700;
 }
+/* What moves the price: something to act on, at body size. */
 .mp-cost__note {
   margin: var(--mp-6) 0 0;
-  font-size: var(--mp-t-small);
+  font-size: var(--mp-t-body);
   line-height: 1.6;
   color: var(--mp-ink-3);
   max-width: 60ch;
 }
 
 /* The home sections' opening (CostSection.tsx `Head`): the headline on the
-   left, its lede on the right from 1024px, bottoms aligned, so a section
-   says its point in one line and starts working right under it. */
+   left, its lede on the right from 1024px, tops aligned — the headline is
+   read first, and the section starts working right under the two. */
 .mp-hsec__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--mp-4) clamp(2.5rem, 5vw, 5rem);
-  align-items: end;
+  align-items: start;
 }
 .mp-hsec__title {
   margin: 0;
@@ -6357,13 +6322,13 @@ a.mp-menu__mail {
   color: var(--mp-ink);
 }
 /* Fixed columns, so the two counties' prices start on the same two lines in
-   every row: the sizes take a little under half, each county a quarter. */
+   every row: the sizes take two fifths, each county 30%. */
 @media (min-width: 721px) {
   .mp-cost__table {
     table-layout: fixed;
   }
   .mp-cost__table thead th:first-child {
-    width: 46%;
+    width: 40%;
   }
 }
 .mp-cost__table tbody th {
@@ -6372,12 +6337,14 @@ a.mp-menu__mail {
   line-height: 1.45;
   color: var(--mp-ink-2);
 }
+/* A price may wrap (a larger browser font, the longer Spanish words); it is
+   balanced, so a range never leaves its last figure alone on a line. */
 .mp-cost__table td {
   font-size: var(--mp-t-h4);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--mp-ink);
-  white-space: nowrap;
+  text-wrap: balance;
 }
 @media (max-width: 720px) {
   .mp-cost__table thead {
@@ -6406,9 +6373,6 @@ a.mp-menu__mail {
   .mp-cost__table tbody th {
     grid-column: 1 / -1;
     margin-block-end: 0.5rem;
-  }
-  .mp-cost__table td {
-    white-space: normal;
   }
   .mp-cost__table td::before {
     content: attr(data-label);
@@ -6472,18 +6436,20 @@ a.mp-menu__mail {
 .mp-cost__bro {
   margin-block-start: var(--mp-8);
 }
+/* The home section only: three risks in a row. The cost page (CostView)
+   prints its own list with the same class in a narrower column, as rows. */
 @media (min-width: 901px) {
-  .mp-cost__risks {
+  .mp-cost--urgent .mp-cost__risks {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: clamp(1.5rem, 3vw, 3rem);
     border-block-start: 0;
   }
-  .mp-cost__risks li {
+  .mp-cost--urgent .mp-cost__risks li {
     padding-block: var(--mp-4) 0;
     border-block-start: 1px solid var(--mp-line);
     border-block-end: 0;
   }
-  .mp-cost__foot {
+  .mp-cost--urgent .mp-cost__foot {
     margin-block-start: var(--mp-6);
   }
 }
@@ -6608,10 +6574,26 @@ a.mp-menu__mail {
   .mp-cost__cards,
   .mp-cost__scope { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Side by side, each county's pieces share a row with the other's — the
+   heading, the marks, the "Also" line, the disclosure — so the two
+   disclosures sit level however many lines a caption takes. */
 @media (min-width: 1024px) {
   .mp-cost__counties {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: clamp(2.5rem, 4.5vw, 5rem);
+    row-gap: 0;
+  }
+  @supports (grid-template-rows: subgrid) {
+    .mp-cost__county {
+      display: grid;
+      grid-row: span 4;
+      grid-template-rows: subgrid;
+      row-gap: 0;
+      align-content: start;
+    }
+    .mp-cost__county > .mp-cost__h {
+      margin-block-end: 0;
+    }
   }
 }
 
@@ -6772,6 +6754,41 @@ a.mp-menu__mail {
 /* ── 22. The recertification cost page (CostView.tsx) ───────────────────────
    The tables, the scope lists and the risk rows are section 20's; these are
    the pieces only this page has. */
+/* "Outside the fee" beside "Five ways to keep the cost down": the risk rows
+   on the left, the numbered steps on the right (stacked on a phone). */
+.mp-cost__urgent-grid {
+  margin-block-start: clamp(2rem, 4vw, 3rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
+}
+.mp-cost__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-cost__steps li {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0.25rem var(--mp-3);
+  padding-block: 1rem;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-cost__steps .mp-secnum {
+  grid-row: 1 / span 2;
+}
+.mp-cost__steps li > span:last-child {
+  font-size: var(--mp-t-body);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+@media (min-width: 901px) {
+  .mp-cost__urgent-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+}
 .mp-costp__reviewed {
   margin: var(--mp-4) 0 0;
   font-size: var(--mp-t-label);

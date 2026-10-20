@@ -49,7 +49,7 @@
  *     described (the ledes, the timing rows and the questions), and since
  *     October 7 each program page states what its county asks for (`packet`
  *     and one question) — still without a word on who signs. For the same
- *     reason the home teaser and /about no longer say that one person
+ *     reason /about no longer says that one person
  *     "signs" every project: with the package complete, that sentence read
  *     as one engineer signing the electrical report too.
  *   • The site DOES say that one team delivers the COMPLETE package — the
@@ -416,9 +416,6 @@ export const ui = {
   },
   engineer: {
     eyebrow: 'Meet the engineer',
-    /** Home teaser label. The teaser keeps this label and its own headline;
-        the engineer's name is on its plate (see EngineerSection). */
-    eyebrowTeaser: 'Who is responsible',
     role: 'Principal Engineer',
     credential: 'Florida Professional Engineer',
     license: 'Florida P.E. license',
@@ -444,7 +441,6 @@ export const ui = {
     focus: 'Practice focus',
     approach: 'How I work',
     forYou: 'What that means for you',
-    readMore: 'Meet the Engineer',
     plateNote: 'Professional portrait to follow',
   },
   work: {
@@ -817,6 +813,12 @@ export type Service = {
    * is true by itself, and carry what qualifies it in the sentences after:
    * the hero cuts at the first full stop (`firstSentence`, mp/text.tsx).
    * The whole value, hedges included, is printed once, in the row.
+   *
+   * `scope: true` marks the ONE fact that says which buildings the program
+   * reaches ("Applies to"). The home page's county column prints it first,
+   * as its label and first sentence, with the `home` facts under it; the
+   * city pages do not (their list is the deadlines). Its first sentence
+   * says what the program covers; the exemptions stay in the row.
    */
   timing?: {
     checked: string;
@@ -833,7 +835,7 @@ export type Service = {
       jurisdiction: string;
       source: string;
       sourceUrl?: string;
-      facts: { k: string; v: string; filing?: boolean; home?: boolean; homeWhole?: boolean }[];
+      facts: { k: string; v: string; filing?: boolean; home?: boolean; homeWhole?: boolean; scope?: boolean }[];
     }[];
   };
   /**
@@ -955,8 +957,9 @@ export type Service = {
     titleLines: string[];
     /** ONE accent, and it falls on the thing that differs between counties. */
     accentWord: string;
-    /** One paragraph, 40 words at most, no number: it sits beside the other
-        county's in a half-width column. */
+    /** One paragraph, 45 words at most, no number: it sits beside the other
+        county's in a half-width column. Its last sentence gives the name
+        most owners still use, each county in its own words. */
     lede: string;
     /** Four short labels: the published six-step sequence, compressed. */
     steps: string[];
@@ -1199,7 +1202,7 @@ export const services: Service[] = [
              provide" the courtesy notices and that not receiving them
              excuses nothing — so "should arrive", never "arrive". */
           facts: [
-            { k: 'Applies to', v: 'Almost every building type — condominiums, co-ops, apartments, offices, retail and industrial. Outside the program: single-family homes, duplexes, and buildings with both an occupant load of 10 or less under the Florida Building Code and a gross area of 2,000 sq ft or less.' },
+            { k: 'Applies to', scope: true, v: 'Almost every building type — condominiums, co-ops, apartments, offices, retail and industrial. Outside the program: single-family homes, duplexes, and buildings with both an occupant load of 10 or less under the Florida Building Code and a gross area of 2,000 sq ft or less.' },
             { k: 'First due', v: 'At 30 years — 25 for condominium and cooperative buildings of three or more stories within 3 miles of the coast. Age is counted from the year built on the Property Appraiser’s record.', home: true },
             { k: 'Then', v: 'Every 10 years, for the life of the structure.', home: true },
             { k: 'Time to file', v: '90 days from the Notice of Required Inspection. Courtesy notices should arrive two years and one year ahead; not receiving them does not move the deadline.', filing: true, home: true },
@@ -1434,7 +1437,7 @@ export const services: Service[] = [
          "90 days" must always equal the row's "Time to file". */
       titleLines: ['Miami-Dade recertification.', '90 days from the notice.'],
       accentWord: '90 days',
-      lede: 'One team delivers the complete package — the structural and electrical reports on the county’s forms and the certificates that go with them — and stays through repairs to the amended report that closes the recertification.',
+      lede: 'One team delivers the complete package — the structural and electrical reports on the county’s forms and the certificates that go with them — and stays through repairs to the amended report that closes the recertification. To most owners it is still the 40-year recertification.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Miami-Dade Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year built.',
@@ -1598,7 +1601,7 @@ export const services: Service[] = [
              about; the government, school, tribal and railroad ones are in
              `considerations`. */
           facts: [
-            { k: 'Applies to', v: 'Almost all building types, in every Broward city and the unincorporated area. Outside the program: one- to four-family dwellings of three or fewer habitable stories, fee-simple townhouses, and minor structures under 3,500 sq ft of building area.' },
+            { k: 'Applies to', scope: true, v: 'Almost all building types, in every Broward city and the unincorporated area. Outside the program: one- to four-family dwellings of three or fewer habitable stories, fee-simple townhouses, and minor structures under 3,500 sq ft of building area.' },
             { k: 'First due', v: 'At 25 years, counted from the certificate of occupancy.', home: true },
             { k: 'Then', v: 'Every 10 years.', home: true },
             { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. Your city’s letter states its own date.', filing: true, home: true, homeWhole: true },
@@ -1795,7 +1798,7 @@ export const services: Service[] = [
       /* "180 days" must always equal the row's "Time to file". */
       titleLines: ['Broward BSIP.', '180 days from the notice.'],
       accentWord: '180 days',
-      lede: 'One team delivers the complete BSIP package — both inspections, structural and electrical, the written report and the program’s official forms — and stays through repairs and close-out. Many owners still call it the 40-year recertification.',
+      lede: 'One team delivers the complete BSIP package — both inspections, structural and electrical, the written report and the program’s official forms — and stays through repairs and close-out. Many boards still know the BSIP by its old name, the 40-year recertification.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Broward Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
@@ -2713,14 +2716,6 @@ export const leadership = {
     url: 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=',
   } as { number: string; url: string } | null,
   linkedin: null as string | null,
-  /** Home teaser: two sentences. */
-  /** Home-teaser headline: the promise. The teaser names the engineer on its
-      plate, beside this line — the headline itself still names no one. */
-  teaserTitle: 'One engineer is responsible for the whole project.',
-  /* No phone is published, so "first message", not "first call"; and the
-     promise is the scope we deliver, not what gets built. */
-  teaser:
-    'Every project at Tercero Tablada Civil and Structural Engineering Inc. is led by one engineer, from the proposal to the final report. You deal directly with the engineer from your first message, and the scope you approve in the proposal is the scope we deliver.',
   bio: [
     'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil and Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
     'The practice covers both halves of structural work in South Florida: the design of new reinforced-concrete buildings, and the evaluation, recertification and repair of buildings already standing. Both are done with the same discipline — the reasoning behind every conclusion is written down, and nothing leaves the office that has not been checked line by line.',
@@ -2739,9 +2734,9 @@ export const leadership = {
   approach:
     'I would rather explain a structural decision in plain language than hide it behind a code reference. A board should be able to read a findings report and know what to do next; a contractor should be able to build from the drawing without calling; and a reviewer should be able to follow the calculation from load to detail.',
   forYou: [
-    { k: 'Direct communication', v: 'You talk to the engineer who is doing the work — not to an account manager relaying questions.', teaser: 'Your questions go straight to the engineer on your building.' },
-    { k: 'A scope you can read', v: 'Every proposal states what is included, what is not, what you receive and what it costs, before anything starts.', teaser: 'What is included, what is not and what it costs, in writing before work starts.' },
-    { k: 'One engineer’s judgment', v: 'The engineer who studies your building or sets the design basis is the one who answers for the result, to you and to the reviewer.', teaser: 'The engineer who studies your building is the one who answers for the result.' },
+    { k: 'Direct communication', v: 'You talk to the engineer who is doing the work — not to an account manager relaying questions.' },
+    { k: 'A scope you can read', v: 'Every proposal states what is included, what is not, what you receive and what it costs, before anything starts.' },
+    { k: 'One engineer’s judgment', v: 'The engineer who studies your building or sets the design basis is the one who answers for the result, to you and to the reviewer.' },
   ],
   /** Rendered as facts on the typographic plate while there is no portrait. */
   plate: [

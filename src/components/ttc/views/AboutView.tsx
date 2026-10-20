@@ -61,7 +61,7 @@ export function AboutView({ lang }: { lang: Lang }) {
         photo={imagery.pages.about}
       />
 
-      <EngineerSection n="01" variant="full" />
+      <EngineerSection n="01" />
 
       <section className="mp-section mp-surface--concrete">
         <div className="mp-shell">

@@ -58,6 +58,26 @@ export function afterFirstSentence(text: string): string {
   return text.slice(firstSentence(text).length).trim();
 }
 
+/**
+ * Keep hyphenated names whole — "Miami-Dade", "40-year" — where a line break
+ * at the hyphen would split a proper name ("Miami-" / "Dade"). Each such
+ * word goes in a no-wrap span (`.mp-nobr`); the text itself is unchanged, so
+ * a crawler, a screen reader and a test read the same string.
+ */
+export function keepHyphens(s: string): React.ReactNode {
+  const parts = s.split(/([\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)+)/u);
+  if (parts.length === 1) return s;
+  return parts.map((part, i) =>
+    i % 2 ? (
+      <span key={i} className="mp-nobr">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
+}
+
 /** Apply `accent` to every line of a headline. */
 export function accentLines(
   lines: readonly string[],

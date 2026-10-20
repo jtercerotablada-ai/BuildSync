@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { siteIcons } from "@/components/layout/site-icons";
+import { FIRST_FRAME } from "@/components/layout/first-frame";
 
 /* Root layout of the SPANISH public site, and the reason the public site has
    two roots: this is what makes the server HTML of every /es page begin
@@ -27,7 +28,11 @@ export default function PublicEsRootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        {/* The English root layout's first-frame script, the same line. */}
+        <script dangerouslySetInnerHTML={{ __html: FIRST_FRAME }} />
+        {children}
+      </body>
     </html>
   );
 }

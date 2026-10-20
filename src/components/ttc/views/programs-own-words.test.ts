@@ -168,15 +168,22 @@ describe('home page: each program section is a summary of its page', () => {
       const page = html.get(lang)!.get(`/services/${slug}`)!;
 
       // Label and first sentence, one item: cut from the row, never retyped.
-      it(`${slug} (${lang}): prints the flagged rows, each as its label and first sentence`, () => {
+      // The scope fact ("Applies to") first, then the `home` facts.
+      it(`${slug} (${lang}): prints the scope and the flagged rows, each as its label and first sentence`, () => {
         const items = [...section.matchAll(/<ul class="mp-prog__facts">([\s\S]*?)<\/ul>/g)].flatMap((m) =>
           [...m[1].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((li) => text(li[1])),
         );
-        const want = row.facts
-          .filter((f) => f.home)
-          .map((f) => text(esc(`${f.k}: ${f.homeWhole ? f.v : firstSentence(f.v)}`)));
+        const printed = row.facts.filter((f) => f.scope || f.home);
+        const want = printed.map((f) => text(esc(`${f.k}: ${f.homeWhole ? f.v : firstSentence(f.v)}`)));
         expect(items).toEqual(want);
-        expect(items.length).toBeLessThan(row.facts.length);
+        // One scope fact, printed first; it is not a deadline, so it carries
+        // no `home` flag (the city pages print the `home` facts only).
+        const scope = row.facts.filter((f) => f.scope);
+        expect(scope).toHaveLength(1);
+        expect(printed[0]).toBe(scope[0]);
+        expect(scope[0].home).toBeFalsy();
+        // Still a summary: the scope's exemptions stay on the program's page.
+        expect(firstSentence(scope[0].v)).not.toBe(scope[0].v);
       });
 
       // The whole value of a row is the program page's to print.

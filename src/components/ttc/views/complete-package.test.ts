@@ -399,9 +399,9 @@ describe('the whole site: conditions in words, and no word on who signs which pa
     it(`${lang}: no part is assigned to a person, a trade or a firm`, () => {
       const who = /electrical engineer|certified thermographer|thermographer|licensed electrician|ingenier[oa] (?:eléctric[oa]|electricista)|termógraf[oa]|electricista/i;
       expect(all.filter((s) => who.test(s))).toEqual([]);
-      // With the package complete, "signed by the same person" on the home
-      // teaser or on /about reads as one engineer signing every part.
-      expect([c.leadership.teaser, ...c.leadership.forYou.flatMap((r) => [r.v, r.teaser])].join(' ')).not.toMatch(
+      // With the package complete, "signed by the same person" on /about
+      // reads as one engineer signing every part.
+      expect([...c.leadership.bio, ...c.leadership.forYou.map((r) => r.v)].join(' ')).not.toMatch(
         /signed by|signs the report|firma la misma persona|firma el informe/i,
       );
       for (const slug of [RECERT, BSIP]) {

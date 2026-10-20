@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Reveal, RevealText, SectionHeading, TextLink } from './primitives';
-import { accentLines } from './text';
+import { accentLines, keepHyphens } from './text';
 import { useContent, useL } from './lang';
 import { marks } from '@/lib/ttc/municipalities';
 import { COST_PATH } from '@/lib/ttc/cost-path';
@@ -17,8 +17,8 @@ import { COST_PATH } from '@/lib/ttc/cost-path';
  *   JurisdictionsSection the offices we file with, by their own marks
  *
  * All three open the same way: the headline on the left, its lede on the
- * right (`.mp-hsec__head`), so the reader gets the point in one line and the
- * section starts working at once.
+ * right, tops aligned (`.mp-hsec__head`), so the reader gets the point in
+ * one line and the section starts working at once.
  *
  * The ranges are fixed-fee ranges, not regulatory facts: no date, and no age
  * or day count anywhere in this file or its copy (those live in each county's
@@ -76,13 +76,14 @@ export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 
         </Head>
 
         <Reveal delay={0.06} className="mp-cost__tablewrap">
-          <table className="mp-cost__table">
+          {/* Named by the section's headline: the table is what it says. */}
+          <table className="mp-cost__table" aria-labelledby="mp-cost-title">
             <thead>
               <tr>
                 <th scope="col">{k.sizeLabel}</th>
                 {k.programs.map((p) => (
                   <th key={p.id} id={p.id} scope="col">
-                    {p.name}
+                    {keepHyphens(p.name)}
                   </th>
                 ))}
               </tr>
@@ -125,8 +126,15 @@ export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 
           </div>
         </Reveal>
 
+        {/* One proposal link per county, each opening the form with its
+            program chosen — the short form a county program gets. The county
+            leads the label, so the two links are told apart at a glance. */}
         <Reveal delay={0.08} className="mp-cost__links">
-          <TextLink href={l('/contact')}>{k.cta}</TextLink>
+          {k.programs.map((p) => (
+            <TextLink key={p.id} href={l(`/contact?service=${p.slug}`)}>
+              {keepHyphens(`${countyOf(p.slug) ?? p.name}: ${k.cta}`)}
+            </TextLink>
+          ))}
           <TextLink href={l(COST_PATH)}>{k.costLink}</TextLink>
         </Reveal>
       </div>
@@ -193,24 +201,28 @@ export function JurisdictionsSection({ n }: { n: string }) {
 
         <div className="mp-cost__counties">
           {k.lists.map((list) => {
-            // The county's own mark and its largest cities first; every other
-            // municipality with a mark on file opens under the disclosure, and
-            // the ones without a mark are named in a line inside it.
+            // The county's own mark and its largest cities first; the ones
+            // with no mark on file (Miami Beach, Aventura, Surfside…) are named
+            // right under them, always in view; every other municipality with
+            // a mark opens under the disclosure.
             const featured = [list.mark, ...list.featured].filter((name) => marks[name]);
             const rest = list.names.filter((name) => marks[name] && !featured.includes(name));
             const unmarked = list.names.filter((name) => !marks[name]);
+            // The county's mark is keyed by its English name; it is captioned
+            // with this language's title ("Condado de Broward").
+            const label = (name: string) => (name === list.mark ? list.title : name);
             return (
               <Reveal key={list.title} delay={0.04} className="mp-cost__county">
                 <h3 className="mp-cost__h">{list.title}</h3>
-                <Seals names={featured} />
+                <Seals names={featured} label={label} />
+                {unmarked.length ? (
+                  <p className="mp-cost__rest">
+                    <strong>{k.also}:</strong> {unmarked.join(' · ')}
+                  </p>
+                ) : null}
                 <details className="mp-cost__all">
                   <summary>{k.all.replace('{n}', String(list.names.length))}</summary>
                   <Seals names={rest} />
-                  {unmarked.length ? (
-                    <p className="mp-cost__rest">
-                      <strong>{k.also}:</strong> {unmarked.join(' · ')}
-                    </p>
-                  ) : null}
                 </details>
               </Reveal>
             );
@@ -226,25 +238,26 @@ export function JurisdictionsSection({ n }: { n: string }) {
 }
 
 /** A grid of offices, each mark over its name. */
-function Seals({ names }: { names: readonly string[] }) {
+function Seals({ names, label = (name) => name }: { names: readonly string[]; label?: (name: string) => string }) {
   return (
     <ul className="mp-cost__seals">
       {names.map((name) => {
         const m = marks[name];
+        const caption = label(name);
         return (
           <li key={name} data-tone={m.dark ? 'dark' : undefined}>
             {/* Decorative marks, named by the visible caption. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/ttc/img/jurisdictions/${m.file}.webp`}
-              alt={name}
+              alt={caption}
               aria-hidden="true"
               width={160}
               height={64}
               loading="lazy"
               decoding="async"
             />
-            <span>{name}</span>
+            <span>{caption}</span>
           </li>
         );
       })}

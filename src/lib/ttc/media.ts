@@ -28,10 +28,9 @@
  *     hero of that same service's page — and, for the two county programs, as
  *     the plate of that program's home section — is one placement seen from
  *     different doors, not a reuse. So is a SHARED section component rendered
- *     on more than one page — SouthFloridaMap on Home and Contact, the
- *     EngineerSection plate on the Home teaser and About: one slot in
- *     site.ts, one placement.) Two entries are spares with no placement at
- *     all, `frameCraneSky` and `midriseBalconies`; each says so where it is
+ *     on more than one page: one slot in site.ts, one placement.) Three
+ *     entries are spares with no placement at all, `frameCraneSky`,
+ *     `midriseBalconies` and `southFloridaAerial`; each says so where it is
  *     declared.
  *
  *   • `alt` SAYS WHAT IS IN THE PICTURE, in English, and `altEs` says the
@@ -188,6 +187,8 @@ const catalogue = {
     'Fluted concrete tower seen from its base against a flat sky',
     'Torre de concreto estriada vista desde su base contra un cielo uniforme',
   ),
+  /* A spare since 2026-10-20: it was the plate of the home page's "Engineered
+     for this coast" band, which left the page. */
   southFloridaAerial: p(
     'south-florida-aerial', 2000, 1125,
     'Aerial across the South Florida built fabric toward the coast',

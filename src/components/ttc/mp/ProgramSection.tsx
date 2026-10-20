@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
+import { flushSync } from 'react-dom';
 import { imagery, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { Img } from './media';
 import { ButtonLink, Reveal, SectionHeading, TextLink } from './primitives';
-import { accentLines, afterFirstSentence, firstSentence } from './text';
+import { accentLines, afterFirstSentence, firstSentence, keepHyphens } from './text';
 import { useContent, useL } from './lang';
 import { ReachRow } from './ReachRow';
 import { Dated, Source } from './Outbound';
@@ -21,10 +22,10 @@ const SLUGS = ['building-recertification', 'broward-bsip'] as const;
  * county's rules apply reads the two across, row by row.
  *
  * ONE COLUMN PER COUNTY, EACH ITS OWN <section>. A column keeps its id
- * (`#miami-dade`, `#broward`: the hero's buttons and strip land there), its
- * own heading and only its own county's numbers, under its own name. Never
- * merge the two columns' rows into one table: a county's numbers only ever
- * appear under that county.
+ * (`#miami-dade`, `#broward`: the hero's strip and other pages land there),
+ * its own heading and only its own county's numbers, under its own name.
+ * Never merge the two columns' rows into one table: a county's numbers only
+ * ever appear under that county.
  *
  * THE NUMBERS ARE NOT IN THIS FILE, and not in `service.program` either. The
  * rows are read from `service.timing.rows[0]` — the row the service page
@@ -34,9 +35,11 @@ const SLUGS = ['building-recertification', 'broward-bsip'] as const;
  *
  * THE HOME PAGE IS THE SUMMARY; THE PROGRAM'S PAGE IS THE REFERENCE. A column
  * prints
- *   · only the facts the row flags `home` (site.ts), each as its label and its
- *     FIRST SENTENCE (`firstSentence`) in one list item — cut from the row in
- *     code, never retyped (`homeWhole` prints a value whole);
+ *   · the row's `scope` fact (which buildings the program reaches) and the
+ *     facts it flags `home`, each as its label and its FIRST SENTENCE
+ *     (`firstSentence`) in one list item — cut from the row in code, never
+ *     retyped (`homeWhole` prints a value whole). The city pages print the
+ *     `home` facts only: they are the deadlines;
  *   · one link to the table itself, on the program's page
  *     (`#when-it-applies`), where every row is whole, with its exemptions and
  *     its hedges;
@@ -48,8 +51,24 @@ const SLUGS = ['building-recertification', 'broward-bsip'] as const;
  * and links each share a row with the same piece of the other county, so
  * "Time to file" sits level with "Time to file" however long either value
  * runs. Both rows carry the same labels in the same order (site.ts), which is
- * what makes the comparison honest. Under 1024px a column is a plain stack,
- * Miami-Dade first.
+ * what makes the comparison honest.
+ *
+ * UNDER 1024px, ONE COUNTY AT A TIME. Two full columns stacked were 3,600px
+ * of phone, and a reader holding a notice knows which county sent it. A
+ * two-option switch (a radio group) picks the column; both columns stay in
+ * the page. The phone layout is right from the first frame: the root
+ * layout's first script sets `html.js` (and `data-county` for an address
+ * ending in #broward) before anything paints, and mp.css shows the switch
+ * and hides the other column from that. Without script, both columns show,
+ * one after the other, and the switch stays hidden; so does a printed page.
+ *
+ * A LINK TO A COLUMN MUST LAND ON IT. Every in-page link is caught by
+ * SmoothScroll (smooth-scroll.tsx), which measures the target, scrolls and
+ * writes the address with `replaceState` — no `hashchange`. A hidden column
+ * measures nothing. So a capture-phase click listener runs first and shows
+ * the column the link points at, synchronously (`flushSync`), and
+ * SmoothScroll then measures a column that is there. Back and forward still
+ * come through `hashchange`.
  *
  * WHAT THE TWO SHARE IS PRINTED ONCE, under both columns: the four steps
  * (both programs run the same four — `programs.test.ts` holds them equal)
@@ -71,21 +90,41 @@ export function ProgramsSection({ n }: { n: string }) {
   const ids = programs.map((s) => s.program!.id);
   const [shown, setShown] = React.useState(ids[0]);
   const [ready, setReady] = React.useState(false);
+  const seg = React.useRef<HTMLDivElement>(null);
 
-  /* A link to #broward (the hero strip, another page) must land on Broward
-     even on a phone, where only one column shows: the address picks the
-     column, then the page goes to it. */
   React.useEffect(() => {
-    setReady(true);
-    const follow = () => {
+    // On load the browser has already scrolled to #broward (the first-frame
+    // CSS shows it); the column only has to be chosen. One commit: the
+    // column and `data-ready` change together, so nothing moves.
+    const fromHash = () => {
       const id = window.location.hash.slice(1);
-      if (!ids.includes(id)) return;
-      setShown(id);
-      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView());
+      return ids.includes(id) ? id : null;
     };
-    follow();
-    window.addEventListener('hashchange', follow);
-    return () => window.removeEventListener('hashchange', follow);
+    const first = fromHash();
+    if (first) setShown(first);
+    setReady(true);
+
+    const onHashChange = () => {
+      const id = fromHash();
+      if (!id) return;
+      flushSync(() => setShown(id));
+      document.getElementById(id)?.scrollIntoView();
+    };
+    // Capture phase, so it runs before SmoothScroll's bubbling listener; the
+    // same guards as SmoothScroll's, so a click that opens a new tab does not
+    // switch the county here.
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.('a[href^="#"]');
+      const id = a?.getAttribute('href')?.slice(1);
+      if (id && ids.includes(id)) flushSync(() => setShown(id));
+    };
+    window.addEventListener('hashchange', onHashChange);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+      document.removeEventListener('click', onClick, true);
+    };
     // `ids` is the same two strings on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -94,44 +133,79 @@ export function ProgramsSection({ n }: { n: string }) {
   // with no source would be worse than no column.
   if (!programs.length) return null;
   // Every column spans the same number of rows, so the facts line up even if
-  // one county ever flags a row the other does not.
-  const factRows = Math.max(...programs.map((s) => s.timing!.rows[0].facts.filter((f) => f.home).length));
+  // one county ever prints a row the other does not.
+  const factRows = Math.max(...programs.map((s) => homeFacts(s.timing!.rows[0].facts).length));
   const steps = programs[0].program!.steps;
+
+  /* The radio group's keys: arrows move the choice (and the focus) and wrap,
+     Home and End go to the ends. Space and Enter are the buttons' own. */
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const i = ids.indexOf(shown);
+    const next =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        ? (i + 1) % ids.length
+        : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+          ? (i - 1 + ids.length) % ids.length
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? ids.length - 1
+              : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    setShown(ids[next]);
+    seg.current?.querySelectorAll('button')[next]?.focus();
+  };
 
   return (
     <div className="mp-section mp-surface--paper mp-progs" data-ready={ready ? '' : undefined}>
       <div className="mp-shell">
         <SectionHeading n={n} label={c.ui.existingBuildings} />
-        {/* Under 1024px one county at a time: a reader holding a notice
-            knows which county sent it, and two full columns stacked were
-            3,600px of phone. The switch only appears once the page is live
-            (`data-ready`); before that, and without script, both columns
-            show, one after the other. Both are always in the page. */}
         {programs.length > 1 ? (
-          <div className="mp-progs__switch" role="group" aria-labelledby="mp-progs-switch">
+          <div className="mp-progs__switch">
             <p id="mp-progs-switch" className="mp-progs__ask">
               {c.ui.chooseCounty}
             </p>
-            <div className="mp-progs__seg">
-              {programs.map((s) => (
-                <button
-                  key={s.slug}
-                  type="button"
-                  aria-pressed={shown === s.program!.id}
-                  aria-controls={s.program!.id}
-                  onClick={() => setShown(s.program!.id)}
-                >
-                  {s.program!.county}
-                </button>
-              ))}
+            <div
+              ref={seg}
+              className="mp-progs__seg"
+              role="radiogroup"
+              aria-labelledby="mp-progs-switch"
+              onKeyDown={onKeyDown}
+            >
+              {programs.map((s) => {
+                const id = s.program!.id;
+                const on = shown === id;
+                return (
+                  <button
+                    key={s.slug}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    aria-controls={id}
+                    tabIndex={on ? 0 : -1}
+                    onClick={() => setShown(id)}
+                  >
+                    {s.program!.county}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}
         {/* Seven rows of its own (photograph, county, headline, lede,
-            action, source, links) plus one per fact. */}
-        <Reveal className="mp-progs__grid">
+            action, source, links) plus one per fact. No rise on the reveal
+            (`y={0}`): the two columns are link targets, and a column still
+            parked 14px low when a link measures it lands 14px off. */}
+        <Reveal y={0} className="mp-progs__grid">
           {programs.map((s) => (
-            <ProgramColumn key={s.slug} slug={s.slug} rows={7 + factRows} off={s.program!.id !== shown} />
+            <ProgramColumn
+              key={s.slug}
+              slug={s.slug}
+              rows={7 + factRows}
+              off={s.program!.id !== shown}
+              onReader={setShown}
+            />
           ))}
         </Reveal>
         <Reveal className="mp-progs__shared">
@@ -153,7 +227,26 @@ export function ProgramsSection({ n }: { n: string }) {
   );
 }
 
-function ProgramColumn({ slug, rows, off }: { slug: string; rows: number; off: boolean }) {
+type Fact = { k: string; v: string; home?: boolean; homeWhole?: boolean; scope?: boolean };
+
+/** What a column prints: the scope fact, then the facts flagged `home`. */
+function homeFacts<F extends Fact>(facts: readonly F[]): F[] {
+  return facts.filter((f) => f.scope || f.home);
+}
+
+function ProgramColumn({
+  slug,
+  rows,
+  off,
+  onReader,
+}: {
+  slug: string;
+  rows: number;
+  /** Not the county the phone switch shows (hidden under 1024px only). */
+  off: boolean;
+  /** The reader is in this column. */
+  onReader: (id: string) => void;
+}) {
   const c = useContent();
   const l = useL();
   const u = c.ui;
@@ -162,16 +255,24 @@ function ProgramColumn({ slug, rows, off }: { slug: string; rows: number; off: b
   const timing = service.timing!;
   const row = timing.rows[0];
   const titleId = `mp-prog-${p.id}-title`;
-  const facts = row.facts.filter((f) => f.home);
+  const facts = homeFacts(row.facts);
   const noNotice = afterFirstSentence(p.ctaNote);
+  /* Whichever column the reader is in — focus, a touch, the pointer over it
+     — becomes the switch's choice, so zooming a desktop window or turning a
+     tablet across 1024px keeps that column on screen instead of hiding it
+     (and the focus inside it). Under 1024px only the shown column can be
+     reached, so this changes nothing there. */
+  const here = () => onReader(p.id);
 
   return (
     <section
       id={p.id}
       className="mp-prog"
       aria-labelledby={titleId}
-      // Not the county the phone switch shows (hidden under 1024px only).
       data-off={off ? '' : undefined}
+      onFocusCapture={here}
+      onPointerDown={here}
+      onPointerOver={here}
       // How many rows of the shared grid the column and its list span
       // (`.mp-prog` and `.mp-prog__facts` from 1024px, in mp.css).
       style={{ ['--mp-prog-rows' as string]: rows, ['--mp-prog-facts' as string]: facts.length }}
@@ -201,7 +302,7 @@ function ProgramColumn({ slug, rows, off }: { slug: string; rows: number; off: b
 
       <div className="mp-prog__action">
         <ButtonLink href={l(`/contact?service=${service.slug}`)} variant="solid">
-          {p.cta}
+          {keepHyphens(p.cta)}
         </ButtonLink>
         {noNotice ? <p className="mp-prog__ctanote">{`${u.photoTheLetter} ${noNotice}`}</p> : null}
       </div>

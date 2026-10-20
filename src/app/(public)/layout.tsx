@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { siteIcons } from "@/components/layout/site-icons";
+import { FIRST_FRAME } from "@/components/layout/first-frame";
 
 /* Root layout of the ENGLISH public site: the document itself and nothing
    else. Its Spanish twin is src/app/(public-es)/layout.tsx, identical but for
@@ -25,7 +26,12 @@ export default function PublicRootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        {/* Before anything paints: `html.js` and the county in the address
+            (first-frame.ts). The Spanish root layout prints the same line. */}
+        <script dangerouslySetInnerHTML={{ __html: FIRST_FRAME }} />
+        {children}
+      </body>
     </html>
   );
 }

@@ -203,7 +203,7 @@ const services: SiteContent['services'] = [
           /* Same six labels, same order, as the Broward row. Numbers are
              identical to the EN row — amend both or neither. */
           facts: [
-            { k: 'Aplica a', v: 'Casi todos los tipos de edificio — condominios, cooperativas, apartamentos, oficinas, comercios e industrias. Fuera del programa: viviendas unifamiliares, dúplex y edificios que tengan a la vez una carga de ocupantes de 10 o menos según el Código de Construcción de Florida y un área bruta de 2,000 pies cuadrados o menos.' },
+            { k: 'Aplica a', scope: true, v: 'Casi todos los tipos de edificio — condominios, cooperativas, apartamentos, oficinas, comercios e industrias. Fuera del programa: viviendas unifamiliares, dúplex y edificios que tengan a la vez una carga de ocupantes de 10 o menos según el Código de Construcción de Florida y un área bruta de 2,000 pies cuadrados o menos.' },
             { k: 'Primer vencimiento', v: 'A los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa. La edad se cuenta desde el año de construcción que figura en el registro del Property Appraiser (el tasador de propiedades del condado).', home: true },
             { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura.', home: true },
             { k: 'Plazo para presentar', v: '90 días desde la Notificación de Inspección Requerida (Notice of Required Inspection). Los avisos de cortesía deberían llegar dos años y un año antes; no recibirlos no mueve el plazo.', filing: true, home: true },
@@ -378,7 +378,7 @@ const services: SiteContent['services'] = [
       /* "90 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['Recertificación en Miami-Dade.', '90 días desde la notificación.'],
       accentWord: '90 días',
-      lede: 'Un solo equipo entrega el paquete completo — informes estructural y eléctrico en los formularios del condado, con sus certificados — y lo acompaña hasta el informe enmendado que cierra la recertificación.',
+      lede: 'Un solo equipo entrega el paquete completo — informes estructural y eléctrico en los formularios del condado, con sus certificados — y lo acompaña durante las reparaciones hasta el informe enmendado que cierra la recertificación. Para muchos sigue siendo la recertificación de 40 años.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Miami-Dade',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
@@ -502,7 +502,7 @@ const services: SiteContent['services'] = [
              the city's letter states its own date) — neither may be cut. The
              180 days run from RECEIVING the notice: "desde que se recibe". */
           facts: [
-            { k: 'Aplica a', v: 'Casi todos los tipos de edificio, en todas las ciudades de Broward y en el área no incorporada. Fuera del programa: viviendas de una a cuatro familias de tres pisos habitables o menos, townhouses en dominio pleno (fee simple) y estructuras menores con un área de edificio inferior a 3,500 pies cuadrados.' },
+            { k: 'Aplica a', scope: true, v: 'Casi todos los tipos de edificio, en todas las ciudades de Broward y en el área no incorporada. Fuera del programa: viviendas de una a cuatro familias de tres pisos habitables o menos, townhouses en dominio pleno (fee simple) y estructuras menores con un área de edificio inferior a 3,500 pies cuadrados.' },
             { k: 'Primer vencimiento', v: 'A los 25 años, contados desde el certificado de ocupación.', home: true },
             { k: 'Después', v: 'Cada 10 años.', home: true },
             { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta de su ciudad indica su propia fecha.', filing: true, home: true, homeWhole: true },
@@ -657,9 +657,9 @@ const services: SiteContent['services'] = [
       /* "180 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['BSIP de Broward.', '180 días desde la notificación.'],
       accentWord: '180 días',
-      /* Shorter than a literal translation on purpose: 40 words at most, and
+      /* Shorter than a literal translation on purpose: 45 words at most, and
          the full program name is already in the label above it. */
-      lede: 'Un solo equipo entrega el paquete completo — inspección estructural y eléctrica, informe y formularios oficiales — y lo acompaña hasta el cierre, reparaciones incluidas. Muchos todavía lo llaman la recertificación de 40 años.',
+      lede: 'Un solo equipo entrega el paquete completo — inspección estructural y eléctrica, informe y formularios oficiales — y lo acompaña hasta el cierre, reparaciones incluidas. Muchas juntas todavía conocen el BSIP por su nombre antiguo: la recertificación de 40 años.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Broward',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
@@ -1414,7 +1414,6 @@ export const es: SiteContent = {
     },
     engineer: {
       eyebrow: 'Conozca al ingeniero',
-      eyebrowTeaser: 'Quién responde',
       role: 'Ingeniero Principal',
       credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
       license: 'Licencia P.E. de Florida',
@@ -1429,7 +1428,6 @@ export const es: SiteContent = {
       focus: 'Áreas de especialidad',
       approach: 'Cómo trabajo',
       forYou: 'Qué significa eso para usted',
-      readMore: 'Conozca al ingeniero',
       plateNote: 'Retrato profesional próximamente',
     },
     work: {
@@ -1720,11 +1718,6 @@ export const es: SiteContent = {
       url: 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=',
     },
     linkedin: null,
-    teaserTitle: 'Un solo ingeniero responsable de todo el proyecto.',
-    /* "El alcance que entregamos" was "the scope we deliver", word for word
-       (see the style notes at the top: nobody is handed "un alcance"). */
-    teaser:
-      'En Tercero Tablada Civil and Structural Engineering Inc., cada proyecto lo dirige un mismo ingeniero, de la propuesta al informe final. Usted trata directamente con el ingeniero desde su primer mensaje, y lo que aprueba en la propuesta es lo que entregamos.',
     bio: [
       /* The Master's keeps the program's own name ("…en Construction Project
          Management", Universidad de Barcelona), the same in bio and education. */
@@ -1745,9 +1738,9 @@ export const es: SiteContent = {
     approach:
       'Prefiero explicar una decisión estructural en lenguaje claro antes que esconderla detrás de una referencia de código. Una junta directiva debe poder leer un informe de hallazgos y saber qué hacer a continuación; un contratista debe poder construir desde el plano sin llamar; y un revisor debe poder seguir el cálculo desde la carga hasta el detalle.',
     forYou: [
-      { k: 'Comunicación directa', v: 'Usted habla con el ingeniero que está haciendo el trabajo — no con un ejecutivo de cuentas que transmite preguntas.', teaser: 'Sus preguntas llegan directamente al ingeniero de su edificio.' },
-      { k: 'Una propuesta que se entiende', v: 'Cada propuesta establece qué se incluye, qué no, qué recibe y cuánto cuesta, antes de que empiece cualquier cosa.', teaser: 'Qué incluye, qué no y cuánto cuesta, por escrito y antes de empezar.' },
-      { k: 'El criterio de un solo ingeniero', v: 'El ingeniero que estudia su edificio o fija la base de diseño es quien responde por el resultado, ante usted y ante el revisor.', teaser: 'El ingeniero que estudia su edificio es quien responde por el resultado.' },
+      { k: 'Comunicación directa', v: 'Usted habla con el ingeniero que está haciendo el trabajo — no con un ejecutivo de cuentas que transmite preguntas.' },
+      { k: 'Una propuesta que se entiende', v: 'Cada propuesta establece qué se incluye, qué no, qué recibe y cuánto cuesta, antes de que empiece cualquier cosa.' },
+      { k: 'El criterio de un solo ingeniero', v: 'El ingeniero que estudia su edificio o fija la base de diseño es quien responde por el resultado, ante usted y ante el revisor.' },
     ],
     plate: [
       { k: 'Nombre', v: 'Juan Tercero, PE., M.Sc.' },

@@ -23,10 +23,11 @@ import { HomeAddress } from './meta';
  *   PartnerSection       two licensed firms, one team
  *   ContactCTA           the action, again
  *
- * The two county columns are one component rendered twice, so their rows
- * line up label for label; each prints only its own county's numbers, taken
- * from that service's timing row in site.ts. The three anchor ids are the
- * targets of the hero strip (`hero.caps`).
+ * The two county columns are one column component rendered once per county,
+ * so their rows line up label for label; each prints only its own county's
+ * numbers, taken from that service's timing row in site.ts. Under 1024px a
+ * switch shows one county at a time. The three anchor ids are the targets
+ * of the hero strip (`hero.caps`).
  *
  * Not here any more: the engineer (his portrait and account live on /about
  * alone — the owner, 2026-10-20: "not mixed in"), "Engineered for this coast"
