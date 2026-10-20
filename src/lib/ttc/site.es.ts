@@ -1550,19 +1550,21 @@ export const es: SiteContent = {
   },
 
   hero: {
-    eyebrow: 'Miami-Dade · Broward · Ingeniero Profesional de Florida',
-    title: 'Ingeniería estructural para el Sur de Florida.',
-    titleLines: ['Ingeniería estructural', 'para el Sur de Florida.'],
-    accentWord: 'Sur de Florida.',
-    /* Kept short on purpose: a longer sub pushed the /es hero to 915px at
-       1440×900 and clipped the caps strip below the fold. That is why
-       Broward's program is "el BSIP" here and not its full Spanish name —
-       the full name is the label of the column right under the hero. No
-       regulatory number in the hero, as in English. "Un ingeniero
-       estructural": the words a Spanish-speaking owner types. */
-    sub: 'Recertificación de edificios en Miami-Dade, el BSIP de Broward y diseño estructural de edificios nuevos, a cargo de un ingeniero estructural con licencia P.E. de Florida.',
-    primary: { href: '/contact?service=building-recertification', label: 'Tengo una notificación de Miami-Dade' },
-    secondary: { href: '/contact?service=broward-bsip', label: 'Tengo una notificación de Broward' },
+    eyebrow: 'Ingeniería estructural para el Sur de Florida',
+    title: '¿Le llegó la carta? Basta una foto.',
+    titleLines: ['¿Le llegó la carta?', 'Basta una foto.'],
+    accentWord: 'Basta una foto.',
+    /* The headline as a neighbour in Hialeah asks it — "llegar", not
+       "recibir", and "Le" keeps usted — then the one easy step, in the
+       Spanish ads' own words ("Basta una foto de la carta"). See the
+       English block for the reasoning. "Llegó" is a word of the page only
+       because the sub says "Si llegó ayer": keep it (seo.test). The sub
+       answers the question for the reader who is already late. No
+       regulatory number in the hero, as in English; "normalmente" stays in
+       front of the reply time. */
+    sub: 'Si llegó ayer o si ya pasó la fecha: recertificación de Miami-Dade (aún llamada “de 40 años”) o BSIP de Broward. Propuesta gratis; un ingeniero estructural normalmente responde en menos de dos horas.',
+    primary: { href: '/contact?service=building-recertification', label: 'Enviar mi carta de Miami-Dade' },
+    secondary: { href: '/contact?service=broward-bsip', label: 'Enviar mi carta de Broward' },
     /* Four links — same hrefs as English; the hash ones are anchors on the
        home page and are not localized. The third label is the service's own
        short title: the literal "Evaluaciones y diseño de reparaciones" was

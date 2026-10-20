@@ -585,24 +585,38 @@ export const ui = {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const hero = {
-  eyebrow: 'Miami-Dade · Broward · Florida Professional Engineer',
-  title: 'Structural Engineering for South Florida.',
+  /* The firm's old headline, kept as the line over the new one: the words
+     the home page's <title> and searches use ("Structural Engineering for
+     South Florida") stay on the first screen. */
+  eyebrow: 'Structural Engineering for South Florida',
+  title: 'Recertification notice? Send us a photo.',
   /** Line breaks of the headline as rendered; the accent word is italic serif. */
-  titleLines: ['Structural Engineering', 'for South Florida.'],
-  accentWord: 'South Florida.',
-  /* The headline is the owner-approved one and did not change. The sub-line
-     names the two county programs first, by the names printed on the letters
-     people receive, and carries NO regulatory number: every age and deadline
-     lives in a timing row that names its authority and its date.
+  titleLines: ['Recertification notice?', 'Send us a photo.'],
+  accentWord: 'Send us a photo.',
+  /* THE HEADLINE NAMES THE LETTER IN THE READER'S HAND, THEN ONE EASY STEP.
+     Chosen 2026-10-20 after a research and judging round (voice of the
+     customer, competitors' heroes, six angles, six judges: a conversion
+     copywriter, three owner personas, SEO/ads, honesty/legal). Why it wins:
+     many owners are late because the letter confused them; "Send us a
+     photo" asks them to understand nothing. It has no time word, so it is
+     as true the day the letter arrives as a year after the deadline (the
+     owner rejected "…before the deadline" for exactly that), and it uses
+     the ads' own words ("Got a Recertification Notice?", "Send a Photo of
+     the Notice"). Every word of it is also a word of the page (seo.test).
 
-     The two buttons changed on 2026-10-06, with the owner's approval. The
-     visitor this page is for is holding a county notice with a deadline, so
-     each button names one notice and opens the form with that program
-     already selected. "Request a Proposal" is still one tap away in the
-     header, and Services stays in the menu and in the strip below. */
-  sub: 'Miami-Dade building recertification, Broward’s Building Safety Inspection Program (BSIP) and structural design for new buildings, led by a Florida Professional Engineer.',
-  primary: { href: '/contact?service=building-recertification', label: 'I Have a Miami-Dade Notice' },
-  secondary: { href: '/contact?service=broward-bsip', label: 'I Have a Broward Notice' },
+     The sub-line says first that late is fine, then names the two county
+     programs by the names on the letters (and the name most owners still
+     use), and carries NO regulatory number: every age and deadline lives
+     in a timing row that names its authority and its date. "Usually" stays
+     in front of the reply time.
+
+     Each button names one notice and opens the form with that program
+     already selected; the form takes the photo. "Request a Proposal" is
+     still one tap away in the header, and Services stays in the menu and in
+     the strip below. */
+  sub: 'On time or late: Miami-Dade recertification (still called the 40-year) or Broward’s Building Safety Inspection Program (BSIP). Free proposal; a structural engineer usually replies within two hours.',
+  primary: { href: '/contact?service=building-recertification', label: 'Send My Miami-Dade Notice' },
+  secondary: { href: '/contact?service=broward-bsip', label: 'Send My Broward Notice' },
   /**
    * The strip under the hero is four links, not four labels. A `#hash` href
    * is an anchor on the home page itself (the ids come from
