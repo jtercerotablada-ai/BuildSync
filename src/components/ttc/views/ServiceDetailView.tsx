@@ -641,7 +641,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         </div>
       </section>
 
-      <ContactCTA n={next()} service={service.slug} assure={!assuredUnderRows} />
+      <ContactCTA service={service.slug} assure={!assuredUnderRows} />
     </>
   );
 }

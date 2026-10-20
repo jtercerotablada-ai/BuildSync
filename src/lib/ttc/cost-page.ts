@@ -133,7 +133,7 @@ const es: CostPage = {
   eyebrow: 'Precios',
   titleLines: ['Lo que cuesta una recertificación', 'en el Sur de Florida.'],
   accentWord: 'en el Sur de Florida.',
-  sub: 'Rangos de precio fijo de la recertificación de Miami-Dade y del BSIP de Broward, según el tamaño del edificio, y los costos que quedan fuera de los honorarios de ingeniería.',
+  sub: 'En todo el Sur de Florida: rangos de precio fijo de la recertificación de Miami-Dade y del BSIP de Broward, según el tamaño del edificio, y los costos que quedan fuera de los honorarios de ingeniería.',
   reviewed: 'Precios revisados en octubre de 2026',
   tables: {
     label: 'Los honorarios',

@@ -1,7 +1,7 @@
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AnimatedLine, Reveal, RevealText, StaggerItem, StaggerList } from './primitives';
+import { Reveal, RevealText, StaggerItem, StaggerList } from './primitives';
 
 /**
  * What the SERVER sends for a scroll-revealed block. This is the markup a
@@ -19,7 +19,6 @@ const html = renderToStaticMarkup(
     h(Reveal, { delay: 0.05, as: 'p', className: 'mp-sechead', children: 'delayed' }),
     h(Reveal, { y: 24, children: 'far' }),
     h(RevealText, { lines: ['Line one', 'line two'], className: 'mp-intro__title' }),
-    h(AnimatedLine, { delay: 0.14 }),
     h(StaggerList, {
       as: 'div',
       className: 'mp-steps',
@@ -38,15 +37,14 @@ describe('scroll reveals: the server HTML', () => {
   });
 
   it('marks every animated element, for the print and <noscript> resets', () => {
-    // 3 blocks + 2 headline lines + the rule + 2 list items.
-    expect(html.match(/class="mp-reveal\b/g)).toHaveLength(8);
+    // 3 blocks + 2 headline lines + 2 list items.
+    expect(html.match(/class="mp-reveal\b/g)).toHaveLength(7);
   });
 
   it('writes a style only where a block sets its own timing', () => {
     expect(html).toContain('<div class="mp-reveal">plain</div>');
     expect(html).toContain('<p class="mp-reveal mp-sechead" style="--rv-delay:50ms">delayed</p>');
     expect(html).toContain('<div class="mp-reveal" style="--rv-y:24px">far</div>');
-    expect(html).toContain('<div class="mp-reveal mp-reveal--rule mp-rule" style="--rv-delay:140ms"></div>');
   });
 
   it('keeps the headline readable as text, one line after the other', () => {

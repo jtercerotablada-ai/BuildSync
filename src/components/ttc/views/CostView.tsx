@@ -243,7 +243,7 @@ export function CostView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <ContactCTA n="06" />
+      <ContactCTA />
     </>
   );
 }

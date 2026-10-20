@@ -358,8 +358,8 @@
   --mp-serif: var(--mp-font-serif), 'Iowan Old Style', Georgia, serif;
 
   --mp-t-display: clamp(2.75rem, 6.4vw, 5.75rem);
-  --mp-t-h1: clamp(2.4rem, 5vw, 4.25rem);
-  --mp-t-h2: clamp(1.95rem, 3.6vw, 3.1rem);
+  --mp-t-h1: clamp(2.25rem, 4vw, 3.5rem);
+  --mp-t-h2: clamp(1.75rem, 2.9vw, 2.6rem);
   --mp-t-h3: clamp(1.25rem, 1.8vw, 1.6rem);
   --mp-t-h4: clamp(1.05rem, 1.3vw, 1.2rem);
   --mp-t-lead: clamp(1.1rem, 1.3vw, 1.3rem);
@@ -382,8 +382,8 @@
   --mp-24: 6rem;
   --mp-32: 8rem;
 
-  --mp-section-y: clamp(4rem, 7vw, 6.5rem);
-  --mp-section-y-lg: clamp(5.5rem, 8.5vw, 8rem);
+  --mp-section-y: clamp(3rem, 5vw, 4.5rem);
+  --mp-section-y-lg: clamp(3.5rem, 6vw, 5.5rem);
 
   /* ── Containers ──────────────────────────────────────────────────────── */
   /* One content width for everything, header included, so the monogram and
@@ -540,7 +540,7 @@ html:has(.mp) {
 /* Hook classes — names the markup carries so a section or a column can be
    targeted, which need no rule of their own today:
      .mp-eng  .mp-eng__copy  .mp-sechead__label
-     .mp-tools-sec
+     .mp-tools-sec  .mp-close__lead
    Listed here so a "class with no rule" audit can tell a hook from a class
    whose styles were lost. */
 
@@ -646,8 +646,9 @@ html:has(.mp) {
 
 /* ═══ 02 · SECTION LANGUAGE ═══════════════════════════════════════════════ */
 
-/* Eyebrow: a short gold rule and a small tracked label. Used on the hero and
-   the page heroes. */
+/* Eyebrow: a short gold rule and a small tracked label. Used on the hero,
+   the page heroes and the closing band (ContactCTA, as a <div>; on graphite
+   its colour comes from the surface's --mp-ink-3). */
 .mp-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -672,7 +673,7 @@ html:has(.mp) {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0 0 clamp(2rem, 4vw, 3.5rem);
+  margin: 0 0 clamp(1.25rem, 2.5vw, 2.25rem);
   font-size: var(--mp-t-label);
   letter-spacing: var(--mp-track-label);
   text-transform: uppercase;
@@ -710,7 +711,7 @@ html:has(.mp) {
   display: grid;
   gap: var(--mp-6);
   max-width: 64ch;
-  margin-block-end: clamp(2.5rem, 5vw, 4.5rem);
+  margin-block-end: clamp(1.75rem, 3.5vw, 3rem);
 }
 .mp-intro__title {
   font-size: var(--mp-t-h2);
@@ -722,13 +723,6 @@ html:has(.mp) {
   color: var(--mp-ink-3);
   margin: 0;
   max-width: 58ch;
-}
-
-/* Hairline rule that draws itself on reveal. */
-.mp-rule {
-  height: 1px;
-  background: var(--mp-line);
-  transform-origin: left center;
 }
 
 /* A quiet footnote under a section */
@@ -1347,29 +1341,31 @@ a.mp-menu__mail {
 
 .mp-footer {
   background: var(--mp-charcoal);
-  padding-block: var(--mp-16) var(--mp-8);
+  padding-block: var(--mp-12) var(--mp-6);
   position: relative;
 }
 .mp-footer__top {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr);
-  gap: var(--mp-16);
-  padding-block-end: var(--mp-12);
+  gap: clamp(2rem, 5vw, 4rem);
+  padding-block-end: var(--mp-8);
   border-block-end: 1px solid var(--mp-line-dark);
 }
 .mp-footer__brand-logo {
-  margin-block-end: var(--mp-6);
+  margin-block-end: var(--mp-4);
 }
+/* 44px is the floor: the lockup's small line spells the full legal name and
+   is barely legible below it. */
 .mp-footer__brand-logo img {
   width: auto;
-  height: clamp(44px, 4.5vw, 60px);
+  height: clamp(44px, 3.4vw, 52px);
   object-fit: contain;
 }
 .mp-footer__tag {
   color: var(--mp-snow-2);
   font-size: var(--mp-t-small);
   line-height: 1.65;
-  max-width: 40ch;
+  max-width: 54ch;
 }
 .mp-footer__cols {
   display: grid;
@@ -1396,11 +1392,11 @@ a.mp-menu__mail {
   font-size: var(--mp-t-small);
   color: var(--mp-snow-2);
   text-decoration: none;
-  padding-block: 0.3rem;
+  padding-block: 0.2rem;
   transition: color var(--mp-dur) var(--mp-ease);
 }
 .mp-footer__bottom {
-  padding-block-start: var(--mp-6);
+  padding-block-start: var(--mp-4);
   display: flex;
   flex-wrap: wrap;
   gap: var(--mp-4) var(--mp-8);
@@ -1435,7 +1431,7 @@ a.mp-menu__mail {
 .mp-footer__social {
   display: flex;
   gap: var(--mp-3);
-  margin-block-start: var(--mp-6);
+  margin-block-start: var(--mp-4);
 }
 .mp-footer__social-link {
   display: inline-flex;
@@ -1726,8 +1722,8 @@ a.mp-menu__mail {
 }
 
 /* ── Below-the-fold reveals ──────────────────────────────────────────────
-   `Reveal`, scroll-triggered `RevealText`, `AnimatedLine` and the stagger
-   lists (primitives.tsx). Their markup is plain and VISIBLE: nothing below
+   `Reveal`, scroll-triggered `RevealText` and the stagger lists
+   (primitives.tsx). Their markup is plain and VISIBLE: nothing below
    applies until reveal.ts puts `data-rv` on an element, and it only does
    that after hydration, from its observer, to a block still below the
    screen:
@@ -1742,12 +1738,11 @@ a.mp-menu__mail {
    headline line, or a stagger list. Hence the two selector shapes.
 
    Same numbers as the Motion versions these replace (14px / 0.5s; 108% /
-   0.7s; scaleX / 0.9s; 10px / 0.45s, 45ms apart), and the `backwards` fill
-   of the entrances above, for the same reason. The two keyframes here have
-   no `to`: they end on whatever the element's own rules say, so a block
-   with its own opacity or transform does not jump when the fill lets go.
-   Delay, duration and distance arrive as inline custom properties where a
-   block sets its own.
+   0.7s; 10px / 0.45s, 45ms apart), and the `backwards` fill of the
+   entrances above, for the same reason. The keyframe here has no `to`: it
+   ends on whatever the element's own rules say, so a block with its own
+   opacity or transform does not jump when the fill lets go. Delay and
+   distance arrive as inline custom properties where a block sets its own.
 
    Inside `no-preference`: with reduced motion there is then no hidden state
    to undo. reveal.ts arms nothing for those visitors; this also covers a
@@ -1758,11 +1753,6 @@ a.mp-menu__mail {
     transform: translateY(var(--rv-y, 14px));
   }
 }
-@keyframes mp-reveal-rule {
-  from {
-    transform: scaleX(0);
-  }
-}
 
 @media (prefers-reduced-motion: no-preference) {
   .mp-reveal[data-rv='wait'] {
@@ -1771,19 +1761,6 @@ a.mp-menu__mail {
   }
   .mp-reveal[data-rv='in'] {
     animation: mp-reveal 0.5s var(--mp-ease) var(--rv-delay, 0s) backwards;
-  }
-
-  /* AnimatedLine: the hairline draws itself from the left (.mp-rule sets the
-     transform-origin). Parked, it is only transparent and keeps its box:
-     at scaleX(0) it would be a zero-width rectangle on the gutter's edge,
-     a poor thing to ask an observer about (reveal.ts: parked that way, it
-     never drew on a phone). The keyframe supplies the zero width. */
-  .mp-reveal--rule[data-rv='wait'] {
-    transform: none;
-  }
-  .mp-reveal--rule[data-rv='in'] {
-    animation-name: mp-reveal-rule;
-    animation-duration: var(--rv-dur, 0.9s);
   }
 
   /* Headline lines: the hero headlines' mask-rise, keyframe included. The
@@ -2456,13 +2433,27 @@ a.mp-menu__mail {
   isolation: isolate;
   overflow: clip;
 }
+/* One row from 1024px: the statement on the left, the action on the right,
+   their last lines level. Stacked below that. */
 .mp-close__inner {
   position: relative;
+  display: grid;
+  gap: var(--mp-8);
+}
+@media (min-width: 1024px) {
+  .mp-close__inner {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    column-gap: clamp(3rem, 6vw, 6rem);
+    align-items: end;
+  }
+}
+.mp-close__eyebrow {
+  margin: 0 0 var(--mp-4);
 }
 .mp-close__title {
-  font-size: clamp(2.2rem, 5.4vw, 4.6rem);
-  line-height: 1;
-  letter-spacing: -0.034em;
+  font-size: clamp(1.9rem, 3.4vw, 3.1rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
   margin: 0;
   color: var(--mp-snow);
 }
@@ -2470,38 +2461,16 @@ a.mp-menu__mail {
   color: var(--mp-gold);
 }
 .mp-close__body {
-  margin: var(--mp-6) 0 0;
+  margin: var(--mp-4) 0 0;
   max-width: 56ch;
   color: var(--mp-snow-2);
   font-size: var(--mp-t-lead);
   line-height: 1.6;
 }
-.mp-close__rule {
-  height: 1px;
-  background: var(--mp-gold);
-  margin-block-start: var(--mp-16);
-  transform-origin: left center;
-}
-.mp-close__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--mp-4);
-  padding-block-start: var(--mp-4);
-  font-size: var(--mp-t-small);
-  color: var(--mp-snow-3);
-}
-.mp-close__meta a {
-  display: inline-flex;
+.mp-close__act .mp-cta-row {
+  margin-block-start: 0;
   align-items: center;
-  min-height: 24px;
-  color: var(--mp-snow-2);
-  text-decoration: none;
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-close__meta a:hover {
-    color: var(--mp-gold);
-  }
+  column-gap: var(--mp-6);
 }
 
 /* ═══ 14 · INTERNAL PAGES ═════════════════════════════════════════════════ */
@@ -2509,7 +2478,7 @@ a.mp-menu__mail {
 .mp-phero {
   position: relative;
   background: var(--mp-graphite);
-  padding-block: calc(var(--mp-header-h) + var(--mp-16)) var(--mp-16);
+  padding-block: calc(var(--mp-header-h) + clamp(2rem, 3.5vw, 3rem)) clamp(2.25rem, 3.5vw, 3rem);
   overflow: clip;
   isolation: isolate;
 }
@@ -2555,14 +2524,15 @@ a.mp-menu__mail {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: end;
+  gap: var(--mp-6);
 }
-.mp-phero__grid > * {
+.mp-phero__main {
   max-width: min(100%, 62ch);
 }
 .mp-phero__title {
   font-size: var(--mp-t-h1);
   line-height: 0.98;
-  margin: var(--mp-6) 0 0;
+  margin: var(--mp-4) 0 0;
   color: var(--mp-snow);
 }
 .mp-phero__title .mp-serif {
@@ -2570,7 +2540,7 @@ a.mp-menu__mail {
   font-size: 1.06em;
 }
 .mp-phero__sub {
-  margin-block-start: var(--mp-6);
+  margin-block-start: var(--mp-4);
   max-width: 58ch;
   font-size: var(--mp-t-lead);
   line-height: 1.6;
@@ -2582,7 +2552,7 @@ a.mp-menu__mail {
    what to send. .mp-cta-row lays the buttons out; this wrapper owns the
    distance from the lede, so the note stays tied to its button. */
 .mp-phero__action {
-  margin-block-start: var(--mp-8);
+  margin-block-start: var(--mp-6);
 }
 .mp-phero__action .mp-cta-row {
   margin-block-start: 0;
@@ -2621,6 +2591,101 @@ a.mp-menu__mail {
   font-size: var(--mp-t-small);
   color: var(--mp-snow);
 }
+/* The grid gap spaces the facts from the buttons; their own top margin
+   would add 32px more on a phone. */
+.mp-phero__side > .mp-phero__facts {
+  margin-block-start: 0;
+}
+/* 901–1023px: one column over the full photo, and the lede runs well past
+   the default scrim's 32% solid stop, over the lit towers (1.95–3.9:1 on
+   the brightest pixel under it, on most photo heroes, at 960). Solid to
+   48% and 0.82 at 70% keep every lede, crumb and fact at 4.55:1 or more
+   (920, 960, 1000). The bottom layer is repeated because the shorthand
+   replaces both. */
+@media (min-width: 901px) and (max-width: 1023px) {
+  .mp-phero__photo::after {
+    background:
+      linear-gradient(
+        to right,
+        var(--mp-graphite) 0%,
+        var(--mp-graphite) 48%,
+        rgba(11, 12, 13, 0.82) 70%,
+        rgba(11, 12, 13, 0.22) 92%,
+        rgba(11, 12, 13, 0.14) 100%
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(11, 12, 13, 0.62) 0%,
+        transparent 24%,
+        transparent 62%,
+        rgba(11, 12, 13, 0.9) 100%
+      );
+  }
+}
+/* From 1024px the facts (and the children under them) sit in a panel beside
+   the title, like a drawing's title block. The panel is near-opaque
+   graphite, so its labels read on the brightest photo behind it: at 0.78
+   the snow-3 labels fell to 4.1:1 over the BSIP and recertification photos
+   (measured on the brightest pixel under each label, 1024–1440); at 0.88
+   they clear 4.5:1.
+   The scrim is darker here than the default: the compact hero crops the
+   photo so brighter towers sit under the end of the lede, which now runs
+   to ~55% of the width at 1440. With 0.74 at 50% the BSIP and Fort
+   Lauderdale ledes and the current Miami crumb fell to 4.1–4.4:1; 0.82 at
+   56% gives 6.2:1 (ledes) and 4.86:1 (crumbs) or more, 1024–1920. */
+@media (min-width: 1024px) {
+  .mp-phero__photo::after {
+    background:
+      linear-gradient(
+        to right,
+        var(--mp-graphite) 0%,
+        var(--mp-graphite) 32%,
+        rgba(11, 12, 13, 0.82) 56%,
+        rgba(11, 12, 13, 0.22) 80%,
+        rgba(11, 12, 13, 0.14) 100%
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(11, 12, 13, 0.62) 0%,
+        transparent 24%,
+        transparent 62%,
+        rgba(11, 12, 13, 0.9) 100%
+      );
+  }
+  .mp-phero__grid {
+    grid-template-columns: minmax(0, 1.55fr) minmax(15rem, 1fr);
+    column-gap: clamp(2.5rem, 5vw, 5rem);
+  }
+  .mp-phero__main {
+    max-width: none;
+  }
+  .mp-phero__sub {
+    max-width: 58ch;
+  }
+  .mp-phero__side {
+    align-self: end;
+    padding: var(--mp-6);
+    background: rgba(11, 12, 13, 0.88);
+    border: 1px solid var(--mp-line-dark);
+  }
+  .mp-phero__side .mp-phero__facts {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .mp-phero__side .mp-phero__fact {
+    padding-block: 0.7rem;
+    border-block-end: 1px solid var(--mp-line-dark);
+  }
+  .mp-phero__side .mp-phero__fact:first-child {
+    padding-block-start: 0;
+  }
+  .mp-phero__side .mp-phero__fact:last-child {
+    border-block-end: 0;
+  }
+}
 .mp-breadcrumbs {
   display: flex;
   flex-wrap: wrap;
@@ -2629,7 +2694,7 @@ a.mp-menu__mail {
   font-size: var(--mp-t-label);
   letter-spacing: 0.04em;
   color: var(--mp-snow-3);
-  margin: 0 0 var(--mp-6);
+  margin: 0 0 var(--mp-4);
   padding: 0;
   list-style: none;
 }
@@ -3586,7 +3651,8 @@ a.mp-menu__mail {
       var(--mp-graphite) 100%
     );
   }
-  .mp-phero__grid > * {
+  .mp-phero__main,
+  .mp-phero__side {
     max-width: 100%;
   }
   .mp-hero__body {
@@ -3629,7 +3695,7 @@ a.mp-menu__mail {
   }
   .mp-footer__top {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--mp-12);
+    gap: var(--mp-8);
   }
 }
 
@@ -3679,8 +3745,7 @@ a.mp-menu__mail {
   .mp-footer__legal {
     gap: 0 var(--mp-6);
   }
-  .mp-footer__legal a,
-  .mp-close__meta a {
+  .mp-footer__legal a {
     min-height: 44px;
   }
   /* The breadcrumb grows by an invisible ::before, like .mp-link, not by
@@ -3695,6 +3760,12 @@ a.mp-menu__mail {
     content: '';
     position: absolute;
     inset: -10px -7px;
+  }
+  /* The hero's facts stay a wrapping row (two fixed columns broke the
+     engineer's name and the coverage value mid-phrase), a little tighter.
+     Their distance from the button is the hero grid's gap. */
+  .mp-phero__facts {
+    gap: var(--mp-3) var(--mp-6);
   }
   /* The hero strip on a phone: four links in one column, each a 44px row,
      beside the motion toggle. One column because no two labels share a 290px
@@ -3766,9 +3837,26 @@ a.mp-menu__mail {
   .mp-tool:nth-child(2n) {
     border-inline-end: 0;
   }
+  /* Two link columns, Navigate beside Services, and Contact full width
+     under them (its email and address are the long lines). Every link stays
+     on screen and keeps its 44px row; a long Spanish label wraps inside it. */
   .mp-footer__cols {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--mp-8);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--mp-6) var(--mp-4);
+  }
+  .mp-footer__col:last-child {
+    grid-column: 1 / -1;
+  }
+  .mp-footer__col a {
+    line-height: 1.3;
+    padding-block: 0.35rem;
+  }
+  /* Key · value rows and spec rows: one tighter beat on a phone. */
+  .mp-pillars li {
+    padding-block: var(--mp-3);
+  }
+  .mp-speclist li {
+    padding-block: 0.6rem;
   }
   /* Full-width buttons may wrap: nowrap + overflow:hidden silently cut long
      Spanish labels at 320px ("Servicios para edificios existentes →" lost
@@ -4103,7 +4191,7 @@ a.mp-menu__mail {
   display: flex;
   align-items: center;
   gap: var(--mp-3);
-  margin: var(--mp-6) 0 0;
+  margin: var(--mp-4) 0 0;
   font-size: var(--mp-t-small);
   color: var(--mp-snow-2);
 }
@@ -4417,7 +4505,19 @@ a.mp-menu__mail {
   }
 }
 .mp-close .mp-reach {
-  margin-block-start: var(--mp-6);
+  margin-block-start: var(--mp-4);
+}
+/* The fixed bar exists at exactly ≤900 and carries Call and WhatsApp, so the
+   band does not repeat them there (they stay in the HTML). On the two county
+   programs the band has no free-proposal line (`assure={false}`), and the
+   row would be an empty 16px box. */
+@media (max-width: 900px) {
+  .mp-close .mp-reach__links {
+    display: none;
+  }
+  .mp-close .mp-reach:not(:has(.mp-reach__assure)) {
+    display: none;
+  }
 }
 
 /* The bar. Phones and small tablets only — on a desktop the header button
@@ -4479,7 +4579,7 @@ a.mp-menu__mail {
   /* Room for the bar under the last line of the footer, on the pages that
      have one (it is absent on /contact). */
   body:has(.mp-bar) .mp-footer {
-    padding-block-end: calc(var(--mp-8) + 56px + env(safe-area-inset-bottom, 0px));
+    padding-block-end: calc(var(--mp-6) + 56px + env(safe-area-inset-bottom, 0px));
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5944,6 +6044,18 @@ a.mp-menu__mail {
     background: #fff !important;
     color: #000 !important;
   }
+  /* The page hero's facts panel (14, from 1024px) is near-black graphite:
+     printed at that width (A4 landscape, a scale under 100%, or with
+     background graphics on) its black text sat on a dark box. On paper it
+     is a ruled box; its 16% snow hairlines would not show, so they go
+     black too. */
+  .mp-phero__side {
+    background: none !important;
+    border-color: #000 !important;
+  }
+  .mp-phero__side .mp-phero__fact {
+    border-color: #000 !important;
+  }
   /* Text that was snow or gold on a dark surface would print white on
      white. */
   .mp-hero *,
@@ -6038,8 +6150,8 @@ a.mp-menu__mail {
     --mp-pad: clamp(3.5rem, 4.4vw, 6rem);
 
     --mp-t-display: clamp(5.75rem, 5.4vw, 7.5rem);
-    --mp-t-h1: clamp(4.25rem, 4vw, 5.75rem);
-    --mp-t-h2: clamp(3.1rem, 3vw, 4.2rem);
+    --mp-t-h1: clamp(3.5rem, 3.3vw, 4.5rem);
+    --mp-t-h2: clamp(2.6rem, 2.4vw, 3.4rem);
     --mp-t-h3: clamp(1.6rem, 1.5vw, 2.1rem);
     --mp-t-h4: clamp(1.2rem, 1.02vw, 1.45rem);
     --mp-t-lead: clamp(1.3rem, 1.05vw, 1.5rem);
@@ -6047,8 +6159,8 @@ a.mp-menu__mail {
     --mp-t-small: clamp(0.9rem, 0.72vw, 1rem);
     --mp-t-label: clamp(0.75rem, 0.56vw, 0.85rem);
 
-    --mp-section-y: clamp(6.5rem, 5.4vw, 8.5rem);
-    --mp-section-y-lg: clamp(8rem, 7vw, 11rem);
+    --mp-section-y: clamp(4.5rem, 4vw, 6rem);
+    --mp-section-y-lg: clamp(5.5rem, 5vw, 7.5rem);
     --mp-header-h: 96px;
   }
   /* header 96px + 12 (see scroll-padding in 00) */
@@ -6062,7 +6174,7 @@ a.mp-menu__mail {
     --plate-h: clamp(46px, 3vw, 58px);
   }
   .mp-close__title {
-    font-size: clamp(4.6rem, 4.3vw, 6.2rem);
+    font-size: clamp(3.1rem, 3vw, 4.2rem);
   }
   .mp-hero__title,
   .mp-close__title {
@@ -6085,7 +6197,7 @@ a.mp-menu__mail {
   .mp-hero__sub {
     max-width: 60ch;
   }
-  .mp-phero__grid > * {
+  .mp-phero__main {
     max-width: none;
   }
   .mp-phero__title {
@@ -6107,12 +6219,12 @@ a.mp-menu__mail {
     --mp-w: 1880px;
     --mp-pad: 6.5rem;
     --mp-t-display: 8.25rem;
-    --mp-t-h1: 6.25rem;
-    --mp-section-y: 11rem;
-    --mp-section-y-lg: 14rem;
+    --mp-t-h1: 5rem;
+    --mp-section-y: 7rem;
+    --mp-section-y-lg: 9rem;
   }
   .mp-close__title {
-    font-size: 6.75rem;
+    font-size: 4.5rem;
   }
   /* The 980px cap left a ~340px paper strip with a lone section label on the
      first screen of a 2560×1440 monitor. */

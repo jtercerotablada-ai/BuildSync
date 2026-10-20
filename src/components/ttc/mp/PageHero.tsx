@@ -25,6 +25,12 @@ export type HeroAction = { href: string; label: string; variant?: 'solid' | 'lin
  * them that says what to send. `children` render last, under the facts (the
  * engineer's credential on the two county-program pages).
  *
+ * Two columns from 1024px: the eyebrow, title, lede and buttons on the left
+ * (`mp-phero__main`), the facts and the children in a dark panel on the
+ * right (`mp-phero__side`), its foot level with the foot of the left column
+ * (the buttons, or the note under them). Below 1024 the panel falls under
+ * the buttons, as before.
+ *
  * Everything in this band is above the fold, so its entrances are CSS
  * keyframes (`mp-enter`) that run from the server HTML — the photo is the
  * page's LCP candidate and must not wait for React. See primitives.tsx.
@@ -52,6 +58,9 @@ export function PageHero({
 }) {
   const c = useContent();
   const l = useL();
+  // A view passes `{program ? <X/> : null}`: an array of nulls is truthy,
+  // and must not open an empty panel.
+  const hasChildren = React.Children.toArray(children).length > 0;
   return (
     <section className="mp-phero" aria-labelledby="mp-phero-title">
       {photo ? (
@@ -79,7 +88,7 @@ export function PageHero({
         ) : null}
 
         <div className="mp-phero__grid">
-          <div>
+          <div className="mp-phero__main">
             <TechnicalEyebrow className="mp-enter">{eyebrow}</TechnicalEyebrow>
 
             <RevealText
@@ -109,20 +118,27 @@ export function PageHero({
                 {actionNote ? <p className="mp-phero__note">{actionNote}</p> : null}
               </div>
             ) : null}
-
-            {facts?.length ? (
-              <dl className="mp-phero__facts mp-enter mp-enter--d3">
-                {facts.map((f) => (
-                  <div className="mp-phero__fact" key={f.k}>
-                    <dt>{f.k}</dt>
-                    <dd>{f.v}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
-
-            {children ? <div className="mp-enter mp-enter--d4">{children}</div> : null}
           </div>
+
+          {/* The facts, and the children under them, in a side panel beside
+              the title from 1024px (a title block, like a drawing's); under
+              the button below that. One entrance for the whole panel. */}
+          {facts?.length || hasChildren ? (
+            <div className="mp-phero__side mp-enter mp-enter--d3">
+              {facts?.length ? (
+                <dl className="mp-phero__facts">
+                  {facts.map((f) => (
+                    <div className="mp-phero__fact" key={f.k}>
+                      <dt>{f.k}</dt>
+                      <dd>{f.v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+
+              {hasChildren ? <div>{children}</div> : null}
+            </div>
+          ) : null}
         </div>
       </div>
       <DarkHeroSentinel />

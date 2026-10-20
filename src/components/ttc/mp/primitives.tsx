@@ -19,9 +19,9 @@
  *     keyframe starts at first paint, JavaScript or not, and the
  *     reduced-motion media query switches it off.
  *
- *   • BELOW THE FOLD — `Reveal`, scroll-triggered `RevealText`,
- *     `AnimatedLine`, the stagger lists. They were Motion's `whileInView`,
- *     on the theory that hidden-until-hydrated is harmless down there. It
+ *   • BELOW THE FOLD — `Reveal`, scroll-triggered `RevealText`, the
+ *     stagger lists. They were Motion's `whileInView`, on the theory
+ *     that hidden-until-hydrated is harmless down there. It
  *     was not: on a slow connection a visitor scrolls before React arrives
  *     and met an empty page, and a failed script left it empty for good.
  *     Now the markup is plain and visible. After hydration `useReveal` hands
@@ -31,9 +31,9 @@
  *     `mp-enter` ones. Read reveal.ts before changing any of it — the order
  *     in which things are hidden is the failsafe.
  *
- * Timing travels as inline custom properties (`--rv-delay`, `--rv-dur`,
- * `--rv-y`), written only when they differ from the CSS default: identical
- * on the server and the client, and most blocks carry no style at all.
+ * Timing travels as inline custom properties (`--rv-delay`, `--rv-y`),
+ * written only when they differ from the CSS default: identical on the
+ * server and the client, and most blocks carry no style at all.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -226,31 +226,6 @@ function RevealLine({
         {children}
       </span>
     </span>
-  );
-}
-
-/* ── AnimatedLine — a hairline that draws itself left-to-right ───────────── */
-
-export function AnimatedLine({
-  className = 'mp-rule',
-  delay = 0,
-  duration,
-}: {
-  className?: string;
-  delay?: number;
-  /** Seconds; mp.css defaults to 0.9. */
-  duration?: number;
-}) {
-  const ref = useReveal<HTMLDivElement>(40);
-  return (
-    <div
-      ref={ref}
-      className={cx(REVEAL, 'mp-reveal--rule', className)}
-      style={vars({
-        '--rv-delay': delay ? ms(delay) : undefined,
-        '--rv-dur': duration === undefined ? undefined : ms(duration),
-      })}
-    />
   );
 }
 

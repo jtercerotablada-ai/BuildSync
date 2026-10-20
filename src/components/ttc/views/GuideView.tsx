@@ -243,7 +243,7 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         </div>
       </section>
 
-      <ContactCTA n="04" service={own.slug} />
+      <ContactCTA service={own.slug} />
     </>
   );
 }
@@ -329,7 +329,7 @@ export function GuidesView({ lang }: { lang: Lang }) {
           </div>
         </div>
       </section>
-      <ContactCTA n="03" />
+      <ContactCTA />
     </>
   );
 }

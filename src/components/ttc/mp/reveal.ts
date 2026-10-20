@@ -1,6 +1,6 @@
 /**
  * Scroll reveal — the engine behind `Reveal`, the scroll-triggered
- * `RevealText`, `AnimatedLine` and the stagger lists (primitives.tsx).
+ * `RevealText` and the stagger lists (primitives.tsx).
  *
  * THE RULE: CONTENT IS VISIBLE UNLESS THIS FILE HAS JUST HIDDEN IT.
  *
@@ -126,8 +126,8 @@ export function createRevealer(env: RevealEnv) {
    * `margin: '-40px'` pulled in all four, and the page gutter is narrower
    * than 40px on every screen under ~890px wide (16–20px on a phone):
    * anything narrow sitting in it was "on screen" at no scroll position.
-   * That is where the gold rule closing every page was parked, at zero
-   * width — so on a phone it never drew.
+   * That is where the gold rule that used to close every page was parked,
+   * at zero width — so on a phone it never drew.
    */
   return function watch(el: RevealTarget, margin: number): () => void {
     if (!env.createObserver || env.prefersReducedMotion()) return NOOP;

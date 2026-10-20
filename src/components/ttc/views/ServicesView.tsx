@@ -78,7 +78,7 @@ export function ServicesView({ lang }: { lang: Lang }) {
 
       <Typologies n="03" surface="paper" />
       <HowWeWork n="04" />
-      <ContactCTA n="05" />
+      <ContactCTA />
     </>
   );
 }

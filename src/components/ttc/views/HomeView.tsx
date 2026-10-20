@@ -52,7 +52,7 @@ export function HomeView({ lang }: { lang: Lang }) {
       <JurisdictionsSection n="03" />
       <NewBuildings n="04" />
       <PartnerSection n="05" lang={lang} />
-      <ContactCTA n="06" />
+      <ContactCTA />
     </>
   );
 }

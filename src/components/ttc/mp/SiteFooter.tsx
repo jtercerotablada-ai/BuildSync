@@ -70,7 +70,7 @@ export function SiteFooter() {
           <div>
             <div className="mp-footer__brand-logo">
               {/* The 640px straight resize of the real white lockup (shown
-                  44–60px tall ≈ 158px wide, so ≥4x), lazy because it sits at
+                  44–52px tall ≈ 158px wide, so ≥4x), lazy because it sits at
                   the very bottom of every page and would otherwise be
                   preloaded ahead of the hero. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}

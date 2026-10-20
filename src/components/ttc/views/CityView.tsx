@@ -376,7 +376,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
         </div>
       </section>
 
-      <ContactCTA n={next()} service={service.slug} />
+      <ContactCTA service={service.slug} />
     </>
   );
 }

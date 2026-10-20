@@ -84,7 +84,7 @@ export function ExistingView({ lang }: { lang: Lang }) {
           it runs. The short form — the block is whole on the home page, and
           the licenses are listed on /about, where this one links. */}
       <PartnerSection n="03" lang={lang} surface="paper" variant="brief" />
-      <ContactCTA n="04" />
+      <ContactCTA />
     </>
   );
 }

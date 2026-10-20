@@ -112,7 +112,7 @@ export function AboutView({ lang }: { lang: Lang }) {
 
       {/* The default secondary ("Meet the engineer" → /about#engineer) would
           point back up this same page. */}
-      <ContactCTA n="05" secondary={{ href: '/services', label: c.ui.seeAllServices }} />
+      <ContactCTA secondary={{ href: '/services', label: c.ui.seeAllServices }} />
     </>
   );
 }
