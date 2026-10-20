@@ -35,7 +35,7 @@ export function NewBuildings({ n = '03' }: { n?: string }) {
   return (
     <section
       id="new-buildings"
-      className="mp-section mp-section--lg mp-surface--graphite"
+      className="mp-section mp-surface--graphite"
       aria-labelledby="mp-newb-title"
     >
       <div className="mp-shell">

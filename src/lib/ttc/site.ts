@@ -93,7 +93,7 @@
  */
 
 import { ADS, ADS_COOKIE_DAYS } from './ads';
-import { browardMunicipalities, miamiDadeMunicipalities } from './municipalities';
+import { browardMunicipalities, featuredBroward, featuredMiamiDade, miamiDadeMunicipalities } from './municipalities';
 import { photo, video, type Photo, type Clip } from './media';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -353,6 +353,8 @@ export const ui = {
   seeAllServices: 'All Services',
   newProjects: 'New projects',
   existingBuildings: 'Existing buildings',
+  /** Over the home page's county switch, on a phone (ProgramSection). */
+  chooseCounty: 'Which county is the building in?',
   whenYouNeedIt: 'When you need it',
   whatsIncluded: "What's included",
   whatYouReceive: 'What you receive',
@@ -606,7 +608,7 @@ export const hero = {
      each button names one notice and opens the form with that program
      already selected. "Request a Proposal" is still one tap away in the
      header, and Services stays in the menu and in the strip below. */
-  sub: 'Miami-Dade building recertification, Broward’s Building Safety Inspection Program (BSIP) and structural design for new buildings — led by a Florida Professional Engineer who stays on your project from the first conversation to the final report.',
+  sub: 'Miami-Dade building recertification, Broward’s Building Safety Inspection Program (BSIP) and structural design for new buildings, led by a Florida Professional Engineer.',
   primary: { href: '/contact?service=building-recertification', label: 'I Have a Miami-Dade Notice' },
   secondary: { href: '/contact?service=broward-bsip', label: 'I Have a Broward Notice' },
   /**
@@ -944,13 +946,17 @@ export type Service = {
   program?: {
     /** Anchor id on the home page: 'miami-dade' | 'broward' (see `hero.caps`). */
     id: string;
-    /** SectionHeading label. */
+    /** The county alone ("Miami-Dade"): the home page's county switch on a
+        phone, and the label over each price in the phone price table. */
+    county: string;
+    /** The small line over the column's headline. */
     eyebrow: string;
     /** Two lines; the two programs are deliberately parallel. */
     titleLines: string[];
     /** ONE accent, and it falls on the thing that differs between counties. */
     accentWord: string;
-    /** One paragraph, 55 words at most, no number. */
+    /** One paragraph, 40 words at most, no number: it sits beside the other
+        county's in a half-width column. */
     lede: string;
     /** Four short labels: the published six-step sequence, compressed. */
     steps: string[];
@@ -1421,13 +1427,14 @@ export const services: Service[] = [
     crossLink: { text: 'Building in Broward?', label: 'See the BSIP', slug: 'broward-bsip' },
     program: {
       id: 'miami-dade',
+      county: 'Miami-Dade',
       eyebrow: 'Miami-Dade County · Building Recertification',
       /* Parallel with the Broward headline: the accent falls on the filing
          deadline, the one thing a reader must not carry across counties.
          "90 days" must always equal the row's "Time to file". */
       titleLines: ['Miami-Dade recertification.', '90 days from the notice.'],
       accentWord: '90 days',
-      lede: 'One team delivers the complete package — the structural and electrical reports on the county’s forms and the certificates that go with them — and stays through repairs to the amended report that closes the recertification. The program reaches almost every building other than single-family homes and duplexes. Send us the notice from your city or the county.',
+      lede: 'One team delivers the complete package — the structural and electrical reports on the county’s forms and the certificates that go with them — and stays through repairs to the amended report that closes the recertification.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Miami-Dade Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year built.',
@@ -1783,11 +1790,12 @@ export const services: Service[] = [
     crossLink: { text: 'Building in Miami-Dade?', label: 'See Miami-Dade Recertification', slug: 'building-recertification' },
     program: {
       id: 'broward',
+      county: 'Broward',
       eyebrow: 'Broward County · Building Safety Inspection Program (BSIP)',
       /* "180 days" must always equal the row's "Time to file". */
       titleLines: ['Broward BSIP.', '180 days from the notice.'],
       accentWord: '180 days',
-      lede: 'One team delivers the complete BSIP package — both inspections, structural and electrical, the written report and the program’s official forms — and stays through repairs and close-out. Many owners still call the program the 40-year recertification; it reaches almost every building type, in every city. Send us the notice from your Building Official.',
+      lede: 'One team delivers the complete BSIP package — both inspections, structural and electrical, the written report and the program’s official forms — and stays through repairs and close-out. Many owners still call it the 40-year recertification.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Broward Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
@@ -2431,7 +2439,6 @@ export const imagery = {
     'peer-review': photo.peerTowerBw,
   } as Record<string, Photo>,
   sections: {
-    southFlorida: photo.southFloridaAerial,
     engineer: photo.concreteRamp,
   },
   engagements: {
@@ -2963,31 +2970,9 @@ export const contactPage = {
   },
 } as const;
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   SERVICE AREA
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-export const serviceArea = {
-  eyebrow: 'Where we work',
-  title: 'Engineered for this coast.',
-  body: 'Hurricane wind, a corrosive coastal environment, a high water table and a code shaped by all three. South Florida is not a generic design condition — it is the one we work in every day, across Miami-Dade and Broward.',
-  counties: [
-    { name: 'Miami-Dade County', code: 'MDC', note: 'High-Velocity Hurricane Zone' },
-    { name: 'Broward County', code: 'BRW', note: 'High-Velocity Hurricane Zone' },
-  ],
-  note: 'South Florida from the air. Coverage is defined by jurisdiction, not by the frame of a photograph.',
-  /**
-   * One visible sentence of the main municipalities, under the county list.
-   * Without it the only place names on the site were "Miami-Dade" and
-   * "Broward"; a search for a city had no on-page text to match. Keep it to a
-   * dozen names so it reads as information, not keyword stuffing.
-   */
-  cities:
-    'Including Miami, Miami Beach, Coral Gables, Doral, Hialeah, Aventura, Sunny Isles Beach, Fort Lauderdale, Hollywood, Hallandale Beach, Pompano Beach and Coral Springs — and everywhere else in both counties.',
-} as const;
-
 /* Kept for local SEO (`areaServed`). Not rendered as a visible list; the
-   visible sentence of main cities is `serviceArea.cities`. */
+   home page names every municipality under its mark (JurisdictionsSection),
+   and the city pages name their own. */
 export const municipalities = [
   'Miami', 'Miami Beach', 'Coral Gables', 'Hialeah', 'Miami Springs',
   'North Miami', 'North Miami Beach', 'Opa-locka', 'South Miami',
@@ -3391,6 +3376,8 @@ const pricing = {
     'County, city and permit fees.',
   ],
   note: 'The price depends on the size of the building, the number of structures, the electrical service, the documents available and what the jurisdiction asks for. Several buildings: one proposal, a price for each.',
+  /** The first column of the price table, over the four sizes. */
+  sizeLabel: 'Building size',
   cta: 'Get a fixed-fee proposal',
   costLink: 'What moves the price, and what the fee leaves out',
   /** The link from each county program's page to the cost page. */
@@ -3422,33 +3409,21 @@ const pricing = {
     ],
     browardLine: 'A report that is not filed on time goes to an enforcement hearing, and a building that stays unrepaired can be declared unsafe.',
     footnote: 'Miami-Dade County references: recertification penalties · enforcement process · unsafe structures (Section 8-5).',
-    resolveTitle: 'One team takes it from here',
-    resolve: [
-      {
-        k: 'One coordinated process',
-        v: 'We arrange the inspections and coordinate the structural and electrical reports, signed and sealed by the appropriate professionals.',
-      },
-      {
-        k: 'Less time with the County',
-        v: 'We handle the submissions, track the comments and follow up with the County offices on your behalf.',
-      },
-      {
-        k: 'Support through completion',
-        v: 'If repairs are required, we explain the findings, coordinate with your contractor and handle the reinspections and revised reports.',
-      },
-    ],
-    closing: 'Send us the notice. We review the available records and outline the next steps, with no obligation.',
-    cta: 'Send us your notice',
   },
   jurisdictions: {
     eyebrow: 'Jurisdictions',
     title: 'The offices we file with.',
     lede: 'Your notice comes from one of these offices, or from a neighbour of theirs. The steps and the forms are theirs; the process is ours.',
     more: 'Every municipality in both counties.',
+    /** The disclosure under each county's first marks; {n} = its municipalities. */
+    all: 'All {n} municipalities',
     also: 'Also',
+    /* `mark` is the county's own entry in `marks` (municipalities.ts), the
+       same key in both languages; `featured` are the marks shown before the
+       disclosure, the rest open under it. */
     lists: [
-      { title: 'Miami-Dade County', names: miamiDadeMunicipalities },
-      { title: 'Broward County', names: browardMunicipalities },
+      { title: 'Miami-Dade County', mark: 'Miami-Dade County', featured: featuredMiamiDade, names: miamiDadeMunicipalities },
+      { title: 'Broward County', mark: 'Broward County', featured: featuredBroward, names: browardMunicipalities },
     ],
     disclaimer: 'Seals and logos belong to their governments and are shown only to identify the office. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm: not affiliated with, endorsed by or acting for any of them.',
     creditLabel: 'Image credits',
@@ -3482,7 +3457,6 @@ export const en = {
   existingPage,
   workPage,
   contactPage,
-  serviceArea,
   closingCta,
   pricing,
   legal,

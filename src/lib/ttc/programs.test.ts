@@ -195,3 +195,33 @@ describe('the home page’s summary of a county program', () => {
     }
   });
 });
+
+/* The home page prints once what the two programs share (ProgramSection):
+   the four steps under both county columns, and one column of building
+   sizes in the price table (CostSection). That is only true while they ARE
+   shared — if a county ever gets its own steps or its own sizes, these fail
+   and the page has to print them per county again. */
+describe('the home page prints the shared parts once', () => {
+  it('both programs run the same four steps', () => {
+    for (const [, c] of bundles) {
+      const [a, b] = PROGRAMS.map((slug) => svc(c, slug).program!.steps);
+      expect(b).toEqual(a);
+    }
+  });
+
+  it('both counties price the same four sizes, in the same order', () => {
+    for (const [, c] of bundles) {
+      const [a, b] = c.pricing.programs.map((p) => p.tiers.map((t) => t.size));
+      expect(b).toEqual(a);
+    }
+  });
+
+  it('every county list names its own mark and features only its own municipalities', () => {
+    for (const [, c] of bundles) {
+      for (const list of c.pricing.jurisdictions.lists) {
+        expect(list.mark).toMatch(/County$/);
+        for (const name of list.featured) expect(list.names).toContain(name);
+      }
+    }
+  });
+});

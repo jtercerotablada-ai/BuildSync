@@ -7,6 +7,16 @@
  * Miami-Dade: the County's list of municipalities (Islandia, dissolved, is
  * not listed). Broward: the 31 municipalities of the County.
  */
+/**
+ * The marks the home page shows before each county's "All N municipalities"
+ * disclosure, after the county's own: its seven most populous cities with a
+ * mark on file (2020 census), largest first. Miami Beach has no mark on file
+ * (see `marks`), so Miami-Dade's seventh is Coral Gables. Every other
+ * municipality opens under the disclosure.
+ */
+export const featuredMiamiDade = ['Miami', 'Hialeah', 'Miami Gardens', 'Homestead', 'Doral', 'North Miami', 'Coral Gables'] as const;
+export const featuredBroward = ['Fort Lauderdale', 'Pembroke Pines', 'Hollywood', 'Miramar', 'Coral Springs', 'Pompano Beach', 'Davie'] as const;
+
 export const miamiDadeMunicipalities = [
   'Aventura',
   'Bal Harbour',

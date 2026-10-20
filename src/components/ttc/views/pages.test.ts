@@ -191,9 +191,9 @@ describe('images: every <img> the public pages send', () => {
         .filter((tag) => attr(tag, 'aria-hidden') !== 'true')
         .map((tag) => attr(tag, 'src'));
       // The engineer's portrait (leadership.portrait) is content too: it is
-      // read out wherever EngineerSection renders it (home teaser, About).
+      // read out where EngineerSection renders it — /about, its only page.
       const c = getContent(lang);
-      const portrait = c.leadership.portrait && (path === '/' || path === '/about') ? [c.leadership.portrait.src] : [];
+      const portrait = c.leadership.portrait && path === '/about' ? [c.leadership.portrait.src] : [];
       expect(spoken).toEqual([...portrait, c.company.logo.lockupLightSm]);
     });
   }

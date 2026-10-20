@@ -1,39 +1,39 @@
 import React from 'react';
 import type { Lang } from '@/lib/ttc/i18n';
 import { Hero } from '@/components/ttc/mp/Hero';
-import { ProgramSection } from '@/components/ttc/mp/ProgramSection';
+import { ProgramsSection } from '@/components/ttc/mp/ProgramSection';
 import { PricingSection, UrgencySection, JurisdictionsSection } from '@/components/ttc/mp/CostSection';
 import { NewBuildings } from '@/components/ttc/mp/NewBuildings';
-import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
-import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { HomeAddress } from './meta';
 
 /**
- * Home: eight sections, each with one job. Existing buildings come first —
- * the reader with a deadline is the one holding a county notice — and each
- * county has its own section, because Miami-Dade and Broward run different
- * programs on different clocks.
+ * Home: seven sections, each with one job, each as short as its job allows.
+ * Existing buildings come first — the reader with a deadline is the one
+ * holding a county notice.
  *
- *   Hero             what · where · one action · four links into the page
- *   ProgramSection   Miami-Dade: building recertification      (#miami-dade)
- *   ProgramSection   Broward: Building Safety Inspection Program  (#broward)
- *   NewBuildings     the design side, and its four services (#new-buildings)
- *   EngineerSection  who is responsible
- *   PartnerSection   who we work with — two licensed firms, one team
- *   SouthFloridaMap  where, exactly
- *   ContactCTA       the action, again
+ *   Hero                 what · where · one action · four links into the page
+ *   ProgramsSection      the two county programs side by side
+ *                        (#miami-dade | #broward)
+ *   PricingSection       fixed-fee ranges, both counties in one table
+ *   UrgencySection       what waiting can cost
+ *   JurisdictionsSection the offices we file with
+ *   NewBuildings         the design side, and its four services (#new-buildings)
+ *   PartnerSection       two licensed firms, one team
+ *   ContactCTA           the action, again
  *
- * The two program sections are ONE component rendered twice, so their rows
+ * The two county columns are one component rendered twice, so their rows
  * line up label for label; each prints only its own county's numbers, taken
  * from that service's timing row in site.ts. The three anchor ids are the
  * targets of the hero strip (`hero.caps`).
  *
- * Not here any more: the two client doors and the recertification video band
- * (deleted), the typology grid and the five-step process (both on /services).
+ * Not here any more: the engineer (his portrait and account live on /about
+ * alone — the owner, 2026-10-20: "not mixed in"), "Engineered for this coast"
+ * (the jurisdictions say where, office by office), and the urgency section's
+ * second list of what the team does (the county columns say it).
  *
- * Rhythm: dark · paper · concrete · graphite · paper · concrete · paper ·
+ * Rhythm: dark · paper · paper · graphite · paper · graphite · concrete ·
  * dark close. Every section but one reads `lang` from the URL; PartnerSection
  * is a server component and takes it as a prop.
  *
@@ -46,16 +46,13 @@ export function HomeView({ lang }: { lang: Lang }) {
     <>
       <HomeAddress lang={lang} />
       <Hero />
-      <ProgramSection slug="building-recertification" n="01" surface="paper" />
-      <ProgramSection slug="broward-bsip" n="02" surface="concrete" mirrored />
-      <PricingSection n="03" />
-      <UrgencySection n="04" />
-      <JurisdictionsSection n="05" />
-      <NewBuildings n="06" />
-      <EngineerSection n="07" variant="teaser" />
-      <PartnerSection n="08" lang={lang} />
-      <SouthFloridaMap n="09" />
-      <ContactCTA n="10" />
+      <ProgramsSection n="01" />
+      <PricingSection n="02" />
+      <UrgencySection n="03" />
+      <JurisdictionsSection n="04" />
+      <NewBuildings n="05" />
+      <PartnerSection n="06" lang={lang} />
+      <ContactCTA n="07" />
     </>
   );
 }

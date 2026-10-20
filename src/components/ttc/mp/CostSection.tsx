@@ -1,10 +1,9 @@
 'use client';
 
 import React from 'react';
-import { ButtonLink, Reveal, RevealText, SectionHeading, TextLink } from './primitives';
+import { Reveal, RevealText, SectionHeading, TextLink } from './primitives';
 import { accentLines } from './text';
 import { useContent, useL } from './lang';
-import { ReachRow } from './ReachRow';
 import { marks } from '@/lib/ttc/municipalities';
 import { COST_PATH } from '@/lib/ttc/cost-path';
 
@@ -12,60 +11,99 @@ import { COST_PATH } from '@/lib/ttc/cost-path';
  * Three home sections, one file, one copy block (`pricing` in site.ts and
  * site.es.ts):
  *
- *   PricingSection       fixed-fee ranges by building size, per county
- *   UrgencySection       what waiting can cost, and who takes it from there
+ *   PricingSection       fixed-fee ranges by building size, both counties in
+ *                        one table
+ *   UrgencySection       what waiting can cost
  *   JurisdictionsSection the offices we file with, by their own marks
+ *
+ * All three open the same way: the headline on the left, its lede on the
+ * right (`.mp-hsec__head`), so the reader gets the point in one line and the
+ * section starts working at once.
  *
  * The ranges are fixed-fee ranges, not regulatory facts: no date, and no age
  * or day count anywhere in this file or its copy (those live in each county's
- * timing row and nowhere else). The two counties' ranges stay in their own
- * cards, never merged.
+ * timing row and nowhere else). Each county's ranges stay in that county's
+ * own column of the table, under its name, never merged into one figure.
  *
  * The seals are shown only to identify an office; the disclaimer and the
  * credits link sit directly under them and are not optional.
  */
 
+function Head({
+  id,
+  titleLines,
+  accentWord,
+  lede,
+  children,
+}: {
+  id: string;
+  titleLines: readonly string[];
+  accentWord: string;
+  lede: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mp-hsec__head">
+      <RevealText as="h2" id={id} className="mp-hsec__title" lines={accentLines(titleLines, accentWord)} />
+      <Reveal delay={0.06} className="mp-hsec__aside">
+        <p className="mp-hsec__lede">{lede}</p>
+        {children}
+      </Reveal>
+    </div>
+  );
+}
+
 export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 'paper' | 'concrete' }) {
   const c = useContent();
   const l = useL();
   const k = c.pricing;
+  // Both counties price the same four sizes (`programs.test.ts` holds the
+  // labels equal), so one column of sizes serves the two columns of prices.
+  const sizes = k.programs[0].tiers.map((t) => t.size);
+  // On a phone each price is labelled with its county alone ("Broward"):
+  // the program's full name over every price wrapped onto two lines.
+  const countyOf = (slug: string) => c.services.find((s) => s.slug === slug)?.program?.county;
   return (
     <section
       id="pricing"
-      className={`mp-section mp-section--lg mp-cost mp-surface--${surface}`}
+      className={`mp-section mp-cost mp-surface--${surface}`}
       aria-labelledby="mp-cost-title"
     >
       <div className="mp-shell">
         <SectionHeading n={n} label={k.eyebrow} />
-        <RevealText
-          as="h2"
-          id="mp-cost-title"
-          className="mp-prog__title"
-          lines={accentLines(k.titleLines, k.accentWord)}
-        />
-        <Reveal delay={0.06}>
-          <p className="mp-prog__lede">{k.lede}</p>
+        <Head id="mp-cost-title" titleLines={k.titleLines} accentWord={k.accentWord} lede={k.lede}>
           <p className="mp-cost__delivery">{k.delivery}</p>
-        </Reveal>
+        </Head>
 
-        <div className="mp-cost__cards">
-          {k.programs.map((p, i) => (
-            <Reveal key={p.id} delay={0.06 + i * 0.04} className="mp-cost__card">
-              <h3 id={p.id} className="mp-cost__name">
-                {p.name}
-              </h3>
-              <dl className="mp-cost__tiers" aria-labelledby={p.id}>
-                {p.tiers.map((t) => (
-                  <div key={t.size}>
-                    <dt>{t.size}</dt>
-                    <dd>{t.price}</dd>
-                  </div>
+        <Reveal delay={0.06} className="mp-cost__tablewrap">
+          <table className="mp-cost__table">
+            <thead>
+              <tr>
+                <th scope="col">{k.sizeLabel}</th>
+                {k.programs.map((p) => (
+                  <th key={p.id} id={p.id} scope="col">
+                    {p.name}
+                  </th>
                 ))}
-              </dl>
-              <TextLink href={l(`/contact?service=${p.slug}`)}>{k.cta}</TextLink>
-            </Reveal>
-          ))}
-        </div>
+              </tr>
+            </thead>
+            <tbody>
+              {sizes.map((size, i) => (
+                <tr key={size}>
+                  <th scope="row">{size}</th>
+                  {k.programs.map((p) => (
+                    // The county's name rides with each price for the phone
+                    // layout, where the header row is hidden and every row
+                    // is a size over its two prices.
+                    <td key={p.id} data-label={countyOf(p.slug) ?? p.name}>
+                      {p.tiers[i].price}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Reveal>
 
         <Reveal delay={0.08} className="mp-cost__scope">
           <div>
@@ -84,10 +122,12 @@ export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 
               ))}
             </ul>
             <p className="mp-cost__note">{k.note}</p>
-            <p className="mp-costp__late">
-              <TextLink href={l(COST_PATH)}>{k.costLink}</TextLink>
-            </p>
           </div>
+        </Reveal>
+
+        <Reveal delay={0.08} className="mp-cost__links">
+          <TextLink href={l('/contact')}>{k.cta}</TextLink>
+          <TextLink href={l(COST_PATH)}>{k.costLink}</TextLink>
         </Reveal>
       </div>
     </section>
@@ -96,62 +136,33 @@ export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 
 
 export function UrgencySection({ n }: { n: string }) {
   const c = useContent();
-  const l = useL();
   const k = c.pricing.urgency;
   return (
     <section
       id="urgency"
-      className="mp-section mp-section--lg mp-cost mp-cost--urgent mp-surface--graphite"
+      className="mp-section mp-cost mp-cost--urgent mp-surface--graphite"
       aria-labelledby="mp-urgency-title"
     >
       <div className="mp-shell">
         <SectionHeading n={n} label={k.eyebrow} />
-        <RevealText
-          as="h2"
-          id="mp-urgency-title"
-          className="mp-prog__title"
-          lines={accentLines(k.titleLines, k.accentWord)}
-        />
-        <Reveal delay={0.06}>
-          <p className="mp-prog__lede">{k.lede}</p>
-        </Reveal>
+        <Head id="mp-urgency-title" titleLines={k.titleLines} accentWord={k.accentWord} lede={k.lede} />
 
-        <div className="mp-cost__urgent-grid">
-          <Reveal delay={0.08} className="mp-cost__urgent-main">
-            <h3 className="mp-cost__h">{k.miamiDade}</h3>
-            <ul className="mp-cost__risks">
-              {k.items.map((it) => (
-                <li key={it.k}>
-                  <strong>{it.k}</strong>
-                  <span>{it.v}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mp-cost__foot">{k.footnote}</p>
-            <h3 className="mp-cost__h mp-cost__h--gap">{k.broward}</h3>
+        <Reveal delay={0.08} className="mp-cost__urgent">
+          <h3 className="mp-cost__h">{k.miamiDade}</h3>
+          <ul className="mp-cost__risks">
+            {k.items.map((it) => (
+              <li key={it.k}>
+                <strong>{it.k}</strong>
+                <span>{it.v}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mp-cost__foot">{k.footnote}</p>
+          <div className="mp-cost__bro">
+            <h3 className="mp-cost__h">{k.broward}</h3>
             <p className="mp-cost__broward">{k.browardLine}</p>
-          </Reveal>
-
-          <Reveal delay={0.1} className="mp-cost__resolve">
-            <h3 className="mp-cost__resolve-title">{k.resolveTitle}</h3>
-            <ol className="mp-cost__steps">
-              {k.resolve.map((it, i) => (
-                <li key={it.k}>
-                  <span className="mp-secnum">{String(i + 1).padStart(2, '0')}</span>
-                  <strong>{it.k}</strong>
-                  <span>{it.v}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="mp-cost__closing">{k.closing}</p>
-            <div className="mp-prog__action">
-              <ButtonLink href={l('/contact?service=building-recertification')} variant="solid">
-                {k.cta}
-              </ButtonLink>
-              <ReachRow c={c} className="mp-reach--row" />
-            </div>
-          </Reveal>
-        </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -168,56 +179,75 @@ export function JurisdictionsSection({ n }: { n: string }) {
     >
       <div className="mp-shell">
         <SectionHeading n={n} label={k.eyebrow} />
-        <Reveal as="div">
-          <h2 id="mp-juris-title" className="mp-h3 mp-cost__jtitle">
-            {k.title}
-          </h2>
-          <p className="mp-prog__lede">{k.lede}</p>
-        </Reveal>
+        <div className="mp-hsec__head">
+          <Reveal>
+            <h2 id="mp-juris-title" className="mp-hsec__title mp-hsec__title--sm">
+              {k.title}
+            </h2>
+          </Reveal>
+          <Reveal delay={0.06} className="mp-hsec__aside">
+            <p className="mp-hsec__lede">{k.lede}</p>
+            <p className="mp-cost__more">{k.more}</p>
+          </Reveal>
+        </div>
 
-        <h3 className="mp-cost__more">{k.more}</h3>
-        {k.lists.map((list) => {
-          // The county's own mark first, then every municipality that has one
-          // on file; the ones without are named in a line under the marks.
-          const shown = [list.title, ...list.names].filter((name) => marks[name]);
-          const rest = list.names.filter((name) => !marks[name]);
-          return (
-            <Reveal key={list.title} delay={0.04} className="mp-cost__county">
-              <h4 className="mp-cost__h">{list.title}</h4>
-              <ul className="mp-cost__seals">
-                {shown.map((name) => {
-                  const m = marks[name];
-                  return (
-                    <li key={name} data-tone={m.dark ? 'dark' : undefined}>
-                      {/* Decorative marks, named by the visible caption. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/ttc/img/jurisdictions/${m.file}.webp`}
-                        alt={name}
-                        aria-hidden="true"
-                        width={160}
-                        height={64}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <span>{name}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-              {rest.length ? (
-                <p className="mp-cost__rest">
-                  <strong>{k.also}:</strong> {rest.join(' · ')}
-                </p>
-              ) : null}
-            </Reveal>
-          );
-        })}
+        <div className="mp-cost__counties">
+          {k.lists.map((list) => {
+            // The county's own mark and its largest cities first; every other
+            // municipality with a mark on file opens under the disclosure, and
+            // the ones without a mark are named in a line inside it.
+            const featured = [list.mark, ...list.featured].filter((name) => marks[name]);
+            const rest = list.names.filter((name) => marks[name] && !featured.includes(name));
+            const unmarked = list.names.filter((name) => !marks[name]);
+            return (
+              <Reveal key={list.title} delay={0.04} className="mp-cost__county">
+                <h3 className="mp-cost__h">{list.title}</h3>
+                <Seals names={featured} />
+                <details className="mp-cost__all">
+                  <summary>{k.all.replace('{n}', String(list.names.length))}</summary>
+                  <Seals names={rest} />
+                  {unmarked.length ? (
+                    <p className="mp-cost__rest">
+                      <strong>{k.also}:</strong> {unmarked.join(' · ')}
+                    </p>
+                  ) : null}
+                </details>
+              </Reveal>
+            );
+          })}
+        </div>
 
         <p className="mp-cost__disclaimer">
           {k.disclaimer} <TextLink href="/credits">{k.creditLabel}</TextLink>
         </p>
       </div>
     </section>
+  );
+}
+
+/** A grid of offices, each mark over its name. */
+function Seals({ names }: { names: readonly string[] }) {
+  return (
+    <ul className="mp-cost__seals">
+      {names.map((name) => {
+        const m = marks[name];
+        return (
+          <li key={name} data-tone={m.dark ? 'dark' : undefined}>
+            {/* Decorative marks, named by the visible caption. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/ttc/img/jurisdictions/${m.file}.webp`}
+              alt={name}
+              aria-hidden="true"
+              width={160}
+              height={64}
+              loading="lazy"
+              decoding="async"
+            />
+            <span>{name}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

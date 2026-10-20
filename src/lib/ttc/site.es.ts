@@ -60,7 +60,7 @@
  */
 
 import { ADS, ADS_COOKIE_DAYS } from './ads';
-import { browardMunicipalities, miamiDadeMunicipalities } from './municipalities';
+import { browardMunicipalities, featuredBroward, featuredMiamiDade, miamiDadeMunicipalities } from './municipalities';
 import { photo } from './media';
 import type { SiteContent } from './site';
 
@@ -373,11 +373,12 @@ const services: SiteContent['services'] = [
     crossLink: { text: '¿Su edificio está en Broward?', label: 'Vea el BSIP', slug: 'broward-bsip' },
     program: {
       id: 'miami-dade',
+      county: 'Miami-Dade',
       eyebrow: 'Condado de Miami-Dade · Recertificación de edificios',
       /* "90 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['Recertificación en Miami-Dade.', '90 días desde la notificación.'],
       accentWord: '90 días',
-      lede: 'Un solo equipo entrega el paquete completo — informes estructural y eléctrico en los formularios del condado, con sus certificados — y lo acompaña hasta el informe enmendado que cierra la recertificación. El programa alcanza a casi todos los edificios, salvo las viviendas unifamiliares y los dúplex. Envíenos la notificación de su ciudad o del condado.',
+      lede: 'Un solo equipo entrega el paquete completo — informes estructural y eléctrico en los formularios del condado, con sus certificados — y lo acompaña hasta el informe enmendado que cierra la recertificación.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Miami-Dade',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
@@ -651,13 +652,14 @@ const services: SiteContent['services'] = [
     crossLink: { text: '¿Su edificio está en Miami-Dade?', label: 'Vea la recertificación de Miami-Dade', slug: 'building-recertification' },
     program: {
       id: 'broward',
+      county: 'Broward',
       eyebrow: 'Condado de Broward · Programa de Inspección de Seguridad de Edificios (BSIP)',
       /* "180 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['BSIP de Broward.', '180 días desde la notificación.'],
       accentWord: '180 días',
-      /* Shorter than a literal translation on purpose: 55 words at most, and
+      /* Shorter than a literal translation on purpose: 40 words at most, and
          the full program name is already in the label above it. */
-      lede: 'Un solo equipo entrega el paquete completo — inspección estructural y eléctrica, informe y formularios oficiales — y lo acompaña hasta el cierre, reparaciones incluidas. Muchos todavía llaman al BSIP la recertificación de 40 años; alcanza a casi todos los tipos de edificio, en todas las ciudades. Envíenos la notificación de su ciudad.',
+      lede: 'Un solo equipo entrega el paquete completo — inspección estructural y eléctrica, informe y formularios oficiales — y lo acompaña hasta el cierre, reparaciones incluidas. Muchos todavía lo llaman la recertificación de 40 años.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Broward',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
@@ -1364,6 +1366,7 @@ export const es: SiteContent = {
     seeAllServices: 'Todos los servicios',
     newProjects: 'Proyectos nuevos',
     existingBuildings: 'Edificios existentes',
+    chooseCounty: '¿En qué condado está el edificio?',
     whenYouNeedIt: 'Cuándo lo necesita',
     whatsIncluded: 'Qué incluye',
     whatYouReceive: 'Qué recibe',
@@ -1566,7 +1569,7 @@ export const es: SiteContent = {
        "un Ingeniero Profesional (P.E.) con licencia en Florida", which it
        replaced — the eyebrow right above still spells out "Ingeniero
        Profesional de Florida". */
-    sub: 'Recertificación de edificios en Miami-Dade, el BSIP de Broward y diseño estructural de edificios nuevos — a cargo de un ingeniero estructural con licencia P.E. de Florida, desde el primer contacto hasta el informe final.',
+    sub: 'Recertificación de edificios en Miami-Dade, el BSIP de Broward y diseño estructural de edificios nuevos, a cargo de un ingeniero estructural con licencia P.E. de Florida.',
     primary: { href: '/contact?service=building-recertification', label: 'Tengo una notificación de Miami-Dade' },
     secondary: { href: '/contact?service=broward-bsip', label: 'Tengo una notificación de Broward' },
     /* Four links — same hrefs as English; the hash ones are anchors on the
@@ -1973,19 +1976,6 @@ export const es: SiteContent = {
     },
   },
 
-  serviceArea: {
-    eyebrow: 'Dónde trabajamos',
-    title: 'Diseñado para esta costa.',
-    body: 'Viento de huracán, un entorno costero corrosivo, un nivel freático alto y un código moldeado por los tres. El Sur de Florida no es una condición de diseño genérica — es en la que trabajamos todos los días, en Miami-Dade y Broward.',
-    counties: [
-      { name: 'Condado de Miami-Dade', code: 'MDC', note: 'Zona de Huracanes de Alta Velocidad (HVHZ)' },
-      { name: 'Condado de Broward', code: 'BRW', note: 'Zona de Huracanes de Alta Velocidad (HVHZ)' },
-    ],
-    note: 'El Sur de Florida desde el aire. La cobertura se define por jurisdicción, no por el encuadre de una fotografía.',
-    cities:
-      'Incluye Miami, Miami Beach, Coral Gables, Doral, Hialeah, Aventura, Sunny Isles Beach, Fort Lauderdale, Hollywood, Hallandale Beach, Pompano Beach, Coral Springs y el resto de ambos condados.',
-  },
-
   closingCta: {
     eyebrow: 'Siguiente paso',
     titleLines: ['Cuéntenos de su edificio.', 'Le enviamos una propuesta.'],
@@ -2038,6 +2028,7 @@ export const es: SiteContent = {
       'Las tasas del condado, de la ciudad y de los permisos.',
     ],
     note: 'El precio depende del tamaño del edificio, del número de estructuras, del servicio eléctrico, de los documentos disponibles y de lo que pida la jurisdicción. Varios edificios: una sola propuesta, con un precio para cada uno.',
+    sizeLabel: 'Tamaño del edificio',
     cta: 'Solicitar propuesta a precio fijo',
     costLink: 'Qué mueve el precio y qué queda fuera de los honorarios',
     pageLink: 'Precios según el tamaño del edificio: {name}',
@@ -2065,34 +2056,21 @@ export const es: SiteContent = {
       ],
       browardLine: 'Un reporte que no se presenta a tiempo pasa a una audiencia de cumplimiento, y un edificio sin reparar puede declararse inseguro.',
       footnote: 'Referencias del condado de Miami-Dade: multas de recertificación · proceso de cumplimiento · estructuras inseguras (Sección 8-5).',
-      resolveTitle: 'Un solo equipo se encarga',
-      resolve: [
-        {
-          k: 'Un proceso coordinado',
-          v: 'Organizamos las inspecciones y coordinamos los reportes estructural y eléctrico, firmados y sellados por los profesionales correspondientes.',
-        },
-        {
-          k: 'Menos tiempo con el condado',
-          v: 'Nos encargamos de las presentaciones, seguimos los comentarios y damos seguimiento ante las oficinas del condado en su nombre.',
-        },
-        {
-          k: 'Acompañamiento hasta el cierre',
-          v: 'Si hay que reparar, le explicamos los hallazgos, coordinamos con su contratista y nos encargamos de las reinspecciones y de los reportes revisados.',
-        },
-      ],
-      closing: 'Envíenos la notificación. Revisamos los registros disponibles y le indicamos los siguientes pasos, sin compromiso.',
-      cta: 'Envíenos su notificación',
     },
     jurisdictions: {
       eyebrow: 'Jurisdicciones',
       title: 'Las oficinas ante las que presentamos.',
       lede: 'Su notificación viene de una de estas oficinas, o de una vecina. Los pasos y los formularios son de ellas; el proceso es nuestro.',
       more: 'Todos los municipios de ambos condados.',
-    also: 'También',
-    lists: [
-      { title: 'Condado de Miami-Dade', names: miamiDadeMunicipalities },
-      { title: 'Condado de Broward', names: browardMunicipalities },
-    ],
+      all: 'Los {n} municipios',
+      also: 'También',
+      /* `mark` is the English key of the county's mark in `marks`: the
+         Spanish title is not a key, and without it the county's own mark
+         was missing from this page. */
+      lists: [
+        { title: 'Condado de Miami-Dade', mark: 'Miami-Dade County', featured: featuredMiamiDade, names: miamiDadeMunicipalities },
+        { title: 'Condado de Broward', mark: 'Broward County', featured: featuredBroward, names: browardMunicipalities },
+      ],
       disclaimer: 'Los sellos y logotipos pertenecen a sus gobiernos y se muestran solo para identificar la oficina. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente: no está afiliada a ninguna de ellas, ni cuenta con su aval, ni actúa en su nombre.',
       creditLabel: 'Créditos de imágenes',
     },

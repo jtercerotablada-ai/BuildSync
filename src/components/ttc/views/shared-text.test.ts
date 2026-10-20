@@ -222,25 +222,28 @@ describe('who we work with: whole on the home page, short on the other two', () 
   }
 });
 
-describe('the engineer: a teaser on the home page, the full account on /about', () => {
+/* The owner, October 20, 2026: his part leaves the home page and lives on
+   /about alone — "not mixed in". The home page keeps the two firms' licence
+   cards (PartnerSection), which name him as the firm's engineer, and nothing
+   of his own account. */
+describe('the engineer: his account on /about, and none of it on the home page', () => {
   for (const lang of LANGS) {
     const e = getContent(lang).leadership;
     const home = page(lang, '/');
     const about = page(lang, '/about');
 
-    it(`${lang}: the three rows are explained on /about; the home page prints their names`, () => {
+    it(`${lang}: the three rows are explained on /about, and the home page prints none of them`, () => {
       for (const row of e.forYou) {
         expect(count(about, row.v), row.v).toBe(1);
         expect(count(home, row.v), row.v).toBe(0);
-        expect(count(home, row.k), row.k).toBe(1);
+        expect(count(home, row.k), row.k).toBe(0);
       }
     });
 
-    it(`${lang}: the line over each headline is its own`, () => {
-      const over = (html: string) => text(html.match(/<p class="mp-eng__role">([\s\S]*?)<\/p>/)![1]);
-      expect(over(home)).not.toBe(over(about));
-      // The home page's is the license: the number a board can check.
-      expect(over(home)).toContain(text(esc(e.license!.number)));
+    it(`${lang}: the engineer's section is on /about and not on the home page`, () => {
+      expect(about).toContain('id="engineer"');
+      expect(home).not.toContain('id="engineer"');
+      expect(home).not.toMatch(/class="mp-eng__/);
     });
   }
 });

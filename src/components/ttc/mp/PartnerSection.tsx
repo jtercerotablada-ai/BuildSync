@@ -145,7 +145,7 @@ export function PartnerSection({
   return (
     <section
       id="contractor"
-      className={`mp-section mp-section--lg mp-surface--${surface} mp-partner`}
+      className={`mp-section mp-surface--${surface} mp-partner mp-partner--full`}
       aria-labelledby="mp-partner-title"
     >
       <div className="mp-shell">

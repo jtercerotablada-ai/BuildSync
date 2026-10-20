@@ -1837,100 +1837,45 @@ a.mp-menu__mail {
 
 /* ═══ 07 · COUNTY PROGRAMS ════════════════════════════════════════════════ */
 
-/* ProgramSection.tsx, rendered twice under the home hero: Miami-Dade's
-   recertification (paper) and Broward's BSIP (concrete, mirrored). One
-   two-line headline across the shell, then a reading column — lede, the
-   button and what to send, four hairline rows, their source and the link to
-   the whole table, the steps, a link — beside one photograph.
+/* ProgramSection.tsx: the two county programs side by side under the home
+   hero — Miami-Dade's recertification on the left, Broward's BSIP on the
+   right — and, under both, the four steps they share and the call /
+   WhatsApp pair.
+
+   Each column is a stack: photograph, county, headline, lede, the button and
+   what to send, the hairline rows, their source, two links. Under 1024px the
+   stacks follow each other, Miami-Dade first. From 1024px the two stacks are
+   SUBGRIDS of one grid, so every piece shares a row with the same piece of
+   the other county and the rows compare line by line ("Time to file" level
+   with "Time to file"). Each column spans 7 rows plus one per fact
+   (`--mp-prog-rows`, set by the component); the list of facts is a subgrid
+   of the column, one row per fact (`--mp-prog-facts`). The spacing between pieces is their own
+   margin, the same in both columns, so a shared row is always as tall as
+   the taller of the two.
 
    No card. The rows LOOK like the dl.mp-timing the service pages set inside
    .mp-juris__card — label column, value, hairlines — but they are a list of
    their own (.mp-prog__facts): each item is a label and the first sentence
    of its row, in one <li>, so the home page prints a summary and no line of
    it is a paragraph of the program's page. Only the source line under them
-   is still .mp-timing__src.
-
-   The markup is in phone order, and that IS the layout up to 900px: one
-   column, the photograph between the rows and the steps. The two-column
-   placement is the min-width block below. */
-.mp-prog__title {
-  font-size: var(--mp-t-h1);
-  line-height: 1;
-  letter-spacing: -0.034em;
-  margin: 0 0 clamp(2rem, 4vw, 3.5rem);
-}
-.mp-prog__title .mp-serif {
-  color: var(--mp-gold-ink);
-}
-.mp-prog__lede {
-  margin: 0;
-  max-width: 58ch;
-  font-size: var(--mp-t-lead);
-  line-height: 1.6;
-  color: var(--mp-ink-2);
-}
-/* The action sits right under the lede — above the rows — with the one line
-   that says what to send beside it (under it once the row wraps, and on a
-   phone, where the button is full width). */
-.mp-prog__action {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--mp-4) var(--mp-6);
-  margin-block-start: var(--mp-8);
-}
-.mp-prog__ctanote {
-  flex: 1 1 16rem;
-  max-width: 40ch;
-  margin: 0;
-  font-size: var(--mp-t-small);
-  line-height: 1.55;
-  color: var(--mp-ink-3);
-}
-/* The four rows. On a service page the table is a reference inside a card;
-   here the rows are the section's main content, so the values are set at
-   body size with a little more air between the hairlines. The label column
-   is 12rem for the reason given at .mp-timing (14). */
-.mp-prog__facts {
-  list-style: none;
-  margin: clamp(2.5rem, 5vw, 3.5rem) 0 0;
-  padding: 0;
-  border-block-start: 1px solid var(--mp-line);
-}
-.mp-prog__facts li {
+   is still .mp-timing__src. */
+.mp-progs__grid {
   display: grid;
-  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
-  gap: var(--mp-4);
-  align-items: baseline;
-  padding-block: 0.95rem;
-  border-block-end: 1px solid var(--mp-line);
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: clamp(3.5rem, 10vw, 4.5rem);
 }
-.mp-prog__k {
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-ink-3);
+.mp-prog {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
-.mp-prog__v {
-  font-size: var(--mp-t-body);
-  line-height: 1.6;
-  color: var(--mp-ink);
-}
-.mp-prog .mp-timing__src {
-  line-height: 1.6;
-}
-/* The link to the whole table, on the program's own page. */
-.mp-prog__full {
-  margin: var(--mp-4) 0 0;
-}
-/* One photograph, in a plain plate. Landscape while the section is a single
-   column; a 4:5 portrait once it stands beside the reading column. The
-   photograph's own focal point (`photo.pos`, inline) decides the crop. */
+/* A short plate: a band of the kind of building the program reaches, not a
+   poster. The photograph's own focal point (`photo.pos`, inline) decides
+   the crop. */
 .mp-prog__media {
   position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
-  margin-block: clamp(2.5rem, 7vw, 3.5rem);
   background: var(--mp-line-soft);
 }
 .mp-prog__media img {
@@ -1939,10 +1884,176 @@ a.mp-menu__mail {
   object-fit: cover;
   filter: saturate(0.8) contrast(1.04);
 }
-/* The four steps: one quiet numbered line, four equal cells under a hairline
-   each, the index over its label. A grid rather than a wrapping row: the
-   longer Spanish labels wrap INSIDE their cell instead of dropping the fourth
-   step onto a line of its own. */
+.mp-prog__county {
+  margin: var(--mp-6) 0 0;
+  font-size: var(--mp-t-label);
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-gold-ink);
+}
+.mp-prog__title {
+  margin: var(--mp-3) 0 0;
+  font-size: clamp(1.85rem, 2.75vw, 2.6rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.mp-prog__line {
+  display: block;
+}
+.mp-prog__title .mp-serif {
+  color: var(--mp-gold-ink);
+}
+.mp-prog__lede {
+  margin: var(--mp-4) 0 0;
+  max-width: 60ch;
+  font-size: clamp(1.0625rem, 1.15vw, 1.1875rem);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+/* The button with the one line that says what to send beside it (under it
+   once the row wraps, and on a phone, where the button is full width).
+   Other pages (a city page, a service page) use the same row with their own
+   button. */
+.mp-prog__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mp-3) var(--mp-6);
+  margin-block-start: var(--mp-8);
+}
+.mp-prog .mp-prog__action {
+  margin-block-start: var(--mp-6);
+  align-self: start;
+}
+.mp-prog__ctanote {
+  flex: 1 1 15rem;
+  max-width: 40ch;
+  margin: 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+/* The rows: label column and value, hairlines between. 9.5rem holds the
+   longest label ("If repairs are needed", "Condominios y cooperativas") on
+   two lines at most; under 640px, and between 1024 and 1240px where a
+   column is under 520px wide, the label sits over its value. */
+.mp-prog__facts {
+  list-style: none;
+  margin: var(--mp-8) 0 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-prog__facts li {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr);
+  gap: var(--mp-4);
+  align-items: baseline;
+  padding-block: 0.85rem;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-prog__k {
+  font-size: var(--mp-t-label);
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-prog__v {
+  font-size: var(--mp-t-body);
+  line-height: 1.55;
+  color: var(--mp-ink);
+}
+.mp-prog .mp-timing__src {
+  margin: var(--mp-3) 0 0;
+  line-height: 1.6;
+}
+.mp-prog__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mp-3) var(--mp-8);
+  margin: var(--mp-6) 0 0;
+}
+/* The county switch: phones and tablets only, and only once the page is
+   live (`data-ready`, set on hydration) — before that both columns show,
+   one after the other. Two equal halves of one outlined bar, the shown
+   county filled; 48px high, a whole half to tap. */
+.mp-progs__switch {
+  display: none;
+}
+.mp-progs__ask {
+  margin: 0;
+  font-size: var(--mp-t-body);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--mp-ink);
+}
+.mp-progs__seg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--mp-ink);
+}
+.mp-progs__seg button {
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--mp-ink);
+  font: inherit;
+  font-size: var(--mp-t-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--mp-dur-fast) var(--mp-ease), color var(--mp-dur-fast) var(--mp-ease);
+}
+.mp-progs__seg button + button {
+  border-inline-start: 1px solid var(--mp-ink);
+}
+.mp-progs__seg button[aria-pressed='true'] {
+  background: var(--mp-ink);
+  color: var(--mp-paper);
+}
+.mp-progs__seg button:focus-visible {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: 3px;
+}
+@media (max-width: 1023px) {
+  .mp-progs[data-ready] .mp-progs__switch {
+    display: grid;
+    gap: var(--mp-3);
+    margin-block-end: var(--mp-8);
+  }
+  .mp-progs[data-ready] .mp-prog[data-off] {
+    display: none;
+  }
+}
+/* What the two programs share, once, under both columns: a label, the four
+   steps, the call / WhatsApp pair. */
+.mp-progs__shared {
+  display: grid;
+  gap: var(--mp-4) var(--mp-12);
+  margin-block-start: clamp(3rem, 6vw, 4.5rem);
+  padding-block-start: var(--mp-6);
+  border-block-start: 1px solid var(--mp-line-strong);
+}
+.mp-progs__label {
+  margin: 0;
+  font-size: var(--mp-t-label);
+  font-weight: 600;
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-progs__shared .mp-reach {
+  margin: 0;
+}
+/* The four steps: four equal cells under a hairline each, the index over its
+   label. A grid rather than a wrapping row: the longer Spanish labels wrap
+   INSIDE their cell instead of dropping the fourth step onto a line of its
+   own. */
 .mp-prog__steps {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1955,8 +2066,7 @@ a.mp-menu__mail {
   line-height: 1.35;
   color: var(--mp-ink);
   /* A label that needs two lines splits evenly — 'Repairs &' / 'close-out' —
-     instead of filling the first line and breaking at the hyphen
-     ('Repairs & close-' / 'out'). Inherited by the labels. */
+     instead of filling the first line and breaking at the hyphen. */
   text-wrap: balance;
 }
 .mp-prog__steps li {
@@ -1964,86 +2074,50 @@ a.mp-menu__mail {
   align-content: start;
   gap: 0.35rem;
   padding-block-start: var(--mp-3);
-  border-block-start: 1px solid var(--mp-line-strong);
-}
-.mp-prog__more {
-  margin-block-start: var(--mp-6);
+  border-block-start: 1px solid var(--mp-line);
 }
 
-/* Two columns from 901px. The photograph follows the rows in the markup, so
-   it is PLACED: in the other column, across both rows of the reading column.
-   The second row takes any slack (1fr), so a plate taller than the copy
-   never opens a gap between the rows and the steps. `mirrored` swaps the
-   sides. */
-@media (min-width: 901px) {
-  .mp-prog__grid {
+@media (min-width: 1024px) {
+  .mp-progs__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(2.5rem, 4.5vw, 5rem);
+    row-gap: 0;
+  }
+  .mp-prog {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-    grid-template-rows: auto 1fr;
-    column-gap: clamp(2.5rem, 6vw, 6rem);
-    align-items: start;
+    grid-row: span var(--mp-prog-rows, 12);
+    grid-template-rows: subgrid;
+    row-gap: 0;
+    align-content: start;
   }
-  .mp-prog__main {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .mp-prog__after {
-    grid-column: 1;
-    grid-row: 2;
-    margin-block-start: var(--mp-8);
+  .mp-prog__facts {
+    display: grid;
+    grid-row: span var(--mp-prog-facts, 5);
+    grid-template-rows: subgrid;
+    row-gap: 0;
   }
   .mp-prog__media {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    aspect-ratio: 4 / 5;
-    margin-block: 0;
+    aspect-ratio: 2 / 1;
   }
-  .mp-prog--mirrored .mp-prog__grid {
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  /* Steps on the left, the pair of links on the right, on one line. */
+  .mp-progs__shared {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
   }
-  .mp-prog--mirrored .mp-prog__main,
-  .mp-prog--mirrored .mp-prog__after {
-    grid-column: 2;
-  }
-  .mp-prog--mirrored .mp-prog__media {
-    grid-column: 1;
+  .mp-progs__label {
+    grid-column: 1 / -1;
   }
 }
-/* The reading column is the long one, so the plate travels with the reader —
-   the same device as .mp-split's title (14). The max-height keeps the whole
-   plate on screen under the header while it does: on a short window the
-   4:5 plate gives up some height (the photograph is cover-cropped anyway)
-   rather than sticking with its lower edge out of view. 20rem is a floor for
-   a window too short to be worth fitting. `vh` first for engines without
-   `svh`. The explicit width matters: without it the max-height is carried
-   through the aspect ratio into a max-WIDTH, and the capped plate shrinks
-   away from the shell's edge instead of just getting shorter. */
-@media (min-width: 901px) {
-  .mp-prog__media {
-    position: sticky;
-    top: calc(var(--mp-header-h) + var(--mp-6));
-    width: 100%;
-    max-height: max(20rem, calc(100vh - var(--mp-header-h) - 2 * var(--mp-6)));
-    max-height: max(20rem, calc(100svh - var(--mp-header-h) - 2 * var(--mp-6)));
-  }
-}
-/* Between 901 and 1180 the reading column is 440–560px. A 12rem label column
-   would leave the values a ragged 30 characters wide: label over value, as
-   on a phone. And four step cells would be under 120px each: two by two. */
-@media (min-width: 901px) and (max-width: 1180px) {
+@media (min-width: 1024px) and (max-width: 1240px) {
   .mp-prog__facts li {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.25rem;
-  }
-  .mp-prog__steps {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.2rem;
   }
 }
-/* …and on a phone, where .mp-timing does the same (19). */
 @media (max-width: 640px) {
   .mp-prog__facts li {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.25rem;
+    gap: 0.2rem;
   }
 }
 
@@ -3706,11 +3780,6 @@ a.mp-menu__mail {
   .mp-hero__footrow .mp-motion-toggle {
     margin-block-start: var(--mp-2);
   }
-  /* The program headlines (07) drop from the h1 step to the h2 step: at 38px
-     'recertification.' is wider than a 320px screen's column. */
-  .mp-prog__title {
-    font-size: var(--mp-t-h2);
-  }
   /* …and their four steps become four hairline rows, index beside label:
      four 80px cells cannot hold 'Revisión de la notificación'. */
   .mp-prog__steps {
@@ -4249,6 +4318,35 @@ a.mp-menu__mail {
   .mp-partner__cards {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+/* The home form, compact: the mark beside the firm's role, name and place,
+   the licences across the card under them. */
+.mp-partner--full .mp-partner__cards {
+  margin-block-start: clamp(2rem, 4vw, 3rem);
+}
+.mp-partner--full .mp-partner__card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: clamp(1.25rem, 2.5vw, 2rem);
+  align-content: start;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+}
+.mp-partner--full .mp-partner__logo {
+  grid-row: 1 / span 3;
+  height: clamp(56px, 4.6vw, 72px);
+  margin: 0;
+}
+.mp-partner--full .mp-partner__role,
+.mp-partner--full .mp-partner__name,
+.mp-partner--full .mp-partner__who {
+  grid-column: 2;
+}
+.mp-partner--full .mp-partner__who {
+  margin-block-end: 0;
+}
+.mp-partner--full .mp-partner__lic {
+  grid-column: 1 / -1;
+  margin-block-start: var(--mp-6);
 }
 /* The two short forms (PartnerSection: /about and /existing-buildings). A
    headline beside two or three sentences; /about then lists the four
@@ -5932,10 +6030,6 @@ a.mp-menu__mail {
   .mp-hero {
     min-height: 0 !important;
   }
-  /* A sticky plate (07) has nothing to travel with on a printed page. */
-  .mp-prog__media {
-    position: static !important;
-  }
   /* The footer lockup is the white logo, for a dark footer: on white paper
      only its gold stroke would show. The same real file prints on a small
      charcoal plate — no second image, no extra request. */
@@ -6190,24 +6284,167 @@ a.mp-menu__mail {
   max-width: 60ch;
 }
 
-/* Urgency: the risks on the left, the letter on the right (stacked on a phone,
-   the action above the facts, as in the program sections). */
-.mp-cost__urgent-grid {
-  margin-block-start: clamp(2rem, 4vw, 3rem);
+/* The home sections' opening (CostSection.tsx `Head`): the headline on the
+   left, its lede on the right from 1024px, bottoms aligned, so a section
+   says its point in one line and starts working right under it. */
+.mp-hsec__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: clamp(2rem, 5vw, 4rem);
-  align-items: start;
+  gap: var(--mp-4) clamp(2.5rem, 5vw, 5rem);
+  align-items: end;
+}
+.mp-hsec__title {
+  margin: 0;
+  font-size: var(--mp-t-h2);
+  line-height: 1.04;
+  letter-spacing: -0.032em;
+  text-wrap: balance;
+}
+.mp-hsec__title .mp-serif {
+  color: var(--mp-gold-ink);
+}
+/* One line, not two: "The offices we file with." */
+.mp-hsec__title--sm {
+  font-size: clamp(1.6rem, 2.4vw, 2.25rem);
+  line-height: 1.12;
+}
+.mp-hsec__lede {
+  margin: 0;
+  max-width: 56ch;
+  font-size: var(--mp-t-lead);
+  line-height: 1.55;
+  color: var(--mp-ink-2);
+}
+@media (min-width: 1024px) {
+  .mp-hsec__head {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  }
+}
+
+/* Pricing: both counties in one table — a size per row, the two counties'
+   prices in their own columns. On a phone the header row goes (each price
+   carries its county in `data-label`) and a row is its size over its two
+   prices. */
+.mp-cost__tablewrap {
+  margin-block-start: clamp(2rem, 4vw, 3rem);
+}
+.mp-cost__table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--mp-card);
+  border: 1px solid var(--mp-line);
+  font-variant-numeric: tabular-nums;
+}
+.mp-cost__table th,
+.mp-cost__table td {
+  padding: 1rem clamp(1rem, 2.2vw, 1.75rem);
+  border-block-end: 1px solid var(--mp-line);
+  text-align: start;
+  vertical-align: baseline;
+}
+.mp-cost__table tbody tr:last-child > * {
+  border-block-end: 0;
+}
+.mp-cost__table thead th {
+  font-size: var(--mp-t-label);
+  font-weight: 600;
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+  border-block-end-color: var(--mp-line-strong);
+}
+.mp-cost__table thead th:not(:first-child) {
+  color: var(--mp-ink);
+}
+/* Fixed columns, so the two counties' prices start on the same two lines in
+   every row: the sizes take a little under half, each county a quarter. */
+@media (min-width: 721px) {
+  .mp-cost__table {
+    table-layout: fixed;
+  }
+  .mp-cost__table thead th:first-child {
+    width: 46%;
+  }
+}
+.mp-cost__table tbody th {
+  font-size: var(--mp-t-body);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--mp-ink-2);
+}
+.mp-cost__table td {
+  font-size: var(--mp-t-h4);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--mp-ink);
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .mp-cost__table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .mp-cost__table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--mp-4);
+    padding: 1rem clamp(1rem, 4vw, 1.25rem);
+    border-block-end: 1px solid var(--mp-line);
+  }
+  .mp-cost__table tbody tr:last-child {
+    border-block-end: 0;
+  }
+  .mp-cost__table tbody th,
+  .mp-cost__table td {
+    padding: 0;
+    border: 0;
+  }
+  .mp-cost__table tbody th {
+    grid-column: 1 / -1;
+    margin-block-end: 0.5rem;
+  }
+  .mp-cost__table td {
+    white-space: normal;
+  }
+  .mp-cost__table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-block-end: 0.15rem;
+    font-size: var(--mp-t-label);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mp-ink-3);
+  }
+}
+.mp-cost__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-3) var(--mp-8);
+  margin-block-start: clamp(1.75rem, 3vw, 2.5rem);
+}
+
+/* Urgency: the three Miami-Dade risks side by side, their references, then
+   Broward's line — stacked on a phone. */
+.mp-cost__urgent {
+  margin-block-start: clamp(2rem, 4vw, 3rem);
 }
 .mp-cost__risks {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   border-block-start: 1px solid var(--mp-line);
 }
 .mp-cost__risks li {
   display: grid;
-  gap: 0.3rem;
+  align-content: start;
+  gap: 0.35rem;
   padding-block: 1rem;
   border-block-end: 1px solid var(--mp-line);
 }
@@ -6224,6 +6461,7 @@ a.mp-menu__mail {
 }
 .mp-cost__broward {
   margin: 0;
+  max-width: 70ch;
 }
 .mp-cost__foot {
   margin: var(--mp-3) 0 0;
@@ -6231,73 +6469,55 @@ a.mp-menu__mail {
   line-height: 1.5;
   color: var(--mp-ink-3);
 }
-.mp-cost__resolve-title {
-  margin: 0 0 var(--mp-4);
-  font-size: var(--mp-t-h3);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--mp-ink);
+.mp-cost__bro {
+  margin-block-start: var(--mp-8);
 }
-.mp-cost__steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-block-start: 1px solid var(--mp-line);
-}
-.mp-cost__steps li {
-  display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr);
-  gap: 0.25rem var(--mp-3);
-  padding-block: 1rem;
-  border-block-end: 1px solid var(--mp-line);
-}
-.mp-cost__steps .mp-secnum {
-  grid-row: 1 / span 2;
-}
-.mp-cost__steps strong {
-  font-size: var(--mp-t-h4);
-  letter-spacing: -0.01em;
-  color: var(--mp-ink);
-}
-.mp-cost__steps li > span:last-child {
-  font-size: var(--mp-t-body);
-  line-height: 1.6;
-  color: var(--mp-ink-2);
-}
-.mp-cost__closing {
-  margin: var(--mp-6) 0 0;
-  font-size: var(--mp-t-lead);
-  line-height: 1.5;
-  color: var(--mp-ink);
+@media (min-width: 901px) {
+  .mp-cost__risks {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: clamp(1.5rem, 3vw, 3rem);
+    border-block-start: 0;
+  }
+  .mp-cost__risks li {
+    padding-block: var(--mp-4) 0;
+    border-block-start: 1px solid var(--mp-line);
+    border-block-end: 0;
+  }
+  .mp-cost__foot {
+    margin-block-start: var(--mp-6);
+  }
 }
 
-/* Jurisdictions: a grid of marks, each with its name beneath. */
-.mp-cost__jtitle {
-  margin: 0 0 var(--mp-3);
+/* Jurisdictions: the two counties side by side from 1024px, each its own
+   mark and largest cities in a grid, the rest under a disclosure. */
+.mp-cost__more {
+  margin: var(--mp-3) 0 0;
+  font-size: var(--mp-t-body);
+  font-weight: 600;
+  color: var(--mp-ink);
+}
+.mp-cost__counties {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(2.5rem, 5vw, 4rem);
+  margin-block-start: clamp(2rem, 4vw, 3rem);
+}
+.mp-cost__county {
+  min-width: 0;
+  padding-block-start: var(--mp-4);
+  border-block-start: 1px solid var(--mp-line-strong);
 }
 .mp-cost__seals {
   list-style: none;
-  margin: clamp(1.75rem, 4vw, 2.75rem) 0 0;
+  margin: var(--mp-4) 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--mp-4) var(--mp-4);
-}
-.mp-cost__county {
-  margin-block-start: clamp(1.5rem, 3vw, 2.25rem);
-}
-.mp-cost__rest {
-  margin: var(--mp-4) 0 0;
-  font-size: var(--mp-t-small);
-  line-height: 1.8;
-  color: var(--mp-ink-3);
-}
-.mp-cost__rest strong {
-  color: var(--mp-ink-2);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--mp-4) var(--mp-3);
 }
 .mp-cost__seals li {
   display: grid;
-  grid-template-rows: 4.5rem auto;
+  grid-template-rows: 3.5rem auto;
   gap: 0.4rem;
   text-align: center;
 }
@@ -6314,23 +6534,63 @@ a.mp-menu__mail {
   place-self: center;
   width: auto;
   height: auto;
-  max-width: 88%;
-  max-height: 3.75rem;
+  max-width: 92%;
+  max-height: 3.25rem;
   object-fit: contain;
 }
 .mp-cost__seals span {
   grid-row: 2;
   grid-column: 1;
   font-size: var(--mp-t-small);
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--mp-ink-2);
 }
-.mp-cost__more {
-  margin: var(--mp-10, 3rem) 0 var(--mp-4);
-  font-size: var(--mp-t-h4);
+/* The disclosure: a plain link-like line with a chevron, the marks inside
+   in the same grid. */
+.mp-cost__all {
+  margin-block-start: var(--mp-6);
+}
+.mp-cost__all summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--mp-t-body);
   font-weight: 600;
-  letter-spacing: -0.01em;
   color: var(--mp-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mp-gold);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+}
+.mp-cost__all summary::-webkit-details-marker {
+  display: none;
+}
+.mp-cost__all summary::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: translateY(-0.15rem) rotate(45deg);
+  transition: transform var(--mp-dur-fast) var(--mp-ease);
+}
+.mp-cost__all[open] summary::after {
+  transform: translateY(0.1rem) rotate(-135deg);
+}
+.mp-cost__all summary:hover {
+  text-decoration-thickness: 2px;
+}
+.mp-cost__rest {
+  margin: var(--mp-4) 0 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.8;
+  color: var(--mp-ink-3);
+}
+.mp-cost__rest strong {
+  color: var(--mp-ink-2);
 }
 .mp-cost__disclaimer {
   margin: clamp(2rem, 4vw, 3rem) 0 0;
@@ -6339,15 +6599,22 @@ a.mp-menu__mail {
   line-height: 1.6;
   color: var(--mp-ink-3);
 }
-@media (min-width: 640px) {
-  .mp-cost__seals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 420px) {
+  .mp-cost__seals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 @media (min-width: 901px) {
   .mp-cost__cards,
   .mp-cost__scope { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mp-cost__urgent-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
-  .mp-cost__seals { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+@media (min-width: 1024px) {
+  .mp-cost__counties {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(2.5rem, 4.5vw, 5rem);
+  }
+}
+
 
 
 /* ── 21. Legal documents (LegalDoc.tsx) ─────────────────────────────────────
