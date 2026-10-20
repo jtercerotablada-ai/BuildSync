@@ -194,11 +194,12 @@ describe('home page: each program section is a summary of its page', () => {
         }
       });
 
-      it(`${slug} (${lang}): under its button, the half of the line the program page does not open with`, () => {
-        const note = section.match(/<p class="mp-prog__ctanote">([\s\S]*?)<\/p>/)![1];
-        expect(note).toBe(esc(`${c.ui.photoTheLetter} ${afterFirstSentence(program.ctaNote)}`));
+      // The owner, 2026-10-20: no small print under the home page's buttons.
+      // The line that says what to send is the program page's alone.
+      it(`${slug} (${lang}): no line under its button; the program page prints it whole, once`, () => {
+        expect(section).not.toContain('mp-prog__ctanote');
         expect(section).not.toContain(esc(program.ctaNote));
-        // …and the program page still prints the line whole, once.
+        expect(section).not.toContain(esc(afterFirstSentence(program.ctaNote)));
         expect(page.split(esc(program.ctaNote)).length - 1).toBe(1);
       });
 

@@ -395,10 +395,6 @@ export const ui = {
   /** Label of the "Who sent your notice?" section of a county program
       (`Service.offices`). The section's h2 is the service's own. */
   yourCity: 'Your city',
-  /* Opens the line under the home page's two county buttons. The rest of
-     that line is cut in code from the program's own `ctaNote`, so this is
-     the one sentence of it the home page writes for itself. */
-  photoTheLetter: 'Photograph the letter with your phone and send it.',
   /** In front of `offices.checked`, under the list of offices: the day each
       name was last read on its city's own page. The rows stopped being links
       (see `Service.offices`), so the line stopped saying "Links". Not "Last
@@ -958,19 +954,20 @@ export type Service = {
     /** ONE accent, and it falls on the thing that differs between counties. */
     accentWord: string;
     /** One paragraph, 45 words at most, no number: it sits beside the other
-        county's in a half-width column. Its last sentence gives the name
-        most owners still use, each county in its own words. */
+        county's in a half-width column. It says first what waiting costs
+        in that county, then the easy way out (the owner, 2026-10-20: the
+        cost of waiting leads, where the urgency section used to be). Every
+        consequence must be true of that county's program — nothing
+        invented, nothing a reader could catch out. */
     lede: string;
     /** Four short labels: the published six-step sequence, compressed. */
     steps: string[];
     /** Solid button → /contact?service=<slug>. */
     cta: string;
     /**
-     * One line under the button: what to send, with or without a notice.
-     * TWO sentences, in that order. The program's page prints the line whole
-     * under its hero button; the home section prints the second sentence
-     * only (`afterFirstSentence`), so the line is not one paragraph on two
-     * pages.
+     * One line under the program page's hero button: what to send, with or
+     * without a notice. The home page prints none of it (the owner,
+     * 2026-10-20: no small print under the home page's buttons).
      */
     ctaNote: string;
     /**
@@ -1437,7 +1434,7 @@ export const services: Service[] = [
          "90 days" must always equal the row's "Time to file". */
       titleLines: ['Miami-Dade recertification.', '90 days from the notice.'],
       accentWord: '90 days',
-      lede: 'One team delivers the complete package — the structural and electrical reports on the county’s forms and the certificates that go with them — and stays through repairs to the amended report that closes the recertification. To most owners it is still the 40-year recertification.',
+      lede: 'An unanswered notice does not go away: it turns into fines that keep adding up, a lien on your property and, at worst, an order to vacate. Already late? It can still be resolved — send us the letter today; the proposal is free.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Miami-Dade Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year built.',
@@ -1798,7 +1795,7 @@ export const services: Service[] = [
       /* "180 days" must always equal the row's "Time to file". */
       titleLines: ['Broward BSIP.', '180 days from the notice.'],
       accentWord: '180 days',
-      lede: 'One team delivers the complete BSIP package — both inspections, structural and electrical, the written report and the program’s official forms — and stays through repairs and close-out. Many boards still know the BSIP by its old name, the 40-year recertification.',
+      lede: 'A report not filed on time goes to an enforcement hearing, and a building left unrepaired can be declared unsafe. Already past the date? It can still be resolved — send us the notice today and get a fixed-fee proposal, at no cost.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Broward Notice',
       ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
@@ -3069,8 +3066,6 @@ const privacyAds = {
 };
 
 export const legal = {
-  notice:
-    'Information on this site is general and does not constitute an engineering opinion, a professional engagement, or a representation about a specific building. Requirements vary by jurisdiction and scope.',
   contactFormNotice:
     'Submitting this form does not create a professional engineering relationship. We use your details and files only to respond to this request.',
   links: [
@@ -3260,8 +3255,8 @@ export const reach = {
  *     do not bring it back, and do not add "both reports, one engineer".
  *   - "More than 30 years of combined experience" is the two firms TOGETHER,
  *     in the owner's words — never thirty years of the engineer alone.
- *   - Every license number is a link to the DBPR search (PartnerSection), and
- *     `verifyLead` says so in words, right under the cards.
+ *   - Every license number is a link to the DBPR search (PartnerSection);
+ *     /about says in words what to do on that page.
  *
  * Licences verified against the Florida DBPR registry on October 6, 2026:
  * both "Current, Active", expiring 08/31/2028, and the only "Precision
@@ -3274,10 +3269,6 @@ export const partner = {
   lede:
     'We carry out Miami-Dade recertifications and Broward BSIP inspections together with Precision Source Inc., a Florida-certified general and electrical contractor based in Miami. Two licensed firms working as one team, from the notice to the final report, with more than 30 years of combined experience between them.',
   licensesLabel: 'Florida licenses',
-  /* Printed under the two cards, followed by `ui.engineer.verifyHow` (what
-     to do on that page). The registry has no per-license URL, so all three
-     numbers open the same search form. */
-  verifyLead: 'Each license number opens the Florida DBPR’s license search.',
   /* The engineering card takes its name, engineer, P.E. number and business
      registry from `company` and `leadership` — one source for each fact. */
   engineering: {
@@ -3296,7 +3287,7 @@ export const partner = {
     ],
   },
   /* THE BLOCK IS PRINTED WHOLE ON THE HOME PAGE ONLY (`title`, `lede`, the
-     two cards, `verifyLead`). It used to be printed whole on /about and on
+     two cards). It used to be printed whole on /about and on
      /existing-buildings too — the same lede, cards and note on three pages,
      and the first two entries of the on-page check's list of repeated text.
      Each of the other two pages now has a shorter block with a job of its
@@ -3381,30 +3372,6 @@ const pricing = {
      three to four days after the inspection; one to two when the client is
      in a hurry. Spelled out in words, not figures. */
   delivery: 'The complete package, signed and sealed, three to four days after the inspection. In a hurry? One to two days.',
-  urgency: {
-    eyebrow: 'What waiting can cost',
-    titleLines: ['Every month you wait', 'costs you more.'],
-    accentWord: 'costs you more.',
-    lede: 'A recertification notice that goes unanswered does not expire. It moves to enforcement, and enforcement has a price.',
-    miamiDade: 'In Miami-Dade',
-    broward: 'In Broward',
-    items: [
-      {
-        k: 'Penalties that add up',
-        v: 'Once a citation is issued, a violation left uncorrected and an initial penalty left unpaid can grow into accumulated penalties of up to $10,000 per violation.',
-      },
-      {
-        k: 'Liens on the property',
-        v: 'County fees that stay unpaid can be recorded as a lien against the building.',
-      },
-      {
-        k: 'Orders to vacate',
-        v: 'Unsafe-structures proceedings can end in an order to vacate and, where ordered through that process, demolition.',
-      },
-    ],
-    browardLine: 'A report that is not filed on time goes to an enforcement hearing, and a building that stays unrepaired can be declared unsafe.',
-    footnote: 'Miami-Dade County references: recertification penalties · enforcement process · unsafe structures (Section 8-5).',
-  },
   jurisdictions: {
     eyebrow: 'Jurisdictions',
     title: 'The offices we file with.',

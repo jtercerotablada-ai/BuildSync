@@ -173,8 +173,8 @@ describe('who we work with: whole on the home page, short on the other two', () 
         .filter((m) => m[1] === dbpr)
         .map((m) => text(m[2]));
 
-    it(`${lang}: the lede, the cards' headline and the registry note are the home page's alone`, () => {
-      for (const line of [p.lede, p.title, p.verifyLead]) {
+    it(`${lang}: the lede and the cards' headline are the home page's alone`, () => {
+      for (const line of [p.lede, p.title]) {
         expect(count(home, line), line).toBe(1);
         expect(count(about, line), line).toBe(0);
         expect(count(hub, line), line).toBe(0);

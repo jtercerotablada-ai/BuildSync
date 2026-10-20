@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SiteContent } from './content';
 import { en } from './site';
 import { es } from './site.es';
-import { afterFirstSentence, firstSentence } from '@/components/ttc/mp/text';
+import { firstSentence } from '@/components/ttc/mp/text';
 
 /**
  * Miami-Dade's recertification and Broward's BSIP are two programs with two
@@ -172,17 +172,6 @@ describe('the home page’s summary of a county program', () => {
       const others = c.services.filter((s) => !s.program);
       const count = others.flatMap((s) => (s.timing?.rows ?? []).flatMap((r) => r.facts.filter((f) => f.home)));
       expect(count).toEqual([]);
-    }
-  });
-
-  // `ctaNote` is two sentences; the home section prints the second. Were it
-  // one, the section would print nothing under its button; were the second
-  // the same for both counties, the home page would print one paragraph twice.
-  it('the line under the button has a second half, and each county its own', () => {
-    for (const [, c] of bundles) {
-      const halves = PROGRAMS.map((slug) => afterFirstSentence(svc(c, slug).program!.ctaNote));
-      for (const half of halves) expect(half.length).toBeGreaterThan(0);
-      expect(new Set(halves).size).toBe(halves.length);
     }
   });
 

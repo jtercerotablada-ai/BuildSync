@@ -1399,13 +1399,6 @@ a.mp-menu__mail {
   padding-block: 0.3rem;
   transition: color var(--mp-dur) var(--mp-ease);
 }
-.mp-footer__notice {
-  margin-block-start: var(--mp-6);
-  font-size: 0.75rem;
-  line-height: 1.7;
-  color: var(--mp-snow-3);
-  max-width: 92ch;
-}
 .mp-footer__bottom {
   padding-block-start: var(--mp-6);
   display: flex;
@@ -1915,10 +1908,9 @@ a.mp-menu__mail {
   line-height: 1.6;
   color: var(--mp-ink-2);
 }
-/* The button with the one line that says what to send beside it (under it
-   once the row wraps, and on a phone, where the button is full width).
-   Other pages (a city page, a service page) use the same row with their own
-   button. */
+/* The button row. On the home page a column's button stands alone (no
+   small print under it); a city page and a service page use the same row
+   with their own button. */
 .mp-prog__action {
   display: flex;
   flex-wrap: wrap;
@@ -1929,16 +1921,6 @@ a.mp-menu__mail {
 .mp-prog .mp-prog__action {
   margin-block-start: var(--mp-6);
   align-self: start;
-}
-/* An instruction (what to send), so body size: a reader with reading
-   glasses must not have to lean in to learn what to do. */
-.mp-prog__ctanote {
-  flex: 1 1 15rem;
-  max-width: 40ch;
-  margin: 0;
-  font-size: var(--mp-t-body);
-  line-height: 1.55;
-  color: var(--mp-ink-3);
 }
 /* The rows: label column and value, hairlines between. 9.5rem holds the
    longest label ("If repairs are needed", "Condominios y cooperativas") on
@@ -3679,8 +3661,7 @@ a.mp-menu__mail {
   .mp-disclaimer,
   .mp-tools__note,
   .mp-field__error,
-  .mp-info__meta,
-  .mp-footer__notice {
+  .mp-info__meta {
     font-size: var(--mp-t-small);
   }
   /* The jump links under a county program's hero (06). */
@@ -4274,15 +4255,6 @@ a.mp-menu__mail {
   .mp-partner__lic dd a:hover {
     color: var(--mp-gold-ink);
   }
-}
-/* Where the numbers lead and what to do there: one small line under the
-   cards. */
-.mp-partner__verify {
-  margin: var(--mp-4) 0 0;
-  max-width: 72ch;
-  font-size: var(--mp-t-small);
-  line-height: 1.6;
-  color: var(--mp-ink-3);
 }
 @media (max-width: 900px) {
   .mp-partner__cards {
@@ -6391,12 +6363,16 @@ a.mp-menu__mail {
   gap: var(--mp-3) var(--mp-8);
   margin-block-start: clamp(1.75rem, 3vw, 2.5rem);
 }
-
-/* Urgency: the three Miami-Dade risks side by side, their references, then
-   Broward's line — stacked on a phone. */
-.mp-cost__urgent {
-  margin-block-start: clamp(2rem, 4vw, 3rem);
+/* Home pricing: the note opens the right-hand column, level with "In the
+   fixed fee" on the left. */
+.mp-cost__scope > div > .mp-cost__note:first-child {
+  margin-block-start: 0;
 }
+
+/* Risk rows: a term and its line, hairlines between (the cost page's
+   "Outside the fee", CostView). The home page's urgency section, which used
+   them three in a row, is gone: what waiting costs now opens each county's
+   column. */
 .mp-cost__risks {
   list-style: none;
   margin: 0;
@@ -6417,41 +6393,10 @@ a.mp-menu__mail {
   letter-spacing: -0.01em;
   color: var(--mp-gold-ink);
 }
-.mp-cost__risks span,
-.mp-cost__broward {
+.mp-cost__risks span {
   font-size: var(--mp-t-body);
   line-height: 1.6;
   color: var(--mp-ink);
-}
-.mp-cost__broward {
-  margin: 0;
-  max-width: 70ch;
-}
-.mp-cost__foot {
-  margin: var(--mp-3) 0 0;
-  font-size: var(--mp-t-small);
-  line-height: 1.5;
-  color: var(--mp-ink-3);
-}
-.mp-cost__bro {
-  margin-block-start: var(--mp-8);
-}
-/* The home section only: three risks in a row. The cost page (CostView)
-   prints its own list with the same class in a narrower column, as rows. */
-@media (min-width: 901px) {
-  .mp-cost--urgent .mp-cost__risks {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    column-gap: clamp(1.5rem, 3vw, 3rem);
-    border-block-start: 0;
-  }
-  .mp-cost--urgent .mp-cost__risks li {
-    padding-block: var(--mp-4) 0;
-    border-block-start: 1px solid var(--mp-line);
-    border-block-end: 0;
-  }
-  .mp-cost--urgent .mp-cost__foot {
-    margin-block-start: var(--mp-6);
-  }
 }
 
 /* Jurisdictions: the two counties side by side from 1024px, each its own

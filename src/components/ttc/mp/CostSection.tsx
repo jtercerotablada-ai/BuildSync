@@ -8,17 +8,20 @@ import { marks } from '@/lib/ttc/municipalities';
 import { COST_PATH } from '@/lib/ttc/cost-path';
 
 /**
- * Three home sections, one file, one copy block (`pricing` in site.ts and
+ * Two home sections, one file, one copy block (`pricing` in site.ts and
  * site.es.ts):
  *
  *   PricingSection       fixed-fee ranges by building size, both counties in
  *                        one table
- *   UrgencySection       what waiting can cost
  *   JurisdictionsSection the offices we file with, by their own marks
  *
- * All three open the same way: the headline on the left, its lede on the
- * right, tops aligned (`.mp-hsec__head`), so the reader gets the point in
- * one line and the section starts working at once.
+ * What waiting can cost used to be a section of its own here; it now opens
+ * each county's column (`program.lede`, ProgramSection) — the owner,
+ * 2026-10-20.
+ *
+ * Both open the same way: the headline on the left, its lede on the right,
+ * tops aligned (`.mp-hsec__head`), so the reader gets the point in one line
+ * and the section starts working at once.
  *
  * The ranges are fixed-fee ranges, not regulatory facts: no date, and no age
  * or day count anywhere in this file or its copy (those live in each county's
@@ -115,60 +118,16 @@ export function PricingSection({ n, surface = 'paper' }: { n: string; surface?: 
               ))}
             </ul>
           </div>
+          {/* What is quoted separately lives on the cost page only (the
+              owner, 2026-10-20); here, what moves the price and two links:
+              ONE proposal link — the county columns above already carry a
+              button each — and the cost page. */}
           <div>
-            <h3 className="mp-cost__h">{k.excludesTitle}</h3>
-            <ul className="mp-cost__list">
-              {k.excludes.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
             <p className="mp-cost__note">{k.note}</p>
-          </div>
-        </Reveal>
-
-        {/* One proposal link per county, each opening the form with its
-            program chosen — the short form a county program gets. The county
-            leads the label, so the two links are told apart at a glance. */}
-        <Reveal delay={0.08} className="mp-cost__links">
-          {k.programs.map((p) => (
-            <TextLink key={p.id} href={l(`/contact?service=${p.slug}`)}>
-              {keepHyphens(`${countyOf(p.slug) ?? p.name}: ${k.cta}`)}
-            </TextLink>
-          ))}
-          <TextLink href={l(COST_PATH)}>{k.costLink}</TextLink>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-export function UrgencySection({ n }: { n: string }) {
-  const c = useContent();
-  const k = c.pricing.urgency;
-  return (
-    <section
-      id="urgency"
-      className="mp-section mp-cost mp-cost--urgent mp-surface--graphite"
-      aria-labelledby="mp-urgency-title"
-    >
-      <div className="mp-shell">
-        <SectionHeading n={n} label={k.eyebrow} />
-        <Head id="mp-urgency-title" titleLines={k.titleLines} accentWord={k.accentWord} lede={k.lede} />
-
-        <Reveal delay={0.08} className="mp-cost__urgent">
-          <h3 className="mp-cost__h">{k.miamiDade}</h3>
-          <ul className="mp-cost__risks">
-            {k.items.map((it) => (
-              <li key={it.k}>
-                <strong>{it.k}</strong>
-                <span>{it.v}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mp-cost__foot">{k.footnote}</p>
-          <div className="mp-cost__bro">
-            <h3 className="mp-cost__h">{k.broward}</h3>
-            <p className="mp-cost__broward">{k.browardLine}</p>
+            <div className="mp-cost__links">
+              <TextLink href={l('/contact')}>{k.cta}</TextLink>
+              <TextLink href={l(COST_PATH)}>{k.costLink}</TextLink>
+            </div>
           </div>
         </Reveal>
       </div>

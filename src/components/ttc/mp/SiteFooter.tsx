@@ -158,8 +158,6 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <p className="mp-footer__notice">{c.legal.notice}</p>
-
         <div className="mp-footer__bottom">
           <span>
             © <CopyrightYear /> {c.company.legalName}

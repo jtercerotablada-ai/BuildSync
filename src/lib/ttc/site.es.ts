@@ -378,7 +378,7 @@ const services: SiteContent['services'] = [
       /* "90 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['Recertificación en Miami-Dade.', '90 días desde la notificación.'],
       accentWord: '90 días',
-      lede: 'Un solo equipo entrega el paquete completo — informes estructural y eléctrico en los formularios del condado, con sus certificados — y lo acompaña durante las reparaciones hasta el informe enmendado que cierra la recertificación. Para muchos sigue siendo la recertificación de 40 años.',
+      lede: 'Una notificación sin respuesta no desaparece: se convierte en multas que siguen sumando, un gravamen sobre su propiedad y, en el peor caso, una orden de desalojo. ¿Ya va tarde? Todavía tiene solución — envíenos la carta hoy; la propuesta es gratis.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Miami-Dade',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
@@ -657,9 +657,9 @@ const services: SiteContent['services'] = [
       /* "180 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['BSIP de Broward.', '180 días desde la notificación.'],
       accentWord: '180 días',
-      /* Shorter than a literal translation on purpose: 45 words at most, and
-         the full program name is already in the label above it. */
-      lede: 'Un solo equipo entrega el paquete completo — inspección estructural y eléctrica, informe y formularios oficiales — y lo acompaña hasta el cierre, reparaciones incluidas. Muchas juntas todavía conocen el BSIP por su nombre antiguo: la recertificación de 40 años.',
+      /* 45 words at most, as in English: what waiting costs, then the way
+         out. The full program name is already in the label above it. */
+      lede: 'Si el informe no se presenta a tiempo, el caso pasa a una audiencia de cumplimiento, y un edificio sin reparar puede declararse inseguro. ¿Ya pasó la fecha? Todavía tiene solución — envíenos la notificación hoy y reciba una propuesta a precio fijo, sin costo.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Broward',
       ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
@@ -1397,7 +1397,6 @@ export const es: SiteContent = {
     lastChecked: 'Última verificación',
     sourceLabel: 'Fuente',
     yourCity: 'Su ciudad',
-    photoTheLetter: 'Tome una foto de la carta con el teléfono y envíela.',
     /* "Revisión", not "verificación": that word is the rules' ("Última
        verificación"), and this date is about the offices' names. It said
        "de los enlaces" while the rows were links (see `offices` in
@@ -1558,15 +1557,9 @@ export const es: SiteContent = {
     /* Kept short on purpose: a longer sub pushed the /es hero to 915px at
        1440×900 and clipped the caps strip below the fold. That is why
        Broward's program is "el BSIP" here and not its full Spanish name —
-       the full name is the label of the section right under the hero, and
-       this line is no longer than the one it replaced. No regulatory number
-       in the hero, as in English.
-
-       "Un ingeniero estructural": the words a Spanish-speaking owner types,
-       which no Spanish page said in its body. Two characters SHORTER than
-       "un Ingeniero Profesional (P.E.) con licencia en Florida", which it
-       replaced — the eyebrow right above still spells out "Ingeniero
-       Profesional de Florida". */
+       the full name is the label of the column right under the hero. No
+       regulatory number in the hero, as in English. "Un ingeniero
+       estructural": the words a Spanish-speaking owner types. */
     sub: 'Recertificación de edificios en Miami-Dade, el BSIP de Broward y diseño estructural de edificios nuevos, a cargo de un ingeniero estructural con licencia P.E. de Florida.',
     primary: { href: '/contact?service=building-recertification', label: 'Tengo una notificación de Miami-Dade' },
     secondary: { href: '/contact?service=broward-bsip', label: 'Tengo una notificación de Broward' },
@@ -1763,7 +1756,6 @@ export const es: SiteContent = {
     lede:
       'Realizamos las recertificaciones de Miami-Dade y las inspecciones BSIP de Broward junto a Precision Source Inc., contratista general y eléctrico certificado en Florida, con sede en Miami. Dos empresas con licencia que trabajan como un solo equipo, desde el aviso hasta el informe final, con más de 30 años de experiencia combinada entre las dos.',
     licensesLabel: 'Licencias de Florida',
-    verifyLead: 'Cada número de licencia abre la búsqueda de licencias del DBPR de Florida.',
     engineering: {
       role: 'Ingeniería estructural',
       licenseLabel: 'Ingeniero Profesional',
@@ -2026,30 +2018,6 @@ export const es: SiteContent = {
     costLink: 'Qué mueve el precio y qué queda fuera de los honorarios',
     pageLink: 'Precios según el tamaño del edificio: {name}',
     delivery: 'El paquete completo, firmado y sellado, de tres a cuatro días después de la inspección. ¿Tiene prisa? De uno a dos días.',
-    urgency: {
-      eyebrow: 'Lo que puede costar esperar',
-      titleLines: ['Cada mes que espera', 'le cuesta más.'],
-      accentWord: 'le cuesta más.',
-      lede: 'Una notificación de recertificación sin respuesta no caduca. Pasa a cumplimiento, y el cumplimiento tiene un precio.',
-      miamiDade: 'En Miami-Dade',
-      broward: 'En Broward',
-      items: [
-        {
-          k: 'Multas que se acumulan',
-          v: 'Una vez emitida la citación, una violación sin corregir y una multa inicial sin pagar pueden convertirse en multas acumuladas de hasta $10,000 por violación.',
-        },
-        {
-          k: 'Gravámenes sobre la propiedad',
-          v: 'Las tasas del condado que siguen sin pagarse pueden quedar registradas como un gravamen contra el edificio.',
-        },
-        {
-          k: 'Órdenes de desalojo',
-          v: 'Los procesos de estructuras inseguras pueden terminar en una orden de desalojo y, cuando se ordene por esa vía, en la demolición.',
-        },
-      ],
-      browardLine: 'Un reporte que no se presenta a tiempo pasa a una audiencia de cumplimiento, y un edificio sin reparar puede declararse inseguro.',
-      footnote: 'Referencias del condado de Miami-Dade: multas de recertificación · proceso de cumplimiento · estructuras inseguras (Sección 8-5).',
-    },
     jurisdictions: {
       eyebrow: 'Jurisdicciones',
       title: 'Las oficinas ante las que presentamos.',
@@ -2069,8 +2037,6 @@ export const es: SiteContent = {
     },
   },
   legal: {
-    notice:
-      'La información de este sitio es general y no constituye una opinión de ingeniería, un encargo profesional ni una declaración sobre un edificio específico. Los requisitos varían según la jurisdicción y el alcance.',
     contactFormNotice:
       'Enviar este formulario no crea una relación profesional de ingeniería. Usamos sus datos y archivos únicamente para responder a esta solicitud.',
     links: [

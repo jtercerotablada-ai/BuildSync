@@ -5,7 +5,7 @@ import { flushSync } from 'react-dom';
 import { imagery, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { Img } from './media';
 import { ButtonLink, Reveal, SectionHeading, TextLink } from './primitives';
-import { accentLines, afterFirstSentence, firstSentence, keepHyphens } from './text';
+import { accentLines, firstSentence, keepHyphens } from './text';
 import { useContent, useL } from './lang';
 import { ReachRow } from './ReachRow';
 import { Dated, Source } from './Outbound';
@@ -43,8 +43,9 @@ const SLUGS = ['building-recertification', 'broward-bsip'] as const;
  *   · one link to the table itself, on the program's page
  *     (`#when-it-applies`), where every row is whole, with its exemptions and
  *     its hedges;
- *   · under the button, the second half of `ctaNote` — what to send when
- *     there is no notice yet. The program's page prints `ctaNote` whole.
+ *   · the button alone, with no small print under it (the owner,
+ *     2026-10-20: the line under the button confused clients). What to send
+ *     is the form's job, and the program's page prints `ctaNote` whole.
  *
  * ROWS LINE UP ACROSS THE COLUMNS. From 1024px the two columns are subgrids
  * of one grid: photograph, county, headline, lede, action, each fact, source
@@ -256,7 +257,6 @@ function ProgramColumn({
   const row = timing.rows[0];
   const titleId = `mp-prog-${p.id}-title`;
   const facts = homeFacts(row.facts);
-  const noNotice = afterFirstSentence(p.ctaNote);
   /* Whichever column the reader is in — focus, a touch, the pointer over it
      — becomes the switch's choice, so zooming a desktop window or turning a
      tablet across 1024px keeps that column on screen instead of hiding it
@@ -304,7 +304,6 @@ function ProgramColumn({
         <ButtonLink href={l(`/contact?service=${service.slug}`)} variant="solid">
           {keepHyphens(p.cta)}
         </ButtonLink>
-        {noNotice ? <p className="mp-prog__ctanote">{`${u.photoTheLetter} ${noNotice}`}</p> : null}
       </div>
 
       {/* A list, not the service page's dl: label and sentence are ONE item,

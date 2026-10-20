@@ -202,7 +202,9 @@ export function CostView({ lang }: { lang: Lang }) {
                 ))}
               </ul>
               <p className="mp-costp__late">
-                <TextLink href={`${localePath('/', lang)}#urgency`}>{k.outside.lateLink}</TextLink>
+                {/* What waiting costs opens each county's column on the home
+                    page (there is no #urgency section any more). */}
+                <TextLink href={`${localePath('/', lang)}#miami-dade`}>{k.outside.lateLink}</TextLink>
               </p>
             </div>
             <div>
