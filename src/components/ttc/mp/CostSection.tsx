@@ -28,8 +28,9 @@ import { COST_PATH } from '@/lib/ttc/cost-path';
  * timing row and nowhere else). Each county's ranges stay in that county's
  * own column of the table, under its name, never merged into one figure.
  *
- * The seals are shown only to identify an office; the disclaimer and the
- * credits link sit directly under them and are not optional.
+ * Only the two counties' logos are shown, to identify the office; the
+ * disclaimer and the credits link sit directly under them and are not
+ * optional.
  */
 
 function Head({
@@ -160,29 +161,24 @@ export function JurisdictionsSection({ n }: { n: string }) {
 
         <div className="mp-cost__counties">
           {k.lists.map((list) => {
-            // The county's own mark and its largest cities first; the ones
-            // with no mark on file (Miami Beach, Aventura, Surfside…) are named
-            // right under them, always in view; every other municipality with
-            // a mark opens under the disclosure.
-            const featured = [list.mark, ...list.featured].filter((name) => marks[name]);
-            const rest = list.names.filter((name) => marks[name] && !featured.includes(name));
-            const unmarked = list.names.filter((name) => !marks[name]);
-            // The county's mark is keyed by its English name; it is captioned
-            // with this language's title ("Condado de Broward").
+            // The county's own logo — the only marks on this page — keyed by
+            // its English name and captioned with this language's title
+            // ("Condado de Broward"); under it every municipality by NAME, as
+            // plain text. No city seal or logo is shown (municipalities.ts).
             const label = (name: string) => (name === list.mark ? list.title : name);
             return (
               <Reveal key={list.title} delay={0.04} className="mp-cost__county">
                 <h3 className="mp-cost__h">{list.title}</h3>
-                <Seals names={featured} label={label} />
-                {unmarked.length ? (
-                  <p className="mp-cost__rest">
-                    <strong>{k.also}:</strong> {unmarked.join(' · ')}
-                  </p>
-                ) : null}
-                <details className="mp-cost__all">
-                  <summary>{k.all.replace('{n}', String(list.names.length))}</summary>
-                  <Seals names={rest} />
-                </details>
+                <Seals names={[list.mark].filter((name) => marks[name])} label={label} />
+                {/* Each name stays on one line ("Fort Lauderdale"); the dots break. */}
+                <p className="mp-cost__names">
+                  {list.names.map((name, i) => (
+                    <React.Fragment key={name}>
+                      {i ? ' · ' : null}
+                      <span className="mp-nobr">{name}</span>
+                    </React.Fragment>
+                  ))}
+                </p>
               </Reveal>
             );
           })}

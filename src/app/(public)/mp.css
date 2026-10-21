@@ -5089,7 +5089,7 @@ a.mp-menu__mail {
   line-height: 1.6;
 }
 /* The disclosure: a quiet line with a chevron, the chevron of the site's
-   other disclosure (.mp-cost__all). Closed by default; its three answers
+   other disclosures (.mp-disclose). Closed by default; its three answers
    are in the server HTML either way. */
 .mp-svc__toggle {
   display: inline-flex;
@@ -5692,8 +5692,7 @@ a.mp-menu__mail {
   }
 }
 
-/* One disclosure look for the lists that fold (the home page's
-   `.mp-cost__all`): a line in ink, underlined in gold, with a chevron, and
+/* One disclosure look for the lists that fold: a line in ink, underlined in gold, with a chevron, and
    a 44px target. `--desk` is open on a desktop — the summary is not drawn
    and the content shows — and folds from 1180px down. An engine without
    ::details-content shows the plain disclosure, closed, at every width. */
@@ -7832,51 +7831,10 @@ a.mp-menu__mail {
   line-height: 1.3;
   color: var(--mp-ink-2);
 }
-/* The disclosure: a plain link-like line with a chevron, the marks inside
-   in the same grid. */
-.mp-cost__all {
-  margin-block-start: var(--mp-6);
-}
-.mp-cost__all summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  min-height: 44px;
-  cursor: pointer;
-  list-style: none;
-  font-size: var(--mp-t-body);
-  font-weight: 600;
-  color: var(--mp-ink);
-  text-decoration: underline;
-  text-decoration-color: var(--mp-gold);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.3em;
-}
-.mp-cost__all summary::-webkit-details-marker {
-  display: none;
-}
-.mp-cost__all summary::after {
-  content: '';
-  width: 0.5rem;
-  height: 0.5rem;
-  border-inline-end: 1.5px solid currentColor;
-  border-block-end: 1.5px solid currentColor;
-  transform: translateY(-0.15rem) rotate(45deg);
-  transition: transform var(--mp-dur-fast) var(--mp-ease);
-}
-.mp-cost__all[open] summary::after {
-  transform: translateY(0.1rem) rotate(-135deg);
-}
-.mp-cost__all summary:hover {
-  text-decoration-thickness: 2px;
-}
-.mp-cost__rest {
+.mp-cost__names {
   margin: var(--mp-4) 0 0;
-  font-size: var(--mp-t-small);
+  font-size: var(--mp-t-body);
   line-height: 1.8;
-  color: var(--mp-ink-3);
-}
-.mp-cost__rest strong {
   color: var(--mp-ink-2);
 }
 .mp-cost__disclaimer {
@@ -7906,7 +7864,7 @@ a.mp-menu__mail {
   @supports (grid-template-rows: subgrid) {
     .mp-cost__county {
       display: grid;
-      grid-row: span 4;
+      grid-row: span 3;
       grid-template-rows: subgrid;
       row-gap: 0;
       align-content: start;

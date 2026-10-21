@@ -84,17 +84,17 @@ export default function CreditsPage() {
             ),
           },
           {
-            h: 'Jurisdiction seals and logos',
+            h: 'County logos',
             body: (
               <>
                 <p>
-                  The marks shown on the home page under “Jurisdictions” belong to the governments
-                  they identify. Each was taken from that government’s own website and is shown
-                  only to say which office a notice comes from. They are unaltered apart from
-                  cropping, format conversion and, for the marks their governments publish only in
-                  white, drawing them in dark ink so that they can be read. Tercero Tablada Civil and
-                  Structural Engineering Inc. is an independent firm: it is not affiliated with, endorsed by or acting for any of
-                  them, and nothing on this site is an official publication of any of them.
+                  The two logos shown on the home page under “Jurisdictions” belong to the counties
+                  they identify. Each was taken from that county’s own website and is shown only
+                  to say which office a notice comes from, cropped and converted to a web format.
+                  The cities of both counties are named, not pictured: no city seal or logo appears
+                  on this site. Tercero Tablada Civil and Structural Engineering Inc. is an
+                  independent firm: it is not affiliated with, endorsed by or acting for any county
+                  or city, and nothing on this site is an official publication of any of them.
                 </p>
                 <ul className="mp-legal__cols">
                   {JURISDICTION_CREDITS.map((j) => (
@@ -107,10 +107,8 @@ export default function CreditsPage() {
                   ))}
                 </ul>
                 <p>
-                  Some governments do not allow their mark to be used by a private company, or allow
-                  it only with permission; where a government’s own terms say so, its mark is not
-                  shown and only its name is listed. Each government may also update its mark at any
-                  time. To have a mark removed or replaced, write to{' '}
+                  A county may update its logo at any time. To have a logo removed or replaced,
+                  write to{' '}
                   <a href={`mailto:${contact.email}`}>{contact.email}</a> and it will be changed.
                 </p>
               </>

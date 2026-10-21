@@ -1,4 +1,7 @@
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { marks } from './municipalities';
 import type { SiteContent } from './content';
 import { en } from './site';
 import { es } from './site.es';
@@ -204,12 +207,19 @@ describe('the home page prints the shared parts once', () => {
     }
   });
 
-  it('every county list names its own mark and features only its own municipalities', () => {
+  it('every county list names its own logo, and only the two counties have one', () => {
     for (const [, c] of bundles) {
       for (const list of c.pricing.jurisdictions.lists) {
         expect(list.mark).toMatch(/County$/);
-        for (const name of list.featured) expect(list.names).toContain(name);
+        expect(marks[list.mark], list.mark).toBeDefined();
+        expect(list.names.length).toBeGreaterThan(30);
       }
     }
+    // The owner, 2026-10-21: no city seal or logo (Fla. Stat. 165.043; the
+    // cities' own brand pages). A city mark comes back only with that
+    // city's written permission, and this test is then changed on purpose.
+    expect(Object.keys(marks).sort()).toEqual(['Broward County', 'Miami-Dade County']);
+    const files = readdirSync(join(process.cwd(), 'public', 'ttc', 'img', 'jurisdictions')).sort();
+    expect(files).toEqual(['broward.webp', 'miami-dade.webp']);
   });
 });

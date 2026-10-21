@@ -93,7 +93,7 @@
  */
 
 import { ADS, ADS_COOKIE_DAYS } from './ads';
-import { browardMunicipalities, featuredBroward, featuredMiamiDade, miamiDadeMunicipalities } from './municipalities';
+import { browardMunicipalities, miamiDadeMunicipalities } from './municipalities';
 import { photo, video, type Photo, type Clip } from './media';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3458,7 +3458,7 @@ export const legal = {
          that sense). The Privacy Policy says how files are kept. */
       { h: 'Files you send', p: 'If you attach a file, you confirm that you may share it with us. We use it only to answer your request and keep it as the Privacy Policy says. A request sent before an engagement is not a confidential communication in the legal sense, so leave out anything you would not want us to read: the letter and the address are all we need to begin.' },
       { h: 'Pricing ranges', p: 'The fee ranges published on this website are indicative and are given by building size so that you can plan. They are not an offer. A fixed fee binds only when it is stated in a written proposal that you have accepted, for the scope that proposal describes. A building can fall outside a range because of its size, the number of structures, its electrical service or the documents available. Repairs, the permits they need and the fees charged by a county or a city are not part of a range unless the proposal says so.' },
-      { h: 'Government names and marks', p: 'The names, seals and logos of counties, cities and other government offices shown on this website belong to those governments. They appear only to identify the office that sends a notice, and each is credited on the Image Credits page. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm. It is not affiliated with, endorsed by or acting for any government office, and nothing on this website is an official publication of one. If a government asks for its mark to be changed or removed, we will do it.' },
+      { h: 'Government names and marks', p: 'The names of counties, cities and other government offices shown on this website, and the logos of Miami-Dade County and Broward County, belong to those governments. They appear only to identify the office that sends a notice, and each logo is credited on the Image Credits page. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm. It is not affiliated with, endorsed by or acting for any government office, and nothing on this website is an official publication of one. If a government asks for its mark to be changed or removed, we will do it.' },
       /* In capitals on purpose: Florida courts enforce a disclaimer of the
          warranty of merchantability only if it names it and is conspicuous
          (Fla. Stat. 672.316(2)), and a limit of liability that is easy to
@@ -3606,8 +3606,8 @@ export const partner = {
    fixed-fee ranges by building size; they are NOT regulatory facts and carry
    no date. No age or day count belongs here (those live in the timing rows).
    The penalty line quotes the firm's own owner letter. `items` of
-   `jurisdictions` are the current official marks of each office, shown only
-   to identify it; the files are in public/ttc/img/jurisdictions/. */
+   `jurisdictions` names every municipality and shows each COUNTY's logo only
+   to identify the office (public/ttc/img/jurisdictions/; no city mark). */
 const pricing = {
   eyebrow: 'Fixed-fee pricing',
   titleLines: ['Know the cost', 'before you commit.'],
@@ -3662,17 +3662,14 @@ const pricing = {
     title: 'The offices we file with.',
     lede: 'Your notice comes from one of these offices, or from a neighbour of theirs. The steps and the forms are theirs; the process is ours.',
     more: 'Every municipality in both counties.',
-    /** The disclosure under each county's first marks; {n} = its municipalities. */
-    all: 'All {n} municipalities',
-    also: 'Also',
     /* `mark` is the county's own entry in `marks` (municipalities.ts), the
-       same key in both languages; `featured` are the marks shown before the
-       disclosure, the rest open under it. */
+       same key in both languages. Every municipality is named in plain text
+       under the county's logo; no city logo is shown. */
     lists: [
-      { title: 'Miami-Dade County', mark: 'Miami-Dade County', featured: featuredMiamiDade, names: miamiDadeMunicipalities },
-      { title: 'Broward County', mark: 'Broward County', featured: featuredBroward, names: browardMunicipalities },
+      { title: 'Miami-Dade County', mark: 'Miami-Dade County', names: miamiDadeMunicipalities },
+      { title: 'Broward County', mark: 'Broward County', names: browardMunicipalities },
     ],
-    disclaimer: 'Seals and logos belong to their governments and are shown only to identify the office. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm: not affiliated with, endorsed by or acting for any of them.',
+    disclaimer: 'The county logos belong to their governments and are shown only to identify the office. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm: not affiliated with, endorsed by or acting for any of them.',
     creditLabel: 'Image credits',
   },
 };
