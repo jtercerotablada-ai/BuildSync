@@ -17,7 +17,6 @@ import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Outbound, Source } from '@/components/ttc/mp/Outbound';
 import { ScrollRegion } from '@/components/ttc/mp/ScrollRegion';
 import { OpenAtHash } from '@/components/ttc/mp/OpenAtHash';
-import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { ButtonLink, SectionHeading, Reveal, TextLink } from '@/components/ttc/mp/primitives';
 import { firstSentence, keepHyphens } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -125,7 +124,6 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   // The cities of this program that have a page of their own (cities.ts),
   // by the name their office row carries.
   const cityPages = new Map(cityPagesOf(lang, service.slug).map((p) => [p.city, p]));
-  const isBim = service.slug === 'bim-coordination';
   const trackLabel = service.track === 'new' ? u.newProjects : u.existingBuildings;
   // The SLUG, not the localized label: it survives the language switch and
   // any rename of a shortTitle. ContactForm maps it to this language's
@@ -815,13 +813,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           </div>
         </section>
 
-        {/* BIM: the toolchain right after the steps it serves, not between
-            the caveats and the links out. */}
-        {isBim ? <SoftwareBand n={next()} variant="full" /> : null}
-
-        {/* A lean page's questions: after the steps (and BIM's toolchain),
-            before the caveats — what it is, how it runs, then what clients
-            ask about it. */}
+        {/* A lean page's questions: after the steps, before the caveats —
+            what it is, how it runs, then what clients ask about it. */}
         {lean ? faqSection('mp-surface--paper') : null}
 
         {/* Good to know. The label stays "Good to know"; the h2 says what the

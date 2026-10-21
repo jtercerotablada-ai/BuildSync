@@ -169,12 +169,13 @@ deleted. `scripts/make-logos-transparent.py`, a one-off tool from the logo
 import, now processes only `logo-horizontal.png` and `logo-square.png`; the
 byte-identical `logo-horizontal-wide.png` was deleted (see below).
 
-### Software marks — `public/ttc/img/software/`
+### Software marks
 
-Third-party logos (Autodesk, Revit, Navisworks, CYPE, BCF, buildingSMART),
-used nominatively to identify the tools in the workflow. They are shown
-unmodified apart from a CSS desaturation filter and remain the property of
-their owners.
+None. The "Software & open standards" band (Revit, Navisworks, Autodesk, CYPE,
+BCF, buildingSMART) was removed from the BIM page on 2026-10-21, and
+`public/ttc/img/software/` deleted. Autodesk allows its names in text but its
+logos and product icons only under a written agreement
+(autodesk.com/company/legal-notices-trademarks/trademarks/guidelines-for-use).
 
 ---
 

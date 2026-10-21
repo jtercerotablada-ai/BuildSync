@@ -2418,8 +2418,7 @@ export const services: Service[] = [
     ],
     /* Four questions after the steps (510 words of its own without them:
        just over the floor, and the Spanish page carries the same four). The
-       rules are the assessments page's; IFC and BCF are the toolchain's own
-       entries (`software`). */
+       rules are the assessments page's. */
     faq: [
       {
         q: 'Our team does not work in Revit. Can we still coordinate?',
@@ -2700,26 +2699,6 @@ export const newBuildings = {
   accentWord: 'mid-rise',
   body: 'Houses, townhouses, mid-rise concrete and commercial frames — foundations, frame and hurricane-wind design engineered as one structure and issued as a signed and sealed permit set. We build the structural model first and check it against the architect’s model and the mechanical, electrical and plumbing models, so conflicts are settled on screen before they can become a change order on site.',
   cta: { href: '/services#new', label: 'Services for New Projects' },
-} as const;
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SOFTWARE — the band on the BIM service page
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-export const software = {
-  eyebrow: 'Software & open standards',
-  title: 'The model has to survive the hand-off.',
-  body: 'We work in the tools the rest of the project team already uses, and exchange through open formats so the model does not become a dead end when it leaves our office.',
-  items: [
-    { name: 'Revit', role: 'Structural modeling', logo: '/ttc/img/software/revit.svg' },
-    { name: 'Navisworks', role: 'Clash detection', logo: '/ttc/img/software/navisworks.png' },
-    { name: 'Autodesk', role: 'Platform', logo: '/ttc/img/software/autodesk.svg' },
-    { name: 'CYPE', role: 'Structural analysis', logo: '/ttc/img/software/cype.png' },
-    { name: 'BCF', role: 'Issue exchange', logo: '/ttc/img/software/bcf.svg' },
-    { name: 'buildingSMART', role: 'IFC / openBIM', logo: '/ttc/img/software/buildingsmart.png' },
-  ],
-  /* No trademark note under the tiles (the owner, 2026-10-20: no legal
-     small print): /terms and /credits say the marks are their owners'. */
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3451,7 +3430,7 @@ export const legal = {
          counsel's — he was told so. Still no cap on liability in figures. */
       { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means: a decision rests on that check, not on the calculator. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project. They are offered as they are, with no warranty, and the firm accepts no responsibility for the results obtained with them or for how those results are used.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
-      { h: 'Intellectual property', p: 'The text, tables, design and code of this site, including the calculators, and the firm’s name and logo belong to Tercero Tablada Civil and Structural Engineering Inc. They may not be copied, resold or republished without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
+      { h: 'Intellectual property', p: 'The text, tables, design and code of this site, including the calculators, and the firm’s name and logo belong to Tercero Tablada Civil and Structural Engineering Inc. They may not be copied, resold or republished without permission. Photographs, video and third-party marks belong to their respective owners (see Image Credits).' },
       /* What a visitor may send, and what sending does not do (17 U.S.C.
          106: only the owner of a drawing may share it; Fla. Stat. 90.502
          protects only lawyer and client, so a request is not confidential in
@@ -3687,7 +3666,6 @@ export const en = {
   typologiesSection,
   typologies,
   newBuildings,
-  software,
   howWeWork,
   caseStudies,
   engagements,

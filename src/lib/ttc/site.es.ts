@@ -1687,20 +1687,6 @@ export const es: SiteContent = {
     cta: { href: '/services#new', label: 'Servicios para proyectos nuevos' },
   },
 
-  software: {
-    eyebrow: 'Software y estándares abiertos',
-    title: 'El modelo tiene que sobrevivir a la entrega.',
-    body: 'Trabajamos en las herramientas que el resto del equipo del proyecto ya usa, e intercambiamos a través de formatos abiertos para que el modelo no se convierta en un callejón sin salida cuando sale de nuestra oficina.',
-    items: [
-      { name: 'Revit', role: 'Modelado estructural', logo: '/ttc/img/software/revit.svg' },
-      { name: 'Navisworks', role: 'Detección de interferencias', logo: '/ttc/img/software/navisworks.png' },
-      { name: 'Autodesk', role: 'Plataforma', logo: '/ttc/img/software/autodesk.svg' },
-      { name: 'CYPE', role: 'Análisis estructural', logo: '/ttc/img/software/cype.png' },
-      { name: 'BCF', role: 'Intercambio de incidencias', logo: '/ttc/img/software/bcf.svg' },
-      { name: 'buildingSMART', role: 'IFC / openBIM', logo: '/ttc/img/software/buildingsmart.png' },
-    ],
-  },
-
   howWeWork: {
     eyebrow: 'Cómo trabajamos',
     title: 'Cinco pasos. Usted siempre sabe en cuál está.',
@@ -2171,7 +2157,7 @@ export const es: SiteContent = {
         { h: 'Enlaces a otros sitios', p: 'Este sitio enlaza a oficinas de los condados, a la búsqueda de licencias del DBPR de Florida, a leyes y códigos, y a WhatsApp. Esas páginas pertenecen a quien las publica y están fuera de nuestro control: pueden cambiar o trasladarse a otra dirección, y de lo que dicen y de cómo tratan su información responde quien las publica. Las oficinas de construcción de las ciudades se nombran, pero no se enlazan; debajo de cada lista indicamos la fecha en que se revisaron sus nombres por última vez.' },
         { h: 'Fotografías y ejemplos', p: 'Las fotografías y los videos de este sitio son imágenes con licencia que muestran tipos de edificios y de trabajos. Ninguna muestra un proyecto de la firma, y ninguna se eligió porque un edificio que aparece en ella haya recibido una notificación. Los perfiles de Trabajos típicos describen el trabajo que la firma realiza; no son proyectos pasados.' },
         { h: 'Calculadoras', p: 'Las calculadoras de Recursos son herramientas de trabajo para ingenieros y estudiantes. Cada una indica en su propia página el método que usa, lo que supone y lo que deja fuera, y un resultado vale lo que valgan el modelo y los valores introducidos. Compruébelo por medios independientes: una decisión se apoya en esa comprobación, no en la calculadora. Un resultado no es un diseño, ni una opinión de ingeniería, ni un documento sellado, y usar una calculadora no nos convierte en el ingeniero de su proyecto. Se ofrecen tal como son, sin garantía, y la firma no asume ninguna responsabilidad por los resultados que se obtengan con ellas ni por el uso que se haga de esos resultados.' },
-        { h: 'Propiedad intelectual', p: 'Los textos, las tablas, el diseño y el código de este sitio, incluidas las calculadoras, y el nombre y el logotipo de la firma pertenecen a Tercero Tablada Civil and Structural Engineering Inc. No pueden copiarse, revenderse ni republicarse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
+        { h: 'Propiedad intelectual', p: 'Los textos, las tablas, el diseño y el código de este sitio, incluidas las calculadoras, y el nombre y el logotipo de la firma pertenecen a Tercero Tablada Civil and Structural Engineering Inc. No pueden copiarse, revenderse ni republicarse sin autorización. Las fotografías, los videos y las marcas de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
         { h: 'Archivos que usted envía', p: 'Si adjunta un archivo, usted confirma que puede compartirlo con nosotros. Lo usamos solo para responder a su solicitud y lo conservamos como indica la Política de privacidad. Una solicitud enviada antes de un encargo no es una comunicación confidencial en el sentido legal, así que deje fuera lo que no quiera que leamos: la carta y la dirección bastan para empezar.' },
         { h: 'Rangos de precios', p: 'Los rangos de honorarios que se publican en este sitio web son orientativos y se dan según el tamaño del edificio para que usted pueda planificar. No son una oferta. Un precio fijo obliga solo cuando consta en una propuesta escrita que usted haya aceptado, para el alcance que esa propuesta describe. Un edificio puede quedar fuera de un rango por su tamaño, por el número de estructuras, por su servicio eléctrico o por los documentos disponibles. Las reparaciones, los permisos que requieran y las tasas que cobre un condado o una ciudad no forman parte de un rango, salvo que la propuesta lo indique.' },
         { h: 'Nombres y marcas de gobiernos', p: 'Los nombres de condados, ciudades y otras oficinas de gobierno que aparecen en este sitio web, y los logotipos del Condado de Miami-Dade y del Condado de Broward, pertenecen a esos gobiernos. Se muestran solo para identificar la oficina que envía una notificación, y cada logotipo tiene su crédito en la página de Créditos de imágenes. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente. No está afiliada a ninguna oficina de gobierno, no cuenta con su aval ni actúa en su nombre, y nada de este sitio web es una publicación oficial de una de ellas. Si un gobierno pide que se cambie o se retire su marca, lo haremos.' },

@@ -115,13 +115,14 @@ export default function CreditsPage() {
             ),
           },
           {
-            h: 'Software marks',
+            h: 'Software names',
             body: (
               <p>
-                Autodesk, Revit and Navisworks are trademarks of Autodesk, Inc. CYPE, BCF and
-                buildingSMART are trademarks or names of their respective owners. They are named
-                only to say which software the firm uses, and do not mean that any of those
-                companies sponsors, approves or is connected with this firm.
+                Revit is a registered trademark or trademark of Autodesk, Inc., and/or its
+                subsidiaries and/or affiliates in the USA and/or other countries. It is named only
+                to say which software the project teams we work with use, as text and without any
+                Autodesk logo. This firm is not affiliated with Autodesk, and Autodesk does not
+                sponsor or approve it.
               </p>
             ),
           },

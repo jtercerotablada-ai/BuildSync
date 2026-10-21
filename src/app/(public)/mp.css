@@ -550,7 +550,7 @@ html:has(.mp) {
 /* Hook classes — names the markup carries so a section or a column can be
    targeted, which need no rule of their own today:
      .mp-eng  .mp-eng__forwrap  .mp-about-how  .mp-sechead__label
-     .mp-tools-sec  .mp-close__lead
+     .mp-close__lead
      .mp-svc--sit (a situation tile; shared-text.test.ts finds the tiles by it)
    Listed here so a "class with no rule" audit can tell a hook from a class
    whose styles were lost. */
@@ -2345,75 +2345,6 @@ a.mp-menu__mail {
   inset-inline-end: var(--mp-3);
 }
 
-/* ── Toolchain ───────────────────────────────────────────────────────────── */
-.mp-tools-sec--strip {
-  padding-block: clamp(3rem, 5vw, 4.5rem);
-}
-.mp-tools-sec--strip .mp-sechead {
-  margin-block-end: var(--mp-6);
-}
-.mp-tools {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-block-start: 1px solid var(--mp-line);
-}
-.mp-tool {
-  display: grid;
-  justify-items: center;
-  gap: 0.5rem;
-  padding: var(--mp-6) var(--mp-3);
-  border-inline-end: 1px solid var(--mp-line);
-  border-block-end: 1px solid var(--mp-line);
-  text-align: center;
-}
-.mp-tool:last-child {
-  border-inline-end: 0;
-}
-.mp-tool__plate {
-  --plate-h: clamp(34px, 3.4vw, 46px);
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: var(--plate-h);
-}
-
-/* Explicit px caps: a percentage max-height against a grid area lets the
-   square PNGs size from width alone and spill over the labels below. */
-.mp-tool__plate img {
-  max-width: min(100%, 130px);
-  max-height: var(--plate-h);
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  /* Several marks ship on an opaque white plate; multiply drops it into the
-     concrete band without touching the artwork itself. Desaturated so six
-     unrelated palettes read as one band; hover restores the real mark. */
-  mix-blend-mode: multiply;
-  filter: grayscale(1) contrast(0.92);
-  opacity: 0.62;
-  transition: filter var(--mp-dur-slow) var(--mp-ease),
-    opacity var(--mp-dur-slow) var(--mp-ease);
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-tool:hover .mp-tool__plate img {
-    filter: none;
-    opacity: 1;
-  }
-}
-.mp-tool__name {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--mp-ink);
-}
-.mp-tool__role {
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--mp-ink-3);
-}
-
 /* ═══ 13 · CLOSING CTA ════════════════════════════════════════════════════ */
 
 .mp-close {
@@ -4020,12 +3951,6 @@ a.mp-menu__mail {
   .mp-typo {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .mp-tools {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .mp-tool:nth-child(3n) {
-    border-inline-end: 0;
-  }
   .mp-step {
     grid-template-columns: 44px minmax(0, 1fr);
     gap: var(--mp-4);
@@ -4182,18 +4107,6 @@ a.mp-menu__mail {
   }
   .mp-form__row {
     grid-template-columns: minmax(0, 1fr);
-  }
-  /* Two columns: the divider is on every odd cell. The ≤900 three-column
-     rule took it off every third cell, which in two columns is a left-hand
-     cell (Autodesk | CYPE lost its line). */
-  .mp-tools {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mp-tool:nth-child(3n) {
-    border-inline-end: 1px solid var(--mp-line);
-  }
-  .mp-tool:nth-child(2n) {
-    border-inline-end: 0;
   }
   /* Two link columns, Navigate beside Services, and Contact full width
      under them (its email and address are the long lines). Every link stays
@@ -6167,20 +6080,6 @@ a.mp-menu__mail {
   }
 }
 
-/* BIM: the software band (SoftwareBand, `full`) right after the steps, its
-   title beside its lede from 1181px. */
-.mp-tools-sec--full .mp-intro {
-  margin-block-end: var(--mp-8);
-}
-@media (min-width: 1181px) {
-  .mp-tools-sec--full .mp-intro {
-    grid-template-columns: minmax(0, 0.42fr) minmax(0, 1fr);
-    max-width: none;
-    gap: clamp(1.5rem, 4vw, 4rem);
-    align-items: start;
-  }
-}
-
 /* On paper every fold prints open, and its toggle goes. Both halves only
    where the browser knows ::details-content: a browser that does not drops
    the first rule, and hiding the summary there too left the package, the
@@ -7509,9 +7408,6 @@ a.mp-menu__mail {
   }
   .mp-header__lockup {
     --hdr-mark-h: clamp(46px, 3.2vw, 54px);
-  }
-  .mp-tool__plate {
-    --plate-h: clamp(46px, 3vw, 58px);
   }
   .mp-close__title {
     font-size: clamp(3.1rem, 3vw, 4.2rem);

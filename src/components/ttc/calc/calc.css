@@ -5,8 +5,7 @@
    (.mp-section.mp-appsec) instead of counting on which sheet comes last. */
 
 /* A CALCULATOR (.mp-app) — the page of one tool of the catalogue, the beam
-   calculator first (BeamCalculator.tsx). (Not mp-tool: that name is the
-   software band of the About page.) Written for all of them: `mp-app`
+   calculator first (BeamCalculator.tsx). Written for all of them: `mp-app`
    is the layout, `mp-num` and `mp-seg` the fields, `mp-plot` a diagram;
    only `mp-beam` is the beam's own drawing.
 
