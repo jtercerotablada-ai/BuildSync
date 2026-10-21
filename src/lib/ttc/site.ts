@@ -2572,10 +2572,9 @@ export const imagery = {
     about: photo.concreteStair,
     contact: photo.miamiBrickell,
     /* The calculators catalogue, since October 21, 2026 (the owner: a
-       background photograph like the other pages). A column's
-       reinforcement cage seen from below, the sky open on the left where
-       the headline sits. */
-    resources: photo.rebarCageTower,
+       background photograph like the other pages). The bare concrete frame of a
+       tower, slab edges and columns: the owner wanted a concrete structure. */
+    resources: photo.frameSlabEdges,
   },
   /* One photograph per service, keyed by slug. The card, the service-page
      hero and — for the two county programs — the home-page section are one
