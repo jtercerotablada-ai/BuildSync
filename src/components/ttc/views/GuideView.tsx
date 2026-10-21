@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { getContent, type SiteContent } from '@/lib/ttc/content';
-import { absoluteUrl, regulatoryCheckedISO } from '@/lib/ttc/site';
+import { absoluteUrl, imagery, regulatoryCheckedISO } from '@/lib/ttc/site';
 import { COST_PATH } from '@/lib/ttc/cost-path';
 import { GUIDES_PATH, guidePath, guidesReviewed, guidesReviewedISO, type GuideFacts } from '@/lib/ttc/guides';
 import { findGuide, getGuides, guideLabels, guidesIndex } from '@/lib/ttc/guide-content';
@@ -336,6 +336,7 @@ export function GuidesView({ lang }: { lang: Lang }) {
         crumbs={[{ href: '/', label: c.ui.home }, { label: idx.crumb }]}
         titleLines={accentLines(idx.titleLines, idx.accentWord)}
         sub={idx.sub}
+        photo={imagery.pages.guides}
       />
       <section className="mp-section mp-surface--paper" aria-labelledby="mp-guides-list">
         <div className="mp-shell">

@@ -2575,6 +2575,9 @@ export const imagery = {
        background photograph like the other pages). The bare concrete frame of a
        tower, slab edges and columns: the owner wanted a concrete structure. */
     resources: photo.frameSlabEdges,
+    /* The guides hub (the owner, 2026-10-21: it had no photograph). The
+       Miami towers across the bay: the buildings the guides are about. */
+    guides: photo.miamiSkylineTeal,
   },
   /* One photograph per service, keyed by slug. The card, the service-page
      hero and — for the two county programs — the home-page section are one
