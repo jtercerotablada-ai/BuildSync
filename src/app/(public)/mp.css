@@ -2465,7 +2465,7 @@ a.mp-menu__mail {
 
 /* ═══ 14 · INTERNAL PAGES ═════════════════════════════════════════════════ */
 
-.mp-phero:has(.mp-phero__photo) {
+.mp-phero {
   position: relative;
   background: var(--mp-graphite);
   padding-block: calc(var(--mp-header-h) + clamp(2rem, 3.5vw, 3rem)) clamp(2.25rem, 3.5vw, 3rem);
