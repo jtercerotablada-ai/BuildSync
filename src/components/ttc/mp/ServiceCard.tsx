@@ -11,6 +11,26 @@ import { useContent, useL } from './lang';
 type Svc = SiteContent['services'][number] | Service;
 
 /**
+ * "Details" stays where it was pressed. While one row is open the two
+ * columns stop sharing row heights (mp.css, `.mp-tracks:has(...)`), so a
+ * row whose rows above had been stretched by the column beside it moves up
+ * when it opens — the last rows of New projects, 121px at 1440 in English
+ * and 218px in Spanish (2026-10-20) — and back down when it closes. The
+ * page scrolls by what the control moved, in the same task, before anything
+ * is painted. A keyboard Enter or Space on a summary is a click too.
+ */
+function keepInPlace(e: React.MouseEvent<HTMLElement>) {
+  const summary = e.currentTarget;
+  const details = summary.parentElement;
+  if (!(details instanceof HTMLDetailsElement)) return;
+  e.preventDefault();
+  const before = summary.getBoundingClientRect().top;
+  details.open = !details.open;
+  const moved = summary.getBoundingClientRect().top - before;
+  if (Math.abs(moved) >= 0.5) window.scrollBy({ top: moved, behavior: 'instant' });
+}
+
+/**
  * One service as a row of the /services index: a small photograph, the name
  * (the link to the service's page), one line on what it is, the first step
  * in the client's terms and the link that takes it. The service's page
@@ -79,7 +99,7 @@ export function ServiceCard({ service, index }: { service: Svc; index?: number }
           <i aria-hidden="true">→</i>
         </Link>
         <details className="mp-svc__more">
-          <summary className="mp-svc__toggle">
+          <summary className="mp-svc__toggle" onClick={keepInPlace}>
             {c.servicesPage.cardMore}
             <span className="mp-sr-only">: {service.title}</span>
           </summary>

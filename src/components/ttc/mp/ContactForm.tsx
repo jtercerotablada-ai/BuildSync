@@ -738,8 +738,10 @@ export function ContactForm({ presetService }: { presetService?: string }) {
 
         {noticeFirst ? attachments : null}
 
-        {/* Who: name, email and the optional phone in one row from 641px
-            (weighted columns, so an email address fits at 1181px). */}
+        {/* Who: name, email and the optional phone. One row of three from
+            641 to 1180px, where the form has the full width; from 1181px,
+            beside the guide, name | email with the phone under the name
+            (mp.css 18), so a long address stays readable as it is typed. */}
         <div className="mp-form__row mp-form__row--3">
           <Field id="mp-name" name="name" label={t.name} value={f.name} onChange={set('name')} error={errors.name} autoComplete="name" autoCapitalize="words" spellCheck={false} maxLength={120} required />
           <Field id="mp-email" name="email" label={t.email} type="email" inputMode="email" value={f.email} onChange={set('email')} error={errors.email} autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={200} required />
@@ -848,10 +850,10 @@ export function ContactForm({ presetService }: { presetService?: string }) {
           </button>
         </div>
 
-        {/* The one line of fine print the page keeps: a legal necessity. The
-            free proposal and the reply time are said in the hero, not in
-            small print by the button. */}
-        <p className="mp-form__note">{c.legal.contactFormNotice}</p>
+        {/* Nothing under the button (the owner, October 20, 2026: no small
+            print). The free proposal and the reply time are said in the hero;
+            that a request creates no engagement, and what its details are
+            used for, are on /terms and /privacy, linked from the footer. */}
       </form>
     </>
   );

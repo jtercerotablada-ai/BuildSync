@@ -40,8 +40,9 @@ import { PageHero } from '@/components/ttc/mp/PageHero';
  * 2026): the colour and the link say it. Nothing else on this page changes
  * for one to go live — the counts are counted from the list.
  *
- * Headings: one h1 and one h2 per family, never inside the summary (a
- * heading in a <summary> loses its role). A calculator's name is a row of a
+ * Headings: one h1 and one h2 per family, never inside the summary (some
+ * screen readers — VoiceOver — flatten a heading inside a summary into the
+ * button's name). A calculator's name is a row of a
  * list, not a heading — there are close to a hundred of them.
  *
  * The icons are the owner's drawings (calculators.ts). Each `<img>` carries
@@ -126,10 +127,21 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
                   open
                   data-calc-fold={family.items.some((item) => item.href) ? undefined : 'planned'}
                 >
-                  <summary className="mp-calc__count">
-                    {/* On a phone the number alone is drawn, as in the index; the word stays for a screen reader. */}
+                  {/* The toggle is named after its subject and its count
+                      ("Welds, 3 calculators"): the h2 is outside it, and a
+                      list of controls all called "3 calculators" tells a
+                      screen reader nothing. A plain label, because one built
+                      from the page's text takes the uppercase transform and
+                      loses the space in Chrome. */}
+                  <summary
+                    className="mp-calc__count"
+                    aria-label={`${family.title[lang]}, ${family.items.length} ${t.count}`}
+                  >
+                    {/* On a phone the number alone is drawn, as in the index; the word stays for a screen reader.
+                        The number and its space are one text node, so the space is never dropped. */}
                     <span>
-                      {family.items.length} <span className="mp-calc__countword">{t.count}</span>
+                      {`${family.items.length} `}
+                      <span className="mp-calc__countword">{t.count}</span>
                     </span>
                   </summary>
                   <ul className="mp-calc__list">

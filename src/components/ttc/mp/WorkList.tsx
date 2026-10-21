@@ -17,8 +17,9 @@ import { useContent, useL } from './lang';
  *     rhythm). Illustrative photographs are labelled as such.
  *   • `caseStudies` is empty → TYPICAL ENGAGEMENTS, as one register
  *     (`.mp-work--register`): a row per profile — the reader's situation
- *     (`need`), the service page that answers it, and four facts (project
- *     type, scope, structural system, deliverables). No photograph: a big
+ *     (`need`), the least they need to begin (`start`, "…is enough"), the
+ *     service page that answers it, and four facts (project type, scope,
+ *     structural system, deliverables). No photograph: a big
  *     16:10 frame over each profile, some of identifiable towers, read as
  *     "our projects". No Status row and no footnote: the hero's lede says
  *     once what these are. They carry no location row either: the honest
@@ -124,6 +125,7 @@ export function WorkList({ n = '01' }: { n?: string }) {
                   <h3 className="mp-work__title">{e.title}</h3>
                 </div>
                 <p className="mp-work__need">{e.need}</p>
+                <p className="mp-work__start">{e.start}</p>
                 <dl className="mp-work__specs">
                   <div><dt>{u.projectType}</dt>{' '}<dd>{e.projectType}</dd></div>
                   <div><dt>{u.scope}</dt>{' '}<dd>{e.scope}</dd></div>

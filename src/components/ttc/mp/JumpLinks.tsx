@@ -6,6 +6,11 @@ import type { SiteContent } from '@/lib/ttc/content';
  * constants on its sections, so a link and its target cannot drift apart;
  * like the home page's #miami-dade and #broward they are identical on the
  * English and the Spanish page.
+ *
+ * `package` is not in the bar: it is the complete package, part by part,
+ * under "What you receive" on the two county programs — the target of each
+ * city page's "The package, part by part" (CityView), which opens its rows
+ * on arrival (OpenAtHash).
  */
 export const JUMP_ID = {
   applies: 'when-it-applies',
@@ -13,6 +18,7 @@ export const JUMP_ID = {
   steps: 'how-it-runs',
   questions: 'questions',
   offices: 'your-city',
+  package: 'the-package',
 } as const;
 
 type Service = SiteContent['services'][number];
@@ -41,10 +47,12 @@ export function jumpLinks(c: SiteContent, service: Service): { id: string; label
 }
 
 /**
- * A row of in-page links on the two county-program pages: under the hero on
- * a phone, and from 1024px a bar that stays under the header while the page
- * scrolls (mp.css, "Service detail, compact"). Between 641 and 1023px the
- * five labels do not fit one row, so there is none.
+ * A row of in-page links on the two county-program pages: up to 1023px a
+ * band at the foot of the hero (one column of 44px rows on a phone, two from
+ * 641px — a tablet in portrait reads ten screens of these pages), and from
+ * 1024px a bar that stays under the header while the page scrolls (mp.css,
+ * "Service detail, compact"). The five labels fit one row only from 1024px,
+ * so only there does it stick.
  *
  * Why: these are the two longest pages of the site, and the parts a board
  * member came for — does it apply, when is it due, which office sent the

@@ -65,7 +65,7 @@ const en: CostPage = {
   eyebrow: 'Pricing',
   titleLines: ['What a recertification', 'costs in South Florida.'],
   accentWord: 'costs in South Florida.',
-  sub: 'Know what you will pay up front: fixed-fee ranges for the Miami-Dade recertification and the Broward BSIP across South Florida, by building size, and the costs outside the engineering fee.',
+  sub: 'Know your engineering fee up front: fixed-fee ranges for the Miami-Dade recertification and the Broward BSIP across South Florida, by building size, and what sits outside that fee.',
   reviewed: 'Prices reviewed October 2026',
   tables: {
     label: 'The fee',
@@ -100,7 +100,7 @@ const en: CostPage = {
   },
   save: {
     label: 'Pay less',
-    first: 'Call when the notice arrives, not near its date: there is time to plan repairs instead of rushing them.',
+    first: 'Call the day the notice arrives, or today if its date has passed: the earlier the inspection, the more room to plan the repairs.',
   },
   faq: {
     label: 'Questions',
@@ -136,7 +136,7 @@ const es: CostPage = {
   eyebrow: 'Precios',
   titleLines: ['Lo que cuesta una recertificación', 'en el Sur de Florida.'],
   accentWord: 'en el Sur de Florida.',
-  sub: 'Sepa de antemano cuánto va a pagar: rangos de precio fijo de la recertificación de Miami-Dade y del BSIP de Broward en el Sur de Florida, según el tamaño del edificio, y los costos que quedan fuera de los honorarios de ingeniería.',
+  sub: 'Conozca de antemano sus honorarios de ingeniería: rangos de precio fijo de la recertificación de Miami-Dade y del BSIP de Broward en el Sur de Florida, según el tamaño del edificio, y lo que queda fuera de ellos.',
   reviewed: 'Precios revisados en octubre de 2026',
   tables: {
     label: 'Los honorarios',
@@ -169,7 +169,7 @@ const es: CostPage = {
   },
   save: {
     label: 'Pagar menos',
-    first: 'Llame cuando llegue la notificación, no cerca de su fecha: queda tiempo para planear las reparaciones en vez de apurarlas.',
+    first: 'Llame el día que llegue la notificación, o hoy mismo si la fecha ya pasó: cuanto antes la inspección, más margen para planear las reparaciones.',
   },
   faq: {
     label: 'Preguntas',

@@ -7,11 +7,12 @@ import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { stripLang } from '@/lib/ttc/i18n';
 import { useContent, useL } from './lang';
 import { whatsappHref } from './ReachRow';
-import { COST_PATH } from '@/lib/ttc/cost-path';
+import { pageHoldsNotice } from '@/lib/ttc/notice-pages';
 
 /**
- * Phones only: Call · WhatsApp · Send the notice, fixed to the bottom of the
- * screen once the visitor has scrolled past the first screen.
+ * Phones only: Call · WhatsApp · Send the notice (or Free proposal), fixed to
+ * the bottom of the screen once the visitor has scrolled past the first
+ * screen.
  *
  * Why it exists: on a phone the first way to reach the firm used to be three
  * to four screens down the two program pages, and the visitor those pages are
@@ -51,19 +52,19 @@ export function MobileActionBar() {
   if (/\/contact\/?$/.test(pathname)) return null;
   const canonical = stripLang(pathname).replace(/\/$/, '');
   if (canonical === '/resources' || openCalculatorPaths.some((p) => p === canonical)) return null;
-  /* Where the reader holds a notice — the home page, the existing-building
-     pages, the guides, the cost page, a county program or one of its city
-     pages — the bar sends the notice. Elsewhere (a new building, /about,
-     /projects, /services) it asks for a proposal, and the WhatsApp chat
-     opens without "I received a notice". A service page's button keeps its
-     service chosen. */
+  /* Where the reader holds a notice (pageHoldsNotice: the home page, the
+     existing-building pages, the guides, the cost page, a county program,
+     the milestone page and their city pages) the bar sends the notice.
+     Elsewhere it offers the free proposal, and the WhatsApp chat opens
+     without "I received a notice". A service page's button keeps its
+     service chosen.
+
+     Its own short label, not the header's "Request a Proposal": that one
+     broke onto two lines in the bar's third of a 360–390px screen, and the
+     header hides its button while the bar is up (mp.css, 19), so the two
+     are never on screen together. */
   const svc = c.services.find((s) => canonical === `/services/${s.slug}` || canonical.startsWith(`/services/${s.slug}/`));
-  const notice =
-    canonical === '' ||
-    canonical.startsWith('/existing-buildings') ||
-    canonical.startsWith('/guides') ||
-    canonical === COST_PATH ||
-    svc?.track === 'existing';
+  const notice = pageHoldsNotice(canonical);
   const wa = whatsappHref(c, !notice);
   const r = c.reach;
 
@@ -82,7 +83,7 @@ export function MobileActionBar() {
         </a>
       ) : null}
       <Link className="mp-bar__item mp-bar__item--main" href={l(svc ? `/contact?service=${svc.slug}` : '/contact')}>
-        {notice ? r.form : c.primaryCta.label}
+        {notice ? r.form : r.formPlain}
       </Link>
     </nav>
   );

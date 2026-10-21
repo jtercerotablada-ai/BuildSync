@@ -1,6 +1,9 @@
 'use client';
 
 import React from 'react';
+import { usePathname } from 'next/navigation';
+import { stripLang } from '@/lib/ttc/i18n';
+import { pageHoldsNotice } from '@/lib/ttc/notice-pages';
 import { ButtonLink, DarkHeroSentinel, Reveal, RevealText, TextLink } from './primitives';
 import { accentLines } from './text';
 import { useContent, useL } from './lang';
@@ -30,13 +33,19 @@ import { ReachRow } from './ReachRow';
  * button then opens the form with that service already selected, like every
  * other button on that page — it used to drop the preset on the last screen.
  *
- * `assure` is the line beside the Call and WhatsApp links: the proposal is
- * free, and a reply usually comes within two hours. This band says it on
- * every page — except a page that has said it already. The two county
- * programs print it under their deadline, beside the button there, and pass
- * `assure={false}`: said again here it was one paragraph twice on a page.
- * The links themselves stay. On a phone (≤900px, where the fixed bar carries
- * Call and WhatsApp) mp.css hides the links here; they stay in the HTML.
+ * The two facts of the easy step — the proposal is free, and a reply
+ * usually comes within two hours — end the band's own text
+ * (`closingCta.body`), at reading size. They were a small grey line under
+ * the buttons (`assure`), which the owner's no-small-print rule (October 20,
+ * 2026) took out. Under the buttons there are only the Call and WhatsApp
+ * links, and on a phone (≤900px, where the fixed bar carries both) mp.css
+ * hides them here; they stay in the HTML.
+ *
+ * `notice`: left out, the band asks pageHoldsNotice (notice-pages.ts) about
+ * the page it closes — the phone bar's rule — so the no-letter guide and
+ * the assessments page do not say "Send the notice by WhatsApp". A view
+ * that passes it (from site.ts `holdsNotice`, or a guide's `heroAction`)
+ * overrides the rule; notice-pages.test.ts keeps the two in agreement.
  *
  * The section is named by its real headline (RevealText's `id`), not by a
  * visually hidden copy of it, so screen readers hear the title once.
@@ -45,15 +54,12 @@ export function ContactCTA({
   asHero = false,
   secondary,
   service,
-  assure = true,
-  notice = true,
+  notice,
 }: {
   asHero?: boolean;
-  /** False where the page above already printed the free-proposal line. */
-  assure?: boolean;
-  /** False on a page whose reader holds no notice (a new building, /about,
-      /projects, /services): WhatsApp says "Message us", not "Send the
-      notice", and the chat opens without "I received a notice". */
+  /** False on a page whose reader holds no notice: WhatsApp says "Message
+      us", not "Send the notice", and the chat opens without "I received a
+      notice". Default: pageHoldsNotice of the page's own address. */
   notice?: boolean;
   /** A service slug: the primary button keeps `?service=<slug>`. */
   service?: string;
@@ -62,9 +68,17 @@ export function ContactCTA({
 }) {
   const c = useContent();
   const l = useL();
+  const pathname = usePathname();
+  const holds = notice ?? pageHoldsNotice(stripLang(pathname ?? '/'));
   const k = c.closingCta;
   const second = secondary ?? k.secondary;
   const primaryHref = service ? `${k.primary.href}?service=${service}` : k.primary.href;
+  // On a county program's page (and its city pages, and a guide to one
+  // program) the band's button says what every other button there says —
+  // "Send the Miami-Dade Notice" — not a generic "Request a Proposal" for
+  // the same form with the same program selected.
+  const program = service ? c.services.find((s) => s.slug === service)?.program : undefined;
+  const primaryLabel = holds && program ? program.cta : k.primary.label;
   return (
     <section className="mp-section mp-surface--graphite mp-close" aria-labelledby="mp-close-title">
       <div className="mp-grid-bg" aria-hidden="true" />
@@ -87,16 +101,15 @@ export function ContactCTA({
         <div className="mp-close__act">
           <Reveal delay={0.12} className="mp-cta-row">
             <ButtonLink href={l(primaryHref)} variant="solid">
-              {k.primary.label}
+              {primaryLabel}
             </ButtonLink>
             <TextLink href={l(second.href)}>{second.label}</TextLink>
           </Reveal>
 
-          {/* The other two ways in, and the two facts next to them: the
-              proposal is free and a reply usually comes within two hours —
-              unless the page has printed those two facts already (`assure`). */}
+          {/* The other two ways in. Nothing else under the buttons: the two
+              facts are the end of the body above. */}
           <Reveal delay={0.13}>
-            <ReachRow c={c} assure={assure} plain={!notice} className="mp-reach--close" />
+            <ReachRow c={c} plain={!holds} className="mp-reach--close" />
           </Reveal>
         </div>
       </div>

@@ -103,8 +103,20 @@ export function SmoothScroll() {
       // when handed an element. Passing the header height again would land
       // every anchor one header too low. Before the library has arrived, the
       // browser's own scroll honours the same padding.
-      if (lenis) lenis.scrollTo(el);
-      else el.scrollIntoView({ block: 'start' });
+      //
+      // Lenis measures the target from the position it last heard of, which a
+      // scroll event brings it. A link that was brought into view and
+      // activated in the same frame — a screen reader does both at once —
+      // was measured from a stale position and landed short by exactly that
+      // scroll (a phone at 390px: 560–650px short of "Questions"). So when
+      // Lenis is not mid-animation and is behind the page, it is told where
+      // the page is first.
+      if (lenis) {
+        if (lenis.isScrolling !== 'smooth' && Math.abs(lenis.animatedScroll - window.scrollY) >= 1) {
+          lenis.scrollTo(window.scrollY, { immediate: true });
+        }
+        lenis.scrollTo(el);
+      } else el.scrollIntoView({ block: 'start' });
       if (!el.matches('a[href], button, input, select, textarea, [tabindex]')) {
         el.setAttribute('tabindex', '-1');
       }

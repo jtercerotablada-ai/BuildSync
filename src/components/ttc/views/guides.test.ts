@@ -14,6 +14,7 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { absoluteUrl, company } from '@/lib/ttc/site';
 import { EN_PUBLIC_PAGES, ES_PUBLIC_PAGES, isMarketingRoute, isPublicRoute, PUBLIC_NOT_FOUND, publicNotFoundTarget } from '@/proxy';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
+import { keepHyphens } from '@/components/ttc/mp/text';
 import { AboutView } from './AboutView';
 import { CityView } from './CityView';
 import { ContactView } from './ContactView';
@@ -255,7 +256,8 @@ describe('guides: the page a visitor gets', () => {
         for (const block of g.sections.flatMap((s) => s.facts ?? [])) {
           const { row, facts } = guideFacts(lang, block);
           for (const f of facts) expect(main).toContain(esc(f.v));
-          expect(main).toContain(esc(row.source));
+          // As Source prints it: a hyphenated part kept whole (`keepHyphens`).
+          expect(main).toContain(renderToStaticMarkup(h('i', null, keepHyphens(row.source))).slice(3, -4));
         }
         expect(main).toContain(`<time dateTime="${guidesReviewedISO}">${guidesReviewed[lang]}</time>`);
       });
@@ -304,6 +306,14 @@ describe('guides: the page a visitor gets', () => {
       }
     });
 
+    // The hub is a page of its own too: the same floor as a guide, counted
+    // the same way (its <main>, the closing band apart). It was 385 words.
+    it(`${lang} /guides: says enough to be a page of its own`, () => {
+      const main = mainOf(guides.get(lang)!.get(GUIDES_PATH)!);
+      const body = text(main.replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, ''));
+      expect(words(body)).toBeGreaterThanOrEqual(500);
+    });
+
     for (const program of PROGRAMS) {
       it(`${lang} ${program}: the program page links each of its guides`, () => {
         const main = mainOf(site.get(lang)!.get(`/services/${program}`)!);
@@ -311,6 +321,42 @@ describe('guides: the page a visitor gets', () => {
           expect(main).toContain(`href="${localePath(guidePath(g.slug), lang)}"`);
         }
       });
+    }
+  }
+});
+
+/* The reader with no letter yet (`heroAction: 'address'`) is never asked to
+   send a notice: under "Send the Address", the hero and the closing band say
+   "Message us on WhatsApp", and the chat opens without "I received a notice".
+   Every other guide is read by someone holding the letter, and keeps the
+   notice wording. (The phone bar is outside <main>: it reads notice-pages.ts,
+   whose own test keeps its list equal to the guides' `heroAction`.) */
+describe('guides: no "Send the notice" where the reader may have no letter', () => {
+  for (const lang of LANGS) {
+    const r = getContent(lang).reach;
+    const count = (html: string, s: string) => html.split(s).length - 1;
+    const noticeText = encodeURIComponent(r.whatsappText).replace(/'/g, '%27');
+    for (const g of getGuides(lang)) {
+      const html = guides.get(lang)!.get(guidePath(g.slug))!;
+      const main = mainOf(html);
+      const bar = html.match(/<nav class="mp-bar[\s\S]*?<\/nav>/)?.[0] ?? '';
+      if (g.heroAction === 'address') {
+        it(`${lang} ${g.slug}: WhatsApp without the notice, in the hero, the closing band and the phone bar`, () => {
+          expect(count(main, esc(r.whatsappPlain))).toBe(2);
+          expect(main).not.toContain(esc(r.whatsappNotice));
+          expect(main).not.toContain(noticeText);
+          expect(main).toContain(encodeURIComponent(r.whatsappTextPlain).replace(/'/g, '%27'));
+          expect(bar).not.toBe('');
+          expect(bar).not.toContain(`>${esc(r.form)}</a>`);
+          expect(bar).not.toContain(noticeText);
+        });
+      } else {
+        it(`${lang} ${g.slug}: the notice, in the hero, the closing band and the phone bar`, () => {
+          expect(count(main, esc(r.whatsappNotice))).toBe(2);
+          expect(main).not.toContain(esc(r.whatsappPlain));
+          expect(bar).toContain(`>${esc(r.form)}</a>`);
+        });
+      }
     }
   }
 });

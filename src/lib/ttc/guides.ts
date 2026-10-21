@@ -60,7 +60,11 @@ export type Guide = {
   /**
    * DATA, not text: 'address' for a guide whose reader may have no letter
    * yet. Its hero then has one button, `labels.addressCta`, to the form with
-   * no program preset.
+   * no program preset, and the page never says "Send the notice": Call and
+   * WhatsApp, in the hero and in the closing band, are the plain ones, and
+   * the chat opens without "I received a notice". Its slug is also in
+   * notice-pages.ts `NO_NOTICE_GUIDES`, which the phone bar reads (it may
+   * not import this text); notice-pages.test.ts keeps the two the same.
    */
   heroAction?: 'address';
   seo: { title: string; description: string };
@@ -86,7 +90,12 @@ export type GuidesIndex = {
   sub: string;
   listLabel: string;
   listTitle: string;
-  /** Under the list: why the reader's own letter counts, and the next step. */
+  /**
+   * Under the list, every paragraph about the reader's building, never about
+   * the site: what a missed date leads to in each county, why the two are
+   * never mixed, what to send (the letter — or, with no letter yet, the
+   * address), and what follows. No "how to read these guides" text.
+   */
   howLabel: string;
   howTitle: string;
   how: string[];

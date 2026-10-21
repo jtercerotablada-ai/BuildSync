@@ -68,7 +68,7 @@ describe('/contact: the section under the form is its own', () => {
       expect(shared).toEqual([]);
     });
 
-    it(`${lang}: says what to send, what comes back and how else to reach the firm`, () => {
+    it(`${lang}: says what to send and what comes back`, () => {
       const b = c.contactPage.before;
       expect(b.items.length).toBe(getContent('en').contactPage.before.items.length);
       for (const it of b.items) {

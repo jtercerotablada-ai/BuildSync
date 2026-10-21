@@ -40,12 +40,22 @@ export function CalcFolds() {
       const d = document.getElementById(id)?.querySelector<HTMLDetailsElement>(':scope > details.mp-calc__fold');
       if (d) d.open = true;
     };
+    // Wide, the summary is a plain count: out of the Tab order, and marked
+    // unavailable, so a screen reader does not offer a toggle that the
+    // listener below would only undo. Not presentation or aria-hidden:
+    // Chromium ignores presentation on a focusable summary, and aria-hidden
+    // would hide the count.
     const setMode = () => {
       for (const d of all()) {
         const summary = d.querySelector<HTMLElement>(':scope > summary');
-        if (mq.matches) summary?.removeAttribute('tabindex');
-        else {
-          if (summary) summary.tabIndex = -1;
+        if (mq.matches) {
+          summary?.removeAttribute('tabindex');
+          summary?.removeAttribute('aria-disabled');
+        } else {
+          if (summary) {
+            summary.tabIndex = -1;
+            summary.setAttribute('aria-disabled', 'true');
+          }
           d.open = true;
         }
       }

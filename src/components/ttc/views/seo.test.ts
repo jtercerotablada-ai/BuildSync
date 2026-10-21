@@ -53,6 +53,7 @@ import { LegalView } from './LegalView';
 import { ServiceDetailView } from './ServiceDetailView';
 import { ServicesView } from './ServicesView';
 import { WorkView } from './WorkView';
+import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { HomeAddress, brandedTitle, pageMeta } from './meta';
 import { SEO } from './seo';
 
@@ -472,6 +473,62 @@ describe('H1: every page, in words the page uses', () => {
     it(`${name}: every word of the H1 is a word of the page`, () => {
       const body = new Set(words(r.rest));
       expect(words(r.h1).filter((w) => !body.has(w))).toEqual([]);
+    });
+  }
+});
+
+/**
+ * THE 500-WORD FLOOR, on every page of the sitemap, in both languages.
+ *
+ * The owner's on-page report lists a page under 500 words as thin. Only the
+ * city pages, the guides and the cost page had a floor of their own; the
+ * static pages and the service pages could be cut under it — as a compact
+ * pass takes words off /contact, /about or a service — with every test
+ * green, and the owner found it in his report after the deploy.
+ *
+ * The ruler is the one round 3 calibrated against the report (October 7,
+ * 2026): the page as it is served — the view AND the header, the footer and
+ * the phone bar — with comments, scripts, styles and SVG taken out, tags as
+ * spaces, entities decoded, and a word = a run of letters or digits
+ * (apostrophes and hyphens inside it). The report's own count came out at
+ * 0.83 to 0.93 of that, so a page needs 500 / 0.83 by this ruler to be
+ * over 500 by the report's at its strictest. The text of a closed <details>
+ * counts: it is in the HTML, which is what the report reads.
+ */
+describe('words: no page of the sitemap under the report’s 500', () => {
+  const REPORT_FLOOR = 500;
+  const REPORT_RATIO = 0.83;
+  const FLOOR = Math.ceil(REPORT_FLOOR / REPORT_RATIO);
+  const decode = (s: string) =>
+    s
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+      .replace(/&amp;/g, '&');
+  const served = (html: string) =>
+    decode(
+      html
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<(script|style|noscript|template|svg)\b[\s\S]*?<\/\1>/g, ' ')
+        .replace(/<[^>]+>/g, ' '),
+    );
+  const count = (html: string) => (served(html).match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []).length;
+
+  it('counts a word the way the round-3 ruler did', () => {
+    expect(count('<p>Florida&#x27;s 40-year <b>re</b>certification — <script>{"a":"b c"}</script>&amp; BSIP</p>')).toBe(5);
+  });
+
+  for (const r of rendered) {
+    const name = localePath(r.path, r.lang);
+    it(`${name}: at least ${FLOOR} words as served (${REPORT_FLOOR} by the report)`, () => {
+      // The chrome around this page, at this page's address: the bar's
+      // label and the language link depend on it.
+      route.pathname = name;
+      const chrome = renderToStaticMarkup(h(SiteChrome, null, null));
+      expect(count(r.html) + count(chrome)).toBeGreaterThanOrEqual(FLOOR);
     });
   }
 });

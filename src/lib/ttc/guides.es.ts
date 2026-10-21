@@ -41,10 +41,11 @@ export const index: GuidesIndex = {
   howLabel: 'Su carta',
   howTitle: 'Su carta fija la fecha. Envíela y se la leemos.',
   how: [
-    'Miami-Dade y Broward tienen programas distintos, con sus propias edades, sus propios plazos y sus propios formularios. Una regla de un condado nunca se aplica a un edificio del otro, y confundirlos cuesta un tiempo que ningún plazo devuelve. Cada guía dice de qué condado habla y, cuando trata los dos, los mantiene separados.',
-    'Las edades y los plazos de las guías nunca se escriben a mano: se imprimen desde las mismas filas verificadas de las páginas de cada programa, con su fuente y la fecha de su última revisión.',
-    'Si una fecha de su notificación no coincide con una guía, vale la de la notificación. Mándenos una foto tomada con el teléfono y le decimos, en palabras sencillas, qué le piden y qué sigue, con una propuesta de precio fijo por el paquete completo. ¿Ya va tarde? Todavía tiene solución.',
-    'Juntas, dueños y administradores usan estas páginas para preparar una reunión, responder a los propietarios o comparar propuestas. Puede compartirlas libremente; cada una lleva a la página de su programa y a lo que cuesta el trabajo.',
+    'El condado no espera a la próxima reunión de la junta. En Miami-Dade, la recertificación que se queda sin entregar pasa a cumplimiento del código: sanciones por cada infracción, un gravamen sobre la propiedad y, si el edificio resulta inseguro, una orden de desalojo. En Broward, el informe atrasado va a una audiencia, y un edificio cuyas reparaciones nunca se hacen puede declararse inseguro.',
+    'Miami-Dade y Broward tienen programas distintos, con sus propias edades, sus propios plazos y sus propios formularios. Una regla de un condado nunca se aplica a un edificio del otro, y confundirlos cuesta un tiempo que ningún plazo devuelve.',
+    'Si una fecha de su notificación no coincide con una guía, vale la de la notificación. Mándenos una foto de la notificación con su celular y le decimos, en palabras sencillas, a qué programa corresponde, qué le pide la oficina y para cuándo, y qué sigue, con una propuesta de precio fijo que cubre el paquete completo. ¿Ya va tarde? Todavía tiene solución.',
+    '¿Todavía no le ha llegado la carta? Envíenos la dirección del edificio. Leemos el registro desde el cual el condado cuenta su edad y le decimos si la inspección ya le toca, le tocará pronto o todavía no; empezar antes de la carta permite planear las reparaciones, si las hay, sin prisas.',
+    'Una vez aprobada la propuesta, la inspección se programa para un día en que se pueda abrir el edificio, y el paquete completo le llega entre tres y cuatro días después de esa visita, o entre uno y dos si la fecha está cerca. Un informe que enumera reparaciones se entrega a tiempo de todos modos; las reparaciones se hacen después, con permiso de construcción.',
   ],
 };
 
@@ -62,7 +63,7 @@ export const guides: Guide[] = [
     h1: 'Recibió una notificación de recertificación. Esto es lo primero que conviene hacer.',
     heroSub:
       'Una carta de su departamento de construcción pone a correr un plazo. Esto es lo que conviene hacer: léala ese mismo día y siga estos cinco pasos, esté el edificio en Miami-Dade o en Broward.',
-    card: 'Llegó la carta. Los cinco primeros pasos, y el plazo que empieza a correr.',
+    card: 'Para la junta o el dueño que tiene la carta en la mano: los cinco primeros pasos, en orden, y el plazo que empieza a correr.',
     sections: [
       {
         title: 'Primero, lea lo que la carta dice en realidad',
@@ -141,7 +142,7 @@ export const guides: Guide[] = [
     h1: 'La notificación del BSIP en Broward: qué significa y quién debe presentar',
     heroSub:
       'Una carta certificada sobre el BSIP (Building Safety Inspection Program) significa que su edificio alcanzó en Broward la edad de inspección. Esto es lo que le pide.',
-    card: 'Lo que la carta certificada le pide al propietario, y qué edificios quedan fuera del programa.',
+    card: 'Para un edificio de Broward que recibió la carta certificada: lo que le pide al propietario, y qué edificios quedan fuera del programa.',
     sections: [
       {
         title: 'Qué es la carta',
@@ -207,13 +208,13 @@ export const guides: Guide[] = [
     h1: 'Cómo comprobar si a su edificio ya le corresponde la inspección',
     heroSub:
       '¿Aún no tiene carta, o no está seguro de que le aplique? La edad que cuenta consta en un registro público que usted mismo puede comprobar, y cada condado la toma de un registro distinto.',
-    card: '¿Aún sin carta? Dónde consta la edad que cuenta, condado por condado.',
+    card: '¿Aún sin carta? Dónde consta la edad que cuenta, condado por condado, para revisarla antes de que llegue la notificación.',
     sections: [
       {
         title: 'Empiece por el condado donde está el edificio',
         paras: [
           'Miami-Dade y Broward cuentan la edad de un edificio con registros distintos, así que lo primero es saber el condado, no el municipio. Un edificio en Aventura depende del programa de Miami-Dade; uno al otro lado de la línea del condado, en Hallandale Beach, depende del de Broward.',
-          'Después busque la edad desde la cual cuenta ese condado y compárela con sus filas, más abajo. Si el edificio ya superó esa edad, o le falta poco, la notificación está por llegar o ya va con retraso, haya llegado una carta o no. ¿Ya va tarde? Todavía tiene solución.',
+          'Después busque la edad desde la cual cuenta ese condado y compárela con sus filas, más abajo. Si el edificio ya superó esa edad, o le falta poco, la notificación está por llegar o ya va con retraso, haya llegado una carta o no; y aun con retraso, todavía tiene solución.',
         ],
       },
       {
@@ -274,7 +275,7 @@ export const guides: Guide[] = [
     h1: '“30 años”, “40 años”, “50 años”: un programa de Miami-Dade con tres nombres',
     heroSub:
       'Los nombres cuentan los años que tiene el edificio al momento de una inspección. Hay un solo programa, la recertificación de edificios de Miami-Dade, y se repite durante toda la vida del edificio.',
-    card: 'Un programa, tres nombres que buscan los dueños, y lo que quiere decir hoy cada uno.',
+    card: 'Para una junta de Miami-Dade que no sabe qué nombre le aplica: un programa, tres nombres que buscan los dueños, y qué significa hoy cada uno.',
     sections: [
       {
         title: 'De dónde vienen los nombres',
@@ -339,7 +340,7 @@ export const guides: Guide[] = [
     h1: 'Inspección de hito, recertificación y SIRS: lo que le toca a una junta de condominio',
     heroSub:
       'Tres nombres, dos leyes, un edificio. En Miami-Dade y Broward, la inspección del condado y la de hito del estado son un solo informe; el estudio de reservas es otro asunto.',
-    card: 'Tres nombres que escucha una junta de condominio, y cuáles de ellos son un mismo informe.',
+    card: 'Para una junta de condominio de cualquier condado: tres nombres que escucha, cuáles dos son un mismo informe y cuál planifica el dinero.',
     sections: [
       {
         title: 'La inspección de hito que exige el estado',
@@ -407,7 +408,7 @@ export const guides: Guide[] = [
     h1: 'Qué pasa cuando un edificio “no aprueba” su recertificación',
     heroSub:
       'Casi todos los edificios que “no aprueban” tienen un informe que enumera reparaciones, y para eso hay un camino fijo hasta el cierre. El informe que nunca se entrega es el caso que sale caro.',
-    card: 'Un informe que enumera reparaciones, y un informe que nunca se entregó: dos casos muy distintos.',
+    card: 'Para un edificio cuyo informe enumera reparaciones, o cuyo informe nunca se entregó: dos casos muy distintos, y cómo se cierra cada uno.',
     sections: [
       {
         title: 'El formulario no aprueba ni reprueba',
@@ -480,7 +481,7 @@ export const guides: Guide[] = [
     h1: 'Los certificados de estacionamiento en Miami-Dade: iluminación y barandas',
     heroSub:
       'Una recertificación en Miami-Dade es más que un informe estructural y otro eléctrico. Cuando corresponde, también lleva dos certificaciones del estacionamiento.',
-    card: 'Los dos formularios de estacionamiento de una recertificación en Miami-Dade, y qué registra cada uno.',
+    card: 'Para una propiedad de Miami-Dade con estacionamiento: los dos formularios que acompañan la recertificación, y qué registra cada uno.',
     sections: [
       {
         title: 'Dos formularios que van con los informes',

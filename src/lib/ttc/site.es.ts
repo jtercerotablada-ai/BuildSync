@@ -297,7 +297,7 @@ const services: SiteContent['services'] = [
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad, o del condado en las áreas no incorporadas; el ingeniero tiene el deber de hacerlo.',
       'Un informe de recertificación documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
     ],
-    notesToggle: 'Ver las {n} notas',
+    notesToggle: 'Las {n} notas',
     /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`: the same
        rows, in the same order, as TEXT (they were links until 2026-10-07;
        the reasoning is in site.ts, and the cities' addresses are in
@@ -348,7 +348,7 @@ const services: SiteContent['services'] = [
         url: 'https://www.miamidade.gov/global/economy/building/recertification.page',
       },
       checked: officeLinksChecked,
-      toggle: 'Ver las {n} oficinas de construcción',
+      toggle: '{n} oficinas de construcción, ciudad por ciudad',
     },
     /* EL PAQUETE DE MIAMI-DADE — mirror of the EN `packet`: the same eight
        rows in the same order, and the same care in each (read the comment
@@ -369,7 +369,7 @@ const services: SiteContent['services'] = [
         { k: 'Plano del sitio o levantamiento topográfico', v: 'Una vista aérea que identifica el edificio acompaña a todo informe estructural. Donde una propiedad tiene más de un edificio, un plano del sitio (site plan) o la copia de un levantamiento (survey) muestra a cuál corresponden los informes.' },
       ],
       note: 'Leemos primero la carta de su ciudad y proponemos el paquete que esa carta pide.',
-      toggle: 'Ver las {n} partes del paquete',
+      toggle: 'Las {n} partes del paquete',
     },
     alsoCalled: ['Recertificación de 40 años', 'Recertificación de edificios'],
     crossLink: { text: '¿Su edificio está en Broward?', label: 'Vea el BSIP', slug: 'broward-bsip' },
@@ -380,7 +380,7 @@ const services: SiteContent['services'] = [
       /* "90 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['Recertificación en Miami-Dade.', '90 días desde la notificación.'],
       accentWord: '90 días',
-      lede: 'Una notificación sin respuesta no desaparece: se convierte en multas que pueden llegar a $10,000 por violación, un gravamen sobre su propiedad y, en el peor caso, una orden de desalojo. ¿Ya va tarde? Todavía tiene solución — envíenos la carta hoy; la propuesta es gratis.',
+      lede: 'Una notificación sin respuesta no desaparece: se convierte en multas que pueden llegar a $10,000 por infracción, un gravamen sobre su propiedad y, en el peor caso, una orden de desalojo. ¿Ya va tarde? Todavía tiene solución — envíenos la carta hoy; la propuesta es gratis.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Miami-Dade',
       timingLink: 'Plazos y exenciones de Miami-Dade',
@@ -420,9 +420,12 @@ const services: SiteContent['services'] = [
     },
     /* The name owners still use, as a name, then what the reader risks and
        the way out (2026-10-20): the Board's policy (#05-05), with no
-       amount. See the EN block, and its note on length. */
+       amount. See the EN block, and its note on length. "Todavía", as the
+       EN "still" and the Miami-Dade line: the answer to "¿Pasó la fecha?"
+       says it can still be done; "de Broward" left out to fit, the H1 right
+       above names the county. */
     heroSub:
-      'Muchos aún llaman al BSIP de Broward la recertificación de 40 años. Un informe tardío va a audiencia de cumplimiento. ¿Pasó la fecha? Un solo equipo lo entrega completo.',
+      'Muchos aún llaman al BSIP la recertificación de 40 años. Un informe tardío va a audiencia de cumplimiento. ¿Pasó la fecha? Un solo equipo todavía lo entrega completo.',
     /* The page's own h2s — same keys as the EN block; no age, no day count. */
     headings: {
       whatsIncluded: 'Qué cubre una inspección completa del BSIP de Broward',
@@ -591,7 +594,7 @@ const services: SiteContent['services'] = [
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad; el ingeniero tiene el deber de hacerlo.',
       'Un informe del BSIP documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará el Building Official a partir de él.',
     ],
-    notesToggle: 'Ver las {n} notas',
+    notesToggle: 'Las {n} notas',
     /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`; see the
        Miami-Dade block above for what is specific to the Spanish. */
     offices: {
@@ -629,7 +632,7 @@ const services: SiteContent['services'] = [
         url: 'https://www.broward.org/codeappeals/FormsandContacts',
       },
       checked: officeLinksChecked,
-      toggle: 'Ver las {n} oficinas de construcción',
+      toggle: '{n} oficinas de construcción, ciudad por ciudad',
     },
     /* EL PAQUETE DE BROWARD — mirror of the EN `packet`: the same seven
        rows in the same order. It is NOT Miami-Dade's list: no parking-lot
@@ -649,7 +652,7 @@ const services: SiteContent['services'] = [
         { k: 'Lo que añade su ciudad', v: 'Algunas ciudades piden con la presentación una hoja de portada o un formulario propio. La carta de su ciudad indica qué quiere, y la leemos primero.' },
       ],
       note: 'Termografía infrarroja: la política vigente de la Junta de Reglas y Apelaciones no pide ese estudio; se usa donde la inspección eléctrica lo justifica.',
-      toggle: 'Ver las {n} partes del paquete',
+      toggle: 'Las {n} partes del paquete',
     },
     alsoCalled: ['BSIP', 'Building Safety Inspection Program', 'Programa de Inspección de Seguridad de Edificios de Broward', 'Recertificación de 40 años'],
     crossLink: { text: '¿Su edificio está en Miami-Dade?', label: 'Vea la recertificación de Miami-Dade', slug: 'building-recertification' },
@@ -880,6 +883,7 @@ const services: SiteContent['services'] = [
     heroSub:
       'Qué significan realmente las grietas, los desprendimientos o el informe que tiene en las manos — y reparaciones especificadas para que todos coticen lo mismo.',
     headings: {
+      faq: 'Preguntas sobre grietas, desprendimientos y reparaciones',
       considerations: 'Lo que una evaluación resuelve, y lo que deja abierto.',
     },
     problemTitle: 'No toda grieta es un problema estructural.',
@@ -925,6 +929,25 @@ const services: SiteContent['services'] = [
       'La falta de documentación original aumenta la verificación en campo requerida.',
       'El diseño de reparaciones se define y cotiza por separado de la evaluación que lo origina.',
     ],
+    /* The same four questions as the EN block, under the same rules. */
+    faq: [
+      {
+        q: '¿Cómo sabemos si una grieta es importante?',
+        a: 'Por dónde está, cómo corre y qué carga el elemento que la rodea. Algunas grietas vienen de la retracción del concreto o de los acabados y solo hay que vigilarlas; otras, con manchas de óxido o concreto que se desprende, indican refuerzo en corrosión. La evaluación clasifica cada condición en un grupo o en el otro, elemento por elemento.',
+      },
+      {
+        q: '¿Las fotografías pueden reemplazar una visita al edificio?',
+        a: 'Son el primer paso correcto, aunque no siempre el último. Con las fotografías y cualquier informe anterior podemos decirle si hace falta una visita y qué debe revisar. Donde una condición no se puede juzgar desde la superficie, el informe recomienda ensayos o una apertura exploratoria en lugar de suponer.',
+      },
+      {
+        q: '¿Por qué no coinciden las ofertas de los contratistas?',
+        a: 'Porque cada uno cotizó una reparación distinta. Cuando un informe enumera reparaciones sin definirlas, una oferta cubre un parcheo superficial y la siguiente un reemplazo completo. Los planos y las especificaciones de reparación fijan las ubicaciones, el método y la extensión, para que todos coticen el mismo trabajo y las ofertas se puedan comparar.',
+      },
+      {
+        q: 'Vamos a comprar un edificio. ¿Qué nos dice una evaluación?',
+        a: 'En qué condición está hoy la estructura y qué significa eso para la compra: el deterioro encontrado, dónde está, qué tan serio es y qué reparaciones van primero. Si faltan los planos originales, se verifica más en campo, y lo que la visita no pueda resolver queda señalado en el informe como pendiente.',
+      },
+    ],
     /* "Sur de Florida", as in English: with the two counties this title
        is 610 px, and a result shows 580. */
     seo: {
@@ -952,6 +975,7 @@ const services: SiteContent['services'] = [
     heroSub:
       'Concreto reforzado para casas, edificios de mediana altura y estructuras comerciales — calculado para el viento de huracán y detallado para poder construirse.',
     headings: {
+      faq: 'Preguntas sobre el diseño de concreto reforzado',
       considerations: 'El estudio de suelos, la geometría y la revisión del permiso.',
     },
     problemTitle: 'El concreto se resuelve primero en el papel.',
@@ -1003,6 +1027,24 @@ const services: SiteContent['services'] = [
       'El alcance y los honorarios cambian con la irregularidad — transferencias, voladizos, postensado y geometrías inusuales se cotizan con honestidad, no se absorben en silencio.',
       'Los comentarios de la revisión del permiso son parte del proceso; los respondemos, pero ningún ingeniero puede garantizar la decisión de una jurisdicción.',
     ],
+    faq: [
+      {
+        q: '¿Cuándo debe entrar el ingeniero estructural al proyecto?',
+        a: 'En cuanto haya una distribución con la que trabajar. La estructuración, el tipo de losa y el sistema lateral se eligen con el arquitecto, y la luz, el peralte y el costo se equilibran mejor mientras los planos todavía pueden cambiar. Planos en cualquier etapa bastan para empezar esa conversación.',
+      },
+      {
+        q: '¿Por qué importa que el refuerzo se pueda colocar?',
+        a: 'Porque una barra que cabe en el cálculo pero no en el encofrado se convierte en un problema el día en que se vacía el concreto. La congestión en los nudos, el recubrimiento, los ganchos y la ubicación de los empalmes se resuelven en el plano, para que la cuadrilla construya lo que se muestra en lugar de improvisar en obra.',
+      },
+      {
+        q: '¿Qué recibe el contratista cuando empieza la construcción?',
+        a: 'Respuestas del equipo que diseñó la estructura. Las solicitudes de información (RFIs) se contestan y los submittals se revisan contra el diseño, para que una duda que surge en obra se resuelva con los planos y los cálculos, no con suposiciones.',
+      },
+      {
+        q: '¿El viento de huracán forma parte del diseño desde el inicio?',
+        a: 'Desde el primer paso. Las cargas muertas, vivas y de viento de huracán se fijan para el sitio real antes de dimensionar cualquier miembro, y los muros de corte, pórticos y diafragmas que resisten el viento se diseñan con las losas y las columnas como una sola estructura, no se agregan al final.',
+      },
+    ],
     seo: {
       title: 'Diseño de concreto reforzado — Miami-Dade y Broward',
       description:
@@ -1027,6 +1069,7 @@ const services: SiteContent['services'] = [
     heroSub:
       'Todo el edificio en un solo modelo, del techo a las cimentaciones — para saber si un sitio o un concepto funciona antes de comprometerse.',
     headings: {
+      faq: 'Preguntas sobre el análisis y las cimentaciones',
       considerations: 'Un análisis vale lo que valen sus datos.',
     },
     problemTitle: 'Una sola trayectoria de carga, del techo al suelo.',
@@ -1071,6 +1114,24 @@ const services: SiteContent['services'] = [
       'Las estructuras existentes requieren verificación en campo antes de que un modelo analítico sea confiable.',
       'Los resultados del análisis se reportan tal como son — incluso cuando muestran que un sistema no funciona.',
     ],
+    faq: [
+      {
+        q: '¿Necesitamos un estudio de suelos antes de empezar el análisis?',
+        a: 'No para empezar. El sitio y el concepto bastan para definir la demanda de viento y de gravedad y para probar la estructuración. La cimentación es distinta: se diseña con los datos del suelo, así que sus recomendaciones solo quedan definitivas cuando el estudio geotécnico está disponible.',
+      },
+      {
+        q: '¿Por qué el diseño por viento depende del sitio exacto?',
+        a: 'Porque la demanda cambia según dónde está el edificio. La categoría de riesgo, la exposición y la velocidad de viento de diseño se fijan para la dirección real, y un sitio en la Zona de Huracanes de Alta Velocidad tiene requisitos más estrictos. Un valor tomado de un proyecto cercano puede dejar la estructura corta, o hacerla más pesada de lo necesario.',
+      },
+      {
+        q: '¿Y si el análisis muestra que el concepto no funciona?',
+        a: 'Se lo decimos con claridad, y con la razón, antes de invertir en planos. Los resultados muestran dónde falla la trayectoria de carga — deriva, torsión, una transferencia, una cimentación que el suelo no puede soportar — y ese es el momento en que cambiar la estructuración o el sistema todavía cuesta poco.',
+      },
+      {
+        q: '¿Puede un revisor de permisos seguir los números?',
+        a: 'Sí. Las cargas, las combinaciones y los resultados quedan documentados, las reacciones de la cimentación van en una tabla, y cada valor de los planos se puede rastrear hasta la memoria de cálculo. Un funcionario de la oficina de construcción u otro ingeniero puede seguir cualquier miembro desde la hoja hasta su cálculo.',
+      },
+    ],
     seo: {
       title: 'Análisis estructural y cimentaciones — Miami-Dade y Broward',
       description:
@@ -1095,6 +1156,7 @@ const services: SiteContent['services'] = [
     heroSub:
       'La estructura modelada en Revit y verificada con las demás disciplinas, para que cada interferencia se cierre en el diseño y no en obra.',
     headings: {
+      faq: 'Preguntas sobre la coordinación BIM estructural',
       considerations: 'Lo que un modelo puede hacer, y lo que no.',
     },
     problemTitle: 'Encuentre los conflictos antes de llegar a obra.',
@@ -1139,6 +1201,24 @@ const services: SiteContent['services'] = [
       'Un modelo no sustituye un juego de planos firmado y sellado — lo respalda.',
       'El nivel de información debe corresponder a la decisión que se toma, no al número más alto disponible.',
     ],
+    faq: [
+      {
+        q: 'Nuestro equipo no trabaja en Revit. ¿Podemos coordinar igual?',
+        a: 'Sí, siempre que el formato de intercambio se acuerde desde el inicio. Los modelos se pueden compartir en IFC y las incidencias ir y venir en BCF, ambos formatos abiertos, para que cada disciplina conserve su propio software. La propuesta indica el formato junto con el alcance de modelado.',
+      },
+      {
+        q: '¿Quién decide cómo se resuelve una interferencia con la estructura?',
+        a: 'Donde la estructura está involucrada, nosotros diseñamos la solución estructural; no se improvisa en el modelo. Cada interferencia se registra, se asigna a la disciplina responsable y se sigue hasta cerrarla, y una viga que debe cambiar de peralte o una abertura en losa que debe moverse se verifica antes de aceptar el cambio.',
+      },
+      {
+        q: '¿Cuánto detalle debe tener el modelo?',
+        a: 'El suficiente para la decisión de esa etapa, y no más. La coordinación temprana necesita los miembros principales en su lugar; la fabricación o las cantidades necesitan mucho más. El nivel de información se acuerda antes de modelar, junto con las coordenadas compartidas, la nomenclatura de niveles y ejes y la división del modelo.',
+      },
+      {
+        q: '¿El modelo reemplaza los planos estructurales?',
+        a: 'No. Los planos y las tablas se toman del modelo, así que coinciden con él, pero el juego de planos sigue siendo el documento en que se basan el permiso y la construcción. El modelo se entrega junto con ellos, al nivel de información acordado.',
+      },
+    ],
     seo: {
       title: 'Modelado y coordinación BIM — Miami-Dade y Broward',
       description:
@@ -1163,6 +1243,7 @@ const services: SiteContent['services'] = [
     heroSub:
       'Un ingeniero independiente lee sus planos y cálculos según el código aplicable antes de que se emitan, y sigue hasta cerrar cada comentario.',
     headings: {
+      faq: 'Preguntas sobre la revisión estructural por pares',
       considerations: 'Qué es una revisión por pares, y qué no es.',
     },
     problemTitle: 'Una segunda lectura antes de emitir los planos.',
@@ -1204,6 +1285,24 @@ const services: SiteContent['services'] = [
       'Una revisión por pares examina el diseño tal como fue presentado; no transfiere la responsabilidad del ingeniero de registro.',
       'La profundidad de la revisión y los honorarios escalan con el tamaño y la complejidad del juego de planos.',
       'Los comentarios se escriben para resolverse, no para asignar culpas.',
+    ],
+    faq: [
+      {
+        q: '¿Una revisión por pares rediseña nuestro proyecto?',
+        a: 'No. El revisor lee el diseño tal como lo preparó su ingeniero y señala lo que requiere atención; el equipo de diseño conserva el control de sus planos. Cada hallazgo indica su consecuencia estructural, de modo que su ingeniero decide cómo resolverlo, y la revisión lee esa respuesta antes de cerrar el comentario.',
+      },
+      {
+        q: '¿Qué tan a fondo llega la revisión?',
+        a: 'Tan a fondo como lo exija la pregunta que debe responder. Puede cubrir todo el juego de planos, algunos sistemas como las cimentaciones o el sistema lateral, o una sola inquietud. Esa profundidad se acuerda antes de empezar la lectura, y la propuesta fija los honorarios para ella.',
+      },
+      {
+        q: '¿Qué tenemos en la mano cuando termina la revisión?',
+        a: 'Un informe escrito y un registro de cada comentario, ordenado según su importancia para la estructura. A medida que el equipo de diseño responde, cada respuesta se lee y su comentario se marca como cerrado, de modo que el expediente del proyecto muestra qué se encontró y cómo se resolvió cada punto.',
+      },
+      {
+        q: '¿Cuál es el mejor momento para pedirla?',
+        a: 'Antes de emitir los planos para el permiso o para la construcción. Un problema detectado en el papel cuesta un comentario y una hoja corregida; detectado en obra, el mismo problema se convierte en un retraso y una orden de cambio. La revisión también ayuda más adelante, cuando algo en la obra genera una duda.',
+      },
     ],
     seo: {
       title: 'Revisión estructural por pares — Miami-Dade y Broward',
@@ -1599,7 +1698,6 @@ export const es: SiteContent = {
       { name: 'BCF', role: 'Intercambio de incidencias', logo: '/ttc/img/software/bcf.svg' },
       { name: 'buildingSMART', role: 'IFC / openBIM', logo: '/ttc/img/software/buildingsmart.png' },
     ],
-    note: 'Los nombres de productos y logotipos son propiedad de sus respectivos titulares y se muestran para identificar el software utilizado en nuestro flujo de trabajo.',
   },
 
   howWeWork: {
@@ -1645,15 +1743,15 @@ export const es: SiteContent = {
   caseStudies,
 
   engagements: [
-    { n: '01', title: 'Estructura residencial de mediana altura', need: 'Tiene el diseño del arquitecto y necesita la ingeniería de la estructura para el permiso.', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales' },
+    { n: '01', title: 'Estructura residencial de mediana altura', need: 'Tiene el diseño del arquitecto y necesita la ingeniería de la estructura para el permiso.', start: 'Para empezar, bastan los planos actuales del arquitecto, aunque todavía no sean los definitivos.', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales' },
     /* 02 names both county programs and 03 is no longer a "milestone"
        inspection — see the comment over `engagements` in site.ts, which
        also says what `need` may and may not say. */
-    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', need: 'Su edificio debe pasar la inspección del condado, o el plazo ya venció. Todavía se puede resolver.', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural y eléctrica, informes en los formularios oficiales, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'El paquete completo que pide el condado, en sus formularios oficiales · Registro fotográfico · Alcance de reparaciones' },
-    { n: '03', title: 'Inspección de seguridad estructural', need: 'Grietas, manchas de óxido o concreto que se desprende, y necesita saber qué tan grave es.', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento' },
-    { n: '04', title: 'Sistema de cimentación para un sitio restringido', need: 'Un lote estrecho o un suelo débil, y la cimentación tiene que diseñarse para eso.', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo' },
-    { n: '05', title: 'Coordinación BIM multidisciplinaria', need: 'Varias especialidades comparten un edificio, y un conflicto cuesta menos en pantalla que en obra.', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo' },
-    { n: '06', title: 'Revisión estructural independiente por pares', need: 'Un diseño necesita una segunda revisión independiente antes del permiso o de la obra.', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución' },
+    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', need: 'Su edificio debe pasar la inspección del condado, o el plazo ya venció. Todavía se puede resolver.', start: 'Para empezar, basta con una foto de la notificación del condado, aunque ya haya pasado su fecha.', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural y eléctrica, informes en los formularios oficiales, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'El paquete completo que pide el condado, en sus formularios oficiales · Registro fotográfico · Alcance de reparaciones' },
+    { n: '03', title: 'Inspección de seguridad estructural', need: 'Grietas, manchas de óxido o concreto que se desprende, y necesita saber qué tan grave es.', start: 'Para empezar, bastan unas fotos de las grietas, las manchas o el concreto suelto.', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento' },
+    { n: '04', title: 'Sistema de cimentación para un sitio restringido', need: 'Un lote estrecho o un suelo débil, y la cimentación tiene que diseñarse para eso.', start: 'Para empezar, basta con el plano del sitio y, si lo tiene, el estudio de suelos.', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo' },
+    { n: '05', title: 'Coordinación BIM multidisciplinaria', need: 'Varias especialidades comparten un edificio, y un conflicto cuesta menos en pantalla que en obra.', start: 'Para empezar, bastan los modelos o planos más recientes de cada especialidad.', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo' },
+    { n: '06', title: 'Revisión estructural independiente por pares', need: 'Un diseño necesita una segunda revisión independiente antes del permiso o de la obra.', start: 'Para empezar, bastan los planos y cálculos que se van a revisar.', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución' },
   ],
 
   /* No footnote and no gallery lede: see `workSection` in site.ts. */
@@ -1742,9 +1840,10 @@ export const es: SiteContent = {
       link: { href: '/about#contractor', label: 'Las dos empresas y sus licencias' },
     },
   },
-  /* Las formas de contactar al ingeniero sin llenar el formulario, y los dos
-     datos que dio el propietario el 6 de octubre de 2026: la propuesta es
-     gratis y normalmente se responde en menos de dos horas. "Normalmente":
+  /* Las formas de contactar al ingeniero sin llenar el formulario. Los dos
+     datos que dio el propietario el 6 de octubre de 2026 (la propuesta es
+     gratis y normalmente se responde en menos de dos horas) cierran
+     `closingCta.body`; `reply` sigue siendo el de /contact. "Normalmente":
      no convertirlo en promesa. */
   reach: {
     label: 'Contactar al ingeniero',
@@ -1755,7 +1854,7 @@ export const es: SiteContent = {
     whatsappText: 'Hola, recibí una notificación de inspección de mi edificio.',
     whatsappPlain: 'Escríbanos por WhatsApp',
     whatsappTextPlain: 'Hola, quisiera una propuesta para un proyecto.',
-    free: 'La propuesta es gratis.',
+    formPlain: 'Propuesta gratis',
     reply: 'Normalmente respondemos en menos de dos horas.',
   },
 
@@ -1882,7 +1981,7 @@ export const es: SiteContent = {
     accentWord: 'típicos',
     subReal: 'La estructura detrás del proyecto. Trabajos de ingeniería estructural en el Sur de Florida — el edificio, el problema, el alcance, nuestro rol y el resultado documentado.',
     subRepresentative:
-      'La estructura detrás del proyecto. Encuentre abajo su tipo de proyecto: cuándo lo necesita, qué cubre y los documentos que recibe. Perfiles de la ingeniería estructural que realiza la firma en el Sur de Florida, no proyectos anteriores concretos; los casos de estudio con nombre se publican solo con autorización del cliente.',
+      'La estructura detrás del proyecto. Cada tipo de trabajo de ingeniería que realiza la firma en el Sur de Florida, con su alcance, su sistema estructural y sus documentos — trabajos típicos, no proyectos anteriores concretos.',
     facts: [
       { k: 'Cobertura', v: 'Miami-Dade y Broward' },
       { k: 'Sistemas', v: 'Concreto reforzado, acero' },
@@ -1905,20 +2004,24 @@ export const es: SiteContent = {
     /* Mirror of `sub` in site.ts: what waiting costs, the easy step, the
        free fixed-fee proposal, then the late arrivals. */
     sub: 'Una notificación sin respuesta solo se agrava. Envíela hoy — basta una foto de la carta tomada con el teléfono — y reciba una propuesta gratis y a precio fijo. ¿Ya va tarde? Todavía tiene solución.',
+    /* Mirror of `subNew` in site.ts: the line for a new-building ?service=,
+       with no notice, no fixed fee and no reply time. */
+    subNew: 'Envíe los planos, o unas líneas sobre el proyecto y dónde está — lo que ya tenga — y reciba una propuesta gratis con el alcance por escrito.',
     /* Mirror of `before` in site.ts: the guide beside the form, written for
        someone about to write. "Carta", the word the buttons and the form use
-       for the notice. No number, no phone number, no price — see the EN
-       comment. The H1's "Cuéntenos" and "enviamos" are here (seo.test.ts). */
+       for the notice. No number, no phone number, no amount — see the EN
+       comment. The H1's "Cuéntenos" and "enviamos" are here (seo.test.ts).
+       "Building Official" carries its gloss at its first use on the page
+       (the row for a date already passed), the short form after it. */
     before: {
       eyebrow: 'Cómo funciona',
       title: 'Qué enviar y qué pasa después.',
       items: [
-        { k: 'Si ya tiene la carta', v: 'Para empezar basta una foto de la carta tomada con el teléfono. Adjúntela en este formulario o envíela por WhatsApp; no hace falta escanearla ni copiar lo que dice. Lo primero que buscamos es qué oficina la envió y qué fechas indica.' },
-        { k: 'Si la fecha ya pasó', v: 'Escríbanos de todos modos y adjunte la carta junto con cualquier aviso o citación que haya llegado después. La inspección todavía puede hacerse y el informe presentarse; cuanto antes lea el ingeniero lo que recibió, antes tendrá usted un plan que presentar a su Building Official.' },
+        { k: 'Si ya tiene la carta', v: 'Para empezar basta una foto de la carta tomada con el teléfono. Adjúntela en este formulario o envíela por WhatsApp; no hace falta escanearla ni copiar lo que dice. Si la carta tiene varias páginas, tómele una foto a cada una. Lo primero que buscamos es qué oficina la envió y qué fechas indica.' },
+        { k: 'Si la fecha ya pasó', v: 'Escríbanos de todos modos y adjunte la carta junto con cualquier aviso o citación que haya llegado después. La inspección todavía puede hacerse y el informe presentarse; cuanto antes lea el ingeniero lo que recibió, antes tendrá usted un plan que presentar a su Building Official (el funcionario de construcción).' },
         { k: 'Si todavía no le ha llegado', v: 'Envíe la dirección del edificio y un dato: en Miami-Dade, el año de construcción; en Broward, el año del certificado de ocupación. Cada condado cuenta la antigüedad del edificio a partir de ese registro, y con él podemos decirle qué le corresponde al suyo antes de que llegue la carta.' },
-        { k: 'Para cualquier otro edificio o proyecto', v: 'Cuéntenos del edificio, dónde está y qué necesita: una evaluación, el diseño de una reparación, la estructura de un edificio nuevo o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio.' },
-        { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official (el funcionario de construcción). Después le enviamos preguntas o una propuesta escrita con el alcance: qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta. Nada comienza hasta que usted la acepte.' },
-        { k: 'Por teléfono, WhatsApp o correo', v: 'El formulario no es la única vía. Llame al número que aparece en esta página, escriba a ese mismo número por WhatsApp y envíe por ahí la foto de la carta, o ponga los mismos datos en un correo electrónico.' },
+        { k: 'Para cualquier otro edificio o proyecto', v: 'Cuéntenos del edificio, dónde está y qué necesita: una evaluación, el diseño de una reparación, la estructura de un edificio nuevo o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio. La propuesta para este trabajo también es gratis.' },
+        { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official. Después le enviamos preguntas o una propuesta escrita con el alcance: qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta — en una recertificación o un BSIP, un precio fijo. Nada comienza hasta que usted la acepte.' },
         { k: 'Dónde y en qué idioma', v: 'Trabajamos en Miami-Dade y Broward, en todas las ciudades de ambos condados: de Miami, Hialeah y Coral Gables a Fort Lauderdale, Hollywood y Pompano Beach. Indíquenos la ciudad, o si el edificio está fuera de los límites de una ciudad: de eso depende qué oficina envía la carta y recibe el informe. El formulario y este sitio están en español y en inglés; escríbanos en el idioma que le resulte más cómodo.' },
       ],
     },
@@ -1929,8 +2032,9 @@ export const es: SiteContent = {
     titleLines: ['Cuéntenos de su edificio.', 'Le enviamos una propuesta.'],
     accentWord: 'propuesta.',
     /* Leads with the notice, as in English: notice, existing building, new
-       project. */
-    body: 'Una notificación del condado en la mano, un edificio que le preocupa o un proyecto nuevo — descríbalo y adjunte lo que tenga. Basta una foto de la carta tomada con el teléfono. El ingeniero le responde, con preguntas o con una propuesta escrita.',
+       project. It ends on the two facts that were the small line under the
+       buttons (see the EN comment). */
+    body: 'Una notificación del condado en la mano, un edificio que le preocupa o un proyecto nuevo — descríbalo y adjunte lo que tenga. Basta una foto de la carta tomada con el teléfono. El ingeniero le responde, normalmente en menos de dos horas, con preguntas o con una propuesta gratis por escrito.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
     secondary: { href: '/about#engineer', label: 'Conozca al ingeniero' },
   },
@@ -1967,7 +2071,7 @@ export const es: SiteContent = {
     includesTitle: 'Dentro del precio fijo',
     includes: [
       'Inspección estructural y eléctrica del edificio.',
-      'El reporte estructural, firmado y sellado, y el reporte eléctrico, firmado por un profesional calificado en diseño eléctrico.',
+      'El reporte estructural, firmado y sellado, y el reporte eléctrico.',
       'La presentación ante el condado y nuestras respuestas a los comentarios de revisión de esa inspección.',
     ],
     note: 'El precio depende del tamaño del edificio, del número de estructuras, del servicio eléctrico, de los documentos disponibles y de lo que pida la jurisdicción. Varios edificios: una sola propuesta, con un precio para cada uno.',
@@ -1995,8 +2099,6 @@ export const es: SiteContent = {
     },
   },
   legal: {
-    contactFormNotice:
-      'Enviar este formulario no crea una relación profesional de ingeniería. Usamos sus datos y archivos únicamente para responder a esta solicitud.',
     links: [
       { href: '/privacy', label: 'Política de privacidad' },
       { href: '/terms', label: 'Términos de uso' },
@@ -2014,6 +2116,7 @@ export const es: SiteContent = {
     privacy: {
       title: 'Política de privacidad',
       h1: 'Política de privacidad de este sitio web',
+      updated: 'Última actualización: 20 de octubre de 2026',
       sub: 'Qué recopilamos a través de este sitio web, por qué lo recopilamos y qué hacemos con ello.',
       sections: [
         { h: 'Qué recopilamos', p: [

@@ -37,7 +37,7 @@ export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms
       <LegalDoc
         label={doc.title}
         tocLabel={c.legal.toc}
-        updated={c.legal.updated}
+        updated={'updated' in doc ? doc.updated : c.legal.updated}
         sections={[
           ...doc.sections.map((s) => ({
             h: s.h,

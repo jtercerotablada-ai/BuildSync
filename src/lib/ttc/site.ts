@@ -730,22 +730,31 @@ export type Service = {
   /** Honest caveats — what changes the scope, what we do not promise. */
   considerations: string[];
   /**
-   * The two county programs only: the line a phone shows in place of their
-   * long "Good to know" list, which it opens (ServiceDetailView; on a desktop
-   * the list is open and the line is not drawn). `{n}` is replaced by the
-   * number of notes — counted, never typed.
+   * The two county programs only: the line shown in place of their long
+   * "Good to know" list at 1180px and narrower, which it opens
+   * (ServiceDetailView; above that the list is open and the line is not
+   * drawn). `{n}` is replaced by the number of notes — counted, never typed.
+   * A noun ("All {n} notes"), true whether the list is open or closed.
    */
   notesToggle?: string;
   /**
-   * Questions a board asks, each with a two- or three-sentence answer:
-   * rendered above the process steps as an h2 with one h3 per question, and
-   * emitted as FAQPage markup from this same array, so the markup cannot
-   * drift from the page. Only the two county programs carry one today.
+   * Questions a client asks, each with a two- or three-sentence answer: an
+   * h2 with one h3 per question, and emitted as FAQPage markup from this
+   * same array, so the markup cannot drift from the page. The two county
+   * programs print theirs above the process steps; the five new-building
+   * and assessment services print four after the steps — every one of them
+   * ran under 500 words of its own without them (pages.test.ts). Milestone
+   * has none: it is long enough with its comparison.
    *
-   * An answer NEVER types an age, a day count or a deadline. It points at
-   * the timing row printed just above it, by the row's label in curly quotes
-   * (“Time to file”); site.test.ts fails if a quoted label is not one of the
-   * row's, or if a number slips in.
+   * An answer NEVER types an age, a day count or a deadline. On a county
+   * program it points at the timing row printed just above it, by the row's
+   * label in curly quotes (“Time to file”); site.test.ts fails if a quoted
+   * label is not one of the row's, or if a number slips in. On the other
+   * services an answer says only what the page already says, in other words
+   * — its scope, its steps, what is delivered — and the verified facts (the
+   * proposal is free, the fee is fixed for the agreed scope): no figure, no
+   * promise, nothing about who signs. A service that carries questions also
+   * names them (`headings.faq`): the shared title speaks to boards.
    */
   faq?: { q: string; a: string }[];
   /**
@@ -873,7 +882,9 @@ export type Service = {
     /**
      * The one line the list folds under, at every width. `{n}` is the number
      * of rows, counted. Never "all": the list is not every municipality,
-     * and `note` says what to do when the city is not on it.
+     * and `note` says what to do when the city is not on it. A noun, not a
+     * verb ("Show the…" still read "Show" once the list was open), like the
+     * home page's "All {n} municipalities".
      */
     toggle: string;
   };
@@ -1002,8 +1013,9 @@ export type Service = {
     lede: string;
     parts: { k: string; v: string }[];
     note: string;
-    /** The line a phone shows in place of the rows, which it opens; on a
-        desktop the rows are open. `{n}` is the number of parts, counted. */
+    /** The line shown in place of the rows at 1180px and narrower, which it
+        opens; above that the rows are open. `{n}` is the number of parts,
+        counted. A noun, true whether the rows are open or closed. */
     toggle: string;
   };
   seo: { title: string; description: string; keywords: string[] };
@@ -1327,7 +1339,7 @@ export const services: Service[] = [
       'A condition that puts life or property in danger is reported to the owner and to the Building Official of your city, or of the county in unincorporated areas; the engineer has a duty to do so.',
       'A recertification report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
     ],
-    notesToggle: 'Show the {n} notes',
+    notesToggle: 'All {n} notes',
     /* WHO SENT YOUR NOTICE. Each office is named as its city's own page
        names it (the county's, for the unincorporated area); every one of
        those pages was opened and read on 2026-10-07. miamidade.gov says it
@@ -1385,7 +1397,7 @@ export const services: Service[] = [
         url: 'https://www.miamidade.gov/global/economy/building/recertification.page',
       },
       checked: officeLinksChecked,
-      toggle: 'Show the {n} building offices',
+      toggle: '{n} building offices, city by city',
     },
     /* THE MIAMI-DADE PACKAGE. Read on October 7, 2026 at the county's
        recertification page, its upload guidelines (the packet's file list),
@@ -1421,7 +1433,7 @@ export const services: Service[] = [
         { k: 'Site plan or survey', v: 'An aerial view that identifies the building goes with every structural report. Where a property has more than one building, a site plan or a copy of a survey shows which one the reports are for.' },
       ],
       note: 'We read your city’s letter first, and propose the package it asks for.',
-      toggle: 'Show the {n} parts of the package',
+      toggle: 'All {n} parts of the package',
     },
     alsoCalled: ['40-Year Recertification', 'Building Recertification'],
     crossLink: { text: 'Building in Broward?', label: 'See the BSIP', slug: 'broward-bsip' },
@@ -1715,7 +1727,7 @@ export const services: Service[] = [
       'A condition that puts life or property in danger is reported to the owner and to your city’s Building Official; the engineer has a duty to do so.',
       'A BSIP report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how the Building Official will act on it.',
     ],
-    notesToggle: 'Show the {n} notes',
+    notesToggle: 'All {n} notes',
     /* WHO SENT YOUR NOTICE — the same block, and the same rules, as the
        Miami-Dade page: each office named as its city's own page names it
        (read on 2026-10-07), the rows as text, the cities' addresses in
@@ -1761,7 +1773,7 @@ export const services: Service[] = [
         url: 'https://www.broward.org/codeappeals/FormsandContacts',
       },
       checked: officeLinksChecked,
-      toggle: 'Show the {n} building offices',
+      toggle: '{n} building offices, city by city',
     },
     /* THE BROWARD PACKAGE. Read on October 7, 2026 in the Board of Rules
        and Appeals' current documents: Policy #05-05 (effective August 9,
@@ -1792,7 +1804,7 @@ export const services: Service[] = [
         { k: 'What your city adds', v: 'Some cities ask for a cover sheet or a submittal form of their own with the filing. Your city’s letter says what it wants, and we read it first.' },
       ],
       note: 'Infrared thermography: the Board’s current policy does not ask for it; it is used where the electrical inspection calls for it.',
-      toggle: 'Show the {n} parts of the package',
+      toggle: 'All {n} parts of the package',
     },
     alsoCalled: ['BSIP', 'Broward Building Safety Inspection Program', '40-Year Building Safety Inspection Program', '40-Year Recertification'],
     crossLink: { text: 'Building in Miami-Dade?', label: 'See Miami-Dade Recertification', slug: 'building-recertification' },
@@ -2071,6 +2083,7 @@ export const services: Service[] = [
     heroSub:
       'What the cracks, the spalling or the report in your hands actually mean — and repairs specified so every contractor prices the same work.',
     headings: {
+      faq: 'Questions about cracks, spalling and repairs',
       considerations: 'What an assessment settles, and what it leaves open.',
     },
     problemTitle: 'Not every crack is a structural problem.',
@@ -2114,6 +2127,28 @@ export const services: Service[] = [
       'Missing original documentation increases the field verification required.',
       'Repair design is scoped and quoted separately from the assessment that leads to it.',
     ],
+    /* Four questions, printed after the steps: the page ran 412 words of
+       its own without them, under the floor of 500. Each answer says what
+       this page already says — its scope, its steps, its deliverables — in
+       other words; no figure, no promise, nothing about who signs. */
+    faq: [
+      {
+        q: 'How do we know whether a crack matters?',
+        a: 'By where it is, how it runs and what the element around it carries. Some cracks come from shrinkage or finishes and only need watching; others, with rust stains or concrete breaking away, point to corroding reinforcement. The assessment sorts each condition into one group or the other, element by element.',
+      },
+      {
+        q: 'Can photographs replace a visit to the building?',
+        a: 'They are the right first step, though not always the last. From the photographs and any earlier report we can say whether a site visit is needed and what it should look at. Where a condition cannot be judged from the surface, the report recommends testing or an exploratory opening instead of guessing.',
+      },
+      {
+        q: 'Why do the contractors’ bids not match?',
+        a: 'Because each one priced a different repair. When a report lists repairs without defining them, one bid covers a surface patch and the next a full replacement. Repair drawings and specifications fix the locations, the method and the extent, so every contractor prices the same work and the bids can be compared.',
+      },
+      {
+        q: 'We are buying a building. What does an assessment tell us?',
+        a: 'What condition the structure is in today and what that means for the purchase: the deterioration found, where it is, how serious it is and which repairs come first. If the original drawings are missing, more is verified in the field, and whatever the visit cannot settle is named in the report as open.',
+      },
+    ],
     /* "South Florida", where the other service titles name the two
        counties: with them this one is 599 px, and a result shows 580. */
     seo: {
@@ -2140,6 +2175,7 @@ export const services: Service[] = [
     heroSub:
       'Reinforced concrete for houses, mid-rises and commercial buildings — sized for hurricane wind and detailed so it can be built.',
     headings: {
+      faq: 'Questions about reinforced concrete design',
       considerations: 'The soil report, the geometry and the permit review.',
     },
     problemTitle: 'Concrete has to be right on paper first.',
@@ -2193,6 +2229,26 @@ export const services: Service[] = [
       'Scope and fee change with irregularity — transfers, cantilevers, post-tensioning and unusual geometry are priced honestly, not absorbed silently.',
       'Permit review comments are part of the process; we respond to them, but no engineer can guarantee a jurisdiction’s decision.',
     ],
+    /* Four questions after the steps (428 words of its own without them).
+       The rules are the assessments page's. */
+    faq: [
+      {
+        q: 'How early should the structural engineer join the project?',
+        a: 'As soon as there is a layout to work from. The framing, the slab type and the lateral system are chosen with the architect, and span, depth and cost balance best while the plans can still move. Drawings at any stage are enough to start that conversation.',
+      },
+      {
+        q: 'Why does it matter that the reinforcement can be placed?',
+        a: 'Because a bar that fits in the calculation but not in the formwork becomes a problem on the day of the pour. Congestion at the joints, cover, hooks and splice locations are worked out on the drawing, so the crew builds what is shown instead of improvising in the field.',
+      },
+      {
+        q: 'What does the contractor get once construction starts?',
+        a: 'Answers from the team that designed the structure. Requests for information are answered and submittals are reviewed against the design, so a question raised on site is settled from the drawings and the calculations, not by guesswork.',
+      },
+      {
+        q: 'Is hurricane wind part of the design from the start?',
+        a: 'From the first step. Dead, live and hurricane-wind loads are set for the actual site before any member is sized, and the shear walls, frames and diaphragms that resist the wind are designed with the slabs and columns as one structure, not added at the end.',
+      },
+    ],
     /* seo.title: keyword + place, inside the 580 px a search result shows
        (seo.ts has the rule; the brand does not fit after any service
        title). seo.description: under 1000 px, no code names. */
@@ -2219,6 +2275,7 @@ export const services: Service[] = [
     heroSub:
       'The whole building in one model, roof to foundations — so you know whether a site or a concept works before you commit.',
     headings: {
+      faq: 'Questions about analysis and foundations',
       considerations: 'An analysis is only as good as its inputs.',
     },
     problemTitle: 'One load path, from roof to soil.',
@@ -2263,6 +2320,26 @@ export const services: Service[] = [
       'Existing structures require field verification before an analytical model can be trusted.',
       'Analysis results are reported as they are — including when they show a system does not work.',
     ],
+    /* Four questions after the steps (408 words of its own without them).
+       The rules are the assessments page's. */
+    faq: [
+      {
+        q: 'Do we need a soil report before the analysis starts?',
+        a: 'Not to begin. The site and the concept are enough to define the wind and gravity demand and to test the framing. The foundation is different: it is designed against the soil data, so its recommendations become final only once the geotechnical report is in hand.',
+      },
+      {
+        q: 'Why does the wind design depend on the exact site?',
+        a: 'Because the demand changes with where the building stands. Risk category, exposure and design wind speed are set for the real address, and a site in the High-Velocity Hurricane Zone carries stricter requirements. A value borrowed from a nearby project can leave the frame short, or make it heavier than it needs to be.',
+      },
+      {
+        q: 'What if the analysis shows the concept does not work?',
+        a: 'Then you hear it plainly, with the reason, before money goes into drawings. The results show where the load path breaks down — drift, torsion, a transfer, a foundation the soil cannot carry — and that is the moment when changing the framing or the system is still cheap.',
+      },
+      {
+        q: 'Can a plans reviewer follow the numbers?',
+        a: 'Yes. The loads, the combinations and the results are documented, the foundation reactions are listed in a schedule, and every value on the drawings traces back to the calculation package. A building official or a second engineer can follow any member from the sheet to its calculation.',
+      },
+    ],
     seo: {
       title: 'Structural Analysis & Foundations — Miami-Dade & Broward',
       description:
@@ -2286,6 +2363,7 @@ export const services: Service[] = [
     heroSub:
       'The structure modeled in Revit and checked against the other disciplines, so clashes are closed in design, not on site.',
     headings: {
+      faq: 'Questions about structural BIM coordination',
       considerations: 'What a model can do, and what it cannot.',
     },
     problemTitle: 'Find the conflicts before the site does.',
@@ -2330,6 +2408,28 @@ export const services: Service[] = [
       'A model is not a substitute for a signed and sealed drawing set — it supports it.',
       'Level of information should match the decision being made, not the largest number available.',
     ],
+    /* Four questions after the steps (510 words of its own without them:
+       just over the floor, and the Spanish page carries the same four). The
+       rules are the assessments page's; IFC and BCF are the toolchain's own
+       entries (`software`). */
+    faq: [
+      {
+        q: 'Our team does not work in Revit. Can we still coordinate?',
+        a: 'Yes, as long as the exchange format is agreed at the start. Models can be shared as IFC and issues passed back and forth in BCF, both open formats, so each discipline keeps its own software. The proposal names the format together with the modeling scope.',
+      },
+      {
+        q: 'Who decides how a clash with the structure is fixed?',
+        a: 'Where the structure is involved, we engineer the structural fix; it is not improvised in the model. Each clash is logged, assigned to the discipline that owns it and tracked until it closes, and a beam that has to change depth or a slab opening that has to move is checked before the change is accepted.',
+      },
+      {
+        q: 'How much detail should the model carry?',
+        a: 'Enough for the decision being made at that stage, and no more. Early coordination needs the main members in the right place; fabrication or quantities need far more. The level of information is agreed before modeling starts, along with shared coordinates, level and grid naming and how the model is split.',
+      },
+      {
+        q: 'Does the model replace the structural drawings?',
+        a: 'No. The drawings and schedules are taken from the model, so the two agree, but the drawing set remains the document the permit and the construction rely on. The model is handed over with them, at the level of information agreed.',
+      },
+    ],
     seo: {
       title: 'BIM Modeling & Coordination — Miami-Dade & Broward',
       description:
@@ -2353,6 +2453,7 @@ export const services: Service[] = [
     heroSub:
       'An independent engineer reads your drawings and calculations against the governing code before they are issued, and stays until every comment is closed.',
     headings: {
+      faq: 'Questions about a structural peer review',
       considerations: 'What a peer review is, and what it is not.',
     },
     problemTitle: 'A second read before the drawings go out.',
@@ -2396,6 +2497,27 @@ export const services: Service[] = [
       'Review depth and fee scale with the size and complexity of the set.',
       'Comments are written to be resolved, not to assign blame.',
     ],
+    /* Four questions after the steps (374 words of its own without them,
+       the thinnest page of the site). The rules are the assessments
+       page's; the fee is fixed for the agreed depth, as `nextStep` says. */
+    faq: [
+      {
+        q: 'Will a peer review redesign our project?',
+        a: 'No. The reviewer reads the design as your engineer produced it and reports what needs attention; the design team keeps control of its drawings. Each finding states its structural consequence, so your engineer decides how to resolve it, and the review then reads that answer before the comment closes.',
+      },
+      {
+        q: 'How deep does the review go?',
+        a: 'As deep as the question it has to answer. It can cover the whole set, a few systems such as the foundations or the lateral frame, or a single concern. That depth is agreed before any reading starts, and the proposal fixes the fee for it.',
+      },
+      {
+        q: 'What do we have in hand when the review is finished?',
+        a: 'A written report and a log of every comment, ranked by how much it matters to the structure. As the design team answers, each response is read and its comment is marked closed, so the project file shows what was found and how every item was settled.',
+      },
+      {
+        q: 'When is the right moment to ask for one?',
+        a: 'Before the drawings are issued for permit or for construction. A problem caught on paper costs a comment and a revised sheet; found in the field, the same problem becomes a delay and a change order. A review still helps later, when something on site raises a doubt.',
+      },
+    ],
     /* "in", where the other service titles have a dash: this is the widest
        title on the site, and the dash put it within 9 px of the limit. */
     seo: {
@@ -2412,6 +2534,21 @@ export const serviceBySlug = (slug: string) =>
 
 export const servicesByTrack = (track: ServiceTrack) =>
   services.filter((s) => s.track === track);
+
+/**
+ * Whether the reader of a service's page holds a NOTICE: the two county
+ * programs (`program`) and the milestone inspection, whose association is
+ * sent a written notice by the building official. Their closing band and
+ * WhatsApp line say "Send the notice". Decided per service, not per track:
+ * the assessments page is an existing-building service, but its reader has
+ * cracks, spalling or a report — not a letter — and was told to send a
+ * notice they do not have. By slug and `program`, so both languages agree.
+ * ServiceDetailView reads it; MobileActionBar and ContactView should too.
+ */
+// Typed by the two fields it reads, so a service from either language's
+// bundle (whose fields are readonly) can be handed to it.
+export const holdsNotice = (s: { readonly slug: string; readonly program?: object }) =>
+  Boolean(s.program) || s.slug === 'milestone-inspections';
 
 /** Service options offered in the contact form dropdown. */
 export const contactServiceOptions = [
@@ -2560,7 +2697,8 @@ export const software = {
     { name: 'BCF', role: 'Issue exchange', logo: '/ttc/img/software/bcf.svg' },
     { name: 'buildingSMART', role: 'IFC / openBIM', logo: '/ttc/img/software/buildingsmart.png' },
   ],
-  note: 'Product names and logos are the property of their respective owners and are shown to identify the software used in our workflow.',
+  /* No trademark note under the tiles (the owner, 2026-10-20: no legal
+     small print): /terms and /credits say the marks are their owners'. */
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2640,6 +2778,9 @@ export type Engagement = {
   /** The reader's situation, in the reader's words: when this is the work
       they need. Printed under the title, before the facts. */
   need: string;
+  /** The least the reader needs to have to begin, printed right after
+      `need`: something they already hold, never a list of requirements. */
+  start: string;
   projectType: string;
   location: string;
   scope: string;
@@ -2659,6 +2800,14 @@ export type Engagement = {
    it (no-break space), so the narrow register column never starts a line
    with "—".
 
+   `start` follows it: the easy first step, as the least the reader already
+   has ("…is enough"), never a requirement — the contact form asks for as
+   little as possible, and 02's still speaks to the owner whose date has
+   passed. Its own words: not the closing band's "phone photo of the letter",
+   not the service pages' next step. It also keeps /projects a page of its
+   own: without these six lines the profiles are under 500 words
+   (work.test.ts).
+
    02 names both county programs because its location is both counties:
    "recertification" alone is Miami-Dade's word. For the same reason its
    deliverable is "the complete package the county asks for" and not a list:
@@ -2667,12 +2816,12 @@ export type Engagement = {
    counties the milestone inspection is met through the county program,
    which is profile 02. */
 export const engagements: Engagement[] = [
-  { n: '01', title: 'Mid-rise residential frame', need: 'You have the architect’s design and need the structure engineered for the permit.', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes' },
-  { n: '02', title: 'Condominium recertification or BSIP inspection', need: 'Your building is due for the county’s inspection, or the deadline has already passed. It can still be resolved.', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural and electrical inspection, the reports on the official forms, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'The complete package the county asks for, on its official forms · Photographic record · Repair scope' },
-  { n: '03', title: 'Structural safety inspection', need: 'Cracks, rust stains or concrete breaking off, and you need to know how serious it is.', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope' },
-  { n: '04', title: 'Foundation system for a constrained site', need: 'A tight lot or poor soil, and the foundation has to be designed around it.', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations' },
-  { n: '05', title: 'Multi-discipline BIM coordination', need: 'Several trades share one building, and a conflict costs less to fix on screen than on site.', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings' },
-  { n: '06', title: 'Independent structural peer review', need: 'A design needs an independent second check before permit or construction.', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record' },
+  { n: '01', title: 'Mid-rise residential frame', need: 'You have the architect’s design and need the structure engineered for the permit.', start: 'To start, the architect’s current drawings are enough, even before they are final.', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes' },
+  { n: '02', title: 'Condominium recertification or BSIP inspection', need: 'Your building is due for the county’s inspection, or the deadline has already passed. It can still be resolved.', start: 'To start, a picture of the county’s notice is enough, even one past its date.', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural and electrical inspection, the reports on the official forms, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'The complete package the county asks for, on its official forms · Photographic record · Repair scope' },
+  { n: '03', title: 'Structural safety inspection', need: 'Cracks, rust stains or concrete breaking off, and you need to know how serious it is.', start: 'To start, a few pictures of the cracks, stains or loose concrete are enough.', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope' },
+  { n: '04', title: 'Foundation system for a constrained site', need: 'A tight lot or poor soil, and the foundation has to be designed around it.', start: 'To start, the site plan is enough, with the soil report if there is one.', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations' },
+  { n: '05', title: 'Multi-discipline BIM coordination', need: 'Several trades share one building, and a conflict costs less to fix on screen than on site.', start: 'To start, the latest models or drawings from each trade are enough.', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings' },
+  { n: '06', title: 'Independent structural peer review', need: 'A design needs an independent second check before permit or construction.', start: 'To start, the drawings and calculations under review are enough.', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record' },
 ];
 
 /* Which service page each typical profile opens, by slug — one copy for
@@ -2953,8 +3102,10 @@ export const workPage = {
   /* One label for the profiles everywhere (hero and section): they are
      typical engagements, not past jobs, and nothing here says "anonymized".
      The lede is the one place the page says so: the footnote that said it
-     again under the profiles is gone. It speaks to the reader first ("Find
-     your type of project…"), then says what the profiles are. */
+     again under the profiles is gone. It names what each profile holds and
+     says what they are — no "find your type below" and no reading
+     instructions (the owner's rule of October 20, 2026, as on /services),
+     and no clause about case studies the page does not show. */
   /* The subject, and NO place; the old H1 opens both subs (see
      `aboutPage`). "Typical" is in the H1 for the reason it is in the nav
      label and the page title: rewrite the three together on the day there
@@ -2971,7 +3122,7 @@ export const workPage = {
   accentWord: 'Typical',
   subReal: 'The frame behind the project. Structural engagements across South Florida — the building, the problem, the scope, our role and the documented result.',
   subRepresentative:
-    'The frame behind the project. Find your type of project below: when you need it, what it covers and the documents you receive. Profiles of the work the firm takes on in South Florida, not specific past projects; named case studies are published only with client permission.',
+    'The frame behind the project. Each kind of work the firm takes on in South Florida, with its scope, its structural system and its documents — typical engagements, not specific past projects.',
   facts: [
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
     { k: 'Systems', v: 'Reinforced concrete, steel' },
@@ -2986,35 +3137,44 @@ export const contactPage = {
      (nothing), then the late arrivals — many write after their date. Every
      fact is the owner's: the proposal is free, recertification and BSIP are
      quoted at a fixed fee (`pricing`), a phone photo of the letter is enough.
-     No figure here: a county's penalties and dates live in its own rows. */
+     No figure here: a county's penalties and dates live in its own rows.
+     This is the line for the notice reader: a bare /contact and every
+     existing-building ?service=. */
   sub: 'A notice left unanswered only gets more serious. Send it today — a phone photo of the letter is enough — and get a free, fixed-fee proposal. Already late? It can still be resolved.',
-  /* The guide beside the form: what to send, what comes back, the other
-     ways in. /contact used to close with the home page's "Engineered for
-     this coast" block, word for word; this is that reader's block instead.
+  /* The line for ?service= with a new-building service (track 'new', the
+     same rule as the WhatsApp text in ContactView): that visitor holds no
+     notice. No fixed fee (verified for recertification and BSIP only), and
+     no reply time — the hero prints `reach.reply` right under it. */
+  subNew: 'Send the drawings, or a few lines about the project and where it is — whatever you already have — and get a free proposal with the scope written out.',
+  /* The guide beside the form: what to send and what comes back. /contact
+     used to close with the home page's "Engineered for this coast" block,
+     word for word; this is that reader's block instead. The direct lines are
+     in the hero (and, on a phone opened for a county program, under the
+     form), not restated here.
 
      Every sentence restates something the site already says elsewhere (the
      two programs' next step and steps, `reach`, the principle "A scope you
      can read") in words of its own, so no block is shared with another page.
      NO number here: no age, no day count, no phone number (the page prints
-     it from `contact.phone`), no office hours, no price. "Usually" is the
-     owner's word for the reply time — see `reach`. The H1's words "tell",
-     "about" and "scope" are here (seo.test.ts). ORDER MATTERS: the first
-     four rows (the situations) sit beside the form, the rest under it
-     (`SITUATIONS` in ContactView). */
+     it from `contact.phone`), no office hours, no amount ("a fixed fee" for
+     recertification and BSIP is the owner's, never a figure). "Usually" is
+     the owner's word for the reply time — see `reach`. The H1's words
+     "tell", "about" and "scope" are here (seo.test.ts). ORDER MATTERS: the
+     first four rows (the situations) sit beside the form, the two others
+     under it (`SITUATIONS` in ContactView). */
   before: {
     eyebrow: 'How it works',
     title: 'What to send, and what happens next.',
     items: [
-      { k: 'If you have the notice', v: 'A photo of the letter taken with your phone is enough to start. Attach it to this form or send it by WhatsApp; there is no need to scan it or to type out what it says. What we look for first is which office sent it and the dates it gives.' },
+      { k: 'If you have the notice', v: 'A photo of the letter taken with your phone is enough to start. Attach it to this form or send it by WhatsApp; there is no need to scan it or to type out what it says. If the letter runs to several pages, photograph each one. What we look for first is which office sent it and the dates it gives.' },
       /* Many owners write after their date has passed (the owner, October
          20, 2026): they are told what to send, never turned away. The
          program pages' answer for that case says the same thing — the first
          step is still the inspection and the report — in other words. */
       { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner the engineer reads what you received, the sooner you have a plan to put before your Building Official.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
-      { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required.' },
-      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs. Nothing begins until you have agreed to it.' },
-      { k: 'By phone, WhatsApp or email', v: 'The form is not the only way in. Call the number on this page, write to it on WhatsApp and send the photo of the notice there, or put the same details in an email.' },
+      { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
+      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
       { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],
   },
@@ -3051,8 +3211,14 @@ export const closingCta = {
   accentWord: 'scope.',
   /* Leads with the notice: it is the reader the page now opens for, and the
      one with a deadline. The order mirrors the site — notice, existing
-     building, new project. */
-  body: 'A county notice in your hand, a building that worries you or a new project — describe it and attach what you have. A phone photo of the letter is enough. You hear back from the engineer, with questions or with a written proposal.',
+     building, new project.
+
+     It ends on the easy step and the two facts the owner gave (October 6,
+     2026): the proposal is free, and the reply usually comes within two
+     hours. They used to be a small grey line under the buttons (ReachRow
+     `assure`); the owner's rule since October 20 is no small print under a
+     button, so they are said here, at reading size, once per page. */
+  body: 'A county notice in your hand, a building that worries you or a new project — describe it and attach what you have. A phone photo of the letter is enough. You hear back from the engineer, usually within two hours, with questions or a free written proposal.',
   primary: { href: '/contact', label: 'Request a Proposal' },
   secondary: { href: '/about#engineer', label: 'Meet the Engineer' },
 } as const;
@@ -3124,8 +3290,6 @@ const privacyAds = {
 };
 
 export const legal = {
-  contactFormNotice:
-    'Submitting this form does not create a professional engineering relationship. We use your details and files only to respond to this request.',
   links: [
     { href: '/privacy', label: 'Privacy Policy' },
     { href: '/terms', label: 'Terms of Use' },
@@ -3178,6 +3342,10 @@ export const legal = {
   privacy: {
     title: 'Privacy Policy',
     h1: 'Privacy Policy for This Website',
+    /* Its own date: "What we collect" changed on October 20, 2026 (the form
+       no longer asks for a company). The terms and the credits did not, and
+       keep `legal.updated`. */
+    updated: 'Last updated: October 20, 2026',
     sub: 'What we collect through this website, why we collect it, and what we do with it.',
     sections: [
       { h: 'What we collect', p: [
@@ -3276,11 +3444,13 @@ export const legal = {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * The ways to reach the engineer without filling in the form, and the two
- * facts the owner supplied on October 6, 2026 that sit next to them: the
- * proposal costs nothing, and a reply usually comes within two hours.
- * "Usually" is his word ("más o menos") — do not sharpen it into a promise.
- * The number itself lives in `contact.phone` / `contact.whatsapp`.
+ * The ways to reach the engineer without filling in the form. The two facts
+ * the owner supplied on October 6, 2026 — the proposal costs nothing, and a
+ * reply usually comes within two hours — are said at the end of
+ * `closingCta.body` (no longer as a small line under the buttons); `reply`
+ * is still /contact's. "Usually" is his word ("más o menos") — do not
+ * sharpen it into a promise. The number itself lives in `contact.phone` /
+ * `contact.whatsapp`.
  */
 export const reach = {
   /** aria-label of the bar on phones. */
@@ -3292,11 +3462,15 @@ export const reach = {
   /* Prefilled in the WhatsApp chat, so the first message already says why. */
   whatsappText: 'Hello, I received a building inspection notice.',
   /* The same two, where there is no notice: the pages of the new-building
-     services, /about, /projects and /services (ContactCTA `notice`,
+     services, the assessments page, the "is my building due" guide, /about,
+     /projects and /services (notice-pages.ts; ContactCTA `notice`,
      MobileActionBar, /contact with a new-building service chosen). */
   whatsappPlain: 'Message us on WhatsApp',
   whatsappTextPlain: 'Hello, I would like a proposal for a project.',
-  free: 'The proposal is free.',
+  /* The bar's main cell on those pages. Not the header's "Request a
+     Proposal": in the bar on a 360–390px screen that took two lines, and
+     the header's button is hidden while the bar is up. Free is a fact. */
+  formPlain: 'Free proposal',
   reply: 'We usually reply within two hours.',
 };
 
@@ -3416,7 +3590,10 @@ const pricing = {
   includesTitle: 'In the fixed fee',
   includes: [
     'Structural and electrical inspection of the building.',
-    'The structural report, signed and sealed, and the electrical report, signed by a professional qualified in electrical design.',
+    /* What is delivered, not who signs it: "the electrical report, signed
+       by a professional qualified in electrical design" is the sentence the
+       owner had removed on October 6-7, 2026 (see the header). */
+    'The structural report, signed and sealed, and the electrical report.',
     'Filing with the county and our answers to the review comments on that inspection.',
   ],
   note: 'The price depends on the size of the building, the number of structures, the electrical service, the documents available and what the jurisdiction asks for. Several buildings: one proposal, a price for each.',

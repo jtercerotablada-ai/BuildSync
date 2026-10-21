@@ -23,7 +23,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en la Ciudad de Miami: la carta, iBuild y ProjectDox, los formularios y lo que entrega, completo, un solo equipo.',
     heroSub:
-      'En la Ciudad de Miami la Unsafe Structures Section lleva la recertificación, y los documentos se presentan en línea. ¿Ya va tarde? Un solo equipo todavía entrega la suya completa, en los formularios municipales.',
+      'En la Ciudad de Miami la Unsafe Structures Section lleva la recertificación, y los documentos se presentan en línea. ¿Ya va tarde? Un solo equipo todavía le entrega su recertificación completa, en los formularios municipales.',
     lede:
       'En la Ciudad de Miami la recertificación pasa por la Unsafe Structures Section (la sección de estructuras inseguras) del Building Department. La ciudad dice que recertifica las estructuras conforme al código del Condado de Miami-Dade, y su página indica que el propietario contrata a un arquitecto o ingeniero para la inspección y luego presenta los documentos en línea.',
     local: [
@@ -125,7 +125,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en Hialeah: cómo notifica la Building Division, qué formularios publica y qué entrega, completo, un solo equipo.',
     heroSub:
-      'La Building Division de Hialeah envía por correo las cartas de recertificación y recibe los informes. ¿Ya va tarde? Un solo equipo todavía entrega el suyo completo, en los formularios que indica la ciudad.',
+      'La Building Division de Hialeah envía por correo las cartas de recertificación y recibe los informes. ¿Ya va tarde? Un solo equipo todavía le entrega su recertificación completa, en los formularios que indica la ciudad.',
     lede:
       'En Hialeah la recertificación pasa por la Building Division (la división de construcción de la ciudad). Cada año envía una carta a los propietarios de los edificios que deben recertificarse, y publica su propio juego de formularios y guías para el informe.',
     local: [
@@ -175,7 +175,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en Coral Gables: notificaciones de la Building Division, presentación por el portal y entrega completa de un solo equipo.',
     heroSub:
-      'La Building Division de Coral Gables notifica por correo; los informes se suben al portal municipal de permisos. ¿Ya va tarde? Un solo equipo todavía entrega el suyo completo, en las plantillas de Miami-Dade.',
+      'La Building Division de Coral Gables notifica por correo; los informes se suben al portal municipal de permisos. ¿Ya va tarde? Un solo equipo todavía le entrega su recertificación completa, en las plantillas de Miami-Dade.',
     lede:
       'En Coral Gables, la City of Coral Gables Building Division (la división de construcción) envía por correo las notificaciones de la recertificación de edificios del condado. El informe completo se prepara en las plantillas de Miami-Dade y se sube al portal web de permisos de la ciudad.',
     local: [
@@ -226,7 +226,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en Doral: cómo recibe los informes el Building Department, qué los acompaña y qué entrega, completo, un solo equipo.',
     heroSub:
-      'El Building Department lleva la recertificación en Doral: los informes van al City Hall o al sistema de permisos municipal. ¿Ya va tarde? Un solo equipo todavía la entrega completa, en las plantillas del condado que Doral acepta.',
+      'El Building Department lleva la recertificación en Doral: los informes van al City Hall o al sistema de permisos municipal. ¿Ya va tarde? Un solo equipo todavía entrega la recertificación completa, en las plantillas del condado que Doral acepta.',
     lede:
       'En Doral la recertificación está a cargo del Building Department (el departamento de construcción), que la incluye entre sus programas y publica su propia guía. La página de la ciudad dice que, además de sus ordenanzas locales, Doral sigue y hace cumplir el Código del Condado de Miami-Dade. La ciudad acepta las plantillas del condado para los informes.',
     local: [
@@ -277,7 +277,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en North Miami: qué dice la página de la ciudad, qué formularios publica y qué entrega, completo, un solo equipo.',
     heroSub:
-      'North Miami incluye la recertificación entre los servicios de su Building Department y publica los formularios aprobados por el condado. ¿Ya va tarde? En ellos, un solo equipo todavía entrega la recertificación completa.',
+      'North Miami incluye la recertificación entre los servicios de su Building Department y publica los formularios aprobados por el condado. ¿Ya va tarde? Un solo equipo todavía entrega la recertificación completa en esos formularios del condado.',
     lede:
       'El City of North Miami Building Department (el departamento de construcción de la ciudad) incluye la recertificación entre sus servicios, y la ciudad le dedica una página. Es breve: dice qué edificios están cubiertos, publica los formularios aprobados por el condado, nombra a un Building Officer como contacto y remite, para orientación, a la página de recertificación del Condado de Miami-Dade.',
     local: [
@@ -379,7 +379,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en Aventura: envío en línea a la Building Division, los formularios que indica la ciudad y su ordenanza sobre informes.',
     heroSub:
-      'La Building Division de Aventura administra la recertificación y recibe los documentos en línea. ¿Ya va tarde? Un solo equipo todavía la entrega completa, conforme a las guías del condado que indica la ciudad.',
+      'La Building Division de Aventura administra la recertificación y recibe los documentos en línea. ¿Ya va tarde? Un solo equipo todavía entrega la recertificación completa, conforme a las guías del condado que indica la ciudad.',
     lede:
       'En Aventura la recertificación la administra la City of Aventura Building Division (la división de construcción), conforme a los requisitos del Condado de Miami-Dade. La notificación la envía la ciudad, que usa las guías vigentes del condado, y los documentos se presentan por vía electrónica. Aventura tiene además ordenanzas propias, sobre informes de ingeniería y sobre mantenimiento estructural anual.',
     local: [
@@ -532,7 +532,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en Homestead: la notificación, el portal en línea, las plantillas del informe y qué entrega, completo, un solo equipo.',
     heroSub:
-      'La oficina Building Safety de Homestead, en Development Services, publica la ordenanza de recertificación del condado y las plantillas del informe. ¿Ya va tarde? Un solo equipo todavía entrega en ellas su recertificación completa.',
+      'La oficina Building Safety de Homestead, en Development Services, publica la ordenanza de recertificación del condado y las plantillas del informe. ¿Ya va tarde? Un solo equipo todavía le entrega su recertificación completa, en esas plantillas.',
     lede:
       'Homestead publica su página de recertificación dentro de City of Homestead Development Services, Building Safety, que en otras páginas llama Building Department. La página dice cómo comienza el proceso y qué deben presentar los propietarios, y enlaza las plantillas de informe aprobadas por la Board of Rules and Appeals. Sobre reparaciones, prórrogas e informes tardíos, lo que la ciudad publica es la ordenanza del condado, con su propio membrete.',
     local: [
@@ -887,7 +887,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación de edificios en Medley: el formulario de presentación del Town, la declaración jurada del propietario ante notario y un solo equipo.',
     heroSub:
-      'El Building Department de Medley tiene un formulario de portada propio para el informe de recertificación, con una declaración jurada que el propietario hace ante notario. ¿Ya va tarde? Un solo equipo todavía prepara la recertificación completa que lo acompaña.',
+      'El Building Department de Medley tiene un formulario de portada propio para el informe de recertificación, con una declaración jurada que el propietario hace ante notario. ¿Ya va tarde? Un solo equipo todavía prepara la recertificación completa que acompaña ese formulario de portada.',
     lede:
       'En Medley la recertificación se presenta ante el Town of Medley Building Department (departamento de construcción del municipio). La página de construcción del Town no trae texto sobre el programa, pero su lista de formularios incluye un Recertification Report Submittal Form (formulario de presentación del informe), y sus otros documentos muestran cómo el departamento lleva el registro de cada edificio.',
     local: [
@@ -1092,7 +1092,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación en Opa-locka: quién envía la notificación, quién revisa el informe, cómo avanzan los permisos de reparación y el paquete completo.',
     heroSub:
-      'El Building and Licensing Department de Opa-locka (su departamento de construcción y licencias) emite las notificaciones de recertificación y revisa los informes de los consultores. ¿Ya va tarde? Un solo equipo todavía lleva su edificio en Opa-locka por la recertificación completa.',
+      'El Building and Licensing Department de Opa-locka (su departamento de construcción y licencias) emite las notificaciones de recertificación y revisa los informes de los consultores. ¿Ya va tarde? Un solo equipo todavía se encarga de la recertificación completa de su edificio en Opa-locka.',
     lede:
       'En Opa-locka la recertificación está a cargo del City of Opa-locka Building and Licensing Department, la oficina que también emite los permisos de construcción y los certificados de ocupación de la ciudad. Su página le dedica al programa dos líneas — enviar las notificaciones y revisar los informes — y nada más; lo que la ciudad no publica se confirma con el departamento.',
     local: [
@@ -1193,7 +1193,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Recertificación en Sweetwater: el memorando de la ciudad, el informe enviado por correo electrónico, la revisión y el paquete completo de un equipo.',
     heroSub:
-      'El Building and Zoning Department de Sweetwater (su departamento de construcción y zonificación) publica su propio memorando e instrucciones de presentación para la recertificación, y recibe el informe por correo electrónico. ¿Ya va tarde? Un solo equipo todavía prepara el paquete completo de su edificio en Sweetwater conforme a ellos.',
+      'El Building and Zoning Department de Sweetwater (su departamento de construcción y zonificación) publica su propio memorando e instrucciones de presentación para la recertificación, y recibe el informe por correo electrónico. ¿Ya va tarde? Un solo equipo todavía prepara el paquete completo de su edificio en Sweetwater, conforme al memorando y las instrucciones de la ciudad.',
     lede:
       'En Sweetwater la recertificación la lleva el City of Sweetwater Building and Zoning Department. Su página de formularios reúne dos documentos bajo el nombre anterior del programa, la recertificación de 40 años: un Building Department Memorandum (memorando del departamento) que explica lo que el código del condado exige al propietario, y una hoja de instrucciones de presentación electrónica sobre cómo llega el informe a la ciudad y cómo se revisa.',
     local: [
@@ -1500,7 +1500,7 @@ export const cityPagesEs: readonly CityPage[] = [
     description:
       'Programa de Inspección de Seguridad de Edificios (BSIP) en Deerfield Beach: qué publica la ciudad, qué no dice y un equipo que lo entrega completo.',
     heroSub:
-      'La Building Division de Deerfield Beach dice seguir las guías de la Board of Rules and Appeals; la ciudad publica los formularios. ¿Ya va tarde? Un solo equipo todavía entrega en ellos el BSIP completo: inspección e informe.',
+      'La Building Division de Deerfield Beach dice seguir las guías de la Board of Rules and Appeals; la ciudad publica los formularios. ¿Ya va tarde? Un solo equipo todavía entrega el BSIP completo, inspección e informe, en los formularios de la ciudad.',
     lede:
       'Deerfield Beach no tiene una página propia para el Programa de Inspección de Seguridad de Edificios (BSIP). En el sitio de la ciudad el programa aparece solo como cuatro documentos en la página Applications and Forms; cómo se tramitan los permisos, y quién los atiende, está en la página de Building Services.',
     local: [

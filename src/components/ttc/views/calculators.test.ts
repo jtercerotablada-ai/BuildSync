@@ -321,8 +321,19 @@ describe('calculators: the page', () => {
         [t.families, String(calculatorFamilies.length)],
       ]);
       // Each family says how many it holds — the count is its block's toggle on a phone.
-      const counts = [...main.matchAll(/<summary class="mp-calc__count">([\s\S]*?)<\/summary>/g)].map((m) => text(m[1]));
+      const summaries = [...main.matchAll(/<summary class="mp-calc__count"([^>]*)>([\s\S]*?)<\/summary>/g)];
+      const counts = summaries.map((m) => text(m[2]));
       expect(counts).toEqual(calculatorFamilies.map((g) => `${g.items.length} ${t.count}`));
+      // The number and its space are one text node: Chrome drops a space
+      // that stands alone from the toggle's name ("3CALCULATORS").
+      for (const m of summaries) expect(m[2], m[2]).toMatch(/<span>\d+ <span class="mp-calc__countword">/);
+      // Each toggle is named after its subject, not by its count alone — the
+      // h2 is outside it, and seventeen controls called "3 calculators" say
+      // nothing. The name holds what is drawn ("3", "3 calculators").
+      expect(summaries.map((m) => attr(m[1], 'aria-label'))).toEqual(
+        calculatorFamilies.map((g) => esc(`${g.title[lang]}, ${g.items.length} ${t.count}`)),
+      );
+      expect(new Set(summaries.map((m) => attr(m[1], 'aria-label'))).size).toBe(calculatorFamilies.length);
     });
 
     // On a phone the subjects with no open calculator start folded (CalcFolds),

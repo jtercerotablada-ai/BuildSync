@@ -140,6 +140,17 @@ describe('each program page lays out its own county’s package, part by part', 
         expect(service.deliverables[0]).toMatch(/complete|completo/i);
       });
 
+      // The city pages' "The package, part by part" lands here: one anchor,
+      // on a wrapper that does not rise with the block, holding the block.
+      it(`${slug} (${lang}): the package has its own anchor, between "What you receive" and the table`, () => {
+        const id = ` id="${JUMP_ID.package}"`;
+        expect(own.split(id)).toHaveLength(2);
+        const at = own.indexOf(id);
+        expect(at).toBeGreaterThan(own.indexOf(`id="${JUMP_ID.receive}"`));
+        expect(at).toBeLessThan(own.indexOf(`id="${JUMP_ID.applies}"`));
+        expect(own.slice(at)).toMatch(/^ id="the-package"><div class="[^"]*\bmp-packet\b/);
+      });
+
       it(`${slug} (${lang}): every row has a name and a whole sentence, and types no number`, () => {
         expect(packet.parts.length).toBeGreaterThanOrEqual(6);
         expect(new Set(packet.parts.map((p) => p.k)).size).toBe(packet.parts.length);
@@ -399,6 +410,11 @@ describe('the whole site: conditions in words, and no word on who signs which pa
     it(`${lang}: no part is assigned to a person, a trade or a firm`, () => {
       const who = /electrical engineer|certified thermographer|thermographer|licensed electrician|ingenier[oa] (?:eléctric[oa]|electricista)|termógraf[oa]|electricista/i;
       expect(all.filter((s) => who.test(s))).toEqual([]);
+      // Not by a description of the person either: the price table's list
+      // said the electrical report was "signed by a professional qualified
+      // in electrical design" — the sentence removed on October 6-7.
+      const signer = /\b(?:signed|sealed) by an? (?:professional|engineer|person)|firmad[oa] por un[oa]? (?:profesional|ingenier[oa]|persona)/i;
+      expect(all.filter((s) => signer.test(s))).toEqual([]);
       // With the package complete, "signed by the same person" on /about
       // reads as one engineer signing every part.
       expect([...c.leadership.bio, ...c.leadership.forYou.map((r) => r.v)].join(' ')).not.toMatch(

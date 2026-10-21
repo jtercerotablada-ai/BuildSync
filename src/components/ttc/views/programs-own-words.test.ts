@@ -5,7 +5,7 @@ import { getContent } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { JUMP_ID } from '@/components/ttc/mp/JumpLinks';
-import { firstSentence } from '@/components/ttc/mp/text';
+import { firstSentence, keepHyphens } from '@/components/ttc/mp/text';
 import { AboutView } from './AboutView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -213,7 +213,8 @@ describe('home page: each program section is a summary of its page', () => {
 
       // Every number in the section answers to this line, as before.
       it(`${slug} (${lang}): still names the authority and the date beside its rows`, () => {
-        expect(section).toContain(esc(row.source));
+        // As Source prints it: a hyphenated part kept whole (`keepHyphens`).
+        expect(section).toContain(renderToStaticMarkup(h('i', null, keepHyphens(row.source))).slice(3, -4));
         expect(section).toContain(esc(service.timing!.checked));
       });
     }

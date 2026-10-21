@@ -7,7 +7,8 @@ import { useContent } from './lang';
 /**
  * The toolchain, shown rather than listed. On a LIGHT surface on purpose:
  * these are third-party marks in their own colours; they sit desaturated and
- * return to full colour on hover — never recoloured or redrawn.
+ * return to full colour on hover — never recoloured or redrawn. The band ends
+ * on the tiles.
  */
 export function SoftwareBand({
   n = '04',
@@ -67,10 +68,9 @@ export function SoftwareBand({
             ))}
           </ul>
         </Reveal>
-
-        <Reveal delay={0.1}>
-          <p className="mp-tools__note">{s.note}</p>
-        </Reveal>
+        {/* No trademark line under the tiles: legal small print the page
+            does not need (the owner, 2026-10-20). The notice that the marks
+            belong to their owners is on /terms and /credits. */}
       </div>
     </section>
   );

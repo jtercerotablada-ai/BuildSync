@@ -1,13 +1,16 @@
-import { createElement as h, type ReactElement } from 'react';
+import { createElement as h, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { getContent } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { photo, video } from '@/lib/ttc/media';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
-import { firstSentence } from '@/components/ttc/mp/text';
+import { firstSentence, keepHyphens } from '@/components/ttc/mp/text';
 import { cityPath } from '@/lib/ttc/cities';
 import { getCityPages } from '@/lib/ttc/city-content';
+import { pageHoldsNotice } from '@/lib/ttc/notice-pages';
+import { whatsappHref } from '@/components/ttc/mp/ReachRow';
+import { GuideView } from './GuideView';
 import { AboutView } from './AboutView';
 import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
 import { SPAN_PATH, SingleSpanView } from './SingleSpanView';
@@ -104,6 +107,8 @@ for (const lang of LANGS) {
 
 /** A string as React prints it in an attribute or in text. */
 const esc = (s: string) => renderToStaticMarkup(h('i', null, s)).slice(3, -4);
+/** Inline markup (a string or the nodes of a helper like `keepHyphens`) as React prints it. */
+const inline = (node: ReactNode) => renderToStaticMarkup(h('i', null, node)).slice(3, -4);
 const attr = (tag: string, name: string) => tag.match(new RegExp(` ${name}="([^"]*)"`))?.[1];
 const imgs = (html: string) => [...html.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
 const text = (html: string) =>
@@ -434,8 +439,28 @@ describe('service pages: headings are sections, and there are few enough of them
       // stays a heading, under the section's own h2.
       it(`${s.slug} (${lang}): every question is still an h3`, () => {
         const questions = all.filter((x) => x.cls === 'mp-faq__q');
-        expect(questions.map((x) => x.text)).toEqual((s.faq ?? []).map((f) => text(esc(f.q))));
+        expect(questions.map((x) => x.text)).toEqual((s.faq ?? []).map((f) => text(inline(keepHyphens(f.q)))));
         for (const q of questions) expect(q.level).toBe(3);
+      });
+    }
+  }
+});
+
+/* No thin page. Every service page says at least 500 words of its OWN — the
+   main content without the closing band, which is the same on every page,
+   tags read as spaces (the way cities.test.ts counts). Five of the eight ran
+   370–510 in English (peer review the thinnest) until each got four
+   questions of its own (site.ts, `faq`). */
+describe('service pages: enough words of their own to be a page', () => {
+  const words = (s: string) => (s.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []).length;
+  for (const lang of LANGS) {
+    for (const s of getContent(lang).services) {
+      it(`${s.slug} (${lang}): at least 500 words without the closing band`, () => {
+        const { html } = pages.get(`${lang} /services/${s.slug}`)!;
+        const main = html
+          .match(/<main\b[\s\S]*<\/main>/)![0]
+          .replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '');
+        expect(words(text(main))).toBeGreaterThanOrEqual(500);
       });
     }
   }
@@ -463,10 +488,12 @@ describe('county program pages: no paragraph is printed twice', () => {
       // Compact by layout, and nothing taken out of the page: the twelve
       // answers, the offices, the notes and the package fold under one line
       // each — a native <details>, every word of it in the server HTML.
+      // A hyphenated name in a question ("Miami-Dade") is kept whole on its
+      // line (`keepHyphens`, a no-wrap span); its text is unchanged.
       it(`${slug} (${lang}): every answer is in the HTML, in the question's own <details>`, () => {
         for (const f of service.faq ?? []) {
           expect(main).toContain(
-            `<details class="mp-faq__d"><summary class="mp-faq__sum"><h3 class="mp-faq__q">${esc(f.q)}</h3><span class="mp-faq__icon" aria-hidden="true"></span></summary><p class="mp-faq__a">${esc(f.a)}</p></details>`,
+            `<details class="mp-faq__d"><summary class="mp-faq__sum"><h3 class="mp-faq__q">${inline(keepHyphens(f.q))}</h3><span class="mp-faq__icon" aria-hidden="true"></span></summary><p class="mp-faq__a">${esc(f.a)}</p></details>`,
           );
         }
       });
@@ -492,7 +519,12 @@ describe('county program pages: no paragraph is printed twice', () => {
       // Under the rows it belongs to. It also closed the questions, one
       // section down, whose answers point back up at those rows.
       it(`${slug} (${lang}): the authority is named once, with its rows`, () => {
-        expect(count(service.timing!.rows[0].source)).toBe(1);
+        // Source keeps a hyphenated part whole (`keepHyphens`, a no-wrap
+        // span): counted with those spans taken out, so a plain copy
+        // printed anywhere else is counted too.
+        const flat = main.replace(/<span class="mp-nobr">([^<]*)<\/span>/g, '$1');
+        expect(flat.split(esc(service.timing!.rows[0].source)).length - 1).toBe(1);
+        expect(main).toContain(inline(keepHyphens(service.timing!.rows[0].source)));
       });
 
       /* The second report (October 7, 2026) still counted two duplicate
@@ -521,13 +553,28 @@ describe('county program pages: no paragraph is printed twice', () => {
         expect(left).toMatch(/^ [A-ZÁÉÍÓÚÜÑ]/);
       });
 
-      // 2. "The proposal is free…": beside the button under the deadline.
-      //    The closing band says it on every other page of the site, and
-      //    said it here a second time.
-      it(`${slug} (${lang}): the free-proposal line is said once, under the deadline`, () => {
-        expect(count(`${r.free} ${r.reply}`)).toBe(1);
+      // 2. "The proposal is free…": it was a small grey line beside the
+      //    button under the deadline, and the closing band printed it too.
+      //    The owner, 2026-10-20: no small print under a button. The two
+      //    facts end the closing band's text, once, and nothing is printed
+      //    under the deadline's button but Call and WhatsApp.
+      // The closing band's button is the page's button: "Send the Miami-Dade
+      // Notice", the label of the hero's and the timing table's, not a
+      // generic "Request a Proposal" for the same form.
+      it(`${slug} (${lang}): the closing band's button names the county's notice`, () => {
         const close = main.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)![0];
-        expect(close).not.toContain(esc(r.free));
+        const button = close.match(/<a class="mp-btn[^"]*"[^>]*><span>([\s\S]*?)<\/span>/)!;
+        expect(text(button[1])).toBe(text(esc(service.program!.cta)));
+        expect(button[0]).toContain(`href="${esc(localePath(`/contact?service=${slug}`, lang))}"`);
+        expect(close).not.toContain(`>${esc(c.closingCta.primary.label)}<`);
+      });
+
+      it(`${slug} (${lang}): the free-proposal facts are said once, in the closing band's text`, () => {
+        expect(main).not.toContain('mp-reach__assure');
+        expect(count(r.reply)).toBe(0);
+        expect(count(c.closingCta.body)).toBe(1);
+        const close = main.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)![0];
+        expect(close).toContain(`<p class="mp-close__body">${esc(c.closingCta.body)}</p>`);
       });
 
       // 3. Call + WhatsApp: one pair beside each of the three buttons, so
@@ -580,45 +627,75 @@ describe('county program pages: no paragraph is printed twice', () => {
     }
   }
 
-  // The band that closes every OTHER page still says it: there it is the
-  // only place the page does.
-  it('the closing band keeps the free-proposal line where the page has not said it', () => {
+  // Every closing band says the two facts in its text, at reading size, and
+  // no page prints them as a small line under a button.
+  it('the closing band says the free proposal and the reply time in its text, on every page', () => {
     const closed: string[] = [];
     for (const { lang, path, html } of pages.values()) {
-      if (PROGRAMS.some((slug) => path === `/services/${slug}`)) continue;
+      const c = getContent(lang);
+      expect(html, `${lang} ${path}`).not.toContain('mp-reach__assure');
       const close = html.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)?.[0];
       // /contact, the legal pages, the 404, the calculators catalogue and
       // the calculators have no closing band.
       if (!close) continue;
       closed.push(`${lang} ${path}`);
-      const r = getContent(lang).reach;
-      expect(close, `${lang} ${path}`).toContain(esc(`${r.free} ${r.reply}`));
+      const body = close.match(/<p class="mp-close__body">([\s\S]*?)<\/p>/)?.[1] ?? '';
+      expect(body, `${lang} ${path}`).toBe(esc(c.closingCta.body));
+    }
+    for (const [lang, free, reply] of [
+      ['en', 'free written proposal', 'usually within two hours'],
+      ['es', 'propuesta gratis', 'normalmente en menos de dos horas'],
+    ] as const) {
+      expect(getContent(lang).closingCta.body).toContain(free);
+      expect(getContent(lang).closingCta.body).toContain(reply);
     }
     // Home, Services, Existing Buildings, About, Typical Engagements and the
-    // six other services, in each language — and every city page, which
-    // leaves the line to its closing band.
-    expect(closed).toHaveLength(22 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
+    // eight services, in each language — and every city page.
+    expect(closed).toHaveLength(26 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
 });
 
-/* Where the reader holds no notice there is no "Send the notice": the pages
-   of the new-building services say "Message us on WhatsApp" in the closing
-   band, and the phone bar asks for a proposal (with the service chosen).
-   The existing-building pages keep the notice wording. */
+/* Where the reader holds no notice there is no "Send the notice". One rule
+   by address, pageHoldsNotice (notice-pages.ts), for the phone bar and the
+   closing band (the views' own rules agree with it: notice-pages.test.ts):
+   off the notice pages the bar offers the free proposal (with the service
+   chosen on a service page) and its WhatsApp chat opens with a proposal
+   request; the band says "Message us on WhatsApp". */
 describe('no "Send the notice" where there is no notice', () => {
+  const barOf = (html: string) => html.match(/<nav class="mp-bar[\s\S]*?<\/nav>/)?.[0];
+
+  // The bar's own label, never the header's: "Request a Proposal" took two
+  // lines in a third of a 360–390px screen, and repeated the header's
+  // button (which mp.css now hides while the bar is up).
+  for (const { lang, path, html } of pages.values()) {
+    const bar = barOf(html);
+    // /contact, /resources and the calculators have no bar.
+    if (!bar) continue;
+    const c = getContent(lang);
+    const r = c.reach;
+    const notice = pageHoldsNotice(path);
+    it(`${lang} ${path}: the phone bar ${notice ? 'sends the notice' : 'offers the free proposal'}`, () => {
+      expect(bar).toContain(`>${esc(notice ? r.form : r.formPlain)}</a>`);
+      expect(bar).not.toContain(`>${esc(notice ? r.formPlain : r.form)}</a>`);
+      expect(bar).not.toContain(`>${esc(c.primaryCta.label)}</a>`);
+      expect(bar).toContain(esc(whatsappHref(c, !notice)!));
+    });
+  }
+
   for (const lang of LANGS) {
     const c = getContent(lang);
     const r = c.reach;
     for (const s of c.services) {
       const html = pages.get(`${lang} /services/${s.slug}`)!.html;
-      const bar = html.match(/<nav class="mp-bar[\s\S]*?<\/nav>/)?.[0] ?? '';
-      if (s.track === 'new') {
+      const bar = barOf(html) ?? '';
+      if (!pageHoldsNotice(`/services/${s.slug}`)) {
+        // The new-building services, and the assessments page: cracks, a
+        // report, a purchase — no letter.
         it(`${lang} /services/${s.slug}: a proposal, never the notice`, () => {
           expect(html).toContain(esc(r.whatsappPlain));
           expect(html).not.toContain(esc(r.whatsappNotice));
           expect(html).not.toContain(encodeURIComponent(r.whatsappText).replace(/'/g, '%27'));
-          expect(bar).toContain(`>${esc(c.primaryCta.label)}</a>`);
-          expect(bar).not.toContain(`>${esc(r.form)}</a>`);
+          expect(bar).toContain(`>${esc(r.formPlain)}</a>`);
           expect(bar).toContain(`service=${s.slug}`);
         });
       } else {
@@ -628,5 +705,35 @@ describe('no "Send the notice" where there is no notice', () => {
         });
       }
     }
+
+    // The guide for the reader with no letter yet ("No letter yet?", one
+    // button that sends the address): nothing on it asks for a notice.
+    it(`${lang} /guides/is-my-building-due: the hero, the closing band and the bar never ask for the notice`, () => {
+      const path = '/guides/is-my-building-due';
+      route.pathname = localePath(path, lang);
+      const html = renderToStaticMarkup(h(SiteChrome, null, h(GuideView, { lang, slug: 'is-my-building-due' })));
+      const close = html.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)![0];
+      expect(close).toContain(esc(r.whatsappPlain));
+      expect(html).not.toContain(esc(r.whatsappNotice));
+      expect(html).not.toContain(encodeURIComponent(r.whatsappText).replace(/'/g, '%27'));
+      expect(barOf(html)).toContain(`>${esc(r.formPlain)}</a>`);
+    });
+  }
+});
+
+// The privacy policy changed on October 20, 2026 ("What we collect": the
+// form no longer asks for a company) and carries that date; the terms did
+// not change, and keep the shared date.
+describe('legal pages: each is dated by its own last change', () => {
+  for (const lang of LANGS) {
+    const c = getContent(lang);
+    it(`${lang}: the privacy policy prints its own date, the terms the shared one`, () => {
+      const privacy = pages.get(`${lang} /privacy`)!.html;
+      const terms = pages.get(`${lang} /terms`)!.html;
+      expect(privacy).toContain(esc(c.legal.privacy.updated));
+      expect(privacy).not.toContain(esc(c.legal.updated));
+      expect(terms).toContain(esc(c.legal.updated));
+      expect(c.legal.privacy.updated).toMatch(lang === 'en' ? /October 20, 2026/ : /20 de octubre de 2026/);
+    });
   }
 });

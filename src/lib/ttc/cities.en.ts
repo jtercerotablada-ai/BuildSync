@@ -23,7 +23,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building recertification in the City of Miami: the letter, filing in iBuild and ProjectDox, the city’s forms, and what one team delivers complete.',
     heroSub:
-      'In the City of Miami the Unsafe Structures Section runs the recertification, and the documents are submitted online. Already late? One team still delivers yours complete, on the city’s forms.',
+      'In the City of Miami the Unsafe Structures Section runs the recertification, and the documents are submitted online. Already late? One team still delivers your complete recertification on the city’s forms.',
     lede:
       'In the City of Miami the recertification runs through the Unsafe Structures Section of the Building Department. The city says it recertifies structures as per the Miami-Dade County Code, and its page has the owner hire an architect or engineer to inspect the property and then submit the documents online.',
     local: [
@@ -125,7 +125,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building recertification in Hialeah: how the city’s Building Division notifies owners, the forms it publishes and what one team delivers, complete.',
     heroSub:
-      'Hialeah’s Building Division mails the recertification letters and receives the reports. Already late? One team still delivers yours complete, on the forms the city lists.',
+      'Hialeah’s Building Division mails the recertification letters and receives the reports. Already late? One team still delivers your complete recertification, on the forms the city lists.',
     lede:
       'In Hialeah the recertification runs through the Building Division. Each year the division mails a letter to the owners whose buildings are due, and it publishes its own set of forms and guidelines for the report.',
     local: [
@@ -175,7 +175,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building recertification in Coral Gables: the Building Division’s notices, filing through the city’s portal and what one team delivers, complete.',
     heroSub:
-      'Coral Gables’ Building Division mails the notices, and the reports are uploaded to the city’s permitting portal. Already late? One team still delivers yours complete, on Miami-Dade’s templates.',
+      'Coral Gables’ Building Division mails the notices, and the reports are uploaded to the city’s permitting portal. Already late? One team still delivers your complete recertification on Miami-Dade’s templates.',
     lede:
       'In Coral Gables the City of Coral Gables Building Division mails the notices for the county’s building recertification. The completed report is prepared on Miami-Dade’s templates and uploaded to the city’s permitting web portal.',
     local: [
@@ -226,7 +226,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building recertification in Doral: how the Building Department takes the reports, what must go with them and what one team delivers, complete.',
     heroSub:
-      'Doral’s Building Department runs the recertification: reports go in at City Hall or through the city’s permitting system. Already late? One team still delivers it complete, on the county templates Doral accepts.',
+      'Doral’s Building Department runs the recertification: reports go in at City Hall or through the city’s permitting system. Already late? One team still delivers the complete recertification on the county templates Doral accepts.',
     lede:
       'In Doral the recertification sits with the city’s Building Department, which lists it among its programs and publishes a guide of its own. The city’s page says that, in addition to its local ordinances, Doral follows and enforces the Code of Miami-Dade County. The city accepts the county’s document templates for the reports.',
     local: [
@@ -277,7 +277,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building recertification in North Miami: what the city’s page says, the county-approved forms it posts and what one team delivers, complete.',
     heroSub:
-      'North Miami counts recertification among its Building Department’s services and posts the county-approved forms. Already late? On those forms, one team still delivers the complete recertification.',
+      'North Miami counts recertification among its Building Department’s services and posts the county-approved forms. Already late? One team still delivers the complete recertification on those county forms.',
     lede:
       'The City of North Miami Building Department lists recertification among the services it provides, and the city keeps a page on the program. That page is brief: it says which buildings are covered, posts the county-approved forms, names a Building Officer as its contact and points to Miami-Dade County’s recertification page for guidance.',
     local: [
@@ -379,7 +379,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building recertification in Aventura: online filing with the Building Division, the forms the city lists and its own ordinance on engineering reports.',
     heroSub:
-      'Aventura’s Building Division administers the recertification and receives the documents online. Already late? One team still delivers it complete, following the county guidelines the city’s page lists.',
+      'Aventura’s Building Division administers the recertification and receives the documents online. Already late? One team still delivers the complete recertification, following the county guidelines the city’s page lists.',
     lede:
       'In Aventura the recertification is administered by the City of Aventura Building Division, in accordance with Miami-Dade County requirements. The notice comes from the city, which uses the county’s current guidelines, and the documents are filed electronically. Aventura also has ordinances of its own, on engineering reports and on yearly structural maintenance.',
     local: [
@@ -887,7 +887,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building recertification in Medley: the Town’s own submittal form, the owner’s notarized affidavit, and one team for the complete recertification.',
     heroSub:
-      'Medley’s Building Department has a cover form of its own for the recertification report, with an affidavit the owner swears before a notary. Already late? One team still prepares the complete recertification that goes with it.',
+      'Medley’s Building Department has a cover form of its own for the recertification report, with an affidavit the owner swears before a notary. Already late? One team still prepares the complete recertification that goes with that cover form.',
     lede:
       'In Medley the recertification is filed with the Town of Medley Building Department. The Town’s building page carries no text about the program, but its list of building forms includes a Recertification Report Submittal Form, and its other documents show how the department keeps track of each building.',
     local: [
@@ -1193,7 +1193,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Sweetwater building recertification: the city’s memorandum, filing the report by e-mail, the review that follows, and the complete package from one team.',
     heroSub:
-      'Sweetwater’s Building and Zoning Department publishes its own memorandum and filing instructions for the recertification, and takes the report by e-mail. Already late? One team still prepares the complete package for your Sweetwater building to match them.',
+      'Sweetwater’s Building and Zoning Department publishes its own memorandum and filing instructions for the recertification, and takes the report by e-mail. Already late? One team still prepares the complete package for your Sweetwater building, following the city’s memorandum and instructions.',
     lede:
       'In Sweetwater the recertification is handled by the City of Sweetwater Building and Zoning Department. Its forms page gathers two documents under the program’s former 40-year name: a Building Department Memorandum explaining what the county code requires of the owner, and a sheet of electronic submittal instructions on how the report reaches the city and how it is reviewed.',
     local: [
@@ -1500,7 +1500,7 @@ export const cityPagesEn: readonly CityPage[] = [
     description:
       'Building Safety Inspection Program (BSIP) in Deerfield Beach: what the city posts, what its pages leave out, and one team that delivers it complete.',
     heroSub:
-      'Deerfield Beach’s Building Division says it follows Board of Rules and Appeals guidelines; the city posts the inspection forms. Already late? One team still delivers the complete BSIP inspection and report on them.',
+      'Deerfield Beach’s Building Division says it follows Board of Rules and Appeals guidelines; the city posts the inspection forms. Already late? One team still delivers the complete BSIP inspection and report on the city’s forms.',
     lede:
       'Deerfield Beach has no page of its own for the Building Safety Inspection Program (BSIP). On the city’s site the program appears only as four documents on the Applications and Forms page; how permits are filed, and who handles them, is on the Building Services page.',
     local: [

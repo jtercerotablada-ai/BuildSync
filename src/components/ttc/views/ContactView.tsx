@@ -1,6 +1,6 @@
 import React from 'react';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
-import { imagery } from '@/lib/ttc/site';
+import { holdsNotice, imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactForm } from '@/components/ttc/mp/ContactForm';
@@ -29,7 +29,14 @@ import { whatsappHref } from '@/components/ttc/mp/ReachRow';
  * no photo band on a phone, a tighter section. A form opened for a county
  * program marks itself `data-mp-notice-first` (ContactForm), and mp.css then
  * hides the hero's direct lines on a phone as well: the upload that visitor
- * was promised has to be the first thing under the lede.
+ * was promised has to be the first thing under the lede. The same Call and
+ * WhatsApp links then show under the form instead (`mp-contact__reach-after`,
+ * shown only in that case), so the guide's "send it by WhatsApp" always has
+ * a link to tap and exactly one pair is visible at every width.
+ *
+ * The sub follows the preset the way the WhatsApp text does: a new-building
+ * service gets `subNew` (no notice, no lateness); a bare /contact and the
+ * existing-building services keep the notice line.
  *
  * Every word of the H1 is a word of the page (seo.test.ts): EN "tell",
  * "about" and "scope", ES "cuéntenos" and "enviamos" are in the guide, EN
@@ -37,17 +44,23 @@ import { whatsappHref } from '@/components/ttc/mp/ReachRow';
  */
 
 /* The guide's first rows are the situations — what to send in each — and
-   sit beside the form, which they match in height; the rest (what happens
-   next, the other ways in, where and in which language) run in three
-   columns under both from 1181px. Below that the two lists read as one. */
+   sit beside the form, at body size; the rest (what happens
+   next, where and in which language) run in two columns under both from
+   1181px. Below that the two lists read as one. */
 const SITUATIONS = 4;
 export function ContactView({ lang, presetService }: { lang: Lang; presetService?: string }) {
   const c = getContent(lang);
-  // With a new-building service chosen (?service=…), the WhatsApp chat opens
-  // with a proposal request, not "I received a notice". A bare /contact keeps
-  // the notice: the site's first reader holds one.
+  // With a new-building service chosen (?service=…), the hero's sub asks
+  // for a proposal, not about a notice. The WhatsApp chat follows the
+  // service's reader (site.ts `holdsNotice`, the rule of the service page
+  // the visitor came from): the assessments page is an existing building
+  // with no letter, so its chat does not open with "I received a building
+  // inspection notice". A bare /contact keeps the notice: the site's first
+  // reader holds one.
   const preset = c.services.find((s) => s.slug === presetService);
-  const waHref = whatsappHref(c, preset?.track === 'new');
+  const isNew = preset?.track === 'new';
+  const plain = preset ? !holdsNotice(preset) : false;
+  const waHref = whatsappHref(c, plain);
   const p = c.contactPage;
   const b = p.before;
   const a = c.contact.address;
@@ -61,7 +74,7 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
         eyebrow={p.eyebrow}
         crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
-        sub={p.sub}
+        sub={isNew ? p.subNew : p.sub}
         photo={imagery.pages.contact}
       >
         {/* Links, not a paragraph (see ReachRow): plain <a href> so the ads
@@ -100,6 +113,27 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
           <div className="mp-contact__grid">
             <div>
               <ContactForm presetService={presetService} />
+              {/* The hero's Call and WhatsApp, again, for the one case where
+                  the hero's are hidden: a phone, with the form opened for a
+                  county program (mp.css 18 shows this only then). Not for a
+                  service whose reader holds no notice, which is never opened
+                  that way. No note under them: links only. */}
+              {plain ? null : (
+                <div className="mp-reach mp-contact__reach-after">
+                  <div className="mp-reach__links">
+                    {c.contact.phone ? (
+                      <a className="mp-reach__link" href={c.contact.phone.href}>
+                        {`${c.reach.call} ${c.contact.phone.display}`}
+                      </a>
+                    ) : null}
+                    {waHref ? (
+                      <a className="mp-reach__link" href={waHref} target="_blank" rel="noopener noreferrer">
+                        {c.reach.whatsappNotice}
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              )}
             </div>
 
             <aside className="mp-contact__rail" aria-labelledby="mp-before-title">

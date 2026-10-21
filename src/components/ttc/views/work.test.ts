@@ -16,8 +16,9 @@ import { WorkView } from './WorkView';
  *   • a "Status: Typical engagement" row on every profile, and a footnote
  *     that says again what the hero's lede says;
  *   • a gallery of finished houses and skylines, with its note after them.
- * And what it must keep: each profile opens with the reader's situation and
- * leads to the service page that answers it, named by its short name.
+ * And what it must keep: each profile opens with the reader's situation, says
+ * the least they need to begin, and leads to the service page that answers
+ * it, named by its short name; and the page keeps 500 words of its own.
  */
 
 const route = vi.hoisted(() => ({ pathname: '/' }));
@@ -25,12 +26,18 @@ vi.mock('next/navigation', () => ({ usePathname: () => route.pathname }));
 
 const LANGS: Lang[] = ['en', 'es'];
 const esc = (s: string) => renderToStaticMarkup(h('i', null, s)).slice(3, -4);
+// Entities decoded, or "architect&#x27;s" would count as two words.
 const text = (html: string) =>
   html
     .replace(/<(script|style)\b[\s\S]*?<\/\1>/g, '')
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
     .replace(/\s+/g, ' ')
     .trim();
+/** The counter of cost.test.ts and guides.test.ts. */
+const words = (s: string) => (s.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []).length;
 
 function render(lang: Lang): string {
   route.pathname = localePath('/projects', lang);
@@ -81,6 +88,29 @@ describe('/projects: the typical engagements are one register', () => {
         expect(item.indexOf('mp-work__need')).toBeGreaterThan(item.indexOf('mp-work__title'));
         expect(item.indexOf('mp-work__need')).toBeLessThan(item.indexOf('<dl'));
       });
+    });
+
+    // The easy first step: what the reader already has is enough. Printed
+    // once, right after the situation, as its own sentence with no figure.
+    it(`${lang}: each profile then says the least the reader needs to begin`, () => {
+      items.forEach((item, i) => {
+        const e = c.engagements[i];
+        const start = `<p class="mp-work__start">${esc(e.start)}</p>`;
+        expect(item).toContain(start);
+        expect(html.split(start).length - 1).toBe(1);
+        expect(e.start).not.toMatch(/\d/);
+        expect(e.start).not.toBe(e.need);
+        expect(item.indexOf('mp-work__start')).toBeGreaterThan(item.indexOf('mp-work__need'));
+        expect(item.indexOf('mp-work__start')).toBeLessThan(item.indexOf('<dl'));
+      });
+    });
+
+    // Under 500 words of its own the check calls a page thin. The closing
+    // band is on every page, so it does not count (as on the cost page and
+    // the guides).
+    it(`${lang}: enough words to be a page of its own`, () => {
+      const own = text(html.replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, ''));
+      expect(words(own)).toBeGreaterThanOrEqual(500);
     });
 
     it(`${lang}: each profile links the service that answers it, by its short name`, () => {

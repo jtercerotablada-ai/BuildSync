@@ -13,7 +13,7 @@ import { JUMP_ID } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Source } from '@/components/ttc/mp/Outbound';
 import { ButtonLink, Reveal, SectionHeading, TextLink } from '@/components/ttc/mp/primitives';
-import { firstSentence } from '@/components/ttc/mp/text';
+import { firstSentence, keepHyphens } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
@@ -113,11 +113,13 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       localTitle: (place) => `How building recertification is handled in ${place}`,
       read: (office) => `Read on the website of the ${office}`,
       deadlinesTitle: (place) => `The deadlines that apply in ${place}`,
-      // The time to file runs from the Notice in both counties (site.ts,
-      // the timing rows); "does not go away" is the county page's own line,
-      // without its figures — a city sets its own amounts.
+      // No clock here: where each one starts is said only in the rows, read
+      // from site.ts — Miami-Dade "from the Notice", Broward from RECEIVING
+      // it (a lede that said "the date on your notice" contradicted the
+      // Broward row printed beside it). "Does not go away" is the county
+      // page's own line, without its figures — a city sets its own amounts.
       deadlinesLede: (place) =>
-        `For a building in ${place}, the time to file runs from the date on your notice, and an unanswered notice does not go away.`,
+        `For a building in ${place}, these are the dates that count, and an unanswered notice does not go away.`,
       at: (place) => `in ${place}`,
       rowsFor: (place, county) => `${county} County’s rows, for ${place}`,
       more: moreEn,
@@ -136,10 +138,11 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       localTitle: (place) => `How the Building Safety Inspection Program runs in ${place}`,
       read: (office) => `Read on the website of the ${office}`,
       deadlinesTitle: (place) => `The deadlines that apply in ${place}`,
-      // Only the time to file runs from the notice in Broward; repairs run
-      // from the date of the report (site.ts, the Broward timing row).
+      // The same lede as Miami-Dade's, with no clock: Broward's time to file
+      // runs from RECEIVING the notice and its repairs from the date of the
+      // report (site.ts, the Broward timing row) — the rows say so.
       deadlinesLede: (place) =>
-        `For a building in ${place}, the time to file runs from the date on your notice, and an unanswered notice does not go away.`,
+        `For a building in ${place}, these are the dates that count, and an unanswered notice does not go away.`,
       at: (place) => `in ${place}`,
       rowsFor: (place, county) => `${county} County’s rows, for ${place}`,
       more: moreEn,
@@ -159,7 +162,7 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       read: (office) => `Leído en el sitio web de la oficina (${office})`,
       deadlinesTitle: (place) => `Los plazos que rigen en ${place}`,
       deadlinesLede: (place) =>
-        `Para un edificio en ${place}, el plazo para presentar corre desde la fecha de su notificación, y una notificación sin respuesta no desaparece.`,
+        `Para un edificio en ${place}, estos son los plazos que cuentan, y una notificación sin respuesta no desaparece.`,
       at: (place) => `en ${place}`,
       rowsFor: (place, county) => `Datos del Condado de ${county}, para ${place}`,
       more: moreEs,
@@ -177,7 +180,7 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       read: (office) => `Leído en el sitio web de la oficina (${office})`,
       deadlinesTitle: (place) => `Los plazos que rigen en ${place}`,
       deadlinesLede: (place) =>
-        `Para un edificio en ${place}, el plazo para presentar corre desde la fecha de su notificación, y una notificación sin respuesta no desaparece.`,
+        `Para un edificio en ${place}, estos son los plazos que cuentan, y una notificación sin respuesta no desaparece.`,
       at: (place) => `en ${place}`,
       rowsFor: (place, county) => `Datos del Condado de ${county}, para ${place}`,
       more: moreEs,
@@ -304,7 +307,10 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
                 <p className="mp-timing__src">
                   {t.rowsFor(page.place, county)}. {u.sourceLabel}: <Source row={row} />
                   {' · '}
-                  <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
+                  {/* The date in one piece, as on the program's page. */}
+                  <span className="mp-timing__checked">
+                    <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
+                  </span>
                 </p>
                 {/* The button, then the way to the whole table — each in an
                     element of its own: side by side in one, the two labels
@@ -354,9 +360,10 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
                       counts a tap on any tel: link as a call to the firm
                       (ads.ts); this number rings at a city office.
                     • A space between the lines: each is drawn on its own row
-                      on a phone and after a dot from 761px (mp.css), and a
-                      reader of the plain text must not get "Section444 SW
-                      2nd Ave". */}
+                      on a phone, and from 761px as one whole part of a
+                      wrapping row, a dot between parts and never one at the
+                      start of a row (mp.css); a reader of the plain text
+                      must not get "Section444 SW 2nd Ave". */}
               <p className="mp-city__office">
                 <span className="mp-city__k">{t.office}</span>{' '}
                 <span className="mp-city__name">{page.office.name}</span>
@@ -400,7 +407,10 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
                     <Reveal as="div" key={item.q} className="mp-faq__item">
                       <details className="mp-faq__d">
                         <summary className="mp-faq__sum">
-                          <h3 className="mp-faq__q">{item.q}</h3>
+                          {/* A hyphenated name ("40-year", "Miami-Dade")
+                              stays whole on its line, as on the program's
+                              page. */}
+                          <h3 className="mp-faq__q">{keepHyphens(item.q)}</h3>
                           <span className="mp-faq__icon" aria-hidden="true" />
                         </summary>
                         <p className="mp-faq__a">{item.a}</p>
@@ -428,7 +438,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
               <Reveal delay={0.05} className="mp-cityp__body mp-cityp__next">
                 <p>{page.nextStep}</p>
                 <p className="mp-city__more">
-                  <TextLink href={l(`${servicePath}#${JUMP_ID.receive}`)}>{t.packageLink}</TextLink>
+                  <TextLink href={l(`${servicePath}#${JUMP_ID.package}`)}>{t.packageLink}</TextLink>
                 </p>
               </Reveal>
             </div>

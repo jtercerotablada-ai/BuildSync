@@ -24,8 +24,9 @@ import { breadcrumbLd, JsonLd } from './meta';
  *
  *   hero     the question as the H1; one button per county program, each
  *            opening the form for its own county (or, for the reader with
- *            no letter yet, one button with no preset); Call and WhatsApp;
- *            the engineer's credential last, after the actions
+ *            no letter yet, one button with no preset, and WhatsApp without
+ *            "Send the notice" here and in the closing band); Call and
+ *            WhatsApp; the engineer's credential last, after the actions
  *   guide    LegalDoc's guide variant — the contents in a rail from 901px:
  *              · the h2 sections, each with paragraphs, a list, and the
  *                county facts it needs (two counties side by side on a wide
@@ -115,6 +116,11 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
   const pageUrl = absoluteUrl(l(guidePath(g.slug)));
   const others = getGuides(lang).filter((x) => x.slug !== g.slug);
   const date = guidesReviewed[lang];
+  // The reader with no letter yet (`heroAction: 'address'`) is never asked
+  // to send a notice: under "Send the Address", WhatsApp is the plain
+  // "Message us" (and the chat opens without "I received a notice"), in the
+  // hero and in the closing band alike.
+  const notice = g.heroAction !== 'address';
   // One button per program, each with its own county preselected: under a
   // lede that says "in Miami-Dade or in Broward", a lone Miami-Dade button
   // sent Broward boards to a form set to Miami-Dade. Both solid — neither
@@ -183,7 +189,7 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         {/* The actions first (the buttons, then Call and WhatsApp), the
             credential after them: it used to sit between the button and
             the two links. */}
-        <ReachRow c={c} />
+        <ReachRow c={c} plain={!notice} />
         <EngineerCredential lang={lang} brief />
       </PageHero>
 
@@ -275,7 +281,7 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         </nav>
       </LegalDoc>
 
-      <ContactCTA service={g.programs.length === 1 ? own.slug : undefined} />
+      <ContactCTA service={g.programs.length === 1 ? own.slug : undefined} notice={notice} />
     </>
   );
 }
@@ -356,8 +362,9 @@ export function GuidesView({ lang }: { lang: Lang }) {
           </ol>
         </div>
       </section>
-      {/* Why the reader's own letter counts, and the step that follows: the
-          title in a column of its own from 901px, the paragraphs beside it. */}
+      {/* The reader's letter: what a missed date leads to, what to send (or
+          the address, with no letter yet) and what follows — the title in a
+          column of its own from 901px, the paragraphs beside it. */}
       <section className="mp-section mp-surface--concrete" aria-labelledby="mp-guides-how">
         <div className="mp-shell">
           <SectionHeading n="02" label={idx.howLabel} />

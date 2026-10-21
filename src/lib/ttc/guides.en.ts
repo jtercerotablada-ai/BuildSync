@@ -37,10 +37,11 @@ export const index: GuidesIndex = {
   howLabel: 'Your letter',
   howTitle: 'Your letter sets the date. Send it, and we read it for you.',
   how: [
-    'Miami-Dade and Broward run separate programs, with their own ages, their own clocks and their own forms. A rule from one county never applies to a building in the other, and mixing them up costs time a deadline does not give back. Every guide names the county it covers, and keeps the two apart when it covers both.',
-    'The ages and deadlines in the guides are never typed by hand: they are printed from the same verified county rows as the program pages, with their source and the date they were last checked.',
-    'Where a date on your notice differs from a guide, the notice wins. Send us a phone photo of it and we tell you, in plain words, what it asks for and what comes next, with a fixed-fee proposal for the complete package. Already late? It can still be resolved.',
-    'Boards, owners and property managers use these pages to prepare a meeting, answer unit owners or compare proposals. They are free to share, and each one links to its program page and to what the work costs.',
+    'The county does not wait for the board’s next meeting. In Miami-Dade, a recertification that is not filed in time is referred for enforcement: penalties for each violation, a lien on the property and, for a building found unsafe, an order to vacate it. In Broward, a late report is taken to a hearing, and a building whose repairs are never made can be declared unsafe.',
+    'Miami-Dade and Broward run separate programs, with their own ages, their own clocks and their own forms. A rule from one county never applies to a building in the other, and mixing them up costs time a deadline does not give back.',
+    'Where a date on your notice differs from a guide, the notice wins. Send us a phone photo of it and we tell you, in plain words, which program it belongs to, what the office wants from you and by when, and what comes next, with a fixed-fee proposal that covers the complete package. Already late? It can still be resolved.',
+    'No letter yet? Send the building’s address instead. We read the record the county counts its age from and tell you whether the inspection is due now, soon or not yet; starting before the letter means the repairs, if any, are planned rather than rushed.',
+    'Once the proposal is approved, the inspection is booked for a day the building can be opened, and the complete package follows three to four days after that visit, or one to two when the date is close. A report that lists repairs still goes in on time; the repairs follow it, under permit.',
   ],
 };
 
@@ -58,7 +59,7 @@ export const guides: Guide[] = [
     h1: 'You received a recertification notice. Here is what to do first.',
     heroSub:
       'A letter from your building department starts a clock. Read it the same day, then follow these five steps — in Miami-Dade or in Broward.',
-    card: 'The letter arrived. The first five steps, and the clock it starts.',
+    card: 'For the board or owner holding the letter today: the first five steps, in order, and the clock it starts.',
     sections: [
       {
         title: 'First, read what the letter actually says',
@@ -137,7 +138,7 @@ export const guides: Guide[] = [
     h1: 'The Broward BSIP notice: what it means and who has to file',
     heroSub:
       'A certified letter about the Building Safety Inspection Program means your building has reached inspection age in Broward. Here is what it asks of you.',
-    card: 'What the certified letter asks of the owner, and which buildings are outside the program.',
+    card: 'For a Broward building that received the certified letter: what it asks of the owner, and which buildings are outside the program.',
     sections: [
       {
         title: 'What the letter is',
@@ -203,13 +204,13 @@ export const guides: Guide[] = [
     h1: 'How to check whether your building is due for inspection',
     heroSub:
       'No letter yet, or not sure it applies to you? The age that counts is on a public record you can check yourself, and each county reads it differently.',
-    card: 'No letter yet? Where the age that counts is recorded, county by county.',
+    card: 'No letter yet? Where the age that counts is recorded, county by county, so you can check before the notice comes.',
     sections: [
       {
         title: 'Start with the county the building is in',
         paras: [
           'Miami-Dade and Broward count a building’s age from different records, so the first question is the county, not the city. A building in Aventura answers to Miami-Dade’s program; one across the county line in Hallandale Beach answers to Broward’s.',
-          'Then find the age the county counts from, and compare it with that county’s rows below. If the building is past that age, or close to it, a notice is coming or already late, whether or not a letter has arrived. Already late? It can still be resolved.',
+          'Then find the age the county counts from, and compare it with that county’s rows below. If the building is past that age, or close to it, a notice is coming or already late, whether or not a letter has arrived; and if it is late, that can still be resolved.',
         ],
       },
       {
@@ -270,7 +271,7 @@ export const guides: Guide[] = [
     h1: '“30-year”, “40-year”, “50-year”: one Miami-Dade program with three names',
     heroSub:
       'The names count the age of the building at an inspection. There is one program, Miami-Dade’s building recertification, and it repeats for the life of the building.',
-    card: 'One program, three names owners search for, and what each one means now.',
+    card: 'For a Miami-Dade board unsure which name applies: one program, three names owners search for, and what each one means now.',
     sections: [
       {
         title: 'Where the names come from',
@@ -335,7 +336,7 @@ export const guides: Guide[] = [
     h1: 'Milestone inspection, recertification and SIRS: what a condo board owes',
     heroSub:
       'Three names, two laws, one building. In Miami-Dade and Broward, the county inspection and the state milestone inspection are one report — the reserve study is something else.',
-    card: 'Three names a condo board hears, and which of them is one report.',
+    card: 'For a condo board in either county: three names it hears, which two of them are one report, and which one plans the money.',
     sections: [
       {
         title: 'The state milestone inspection',
@@ -403,7 +404,7 @@ export const guides: Guide[] = [
     h1: 'What happens when a building “fails” its recertification',
     heroSub:
       'Most buildings that “fail” have a report that lists repairs, and what happens next has a set path to close it. A report that is never filed is the case that gets expensive.',
-    card: 'A report that lists repairs, and a report never filed: two very different cases.',
+    card: 'For a building whose report lists repairs, or was never filed: two very different cases, and how each one is closed.',
     sections: [
       {
         title: 'There is no pass or fail on the form',
@@ -476,7 +477,7 @@ export const guides: Guide[] = [
     h1: 'Miami-Dade’s parking-lot certificates: illumination and guardrails',
     heroSub:
       'A Miami-Dade recertification is more than a structural and an electrical report. Where they apply, two parking-lot certifications go in with it.',
-    card: 'The two parking-lot forms in a Miami-Dade recertification, and what each records.',
+    card: 'For a Miami-Dade property with a parking lot: the two parking-lot forms that go in with a recertification, and what each records.',
     sections: [
       {
         title: 'Two forms that go with the reports',

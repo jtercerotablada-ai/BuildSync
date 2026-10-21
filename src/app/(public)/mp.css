@@ -439,6 +439,16 @@ html:has(.mp) {
     scroll-padding-top: 80px;
   }
 }
+/* The same at the bottom while the phone bar is up (≤900px, the bar's own
+   breakpoint; .is-shown after the first screen): Tab / Shift+Tab must stop
+   above the fixed bar, not under it (WCAG 2.4.11) — footer links and the
+   last questions of a page were landing behind Call · WhatsApp. Bar 56px +
+   its 1px top border + 12px. Hash jumps and Lenis read only the top. */
+@media (max-width: 900px) {
+  html:has(.mp-bar.is-shown) {
+    scroll-padding-bottom: calc(57px + 12px + env(safe-area-inset-bottom, 0px));
+  }
+}
 
 /* ═══ 01 · BASE & LAYOUT ══════════════════════════════════════════════════ */
 
@@ -1590,12 +1600,12 @@ a.mp-menu__mail {
     padding-block: calc((44px - 1lh) / 2);
   }
 }
-/* The same list under the page hero of the two county programs (JumpLinks):
-   in-page links to the timing table, what the client receives, the steps
-   and the questions. A graphite band with a hairline over it, so it reads as
-   the foot of the hero, like the strip above. Phones only — at 390px those
-   two pages run twelve to thirteen screens — so it is switched on in 19
-   (≤640px), where the list also becomes one column of 44px rows. */
+/* The in-page links of the two county programs (JumpLinks): to the timing
+   table, what the client receives, the steps and the questions. Hidden
+   here; the "Service detail, compact" block draws them — up to 1023px as a
+   graphite band at the foot of the hero (one column of 44px rows on a
+   phone, two from 641px), from 1024px as a bar that sticks under the
+   header. */
 .mp-jump {
   display: none;
   border-block-start: 1px solid var(--mp-line);
@@ -1967,7 +1977,7 @@ a.mp-menu__mail {
 .mp-progs__seg button + button {
   border-inline-start: 1px solid var(--mp-ink);
 }
-.mp-progs__seg button[aria-pressed='true'] {
+.mp-progs__seg button[aria-checked='true'] {
   background: var(--mp-ink);
   color: var(--mp-paper);
 }
@@ -2402,13 +2412,6 @@ a.mp-menu__mail {
   font-size: 0.75rem;
   line-height: 1.4;
   color: var(--mp-ink-3);
-}
-.mp-tools__note {
-  margin: var(--mp-6) 0 0;
-  font-size: 0.75rem;
-  line-height: 1.6;
-  color: var(--mp-ink-faint);
-  max-width: 78ch;
 }
 
 /* ═══ 13 · CLOSING CTA ════════════════════════════════════════════════════ */
@@ -2910,10 +2913,14 @@ a.mp-menu__mail {
   line-height: 1.6;
   color: var(--mp-ink-2);
 }
+/* Running text, not a label: the line that names a row's source and its
+   date is read, so it is at the small size (16px on a phone), not the 12px
+   step of the uppercase labels. */
 .mp-timing__src {
   margin-block: var(--mp-3) 0;
-  font-size: var(--mp-t-label);
-  letter-spacing: 0.04em;
+  font-size: var(--mp-t-small);
+  letter-spacing: 0;
+  line-height: 1.6;
   color: var(--mp-ink-faint);
 }
 /* 'Last verified: October 4, 2026' where it shares a line with the authority
@@ -3043,8 +3050,8 @@ a.mp-menu__mail {
   color: var(--mp-ink-2);
 }
 /* Typical engagements: one register (WorkList.tsx), a row per profile. The
-   lead column holds the number, the title, the reader's situation and the
-   service link; the four facts sit beside it. Run-in "LABEL value" lines on
+   lead column holds the number, the title, the reader's situation, the
+   least they need to begin and the service link; the four facts sit beside it. Run-in "LABEL value" lines on
    a phone, a 2 × 2 of label-over-value blocks from 901px, one table under a
    single header row from 1181px — where each row's dts are visually hidden, never
    removed. These selectors outrank the shared ≤900px rules for .mp-work
@@ -3069,7 +3076,10 @@ a.mp-menu__mail {
   font-size: var(--mp-t-h4);
   line-height: 1.3;
 }
-.mp-work__need {
+/* The reader's situation, then the least they need to begin: the same body
+   text, never a muted fine-print line. */
+.mp-work__need,
+.mp-work__start {
   margin: 0;
   font-size: var(--mp-t-body);
   line-height: 1.55;
@@ -3103,7 +3113,7 @@ a.mp-menu__mail {
 @media (min-width: 901px) {
   .mp-work--register .mp-work__item {
     grid-template-columns: var(--reg-lead) minmax(0, 2fr);
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
     column-gap: var(--mp-8);
   }
   .mp-work--register .mp-work__head {
@@ -3114,9 +3124,13 @@ a.mp-menu__mail {
     grid-column: 1;
     grid-row: 2;
   }
-  .mp-work--register .mp-work__more {
+  .mp-work--register .mp-work__start {
     grid-column: 1;
     grid-row: 3;
+  }
+  .mp-work--register .mp-work__more {
+    grid-column: 1;
+    grid-row: 4;
     align-self: start;
   }
   /* Beside the profile, the four facts as a 2 × 2 of label-over-value
@@ -3124,7 +3138,7 @@ a.mp-menu__mail {
      column wrapping "Structural system" onto two lines. */
   .mp-work--register .mp-work__specs {
     grid-column: 2;
-    grid-row: 1 / span 3;
+    grid-row: 1 / span 4;
     align-self: start;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--mp-4) var(--mp-6);
@@ -3431,21 +3445,20 @@ a.mp-menu__mail {
   position: absolute;
   inset: -12px -4px;
 }
-.mp-eng--full .mp-eng__forlabel {
-  margin: var(--mp-12) 0 var(--mp-4);
-  font-size: var(--mp-t-h3);
-  letter-spacing: -0.015em;
-  text-transform: none;
-  color: var(--mp-ink);
-}
 
 /* Key · value rows as a strip (.mp-pillars--strip): the five principles in
    section 02, and the engineer's three rows. From 721px: columns, the key
    over its sentence — three a row on a tablet (the principles in two rows),
    the five principles in one row on a wide screen. Phone: run-in rows
    ("Rigor. Every beam…"). The base .mp-pillars rules are shared with
-   Contact and the service pages and are not touched. */
-.mp-about-how__label {
+   Contact and the service pages and are not touched.
+   Both strips' headings ("Principles", "What that means for you") are the
+   same 12px caps label as the credentials' Education / License / Focus, with
+   the same space above and below: one rule, so they cannot drift apart. The
+   engineer's selector has two classes, so it beats the base
+   .mp-eng__forlabel (section 20) wherever that sits. */
+.mp-about-how__label,
+.mp-eng--full .mp-eng__forlabel {
   margin: var(--mp-12) 0 var(--mp-3);
   font-size: var(--mp-t-label);
   letter-spacing: var(--mp-track-label);
@@ -3476,11 +3489,10 @@ a.mp-menu__mail {
   }
 }
 @media (min-width: 1181px) {
+  /* The sentences stay at reading size here too: they are what the strip
+     says, not footnotes to its labels. */
   .mp-pillars.mp-pillars--strip {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-  .mp-pillars.mp-pillars--strip span {
-    font-size: var(--mp-t-small);
   }
   /* The engineer's three rows on the credentials' three columns. Three
      classes: it must beat the five-column rule above at any position. */
@@ -3560,12 +3572,22 @@ a.mp-menu__mail {
   align-items: start;
   gap: var(--mp-6);
 }
-/* Name · email · phone. Weighted: the email address is the longest value,
-   the phone the shortest, and at 1181px three equal columns left the email
-   ~170px. Stacked on a phone by the ≤640 .mp-form__row rule. */
+/* Name · email · phone. One row of three only from 641 to 1180px, where the
+   form has the full width; weighted, because the email address is the
+   longest value and the phone the shortest. Stacked on a phone by the ≤640
+   .mp-form__row rule. */
 @media (min-width: 641px) {
   .mp-form__row--3 {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 0.85fr);
+  }
+}
+/* From 1181px the form shares the width with the guide, and three columns
+   cut a long name or address while it was typed (the email ~215px at 1181).
+   Name | email, the same two columns as the row under them; the optional
+   phone wraps under the name by itself. */
+@media (min-width: 1181px) {
+  .mp-contact .mp-form__row--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 .mp-field {
@@ -3741,8 +3763,9 @@ a.mp-menu__mail {
 
 /* The guide beside the form: "What to send, and what happens next."
    (ContactView). The rows are .mp-pillars (14) as one column, label over
-   sentence, at the reading size of a side column (16px on a phone, where
-   --mp-t-small is 1rem). */
+   sentence, at the body size of the base .mp-pillars rules at every width:
+   it is the page's main help (the reader already late among it), not a side
+   note, and at 14.4px grey it read as small print beside the form. */
 .mp-contact__rail {
   border-block-start: 1px solid var(--mp-line);
   padding-block-start: var(--mp-6);
@@ -3770,10 +3793,6 @@ a.mp-menu__mail {
   gap: 0.25rem;
   padding-block: var(--mp-3);
 }
-.mp-pillars--rail b,
-.mp-pillars--rail span {
-  font-size: var(--mp-t-small);
-}
 .mp-pillars--rail span {
   line-height: 1.6;
 }
@@ -3788,13 +3807,13 @@ a.mp-menu__mail {
     column-gap: var(--mp-8);
   }
 }
-/* From 1181px the guide's last rows (what happens next, the other ways in,
-   where) run in three columns under the form and its rail, so the rail is
-   as tall as the form. */
+/* From 1181px the guide's last two rows (what happens next, where and in
+   which language) run under the form and its rail, on the same two columns
+   as .mp-contact__grid, so each sits under the block above it. */
 @media (min-width: 1181px) {
   .mp-pillars--next {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
     column-gap: clamp(2rem, 5vw, 5rem);
     margin-block-start: var(--mp-12);
     border-block-start: 1px solid var(--mp-line);
@@ -3802,6 +3821,20 @@ a.mp-menu__mail {
   .mp-pillars--next li {
     padding-block: var(--mp-4) 0;
     border-block-end: 0;
+  }
+}
+/* Call and WhatsApp under the form (ContactView): shown only where the
+   hero's are hidden — a phone, with the form opened for a county program
+   (the `data-mp-notice-first` rule in "Contact", 20) — so exactly one pair
+   is visible at every width and the guide's "send it by WhatsApp" has a
+   link to tap. Two classes: .mp-reach (20) comes later and sets display. */
+.mp-reach.mp-contact__reach-after {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mp:has([data-mp-notice-first]) .mp-reach.mp-contact__reach-after {
+    display: grid;
+    margin-block-start: var(--mp-8);
   }
 }
 
@@ -3991,6 +4024,26 @@ a.mp-menu__mail {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--mp-8);
   }
+  /* One proposal button on screen at a time. Once the phone bar is up
+     (MobileActionBar sets .is-shown after the first screen) it carries the
+     way in, within thumb reach and with the service chosen on a service
+     page, so the header's button steps aside. It is back at the top of the
+     page, on the pages with no bar (/contact, /resources, the calculators),
+     and the open menu keeps its own at its foot. The bar comes after the
+     header in the DOM, hence :has(). display, not visibility: a hidden
+     button left a blank between the language link and the menu button. */
+  body:has(.mp-bar.is-shown) .mp-header__cta {
+    display: none;
+  }
+  /* The phone bar (its own rules are in 20): the main cell, the one with a
+     label longer than a word, is half again as wide as Call and WhatsApp.
+     In equal thirds "Propuesta gratis" and "Send the notice" broke onto two
+     lines at 360px and "Enviar la notificación" at every phone width; it
+     now keeps one line from 390px (two below). WhatsApp still fits its
+     cell at 320px. Only with all three cells. */
+  .mp-bar:has(> .mp-bar__item--main:nth-child(3)) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  }
 }
 
 /* Short phones (360×640, 375×667, any phone with the browser's toolbars
@@ -4018,13 +4071,8 @@ a.mp-menu__mail {
     --mp-t-small: 1rem;
   }
   /* …and the sentences that were smaller still without using the token. */
-  .mp-tools__note,
   .mp-field__error {
     font-size: var(--mp-t-small);
-  }
-  /* The jump links under a county program's hero (06). */
-  .mp-jump {
-    display: block;
   }
   /* Thumb-sized links: 44px where they were 24–33. The footer's rows were
      33px tall with no gap between them — the easiest place on the site to
@@ -4669,12 +4717,6 @@ a.mp-menu__mail {
   flex: 1 1 100%;
   margin-block-start: 0;
 }
-.mp-reach__assure {
-  margin: 0;
-  font-size: var(--mp-t-small);
-  line-height: 1.55;
-  color: var(--mp-ink-3);
-}
 .mp-reach__links {
   display: flex;
   flex-wrap: wrap;
@@ -4703,14 +4745,10 @@ a.mp-menu__mail {
   margin-block-start: var(--mp-4);
 }
 /* The fixed bar exists at exactly ≤900 and carries Call and WhatsApp, so the
-   band does not repeat them there (they stay in the HTML). On the two county
-   programs the band has no free-proposal line (`assure={false}`), and the
-   row would be an empty 16px box. */
+   band does not repeat them there (they stay in the HTML). The row holds
+   nothing else, so the whole row goes, and leaves no empty box. */
 @media (max-width: 900px) {
-  .mp-close .mp-reach__links {
-    display: none;
-  }
-  .mp-close .mp-reach:not(:has(.mp-reach__assure)) {
+  .mp-close .mp-reach {
     display: none;
   }
 }
@@ -4864,7 +4902,8 @@ a.mp-menu__mail {
    line, the first step and its link; the other three answers in a
    <details> under them. The two tracks sit side by side from 900px, one
    grid for both (`.mp-tracks`): with subgrid, each column's label, intro
-   and four rows share the same row tracks, so the two lists' rules line up.
+   and four rows share the same row tracks, so the two lists' rules line up
+   — while every "Details" is closed (see the `:has()` rule below).
    /existing-buildings has its own frame (.mp-sit): nothing here moves it.
    The rows used to be 950–1,075px cards with a 16:9 photograph and four
    ruled answers each; the two tracks were 5,000px of the page at 1440. */
@@ -4882,6 +4921,18 @@ a.mp-menu__mail {
   }
   .mp-track > .mp-svcindex {
     display: contents;
+  }
+  /* An open "Details" grows only its own column. While one is open, each
+     list is one block over its column's rows (3 to the last) and packs its
+     rows at the top, so the row beside the open one is not stretched into
+     an empty block; the labels and the intros stay shared. When all are
+     closed, the rows line up again. */
+  @media (min-width: 900px) {
+    .mp-tracks:has(.mp-svc__more[open]) .mp-track > .mp-svcindex {
+      display: grid;
+      grid-row: 3 / -1;
+      align-content: start;
+    }
   }
 }
 /* `align-content: start`: in the subgrid the intro's row is as tall as the
@@ -5076,6 +5127,21 @@ a.mp-menu__mail {
   font-size: var(--mp-t-small);
   line-height: 1.55;
   color: var(--mp-ink-2);
+}
+/* On paper every row prints its three answers, and no "Details" line: a
+   board prints /services for a meeting. Only where the browser has
+   ::details-content — one without it drops this whole block, so the closed
+   line stays on the paper and the fold is at least marked. */
+@supports selector(::details-content) {
+  @media print {
+    .mp-svc__more::details-content {
+      content-visibility: visible;
+      display: block;
+    }
+    .mp-svc__toggle {
+      display: none;
+    }
+  }
 }
 /* The two tracks stay side by side down to 900px; below that they stack,
    existing buildings first. */
@@ -5388,10 +5454,12 @@ a.mp-menu__mail {
   position: absolute;
   inset: -11px 0;
 }
+/* The firm's registration: the size of the line above it (16px on a phone,
+   through the small token) — at 0.78rem it was a footnote under the name. */
 .mp-cred__reg {
   font-family: var(--mp-mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
+  font-size: var(--mp-t-small);
+  letter-spacing: 0.02em;
   color: var(--mp-ink-3);
 }
 /* In "Next step" it sits under the button, behind its own hairline. */
@@ -5532,6 +5600,16 @@ a.mp-menu__mail {
    moves. The site-wide rhythm (section padding, label and intro margins,
    h2 sizes) is the tokens' (00), and is not set again here. */
 
+/* The lines that name a source and its date — under the rows, under the
+   comparison, under the offices (`.mp-timing__src`) — are at the small size
+   by their base rule. At 16px a Spanish date no longer fits a phone's card
+   in one piece, so it may wrap there. */
+@media (max-width: 640px) {
+  .mp-svcd .mp-timing__checked {
+    white-space: normal;
+  }
+}
+
 /* Who the service is for: a sentence of the page at reading size, under the
    lede — it was a 14px footnote. */
 .mp-svcd__aud {
@@ -5655,8 +5733,11 @@ a.mp-menu__mail {
    <details> whose <summary> holds the h3 and a plus that turns into a
    minus. Several can be open at once, and each column grows on its own.
    `pretty`, not the inherited `balance`: balanced, a question broke early
-   inside the flex row. The ≤1180 `.mp-faq` rule makes it one column, and
-   the two columns then stack 1–6, 7–12: page order. */
+   inside the flex row of the two desktop columns. On a phone `pretty` left
+   a long last word alone on its line ("…recertify in / Miami-Dade?"), so a
+   service page and a city page balance their questions there; a hyphenated
+   name is kept whole by the view (`keepHyphens`). The ≤1180 `.mp-faq` rule makes it one
+   column, and the two columns then stack 1–6, 7–12: page order. */
 .mp-faq--acc {
   align-items: start;
 }
@@ -5683,6 +5764,12 @@ a.mp-menu__mail {
   margin: 0;
   flex: 1 1 auto;
   text-wrap: pretty;
+}
+@media (max-width: 640px) {
+  .mp-svcd .mp-faq__sum .mp-faq__q,
+  .mp-cityp .mp-faq__sum .mp-faq__q {
+    text-wrap: balance;
+  }
 }
 .mp-faq__icon {
   position: relative;
@@ -5720,12 +5807,25 @@ a.mp-menu__mail {
     border-block-end: 0;
   }
 }
+/* Windows High Contrast turns a background into Canvas, and the plus and
+   minus are drawn with one: they vanished, and nothing showed whether a
+   question opens or is open. The bars keep the user's text colour. */
+@media (forced-colors: active) {
+  .mp-faq__icon::before,
+  .mp-faq__icon::after {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
 
-/* The in-page bar of the two county programs (JumpLinks). On a phone: the
-   foot of the hero, on its graphite, two columns of 44px rows. From 1024px:
-   a bar under the fixed header that stays while the page scrolls, inside
-   `.mp-svcd`, so it lets go before the closing band. 641–1023: none — the
-   five labels do not fit one row there. The bar is 52px (50 + its two
+/* The in-page bar of the two county programs (JumpLinks). Up to 1023px: the
+   foot of the hero, on its graphite, in 44px rows — one column on a phone,
+   where two columns broke "Cómo se desarrolla el trabajo" over three lines,
+   and two from 641px (a tablet in portrait reads ten screens of these
+   pages; it had no links at all). It does not stick there, so the base
+   scroll-padding (header + 12px) lands each jump. From 1024px: a bar under
+   the fixed header that stays while the page scrolls, inside `.mp-svcd`,
+   so it lets go before the closing band. The bar is 52px (50 + its two
    hairlines); the scroll-padding below is header + bar + 12px, so a jump
    lands its section's label under both. */
 .mp-jump__list {
@@ -5748,8 +5848,9 @@ a.mp-menu__mail {
     color: var(--mp-gold-ink);
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 1023px) {
   .mp-jump {
+    display: block;
     background: var(--mp-graphite);
     color: var(--mp-snow-2);
     border-block-start: 1px solid var(--mp-line-dark);
@@ -5761,8 +5862,8 @@ a.mp-menu__mail {
   }
   .mp-jump__list {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: var(--mp-4);
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: var(--mp-6);
     padding-block: var(--mp-2);
   }
   .mp-jump__list li {
@@ -5783,6 +5884,11 @@ a.mp-menu__mail {
     flex: 1 1 auto;
     padding-block: 0.775rem;
     padding-block: calc((44px - 1lh) / 2);
+  }
+}
+@media (min-width: 641px) and (max-width: 1023px) {
+  .mp-jump__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (min-width: 1024px) {
@@ -5806,6 +5912,14 @@ a.mp-menu__mail {
     display: flex;
     align-items: center;
     min-height: 50px;
+    /* The bar's own links are exempt from the bar's share of the
+       scroll-padding (52px + the 12px gap; the header's share is the same
+       at every header height). Stuck under the header, a focused link sat
+       inside the padded zone, and every Tab or Shift+Tab into the bar
+       scrolled the page about 420px to "reveal" a link already in view —
+       three keys and the bar had come unstuck. Change it with the three
+       scroll-padding values below. */
+    scroll-margin-top: calc(-52px - 12px);
   }
   /* The sticky titles of the split sections stop under the bar too. */
   .mp-svcd:has(> .mp-jump) .mp-split > :has(> .mp-split__title) {
@@ -5829,13 +5943,19 @@ a.mp-menu__mail {
 /* When it applies: the button, the cost link and the other county sit in
    the column beside the card, under the notes — the right column was empty
    for 800px while they hung under the card. The owners' guides follow the
-   block, three to a row. */
+   block, three to a row from 901px, under the label "Related services"
+   uses (`.mp-related__label`, which carries the gap to the list). The one
+   rule for `--svc`: the class is this page's alone. */
 .mp-juris__aside .mp-prog__action {
   margin-block-start: var(--mp-8);
 }
 .mp-svcd .mp-guide__more--svc {
+  display: block;
   max-width: none;
   margin-block-start: var(--mp-12);
+}
+.mp-svcd .mp-guide__more--svc ul {
+  margin-block-start: 0;
 }
 @media (min-width: 901px) {
   .mp-svcd .mp-guide__more--svc ul {
@@ -5955,11 +6075,44 @@ a.mp-menu__mail {
 
 /* How it runs: the ruled grid of /existing-buildings (`.mp-timeline--grid`,
    16) — one way of drawing steps on the site. A county program's six steps
-   are its 3 × 2; on the lean pages the four or five steps are one row from
-   1181px (`--mp-steps`, set by the view). */
+   are its 3 × 2. On the lean pages four steps are one row from 1101px (in
+   the shared three columns the fourth sat alone beside two empty cells);
+   five are 3 + 2 there and one row from 1181px (`--mp-steps`, set by the
+   view). In one row the steps share two row tracks (subgrid): the titles'
+   row is as tall as the tallest title, so when one title wraps every
+   sentence still starts on the same line, and each number sits on the
+   first line of its title — centred on two lines, it dropped 10px below
+   its neighbours. Without subgrid a step keeps its own rows. */
+@media (min-width: 1101px) {
+  .mp-timeline--row:has(> .mp-step:nth-child(4):last-child) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 @media (min-width: 1181px) {
   .mp-timeline--row {
     grid-template-columns: repeat(var(--mp-steps, 4), minmax(0, 1fr));
+  }
+}
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 1101px) {
+    .mp-timeline--row:has(> .mp-step:nth-child(4):last-child) {
+      grid-template-rows: auto auto;
+    }
+    .mp-timeline--row:has(> .mp-step:nth-child(4):last-child) > .mp-step {
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+      align-items: start;
+    }
+  }
+  @media (min-width: 1181px) {
+    .mp-timeline--row {
+      grid-template-rows: auto auto;
+    }
+    .mp-timeline--row > .mp-step {
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+      align-items: start;
+    }
   }
 }
 
@@ -5985,8 +6138,11 @@ a.mp-menu__mail {
 .mp-related .mp-more a:first-child {
   padding-inline-start: 0;
 }
+/* Balanced: a service's name is two to five words, and plain wrapping left
+   one alone on the last line ("Structural Assessments & Repair / Design"). */
 .mp-related .mp-more__t {
   font-size: var(--mp-t-body);
+  text-wrap: balance;
 }
 @media (max-width: 1180px) {
   .mp-related .mp-more a {
@@ -6008,15 +6164,24 @@ a.mp-menu__mail {
   }
 }
 
-@media print {
-  .mp-faq__d::details-content,
-  .mp-disclose::details-content {
-    content-visibility: visible;
-    display: block;
-  }
-  .mp-faq__icon,
-  .mp-disclose > summary {
-    display: none;
+/* On paper every fold prints open, and its toggle goes. Both halves only
+   where the browser knows ::details-content: a browser that does not drops
+   the first rule, and hiding the summary there too left the package, the
+   offices and the notes off the page with no trace. The calculators' fold
+   keeps its summary — it is the family's header — and loses its chevron. */
+@supports selector(::details-content) {
+  @media print {
+    .mp-faq__d::details-content,
+    .mp-disclose::details-content,
+    .mp-calc__fold::details-content {
+      content-visibility: visible;
+      display: block;
+    }
+    .mp-faq__icon,
+    .mp-disclose > summary,
+    .mp-calc__fold > summary.mp-calc__count::after {
+      display: none;
+    }
   }
 }
 /* A link out to an authority's own page (Outbound.tsx): the source of a
@@ -6407,26 +6572,38 @@ a.mp-menu__mail {
   }
 }
 /* The office on one line from 761px: label, name, street, city, phone,
-   a dot between each (drawn, not text: the plain text keeps its spaces). */
+   a dot between each (drawn, not text: the plain text keeps its spaces).
+   Each part is a flex item, so a part that does not fit moves to the next
+   row WHOLE — "Miami, FL / 33130" or "Phone: (954) / 921-3335" never
+   splits — and no row starts with a dot: the dot hangs in the gap to the
+   left of its part, and the row's own box clips it when that part opens a
+   row (nothing focusable inside to clip). The gap is in rem so the label's
+   margin and the dot's offset measure the same length. */
 .mp-cityp .mp-city__office {
   margin-block: var(--mp-6) var(--mp-2);
 }
 @media (min-width: 761px) {
   .mp-cityp .mp-city__office {
-    display: block;
+    --mp-city-gap: 1.1rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--mp-city-gap);
+    overflow: hidden;
   }
   .mp-cityp .mp-city__office .mp-city__k {
-    display: inline;
-    margin: 0 var(--mp-3) 0 0;
+    margin: 0 calc(var(--mp-3) - var(--mp-city-gap)) 0 0;
   }
-  .mp-cityp .mp-city__office .mp-city__name,
   .mp-cityp .mp-city__office .mp-city__line {
-    display: inline;
+    position: relative;
   }
   .mp-cityp .mp-city__office .mp-city__line::before {
     content: '\00B7';
     content: '\00B7' / '';
-    margin-inline: 0.55em;
+    position: absolute;
+    inset-inline-start: calc(-1 * var(--mp-city-gap));
+    inline-size: var(--mp-city-gap);
+    text-align: center;
     color: var(--mp-ink-faint);
   }
 }
@@ -7190,9 +7367,10 @@ a.mp-menu__mail {
   /* Opened for a county program (`data-mp-notice-first`): the button
      promised "a phone photo of the letter is enough", so the upload is the
      first thing under the lede and the direct lines give way — that visitor
-     came from a page that offered call and WhatsApp beside the button, and
-     the footer keeps the number and the email. The whole panel goes, not
-     just its content, so no empty grid gap is left. */
+     came from a page that offered call and WhatsApp beside the button.
+     Call and WhatsApp show under the form instead (.mp-contact__reach-after,
+     section 18). The whole panel goes, not just its content, so no empty
+     grid gap is left. */
   .mp:has([data-mp-notice-first]) .mp-phero__side:has(.mp-contact__reach) {
     display: none;
   }
@@ -7347,6 +7525,17 @@ a.mp-menu__mail {
   .mp-eyebrow::before,
   .mp-sechead__num::after {
     forced-color-adjust: none;
+  }
+  /* The guides' and the cost page's plus and minus are drawn with a
+     background, which High Contrast turns into Canvas (see .mp-faq__icon).
+     Under `.mp`: their own rules come later in the file, and would win at
+     the same specificity. */
+  .mp .mp-gfaq__icon::before,
+  .mp .mp-gfaq__icon::after,
+  .mp .mp-costp__icon::before,
+  .mp .mp-costp__icon::after {
+    forced-color-adjust: none;
+    background: CanvasText;
   }
 }
 
@@ -8173,10 +8362,6 @@ a.mp-menu__mail {
 .mp-costp__qa > summary::-webkit-details-marker {
   display: none;
 }
-.mp-costp__qa > summary:focus-visible {
-  outline: 2px solid var(--mp-gold);
-  outline-offset: 4px;
-}
 .mp-costp__qa .mp-faq__q {
   margin: 0;
 }
@@ -8359,15 +8544,8 @@ a.mp-menu__mail {
 @media (min-width: 901px) {
   .mp-guides { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-/* On a county program's page, under the cost link: one column. */
-.mp-guide__more--svc {
-  display: block;
-  margin-block-start: var(--mp-10, 2.5rem);
-  max-width: 40rem;
-}
-.mp-guide__more--svc ul {
-  margin-block-start: var(--mp-3);
-}
+/* A county program's page draws its own list of guides (`.mp-svcd
+   .mp-guide__more--svc`, "Service detail, compact"). */
 /* A guide's photograph on its card in /guides. */
 .mp-guides__photo {
   aspect-ratio: 3 / 2;
@@ -8496,11 +8674,6 @@ a.mp-menu__mail {
 }
 .mp-gfaq__sum::-webkit-details-marker {
   display: none;
-}
-/* The site's focus ring rule lists a, button, input… but not summary. */
-.mp-gfaq__sum:focus-visible {
-  outline: 2px solid var(--mp-gold-ink);
-  outline-offset: 3px;
 }
 .mp-gfaq__q {
   flex: 1 1 auto;

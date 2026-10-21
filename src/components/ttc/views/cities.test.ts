@@ -17,7 +17,7 @@ import { DESCRIPTION_LIMIT_PX, TITLE_BUDGET_PX, descriptionPx, repeatedWords, ti
 import { absoluteUrl, company, contact } from '@/lib/ttc/site';
 import { EN_PUBLIC_PAGES, ES_PUBLIC_PAGES, PUBLIC_NOT_FOUND, PUBLIC_NOT_FOUND_ES, publicNotFoundTarget } from '@/proxy';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
-import { firstSentence } from '@/components/ttc/mp/text';
+import { firstSentence, keepHyphens } from '@/components/ttc/mp/text';
 import { AboutView } from './AboutView';
 import { CityView, cityH1 } from './CityView';
 import { ContactView } from './ContactView';
@@ -448,6 +448,14 @@ describe('city pages: the page a visitor gets', () => {
       const name = `${lang} ${cityPath(p)}`;
       const service = c.services.find((s) => s.slug === p.program)!;
 
+      // "The package, part by part" opens the package on the county page,
+      // not the top of "What you receive" two blocks above it.
+      it(`${name}: the package link lands on the county page's package`, () => {
+        const href = esc(localePath(`/services/${p.program}#the-package`, lang));
+        expect(main.split(`href="${href}"`)).toHaveLength(2);
+        expect(main).not.toContain('#what-you-receive"');
+      });
+
       it(`${name}: one h1 that names the program and the city, four h2, one h3 per question`, () => {
         const h1 = [...main.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => spaced(m[1]));
         expect(h1).toEqual([cityH1(lang, p)]);
@@ -515,7 +523,8 @@ describe('city pages: the page a visitor gets', () => {
           expect(rows[i], rows[i]).toContain(`${p.place} : `);
           expect(rows[i].endsWith(spaced(esc(value))), `${f.k}: ${rows[i]}`).toBe(true);
         });
-        expect(main).toContain(esc(service.timing!.rows[0].source));
+        // As Source prints it: a hyphenated part kept whole (`keepHyphens`).
+        expect(main).toContain(renderToStaticMarkup(h('i', null, keepHyphens(service.timing!.rows[0].source))).slice(3, -4));
       });
 
       it(`${name}: it leads to the form with the program selected, to the county page and to the other cities`, () => {

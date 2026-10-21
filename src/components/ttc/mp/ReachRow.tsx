@@ -29,27 +29,26 @@ export function whatsappHref(c: SiteContent, plain = false): string | null {
  * until a phone number exists (`contact.phone` was null for the site's first
  * year: an empty slot, never a placeholder number).
  *
- * `assure` prints the two facts that sit next to the links — the proposal is
- * free, and a reply usually comes within two hours — for the places that do
- * not already say them.
+ * NOTHING PRINTED UNDER THE BUTTON BUT THE TWO LINKS. The row used to carry
+ * a small grey line, "The proposal is free. We usually reply within two
+ * hours." (`assure`). The owner's rule since October 20, 2026 is no small
+ * print under a button; the two facts are now the end of the closing band's
+ * text (`closingCta.body`), at reading size.
  *
  * THE LINKS ARE NOT A PARAGRAPH. The pair sits beside every button — three
  * times on a county program's page — and as a <p> that was one paragraph
  * printed three times, on pages the owner's on-page check kept listing for
  * duplicate paragraphs. It is a pair of links, so it is a <div>:
- * `.mp-reach__links` styles it by class, and nothing changes on screen. The
- * `assure` line IS a sentence and stays a <p>; a page prints it once (see
- * ContactCTA's `assure`).
+ * `.mp-reach__links` styles it by class, and nothing changes on screen.
  */
 export function ReachRow({
   c,
-  assure = false,
   plain = false,
   className = '',
 }: {
   c: SiteContent;
-  assure?: boolean;
-  /** A page with no notice in the reader's hand: "Message us on WhatsApp". */
+  /** A page with no notice in the reader's hand: "Message us on WhatsApp".
+      Which pages: pageHoldsNotice (notice-pages.ts). */
   plain?: boolean;
   className?: string;
 }) {
@@ -59,11 +58,6 @@ export function ReachRow({
   const r = c.reach;
   return (
     <div className={`mp-reach ${className}`.trim()}>
-      {assure ? (
-        <p className="mp-reach__assure">
-          {r.free} {r.reply}
-        </p>
-      ) : null}
       <div className="mp-reach__links">
         <a className="mp-reach__link" href={phone.href}>
           {r.call} {phone.display}

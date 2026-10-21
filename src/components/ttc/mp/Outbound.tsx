@@ -1,4 +1,5 @@
 import React from 'react';
+import { keepHyphens } from './text';
 
 /**
  * The links that leave the site for an authority's own page: the source of a
@@ -42,9 +43,13 @@ export function Outbound({
  * A timing row's authority. A link where the row carries a `sourceUrl`; the
  * same words as plain text where it does not — a source that cannot be
  * opened today is still named, never guessed at (see `timing` in site.ts).
+ *
+ * A hyphenated part stays whole on its line (`keepHyphens`): at 16px on a
+ * phone "Section 8-11(f)" broke after its hyphen. The text is unchanged.
  */
 export function Source({ row }: { row: { source: string; sourceUrl?: string } }) {
-  return row.sourceUrl ? <Outbound href={row.sourceUrl}>{row.source}</Outbound> : <>{row.source}</>;
+  const words = keepHyphens(row.source);
+  return row.sourceUrl ? <Outbound href={row.sourceUrl}>{words}</Outbound> : <>{words}</>;
 }
 
 /**
