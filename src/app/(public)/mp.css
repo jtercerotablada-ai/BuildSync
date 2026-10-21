@@ -2465,12 +2465,30 @@ a.mp-menu__mail {
 
 /* ═══ 14 · INTERNAL PAGES ═════════════════════════════════════════════════ */
 
-.mp-phero {
+.mp-phero:has(.mp-phero__photo) {
   position: relative;
   background: var(--mp-graphite);
   padding-block: calc(var(--mp-header-h) + clamp(2rem, 3.5vw, 3rem)) clamp(2.25rem, 3.5vw, 3rem);
   overflow: clip;
   isolation: isolate;
+}
+/* Every page hero with a photograph is the SAME height (the owner,
+   2026-10-21: they all differed): the copy sits at the bottom of a band
+   600px tall on a desktop, 640px on a phone; a hero whose copy is taller
+   (a county program with its facts panel) grows, never shrinks. */
+.mp-phero:has(.mp-phero__photo) {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 640px;
+}
+.mp-phero:has(.mp-phero__photo) > .mp-shell {
+  width: 100%;
+}
+@media (min-width: 901px) {
+  .mp-phero:has(.mp-phero__photo) {
+    min-height: 600px;
+  }
 }
 
 /* Same photographic treatment as the home hero: image across the band, a
@@ -3947,7 +3965,7 @@ a.mp-menu__mail {
      graphite (the current-page crumb was 2.3–3.9:1 on the old scrim's light
      band; on graphite it is 5.3:1). Portrait frames keep their inline
      `photo.pos` focal point, which beats this object-position. */
-  .mp-phero {
+  .mp-phero:has(.mp-phero__photo) {
     --phero-top: calc(var(--mp-header-h) + 16svh);
     padding-block-start: var(--phero-top);
   }
@@ -4054,7 +4072,7 @@ a.mp-menu__mail {
   .mp-hero {
     padding-block-start: calc(var(--mp-header-h) + 10svh);
   }
-  .mp-phero {
+  .mp-phero:has(.mp-phero__photo) {
     --phero-top: calc(var(--mp-header-h) + 8svh);
   }
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
-import { absoluteUrl } from '@/lib/ttc/site';
+import { absoluteUrl, imagery } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { COST_PATH, costPage } from '@/lib/ttc/cost-page';
 import { PageHero } from '@/components/ttc/mp/PageHero';
@@ -97,6 +97,7 @@ export function CostView({ lang }: { lang: Lang }) {
       />
 
       <PageHero
+        photo={imagery.pages.cost}
         eyebrow={k.eyebrow}
         crumbs={[{ href: '/', label: c.ui.home }, { href: '/services', label: servicesLabel }, { label: k.crumb }]}
         titleLines={accentLines(k.titleLines, k.accentWord)}

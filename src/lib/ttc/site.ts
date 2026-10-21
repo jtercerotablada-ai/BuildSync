@@ -2571,6 +2571,9 @@ export const imagery = {
     work: photo.miamiCondoAerial,
     about: photo.concreteStair,
     contact: photo.miamiBrickell,
+    /* The cost page: every page hero has a photograph and the same height
+       (the owner, 2026-10-21). The South Florida coast at dusk. */
+    cost: photo.miamiBeachDusk,
     /* The calculators catalogue, since October 21, 2026 (the owner: a
        background photograph like the other pages). The bare concrete frame of a
        tower, slab edges and columns: the owner wanted a concrete structure. */
