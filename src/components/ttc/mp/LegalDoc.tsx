@@ -16,8 +16,18 @@ import { SectionHeading } from './primitives';
  * Body text is justified from 640px (mp.css, section 21). The last thing in
  * `children` is the page's closing line, and the closing line stays the last
  * block of the page — the tests rely on it.
+ *
+ * `variant="guide"` is the owners' guides (GuideView): the same two columns,
+ * but ragged-right with no automatic hyphens, one right edge for text, facts,
+ * questions and links, and no section label — the hero's eyebrow already
+ * says "Guide". On a phone the contents are not shown (they stay in the
+ * markup). Its rules are in mp.css section 23; the legal pages never get
+ * the variant's classes, so they render exactly as before.
+ *
+ * A section's `toc` is its line in the contents when that line is not the
+ * heading (a guide's questions: "Questions" beside "What boards ask…").
  */
-export type LegalDocSection = { h: string; body: React.ReactNode };
+export type LegalDocSection = { h: string; toc?: string; body: React.ReactNode };
 
 export function LegalDoc({
   n = '01',
@@ -25,30 +35,34 @@ export function LegalDoc({
   tocLabel,
   updated,
   sections,
+  variant,
   children,
 }: {
   n?: string;
-  /** The section label, as on every other page. */
-  label: string;
+  /** The section label, as on every other page. Left out by the guide variant. */
+  label?: string;
   /** Accessible name of the contents. */
   tocLabel: string;
   /** "Last updated: …", printed under the contents. */
   updated?: React.ReactNode;
   sections: readonly LegalDocSection[];
+  /** 'guide': the owners' guides' reading layout (see above). */
+  variant?: 'guide';
   /** After the last section: the closing "Contact" block. */
   children?: React.ReactNode;
 }) {
+  const guide = variant === 'guide';
   return (
-    <section className="mp-section mp-surface--paper">
+    <section className={guide ? 'mp-section mp-surface--paper mp-legal-sec--guide' : 'mp-section mp-surface--paper'}>
       <div className="mp-shell">
-        <SectionHeading n={n} label={label} />
-        <div className="mp-legal">
+        {label && !guide ? <SectionHeading n={n} label={label} /> : null}
+        <div className={guide ? 'mp-legal mp-legal--guide' : 'mp-legal'}>
           <aside className="mp-legal__side">
             <nav className="mp-legal__toc" aria-label={tocLabel}>
               {sections.map((s, i) => (
                 <a key={s.h} href={`#s${i + 1}`}>
                   <span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                  {s.h}
+                  {s.toc ?? s.h}
                 </a>
               ))}
             </nav>

@@ -129,6 +129,14 @@ describe('calculators: the list', () => {
     }
   });
 
+  // The catalogue's text is read by the server only. The page's one client
+  // piece, which folds the families on a phone, must not pull it in.
+  it('stays out of the client bundle', () => {
+    const folds = readFileSync(join(SRC, 'components/ttc/mp/CalcFolds.tsx'), 'utf8');
+    expect(folds).toMatch(/^'use client';/);
+    expect(folds).not.toMatch(/from ['"][^'"]*(lib\/ttc\/calculators|\/calculators)['"]/);
+  });
+
   // An entry with an href is a calculator that exists. Its address is one
   // calculator-paths.ts lists (the proxy and the sitemap read that file),
   // it has a route file in each language, and both are known public pages.
@@ -312,9 +320,31 @@ describe('calculators: the page', () => {
         [t.open, String(openCalculatorCount)],
         [t.families, String(calculatorFamilies.length)],
       ]);
-      // Each family says how many it holds.
-      const counts = [...main.matchAll(/<p class="mp-calc__count">([\s\S]*?)<\/p>/g)].map((m) => text(m[1]));
+      // Each family says how many it holds — the count is its block's toggle on a phone.
+      const counts = [...main.matchAll(/<summary class="mp-calc__count">([\s\S]*?)<\/summary>/g)].map((m) => text(m[1]));
       expect(counts).toEqual(calculatorFamilies.map((g) => `${g.items.length} ${t.count}`));
+    });
+
+    // On a phone the subjects with no open calculator start folded (CalcFolds),
+    // after the first paint. The server sends every one of them open: a
+    // crawler and a reader without script see every row.
+    it(`${lang}: every family is sent open, and only the ones with no open calculator may fold`, () => {
+      const folds = [...main.matchAll(/<div id="([a-z]+)" class="mp-calc">[\s\S]*?<details\b([^>]*)>/g)].map((m) => ({ id: m[1], tag: m[2] }));
+      expect(folds.map((f) => f.id)).toEqual(calculatorFamilies.map((g) => g.id));
+      for (const { id, tag } of folds) {
+        const family = calculatorFamilies.find((g) => g.id === id)!;
+        expect(attr(tag, 'class'), id).toBe('mp-calc__fold');
+        expect(tag, id).toMatch(/ open=""/);
+        expect(attr(tag, 'data-calc-fold'), id).toBe(family.items.some((i) => i.href) ? undefined : 'planned');
+      }
+      // A heading inside a <summary> loses its role.
+      expect(main).not.toMatch(/<summary\b[^>]*>(?:(?!<\/summary>)[\s\S])*<h2/);
+    });
+
+    // The bar is for an owner holding a county notice; this page's reader is
+    // the calculators' (MobileActionBar).
+    it(`${lang}: no call bar on a phone, as on each calculator`, () => {
+      expect(html).not.toContain('mp-bar');
     });
 
     // The index: one link per family, in the order of the page, each to a

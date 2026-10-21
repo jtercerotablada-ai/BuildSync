@@ -48,7 +48,7 @@ export function WorkView({ lang }: { lang: Lang }) {
 
       <WorkList n="01" />
       <Gallery n="02" />
-      <ContactCTA />
+      <ContactCTA notice={false} />
     </>
   );
 }

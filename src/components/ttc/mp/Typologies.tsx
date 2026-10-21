@@ -26,9 +26,14 @@ import { useContent, useL } from './lang';
  *
  * Rendered on /services, after the two tracks. It left the home page when the
  * county programs took its place; the home page keeps the headline, on
- * NewBuildings, so the two never share a page. `surface` exists because the
- * section now sits between a concrete track and the concrete "How we work":
- * the page passes `paper` to keep the surfaces alternating.
+ * NewBuildings, so the two never share a page.
+ *
+ * A RULED LIST, NOT A PHOTO GRID. Six large colour photographs (930px of the
+ * page at 1440, 2,600px on a phone) answered one question. Each typology is
+ * now a row — a small greyscale photograph, the name, one line — in two
+ * columns from 900px, like the service rows above it, and the intro sets
+ * its title beside its lede (`.mp-intro--split`). The page uses the default
+ * `concrete` surface, between the paper tracks and the paper "How we work".
  */
 export function Typologies({
   n = '03',
@@ -43,15 +48,13 @@ export function Typologies({
 
   return (
     <section
-      className={`mp-section mp-section--lg ${
-        surface === 'paper' ? 'mp-surface--paper' : 'mp-surface--concrete'
-      }`}
+      className={`mp-section ${surface === 'paper' ? 'mp-surface--paper' : 'mp-surface--concrete'}`}
       aria-labelledby="mp-typo-title"
     >
       <div className="mp-shell">
         <SectionHeading n={n} label={s.eyebrow} />
 
-        <div className="mp-intro">
+        <div className="mp-intro mp-intro--split">
           <Reveal>
             <h2 id="mp-typo-title" className="mp-intro__title">
               {accent(s.title, s.accentWord)}
@@ -62,20 +65,13 @@ export function Typologies({
           </Reveal>
         </div>
 
-        <ul className="mp-typo">
+        <ul className="mp-typo mp-typo--list">
           {c.typologies.map((t, i) => (
-            <Reveal as="li" key={t.n} delay={(i % 3) * 0.05} className="mp-typo__card">
+            <Reveal as="li" key={t.n} delay={(i % 2) * 0.05} className="mp-typo__card">
               <div className="mp-typo__media">
-                {/* The card's real rendered width, per the .mp-typo grid: one
-                    column to 640, two to 900, then three inside the shell,
-                    which caps at ~400 px until the 1500 / 2000 px steps
-                    widen it. "33vw" overstated every desktop card (402 px is
-                    28vw at 1440) and sent retina screens the 2000w master. */}
-                <Img
-                  photo={t.photo}
-                  className="mp-typo__img"
-                  sizes="(max-width: 640px) 92vw, (max-width: 900px) 45vw, (max-width: 1499px) 29vw, (max-width: 1999px) 470px, 540px"
-                />
+                {/* A thumbnail: 10rem wide, 6rem on a phone (mp.css,
+                    `.mp-typo--list`). The smallest rendition is 900w. */}
+                <Img photo={t.photo} className="mp-typo__img" sizes="(max-width: 720px) 96px, 160px" />
               </div>
               <div className="mp-typo__body">
                 <p className="mp-typo__title">

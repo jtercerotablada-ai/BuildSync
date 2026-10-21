@@ -54,7 +54,6 @@ describe('the two county programs: each page in its own words', () => {
       s.offices?.lede,
       s.offices?.note,
       s.program?.lede,
-      s.program?.ctaNote,
       s.program?.timingLink,
       s.program?.detail,
       s.program?.cta,

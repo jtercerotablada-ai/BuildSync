@@ -71,6 +71,7 @@ describe('guides: the list', () => {
     en.forEach((g, i) => {
       const t = es[i];
       expect(t.programs).toEqual(g.programs);
+      expect(t.heroAction).toBe(g.heroAction);
       expect(t.sections.map((s) => [s.paras.length, s.list?.length ?? 0, s.facts ?? null])).toEqual(
         g.sections.map((s) => [s.paras.length, s.list?.length ?? 0, s.facts ?? null]),
       );
@@ -264,7 +265,12 @@ describe('guides: the page a visitor gets', () => {
         for (const p of g.programs) expect(hrefs).toContain(localePath(`/services/${p}`, lang));
         expect(hrefs).toContain(localePath(COST_PATH, lang));
         for (const s of guideSlugs.filter((s) => s !== g.slug)) expect(hrefs).toContain(localePath(guidePath(s), lang));
-        expect(hrefs).toContain(`${localePath('/contact', lang)}?service=${g.programs[0]}`);
+        // The form: once per program, with that county preselected — a
+        // Broward board must not land on a form set to Miami-Dade — or, for
+        // the reader with no letter yet (`heroAction`), with no preset.
+        const form = localePath('/contact', lang);
+        if (g.heroAction === 'address') expect(hrefs).toContain(form);
+        else for (const p of g.programs) expect(hrefs).toContain(`${form}?service=${p}`);
       });
 
       it(`${name}: says enough to be a page of its own`, () => {

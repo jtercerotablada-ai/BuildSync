@@ -12,9 +12,9 @@
  *     license number that is not verified. Empty is better than invented.
  *   • `contact.phone` / `contact.address` are `null` until they are real. The UI
  *     omits those blocks entirely rather than printing "coming soon".
- *   • `leadership.portrait` and `leadership.license` are `null` until a real
- *     portrait and a verified license number exist; the UI renders a
- *     finished composition without them — never a "coming soon".
+ *   • `leadership.portrait` is the engineer's own photograph and
+ *     `leadership.license` the number verified in the state registry; never
+ *     a stand-in person, a silhouette or a "coming soon".
  *   • `caseStudies` is empty until real, publishable work exists. Until then
  *     the work page renders `engagements`: TYPICAL engagement profiles, not
  *     past jobs. Never call them "anonymized" or give them a specific county —
@@ -251,12 +251,6 @@ export const contact = {
     instagram: 'https://www.instagram.com/ttcivilstructural/' as string | null,
     nextdoor: 'https://nextdoor.com/page/tercero-tablada-civil-and-structural-engineering-inc-miami-fl/' as string | null,
   },
-  /** Shown near the form. The reply time is the owner's own figure (October
-   *  6, 2026: "immediate, more or less one or two hours later"), printed as
-   *  what is USUAL, never as a guarantee — a message sent at midnight is
-   *  answered in the morning. Do not sharpen "usually" into a promise. */
-  responseNote:
-    'Every inquiry is read and answered by the engineer, not by a call center — usually within two hours.',
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -346,10 +340,7 @@ export const ui = {
   explore: 'Explore',
   /* Button and link CTAs are Title Case in English, matching the header's
      "Request a Proposal"; headings stay in sentence case. */
-  exploreService: 'See This Service',
-  learnMore: 'Learn More',
   requestProposal: 'Request a Proposal',
-  exploreServices: 'Explore Our Services',
   seeAllServices: 'All Services',
   newProjects: 'New projects',
   existingBuildings: 'Existing buildings',
@@ -385,8 +376,6 @@ export const ui = {
   typicalEngagements: 'Typical engagements',
   relatedServices: 'Related services',
   atAGlance: 'At a glance',
-  appliesTo: 'Applies to',
-  newConstruction: 'New construction',
   coverage: 'Coverage',
   verified: 'Verified',
   lastChecked: 'Last verified',
@@ -417,13 +406,6 @@ export const ui = {
     license: 'Florida P.E. license',
     verify: 'Verify with the Florida DBPR',
     /**
-     * What to do on the page that link opens. The registry has no stable
-     * per-license URL (see `leadership.license`), so every link lands on a
-     * search form with four modes and no hint. Printed under the link on
-     * About, and under the license cards of the partner block.
-     */
-    verifyHow: 'On the DBPR page, choose “Search by License Number” and type the number.',
-    /**
      * The credential block on the two county-program pages
      * (EngineerCredential): "<label> — <name> · <licensePrefix> <P.E. number>
      * · <verify>", then the business registry line. Every fact in it is read
@@ -437,7 +419,6 @@ export const ui = {
     focus: 'Practice focus',
     approach: 'How I work',
     forYou: 'What that means for you',
-    plateNote: 'Professional portrait to follow',
   },
   work: {
     projectType: 'Project type',
@@ -448,7 +429,6 @@ export const ui = {
     result: 'Result',
     structuralSystem: 'Structural system',
     deliverables: 'Deliverables',
-    status: 'Status',
     /* The engagements are typical profiles, not jobs, so "not the project
        described" implied a real project behind each card. If a real case
        study ever carries a stock photo, revisit this wording for it. */
@@ -460,20 +440,15 @@ export const ui = {
   },
   form: {
     heading: 'Request a proposal',
-    /* "Tell us about…", as the H1 over it does ("Tell us about the
-       building."): every word of an H1 has to be a word of its page
-       (seo.test.ts), and "about" was nowhere under this one. */
-    intro:
-      'Tell us about what you own, what you are planning or what you received. The more specific the description, the more precise the proposal.',
     name: 'Name',
     email: 'Email',
     phone: 'Phone',
-    company: 'Company or association',
-    companyPlaceholder: 'Association, developer, architecture firm',
     service: 'Service needed',
     selectService: 'Select a service…',
     location: 'Project location',
-    locationPlaceholder: 'City or county — e.g. Coral Gables, Miami-Dade',
+    /* The label already says "Project location"; the longer "City or
+       county — e.g. …" was cut off in the half-width field. */
+    locationPlaceholder: 'e.g. Coral Gables, Miami-Dade',
     message: 'Project description',
     messagePlaceholder:
       'Building type, number of stories, what you need engineered or inspected, and any deadline or notice you are facing.',
@@ -543,16 +518,9 @@ export const ui = {
       tooMany: 'Too many requests from this connection. Please try again shortly.',
     },
   },
+  /* /contact prints the office line only once `contact.address` is set. */
   contactPage: {
-    emailLabel: 'Email',
-    emailMeta: 'Best for scope, drawings and permit questions.',
-    phone: 'Phone',
     office: 'Office',
-    serviceArea: 'Service area',
-    serviceAreaMeta: 'On-site inspections and coordination across South Florida.',
-    whatWeCover: 'What we cover',
-    disclaimer:
-      'Descriptions on this site are general. The scope, sequence and deliverables for any specific building are confirmed in writing before work begins, and requirements vary by jurisdiction.',
   },
   /* Rendered as note + link + end. There are no case studies yet, so the
      note points at what IS there (the typical engagements), not at
@@ -565,8 +533,6 @@ export const ui = {
   typologiesNoteEnd: '.',
   galleryNote:
     'Licensed architectural photography, shown as material rather than as a portfolio. No image on this page depicts a project by Tercero Tablada Civil and Structural Engineering Inc.',
-  processDisclaimer:
-    'Requirements vary by jurisdiction, building age, construction type and scope. This describes a typical sequence, not a guaranteed procedure or outcome.',
   legalPages: { privacy: 'Privacy Policy', terms: 'Terms of Use', legal: 'Legal' },
   /** The public 404 (EN and /es), rendered with the site chrome. */
   notFound: {
@@ -764,6 +730,13 @@ export type Service = {
   /** Honest caveats — what changes the scope, what we do not promise. */
   considerations: string[];
   /**
+   * The two county programs only: the line a phone shows in place of their
+   * long "Good to know" list, which it opens (ServiceDetailView; on a desktop
+   * the list is open and the line is not drawn). `{n}` is replaced by the
+   * number of notes — counted, never typed.
+   */
+  notesToggle?: string;
+  /**
    * Questions a board asks, each with a two- or three-sentence answer:
    * rendered above the process steps as an h2 with one h3 per question, and
    * emitted as FAQPage markup from this same array, so the markup cannot
@@ -897,6 +870,12 @@ export type Service = {
     note: string;
     forms: { text: string; label: string; url: string };
     checked: string;
+    /**
+     * The one line the list folds under, at every width. `{n}` is the number
+     * of rows, counted. Never "all": the list is not every municipality,
+     * and `note` says what to do when the city is not on it.
+     */
+    toggle: string;
   };
   /**
    * Other names people use for the service, for the Service markup's
@@ -967,8 +946,10 @@ export type Service = {
     titleLines: string[];
     /** ONE accent, and it falls on the thing that differs between counties. */
     accentWord: string;
-    /** One paragraph, 45 words at most, no number: it sits beside the other
-        county's in a half-width column. It says first what waiting costs
+    /** One paragraph, 45 words at most, no age and no day count (those are
+        the timing row's): it sits beside the other county's in a
+        half-width column. A penalty figure is allowed only as the county
+        itself states it, with a comment saying where. It says first what waiting costs
         in that county, then the easy way out (the owner, 2026-10-20: the
         cost of waiting leads, where the urgency section used to be). Every
         consequence must be true of that county's program — nothing
@@ -976,14 +957,10 @@ export type Service = {
     lede: string;
     /** Four short labels: the published six-step sequence, compressed. */
     steps: string[];
-    /** Solid button → /contact?service=<slug>. */
+    /** Solid button → /contact?service=<slug>. Nothing is printed under it,
+        here or on the program's page (the owner, 2026-10-20: no helper
+        lines under buttons); what to send is the page's "Next step". */
     cta: string;
-    /**
-     * One line under the program page's hero button: what to send, with or
-     * without a notice. The home page prints none of it (the owner,
-     * 2026-10-20: no small print under the home page's buttons).
-     */
-    ctaNote: string;
     /**
      * Text link under the home section's rows → the whole table on the
      * program's page (/services/<slug>#when-it-applies). Names the county
@@ -1025,6 +1002,9 @@ export type Service = {
     lede: string;
     parts: { k: string; v: string }[];
     note: string;
+    /** The line a phone shows in place of the rows, which it opens; on a
+        desktop the rows are open. `{n}` is the number of parts, counted. */
+    toggle: string;
   };
   seo: { title: string; description: string; keywords: string[] };
 };
@@ -1070,20 +1050,23 @@ export const services: Service[] = [
     },
     /* The first words under the H1 are the name most owners still use, so a
        visitor who searched "40-year recertification" knows this is the page.
-       A name, never a trigger, and no number. Then what the owner asked
-       the first screen to say (October 7, 2026): one team delivers it
-       COMPLETE, and what that is in three words.
+       A name, never a trigger, and no number. Then what the reader risks,
+       and the way out (the owner, 2026-10-20: open with the stake, never
+       exclude the reader whose date has passed). The consequence is the
+       county's own, as its recertification page states it and as the
+       question "What happens if we miss…" below attributes it; no amount.
+       The way out is what the owner asked the first screen to say on
+       October 7 — one team delivers it COMPLETE (complete-package.test.ts)
+       — no longer as a line about the firm, but as the answer to "already
+       late?".
 
-       MEASURE BEFORE LENGTHENING IT. The line sits between the H1 and the
-       button, and every line of it pushes that button down a phone's first
-       screen. It used to end "Send us the notice from your city or the
-       county."; that sentence went, because the button right under it says
-       "Send the Miami-Dade Notice" and with it the line ran six lines at
-       390px where the old one ran three. As written it is four lines at
-       360 and 390px (one more than before, 29px) and the same four as
-       before at 320px. */
+       MEASURE BEFORE LENGTHENING IT (170 characters at most, the test
+       says). The line sits between the H1 and the button, and every line
+       of it pushes that button down a phone's first screen. The line about
+       what to send under the button went (no helper lines under buttons),
+       so the button keeps its place. */
     heroSub:
-      'Still called the 40-year recertification. One team delivers it complete: structural, electrical and the county’s certificates.',
+      'Still called the 40-year recertification. Left unanswered, a notice can turn into penalties and a lien. Already late? One team still delivers it complete.',
     /* The page's own h2s, in the words a board searches with ("who has to
        recertify in Miami-Dade"). The ages and the day counts they lead to
        are in the row, never in the heading. */
@@ -1344,6 +1327,7 @@ export const services: Service[] = [
       'A condition that puts life or property in danger is reported to the owner and to the Building Official of your city, or of the county in unincorporated areas; the engineer has a duty to do so.',
       'A recertification report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how a reviewing office will act on it.',
     ],
+    notesToggle: 'Show the {n} notes',
     /* WHO SENT YOUR NOTICE. Each office is named as its city's own page
        names it (the county's, for the unincorporated area); every one of
        those pages was opened and read on 2026-10-07. miamidade.gov says it
@@ -1401,6 +1385,7 @@ export const services: Service[] = [
         url: 'https://www.miamidade.gov/global/economy/building/recertification.page',
       },
       checked: officeLinksChecked,
+      toggle: 'Show the {n} building offices',
     },
     /* THE MIAMI-DADE PACKAGE. Read on October 7, 2026 at the county's
        recertification page, its upload guidelines (the packet's file list),
@@ -1436,6 +1421,7 @@ export const services: Service[] = [
         { k: 'Site plan or survey', v: 'An aerial view that identifies the building goes with every structural report. Where a property has more than one building, a site plan or a copy of a survey shows which one the reports are for.' },
       ],
       note: 'We read your city’s letter first, and propose the package it asks for.',
+      toggle: 'Show the {n} parts of the package',
     },
     alsoCalled: ['40-Year Recertification', 'Building Recertification'],
     crossLink: { text: 'Building in Broward?', label: 'See the BSIP', slug: 'broward-bsip' },
@@ -1448,10 +1434,13 @@ export const services: Service[] = [
          "90 days" must always equal the row's "Time to file". */
       titleLines: ['Miami-Dade recertification.', '90 days from the notice.'],
       accentWord: '90 days',
-      lede: 'An unanswered notice does not go away: it turns into fines that keep adding up, a lien on your property and, at worst, an order to vacate. Already late? It can still be resolved — send us the letter today; the proposal is free.',
+      /* "Up to $10,000 per violation" is the County's own figure (its
+         recertification page; Code 8CC-4(c): the initial penalty added each
+         day, capped at twenty times it), checked 2026-10-20. "Can reach":
+         a city may run its own schedule. */
+      lede: 'An unanswered notice does not go away: it turns into fines that can reach $10,000 per violation, a lien on your property and, at worst, an order to vacate. Already late? It can still be resolved — send us the letter today; the proposal is free.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Miami-Dade Notice',
-      ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year built.',
       timingLink: 'All Miami-Dade Deadlines and Exemptions',
       detail: 'Recertification in Detail',
     },
@@ -1501,10 +1490,12 @@ export const services: Service[] = [
        "Reaches almost every building type, in every city" and "Send us the
        notice from your Building Official." gave way to it (the home
        section's lede still says the first, the button under this line the
-       second). Measured like the Miami-Dade line: four lines at 360 and
-       390px, where the old one ran five — this line may not grow. */
+       second). Since 2026-10-20 it says what the reader risks and the way
+       out instead (see the Miami-Dade block): the consequences are the
+       Board of Rules and Appeals' policy (#05-05), with no amount. Measure
+       it like the Miami-Dade line before lengthening it. */
     heroSub:
-      'Many owners still call Broward’s BSIP the 40-year recertification. One team delivers it complete: structural and electrical.',
+      'Many owners still call Broward’s BSIP the 40-year recertification. A late report goes to an enforcement hearing. Past the date? One team still delivers it complete.',
     /* The page's own h2s — see the Miami-Dade block. No age and no day count
        in any of them. */
     headings: {
@@ -1724,6 +1715,7 @@ export const services: Service[] = [
       'A condition that puts life or property in danger is reported to the owner and to your city’s Building Official; the engineer has a duty to do so.',
       'A BSIP report documents observed conditions; concealed ones may need further investigation, and no engineer can guarantee how the Building Official will act on it.',
     ],
+    notesToggle: 'Show the {n} notes',
     /* WHO SENT YOUR NOTICE — the same block, and the same rules, as the
        Miami-Dade page: each office named as its city's own page names it
        (read on 2026-10-07), the rows as text, the cities' addresses in
@@ -1769,6 +1761,7 @@ export const services: Service[] = [
         url: 'https://www.broward.org/codeappeals/FormsandContacts',
       },
       checked: officeLinksChecked,
+      toggle: 'Show the {n} building offices',
     },
     /* THE BROWARD PACKAGE. Read on October 7, 2026 in the Board of Rules
        and Appeals' current documents: Policy #05-05 (effective August 9,
@@ -1799,6 +1792,7 @@ export const services: Service[] = [
         { k: 'What your city adds', v: 'Some cities ask for a cover sheet or a submittal form of their own with the filing. Your city’s letter says what it wants, and we read it first.' },
       ],
       note: 'Infrared thermography: the Board’s current policy does not ask for it; it is used where the electrical inspection calls for it.',
+      toggle: 'Show the {n} parts of the package',
     },
     alsoCalled: ['BSIP', 'Broward Building Safety Inspection Program', '40-Year Building Safety Inspection Program', '40-Year Recertification'],
     crossLink: { text: 'Building in Miami-Dade?', label: 'See Miami-Dade Recertification', slug: 'building-recertification' },
@@ -1812,7 +1806,6 @@ export const services: Service[] = [
       lede: 'A report not filed on time goes to an enforcement hearing, and a building left unrepaired can be declared unsafe. Already past the date? It can still be resolved — send us the notice today and get a fixed-fee proposal, at no cost.',
       steps: ['Notice review', 'Inspection', 'Report filed', 'Repairs & close-out'],
       cta: 'Send the Broward Notice',
-      ctaNote: 'A phone photo of the letter is enough. No notice yet? Send the address and the year of the certificate of occupancy.',
       timingLink: 'All Broward Deadlines and Exemptions',
       detail: 'BSIP in Detail',
     },
@@ -1943,9 +1936,13 @@ export const services: Service[] = [
          the deadline a board answers to is the one on its county's page.
 
          The two county sentences are `countyPages` below, each under a
-         heading that links to that county's page; this note keeps what is
-         true of both. */
-      note: 'In Miami-Dade and Broward the state milestone inspection is met through the county program — your county’s is just below. The board’s duties to unit owners apply in either county.',
+         heading that links to that county's page, printed right above this
+         note beside the row; this note keeps what is true of both. It used
+         to open "In Miami-Dade and Broward the state milestone inspection is
+         met through the county program — your county's is just below": the
+         lede's own sentence again, and "below" stopped being true when the
+         county links moved up beside the row. */
+      note: 'The board’s duties to unit owners apply in either county.',
       rows: [
         {
           jurisdiction: 'State of Florida — milestone inspection',
@@ -1967,8 +1964,10 @@ export const services: Service[] = [
       'The state law reaches only the condominium and cooperative buildings described above. Other buildings can still fall under a county program, which covers almost every building type.',
       'Further investigation is as limited or as extensive as the distress requires. Its scope is set from what the inspection finds, not before.',
       'Visual inspection covers accessible, observable conditions. Concealed deterioration may require testing or selective demolition.',
-      /* Neutral on purpose: states the counties' rule, claims no credential. */
-      'For buildings over three stories or 50 feet, each county asks additional qualifications of the engineer who signs the structural report. We confirm this for your building before we propose.',
+      /* Neutral on purpose: states the counties' rule, claims no credential,
+         and says nothing about who signs (it read "of the engineer who signs
+         the structural report" until 2026-10-20). */
+      'For buildings over three stories or 50 feet, each county requires the structural report to come from an engineer with additional qualifications. We confirm this for your building before we propose.',
       'An inspection reports condition at a point in time; it is not a warranty of future performance.',
     ],
     /* One heading per county, and the heading is the link. Miami-Dade first,
@@ -2441,7 +2440,14 @@ export const imagery = {
      frame they replaced on recertification (`recertBalconiesBw`) showed a
      derelict facade with broken glass and razor wire: a building with a
      problem, beside a recertification pitch. Neither replacement may ever be
-     captioned with a county, a building name or a project. */
+     captioned with a county, a building name or a project.
+
+     BIM used `bimWireframeModel`, a rendered wireframe of pipes on white:
+     line art, which the owner rejects on this site (real photographs only).
+     Since October 20, 2026 it is `frameCraneSky`, a spare until then — a
+     cast-in-place frame being built, the structure the model coordinates.
+     A photograph of coordination itself (sleeves through a slab before a
+     pour) would fit better; none is in the catalogue yet. */
   services: {
     'building-recertification': photo.recertMiamiDade,
     'broward-bsip': photo.bsipBroward,
@@ -2449,19 +2455,8 @@ export const imagery = {
     'structural-condition-assessments': photo.inspectWall,
     'reinforced-concrete-design': photo.concreteFrameSlabs,
     'structural-analysis': photo.analysisTowersUp,
-    'bim-coordination': photo.bimWireframeModel,
+    'bim-coordination': photo.frameCraneSky,
     'peer-review': photo.peerTowerBw,
-  } as Record<string, Photo>,
-  sections: {
-    engineer: photo.concreteRamp,
-  },
-  engagements: {
-    '01': photo.frameUnderConstruction,
-    '02': photo.midriseGlassBalconies,
-    '03': photo.miamiTowersUp,
-    '04': photo.rebarBundles,
-    '05': photo.frameSlabEdges,
-    '06': photo.rebarCageTower,
   } as Record<string, Photo>,
   /* The hero aside, the only clip left is the model in the new-buildings
      section. The recertification band and its aerial clip are gone: the two
@@ -2470,19 +2465,15 @@ export const imagery = {
   clips: {
     bim: video.bimAssembly,
   } as Record<string, Clip>,
+  /* The material on /projects: four frames of concrete and reinforcement
+     and the hands that place it, never a finished building. Houses,
+     skylines and facades on the page named for the firm's work read as a
+     portfolio, whatever the note beside them says. */
   gallery: [
-    photo.houseModernLevels,
     photo.concreteVault,
-    photo.housePalm,
-    photo.rebarSlabCrew,
-    photo.miamiSkylineTeal,
-    photo.frameGolden,
-    photo.midriseClean,
-    photo.concreteSteppedGold,
     photo.rebarTyingHands,
-    photo.houseDarkBrick,
-    photo.miamiBeachDusk,
-    photo.houseWhiteTree,
+    photo.frameGolden,
+    photo.rebarSlabCrew,
   ],
 } as const;
 
@@ -2646,16 +2637,27 @@ export const caseStudies: CaseStudy[] = [];
 export type Engagement = {
   n: string;
   title: string;
+  /** The reader's situation, in the reader's words: when this is the work
+      they need. Printed under the title, before the facts. */
+  need: string;
   projectType: string;
   location: string;
   scope: string;
   structuralSystem: string;
   deliverables: string;
-  status: string;
 };
 
 /* Typical profiles, not jobs: every `location` is the service area, never a
-   specific county, and every `status` carries the one Work label.
+   specific county. There is no "Status" row any more: six "Typical
+   engagement" tags under a heading that already says so made each profile
+   look like a record from a project database.
+
+   `need` is the first thing each profile says: the situation the reader is
+   in, not the firm's capability. It carries no number, no promise of an
+   outcome and no county's word; 02's names the late arrivals, because many
+   write after their date. The `projectType` dash is held to the word before
+   it (no-break space), so the narrow register column never starts a line
+   with "—".
 
    02 names both county programs because its location is both counties:
    "recertification" alone is Miami-Dade's word. For the same reason its
@@ -2665,44 +2667,52 @@ export type Engagement = {
    counties the milestone inspection is met through the county program,
    which is profile 02. */
 export const engagements: Engagement[] = [
-  { n: '01', title: 'Mid-rise residential frame', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes', status: 'Typical engagement' },
-  { n: '02', title: 'Condominium recertification or BSIP inspection', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural and electrical inspection, the reports on the official forms, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'The complete package the county asks for, on its official forms · Photographic record · Repair scope', status: 'Typical engagement' },
-  { n: '03', title: 'Structural safety inspection', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope', status: 'Typical engagement' },
-  { n: '04', title: 'Foundation system for a constrained site', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations', status: 'Typical engagement' },
-  { n: '05', title: 'Multi-discipline BIM coordination', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings', status: 'Typical engagement' },
-  { n: '06', title: 'Independent structural peer review', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record', status: 'Typical engagement' },
+  { n: '01', title: 'Mid-rise residential frame', need: 'You have the architect’s design and need the structure engineered for the permit.', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes' },
+  { n: '02', title: 'Condominium recertification or BSIP inspection', need: 'Your building is due for the county’s inspection, or the deadline has already passed. It can still be resolved.', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural and electrical inspection, the reports on the official forms, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'The complete package the county asks for, on its official forms · Photographic record · Repair scope' },
+  { n: '03', title: 'Structural safety inspection', need: 'Cracks, rust stains or concrete breaking off, and you need to know how serious it is.', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope' },
+  { n: '04', title: 'Foundation system for a constrained site', need: 'A tight lot or poor soil, and the foundation has to be designed around it.', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations' },
+  { n: '05', title: 'Multi-discipline BIM coordination', need: 'Several trades share one building, and a conflict costs less to fix on screen than on site.', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings' },
+  { n: '06', title: 'Independent structural peer review', need: 'A design needs an independent second check before permit or construction.', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record' },
 ];
 
+/* Which service page each typical profile opens, by slug — one copy for
+   both languages, like `imagery`. 03 opens condition assessments, not
+   milestone inspections (see the comment over `engagements`). A slug that
+   matches no service renders no link. */
+export const engagementServices: Record<string, readonly string[]> = {
+  '01': ['reinforced-concrete-design'],
+  '02': ['building-recertification', 'broward-bsip'],
+  '03': ['structural-condition-assessments'],
+  '04': ['structural-analysis'],
+  '05': ['bim-coordination'],
+  '06': ['peer-review'],
+};
+
+/* The footnote under the profiles ("Typical engagement profiles, not
+   specific past projects…") and the gallery's lede ("…uncaptioned on
+   purpose") are gone: the first said again what the hero's lede says, the
+   second captioned what the four photographs show. The page says once that
+   these are not past projects (the lede) and once that no image is the
+   firm's (`ui.galleryNote`). */
 export const workSection = {
   eyebrowReal: 'Selected work',
-  engagementsNote:
-    'Typical engagement profiles, not specific past projects: the scope, structural system and deliverables of each kind of work the firm takes on. Named case studies are published only with client permission and are labeled as firm projects or prior professional experience.',
   galleryEyebrow: 'The material',
-  galleryLede: 'Reinforced concrete, reinforcement, residences and the coastline they stand on — the vocabulary of the work, uncaptioned on purpose.',
 } as const;
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   CREDENTIALS — accountability, stated once (About only)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-export const credentials = {
-  /* Nothing from this block renders today. The code-name grid that used to
-     sit here was the "Codes & Standards" band Juan rejected — do not bring it
-     back. The sealing statement below is switched off: the owner asked on
-     October 7, 2026 that the site not say who signs, and this sentence names
-     the signer. The flag stays so the About page keeps one switch for it. */
-  sealedDeliverables: false,
-  sealingStatement:
-    'Deliverables are signed and sealed by Juan Tercero, PE., M.Sc., Florida-licensed Professional Engineer, where the scope of work requires it.',
-} as const;
+/* The sealing statement that used to sit here ("Deliverables are signed and
+   sealed by …") is deleted, not switched off: it named the signer, which the
+   owner ruled out on October 7, 2026, and one flag flip would have printed
+   it. It is in git history if he ever decides otherwise. The code-name grid
+   before it was the "Codes & Standards" band he rejected — do not bring
+   either back. */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE ENGINEER — Juan Tercero, PE., M.Sc.
    ═══════════════════════════════════════════════════════════════════════════
-   Only confirmed facts. `portrait` and `license` are null until supplied and
-   the UI renders a finished composition without them. Do not add a
-   university, a year count, a prior employer or an award that has not been
-   confirmed in writing.
+   Only confirmed facts. Printed on /about only (EngineerSection); the
+   portrait is his own photograph, `license` the number verified in the
+   state registry. Do not add a university, a year count, a prior employer or
+   an award that has not been confirmed in writing.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const leadership = {
@@ -2710,15 +2720,15 @@ export const leadership = {
   firstName: 'Juan',
   role: 'Principal Engineer · Founder',
   credential: 'Florida Professional Engineer',
-  /** Path under /public, e.g. '/ttc/img/leadership/juan-tercero.jpg' — null until a real portrait exists. */
   /* The owner's own portrait, from the firm's Instagram profile
-     (@ttcivilstructural), October 18, 2026. 800 px, shown at 4:5. */
+     (@ttcivilstructural), October 18, 2026. 800 px, shown at 4:5. Always
+     present: /about's engineer section is built around it. */
   portrait: {
     src: '/ttc/img/leadership/juan-tercero.jpg',
     alt: 'Juan Tercero, PE., M.Sc., in a dark suit and tie',
     w: 800,
     h: 814,
-  } as { src: string; alt: string; w: number; h: number } | null,
+  },
     /* Verified in the Florida DBPR registry on October 6, 2026: Professional
      Engineer 105256, "Current, Active", expires 02/28/2027. The registry has
      no stable per-licence URL, so the link opens its search page. */
@@ -2729,18 +2739,21 @@ export const leadership = {
   linkedin: null as string | null,
   bio: [
     'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil and Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
-    'The practice covers both halves of structural work in South Florida: the design of new reinforced-concrete buildings, and the evaluation, recertification and repair of buildings already standing. Both are done with the same discipline — the reasoning behind every conclusion is written down, and nothing leaves the office that has not been checked line by line.',
   ],
+  /* Degrees only: the Florida license has its own column beside these, with
+     its number and the link to the state registry. */
   education: [
     'Master in Construction Project Management — Universidad de Barcelona',
     'Civil Engineer — National University of Engineering',
-    'Licensed Professional Engineer (P.E.), State of Florida',
   ],
+  /* In an owner's words, not the trade's ("BIM", "lateral", "frames"). The
+     High-Velocity Hurricane Zone of the Florida Building Code is these two
+     counties. Also the Person JSON-LD's `knowsAbout` (AboutView). */
   focus: [
     'Miami-Dade recertification, Broward BSIP inspections and condition assessments',
-    'Reinforced-concrete design for houses, mid-rise and commercial frames',
-    'Structural BIM modeling and multi-discipline coordination',
-    'Wind and lateral design for the High-Velocity Hurricane Zone',
+    'Reinforced-concrete design for houses, mid-rise and commercial buildings',
+    '3D structural models, coordinated with the architecture and building systems',
+    'Design for hurricane winds in the High-Velocity Hurricane Zone (Miami-Dade and Broward)',
   ],
   approach:
     'I would rather explain a structural decision in plain language than hide it behind a code reference. A board should be able to read a findings report and know what to do next; a contractor should be able to build from the drawing without calling; and a reviewer should be able to follow the calculation from load to detail.',
@@ -2748,14 +2761,6 @@ export const leadership = {
     { k: 'Direct communication', v: 'You talk to the engineer who is doing the work — not to an account manager relaying questions.' },
     { k: 'A scope you can read', v: 'Every proposal states what is included, what is not, what you receive and what it costs, before anything starts.' },
     { k: 'One engineer’s judgment', v: 'The engineer who studies your building or sets the design basis is the one who answers for the result, to you and to the reviewer.' },
-  ],
-  /** Rendered as facts on the typographic plate while there is no portrait. */
-  plate: [
-    { k: 'Name', v: 'Juan Tercero, PE., M.Sc.' },
-    { k: 'Licensure', v: 'Professional Engineer, Florida' },
-    { k: 'Role', v: 'Principal Engineer · Founder' },
-    { k: 'Practice', v: 'Tercero Tablada Civil and Structural Engineering Inc.' },
-    { k: 'Region', v: 'Miami-Dade & Broward' },
   ],
 } as const;
 
@@ -2780,28 +2785,33 @@ export const aboutPage = {
      with what is particular to the practice instead of repeating the H1. */
   titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., in South Florida.'],
   accentWord: 'South Florida.',
-  sub: 'Built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward — with the reasoning behind every conclusion written down and one Florida Professional Engineer responsible for all of it.',
+  /* The slogan opens it (seo.test). The written-down reasoning is the
+     Approach section's to say, and "one engineer" is already its first
+     sentence: the lede says each once. */
+  sub: 'Built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward.',
+  /* Region stays: it is the only other place "South" is printed on /about,
+     and every word of the H1 must be a word of the page (seo.test). Do not
+     reword it to the two counties. */
   facts: [
     { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
-    { k: 'Focus', v: 'Concrete · Existing buildings · BIM' },
     { k: 'Region', v: 'South Florida' },
   ],
+  /* One section on /about: the two paragraphs beside the title, then the
+     five principles under their own label (`principles.eyebrow`). */
   approach: {
     eyebrow: 'Approach',
     title: 'Reviewed line by line, before it leaves.',
     body: [
       'Two kinds of work run through this practice, and they inform each other. Designing new structures teaches you what fails in the field; inspecting buildings that have been standing for decades teaches you what to detail differently the next time.',
-      'Our method is model-first. Structure is modeled, coordinated and documented as one connected source of truth, checked against the design basis, so that what goes to permit is complete and coordinated.',
-      'On existing buildings the same discipline applies in reverse: the building is field-verified before it is analyzed, and nothing is concluded from a drawing that has not been confirmed on site.',
+      'On existing buildings the field comes first: the building is checked on site before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there.',
     ],
   },
   principles: {
     eyebrow: 'Principles',
-    title: 'How we hold the line.',
     items: [
-      { k: 'Rigor', v: 'Every member is analyzed and checked against the governing code before it reaches a drawing.' },
-      { k: 'Constructability', v: 'Details that respect the field — buildable, sequenceable and clear to the contractor.' },
-      { k: 'Coordination', v: 'Structure resolved against architecture and services early, so conflicts are caught in the model rather than on site.' },
+      { k: 'Rigor', v: 'Every beam, column and slab is analyzed and checked against the governing code before it reaches a drawing.' },
+      { k: 'Buildable details', v: 'Drawn to be built in the field: clear to the contractor, in a sensible order.' },
+      { k: 'Coordination', v: 'Structure checked early against the architecture and the building systems, so conflicts are caught in the model rather than on site.' },
       { k: 'Documented reasoning', v: 'Assumptions, loads and code provisions are written down, so any reviewer can follow the argument.' },
       { k: 'Longevity', v: 'Designed for durability and service life in a coastal environment, not just for the first day of occupancy.' },
     ],
@@ -2817,21 +2827,27 @@ export const servicesPage = {
   /* The subject and the place; the old H1 opens `sub` (see `aboutPage`). */
   titleLines: ['Structural engineering services', 'in Miami-Dade and Broward.'],
   accentWord: 'services',
-  /* Existing buildings first — in the sub-line, the facts and the tracks —
-     because the page now opens with them. The counts follow the `services`
-     array (four and four); change them together. */
-  sub: 'Organized by what you need, not by what we do. Eight services in two tracks. If you own or manage a building that is already standing, start with existing buildings. If you are building something, start with new projects. Each service says when you need it, what is included, what you receive and what to do next.',
-  facts: [
-    { k: 'Existing buildings', v: '4 services' },
-    { k: 'New projects', v: '4 services' },
-    { k: 'Coverage', v: 'Miami-Dade & Broward' },
-  ],
+  /* Existing buildings first — in the sub-line and the tracks — because the
+     page opens with them. "Eight" follows the `services` array (four and
+     four); change them together. The line used to explain how to read the
+     page ("…start with existing buildings… Each service says when you need
+     it…") and a facts panel counted the services again; the owner's rule of
+     October 20, 2026 is no "how to read this page" text. It ends on the
+     step that costs nothing. Keep "structural engineering services" whole:
+     it is where the H1's words are answered on the page (seo.test.ts). */
+  sub: 'Organized by what you need, not by what we do. Eight structural engineering services, for buildings already standing and for new projects. The proposal is free.',
+  /* The label of each service row's disclosure (ServiceCard): when you need
+     it, what is included, what you receive. Short, so it never wraps. */
+  cardMore: 'Details',
   tracks: {
     existing: {
       id: 'existing',
       eyebrow: 'Existing buildings',
       title: 'You own or manage a building.',
-      lede: 'For associations, property managers and owners with a county notice, a deadline, visible distress or a repair to scope. Miami-Dade and Broward each run their own program, and each has its own page here.',
+      /* Who it is for, then the reader who arrives after the deadline: many
+         do, and the page must not turn them away. It used to end by
+         describing the two rows under it ("…each has its own page here"). */
+      lede: 'For associations, property managers and owners with a county notice, a deadline, visible distress or a repair to scope. Already past the deadline? It can still be resolved.',
     },
     new: {
       id: 'new',
@@ -2851,10 +2867,18 @@ export const existingPage = {
      phone. */
   titleLines: ['Existing buildings', 'in Miami-Dade and Broward.'],
   accentWord: 'Existing',
-  sub: 'The building is already standing. Miami-Dade recertification, Broward’s Building Safety Inspection Program (BSIP), milestone inspections, structural assessments and repair design. We document what is actually there, explain what it means structurally, and define the work that follows.',
+  /* What waiting costs, then the way out — the owner's rule of October 20,
+     2026: open with the stake, never shut out the reader who is already
+     past the date, and end on a step that costs nothing. The stakes are the
+     counties' own (Miami-Dade Code 8CC-4(c) and 8CC-7: fines, and unpaid
+     amounts become a lien; Broward BORA Policy 05-05: a late report goes to
+     an enforcement hearing), told without a figure; "fixed fee" is the
+     pricing block's, for the two programs this line is about. It used to
+     list the five services, which the four situations below name. */
+  sub: 'The building is already standing. Left unanswered, a county notice turns into fines and a lien in Miami-Dade, and an enforcement hearing in Broward. Already late? It can still be resolved — send us the letter for a free, fixed-fee proposal.',
+  /* No "Coverage" fact: the H1 already ends "in Miami-Dade and Broward". */
   facts: [
     { k: 'For', v: 'Associations, owners, managers' },
-    { k: 'Coverage', v: 'Miami-Dade & Broward' },
     { k: 'Output', v: 'Reports, repair scopes, reinspections' },
   ],
   /* THE HUB: four situations, each with the service that answers it.
@@ -2866,17 +2890,19 @@ export const existingPage = {
      /services only.
 
      One item per existing-building service, in the `services` order, so the
-     grid closes on a straight edge (`slug` picks the photograph and the
-     link). What a line may say: what the service's own page already says,
-     shorter. No age, no day count and no deadline — "the program's page
-     gives the ages and the deadline" is how a line points at them. */
+     grid closes on a straight edge (`slug` picks the link; the tiles carry
+     no photograph). What a line may say: what the service's own page
+     already says, shorter. No age, no day count and no deadline — "the
+     program's page gives the ages and the deadline" is how a line points at
+     them. "One team" and "to close-out" are said once on the page, by the
+     timeline and the partner brief, not again in the first two lines. No
+     lede: it only said how to use the tiles. */
   triggers: {
     eyebrow: 'When to call',
     title: 'Four moments that need an engineer.',
-    lede: 'Find the one that is yours. Each leads to the service that answers it.',
     items: [
-      { slug: 'building-recertification', k: 'A notice arrived in Miami-Dade.', v: 'That is Miami-Dade’s building recertification. Send us the letter: one team delivers the complete package the county asks for — structural, electrical and the certificates that go with them — from the first visit to the report that closes it. The program’s page gives the ages and the deadline that apply.' },
-      { slug: 'broward-bsip', k: 'A notice arrived in Broward.', v: 'That is the Building Safety Inspection Program, the BSIP, and your city’s letter sets its own date. We start from that letter and deliver the whole package — the structural and electrical inspections, the written report and the program’s official forms — through to close-out.' },
+      { slug: 'building-recertification', k: 'A notice arrived in Miami-Dade.', v: 'That is Miami-Dade’s building recertification. Send us the letter: we deliver the complete package the county asks for — structural, electrical and the certificates that go with them. The program’s page gives the ages and the deadline that apply.' },
+      { slug: 'broward-bsip', k: 'A notice arrived in Broward.', v: 'That is the Building Safety Inspection Program, the BSIP, and your city’s letter sets its own date. We start from that letter and deliver the whole package — the structural and electrical inspections, the written report and the program’s official forms.' },
       { slug: 'milestone-inspections', k: 'The board asks whether the milestone law reaches the building.', v: 'The state law and the county programs overlap. We tell you which rules reach your building and how they are met in your county — and we inspect when no notice has come but a purchase, a lender or visible distress gives a reason to look.' },
       { slug: 'structural-condition-assessments', k: 'A report lists repairs, or something worries you.', v: 'Before contractors price anything, an engineer says which conditions affect the structure and defines the repair, so every bid answers the same scope. The same assessment serves before you buy a building or alter one.' },
     ],
@@ -2891,9 +2917,14 @@ export const existingPage = {
      `process` of the two program pages. It used to end in "Submission",
      after the repairs.
 
-     `cta` goes to Miami-Dade's page and `ctaSecondary` to Broward's: with
-     one program per county, a single "in detail" link would leave one
-     county without a door.
+     No links under the lede: the two county pages are linked once, from
+     the situations above (01, 02) — one link per action. The two "in
+     detail" buttons that sat here led to the same two pages.
+
+     The lede says what the reader gets, not the steps again: "report filed
+     first, repairs under permit, a final report" is what steps 03, 04 and
+     06 say right under it. "The sequence", not "the steps": step 06 has
+     Broward's completion letter.
 
      This block speaks of BOTH counties at once, so it says "the complete
      package each county asks for" and names no certificate: Miami-Dade's
@@ -2903,9 +2934,7 @@ export const existingPage = {
   timeline: {
     eyebrow: 'Recertification & BSIP',
     title: 'A clear path from the notice to close-out.',
-    lede: 'Miami-Dade calls it building recertification; Broward calls it the Building Safety Inspection Program. The ages and the deadlines are different, and each county’s are on its own page. The sequence is the same: the report is filed first, repairs follow under permit, and a final report closes the file. One team delivers the complete package each county asks for, so the board makes one call and knows what happens next at every stage.',
-    cta: { href: '/services/building-recertification', label: 'Miami-Dade Recertification in Detail' },
-    ctaSecondary: { href: '/services/broward-bsip', label: 'Broward BSIP in Detail' },
+    lede: 'Miami-Dade calls it building recertification; Broward, the Building Safety Inspection Program. The sequence is the same in both: you send the letter, and you receive the complete package each county asks for.',
     steps: [
       { n: '01', title: 'Notice review', detail: 'We read the notice and the building record, confirm what the Building Official is asking for, and set the schedule against the date on the letter.' },
       { n: '02', title: 'Inspection', detail: 'Inspection on site, structural and electrical — the frame, slabs, balconies, roof and exposed foundations, and the building’s electrical systems — documented in the field, with photographs tied to their locations.' },
@@ -2921,8 +2950,11 @@ export const existingPage = {
 
 export const workPage = {
   eyebrowReal: 'Selected work',
-  /* One label for the profiles everywhere (hero, section, status): they are
-     typical engagements, not past jobs, and nothing here says "anonymized". */
+  /* One label for the profiles everywhere (hero and section): they are
+     typical engagements, not past jobs, and nothing here says "anonymized".
+     The lede is the one place the page says so: the footnote that said it
+     again under the profiles is gone. It speaks to the reader first ("Find
+     your type of project…"), then says what the profiles are. */
   /* The subject, and NO place; the old H1 opens both subs (see
      `aboutPage`). "Typical" is in the H1 for the reason it is in the nav
      label and the page title: rewrite the three together on the day there
@@ -2939,7 +2971,7 @@ export const workPage = {
   accentWord: 'Typical',
   subReal: 'The frame behind the project. Structural engagements across South Florida — the building, the problem, the scope, our role and the documented result.',
   subRepresentative:
-    'The frame behind the project. Typical engagement profiles: the structural system, the scope and the documents each kind of work produces. They describe what the firm takes on in South Florida, not specific past projects. Named case studies are published only with client permission.',
+    'The frame behind the project. Find your type of project below: when you need it, what it covers and the documents you receive. Profiles of the work the firm takes on in South Florida, not specific past projects; named case studies are published only with client permission.',
   facts: [
     { k: 'Coverage', v: 'Miami-Dade & Broward' },
     { k: 'Systems', v: 'Reinforced concrete, steel' },
@@ -2950,26 +2982,38 @@ export const contactPage = {
   eyebrow: 'Request a proposal',
   titleLines: ['Tell us about the building.', 'We reply with a scope.'],
   accentWord: 'scope.',
-  sub: 'Describe the project, the building or the notice you received — and attach whatever you already have. The engineer reads every request and replies with questions or with a written proposal.',
-  /* The section under the form. /contact used to close with the home page's
-     "Engineered for this coast" block, word for word — five blocks of text on
-     two pages, and nothing in them for someone about to write. This is that
-     reader's block: what to send, what comes back, the other ways in.
+  /* What the visitor risks by waiting, the easy step and what it costs them
+     (nothing), then the late arrivals — many write after their date. Every
+     fact is the owner's: the proposal is free, recertification and BSIP are
+     quoted at a fixed fee (`pricing`), a phone photo of the letter is enough.
+     No figure here: a county's penalties and dates live in its own rows. */
+  sub: 'A notice left unanswered only gets more serious. Send it today — a phone photo of the letter is enough — and get a free, fixed-fee proposal. Already late? It can still be resolved.',
+  /* The guide beside the form: what to send, what comes back, the other
+     ways in. /contact used to close with the home page's "Engineered for
+     this coast" block, word for word; this is that reader's block instead.
 
      Every sentence restates something the site already says elsewhere (the
-     two programs' `ctaNote` and steps, `reach`, the principle "A scope you
+     two programs' next step and steps, `reach`, the principle "A scope you
      can read") in words of its own, so no block is shared with another page.
      NO number here: no age, no day count, no phone number (the page prints
      it from `contact.phone`), no office hours, no price. "Usually" is the
-     owner's word for the reply time — see `reach`. */
+     owner's word for the reply time — see `reach`. The H1's words "tell",
+     "about" and "scope" are here (seo.test.ts). ORDER MATTERS: the first
+     four rows (the situations) sit beside the form, the rest under it
+     (`SITUATIONS` in ContactView). */
   before: {
     eyebrow: 'How it works',
     title: 'What to send, and what happens next.',
     items: [
-      { k: 'If you have the notice', v: 'A photo of the letter taken with your phone is enough to start. Attach it to the form above or send it by WhatsApp; there is no need to scan it or to type out what it says. What we look for first is which office sent it and the dates it gives.' },
+      { k: 'If you have the notice', v: 'A photo of the letter taken with your phone is enough to start. Attach it to this form or send it by WhatsApp; there is no need to scan it or to type out what it says. What we look for first is which office sent it and the dates it gives.' },
+      /* Many owners write after their date has passed (the owner, October
+         20, 2026): they are told what to send, never turned away. The
+         program pages' answer for that case says the same thing — the first
+         step is still the inspection and the report — in other words. */
+      { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner the engineer reads what you received, the sooner you have a plan to put before your Building Official.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
-      { k: 'For any other building or project', v: 'Say what the building is, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required.' },
-      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal that says what the work includes, what it leaves out, what you will receive and what it costs. Nothing begins until you have agreed to it.' },
+      { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required.' },
+      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs. Nothing begins until you have agreed to it.' },
       { k: 'By phone, WhatsApp or email', v: 'The form is not the only way in. Call the number on this page, write to it on WhatsApp and send the photo of the notice there, or put the same details in an email.' },
       { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],
@@ -3137,7 +3181,7 @@ export const legal = {
     sub: 'What we collect through this website, why we collect it, and what we do with it.',
     sections: [
       { h: 'What we collect', p: [
-        `${ADS.on ? privacyAds.collect : 'The only'} personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number and company, the service you selected, the building address or project location, the description you write and any files you attach. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.`,
+        `${ADS.on ? privacyAds.collect : 'The only'} personal information this website collects is what you submit through the proposal request form: your name, email address, optional phone number, the service you selected, the building address or project location, the description you write and any files you attach. With the request we also record which page of this site you arrived on and the address of the page that linked you here, so we know how people find us.`,
         'The form does not ask for payment details, personal identification numbers (a Social Security or driver’s license number, for example) or passwords, and a proposal does not need them. Please leave them out of your description and of the files you attach.',
       ] },
       { h: 'Why we collect it', p: 'We use it to respond to your request and to understand the engineering scope you are asking about. We do not sell it, rent it, or share it for advertising.' },
@@ -3247,6 +3291,11 @@ export const reach = {
   form: 'Send the notice',
   /* Prefilled in the WhatsApp chat, so the first message already says why. */
   whatsappText: 'Hello, I received a building inspection notice.',
+  /* The same two, where there is no notice: the pages of the new-building
+     services, /about, /projects and /services (ContactCTA `notice`,
+     MobileActionBar, /contact with a new-building service chosen). */
+  whatsappPlain: 'Message us on WhatsApp',
+  whatsappTextPlain: 'Hello, I would like a proposal for a project.',
   free: 'The proposal is free.',
   reply: 'We usually reply within two hours.',
 };
@@ -3270,7 +3319,8 @@ export const reach = {
  *   - "More than 30 years of combined experience" is the two firms TOGETHER,
  *     in the owner's words — never thirty years of the engineer alone.
  *   - Every license number is a link to the DBPR search (PartnerSection);
- *     /about says in words what to do on that page.
+ *     `about.body` says that the numbers open the state's search. No
+ *     how-to line under them (the owner, 2026-10-20: no small print).
  *
  * Licences verified against the Florida DBPR registry on October 6, 2026:
  * both "Current, Active", expiring 08/31/2028, and the only "Precision
@@ -3310,8 +3360,7 @@ export const partner = {
      `about` — /about, the page a board opens to check who the firms are:
      what each company IS, and the four registrations as one list. The three
      license numbers are still links to the DBPR search, as on the home page
-     (the owner asked that both pages keep them); how to use that search is
-     already printed on /about, under the engineer's own license.
+     (the owner asked that both pages keep them), and `body` says so.
 
      `brief` — /existing-buildings, right after the six steps: who the
      reader deals with while they run, and a link to the list on /about.
@@ -3370,11 +3419,6 @@ const pricing = {
     'The structural report, signed and sealed, and the electrical report, signed by a professional qualified in electrical design.',
     'Filing with the county and our answers to the review comments on that inspection.',
   ],
-  excludesTitle: 'Quoted separately',
-  excludes: [
-    'Repairs, and the documents and permits they need, once the findings are known.',
-    'County, city and permit fees.',
-  ],
   note: 'The price depends on the size of the building, the number of structures, the electrical service, the documents available and what the jurisdiction asks for. Several buildings: one proposal, a price for each.',
   /** The first column of the price table, over the four sizes. */
   sizeLabel: 'Building size',
@@ -3424,7 +3468,6 @@ export const en = {
   caseStudies,
   engagements,
   workSection,
-  credentials,
   leadership,
   partner,
   reach,

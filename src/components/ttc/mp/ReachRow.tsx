@@ -9,10 +9,14 @@ import type { SiteContent } from '@/lib/ttc/content';
  * already carries a query, so the message is joined with `&`. (It was the
  * short `wa.me/<number>?text=…`, which answers every click with a redirect
  * to this address.)
+ *
+ * `plain`: the first line for a reader with no notice (a new building), so
+ * the chat does not open with "I received a building inspection notice".
  */
-export function whatsappHref(c: SiteContent): string | null {
+export function whatsappHref(c: SiteContent, plain = false): string | null {
   const wa = c.contact.whatsapp;
-  return wa ? `${wa.href}&text=${encodeURIComponent(c.reach.whatsappText)}` : null;
+  const text = plain ? c.reach.whatsappTextPlain : c.reach.whatsappText;
+  return wa ? `${wa.href}&text=${encodeURIComponent(text)}` : null;
 }
 
 /**
@@ -40,15 +44,18 @@ export function whatsappHref(c: SiteContent): string | null {
 export function ReachRow({
   c,
   assure = false,
+  plain = false,
   className = '',
 }: {
   c: SiteContent;
   assure?: boolean;
+  /** A page with no notice in the reader's hand: "Message us on WhatsApp". */
+  plain?: boolean;
   className?: string;
 }) {
   const phone = c.contact.phone;
   if (!phone) return null;
-  const wa = whatsappHref(c);
+  const wa = whatsappHref(c, plain);
   const r = c.reach;
   return (
     <div className={`mp-reach ${className}`.trim()}>
@@ -63,7 +70,7 @@ export function ReachRow({
         </a>
         {wa ? (
           <a className="mp-reach__link" href={wa} target="_blank" rel="noopener noreferrer">
-            {r.whatsappNotice}
+            {plain ? r.whatsappPlain : r.whatsappNotice}
           </a>
         ) : null}
       </div>

@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
-import { imagery } from '@/lib/ttc/site';
+import Link from 'next/link';
+import { engagementServices } from '@/lib/ttc/site';
 import { Img } from './media';
 import { Reveal, SectionHeading } from './primitives';
-import { useContent } from './lang';
+import { useContent, useL } from './lang';
 
 /**
  * Work. Three honest states and no fourth:
@@ -12,15 +13,32 @@ import { useContent } from './lang';
  *   • `caseStudies` has entries → real projects, grouped into FIRM PROJECTS
  *     and PRIOR PROFESSIONAL EXPERIENCE so a visitor never mistakes one for
  *     the other. Each shows the building type, general location, problem,
- *     scope, our role and the documented result. Illustrative photographs are
- *     labelled as such.
- *   • `caseStudies` is empty → TYPICAL ENGAGEMENTS: profiles of the kind of
- *     work the practice takes on, with the note saying exactly what they are.
- *     They carry no location row: a specific county beside each profile read
- *     as a real past job, and the honest value ("Miami-Dade or Broward") is
- *     the same on all six and already stated by the hero's Coverage fact.
- *     No code row either — the client site does not list code standards.
+ *     scope, our role and the documented result, as a photo card (lg
+ *     rhythm). Illustrative photographs are labelled as such.
+ *   • `caseStudies` is empty → TYPICAL ENGAGEMENTS, as one register
+ *     (`.mp-work--register`): a row per profile — the reader's situation
+ *     (`need`), the service page that answers it, and four facts (project
+ *     type, scope, structural system, deliverables). No photograph: a big
+ *     16:10 frame over each profile, some of identifiable towers, read as
+ *     "our projects". No Status row and no footnote: the hero's lede says
+ *     once what these are. They carry no location row either: the honest
+ *     value ("Miami-Dade or Broward") is the same on all six and already
+ *     stated by the hero's Coverage fact. No code row — the client site does
+ *     not list code standards.
  *   • There is no "coming soon" state.
+ *
+ * The register reads three ways (mp.css, section 15): run-in "LABEL value"
+ * lines on a phone; the profile beside a 2 × 2 of the facts from 901px; one
+ * table with a single header row from 1181px, where each row's labels are
+ * only visually hidden — the dt stays in the HTML on every row ("Project
+ * type" answers the H1's "type"). The header row is aria-hidden: the dts
+ * already name every value. A text space sits between each dt and dd, or the
+ * run-in rows render "PROJECT TYPEResidential" as one word.
+ *
+ * Each profile's link names the service by its own short name, looked up by
+ * slug in `engagementServices`; a slug with no service renders nothing. The
+ * links sit in a <div>, not a <p>: two of them make a block of six words in
+ * Spanish, which the one-home tests would then count.
  *
  * The visible section label is hidden from assistive tech; the visually
  * hidden h2 carries the same words, so the label is announced once, as the
@@ -28,10 +46,12 @@ import { useContent } from './lang';
  */
 export function WorkList({ n = '01' }: { n?: string }) {
   const c = useContent();
+  const l = useL();
   const u = c.ui.work;
   const real = c.caseStudies;
   const usingReal = real.length > 0;
   const label = usingReal ? c.workSection.eyebrowReal : c.ui.typicalEngagements;
+  const bySlug = new Map(c.services.map((s) => [s.slug, s]));
 
   const groups = usingReal
     ? [
@@ -42,7 +62,7 @@ export function WorkList({ n = '01' }: { n?: string }) {
 
   return (
     <section
-      className="mp-section mp-section--lg mp-surface--paper"
+      className={usingReal ? 'mp-section mp-section--lg mp-surface--paper' : 'mp-section mp-surface--paper'}
       aria-labelledby="mp-work-title"
     >
       <div className="mp-shell">
@@ -87,39 +107,46 @@ export function WorkList({ n = '01' }: { n?: string }) {
             </div>
           ))
         ) : (
-          <div className="mp-work">
+          <div className="mp-work mp-work--register">
+            <div className="mp-work__cols" aria-hidden="true">
+              <span />
+              <span className="mp-work__cols-specs">
+                <span>{u.projectType}</span>
+                <span>{u.scope}</span>
+                <span>{u.structuralSystem}</span>
+                <span>{u.deliverables}</span>
+              </span>
+            </div>
             {c.engagements.map((e, i) => (
-              <Reveal as="div" key={e.n} delay={(i % 2) * 0.05} className="mp-work__item">
-                {imagery.engagements[e.n] ? (
-                  <div className="mp-work__photo" aria-hidden="true">
-                    <Img photo={imagery.engagements[e.n]} sizes="(max-width: 900px) 100vw, 46vw" />
-                    <span className="mp-work__illus">{u.illustrative}</span>
-                  </div>
-                ) : null}
+              <Reveal as="div" key={e.n} delay={(i % 3) * 0.04} className="mp-work__item">
                 <div className="mp-work__head">
                   <span className="mp-secnum">{e.n}</span>
                   <h3 className="mp-work__title">{e.title}</h3>
                 </div>
+                <p className="mp-work__need">{e.need}</p>
                 <dl className="mp-work__specs">
-                  <div><dt>{u.projectType}</dt><dd>{e.projectType}</dd></div>
-                  <div><dt>{u.scope}</dt><dd>{e.scope}</dd></div>
-                  <div><dt>{u.structuralSystem}</dt><dd>{e.structuralSystem}</dd></div>
-                  <div><dt>{u.deliverables}</dt><dd>{e.deliverables}</dd></div>
-                  <div>
-                    <dt>{u.status}</dt>
-                    <dd><span className="mp-work__status">{e.status}</span></dd>
-                  </div>
+                  <div><dt>{u.projectType}</dt>{' '}<dd>{e.projectType}</dd></div>
+                  <div><dt>{u.scope}</dt>{' '}<dd>{e.scope}</dd></div>
+                  <div><dt>{u.structuralSystem}</dt>{' '}<dd>{e.structuralSystem}</dd></div>
+                  <div><dt>{u.deliverables}</dt>{' '}<dd>{e.deliverables}</dd></div>
                 </dl>
+                <div className="mp-work__more">
+                  {(engagementServices[e.n] ?? []).map((slug, k) => {
+                    const s = bySlug.get(slug);
+                    return s ? (
+                      <React.Fragment key={slug}>
+                        {k ? ' ' : null}
+                        <Link href={l(`/services/${slug}`)} className="mp-link">
+                          {s.shortTitle} <i aria-hidden="true">→</i>
+                        </Link>
+                      </React.Fragment>
+                    ) : null;
+                  })}
+                </div>
               </Reveal>
             ))}
           </div>
         )}
-
-        {!usingReal ? (
-          <Reveal delay={0.05}>
-            <p className="mp-work__note">{c.workSection.engagementsNote}</p>
-          </Reveal>
-        ) : null}
       </div>
     </section>
   );

@@ -24,9 +24,10 @@ import { SectionHeading, Reveal, TextLink } from './primitives';
  * EVERY LICENSE NUMBER IS A LINK to the state registry, so a board can check
  * it instead of taking the card's word. The registry (DBPR) has no stable
  * per-license URL — `leadership.license.url` is its search page — so all
- * three numbers open the same form; /about says what to do there (the home
- * page carries no small print). The business registry number stays plain
- * text for now: it
+ * three numbers open the same form; /about's sentence above the register
+ * says that they open the state's search (no how-to line under them: the
+ * owner, 2026-10-20, no small print). The business registry number stays
+ * plain text for now: it
  * has no letter prefix (PE, CGC, EC), and nobody has checked that a bare
  * number finds one record on that form. Link it once that is confirmed.
  *
@@ -236,9 +237,8 @@ export function PartnerSection({
             </div>
           </Reveal>
         </div>
-        {/* No note under the cards (the owner, 2026-10-20: no small print on
-            the home page). The numbers are still links to the registry, and
-            /about says what to do there. */}
+        {/* No note under the cards (the owner, 2026-10-20: no small print).
+            The numbers are still links to the registry. */}
       </div>
     </section>
   );

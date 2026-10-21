@@ -14,7 +14,7 @@ Work page shows anonymized *representative engagements*, and "What we design"
 shows *typologies*, so that no stock photograph can be mistaken for the firm's
 portfolio. A photograph of a house under "Single-family residences" says *this
 is the sort of building we engineer*, not *we engineered this one*. The
-typologies footnote and the note under the Work gallery both say so. Keep
+typologies footnote and the note beside the Work gallery both say so. Keep
 both.
 
 Replace these with real Tercero Tablada photography when it exists, one
@@ -62,15 +62,19 @@ Each photograph is placed at most once. A service's card photo reappearing as
 the hero of that service's own page counts as one placement — and for the two
 county programs the same photo is also the plate of that program's section on
 the home page: one service, one photograph, three doors. A shared section
-component rendered on more than one page is one placement too
-(SouthFloridaMap on Home and Contact; the EngineerSection plate on the Home
-teaser and About) — one slot in `site.ts`, one placement. Adding a placement
-means adding a photograph, never reusing one.
+component rendered on more than one page is one placement too — one slot in
+`site.ts`, one placement. Adding a placement means adding a photograph, never
+reusing one.
 
-Two photographs are **spares with no placement** since 2026-10-04, when the
-two doors ("I own or manage an existing building" / "I am building something
-new") left the home page: `midrise-balconies` and `frame-crane-sky`. They
-stay in the catalogue; delete them if no slot claims them.
+Rows marked *Spare* have no placement. `midrise-balconies` left with the home
+page's two doors (2026-10-04). On 2026-10-20 the compact round let seventeen
+more go: the six typical-engagement photos and eight of the twelve gallery
+frames on /projects (the profiles became a list, the gallery four material-only
+frames), `south-florida-aerial` (the home's "Engineered for this coast" band
+left), `concrete-ramp` (the engineer plate; the real portrait is in) and
+`bim-wireframe-model` (line art, replaced on BIM Coordination by
+`frame-crane-sky`, itself a spare until then). They stay in the catalogue;
+delete them if no slot claims them.
 
 "id n/r" = Pexels, but the source id was not recorded at import.
 
@@ -85,7 +89,7 @@ stay in the catalogue; delete them if no slot claims them.
 | miami-brickell | miamiBrickell | /contact hero | 9768488 |
 | concrete-frame-slabs | concreteFrameSlabs | Service: Reinforced Concrete Design | id n/r (commit cdc0ded) |
 | analysis-towers-up | analysisTowersUp | Service: Structural Analysis | 9408402 |
-| bim-wireframe-model | bimWireframeModel | Service: BIM Coordination | 38289825 |
+| bim-wireframe-model | bimWireframeModel | *Spare since 2026-10-20 (line art).* Was Service: BIM Coordination | 38289825 |
 | **recert-miami-dade** | recertMiamiDade | Service: Miami-Dade Building Recertification — card, service-page hero, Home section 01 (`pos 28% 42%`) *(new 2026-10-04, retouched)* | **12218269** |
 | **bsip-broward** | bsipBroward | Service: Broward Building Safety Inspection Program (BSIP) — card, service-page hero, Home section 02 *(new 2026-10-04)* | **18080724** |
 | guide-notice-mailboxes | guideNoticeMailboxes | Guide: notice — hero + its card on /guides *(new 2026-10-17)* | 1550334 |
@@ -98,34 +102,34 @@ stay in the catalogue; delete them if no slot claims them.
 | inspect-balcony-pair | inspectBalconyPair | Service: Milestone & Structural Safety Inspections (`pos 50% 30%`) | 8961152 |
 | inspect-wall | inspectWall | Service: Condition Assessments (`pos 50% 30%`) | 8961700 |
 | peer-tower-bw | peerTowerBw | Service: Peer Review | 15786966 |
-| south-florida-aerial | southFloridaAerial | Home + Contact, South Florida section (shared SouthFloridaMap) | 30147234 |
-| concrete-ramp | concreteRamp | About engineer plate + Home engineer teaser (shared EngineerSection; shown while `leadership.portrait` is null) | 38539691 |
-| frame-under-construction | frameUnderConstruction | Work, engagement 01 | 13094084 |
-| midrise-glass-balconies | midriseGlassBalconies | Work, engagement 02 | 11916565 |
-| miami-towers-up | miamiTowersUp | Work, engagement 03 | 33664887 |
-| rebar-bundles | rebarBundles | Work, engagement 04 | 11891953 |
-| frame-slab-edges | frameSlabEdges | Work, engagement 05 | 18411324 |
-| rebar-cage-tower | rebarCageTower | Work, engagement 06 | 12709141 |
+| south-florida-aerial | southFloridaAerial | *Spare since 2026-10-20.* Was Home, "Engineered for this coast" band | 30147234 |
+| concrete-ramp | concreteRamp | *Spare since 2026-10-20.* Was the About engineer plate, shown while there was no portrait | 38539691 |
+| frame-under-construction | frameUnderConstruction | *Spare since 2026-10-20.* Was Work, engagement 01 | 13094084 |
+| midrise-glass-balconies | midriseGlassBalconies | *Spare since 2026-10-20.* Was Work, engagement 02 | 11916565 |
+| miami-towers-up | miamiTowersUp | *Spare since 2026-10-20.* Was Work, engagement 03 | 33664887 |
+| rebar-bundles | rebarBundles | *Spare since 2026-10-20.* Was Work, engagement 04 | 11891953 |
+| frame-slab-edges | frameSlabEdges | *Spare since 2026-10-20.* Was Work, engagement 05 | 18411324 |
+| rebar-cage-tower | rebarCageTower | *Spare since 2026-10-20.* Was Work, engagement 06 | 12709141 |
 | house-concrete-garden | houseConcreteGarden | Typology 01, single-family | 13041129 |
 | house-townhouses | houseTownhouses | Typology 02, townhouses | 32115995 |
 | frame-curved-balconies | frameCurvedBalconies | Typology 03, mid-rise | 15497599 |
 | frame-crane-clean | frameCraneClean | Typology 04, mixed-use | 12453934 |
 | foundation-mat-pit | foundationMatPit | Typology 05, foundations | 37733181 |
 | **repair-soffit-trowel** | repairSoffitTrowel | Typology 06, repairs *(new 2026-09-22, retouched)* | **30580529** |
-| **frame-crane-sky** | frameCraneSky | *Spare, no placement since 2026-10-04.* Was Home, "New projects" door *(new 2026-09-22, retouched)* | **38450719** |
+| **frame-crane-sky** | frameCraneSky | Service: BIM Coordination — card and service-page hero (since 2026-10-20; a spare from 2026-10-04, was Home, "New projects" door) *(new 2026-09-22, retouched)* | **38450719** |
 | midrise-balconies | midriseBalconies | *Spare, no placement since 2026-10-04.* Was Home, "Existing buildings" door | 27459248 |
-| house-modern-levels | houseModernLevels | Work gallery | 323780 |
-| concrete-vault | concreteVault | Work gallery | 9039829 |
-| house-palm | housePalm | Work gallery | 30211366 |
-| rebar-slab-crew | rebarSlabCrew | Work gallery | 11581108 |
-| miami-skyline-teal | miamiSkylineTeal | Work gallery | 13356923 |
-| frame-golden | frameGolden | Work gallery | 16076663 |
-| midrise-clean | midriseClean | Work gallery | 18153132 |
-| concrete-stepped-gold | concreteSteppedGold | Work gallery | 28584394 |
-| rebar-tying-hands | rebarTyingHands | Work gallery | 36847981 |
-| house-dark-brick | houseDarkBrick | Work gallery | 12458357 |
-| miami-beach-dusk | miamiBeachDusk | Work gallery | 13356947 |
-| house-white-tree | houseWhiteTree | Work gallery | 1974596 |
+| house-modern-levels | houseModernLevels | *Spare since 2026-10-20.* Was Work gallery | 323780 |
+| concrete-vault | concreteVault | Work gallery (/projects, "The material") | 9039829 |
+| house-palm | housePalm | *Spare since 2026-10-20.* Was Work gallery | 30211366 |
+| rebar-slab-crew | rebarSlabCrew | Work gallery (/projects, "The material") | 11581108 |
+| miami-skyline-teal | miamiSkylineTeal | *Spare since 2026-10-20.* Was Work gallery | 13356923 |
+| frame-golden | frameGolden | Work gallery (/projects, "The material") | 16076663 |
+| midrise-clean | midriseClean | *Spare since 2026-10-20.* Was Work gallery | 18153132 |
+| concrete-stepped-gold | concreteSteppedGold | *Spare since 2026-10-20.* Was Work gallery | 28584394 |
+| rebar-tying-hands | rebarTyingHands | Work gallery (/projects, "The material") | 36847981 |
+| house-dark-brick | houseDarkBrick | *Spare since 2026-10-20.* Was Work gallery | 12458357 |
+| miami-beach-dusk | miamiBeachDusk | *Spare since 2026-10-20.* Was Work gallery | 13356947 |
+| house-white-tree | houseWhiteTree | *Spare since 2026-10-20.* Was Work gallery | 1974596 |
 
 Pexels photo URL pattern: `https://www.pexels.com/photo/<id>/`.
 

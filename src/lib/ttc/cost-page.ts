@@ -22,6 +22,12 @@ export { COST_PATH } from './cost-path';
  *   • no client, case or review that is not real.
  */
 export type CostItem = { k: string; v: string };
+/**
+ * A factor of the price and, where the owner can do something about it,
+ * that one thing (`save`): the cause and its remedy in one row, so each
+ * lever is explained once. Two factors have none, and say nothing there.
+ */
+export type CostFactor = CostItem & { save?: string };
 export type CostPage = {
   seo: { title: string; description: string; keywords: string[] };
   crumb: string;
@@ -30,10 +36,13 @@ export type CostPage = {
   accentWord: string;
   sub: string;
   reviewed: string;
-  tables: { label: string; title: string; lede: string; note: string; cta: string };
-  factors: { label: string; title: string; lede: string; items: CostItem[] };
-  outside: { label: string; title: string; items: CostItem[]; lateLink: string };
-  save: { label: string; title: string; items: string[] };
+  tables: { label: string; title: string; lede: string; cta: string };
+  /** `head` is the first column of the factors table; `save.label` heads the last. */
+  factors: { label: string; title: string; lede: string; head: string; items: CostFactor[] };
+  /** The right-hand column of the fee's scope, beside "In the fixed fee". */
+  outside: { label: string; items: CostItem[]; lateLink: string };
+  /** `first`: the one way to pay less that belongs to no factor — when to call. */
+  save: { label: string; first: string };
   faq: { label: string; title: string; items: { q: string; a: string }[] };
   programLink: (name: string) => string;
 };
@@ -56,48 +65,42 @@ const en: CostPage = {
   eyebrow: 'Pricing',
   titleLines: ['What a recertification', 'costs in South Florida.'],
   accentWord: 'costs in South Florida.',
-  sub: 'Across South Florida: fixed-fee ranges for the Miami-Dade recertification and the Broward BSIP, by building size, and the costs that sit outside the engineering fee.',
+  sub: 'Know what you will pay up front: fixed-fee ranges for the Miami-Dade recertification and the Broward BSIP across South Florida, by building size, and the costs outside the engineering fee.',
   reviewed: 'Prices reviewed October 2026',
   tables: {
     label: 'The fee',
     title: 'The engineering fee, by building size.',
     lede: 'One fixed figure, written in the proposal before any work starts: no hourly billing, and no charge for the proposal itself. These are the ranges that figure falls in.',
-    note: 'A range, not a quote. Your proposal states one figure for your building, for the scope it describes.',
     cta: 'Ask for your fixed figure',
   },
   factors: {
     label: 'What moves the price',
     title: 'Why two buildings of the same size can cost differently.',
     lede: 'The range is set by size. Where a building falls inside it depends on six things.',
+    head: 'Factor',
     items: [
       { k: 'Floors, units and square feet', v: 'They set how long the inspection takes and how long the reports run.' },
-      { k: 'Number of structures', v: 'Each building, parking garage or detached structure on the property is inspected and reported on by itself.' },
-      { k: 'The electrical service', v: 'A larger service takes longer to inspect, and the county’s rules can call for infrared thermography of the equipment; the proposal says when they do.' },
-      { k: 'Drawings and earlier reports', v: 'The original drawings and the last recertification report shorten the work. Without them, more is measured and documented on site.' },
-      { k: 'Access on the day', v: 'Roofs, garages, electrical rooms and units that cannot be opened on the day of the inspection mean a second visit.' },
+      { k: 'Number of structures', v: 'Each building, parking garage or detached structure on the property is inspected and reported on by itself.', save: 'With several buildings, ask for one proposal priced building by building.' },
+      { k: 'The electrical service', v: 'A larger service takes longer to inspect, and the county’s rules can call for infrared thermography of the equipment; the proposal says when they do.', save: 'Have one team inspect the structure and the electrical together: one visit, one schedule, one contact.' },
+      { k: 'Drawings and earlier reports', v: 'The original drawings and the last recertification report shorten the work. Without them, more is measured and documented on site.', save: 'Send the notice, the original drawings and any earlier report with your request.' },
+      { k: 'Access on the day', v: 'Roofs, garages, electrical rooms and units that cannot be opened on the day of the inspection mean a second visit.', save: 'Open every area on one day: roofs, garages, electrical rooms and the units the engineer asks for.' },
       { k: 'The office that sent the notice', v: 'Each city and county office has its own forms and submission steps, and some ask for more than others.' },
     ],
   },
   outside: {
     label: 'Outside the fee',
-    title: 'What the engineering fee does not cover.',
     items: [
       { k: 'Repairs', v: 'If the inspection finds deficiencies, a contractor prices the repairs once their scope is known, under a building permit. Their cost depends entirely on what is found.' },
       { k: 'Filing and permit fees', v: 'The office that sent the notice charges its own filing and permit fees, and changes them from time to time. Ask that office for its current schedule: the filing step is in our process, its fee is not in our price.' },
-      { k: 'Penalties for a late report', v: 'A report that misses its date moves to enforcement, with penalties and costs set by the county or the city. They are the one cost an early start avoids completely.' },
+      /* Many owners arrive after their date (the owner, 2026-10-20): the
+         row that names the cost of waiting must not shut them out. */
+      { k: 'Penalties for a late report', v: 'A report that misses its date moves to enforcement, with penalties and costs set by the county or the city: the one cost an early start avoids. Already late? It can still be resolved.' },
     ],
     lateLink: 'What waiting can cost',
   },
   save: {
     label: 'Pay less',
-    title: 'Five ways to keep the cost down.',
-    items: [
-      'Call when the notice arrives, not near its date: there is time to plan repairs instead of rushing them.',
-      'Send the notice, the original drawings and any earlier report with your request.',
-      'Open every area on one day: roofs, garages, electrical rooms and the units the engineer asks for.',
-      'Have one team inspect the structure and the electrical together: one visit, one schedule, one contact.',
-      'With several buildings, ask for one proposal priced building by building.',
-    ],
+    first: 'Call when the notice arrives, not near its date: there is time to plan repairs instead of rushing them.',
   },
   faq: {
     label: 'Questions',
@@ -133,48 +136,40 @@ const es: CostPage = {
   eyebrow: 'Precios',
   titleLines: ['Lo que cuesta una recertificación', 'en el Sur de Florida.'],
   accentWord: 'en el Sur de Florida.',
-  sub: 'En todo el Sur de Florida: rangos de precio fijo de la recertificación de Miami-Dade y del BSIP de Broward, según el tamaño del edificio, y los costos que quedan fuera de los honorarios de ingeniería.',
+  sub: 'Sepa de antemano cuánto va a pagar: rangos de precio fijo de la recertificación de Miami-Dade y del BSIP de Broward en el Sur de Florida, según el tamaño del edificio, y los costos que quedan fuera de los honorarios de ingeniería.',
   reviewed: 'Precios revisados en octubre de 2026',
   tables: {
     label: 'Los honorarios',
     title: 'Los honorarios de ingeniería, según el tamaño del edificio.',
     lede: 'Una sola cifra fija, escrita en la propuesta antes de empezar: sin cobro por hora y sin costo por la propuesta. Estos son los rangos en los que cae esa cifra.',
-    note: 'Un rango, no una cotización. Su propuesta indica una cifra para su edificio, para el alcance que describe.',
     cta: 'Pida su cifra fija',
   },
   factors: {
     label: 'Qué mueve el precio',
     title: 'Por qué dos edificios del mismo tamaño pueden costar distinto.',
     lede: 'El rango lo fija el tamaño. Dónde cae un edificio dentro de él depende de seis cosas.',
+    head: 'Factor',
     items: [
       { k: 'Pisos, unidades y pies cuadrados', v: 'Determinan cuánto dura la inspección y qué tan extensos son los informes.' },
-      { k: 'Número de estructuras', v: 'Cada edificio, garaje o estructura independiente de la propiedad se inspecciona y se informa por separado.' },
-      { k: 'El servicio eléctrico', v: 'Un servicio más grande lleva más tiempo de inspección, y las reglas del condado pueden exigir termografía infrarroja de los equipos; la propuesta indica cuándo.' },
-      { k: 'Planos e informes anteriores', v: 'Los planos originales y el último informe de recertificación acortan el trabajo. Sin ellos, se mide y se documenta más en sitio.' },
-      { k: 'El acceso ese día', v: 'Techos, garajes, cuartos eléctricos y unidades que no se pueden abrir el día de la inspección obligan a una segunda visita.' },
+      { k: 'Número de estructuras', v: 'Cada edificio, garaje o estructura independiente de la propiedad se inspecciona y se informa por separado.', save: 'Si tiene varios edificios, pida una sola propuesta con precio edificio por edificio.' },
+      { k: 'El servicio eléctrico', v: 'Un servicio más grande lleva más tiempo de inspección, y las reglas del condado pueden exigir termografía infrarroja de los equipos; la propuesta indica cuándo.', save: 'Que un solo equipo inspeccione la estructura y la parte eléctrica a la vez: una visita, un calendario, un contacto.' },
+      { k: 'Planos e informes anteriores', v: 'Los planos originales y el último informe de recertificación acortan el trabajo. Sin ellos, se mide y se documenta más en sitio.', save: 'Envíe la notificación, los planos originales y cualquier informe anterior junto con su solicitud.' },
+      { k: 'El acceso ese día', v: 'Techos, garajes, cuartos eléctricos y unidades que no se pueden abrir el día de la inspección obligan a una segunda visita.', save: 'Abra todas las áreas el mismo día: techos, garajes, cuartos eléctricos y las unidades que pida el ingeniero.' },
       { k: 'La oficina que envió la notificación', v: 'Cada oficina de ciudad y de condado tiene sus propios formularios y pasos de presentación, y algunas piden más que otras.' },
     ],
   },
   outside: {
     label: 'Fuera de los honorarios',
-    title: 'Lo que los honorarios de ingeniería no cubren.',
     items: [
       { k: 'Reparaciones', v: 'Si la inspección encuentra deficiencias, un contratista cotiza las reparaciones cuando se conoce su alcance, con un permiso de construcción. Su costo depende por completo de lo que se encuentre.' },
       { k: 'Tasas de presentación y de permisos', v: 'La oficina que envió la notificación cobra sus propias tasas de presentación y de permisos, y las cambia de vez en cuando. Pida a esa oficina su tarifa vigente: el paso de presentación está en nuestro proceso, su tasa no está en nuestro precio.' },
-      { k: 'Multas por un informe atrasado', v: 'Un informe que no llega a tiempo pasa a cumplimiento, con multas y costos que fija el condado o la ciudad. Es el único costo que empezar temprano evita por completo.' },
+      { k: 'Multas por un informe atrasado', v: 'Un informe que no llega a tiempo pasa a cumplimiento, con multas y costos que fija el condado o la ciudad: el único costo que empezar temprano evita. ¿Ya va tarde? Todavía tiene solución.' },
     ],
     lateLink: 'Lo que puede costar esperar',
   },
   save: {
     label: 'Pagar menos',
-    title: 'Cinco maneras de bajar el costo.',
-    items: [
-      'Llame cuando llegue la notificación, no cerca de su fecha: queda tiempo para planear las reparaciones en vez de apurarlas.',
-      'Envíe la notificación, los planos originales y cualquier informe anterior junto con su solicitud.',
-      'Abra todas las áreas el mismo día: techos, garajes, cuartos eléctricos y las unidades que pida el ingeniero.',
-      'Que un solo equipo inspeccione la estructura y la parte eléctrica a la vez: una visita, un calendario, un contacto.',
-      'Si tiene varios edificios, pida una sola propuesta con precio edificio por edificio.',
-    ],
+    first: 'Llame cuando llegue la notificación, no cerca de su fecha: queda tiempo para planear las reparaciones en vez de apurarlas.',
   },
   faq: {
     label: 'Preguntas',

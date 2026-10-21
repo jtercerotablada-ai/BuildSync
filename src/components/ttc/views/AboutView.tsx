@@ -5,21 +5,28 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
-import { SealStatement } from '@/components/ttc/mp/CredentialsBar';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
- * About: the practice, then the engineer (anchored), then how the work is held.
+ * About: the one page that holds the engineer and the two firms, in order
+ * (the owner, 2026-10-20: "not mixed in, everything ordered and as
+ * professional as possible").
  *
- * Four sections and a close — engineer (paper) → approach (concrete) →
- * principles (paper) → who we work with (concrete) → CTA (graphite). The five-step process lives on
- * Services and the service-area band on Home; repeating them
- * here made a Home → Services → About visit read the same blocks three times.
- * The code-standard grid that used to sit here is gone for good (client site,
- * client language); the sealing statement it carried now closes Principles.
+ *   01 the engineer (paper, anchored #engineer) — portrait, name, biography,
+ *      his own words, credentials, what that means for the client;
+ *   02 how the work is held (concrete) — the approach beside its title, then
+ *      the five principles as one strip under their label;
+ *   03 the two firms (paper, anchored #contractor) — what each company is
+ *      and the four registrations, each license a link to the state's search;
+ *   then the closing band (graphite), the page's one action.
+ *
+ * The surfaces alternate, so no same-surface seam rule fires. The five-step
+ * process lives on Services and the service-area band on Home; repeating
+ * them here made a Home → Services → About visit read the same blocks three
+ * times. Nothing on this page says who signs a report (the owner's rule).
  */
 export function AboutView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
@@ -37,7 +44,7 @@ export function AboutView({ lang }: { lang: Lang }) {
     description: e.bio[0],
     url: `${company.url}${localePath('/about#engineer', lang)}`,
     worksFor: { '@id': `${company.url}/#organization` },
-    ...(e.portrait ? { image: `${company.url}${e.portrait.src}` } : {}),
+    image: `${company.url}${e.portrait.src}`,
     hasCredential: [
       { '@type': 'EducationalOccupationalCredential', credentialCategory: 'license', name: 'Professional Engineer (P.E.), State of Florida', ...(e.license ? { identifier: e.license.number, url: e.license.url } : {}) },
       { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Master in Construction Project Management, Universidad de Barcelona' },
@@ -63,12 +70,14 @@ export function AboutView({ lang }: { lang: Lang }) {
 
       <EngineerSection n="01" />
 
-      <section className="mp-section mp-surface--concrete">
+      <section className="mp-section mp-surface--concrete mp-about-how" aria-labelledby="mp-about-how-title">
         <div className="mp-shell">
           <SectionHeading n="02" label={p.approach.eyebrow} />
           <div className="mp-split">
             <Reveal>
-              <h2 className="mp-split__title">{p.approach.title}</h2>
+              <h2 id="mp-about-how-title" className="mp-split__title">
+                {p.approach.title}
+              </h2>
             </Reveal>
             <Reveal delay={0.05} className="mp-prose">
               {p.approach.body.map((par, i) => (
@@ -78,41 +87,29 @@ export function AboutView({ lang }: { lang: Lang }) {
               ))}
             </Reveal>
           </div>
-        </div>
-      </section>
-
-      <section className="mp-section mp-surface--paper">
-        <div className="mp-shell">
-          <SectionHeading n="03" label={p.principles.eyebrow} />
-          <div className="mp-split">
-            <Reveal>
-              <h2 className="mp-split__title">{p.principles.title}</h2>
-            </Reveal>
-            <div>
-              <Reveal delay={0.05}>
-                <ul className="mp-pillars">
-                  {p.principles.items.map((it) => (
-                    <li key={it.k}>
-                      <b>{it.k}</b>
-                      <span>{it.v}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-              <SealStatement />
-            </div>
-          </div>
+          <Reveal delay={0.08}>
+            <h3 className="mp-about-how__label">{p.principles.eyebrow}</h3>
+            <ul className="mp-pillars mp-pillars--strip">
+              {p.principles.items.map((it) => (
+                <li key={it.k}>
+                  <b>{it.k}</b>
+                  <span>{it.v}</span>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
         </div>
       </section>
 
       {/* The short form: what each firm is, and the four registrations as
           one list, each license still a link to the state's search. The
-          block with the two cards is the home page's. */}
-      <PartnerSection n="04" lang={lang} variant="about" />
+          block with the two cards is the home page's. Paper, so it does not
+          sit concrete on concrete after section 02. */}
+      <PartnerSection n="03" lang={lang} variant="about" surface="paper" />
 
       {/* The default secondary ("Meet the engineer" → /about#engineer) would
           point back up this same page. */}
-      <ContactCTA secondary={{ href: '/services', label: c.ui.seeAllServices }} />
+      <ContactCTA secondary={{ href: '/services', label: c.ui.seeAllServices }} notice={false} />
     </>
   );
 }

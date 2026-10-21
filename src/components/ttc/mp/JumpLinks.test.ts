@@ -39,20 +39,34 @@ describe('jump links on the county program pages', () => {
       const html = page(lang, slug);
       const c = getContent(lang);
 
-      it(`${slug} (${lang}): every link lands on one section of the page`, () => {
+      // In the order of the page, so the bar reads as its table of contents.
+      it(`${slug} (${lang}): every link lands on one section of the page, in the page's order`, () => {
         const targets = hrefs(strip(html));
         expect(targets).toEqual([
-          JUMP_ID.applies,
           JUMP_ID.receive,
-          JUMP_ID.steps,
+          JUMP_ID.applies,
           JUMP_ID.questions,
+          JUMP_ID.offices,
+          JUMP_ID.steps,
         ]);
         for (const id of targets) expect(count(html, ` id="${id}"`)).toBe(1);
+        const at = targets.map((id) => html.indexOf(` id="${id}"`));
+        expect([...at].sort((a, b) => a - b)).toEqual(at);
+      });
+
+      // The bar is the first thing in the wrapper of the page's sections, so
+      // its sticky position ends with them, before the closing band.
+      it(`${slug} (${lang}): the bar opens the sections' wrapper, and the closing band is outside it`, () => {
+        expect(html).toContain('<div class="mp-svcd"><nav class="mp-jump"');
+        const wrapper = html.indexOf('<div class="mp-svcd">');
+        const close = html.search(/<section class="[^"]*mp-close[^"]*"/);
+        expect(wrapper).toBeGreaterThan(-1);
+        expect(close).toBeGreaterThan(wrapper);
       });
 
       it(`${slug} (${lang}): a link says what its section's label says`, () => {
         const u = c.ui;
-        for (const label of [u.whenItApplies, u.whatYouReceive, u.howItRuns, u.faqLabel]) {
+        for (const label of [u.whenItApplies, u.whatYouReceive, u.howItRuns, u.faqLabel, u.yourCity]) {
           const text = renderToStaticMarkup(h('i', null, label)).slice(3, -4);
           expect(strip(html)).toContain(`>${text}</a>`);
           // …and the page prints that label again, over the section.
@@ -92,6 +106,7 @@ describe('jump links on the county program pages', () => {
         const ids = jumpLinks(c, s).map((l) => l.id);
         expect(ids.includes(JUMP_ID.applies)).toBe(Boolean(s.timing));
         expect(ids.includes(JUMP_ID.questions)).toBe(Boolean(s.faq?.length));
+        expect(ids.includes(JUMP_ID.offices)).toBe(Boolean(s.offices));
         expect(ids).toContain(JUMP_ID.receive);
         expect(ids).toContain(JUMP_ID.steps);
         // …and every one of them is an id the page really carries.

@@ -45,7 +45,7 @@ const SLUGS = ['building-recertification', 'broward-bsip'] as const;
  *     its hedges;
  *   · the button alone, with no small print under it (the owner,
  *     2026-10-20: the line under the button confused clients). What to send
- *     is the form's job, and the program's page prints `ctaNote` whole.
+ *     is the form's job, and the program's page says it under "Next step".
  *
  * ROWS LINE UP ACROSS THE COLUMNS. From 1024px the two columns are subgrids
  * of one grid: photograph, county, headline, lede, action, each fact, source

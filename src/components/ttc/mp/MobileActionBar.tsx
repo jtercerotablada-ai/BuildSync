@@ -7,6 +7,7 @@ import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { stripLang } from '@/lib/ttc/i18n';
 import { useContent, useL } from './lang';
 import { whatsappHref } from './ReachRow';
+import { COST_PATH } from '@/lib/ttc/cost-path';
 
 /**
  * Phones only: Call · WhatsApp · Send the notice, fixed to the bottom of the
@@ -22,7 +23,10 @@ import { whatsappHref } from './ReachRow';
  *
  * Not on a calculator either: its reader is an engineer at work, not an owner
  * with a notice, and the bar lay over the last field and the diagram being
- * read. The header and the footer still carry every way to reach the firm.
+ * read. Nor on their catalogue, /resources: the same reader, and the bar's
+ * "Send the notice" and its WhatsApp line are written for an owner holding a
+ * county letter. The header and the footer still carry every way to reach
+ * the firm.
  *
  * Not on /contact — the form is the page — and not while the menu is open
  * (the header's `.is-menu-open` hides it in mp.css; the menu has its own
@@ -46,8 +50,21 @@ export function MobileActionBar() {
   if (!phone) return null;
   if (/\/contact\/?$/.test(pathname)) return null;
   const canonical = stripLang(pathname).replace(/\/$/, '');
-  if (openCalculatorPaths.some((p) => p === canonical)) return null;
-  const wa = whatsappHref(c);
+  if (canonical === '/resources' || openCalculatorPaths.some((p) => p === canonical)) return null;
+  /* Where the reader holds a notice — the home page, the existing-building
+     pages, the guides, the cost page, a county program or one of its city
+     pages — the bar sends the notice. Elsewhere (a new building, /about,
+     /projects, /services) it asks for a proposal, and the WhatsApp chat
+     opens without "I received a notice". A service page's button keeps its
+     service chosen. */
+  const svc = c.services.find((s) => canonical === `/services/${s.slug}` || canonical.startsWith(`/services/${s.slug}/`));
+  const notice =
+    canonical === '' ||
+    canonical.startsWith('/existing-buildings') ||
+    canonical.startsWith('/guides') ||
+    canonical === COST_PATH ||
+    svc?.track === 'existing';
+  const wa = whatsappHref(c, !notice);
   const r = c.reach;
 
   return (
@@ -64,8 +81,8 @@ export function MobileActionBar() {
           {r.whatsapp}
         </a>
       ) : null}
-      <Link className="mp-bar__item mp-bar__item--main" href={l('/contact')}>
-        {r.form}
+      <Link className="mp-bar__item mp-bar__item--main" href={l(svc ? `/contact?service=${svc.slug}` : '/contact')}>
+        {notice ? r.form : c.primaryCta.label}
       </Link>
     </nav>
   );

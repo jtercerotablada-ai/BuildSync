@@ -24,7 +24,6 @@ type Fields = {
   name: string;
   email: string;
   phone: string;
-  company: string;
   location: string;
   service: string;
   message: string;
@@ -34,7 +33,6 @@ const EMPTY: Fields = {
   name: '',
   email: '',
   phone: '',
-  company: '',
   location: '',
   service: '',
   message: '',
@@ -189,7 +187,11 @@ function reveal(block: HTMLElement | null, focusTarget: HTMLElement | null = blo
 
 /**
  * Proposal request. Required: name, email, service, location, description.
- * Optional: phone, company, up to five attachments.
+ * Optional: phone, up to five attachments. Nothing more is asked (the
+ * owner's standing rule: the fewer boxes, the more people finish the form);
+ * an association or company name arrives in the email, the description or
+ * the notice itself. /api/contact still accepts `company`, so a page loaded
+ * before this change still sends.
  *
  * The two county programs differ, because every button that opens the form
  * for one of them says "a phone photo of the letter is enough":
@@ -528,7 +530,6 @@ export function ContactForm({ presetService }: { presetService?: string }) {
           name: f.name.trim(),
           email: f.email.trim(),
           phone: f.phone.trim() || null,
-          company: f.company.trim() || null,
           location: f.location.trim(),
           service: f.service,
           message: f.message.trim(),
@@ -737,9 +738,12 @@ export function ContactForm({ presetService }: { presetService?: string }) {
 
         {noticeFirst ? attachments : null}
 
-        <div className="mp-form__row">
+        {/* Who: name, email and the optional phone in one row from 641px
+            (weighted columns, so an email address fits at 1181px). */}
+        <div className="mp-form__row mp-form__row--3">
           <Field id="mp-name" name="name" label={t.name} value={f.name} onChange={set('name')} error={errors.name} autoComplete="name" autoCapitalize="words" spellCheck={false} maxLength={120} required />
           <Field id="mp-email" name="email" label={t.email} type="email" inputMode="email" value={f.email} onChange={set('email')} error={errors.email} autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={200} required />
+          <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" inputMode="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" maxLength={40} />
         </div>
 
         <div className="mp-form__row">
@@ -782,7 +786,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
             id="mp-message"
             name="message"
             className="mp-field__input mp-field__textarea"
-            rows={6}
+            rows={4}
             maxLength={5000}
             value={f.message}
             onChange={set('message')}
@@ -800,11 +804,6 @@ export function ContactForm({ presetService }: { presetService?: string }) {
         </div>
 
         {noticeFirst ? null : attachments}
-
-        <div className="mp-form__row">
-          <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" inputMode="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" maxLength={40} />
-          <Field id="mp-company" name="company" label={t.company} optional optionalLabel={t.optional} value={f.company} onChange={set('company')} autoComplete="organization" autoCapitalize="words" placeholder={t.companyPlaceholder} maxLength={160} />
-        </div>
 
         {/* Honeypot — hidden from users and assistive tech, visible to bots. */}
         <div className="mp-form__hp" aria-hidden="true">
@@ -847,11 +846,11 @@ export function ContactForm({ presetService }: { presetService?: string }) {
               </span>
             )}
           </button>
-          <span className="mp-form__note" style={{ margin: 0 }}>
-            {c.reach.free} {c.contact.responseNote}
-          </span>
         </div>
 
+        {/* The one line of fine print the page keeps: a legal necessity. The
+            free proposal and the reply time are said in the hero, not in
+            small print by the button. */}
         <p className="mp-form__note">{c.legal.contactFormNotice}</p>
       </form>
     </>

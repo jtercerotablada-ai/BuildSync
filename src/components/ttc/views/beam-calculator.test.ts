@@ -986,7 +986,8 @@ describe('beam calculator: the site around it', () => {
   for (const lang of LANGS) {
     it(`${lang}: no call bar lies over the form on a phone — and the other pages keep theirs`, () => {
       expect(render(lang)).not.toContain('mp-bar');
-      route.pathname = localePath('/resources', lang);
+      // The catalogue has the calculators' reader and goes without it too (calculators.test.ts).
+      route.pathname = localePath('/services', lang);
       expect(renderToStaticMarkup(h(SiteChrome, null, h('p', null, 'x')))).toContain('class="mp-bar"');
     });
 

@@ -10,25 +10,35 @@ import { LD_LANG, ORGANIZATION, WEBSITE } from '@/lib/ttc/structured-data';
 import { photo, type Photo } from '@/lib/ttc/media';
 import { Img } from '@/components/ttc/mp/media';
 import { LegalDoc } from '@/components/ttc/mp/LegalDoc';
-import { PageHero } from '@/components/ttc/mp/PageHero';
+import { PageHero, type HeroAction } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Source } from '@/components/ttc/mp/Outbound';
 import { accentLines } from '@/components/ttc/mp/text';
-import { Reveal, SectionHeading } from '@/components/ttc/mp/primitives';
+import { SectionHeading } from '@/components/ttc/mp/primitives';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
- * One guide: /guides/<slug> (guides.ts).
+ * One guide: /guides/<slug> (guides.ts). One reading column, then the way out:
  *
- *   hero       the question as the H1, the program's button, the engineer
- *   01 guide   the answer: h2 sections, each with paragraphs, a list, and
- *              the county facts it needs — read from the program's verified
- *              timing row, with the row's authority and date, never typed
- *   02 questions  one h3 per question, also as FAQPage data
- *   03 keep reading  the program page(s), the cost page, the other guides
- *   04 contact
+ *   hero     the question as the H1; one button per county program, each
+ *            opening the form for its own county (or, for the reader with
+ *            no letter yet, one button with no preset); Call and WhatsApp;
+ *            the engineer's credential last, after the actions
+ *   guide    LegalDoc's guide variant — the contents in a rail from 901px:
+ *              · the h2 sections, each with paragraphs, a list, and the
+ *                county facts it needs (two counties side by side on a wide
+ *                screen) — read from the program's verified timing row,
+ *                with the row's authority and date, never typed
+ *              · the questions, as its last section: one <details> per
+ *                question, the h3 in the summary, the answer in the HTML
+ *                even when closed; also FAQPage data
+ *              · where to go from here: the program page(s), the cost page,
+ *                the other guides
+ *   contact  the closing band, with the program preset only when the guide
+ *            has one program (a two-county guide's reader picks the county
+ *            on the form, as on /existing-buildings)
  *
  * WHERE THE NUMBERS COME FROM: a fact block prints `service.timing.rows[0]`
  * facts by label, whole — the hedges of a row (Broward's "your city's letter
@@ -105,6 +115,18 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
   const pageUrl = absoluteUrl(l(guidePath(g.slug)));
   const others = getGuides(lang).filter((x) => x.slug !== g.slug);
   const date = guidesReviewed[lang];
+  // One button per program, each with its own county preselected: under a
+  // lede that says "in Miami-Dade or in Broward", a lone Miami-Dade button
+  // sent Broward boards to a form set to Miami-Dade. Both solid — neither
+  // county is the secondary choice (the /existing-buildings pattern).
+  const heroActions: HeroAction[] =
+    g.heroAction === 'address'
+      ? [{ href: '/contact', label: t.addressCta, variant: 'solid' }]
+      : g.programs.map((p) => ({
+          href: `/contact?service=${p}`,
+          label: c.services.find((s) => s.slug === p)!.program!.cta,
+          variant: 'solid' as const,
+        }));
 
   const ld = {
     '@context': 'https://schema.org',
@@ -114,6 +136,7 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         '@id': `${pageUrl}#article`,
         headline: g.h1,
         description: g.seo.description,
+        image: absoluteUrl(GUIDE_PHOTO[g.slug].src),
         url: pageUrl,
         mainEntityOfPage: pageUrl,
         inLanguage: LD_LANG[lang],
@@ -154,107 +177,123 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         crumbs={[{ href: '/', label: c.ui.home }, { href: GUIDES_PATH, label: idx.crumb }, { label: g.name }]}
         titleLines={[g.h1]}
         sub={g.heroSub}
-        actions={[{ href: `/contact?service=${own.slug}`, label: own.program!.cta, variant: 'solid' }]}
+        actions={heroActions}
         photo={GUIDE_PHOTO[g.slug]}
       >
-        <EngineerCredential lang={lang} brief />
+        {/* The actions first (the buttons, then Call and WhatsApp), the
+            credential after them: it used to sit between the button and
+            the two links. */}
         <ReachRow c={c} />
+        <EngineerCredential lang={lang} brief />
       </PageHero>
 
-      {/* 01 — the answer, laid out like the legal pages: the contents in a
-          column of their own from 901px, the sections beside them. */}
+      {/* The answer, the questions and the links on: one document, laid out
+          like the legal pages (the contents in a rail from 901px) but in the
+          guide variant — ragged-right, one right edge, no section label. */}
       <LegalDoc
-        label={t.eyebrow}
+        variant="guide"
         tocLabel={c.ui.onThisPage}
         updated={<Dated label={t.reviewed} date={date} iso={guidesReviewedISO} />}
-        sections={g.sections.map((s) => ({
-          h: s.title,
-          body: (
-            <>
-              {s.paras.map((p) => (
-                <p key={p}>{p}</p>
-              ))}
-              {s.list ? (
-                <ul>
-                  {s.list.map((li) => (
-                    <li key={li}>{li}</li>
-                  ))}
-                </ul>
-              ) : null}
-              {s.facts?.map((b) => <FactBlock key={b.service} lang={lang} block={b} c={c} />)}
-            </>
-          ),
-        }))}
-      />
-
-      {/* 02 — questions */}
-      <section className="mp-section mp-surface--concrete" aria-labelledby="mp-guide-faq">
-        <div className="mp-shell">
-          <SectionHeading n="02" label={t.questionsLabel} />
-          <Reveal>
-            <h2 id="mp-guide-faq" className="mp-intro__title">
-              {g.faqTitle}
-            </h2>
-          </Reveal>
-          <div className="mp-faq">
-            {g.faq.map((item) => (
-              <div key={item.q} className="mp-faq__item">
-                <h3 className="mp-faq__q">{item.q}</h3>
-                <p className="mp-faq__a">{item.a}</p>
+        sections={[
+          ...g.sections.map((s) => ({
+            h: s.title,
+            body: (
+              <>
+                {s.paras.map((p) => (
+                  <p key={p}>{p}</p>
+                ))}
+                {s.list ? (
+                  <ul>
+                    {s.list.map((li) => (
+                      <li key={li}>{li}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {/* Two counties' facts side by side from 1200px; each block
+                    keeps its county on every row, its source and its date. */}
+                {s.facts ? (
+                  <div className={`mp-guide__factset${s.facts.length > 1 ? ' mp-guide__factset--pair' : ''}`}>
+                    {s.facts.map((b) => (
+                      <FactBlock key={b.service} lang={lang} block={b} c={c} />
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ),
+          })),
+          {
+            // The questions: its h2 is the guide's own faqTitle, its line in
+            // the contents the plain "Questions". The first answer is open;
+            // a closed one is still in the HTML (and in the FAQPage data).
+            h: g.faqTitle,
+            toc: t.questionsLabel,
+            body: (
+              <div className="mp-gfaq">
+                {g.faq.map((item, i) => (
+                  <details key={item.q} className="mp-gfaq__item" open={i === 0}>
+                    <summary className="mp-gfaq__sum">
+                      <h3 className="mp-gfaq__q">{item.q}</h3>
+                      <span className="mp-gfaq__icon" aria-hidden="true" />
+                    </summary>
+                    <p className="mp-gfaq__a">{item.a}</p>
+                  </details>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 03 — keep reading: up to the program pages and the cost page, across
-          to the other guides. Navigation, so no heading per link. */}
-      <section className="mp-section mp-surface--paper" aria-labelledby="mp-guide-more">
-        <div className="mp-shell">
-          <SectionHeading n="03" label={t.moreLabel} />
-          <h2 id="mp-guide-more" className="mp-intro__title">
+            ),
+          },
+        ]}
+      >
+        {/* Where to go from here: up to the program pages and the cost page,
+            across to every other guide. Navigation, so no heading per link. */}
+        <nav className="mp-guide__more mp-guide__more--doc" aria-labelledby="mp-guide-more">
+          <h2 id="mp-guide-more" className="mp-guide__more-title">
             {t.more}
           </h2>
-          <nav className="mp-guide__more" aria-labelledby="mp-guide-more">
-            <ul className="mp-guide__up">
-              {g.programs.map((p) => {
-                const s = c.services.find((x) => x.slug === p)!;
-                return (
-                  <li key={p}>
-                    <Link href={l(`/services/${p}`)}>{s.shortTitle}</Link>
-                  </li>
-                );
-              })}
-              <li>
-                <Link href={l(COST_PATH)}>{t.costLink}</Link>
-              </li>
-            </ul>
-            <ul className="mp-guide__across">
-              {others.map((x) => (
-                <li key={x.slug}>
-                  <Link href={l(guidePath(x.slug))}>{x.name}</Link>
+          <ul className="mp-guide__up">
+            {g.programs.map((p) => {
+              const s = c.services.find((x) => x.slug === p)!;
+              return (
+                <li key={p}>
+                  <Link href={l(`/services/${p}`)}>{s.shortTitle}</Link>
                 </li>
-              ))}
-              <li>
-                <Link href={l(GUIDES_PATH)}>{t.allGuides}</Link>
+              );
+            })}
+            <li>
+              <Link href={l(COST_PATH)}>{t.costLink}</Link>
+            </li>
+          </ul>
+          <ul className="mp-guide__across">
+            {others.map((x) => (
+              <li key={x.slug}>
+                <Link href={l(guidePath(x.slug))}>{x.name}</Link>
               </li>
-            </ul>
-          </nav>
-        </div>
-      </section>
+            ))}
+            <li>
+              <Link href={l(GUIDES_PATH)}>{t.allGuides}</Link>
+            </li>
+          </ul>
+        </nav>
+      </LegalDoc>
 
-      <ContactCTA service={own.slug} />
+      <ContactCTA service={g.programs.length === 1 ? own.slug : undefined} />
     </>
   );
 }
 
-/** /guides — the list. */
+/**
+ * /guides — the list, as a two-column index from 901px: a small photograph,
+ * the county the guide covers (what a reader chooses by; the guides are not
+ * a sequence, so no numbers), the name and its line. The rows come from the
+ * list's length, so an eighth guide adds a row, never a third column. Then
+ * why the reader's own letter counts, and the closing band.
+ */
 export function GuidesView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const idx = guidesIndex(lang);
   const l = (href: string) => localePath(href, lang);
   const list = getGuides(lang);
   const pageUrl = absoluteUrl(l(GUIDES_PATH));
+  const rows = Math.ceil(list.length / 2);
 
   const ld = {
     '@context': 'https://schema.org',
@@ -298,15 +337,16 @@ export function GuidesView({ lang }: { lang: Lang }) {
           <h2 id="mp-guides-list" className="mp-intro__title">
             {idx.listTitle}
           </h2>
-          <ol className="mp-guides">
+          <ol
+            className="mp-guides mp-guides--index"
+            style={{ '--mp-guides-rows': String(rows) } as React.CSSProperties}
+          >
             {list.map((g, i) => (
-              <li key={g.slug}>
+              <li key={g.slug} className={i === rows ? 'mp-guides__col2' : undefined}>
                 <div className="mp-guides__photo">
-                  <Img photo={GUIDE_PHOTO[g.slug]} sizes="(max-width: 640px) 100vw, (max-width: 900px) 50vw, 33vw" />
+                  <Img photo={GUIDE_PHOTO[g.slug]} sizes="(max-width: 900px) 6rem, 10rem" />
                 </div>
-                <span className="mp-secnum" aria-hidden="true">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
+                <span className="mp-guides__where">{g.programs.map((p) => PLACE[p][lang]).join(' · ')}</span>
                 <h3>
                   <Link href={l(guidePath(g.slug))}>{g.name}</Link>
                 </h3>
@@ -316,16 +356,22 @@ export function GuidesView({ lang }: { lang: Lang }) {
           </ol>
         </div>
       </section>
+      {/* Why the reader's own letter counts, and the step that follows: the
+          title in a column of its own from 901px, the paragraphs beside it. */}
       <section className="mp-section mp-surface--concrete" aria-labelledby="mp-guides-how">
         <div className="mp-shell">
-          <SectionHeading n="02" label={idx.listLabel} />
-          <h2 id="mp-guides-how" className="mp-intro__title">
-            {idx.howTitle}
-          </h2>
-          <div className="mp-prose mp-guides__how">
-            {idx.how.map((p) => (
-              <p key={p}>{p}</p>
-            ))}
+          <SectionHeading n="02" label={idx.howLabel} />
+          <div className="mp-guides__split">
+            <div>
+              <h2 id="mp-guides-how" className="mp-guides__how-title">
+                {idx.howTitle}
+              </h2>
+            </div>
+            <div className="mp-prose mp-guides__how">
+              {idx.how.map((p) => (
+                <p key={p}>{p}</p>
+              ))}
+            </div>
           </div>
         </div>
       </section>

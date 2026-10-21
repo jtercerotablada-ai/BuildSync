@@ -15,7 +15,7 @@ export const labels: GuideLabels = {
   factLabel: (county, label) => `${county} — ${label}`,
   questionsLabel: 'Questions',
   more: 'Where to go from here.',
-  moreLabel: 'Keep reading',
+  addressCta: 'Send the Address',
   costLink: 'What the work costs',
   allGuides: 'All guides',
   forProgram: 'Guides for owners',
@@ -31,15 +31,16 @@ export const index: GuidesIndex = {
   eyebrow: 'Guides',
   titleLines: ['Recertification and BSIP,', 'explained for owners.'],
   accentWord: 'explained for owners.',
-  sub: 'Short guides for boards, owners and managers in Miami-Dade and Broward. Each answers one question that comes up when a building reaches inspection age, and each points to the verified county rules.',
+  sub: 'A county letter starts a clock, and a missed date goes to enforcement. Here are the two programs, explained in short guides for boards, owners and managers in Miami-Dade and Broward, with each county’s verified rules.',
   listLabel: 'The guides',
   listTitle: 'Pick the question you have today.',
-  howTitle: 'How to read these guides',
+  howLabel: 'Your letter',
+  howTitle: 'Your letter sets the date. Send it, and we read it for you.',
   how: [
-    'Start with the county. Miami-Dade and Broward run separate programs, with their own ages, their own clocks and their own forms, and a rule from one county never applies to a building in the other. Every guide says which county it is talking about, and when it covers both, it keeps them apart.',
-    'The ages and deadlines in each guide are not typed by hand. They are printed from the same verified rows as the program pages, with the authority they come from and the date they were last checked, so a guide cannot drift from the rules it explains.',
-    'A guide explains how a program works in general; your letter is what governs your building. If a date on your notice differs from what you read here, the notice wins. Send us a photo of it and we will tell you, in plain words, what it asks for and what comes next.',
-    'Boards, owners and property managers use these pages to prepare a meeting, answer unit owners or compare proposals. They are free to share, and each one links to the full program page and to what the work costs.',
+    'Miami-Dade and Broward run separate programs, with their own ages, their own clocks and their own forms. A rule from one county never applies to a building in the other, and mixing them up costs time a deadline does not give back. Every guide names the county it covers, and keeps the two apart when it covers both.',
+    'The ages and deadlines in the guides are never typed by hand: they are printed from the same verified county rows as the program pages, with their source and the date they were last checked.',
+    'Where a date on your notice differs from a guide, the notice wins. Send us a phone photo of it and we tell you, in plain words, what it asks for and what comes next, with a fixed-fee proposal for the complete package. Already late? It can still be resolved.',
+    'Boards, owners and property managers use these pages to prepare a meeting, answer unit owners or compare proposals. They are free to share, and each one links to its program page and to what the work costs.',
   ],
 };
 
@@ -74,7 +75,7 @@ export const guides: Guide[] = [
       {
         title: 'How much time the notice gives you',
         paras: [
-          'The two counties run different clocks, and they must never be read against each other. Below is the time each county’s rules give to file the report, as verified on the county program pages; the time for repairs that follow is in the guide on failed recertifications. The date printed on your own letter is the one that counts.',
+          'The two counties run different clocks, and they must never be read against each other. Below is the time each county’s rules give to file the report, as verified on the county program pages; the time for repairs that follow is in the guide on failed recertifications. The date printed on your own letter is the one that counts. Already past it? It can still be resolved.',
         ],
         facts: [
           { service: 'building-recertification', keys: ['Time to file'] },
@@ -192,6 +193,7 @@ export const guides: Guide[] = [
   {
     slug: 'is-my-building-due',
     programs: ['building-recertification', 'broward-bsip'],
+    heroAction: 'address',
     seo: {
       title: 'Is My Building Due for Recertification?',
       description:
@@ -207,7 +209,7 @@ export const guides: Guide[] = [
         title: 'Start with the county the building is in',
         paras: [
           'Miami-Dade and Broward count a building’s age from different records, so the first question is the county, not the city. A building in Aventura answers to Miami-Dade’s program; one across the county line in Hallandale Beach answers to Broward’s.',
-          'Then find the age the county counts from, and compare it with that county’s rows below. If the building is past that age, or close to it, a notice is coming or already late, whether or not a letter has arrived.',
+          'Then find the age the county counts from, and compare it with that county’s rows below. If the building is past that age, or close to it, a notice is coming or already late, whether or not a letter has arrived. Already late? It can still be resolved.',
         ],
       },
       {

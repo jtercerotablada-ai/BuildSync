@@ -46,10 +46,15 @@ export function ContactCTA({
   secondary,
   service,
   assure = true,
+  notice = true,
 }: {
   asHero?: boolean;
   /** False where the page above already printed the free-proposal line. */
   assure?: boolean;
+  /** False on a page whose reader holds no notice (a new building, /about,
+      /projects, /services): WhatsApp says "Message us", not "Send the
+      notice", and the chat opens without "I received a notice". */
+  notice?: boolean;
   /** A service slug: the primary button keeps `?service=<slug>`. */
   service?: string;
   /** Canonical (English) href; localised here like the defaults. */
@@ -91,7 +96,7 @@ export function ContactCTA({
               proposal is free and a reply usually comes within two hours —
               unless the page has printed those two facts already (`assure`). */}
           <Reveal delay={0.13}>
-            <ReachRow c={c} assure={assure} className="mp-reach--close" />
+            <ReachRow c={c} assure={assure} plain={!notice} className="mp-reach--close" />
           </Reveal>
         </div>
       </div>

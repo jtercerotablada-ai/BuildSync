@@ -452,10 +452,41 @@ describe('county program pages: no paragraph is printed twice', () => {
       const filing = service.timing!.rows[0].facts.find((f) => f.filing)!;
       const r = c.reach;
 
-      // The hero prints it under the button. The row under "When it applies"
-      // used to print it again, a section below "Next step" saying the same.
-      it(`${slug} (${lang}): the line about what to send is under one button`, () => {
-        expect(count(service.program!.ctaNote)).toBe(1);
+      // The owner, 2026-10-20: no helper lines under buttons. The hero
+      // printed what to send under its button; "Next step" says it, in its
+      // own words, and nothing is printed under the hero's button.
+      it(`${slug} (${lang}): nothing is printed under the hero's button; "Next step" says what to send`, () => {
+        expect(main).not.toContain('mp-phero__note');
+        expect(count(service.nextStep)).toBe(1);
+      });
+
+      // Compact by layout, and nothing taken out of the page: the twelve
+      // answers, the offices, the notes and the package fold under one line
+      // each — a native <details>, every word of it in the server HTML.
+      it(`${slug} (${lang}): every answer is in the HTML, in the question's own <details>`, () => {
+        for (const f of service.faq ?? []) {
+          expect(main).toContain(
+            `<details class="mp-faq__d"><summary class="mp-faq__sum"><h3 class="mp-faq__q">${esc(f.q)}</h3><span class="mp-faq__icon" aria-hidden="true"></span></summary><p class="mp-faq__a">${esc(f.a)}</p></details>`,
+          );
+        }
+      });
+
+      it(`${slug} (${lang}): the offices, the notes and the package fold under a line that counts them`, () => {
+        const folds = [...main.matchAll(/<details class="mp-disclose[^"]*"[^>]*><summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g)].map((m) => ({ label: text(m[1]), body: m[2] }));
+        const o = service.offices!;
+        const p = service.packet!;
+        const want: [string, string, number][] = [
+          ['<dl class="mp-packet__list">', p.toggle, p.parts.length],
+          ['<ul class="mp-offices">', o.toggle, o.rows.length],
+          ['<ul class="mp-notes">', service.notesToggle!, service.considerations.length],
+        ];
+        expect(folds).toHaveLength(want.length);
+        want.forEach(([open, label, n], i) => {
+          expect(folds[i].body.startsWith(open), open).toBe(true);
+          expect(folds[i].label).toBe(text(esc(label.replace('{n}', String(n)))));
+          expect(label).toContain('{n}');
+        });
+        for (const x of service.considerations) expect(folds[2].body).toContain(`<li>${esc(x)}</li>`);
       });
 
       // Under the rows it belongs to. It also closed the questions, one
@@ -568,4 +599,34 @@ describe('county program pages: no paragraph is printed twice', () => {
     // leaves the line to its closing band.
     expect(closed).toHaveLength(22 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
+});
+
+/* Where the reader holds no notice there is no "Send the notice": the pages
+   of the new-building services say "Message us on WhatsApp" in the closing
+   band, and the phone bar asks for a proposal (with the service chosen).
+   The existing-building pages keep the notice wording. */
+describe('no "Send the notice" where there is no notice', () => {
+  for (const lang of LANGS) {
+    const c = getContent(lang);
+    const r = c.reach;
+    for (const s of c.services) {
+      const html = pages.get(`${lang} /services/${s.slug}`)!.html;
+      const bar = html.match(/<nav class="mp-bar[\s\S]*?<\/nav>/)?.[0] ?? '';
+      if (s.track === 'new') {
+        it(`${lang} /services/${s.slug}: a proposal, never the notice`, () => {
+          expect(html).toContain(esc(r.whatsappPlain));
+          expect(html).not.toContain(esc(r.whatsappNotice));
+          expect(html).not.toContain(encodeURIComponent(r.whatsappText).replace(/'/g, '%27'));
+          expect(bar).toContain(`>${esc(c.primaryCta.label)}</a>`);
+          expect(bar).not.toContain(`>${esc(r.form)}</a>`);
+          expect(bar).toContain(`service=${s.slug}`);
+        });
+      } else {
+        it(`${lang} /services/${s.slug}: the notice`, () => {
+          expect(html).toContain(esc(r.whatsappNotice));
+          expect(bar).toContain(`>${esc(r.form)}</a>`);
+        });
+      }
+    }
+  }
 });

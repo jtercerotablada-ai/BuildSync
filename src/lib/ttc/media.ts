@@ -28,10 +28,9 @@
  *     hero of that same service's page — and, for the two county programs, as
  *     the plate of that program's home section — is one placement seen from
  *     different doors, not a reuse. So is a SHARED section component rendered
- *     on more than one page: one slot in site.ts, one placement.) Three
- *     entries are spares with no placement at all, `frameCraneSky`,
- *     `midriseBalconies` and `southFloridaAerial`; each says so where it is
- *     declared.
+ *     on more than one page: one slot in site.ts, one placement.) An entry
+ *     site.ts does not place is a spare, kept for a later slot;
+ *     docs/IMAGE-CREDITS.md marks each one and says where it was.
  *
  *   • `alt` SAYS WHAT IS IN THE PICTURE, in English, and `altEs` says the
  *     same in Spanish; `Img` prints the one for the page's language on every
@@ -133,7 +132,8 @@ const catalogue = {
   ),
   /* Took the gallery slot of `house-concrete-carport`, a CGI render whose
      parked car carried a European number plate — a detail that tells a South
-     Florida visitor the picture is from somewhere else. */
+     Florida visitor the picture is from somewhere else. A spare since
+     2026-10-20, when the gallery kept only four material frames. */
   houseModernLevels: p(
     'house-modern-levels', 2000, 1289,
     'Modern house of stacked rectangular volumes at different levels',
@@ -177,6 +177,8 @@ const catalogue = {
     'Looking straight up the gap between two concrete towers',
     'Vista hacia arriba por el espacio entre dos torres de concreto',
   ),
+  /* A spare since 2026-10-20: a rendered wireframe is line art, which the
+     owner rejects on this site. BIM Coordination now shows `frameCraneSky`. */
   bimWireframeModel: p(
     'bim-wireframe-model', 2000, 2500,
     'Wireframe model of a building’s structure and services',
@@ -234,9 +236,10 @@ const catalogue = {
   ),
 
   /* ── Frames under construction ──────────────────────────────────────── */
-  /* Was the home "I am building something new" door, and has had no placement
-     since the two doors left the home page (2026-10-04) — a spare, kept
-     because it is the cleanest new-build frame in the set. It replaced
+  /* BIM Coordination's photograph (its card and its page's hero) since
+     2026-10-20. It was the home "I am building something new" door, then a
+     spare from 2026-10-04, kept because it is the cleanest new-build frame in
+     the set. It replaced
      `frame-tower-sunlit`, which was byte-identical to the gallery's
      `frame-tower` (one photograph in two places) and read as a derelict frame
      on a dirt lot. This is the opposite: a clean cast-in-place frame, formwork
@@ -346,7 +349,7 @@ const catalogue = {
 
   /* ── Existing mid-rise stock ────────────────────────────────────────── */
   /* `midriseBalconies` was the home "I own or manage an existing building"
-     door; like `frameCraneSky` it has had no placement since 2026-10-04. */
+     door; it has had no placement since 2026-10-04. */
   midriseBalconies: p(
     'midrise-balconies', 2000, 1348,
     'Cantilevered balconies stacked up an existing residential building',

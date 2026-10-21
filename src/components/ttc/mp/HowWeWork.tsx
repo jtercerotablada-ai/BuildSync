@@ -13,25 +13,35 @@ import { useContent } from './lang';
  * labels the pair read as one blurred description separated by a hairline.
  * Each label sits inside its paragraph, so the hairline above "You get" stays
  * between the two halves and a screen reader hears label and text together.
+ * On a phone the label runs into its paragraph and the number sits beside
+ * the title (mp.css, `.mp-how`): two label lines and a number line less per
+ * step, the same words.
  *
  * Rendered on /services only. It left the home page when the two county
  * programs took the first sections: each of them carries its own four-step
- * line, and five more steps under those said the same thing twice.
+ * line, and five more steps under those said the same thing twice. The page
+ * passes `surface="paper"`: it follows the concrete typology list.
  */
-export function HowWeWork({ n = '04' }: { n?: string }) {
+export function HowWeWork({
+  n = '04',
+  surface = 'concrete',
+}: {
+  n?: string;
+  surface?: 'paper' | 'concrete';
+}) {
   const c = useContent();
   const w = c.howWeWork;
   const u = c.ui;
 
   return (
     <section
-      className="mp-section mp-section--lg mp-surface--concrete"
+      className={`mp-section mp-how mp-surface--${surface}`}
       aria-labelledby="mp-how-title"
     >
       <div className="mp-shell">
         <SectionHeading n={n} label={w.eyebrow} />
 
-        <div className="mp-intro">
+        <div className="mp-intro mp-intro--split">
           <Reveal>
             <h2 id="mp-how-title" className="mp-intro__title">
               {w.title}

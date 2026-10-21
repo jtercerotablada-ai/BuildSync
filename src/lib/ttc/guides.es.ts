@@ -19,7 +19,7 @@ export const labels: GuideLabels = {
   factLabel: (county, label) => `${county} — ${label}`,
   questionsLabel: 'Preguntas',
   more: 'Hacia dónde seguir.',
-  moreLabel: 'Siga leyendo',
+  addressCta: 'Enviar la dirección',
   costLink: 'Lo que cuesta el trabajo',
   allGuides: 'Todas las guías',
   forProgram: 'Guías para dueños',
@@ -35,15 +35,16 @@ export const index: GuidesIndex = {
   eyebrow: 'Guías',
   titleLines: ['Recertificación y BSIP,', 'explicados para dueños.'],
   accentWord: 'explicados para dueños.',
-  sub: 'Los dos programas, explicados en guías breves para juntas directivas, dueños y administradores en Miami-Dade y Broward. Cada una responde una pregunta que surge cuando un edificio alcanza la edad de inspección, y cada una remite a las reglas verificadas de su condado.',
+  sub: 'Una carta del condado pone a correr un plazo, y una fecha vencida pasa a la vía de cumplimiento. Aquí están los dos programas, explicados en guías breves para juntas directivas, dueños y administradores en Miami-Dade y Broward, con las reglas verificadas de cada condado.',
   listLabel: 'Las guías',
   listTitle: 'Elija la pregunta que tiene hoy.',
-  howTitle: 'Cómo leer estas guías',
+  howLabel: 'Su carta',
+  howTitle: 'Su carta fija la fecha. Envíela y se la leemos.',
   how: [
-    'Empiece por el condado. Miami-Dade y Broward tienen programas distintos, con sus propias edades, sus propios plazos y sus propios formularios, y una regla de un condado nunca se aplica a un edificio del otro. Cada guía dice de qué condado habla y, cuando trata los dos, los mantiene separados.',
-    'Las edades y los plazos de cada guía no se escriben a mano. Se imprimen desde las mismas filas verificadas de las páginas de cada programa, con la autoridad de la que vienen y la fecha de su última revisión, para que una guía nunca se aparte de las reglas que explica.',
-    'Una guía explica cómo funciona un programa en general; lo que manda en su edificio es su carta. Si una fecha de su notificación no coincide con lo que lee aquí, vale la de la notificación. Mándenos una foto y le decimos, en palabras sencillas, qué le piden y qué sigue.',
-    'Juntas, dueños y administradores usan estas páginas para preparar una reunión, responder a los propietarios o comparar propuestas. Puede compartirlas libremente; cada una lleva a la página completa del programa y a lo que cuesta el trabajo.',
+    'Miami-Dade y Broward tienen programas distintos, con sus propias edades, sus propios plazos y sus propios formularios. Una regla de un condado nunca se aplica a un edificio del otro, y confundirlos cuesta un tiempo que ningún plazo devuelve. Cada guía dice de qué condado habla y, cuando trata los dos, los mantiene separados.',
+    'Las edades y los plazos de las guías nunca se escriben a mano: se imprimen desde las mismas filas verificadas de las páginas de cada programa, con su fuente y la fecha de su última revisión.',
+    'Si una fecha de su notificación no coincide con una guía, vale la de la notificación. Mándenos una foto tomada con el teléfono y le decimos, en palabras sencillas, qué le piden y qué sigue, con una propuesta de precio fijo por el paquete completo. ¿Ya va tarde? Todavía tiene solución.',
+    'Juntas, dueños y administradores usan estas páginas para preparar una reunión, responder a los propietarios o comparar propuestas. Puede compartirlas libremente; cada una lleva a la página de su programa y a lo que cuesta el trabajo.',
   ],
 };
 
@@ -78,7 +79,7 @@ export const guides: Guide[] = [
       {
         title: 'Cuánto tiempo le da la notificación',
         paras: [
-          'Cada condado maneja su propio plazo, y nunca hay que leer uno con las reglas del otro. Abajo está el tiempo que las reglas de cada condado dan para presentar el informe, tal como se verificó en las páginas de los programas; el tiempo para las reparaciones posteriores está en la guía sobre recertificaciones no aprobadas. La fecha impresa en su propia carta es la que cuenta.',
+          'Cada condado maneja su propio plazo, y nunca hay que leer uno con las reglas del otro. Abajo está el tiempo que las reglas de cada condado dan para presentar el informe, tal como se verificó en las páginas de los programas; el tiempo para las reparaciones posteriores está en la guía sobre recertificaciones no aprobadas. La fecha impresa en su propia carta es la que cuenta. ¿Ya pasó? Todavía tiene solución.',
         ],
         facts: [
           { service: 'building-recertification', keys: ['Time to file'] },
@@ -196,6 +197,7 @@ export const guides: Guide[] = [
   {
     slug: 'is-my-building-due',
     programs: ['building-recertification', 'broward-bsip'],
+    heroAction: 'address',
     seo: {
       title: '¿Ya le toca la recertificación a su edificio?',
       description:
@@ -211,7 +213,7 @@ export const guides: Guide[] = [
         title: 'Empiece por el condado donde está el edificio',
         paras: [
           'Miami-Dade y Broward cuentan la edad de un edificio con registros distintos, así que lo primero es saber el condado, no el municipio. Un edificio en Aventura depende del programa de Miami-Dade; uno al otro lado de la línea del condado, en Hallandale Beach, depende del de Broward.',
-          'Después busque la edad desde la cual cuenta ese condado y compárela con sus filas, más abajo. Si el edificio ya superó esa edad, o le falta poco, la notificación está por llegar o ya va con retraso, haya llegado una carta o no.',
+          'Después busque la edad desde la cual cuenta ese condado y compárela con sus filas, más abajo. Si el edificio ya superó esa edad, o le falta poco, la notificación está por llegar o ya va con retraso, haya llegado una carta o no. ¿Ya va tarde? Todavía tiene solución.',
         ],
       },
       {

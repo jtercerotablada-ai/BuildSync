@@ -16,9 +16,10 @@ import { breadcrumbLd, JsonLd } from './meta';
  * standing — a HUB, not a second copy of /services.
  *
  *   01  When to call        four situations, each with one door to the
- *                           service that answers it (SituationCard)
- *   02  Recertification     the six steps both county programs share
- *       & BSIP
+ *                           service that answers it (SituationCard): text
+ *                           tiles, no photograph
+ *   02  Recertification     the six steps both county programs share, as a
+ *       & BSIP              ruled grid (ProcessTimeline)
  *   03  Who we work with    the short form of the partner block
  *   04  Contact
  *
@@ -58,20 +59,19 @@ export function ExistingView({ lang }: { lang: Lang }) {
         photo={imagery.pages.existingBuildings}
       />
 
-      <section className="mp-section mp-section--lg mp-surface--paper" aria-labelledby="mp-situations-title">
+      {/* No lede under the title: it only said how to use the tiles ("Find
+          the one that is yours…"), and each tile already says it. */}
+      <section className="mp-section mp-surface--paper" aria-labelledby="mp-situations-title">
         <div className="mp-shell">
           <SectionHeading n="01" label={p.triggers.eyebrow} />
-          <div className="mp-intro">
+          <div className="mp-intro mp-intro--wide">
             <Reveal>
               <h2 id="mp-situations-title" className="mp-intro__title">
                 {p.triggers.title}
               </h2>
             </Reveal>
-            <Reveal delay={0.06}>
-              <p className="mp-intro__lede">{p.triggers.lede}</p>
-            </Reveal>
           </div>
-          <div className="mp-svcgrid">
+          <div className="mp-sits">
             {p.triggers.items.map((item, i) => (
               <SituationCard key={item.slug} item={item} index={i} />
             ))}

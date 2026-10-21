@@ -190,14 +190,14 @@ export const calculatorsPage: Record<
     /** The label of the count of open ones, in the hero. (No mark beside a name: an open one is the row in ink, with a link.) */
     open: string;
     index: string;
+    /** Read before each row's standards by a screen reader; on screen they are a mono line. */
     codes: string;
-    note: string;
   }
 > = {
   en: {
     eyebrow: 'Tools',
     h1: 'Structural engineering calculators',
-    sub: 'The calculators we are building, by subject. The ones that are open are linked and run in your browser; the rest are listed, and each will be linked from here on the day it is released.',
+    sub: 'Structural calculators that run in your browser, by subject. The linked ones are open; the others are planned and will be linked here as each is released.',
     title: 'Structural Engineering Calculators',
     description:
       'Structural engineering calculators by subject: analysis, steel, concrete, timber, foundations, connections and loads. The open ones run in your browser.',
@@ -207,12 +207,11 @@ export const calculatorsPage: Record<
     open: 'Open',
     index: 'Calculators by subject',
     codes: 'Standards',
-    note: 'Where an entry names several design standards, each one is a version of the same calculator.',
   },
   es: {
     eyebrow: 'Herramientas',
     h1: 'Calculadoras de ingeniería estructural',
-    sub: 'Las calculadoras que estamos construyendo, por tema. Las que ya están abiertas tienen enlace y funcionan en su navegador; las demás están en la lista, y cada una se enlazará desde aquí el día en que se publique.',
+    sub: 'Calculadoras estructurales que funcionan en su navegador, por tema. Las que tienen enlace están abiertas; las demás están previstas y se enlazarán aquí a medida que se publiquen.',
     title: 'Calculadoras de ingeniería estructural',
     description:
       'Calculadoras de ingeniería estructural por tema: análisis, acero, concreto, madera, cimentaciones, conexiones y cargas. Las abiertas funcionan en su navegador.',
@@ -222,7 +221,6 @@ export const calculatorsPage: Record<
     open: 'Abiertas',
     index: 'Calculadoras por tema',
     codes: 'Normas',
-    note: 'Donde una entrada nombra varias normas de diseño, cada una es una versión de la misma calculadora.',
   },
 };
 

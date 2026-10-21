@@ -5,7 +5,7 @@ import { getContent } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { JUMP_ID } from '@/components/ttc/mp/JumpLinks';
-import { afterFirstSentence, firstSentence } from '@/components/ttc/mp/text';
+import { firstSentence } from '@/components/ttc/mp/text';
 import { AboutView } from './AboutView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -194,13 +194,12 @@ describe('home page: each program section is a summary of its page', () => {
         }
       });
 
-      // The owner, 2026-10-20: no small print under the home page's buttons.
-      // The line that says what to send is the program page's alone.
-      it(`${slug} (${lang}): no line under its button; the program page prints it whole, once`, () => {
+      // The owner, 2026-10-20: no small print under a button — on the home
+      // page and, since the same day, under the program page's hero button
+      // too (the line went from site.ts; "Next step" says what to send).
+      it(`${slug} (${lang}): no line under its button, here or under the program page's hero button`, () => {
         expect(section).not.toContain('mp-prog__ctanote');
-        expect(section).not.toContain(esc(program.ctaNote));
-        expect(section).not.toContain(esc(afterFirstSentence(program.ctaNote)));
-        expect(page.split(esc(program.ctaNote)).length - 1).toBe(1);
+        expect(page).not.toContain('mp-phero__note');
       });
 
       it(`${slug} (${lang}): one link to the whole table, on the program's page`, () => {

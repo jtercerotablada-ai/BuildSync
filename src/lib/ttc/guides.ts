@@ -50,8 +50,19 @@ export type GuideSection = {
 
 export type Guide = {
   slug: string;
-  /** The program pages it leads to; the first is its own (the button). */
+  /**
+   * The program pages it leads to. The hero has one button per program, each
+   * opening the form with its own county preselected (a Broward board must
+   * not land on a form set to Miami-Dade); the closing band keeps the preset
+   * only when there is one program.
+   */
   programs: ProgramSlug[];
+  /**
+   * DATA, not text: 'address' for a guide whose reader may have no letter
+   * yet. Its hero then has one button, `labels.addressCta`, to the form with
+   * no program preset.
+   */
+  heroAction?: 'address';
   seo: { title: string; description: string };
   /** The guide's name in lists and links: short, and not its H1. */
   name: string;
@@ -75,7 +86,8 @@ export type GuidesIndex = {
   sub: string;
   listLabel: string;
   listTitle: string;
-  /** Under the list: how to use the guides. */
+  /** Under the list: why the reader's own letter counts, and the next step. */
+  howLabel: string;
   howTitle: string;
   how: string[];
 };
@@ -90,7 +102,8 @@ export type GuideLabels = {
   factLabel: (county: string, label: string) => string;
   questionsLabel: string;
   more: string;
-  moreLabel: string;
+  /** The hero button of a guide with `heroAction: 'address'`. */
+  addressCta: string;
   costLink: string;
   allGuides: string;
   /** Above the list of guides on a county program's page. */

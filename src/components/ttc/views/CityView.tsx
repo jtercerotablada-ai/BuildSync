@@ -19,11 +19,23 @@ import { breadcrumbLd, JsonLd } from './meta';
 /**
  * One city, under its county program: /services/<program>/<city>.
  *
- * The order is the order of a board member's questions with the city's
- * letter in hand: is this my city's page (H1, the office by name) → how
- * does MY city handle it (the rows read on the city's own website) → how
- * long do we have (the county's verified rows, by label) → the questions
- * boards in this city ask → what to send, and to whom.
+ * The order is the order of a board member's worries with the city's letter
+ * in hand (the owner, 2026-10-20: what the reader risks comes first): is
+ * this my city's page, and can it still be done if we are late (H1, the
+ * office by name, "Already late?") → how long do we have (the county's
+ * verified rows, by label, with the button) → how does MY city handle it
+ * (the rows read on the city's own website) → the questions boards in this
+ * city ask → what to send. The closing band carries the form button; the
+ * last section does not repeat it.
+ *
+ * COMPACT BY LAYOUT (2026-10-20), every word still in the server HTML:
+ *   • From 1000px every section is one pair on one grid line (5fr · 7fr):
+ *     the heading on the left, its rows, answers or text on the right.
+ *   • The city's subjects are two columns of label-over-text cells on a
+ *     desktop. On a phone the first four show and the rest fold under one
+ *     <details> (text in the DOM; find-in-page opens it).
+ *   • The questions are closed <details>, the site's one disclosure look
+ *     (`.mp-faq--acc`, the service pages'); they print open.
  *
  * WHERE EACH WORD COMES FROM.
  *   • Everything specific to the city — the first line, the lede, the rows,
@@ -35,8 +47,9 @@ import { breadcrumbLd, JsonLd } from './meta';
  *     the home page prints them — read here, never typed. Each row is
  *     printed with the city's name in its label ("Time to file in
  *     Hialeah"), which is what it is on this page: that fact, for a
- *     building in that city. The whole row, with its conditions, is one
- *     link away on the county page.
+ *     building in that city; the city part is set in the second ink, so
+ *     the labels scan as "First due / Then / Time to file". The whole row,
+ *     with its conditions, is one link away on the county page.
  *   • The headings are built here, with the city's name in each.
  *
  * NOTHING OF SIX WORDS OR MORE IS SHARED with another page: not between
@@ -58,17 +71,33 @@ type Labels = {
       line of its own on every page, so it is never one line on all of them. */
   read: (office: string) => string;
   deadlinesTitle: (place: string) => string;
-  deadlinesLede: (place: string, county: string) => string;
-  /** A deadline row's label, with the city: "Time to file in Hialeah". */
-  inPlace: (label: string, place: string) => string;
+  /** Under the deadlines' heading: the stake. Whose dates they are is the
+      source line's, under the rows (`rowsFor`), so it is not said twice. */
+  deadlinesLede: (place: string) => string;
+  /** The city part of a deadline row's label, after the county's label:
+      "Time to file" + " in Hialeah". Drawn in the second ink. */
+  at: (place: string) => string;
   /** In front of the row's authority: "County rows for Hialeah". */
   rowsFor: (place: string, county: string) => string;
+  /** The line that opens the city's other subjects on a phone ("Four more
+      subjects"); a desktop shows them all and never draws it. */
+  more: (n: number) => string;
   questionsTitle: (place: string) => string;
   receiveLabel: string;
   receiveTitle: (place: string) => string;
   packageLink: string;
   otherCities: (county: string) => string;
 };
+
+/** "Four more subjects": the count in words, as a reader says it. */
+const MORE_EN = ['', 'One more subject', 'Two more subjects', 'Three more subjects', 'Four more subjects', 'Five more subjects', 'Six more subjects'];
+const MORE_ES = ['', 'Un tema más', 'Dos temas más', 'Tres temas más', 'Cuatro temas más', 'Cinco temas más', 'Seis temas más'];
+const moreEn = (n: number) => MORE_EN[n] ?? `${n} more subjects`;
+const moreEs = (n: number) => MORE_ES[n] ?? `${n} temas más`;
+
+/** How many of the city's subjects a phone shows before the fold. A list
+    of five or fewer shows whole: folding one row away saves nothing. */
+const SHOWN = 4;
 
 const COUNTY: Record<CityPage['program'], string> = {
   'building-recertification': 'Miami-Dade',
@@ -84,13 +113,19 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       localTitle: (place) => `How building recertification is handled in ${place}`,
       read: (office) => `Read on the website of the ${office}`,
       deadlinesTitle: (place) => `The deadlines that apply in ${place}`,
-      deadlinesLede: (place, county) =>
-        `The schedule is ${county} County’s, printed here for a building in ${place}; the date on your own notice is the one that counts.`,
-      inPlace: (label, place) => `${label} in ${place}`,
+      // The time to file runs from the Notice in both counties (site.ts,
+      // the timing rows); "does not go away" is the county page's own line,
+      // without its figures — a city sets its own amounts.
+      deadlinesLede: (place) =>
+        `For a building in ${place}, the time to file runs from the date on your notice, and an unanswered notice does not go away.`,
+      at: (place) => `in ${place}`,
       rowsFor: (place, county) => `${county} County’s rows, for ${place}`,
+      more: moreEn,
       questionsTitle: (place) => `Questions boards in ${place} ask`,
-      receiveLabel: 'One team',
-      receiveTitle: (place) => `The complete recertification for a building in ${place}`,
+      receiveLabel: 'What to send',
+      // "Fixed fee": every recertification is quoted as one before any
+      // work starts (site.ts, `pricing`).
+      receiveTitle: (place) => `The complete recertification in ${place}, at a fixed fee`,
       packageLink: 'The package, part by part',
       otherCities: (county) => `Other ${county} cities`,
     },
@@ -101,13 +136,16 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       localTitle: (place) => `How the Building Safety Inspection Program runs in ${place}`,
       read: (office) => `Read on the website of the ${office}`,
       deadlinesTitle: (place) => `The deadlines that apply in ${place}`,
-      deadlinesLede: (place, county) =>
-        `The schedule is the ${county} County Board of Rules and Appeals’, printed here for a building in ${place}; the date on your own notice is the one that counts.`,
-      inPlace: (label, place) => `${label} in ${place}`,
+      // Only the time to file runs from the notice in Broward; repairs run
+      // from the date of the report (site.ts, the Broward timing row).
+      deadlinesLede: (place) =>
+        `For a building in ${place}, the time to file runs from the date on your notice, and an unanswered notice does not go away.`,
+      at: (place) => `in ${place}`,
       rowsFor: (place, county) => `${county} County’s rows, for ${place}`,
+      more: moreEn,
       questionsTitle: (place) => `Questions boards in ${place} ask`,
-      receiveLabel: 'One team',
-      receiveTitle: (place) => `The complete BSIP inspection and report for a building in ${place}`,
+      receiveLabel: 'What to send',
+      receiveTitle: (place) => `The complete BSIP inspection and report in ${place}, at a fixed fee`,
       packageLink: 'The package, part by part',
       otherCities: (county) => `Other ${county} cities`,
     },
@@ -120,13 +158,14 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       localTitle: (place) => `Cómo se tramita la recertificación de edificios en ${place}`,
       read: (office) => `Leído en el sitio web de la oficina (${office})`,
       deadlinesTitle: (place) => `Los plazos que rigen en ${place}`,
-      deadlinesLede: (place, county) =>
-        `El calendario es el del Condado de ${county}, impreso aquí para un edificio en ${place}; la fecha que cuenta es la de su propia notificación.`,
-      inPlace: (label, place) => `${label} en ${place}`,
+      deadlinesLede: (place) =>
+        `Para un edificio en ${place}, el plazo para presentar corre desde la fecha de su notificación, y una notificación sin respuesta no desaparece.`,
+      at: (place) => `en ${place}`,
       rowsFor: (place, county) => `Datos del Condado de ${county}, para ${place}`,
+      more: moreEs,
       questionsTitle: (place) => `Preguntas de las juntas directivas en ${place}`,
-      receiveLabel: 'Un solo equipo',
-      receiveTitle: (place) => `La recertificación completa para un edificio en ${place}`,
+      receiveLabel: 'Qué enviar',
+      receiveTitle: (place) => `La recertificación completa en ${place}, a precio fijo`,
       packageLink: 'El paquete, parte por parte',
       otherCities: (county) => `Otras ciudades de ${county}`,
     },
@@ -137,13 +176,14 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
       localTitle: (place) => `Cómo funciona el Programa de Inspección de Seguridad de Edificios en ${place}`,
       read: (office) => `Leído en el sitio web de la oficina (${office})`,
       deadlinesTitle: (place) => `Los plazos que rigen en ${place}`,
-      deadlinesLede: (place, county) =>
-        `El calendario es el de la Junta de Reglas y Apelaciones del Condado de ${county}, impreso aquí para un edificio en ${place}; la fecha que cuenta es la de su propia notificación.`,
-      inPlace: (label, place) => `${label} en ${place}`,
+      deadlinesLede: (place) =>
+        `Para un edificio en ${place}, el plazo para presentar corre desde la fecha de su notificación, y una notificación sin respuesta no desaparece.`,
+      at: (place) => `en ${place}`,
       rowsFor: (place, county) => `Datos del Condado de ${county}, para ${place}`,
+      more: moreEs,
       questionsTitle: (place) => `Preguntas de las juntas directivas en ${place}`,
-      receiveLabel: 'Un solo equipo',
-      receiveTitle: (place) => `La inspección y el informe completos del BSIP para un edificio en ${place}`,
+      receiveLabel: 'Qué enviar',
+      receiveTitle: (place) => `La inspección y el informe completos del BSIP en ${place}, a precio fijo`,
       packageLink: 'El paquete, parte por parte',
       otherCities: (county) => `Otras ciudades de ${county}`,
     },
@@ -173,6 +213,19 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
 
   let n = 0;
   const next = () => String(++n).padStart(2, '0');
+
+  // The city's subjects: a phone shows the first four and folds the rest
+  // under one line (mp.css shows them all from 1000px, the line hidden).
+  const fold = page.local.length > SHOWN + 1;
+  const shown = fold ? page.local.slice(0, SHOWN) : page.local;
+  const folded = fold ? page.local.slice(SHOWN) : [];
+  const subjects = (items: readonly { k: string; v: string }[]) =>
+    items.map((item) => (
+      <div key={item.k}>
+        <dt>{item.k}</dt>
+        <dd>{item.v}</dd>
+      </div>
+    ));
 
   return (
     <>
@@ -211,170 +264,192 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
         <ReachRow c={c} />
       </PageHero>
 
-      {/* How this city handles it: the page's own text, row by row. */}
-      <section className="mp-section mp-surface--paper">
-        <div className="mp-shell">
-          <SectionHeading n={next()} label={u.yourCity} />
-          <div className="mp-intro">
-            <Reveal>
-              <h2 className="mp-intro__title">{t.localTitle(page.place)}</h2>
-            </Reveal>
-            <Reveal delay={0.05}>
-              <p className="mp-intro__lede">{page.lede}</p>
-            </Reveal>
-          </div>
-          <Reveal as="div" delay={0.05} className="mp-packet mp-city">
-            <dl className="mp-packet__list">
-              {page.local.map((item) => (
-                <div key={item.k}>
-                  <dt>{item.k}</dt>
-                  <dd>{item.v}</dd>
-                </div>
-              ))}
-            </dl>
-            {/* Where the report goes: the office, its street address and its
-                phone, as lines of one paragraph.
-                  • Not an <address>: that element is the contact of the PAGE,
-                    and these are the city's, on a site that publishes no
-                    address of its own.
-                  • The phone is TEXT, not a tel: link. The ads script counts
-                    a tap on any tel: link as a call to the firm (ads.ts);
-                    this number rings at a city office.
-                  • A space between the lines: each is drawn on its own row
-                    (mp.css), and a reader of the plain text must not get
-                    "Section444 SW 2nd Ave". */}
-            <p className="mp-city__office">
-              <span className="mp-city__k">{t.office}</span>{' '}
-              <span className="mp-city__name">{page.office.name}</span>
-              {page.office.address?.map((line) => (
-                <React.Fragment key={line}>
-                  {' '}
-                  <span className="mp-city__line">{line}</span>
-                </React.Fragment>
-              ))}
-              {page.office.phone ? (
-                <>
-                  {' '}
-                  <span className="mp-city__line">
-                    {t.phone}: {page.office.phone}
-                  </span>
-                </>
-              ) : null}
-            </p>
-            <p className="mp-timing__src">
-              <Dated label={t.read(page.office.name)} date={cityChecked(page, lang)} iso={cityCheckedISO(page)} />
-            </p>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* The county's deadlines, read from its verified row. */}
-      <section className="mp-section mp-surface--concrete">
-        <div className="mp-shell">
-          <SectionHeading n={next()} label={u.whenItApplies} />
-          <div className="mp-intro">
-            <Reveal>
-              <h2 className="mp-intro__title">{t.deadlinesTitle(page.place)}</h2>
-            </Reveal>
-            <Reveal delay={0.05}>
-              <p className="mp-intro__lede">{t.deadlinesLede(page.place, county)}</p>
-            </Reveal>
-          </div>
-          <Reveal delay={0.05}>
-            <ul className="mp-city__rows">
-              {deadlines.map((f) => (
-                <li key={f.k}>
-                  {/* The colon is for whoever reads the item as text; the
-                      label is drawn on its own (as on the home page). */}
-                  <b>
-                    {t.inPlace(f.k, page.place)}
-                    <span className="mp-sr-only">:</span>
-                  </b>{' '}
-                  {f.homeWhole ? f.v : firstSentence(f.v)}
-                </li>
-              ))}
-            </ul>
-          </Reveal>
-          <p className="mp-timing__src">
-            {t.rowsFor(page.place, county)}. {u.sourceLabel}: <Source row={row} />
-            {' · '}
-            <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
-          </p>
-          {/* The button, then the way to the whole table — each in an element
-              of its own: side by side in one, the two labels read as a single
-              line of text, the same on every city of the county. */}
-          <div className="mp-prog__action">
-            <ButtonLink href={l(contactHref)} variant="solid">
-              {service.program.cta}
-            </ButtonLink>
-            <p className="mp-city__all">
-              <TextLink href={l(`${servicePath}#${JUMP_ID.applies}`)}>{service.program.timingLink}</TextLink>
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Questions boards in this city ask: each an h3, each answer plain
-          text in the HTML. */}
-      <section id={JUMP_ID.questions} className="mp-section mp-surface--paper">
-        <div className="mp-shell">
-          <SectionHeading n={next()} label={u.faqLabel} />
-          <div className="mp-intro">
-            <Reveal>
-              <h2 className="mp-intro__title">{t.questionsTitle(page.place)}</h2>
-            </Reveal>
-          </div>
-          <div className="mp-faq">
-            {page.faq.map((item) => (
-              <Reveal as="div" key={item.q} className="mp-faq__item">
-                <h3 className="mp-faq__q">{item.q}</h3>
-                <p className="mp-faq__a">{item.a}</p>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* What to send, and the way to the whole package on the county page. */}
-      <section className="mp-section mp-surface--concrete">
-        <div className="mp-shell">
-          <SectionHeading n={next()} label={t.receiveLabel} />
-          <div className="mp-split">
-            <Reveal>
-              <h2 className="mp-split__title">{t.receiveTitle(page.place)}</h2>
-            </Reveal>
-            <Reveal delay={0.05}>
-              <div className="mp-callout mp-callout--next">
-                <p className="mp-callout__label">{u.nextStep}</p>
-                <p>{page.nextStep}</p>
-                <div className="mp-cta-row" style={{ marginTop: 'var(--mp-4)' }}>
+      {/* The page's sections, not the hero and not the closing band: the
+          city-page rules in mp.css are scoped under this wrapper. */}
+      <div className="mp-cityp">
+        {/* How long you have: the county's deadlines, read from its verified
+            row, then the button. First, because it is what the reader
+            risks. */}
+        <section className="mp-section mp-surface--paper">
+          <div className="mp-shell">
+            <SectionHeading n={next()} label={u.whenItApplies} />
+            <div className="mp-cityp__pair">
+              <div className="mp-cityp__head">
+                <Reveal>
+                  <h2 className="mp-intro__title">{t.deadlinesTitle(page.place)}</h2>
+                </Reveal>
+                <Reveal delay={0.05}>
+                  <p className="mp-intro__lede">{t.deadlinesLede(page.place)}</p>
+                </Reveal>
+              </div>
+              <div className="mp-cityp__body">
+                <Reveal delay={0.05}>
+                  <ul className="mp-city__rows">
+                    {deadlines.map((f) => (
+                      <li key={f.k}>
+                        {/* The colon is for whoever reads the item as text;
+                            the label is drawn on its own (as on the home
+                            page). One expression in the span, so React
+                            prints no comment inside the label. */}
+                        <b>
+                          {f.k}
+                          <span className="mp-city__in">{` ${t.at(page.place)}`}</span>
+                          <span className="mp-sr-only">:</span>
+                        </b>{' '}
+                        {f.homeWhole ? f.v : firstSentence(f.v)}
+                      </li>
+                    ))}
+                  </ul>
+                </Reveal>
+                <p className="mp-timing__src">
+                  {t.rowsFor(page.place, county)}. {u.sourceLabel}: <Source row={row} />
+                  {' · '}
+                  <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
+                </p>
+                {/* The button, then the way to the whole table — each in an
+                    element of its own: side by side in one, the two labels
+                    read as a single line of text, the same on every city of
+                    the county. */}
+                <div className="mp-prog__action">
                   <ButtonLink href={l(contactHref)} variant="solid">
                     {service.program.cta}
                   </ButtonLink>
+                  <p className="mp-city__all">
+                    <TextLink href={l(`${servicePath}#${JUMP_ID.applies}`)}>{service.program.timingLink}</TextLink>
+                  </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How this city handles it: the page's own text, row by row. */}
+        <section className="mp-section mp-surface--concrete">
+          <div className="mp-shell">
+            <SectionHeading n={next()} label={u.yourCity} />
+            <div className="mp-cityp__pair">
+              <div className="mp-cityp__head">
+                <Reveal>
+                  <h2 className="mp-intro__title">{t.localTitle(page.place)}</h2>
+                </Reveal>
+              </div>
+              <Reveal delay={0.05} className="mp-cityp__body">
+                <p className="mp-intro__lede">{page.lede}</p>
+              </Reveal>
+            </div>
+            <Reveal as="div" delay={0.05} className="mp-packet mp-city">
+              <dl className="mp-packet__list">{subjects(shown)}</dl>
+              {folded.length ? (
+                <details className="mp-disclose mp-city__fold">
+                  <summary>{t.more(folded.length)}</summary>
+                  <dl className="mp-packet__list">{subjects(folded)}</dl>
+                </details>
+              ) : null}
+              {/* Where the report goes: the office, its street address and
+                  its phone, as lines of one paragraph.
+                    • Not an <address>: that element is the contact of the
+                      PAGE, and these are the city's, on a site that
+                      publishes no address of its own.
+                    • The phone is TEXT, not a tel: link. The ads script
+                      counts a tap on any tel: link as a call to the firm
+                      (ads.ts); this number rings at a city office.
+                    • A space between the lines: each is drawn on its own row
+                      on a phone and after a dot from 761px (mp.css), and a
+                      reader of the plain text must not get "Section444 SW
+                      2nd Ave". */}
+              <p className="mp-city__office">
+                <span className="mp-city__k">{t.office}</span>{' '}
+                <span className="mp-city__name">{page.office.name}</span>
+                {page.office.address?.map((line) => (
+                  <React.Fragment key={line}>
+                    {' '}
+                    <span className="mp-city__line">{line}</span>
+                  </React.Fragment>
+                ))}
+                {page.office.phone ? (
+                  <>
+                    {' '}
+                    <span className="mp-city__line">
+                      {t.phone}: {page.office.phone}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+              <p className="mp-timing__src">
+                <Dated label={t.read(page.office.name)} date={cityChecked(page, lang)} iso={cityCheckedISO(page)} />
+              </p>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* Questions boards in this city ask: each an h3 in the <summary> of
+            its own <details>, closed; every answer is plain text in the
+            server HTML, and the page prints them open. */}
+        <section id={JUMP_ID.questions} className="mp-section mp-surface--paper">
+          <div className="mp-shell">
+            <SectionHeading n={next()} label={u.faqLabel} />
+            <div className="mp-cityp__pair">
+              <div className="mp-cityp__head">
+                <Reveal>
+                  <h2 className="mp-intro__title">{t.questionsTitle(page.place)}</h2>
+                </Reveal>
+              </div>
+              <div className="mp-cityp__body mp-faq mp-faq--acc">
+                <div className="mp-faq__col">
+                  {page.faq.map((item) => (
+                    <Reveal as="div" key={item.q} className="mp-faq__item">
+                      <details className="mp-faq__d">
+                        <summary className="mp-faq__sum">
+                          <h3 className="mp-faq__q">{item.q}</h3>
+                          <span className="mp-faq__icon" aria-hidden="true" />
+                        </summary>
+                        <p className="mp-faq__a">{item.a}</p>
+                      </details>
+                    </Reveal>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* What to send, and the way to the whole package on the county
+            page. No button here: the closing band right under it carries
+            the form, with the program selected. */}
+        <section className="mp-section mp-surface--concrete">
+          <div className="mp-shell">
+            <SectionHeading n={next()} label={t.receiveLabel} />
+            <div className="mp-cityp__pair">
+              <div className="mp-cityp__head">
+                <Reveal>
+                  <h2 className="mp-intro__title">{t.receiveTitle(page.place)}</h2>
+                </Reveal>
+              </div>
+              <Reveal delay={0.05} className="mp-cityp__body mp-cityp__next">
+                <p>{page.nextStep}</p>
                 <p className="mp-city__more">
                   <TextLink href={l(`${servicePath}#${JUMP_ID.receive}`)}>{t.packageLink}</TextLink>
                 </p>
-              </div>
-            </Reveal>
+              </Reveal>
+            </div>
+            {/* The other cities of the county: navigation, so no heading. */}
+            {others.length ? (
+              <nav className="mp-city__others" aria-label={t.otherCities(county)}>
+                <span className="mp-city__k" aria-hidden="true">
+                  {t.otherCities(county)}
+                </span>
+                <ul>
+                  {others.map((p) => (
+                    <li key={p.slug}>
+                      <Link href={l(cityPath(p))}>{p.city}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ) : null}
           </div>
-          {/* The other cities of the county: navigation, so no heading. */}
-          {others.length ? (
-            <nav className="mp-city__others" aria-label={t.otherCities(county)}>
-              <span className="mp-city__k" aria-hidden="true">
-                {t.otherCities(county)}
-              </span>
-              <ul>
-                {others.map((p) => (
-                  <li key={p.slug}>
-                    <Link href={l(cityPath(p))}>{p.city}</Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ) : null}
-        </div>
-      </section>
+        </section>
+      </div>
 
       <ContactCTA service={service.slug} />
     </>

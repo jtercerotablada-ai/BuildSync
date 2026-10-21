@@ -46,3 +46,18 @@ describe('whatsappHref', () => {
     expect(phone('es')).toBe(phone('en'));
   });
 });
+
+/* Where the reader holds no notice — the new-building pages, /about,
+   /projects, /services — the chat opens with a proposal request and the
+   link says "Message us", never "Send the notice". */
+describe('whatsappHref, plain', () => {
+  for (const lang of LANGS) {
+    const c = getContent(lang);
+    it(`${lang}: prefills the proposal request, not the notice`, () => {
+      const url = new URL(whatsappHref(c, true)!);
+      expect(url.searchParams.get('text')).toBe(c.reach.whatsappTextPlain);
+      expect(c.reach.whatsappTextPlain).not.toBe(c.reach.whatsappText);
+      expect([...url.searchParams.keys()]).toEqual(['phone', 'text']);
+    });
+  }
+});

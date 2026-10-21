@@ -1,44 +1,38 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, useScroll, useSpring } from 'motion/react';
-import { ButtonLink, Reveal, SectionHeading } from './primitives';
-import { useContent, useL } from './lang';
+import { Reveal, SectionHeading } from './primitives';
+import { useContent } from './lang';
 
 /**
  * The one sequence Miami-Dade's recertification and Broward's BSIP share, on
  * /existing-buildings: six steps, report filed first, and no number at all —
- * each county's ages and deadlines live on its own page, which is where the
- * two buttons under the lede lead.
+ * each county's ages and deadlines live on its own page, which the
+ * situation tiles above (01, 02) already link.
  *
- * The gold track fills as the section scrolls and each node fills as it
- * enters view; with reduced motion the track is drawn complete and the nodes
- * are filled from the start.
+ * A ruled grid (`.mp-timeline--grid`): three columns from 1101px, two from
+ * 641px, one on a phone; each step is its node and title on one line and
+ * its sentence under them, below a hairline. Read row by row, 01–03 then
+ * 04–06. It used to be six full-width rows with a scroll-linked gold track
+ * (motion/react, the only importer on the public site); the track was
+ * decoration, and it is gone with the library.
  *
- * That reduced-motion branch lives in CSS (mp.css, reduced-motion block), not
- * here. `useReducedMotion()` is null on the server but the real preference on
- * the first client render, so branching the class or style on it shipped
- * markup that hydration flagged and never repaired: reduced-motion visitors
- * got an empty track and hollow nodes forever. The markup below is identical
- * on the server and the first client pass for everyone.
+ * Each node still fills as its step enters view (IntersectionObserver).
+ * With reduced motion every node is filled from the start — in CSS (mp.css,
+ * reduced-motion block), not here: `useReducedMotion()` is null on the
+ * server but the real preference on the first client render, so branching
+ * the class on it shipped markup that hydration flagged and never repaired.
+ * The markup below is identical on the server and the first client pass.
+ *
+ * No line under the steps: the "requirements vary… not a guaranteed
+ * procedure" note was small print the page does not need — nothing here
+ * promises an outcome.
  */
 export function ProcessTimeline({ n = '03' }: { n?: string }) {
   const c = useContent();
-  const l = useL();
   const t = c.existingPage.timeline;
-  const listRef = useRef<HTMLDivElement>(null);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [seen, setSeen] = useState<boolean[]>(() => t.steps.map(() => false));
-
-  const { scrollYProgress } = useScroll({
-    target: listRef,
-    offset: ['start 70%', 'end 60%'],
-  });
-  const progress = useSpring(scrollYProgress, {
-    stiffness: 90,
-    damping: 26,
-    restDelta: 0.001,
-  });
 
   useEffect(() => {
     const nodes = stepRefs.current.filter(Boolean) as HTMLDivElement[];
@@ -64,41 +58,24 @@ export function ProcessTimeline({ n = '03' }: { n?: string }) {
   }, []);
 
   return (
-    <section
-      className="mp-section mp-section--lg mp-surface--concrete"
-      aria-labelledby="mp-recert-title"
-    >
+    <section className="mp-section mp-surface--concrete" aria-labelledby="mp-recert-title">
       <div className="mp-shell">
         <SectionHeading n={n} label={t.eyebrow} />
 
-        <div className="mp-split" style={{ marginBlockEnd: 'var(--mp-12)' }}>
+        {/* Title over lede, across the shell — as section 01 opens. In a
+            split the Spanish title took four lines of a narrow column. */}
+        <div className="mp-intro mp-intro--wide">
           <Reveal>
-            <h2 id="mp-recert-title" className="mp-split__title">
+            <h2 id="mp-recert-title" className="mp-intro__title">
               {t.title}
             </h2>
           </Reveal>
           <Reveal delay={0.06}>
-            <p className="mp-lead mp-measure">{t.lede}</p>
-            {/* One door per county: with one program page each, a single
-                "in detail" link would leave the other county without one. */}
-            <div className="mp-cta-row">
-              <ButtonLink href={l(t.cta.href)} variant="line">
-                {t.cta.label}
-              </ButtonLink>
-              <ButtonLink href={l(t.ctaSecondary.href)} variant="line">
-                {t.ctaSecondary.label}
-              </ButtonLink>
-            </div>
+            <p className="mp-intro__lede">{t.lede}</p>
           </Reveal>
         </div>
 
-        <div className="mp-timeline" ref={listRef}>
-          <div className="mp-timeline__track" aria-hidden="true" />
-          <motion.div
-            className="mp-timeline__progress"
-            aria-hidden="true"
-            style={{ height: '100%', scaleY: progress }}
-          />
+        <div className="mp-timeline mp-timeline--grid">
           {t.steps.map((s, i) => (
             <div
               key={s.n}
@@ -116,8 +93,6 @@ export function ProcessTimeline({ n = '03' }: { n?: string }) {
             </div>
           ))}
         </div>
-
-        <p className="mp-disclaimer">{c.ui.processDisclaimer}</p>
       </div>
     </section>
   );

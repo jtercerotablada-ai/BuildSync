@@ -116,12 +116,11 @@ const services: SiteContent['services'] = [
       next: 'Empiece por la notificación — sirve una foto tomada con el teléfono — o, si aún no la tiene, por la dirección y el año de construcción.',
     },
     /* The name most owners still use, first — as a name, with no number —
-       then what the first screen now has to say: one team delivers it
-       complete. Measured on a phone like the English line (see the EN
-       block): four lines at 360 and 390px, five at 320px. "Envíenos la
-       notificación…" went — the button under it says so. */
+       then what the reader risks and the way out (2026-10-20; see the EN
+       block): the county's own consequences, with no amount. Measure it on
+       a phone like the English line before lengthening it. */
     heroSub:
-      'Aún la llaman la recertificación de 40 años. Un solo equipo la entrega completa: estructural, eléctrica y los certificados del condado.',
+      'Aún la llaman la recertificación de 40 años. Sin respuesta, la notificación puede traer multas y un gravamen. ¿Ya va tarde? Un solo equipo todavía la entrega completa.',
     /* The page's own h2s — same keys as the EN block; no age, no day count. */
     headings: {
       whatsIncluded: 'Qué incluye una recertificación completa en Miami-Dade',
@@ -298,6 +297,7 @@ const services: SiteContent['services'] = [
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad, o del condado en las áreas no incorporadas; el ingeniero tiene el deber de hacerlo.',
       'Un informe de recertificación documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará una oficina revisora a partir de él.',
     ],
+    notesToggle: 'Ver las {n} notas',
     /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`: the same
        rows, in the same order, as TEXT (they were links until 2026-10-07;
        the reasoning is in site.ts, and the cities' addresses are in
@@ -348,6 +348,7 @@ const services: SiteContent['services'] = [
         url: 'https://www.miamidade.gov/global/economy/building/recertification.page',
       },
       checked: officeLinksChecked,
+      toggle: 'Ver las {n} oficinas de construcción',
     },
     /* EL PAQUETE DE MIAMI-DADE — mirror of the EN `packet`: the same eight
        rows in the same order, and the same care in each (read the comment
@@ -368,6 +369,7 @@ const services: SiteContent['services'] = [
         { k: 'Plano del sitio o levantamiento topográfico', v: 'Una vista aérea que identifica el edificio acompaña a todo informe estructural. Donde una propiedad tiene más de un edificio, un plano del sitio (site plan) o la copia de un levantamiento (survey) muestra a cuál corresponden los informes.' },
       ],
       note: 'Leemos primero la carta de su ciudad y proponemos el paquete que esa carta pide.',
+      toggle: 'Ver las {n} partes del paquete',
     },
     alsoCalled: ['Recertificación de 40 años', 'Recertificación de edificios'],
     crossLink: { text: '¿Su edificio está en Broward?', label: 'Vea el BSIP', slug: 'broward-bsip' },
@@ -378,10 +380,9 @@ const services: SiteContent['services'] = [
       /* "90 días" must always equal the row's "Plazo para presentar". */
       titleLines: ['Recertificación en Miami-Dade.', '90 días desde la notificación.'],
       accentWord: '90 días',
-      lede: 'Una notificación sin respuesta no desaparece: se convierte en multas que siguen sumando, un gravamen sobre su propiedad y, en el peor caso, una orden de desalojo. ¿Ya va tarde? Todavía tiene solución — envíenos la carta hoy; la propuesta es gratis.',
+      lede: 'Una notificación sin respuesta no desaparece: se convierte en multas que pueden llegar a $10,000 por violación, un gravamen sobre su propiedad y, en el peor caso, una orden de desalojo. ¿Ya va tarde? Todavía tiene solución — envíenos la carta hoy; la propuesta es gratis.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Miami-Dade',
-      ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año de construcción.',
       timingLink: 'Plazos y exenciones de Miami-Dade',
       detail: 'La recertificación en detalle',
     },
@@ -417,12 +418,11 @@ const services: SiteContent['services'] = [
       receive: 'El paquete completo — el informe escrito, los formularios estructural y eléctrico del programa y las fotografías a color — y el alcance de reparaciones donde haga falta.',
       next: 'Empiece por la carta de su ciudad — sirve una foto tomada con el teléfono — o, si aún no la tiene, por la dirección y el año del certificado de ocupación.',
     },
-    /* The name owners still use, as a name, then what the first screen now
-       has to say: one team delivers it complete — in Broward, structural
-       and electrical, with no count of reports. See the EN block, and its note on length:
-       no taller than the line it replaced at 320, 360 or 390px. */
+    /* The name owners still use, as a name, then what the reader risks and
+       the way out (2026-10-20): the Board's policy (#05-05), with no
+       amount. See the EN block, and its note on length. */
     heroSub:
-      'Muchos propietarios todavía llaman al BSIP de Broward la recertificación de 40 años. Un solo equipo lo entrega completo: estructural y eléctrico.',
+      'Muchos aún llaman al BSIP de Broward la recertificación de 40 años. Un informe tardío va a audiencia de cumplimiento. ¿Pasó la fecha? Un solo equipo lo entrega completo.',
     /* The page's own h2s — same keys as the EN block; no age, no day count. */
     headings: {
       whatsIncluded: 'Qué cubre una inspección completa del BSIP de Broward',
@@ -591,6 +591,7 @@ const services: SiteContent['services'] = [
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad; el ingeniero tiene el deber de hacerlo.',
       'Un informe del BSIP documenta condiciones observadas; las ocultas pueden requerir investigación adicional, y ningún ingeniero puede garantizar cómo actuará el Building Official a partir de él.',
     ],
+    notesToggle: 'Ver las {n} notas',
     /* ¿QUIÉN LE ENVIÓ LA NOTIFICACIÓN? — mirror of the EN `offices`; see the
        Miami-Dade block above for what is specific to the Spanish. */
     offices: {
@@ -628,6 +629,7 @@ const services: SiteContent['services'] = [
         url: 'https://www.broward.org/codeappeals/FormsandContacts',
       },
       checked: officeLinksChecked,
+      toggle: 'Ver las {n} oficinas de construcción',
     },
     /* EL PAQUETE DE BROWARD — mirror of the EN `packet`: the same seven
        rows in the same order. It is NOT Miami-Dade's list: no parking-lot
@@ -647,6 +649,7 @@ const services: SiteContent['services'] = [
         { k: 'Lo que añade su ciudad', v: 'Algunas ciudades piden con la presentación una hoja de portada o un formulario propio. La carta de su ciudad indica qué quiere, y la leemos primero.' },
       ],
       note: 'Termografía infrarroja: la política vigente de la Junta de Reglas y Apelaciones no pide ese estudio; se usa donde la inspección eléctrica lo justifica.',
+      toggle: 'Ver las {n} partes del paquete',
     },
     alsoCalled: ['BSIP', 'Building Safety Inspection Program', 'Programa de Inspección de Seguridad de Edificios de Broward', 'Recertificación de 40 años'],
     crossLink: { text: '¿Su edificio está en Miami-Dade?', label: 'Vea la recertificación de Miami-Dade', slug: 'building-recertification' },
@@ -662,7 +665,6 @@ const services: SiteContent['services'] = [
       lede: 'Si el informe no se presenta a tiempo, el caso pasa a una audiencia de cumplimiento, y un edificio sin reparar puede declararse inseguro. ¿Ya pasó la fecha? Todavía tiene solución — envíenos la notificación hoy y reciba una propuesta a precio fijo, sin costo.',
       steps: ['Revisión de la notificación', 'Inspección', 'Informe presentado', 'Reparaciones y cierre'],
       cta: 'Enviar la notificación de Broward',
-      ctaNote: 'Basta una foto de la carta tomada con el teléfono. ¿Aún no tiene notificación? Envíe la dirección y el año del certificado de ocupación.',
       timingLink: 'Plazos y exenciones de Broward',
       detail: 'El BSIP en detalle',
     },
@@ -760,7 +762,7 @@ const services: SiteContent['services'] = [
          the county program in both counties, not beside it. The two county
          sentences are `countyPages` below, each under a heading that links
          to that county's page. */
-      note: 'En Miami-Dade y en Broward, la inspección de hito del estado se cumple a través del programa del condado — el de su condado está justo debajo. Los deberes de la junta directiva con los propietarios de las unidades aplican en ambos condados.',
+      note: 'Los deberes de la junta directiva con los propietarios de las unidades aplican en ambos condados.',
       rows: [
         {
           jurisdiction: 'Estado de Florida — inspección de hito',
@@ -783,7 +785,7 @@ const services: SiteContent['services'] = [
       'La investigación adicional es tan limitada o tan extensa como lo exija el deterioro. Su alcance se define a partir de lo que encuentra la inspección, no antes.',
       'La inspección visual cubre condiciones accesibles y observables. El deterioro oculto puede requerir ensayos o demolición selectiva.',
       /* Neutral on purpose: states the counties' rule, claims no credential. */
-      'Para edificios de más de tres pisos o 50 pies, cada condado exige calificaciones adicionales al ingeniero que firma el informe estructural. Lo confirmamos para su edificio antes de presentar una propuesta.',
+      'Para edificios de más de tres pisos o 50 pies, cada condado exige que el informe estructural lo prepare un ingeniero con calificaciones adicionales. Lo confirmamos para su edificio antes de presentar una propuesta.',
       'Una inspección reporta la condición en un momento dado; no es una garantía de desempeño futuro.',
     ],
     /* One heading per county, and the heading is the link — see the EN
@@ -1305,8 +1307,6 @@ export const es: SiteContent = {
       instagram: 'https://www.instagram.com/ttcivilstructural/',
       nextdoor: 'https://nextdoor.com/page/tercero-tablada-civil-and-structural-engineering-inc-miami-fl/',
     },
-    responseNote:
-      'Cada consulta la lee y la responde el ingeniero, no un centro de llamadas — normalmente en menos de dos horas.',
   },
 
   /* The same entries in the same order as site.ts (site.test.ts compares
@@ -1358,11 +1358,7 @@ export const es: SiteContent = {
     breadcrumb: 'Ruta de navegación',
     onThisPage: 'En esta página',
     explore: 'Explorar',
-    exploreService: 'Ver este servicio',
-    learnMore: 'Más información',
     requestProposal: 'Solicitar propuesta',
-    /* Infinitive, like "Solicitar propuesta" beside it. */
-    exploreServices: 'Ver nuestros servicios',
     seeAllServices: 'Todos los servicios',
     newProjects: 'Proyectos nuevos',
     existingBuildings: 'Edificios existentes',
@@ -1390,8 +1386,6 @@ export const es: SiteContent = {
     typicalEngagements: 'Trabajos típicos',
     relatedServices: 'Servicios relacionados',
     atAGlance: 'De un vistazo',
-    appliesTo: 'Aplica a',
-    newConstruction: 'Construcción nueva',
     coverage: 'Cobertura',
     verified: 'Verificado',
     lastChecked: 'Última verificación',
@@ -1417,9 +1411,6 @@ export const es: SiteContent = {
       credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
       license: 'Licencia P.E. de Florida',
       verify: 'Verificar en el DBPR de Florida',
-      /* The DBPR page is in English only, so the option keeps its English
-         name, glossed. */
-      verifyHow: 'En la página del DBPR, elija “Search by License Number” (búsqueda por número de licencia) y escriba el número.',
       /* "Ingeniero", never "firmado por" — see the EN comment in site.ts. */
       label: 'Ingeniero',
       licensePrefix: 'Licencia de Florida',
@@ -1427,7 +1418,6 @@ export const es: SiteContent = {
       focus: 'Áreas de especialidad',
       approach: 'Cómo trabajo',
       forYou: 'Qué significa eso para usted',
-      plateNote: 'Retrato profesional próximamente',
     },
     work: {
       projectType: 'Tipo de proyecto',
@@ -1438,7 +1428,6 @@ export const es: SiteContent = {
       result: 'Resultado',
       structuralSystem: 'Sistema estructural',
       deliverables: 'Entregables',
-      status: 'Estado',
       illustrative: 'Imagen ilustrativa',
       firmProjects: 'Proyectos de la firma',
       priorExperience: 'Experiencia profesional previa',
@@ -1447,20 +1436,13 @@ export const es: SiteContent = {
     },
     form: {
       heading: 'Solicitar propuesta',
-      /* "…la propuesta que le enviamos": the H1 over it promises "Le
-         enviamos una propuesta." and the verb was nowhere under it — the
-         page said only "responde". See the EN comment on `intro`. */
-      intro:
-        'Cuéntenos de su edificio, lo que está planificando o la notificación que recibió. Cuanto más específica sea la descripción, más precisa será la propuesta que le enviamos.',
       name: 'Nombre',
       email: 'Correo electrónico',
       phone: 'Teléfono',
-      company: 'Empresa o asociación',
-      companyPlaceholder: 'Asociación, desarrollador, firma de arquitectura',
       service: 'Servicio requerido',
       selectService: 'Seleccione un servicio…',
       location: 'Ubicación del proyecto',
-      locationPlaceholder: 'Ciudad o condado — p. ej. Coral Gables, Miami-Dade',
+      locationPlaceholder: 'p. ej. Coral Gables, Miami-Dade',
       message: 'Descripción del proyecto',
       messagePlaceholder:
         'Tipo de edificio, número de pisos, qué necesita diseñar o inspeccionar, y cualquier plazo o notificación que tenga pendiente.',
@@ -1519,15 +1501,7 @@ export const es: SiteContent = {
       },
     },
     contactPage: {
-      emailLabel: 'Correo electrónico',
-      emailMeta: 'Ideal para preguntas sobre el alcance del trabajo, planos y permisos.',
-      phone: 'Teléfono',
       office: 'Oficina',
-      serviceArea: 'Área de servicio',
-      serviceAreaMeta: 'Inspecciones en sitio y coordinación en todo el Sur de Florida.',
-      whatWeCover: 'Qué cubrimos',
-      disclaimer:
-        'Las descripciones de este sitio son generales. El alcance, la secuencia y los entregables para cualquier edificio específico se confirman por escrito antes de comenzar el trabajo, y los requisitos varían según la jurisdicción.',
     },
     typologiesNote:
       'Las fotografías ilustran el tipo de estructura descrito; ninguna muestra un proyecto de Tercero Tablada Civil and Structural Engineering Inc. Lo que realiza la firma se describe en',
@@ -1535,8 +1509,6 @@ export const es: SiteContent = {
     typologiesNoteEnd: '.',
     galleryNote:
       'Fotografía arquitectónica con licencia, mostrada como material y no como portafolio. Ninguna imagen de esta página muestra un proyecto de Tercero Tablada Civil and Structural Engineering Inc.',
-    processDisclaimer:
-      'Los requisitos varían según la jurisdicción, la edad del edificio, el tipo de construcción y el alcance. Esto describe una secuencia típica, no un procedimiento ni un resultado garantizado.',
     legalPages: { privacy: 'Política de privacidad', terms: 'Términos de uso', legal: 'Legal' },
     notFound: {
       eyebrow: 'Error 404',
@@ -1673,28 +1645,21 @@ export const es: SiteContent = {
   caseStudies,
 
   engagements: [
-    { n: '01', title: 'Estructura residencial de mediana altura', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales', status: 'Trabajo típico' },
+    { n: '01', title: 'Estructura residencial de mediana altura', need: 'Tiene el diseño del arquitecto y necesita la ingeniería de la estructura para el permiso.', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales' },
     /* 02 names both county programs and 03 is no longer a "milestone"
-       inspection — see the comment over `engagements` in site.ts. */
-    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural y eléctrica, informes en los formularios oficiales, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'El paquete completo que pide el condado, en sus formularios oficiales · Registro fotográfico · Alcance de reparaciones', status: 'Trabajo típico' },
-    { n: '03', title: 'Inspección de seguridad estructural', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento', status: 'Trabajo típico' },
-    { n: '04', title: 'Sistema de cimentación para un sitio restringido', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo', status: 'Trabajo típico' },
-    { n: '05', title: 'Coordinación BIM multidisciplinaria', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo', status: 'Trabajo típico' },
-    { n: '06', title: 'Revisión estructural independiente por pares', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución', status: 'Trabajo típico' },
+       inspection — see the comment over `engagements` in site.ts, which
+       also says what `need` may and may not say. */
+    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', need: 'Su edificio debe pasar la inspección del condado, o el plazo ya venció. Todavía se puede resolver.', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural y eléctrica, informes en los formularios oficiales, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'El paquete completo que pide el condado, en sus formularios oficiales · Registro fotográfico · Alcance de reparaciones' },
+    { n: '03', title: 'Inspección de seguridad estructural', need: 'Grietas, manchas de óxido o concreto que se desprende, y necesita saber qué tan grave es.', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento' },
+    { n: '04', title: 'Sistema de cimentación para un sitio restringido', need: 'Un lote estrecho o un suelo débil, y la cimentación tiene que diseñarse para eso.', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo' },
+    { n: '05', title: 'Coordinación BIM multidisciplinaria', need: 'Varias especialidades comparten un edificio, y un conflicto cuesta menos en pantalla que en obra.', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo' },
+    { n: '06', title: 'Revisión estructural independiente por pares', need: 'Un diseño necesita una segunda revisión independiente antes del permiso o de la obra.', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución' },
   ],
 
+  /* No footnote and no gallery lede: see `workSection` in site.ts. */
   workSection: {
     eyebrowReal: 'Trabajos seleccionados',
-    engagementsNote:
-      'Perfiles de trabajos típicos, no proyectos anteriores concretos: el alcance, el sistema estructural y los entregables de cada tipo de trabajo que realiza la firma. Los casos de estudio con nombre se publican solo con autorización del cliente, y se identifican como proyectos de la firma o experiencia profesional previa.',
     galleryEyebrow: 'El material',
-    galleryLede: 'Concreto reforzado, refuerzo, residencias y la costa sobre la que se levantan — el vocabulario del trabajo, sin pies de foto a propósito.',
-  },
-
-  credentials: {
-    sealedDeliverables: false,
-    sealingStatement:
-      'Juan Tercero, PE., M.Sc., Ingeniero Profesional (P.E.) con licencia en Florida, firma y sella los entregables cuando el alcance del trabajo lo requiere.',
   },
 
   leadership: {
@@ -1717,18 +1682,16 @@ export const es: SiteContent = {
       /* The Master's keeps the program's own name ("…en Construction Project
          Management", Universidad de Barcelona), the same in bio and education. */
       'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil and Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada trabajo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
-      'La firma cubre las dos mitades del trabajo estructural en el Sur de Florida: el diseño de edificios nuevos de concreto reforzado, y la evaluación, recertificación y reparación de edificios que ya están en pie. Ambas se hacen con la misma disciplina — el razonamiento detrás de cada conclusión queda escrito, y nada sale de la oficina sin haberse revisado línea por línea.',
     ],
     education: [
       'Máster en Construction Project Management — Universidad de Barcelona',
       'Ingeniero Civil — Universidad Nacional de Ingeniería',
-      'Ingeniero Profesional (P.E.) con licencia del Estado de Florida',
     ],
     focus: [
       'Recertificación en Miami-Dade, inspecciones del BSIP en Broward y evaluaciones de condición',
-      'Diseño en concreto reforzado para casas, edificios de mediana altura y estructuras comerciales',
-      'Modelado BIM estructural y coordinación multidisciplinaria',
-      'Diseño por viento y lateral para la Zona de Huracanes de Alta Velocidad (HVHZ)',
+      'Diseño en concreto reforzado para casas, edificios de mediana altura y edificios comerciales',
+      'Modelos estructurales en 3D, coordinados con la arquitectura y las instalaciones',
+      'Diseño para vientos de huracán en la Zona de Huracanes de Alta Velocidad (Miami-Dade y Broward)',
     ],
     approach:
       'Prefiero explicar una decisión estructural en lenguaje claro antes que esconderla detrás de una referencia de código. Una junta directiva debe poder leer un informe de hallazgos y saber qué hacer a continuación; un contratista debe poder construir desde el plano sin llamar; y un revisor debe poder seguir el cálculo desde la carga hasta el detalle.',
@@ -1736,13 +1699,6 @@ export const es: SiteContent = {
       { k: 'Comunicación directa', v: 'Usted habla con el ingeniero que está haciendo el trabajo — no con un ejecutivo de cuentas que transmite preguntas.' },
       { k: 'Una propuesta que se entiende', v: 'Cada propuesta establece qué se incluye, qué no, qué recibe y cuánto cuesta, antes de que empiece cualquier cosa.' },
       { k: 'El criterio de un solo ingeniero', v: 'El ingeniero que estudia su edificio o fija la base de diseño es quien responde por el resultado, ante usted y ante el revisor.' },
-    ],
-    plate: [
-      { k: 'Nombre', v: 'Juan Tercero, PE., M.Sc.' },
-      { k: 'Licencia', v: 'Ingeniero Profesional, Florida' },
-      { k: 'Cargo', v: 'Ingeniero Principal · Fundador' },
-      { k: 'Firma', v: 'Tercero Tablada Civil and Structural Engineering Inc.' },
-      { k: 'Región', v: 'Miami-Dade y Broward' },
     ],
   },
 
@@ -1797,6 +1753,8 @@ export const es: SiteContent = {
     whatsappNotice: 'Enviar la notificación por WhatsApp',
     form: 'Enviar la notificación',
     whatsappText: 'Hola, recibí una notificación de inspección de mi edificio.',
+    whatsappPlain: 'Escríbanos por WhatsApp',
+    whatsappTextPlain: 'Hola, quisiera una propuesta para un proyecto.',
     free: 'La propuesta es gratis.',
     reply: 'Normalmente respondemos en menos de dos horas.',
   },
@@ -1809,10 +1767,11 @@ export const es: SiteContent = {
     eyebrow: 'Sobre la firma',
     titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
-    sub: 'Construida alrededor de un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward — con el razonamiento detrás de cada conclusión escrito y un solo Ingeniero Profesional de Florida responsable de todo.',
+    sub: 'Construida alrededor de un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward.',
+    /* "Región" se queda: es el único otro lugar de /es/about donde se lee
+       "Sur", y cada palabra del H1 debe estar en la página (seo.test). */
     facts: [
       { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
-      { k: 'Enfoque', v: 'Concreto · Edificios existentes · BIM' },
       { k: 'Región', v: 'Sur de Florida' },
     ],
     approach: {
@@ -1820,16 +1779,14 @@ export const es: SiteContent = {
       title: 'Revisado línea por línea, antes de salir.',
       body: [
         'Por esta firma pasan dos tipos de trabajo, y cada uno enriquece al otro. Diseñar estructuras nuevas enseña qué falla en campo; inspeccionar edificios que llevan décadas en pie enseña qué detallar de otra manera la próxima vez.',
-        'Nuestro método parte del modelo. La estructura se modela, coordina y documenta como una sola fuente de verdad conectada, verificada con la base de diseño, para que lo que se presenta a permiso esté completo y coordinado.',
-        'En edificios existentes la misma disciplina se aplica a la inversa: el edificio se verifica en campo antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado en sitio.',
+        'En edificios existentes el trabajo empieza en campo: el edificio se revisa en sitio antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado allí.',
       ],
     },
     principles: {
       eyebrow: 'Principios',
-      title: 'Cómo mantenemos el estándar.',
       items: [
-        { k: 'Rigor', v: 'Cada miembro se analiza y se verifica según el código aplicable antes de llegar a un plano.' },
-        { k: 'Constructibilidad', v: 'Detalles que respetan la obra — construibles, secuenciables y claros para el contratista.' },
+        { k: 'Rigor', v: 'Cada viga, columna y losa se analiza y se verifica según el código aplicable antes de llegar a un plano.' },
+        { k: 'Detalles construibles', v: 'Dibujados para construirse en obra: claros para el contratista y en un orden lógico.' },
         { k: 'Coordinación', v: 'La estructura se coordina con la arquitectura y las instalaciones desde el inicio, para que los conflictos se detecten en el modelo y no en sitio.' },
         { k: 'Razonamiento documentado', v: 'Hipótesis, cargas y disposiciones de código quedan escritas, para que cualquier revisor pueda seguir el argumento.' },
         { k: 'Durabilidad', v: 'Diseñado para durabilidad y vida útil en un entorno costero, no solo para el primer día de ocupación.' },
@@ -1842,20 +1799,19 @@ export const es: SiteContent = {
     titleLines: ['Servicios de ingeniería estructural', 'en Miami-Dade y Broward.'],
     accentWord: 'Servicios',
     /* Existing buildings first, as in English: the page opens with them.
-       The counts follow the `services` array (four and four). */
-    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Ocho servicios de ingeniería estructural en dos líneas. Si es dueño de un edificio que ya está en pie, o lo administra, empiece por edificios existentes. Si está construyendo algo, empiece por proyectos nuevos. Cada servicio dice cuándo lo necesita, qué incluye, qué recibe y qué hacer a continuación.',
-    facts: [
-      { k: 'Edificios existentes', v: '4 servicios' },
-      { k: 'Proyectos nuevos', v: '4 servicios' },
-      { k: 'Cobertura', v: 'Miami-Dade y Broward' },
-    ],
+       "Ocho" follows the `services` array (four and four). No "how to read
+       this page" text and no facts panel (see the English). Keep "servicios
+       de ingeniería estructural" whole: it is the only place outside the H1
+       that says "ingeniería" (seo.test.ts). */
+    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Ocho servicios de ingeniería estructural, para edificios que ya están en pie y para proyectos nuevos. La propuesta es gratis.',
+    cardMore: 'Detalles',
     tracks: {
       existing: {
         id: 'existing',
         eyebrow: 'Edificios existentes',
         /* "Usted posee" was "you own", word for word. */
         title: 'Usted es dueño de un edificio o lo administra.',
-        lede: 'Para asociaciones, administradores de propiedades y propietarios con una notificación del condado, un plazo, deterioro visible o una reparación por definir. Miami-Dade y Broward tienen cada uno su propio programa, y cada uno tiene aquí su propia página.',
+        lede: 'Para asociaciones, administradores de propiedades y propietarios con una notificación del condado, un plazo, deterioro visible o una reparación por definir. ¿Ya pasó el plazo? Todavía tiene solución.',
       },
       new: {
         id: 'new',
@@ -1872,37 +1828,39 @@ export const es: SiteContent = {
        `sub`, as in English: the lede is no longer than it was. */
     titleLines: ['Edificios existentes', 'en Miami-Dade y Broward.'],
     accentWord: 'existentes',
-    sub: 'El edificio ya está en pie. Recertificación en Miami-Dade, el Programa de Inspección de Seguridad de Edificios (BSIP) de Broward, inspecciones de hito (milestone), evaluaciones estructurales y diseño de reparaciones. Documentamos lo que realmente hay, explicamos qué significa estructuralmente y definimos el trabajo que sigue.',
+    /* Lo que cuesta esperar y la salida, as in English (see the EN comment
+       for the sources): no figure, the late reader included, a step that
+       costs nothing. */
+    sub: 'El edificio ya está en pie. Sin respuesta, una notificación del condado se convierte en multas y un gravamen en Miami-Dade, y en una audiencia de cumplimiento en Broward. ¿Ya va tarde? Todavía tiene solución — envíenos la carta y reciba una propuesta gratis, a precio fijo.',
+    /* No "Cobertura": the H1 already ends "en Miami-Dade y Broward". */
     facts: [
       { k: 'Para', v: 'Asociaciones, propietarios, administradores' },
-      { k: 'Cobertura', v: 'Miami-Dade y Broward' },
       { k: 'Resultado', v: 'Informes, alcances de reparación, reinspecciones' },
     ],
     /* The hub: four situations, each with the service that answers it — one
        item per existing-building service, in the `services` order. See the
        EN comment in site.ts for what a line may and may not say. Written as
-       the reader would say it ("Llegó una notificación…"), not translated. */
+       the reader would say it ("Llegó una notificación…"), not translated.
+       No lede, as in English. */
     triggers: {
       eyebrow: 'Cuándo llamar',
       title: 'Cuatro situaciones en las que conviene llamar a un ingeniero.',
-      lede: 'Busque la suya. Cada una lleva al servicio que la resuelve.',
       items: [
-        { slug: 'building-recertification', k: 'Llegó una notificación en Miami-Dade.', v: 'Es la recertificación de edificios de Miami-Dade. Envíenos la carta: un solo equipo entrega el paquete completo que pide el condado — lo estructural, lo eléctrico y los certificados que los acompañan — desde la primera visita hasta el informe que la cierra. La página del programa indica las edades y el plazo que aplican.' },
-        { slug: 'broward-bsip', k: 'Llegó una notificación en Broward.', v: 'Es el Programa de Inspección de Seguridad de Edificios, el BSIP, y la carta de su ciudad fija su propia fecha. Partimos de esa carta y entregamos el paquete completo — las inspecciones estructural y eléctrica, el informe escrito y los formularios oficiales del programa — hasta el cierre del expediente.' },
+        { slug: 'building-recertification', k: 'Llegó una notificación en Miami-Dade.', v: 'Es la recertificación de edificios de Miami-Dade. Envíenos la carta: entregamos el paquete completo que pide el condado — lo estructural, lo eléctrico y los certificados que los acompañan. La página del programa indica las edades y el plazo que aplican.' },
+        { slug: 'broward-bsip', k: 'Llegó una notificación en Broward.', v: 'Es el Programa de Inspección de Seguridad de Edificios, el BSIP, y la carta de su ciudad fija su propia fecha. Partimos de esa carta y entregamos el paquete completo — las inspecciones estructural y eléctrica, el informe escrito y los formularios oficiales del programa.' },
         { slug: 'milestone-inspections', k: 'La junta directiva pregunta si la ley de inspecciones de hito alcanza al edificio.', v: 'La ley estatal y los programas de los condados se superponen. Le decimos qué reglas alcanzan a su edificio y cómo se cumplen en su condado — e inspeccionamos cuando no ha llegado ninguna notificación pero una compra, un prestamista o un deterioro visible dan motivo para revisar.' },
         { slug: 'structural-condition-assessments', k: 'Un informe enumera reparaciones, o algo le preocupa.', v: 'Antes de que los contratistas coticen, un ingeniero dice qué condiciones afectan la estructura y define la reparación, para que todas las ofertas respondan al mismo alcance. La misma evaluación sirve antes de comprar un edificio o de modificarlo.' },
       ],
     },
     /* The one sequence both county programs share — NO age and NO deadline
        here; they are on each county's page. Step order and the six titles
-       match the `process` of the two program pages. `cta` → Miami-Dade,
-       `ctaSecondary` → Broward. See the EN comment in site.ts. */
+       match the `process` of the two program pages. No links under the
+       lede: the county pages are linked from the situations above. See the
+       EN comment in site.ts. */
     timeline: {
       eyebrow: 'Recertificación y BSIP',
       title: 'Un camino claro desde la notificación hasta el cierre.',
-      lede: 'Miami-Dade lo llama recertificación de edificios; Broward, Programa de Inspección de Seguridad de Edificios. Las edades y los plazos son distintos, y los de cada condado están en su propia página. La secuencia es la misma: primero se presenta el informe, las reparaciones siguen con permiso, y un informe final cierra el expediente. Un solo equipo entrega el paquete completo que pide cada condado, para que la junta directiva haga una sola llamada y sepa qué sigue en cada etapa.',
-      cta: { href: '/services/building-recertification', label: 'La recertificación de Miami-Dade en detalle' },
-      ctaSecondary: { href: '/services/broward-bsip', label: 'El BSIP de Broward en detalle' },
+      lede: 'Miami-Dade lo llama recertificación de edificios; Broward, Programa de Inspección de Seguridad de Edificios. La secuencia es la misma en los dos: usted envía la carta y recibe el paquete completo que pide cada condado.',
       steps: [
         { n: '01', title: 'Revisión de la notificación', detail: 'Leemos la notificación y el registro del edificio, confirmamos qué pide el Building Official y fijamos el calendario en función de la fecha de la carta.' },
         { n: '02', title: 'Inspección', detail: 'Inspección en sitio, estructural y eléctrica — la estructura, las losas, los balcones, el techo y las cimentaciones expuestas, y los sistemas eléctricos del edificio — documentada en campo, con fotografías vinculadas a su ubicación.' },
@@ -1924,7 +1882,7 @@ export const es: SiteContent = {
     accentWord: 'típicos',
     subReal: 'La estructura detrás del proyecto. Trabajos de ingeniería estructural en el Sur de Florida — el edificio, el problema, el alcance, nuestro rol y el resultado documentado.',
     subRepresentative:
-      'La estructura detrás del proyecto. Perfiles de trabajos típicos: el sistema estructural, el alcance y los documentos que produce cada tipo de trabajo. Describen la ingeniería estructural que realiza la firma en el Sur de Florida, no proyectos anteriores concretos. Los casos de estudio con nombre se publican solo con autorización del cliente.',
+      'La estructura detrás del proyecto. Encuentre abajo su tipo de proyecto: cuándo lo necesita, qué cubre y los documentos que recibe. Perfiles de la ingeniería estructural que realiza la firma en el Sur de Florida, no proyectos anteriores concretos; los casos de estudio con nombre se publican solo con autorización del cliente.',
     facts: [
       { k: 'Cobertura', v: 'Miami-Dade y Broward' },
       { k: 'Sistemas', v: 'Concreto reforzado, acero' },
@@ -1944,19 +1902,22 @@ export const es: SiteContent = {
     eyebrow: 'Solicitar propuesta',
     titleLines: ['Cuéntenos de su edificio.', 'Le enviamos una propuesta.'],
     accentWord: 'propuesta.',
-    sub: 'Describa el proyecto, el edificio o la notificación que recibió — y adjunte lo que ya tenga. El ingeniero lee cada solicitud y responde con preguntas o con una propuesta escrita.',
-    /* Mirror of `before` in site.ts: the section under the form, written for
+    /* Mirror of `sub` in site.ts: what waiting costs, the easy step, the
+       free fixed-fee proposal, then the late arrivals. */
+    sub: 'Una notificación sin respuesta solo se agrava. Envíela hoy — basta una foto de la carta tomada con el teléfono — y reciba una propuesta gratis y a precio fijo. ¿Ya va tarde? Todavía tiene solución.',
+    /* Mirror of `before` in site.ts: the guide beside the form, written for
        someone about to write. "Carta", the word the buttons and the form use
        for the notice. No number, no phone number, no price — see the EN
-       comment. */
+       comment. The H1's "Cuéntenos" and "enviamos" are here (seo.test.ts). */
     before: {
       eyebrow: 'Cómo funciona',
       title: 'Qué enviar y qué pasa después.',
       items: [
-        { k: 'Si ya tiene la carta', v: 'Para empezar basta una foto de la carta tomada con el teléfono. Adjúntela en el formulario de arriba o envíela por WhatsApp; no hace falta escanearla ni copiar lo que dice. Lo primero que buscamos es qué oficina la envió y qué fechas indica.' },
+        { k: 'Si ya tiene la carta', v: 'Para empezar basta una foto de la carta tomada con el teléfono. Adjúntela en este formulario o envíela por WhatsApp; no hace falta escanearla ni copiar lo que dice. Lo primero que buscamos es qué oficina la envió y qué fechas indica.' },
+        { k: 'Si la fecha ya pasó', v: 'Escríbanos de todos modos y adjunte la carta junto con cualquier aviso o citación que haya llegado después. La inspección todavía puede hacerse y el informe presentarse; cuanto antes lea el ingeniero lo que recibió, antes tendrá usted un plan que presentar a su Building Official.' },
         { k: 'Si todavía no le ha llegado', v: 'Envíe la dirección del edificio y un dato: en Miami-Dade, el año de construcción; en Broward, el año del certificado de ocupación. Cada condado cuenta la antigüedad del edificio a partir de ese registro, y con él podemos decirle qué le corresponde al suyo antes de que llegue la carta.' },
-        { k: 'Para cualquier otro edificio o proyecto', v: 'Díganos qué edificio es, dónde está y qué necesita: una evaluación, el diseño de una reparación, la estructura de un edificio nuevo o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio.' },
-        { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official (el funcionario de construcción). Después le responde con preguntas o con una propuesta escrita, que dice qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta. Nada comienza hasta que usted la acepte.' },
+        { k: 'Para cualquier otro edificio o proyecto', v: 'Cuéntenos del edificio, dónde está y qué necesita: una evaluación, el diseño de una reparación, la estructura de un edificio nuevo o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio.' },
+        { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official (el funcionario de construcción). Después le enviamos preguntas o una propuesta escrita con el alcance: qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta. Nada comienza hasta que usted la acepte.' },
         { k: 'Por teléfono, WhatsApp o correo', v: 'El formulario no es la única vía. Llame al número que aparece en esta página, escriba a ese mismo número por WhatsApp y envíe por ahí la foto de la carta, o ponga los mismos datos en un correo electrónico.' },
         { k: 'Dónde y en qué idioma', v: 'Trabajamos en Miami-Dade y Broward, en todas las ciudades de ambos condados: de Miami, Hialeah y Coral Gables a Fort Lauderdale, Hollywood y Pompano Beach. Indíquenos la ciudad, o si el edificio está fuera de los límites de una ciudad: de eso depende qué oficina envía la carta y recibe el informe. El formulario y este sitio están en español y en inglés; escríbanos en el idioma que le resulte más cómodo.' },
       ],
@@ -2009,11 +1970,6 @@ export const es: SiteContent = {
       'El reporte estructural, firmado y sellado, y el reporte eléctrico, firmado por un profesional calificado en diseño eléctrico.',
       'La presentación ante el condado y nuestras respuestas a los comentarios de revisión de esa inspección.',
     ],
-    excludesTitle: 'Se cotiza aparte',
-    excludes: [
-      'Las reparaciones, y los documentos y permisos que requieran, cuando ya se conozcan los hallazgos.',
-      'Las tasas del condado, de la ciudad y de los permisos.',
-    ],
     note: 'El precio depende del tamaño del edificio, del número de estructuras, del servicio eléctrico, de los documentos disponibles y de lo que pida la jurisdicción. Varios edificios: una sola propuesta, con un precio para cada uno.',
     sizeLabel: 'Tamaño del edificio',
     cta: 'Solicitar propuesta a precio fijo',
@@ -2061,7 +2017,7 @@ export const es: SiteContent = {
       sub: 'Qué recopilamos a través de este sitio web, por qué lo recopilamos y qué hacemos con ello.',
       sections: [
         { h: 'Qué recopilamos', p: [
-          `${ADS.on ? privacyAds.collect : 'La'} única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono y empresa opcionales, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.`,
+          `${ADS.on ? privacyAds.collect : 'La'} única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: su nombre, correo electrónico, teléfono opcional, el servicio seleccionado, la dirección del edificio o la ubicación del proyecto, la descripción que escribe y los archivos que adjunta. Junto con la solicitud registramos también la página de este sitio por la que entró y la dirección de la página que enlazó hacia él, para saber cómo nos encuentran.`,
           'El formulario no pide datos de pago, números de identificación personal (por ejemplo, el del Seguro Social o el de la licencia de conducir) ni contraseñas, y una propuesta no los necesita. Le pedimos que no los incluya en la descripción ni en los archivos que adjunte.',
         ] },
         { h: 'Por qué la recopilamos', p: 'La usamos para responder a su solicitud y para entender el alcance de ingeniería sobre el que pregunta. No la vendemos, alquilamos ni compartimos con fines publicitarios.' },

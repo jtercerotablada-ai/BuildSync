@@ -1,180 +1,129 @@
 'use client';
 
 import React from 'react';
-import { imagery } from '@/lib/ttc/site';
-import { Img } from './media';
-import { ButtonLink, Reveal, SectionHeading } from './primitives';
-import { useContent, useL } from './lang';
+import { Reveal, SectionHeading } from './primitives';
+import { useContent } from './lang';
 
 /**
- * The person behind the practice, on /about — its only page. The home page
- * used to print a teaser of it; the owner moved his part to /about alone
- * (2026-10-20: "not mixed in"), so there is one composition: biography,
- * education, focus, approach, what it means for the client, and license
- * verification when supplied.
+ * The person behind the practice, on /about — its only page (the owner,
+ * 2026-10-20: his part lives on /about alone, "not mixed in", ordered and as
+ * professional as possible). One composition, read as a profile:
  *
- * THE PORTRAIT SLOT IS HONEST. When `leadership.portrait` is null the figure
- * renders a typographic plate — the firm's real monogram over a darkened
- * photograph of structure, with the engineer's name and licensure as type.
- * No stock person, no silhouette, no "photo coming soon". Supplying the
- * portrait in `site.ts` swaps it in without touching this component.
+ *   1. the portrait beside his role, his name, the biography and his own
+ *      words (the quote) — face and name together, so /about#engineer (the
+ *      footer's "Meet the engineer" and the closing band on thirteen pages)
+ *      lands on both, on a phone too, where the portrait is a thumbnail
+ *      beside the name;
+ *   2. the credentials in one row: Education, the Florida P.E. license with
+ *      its link to the state registry, Practice focus — on a wide screen the
+ *      first column is the portrait's, so the row lines up under it;
+ *   3. what that means for the client, the three rows.
  *
- * The caption belongs to the PORTRAIT only. The plate already sets name (or
- * role) and licensure as type, so a caption under it repeated the same facts
- * a second time — a third with the role eyebrow beside it, and a stutter
- * once the columns stack on a phone.
+ * No button: the page's one action is the closing band (and the header's).
+ * No caption under the portrait: the role line and the name sit beside it.
+ * Nothing here says who signs a report (the owner's rule); do not add it.
+ *
+ * The portrait is the real photograph in `leadership.portrait` (site.ts),
+ * the page's one spoken image besides the footer lockup (pages.test).
  */
 export function EngineerSection({ n = '01' }: { n?: string }) {
   const c = useContent();
-  const l = useL();
   const e = c.leadership;
   const u = c.ui.engineer;
 
   return (
     <section
       id="engineer"
-      className="mp-section mp-section--lg mp-surface--paper mp-eng mp-eng--full"
+      className="mp-section mp-surface--paper mp-eng mp-eng--full"
       aria-labelledby="mp-eng-title"
     >
       <div className="mp-shell">
         <SectionHeading n={n} label={u.eyebrow} />
 
         <div className="mp-eng__grid">
-          <Reveal>
+          <Reveal className="mp-eng__fig">
             <figure className="mp-eng__figure">
-              {e.portrait ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={e.portrait.src}
-                  alt={e.portrait.alt}
-                  width={e.portrait.w}
-                  height={e.portrait.h}
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
-                <div className="mp-eng__plate">
-                  <Img
-                    photo={imagery.sections.engineer}
-                    className="mp-eng__plate-bg"
-                    sizes="(max-width: 900px) 100vw, 40vw"
-                  />
-                  <div className="mp-grid-bg" aria-hidden="true" />
-                  {/* The 256 px resize of the real white monogram (never a
-                      redraw): the plate shows it at up to ~84 px, so the
-                      1254 px master was ~230 KB for nothing. Named by its
-                      alt and `aria-hidden`: the plate's own rows, right
-                      under it, are what a screen reader should read. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    className="mp-eng__plate-mark"
-                    src={c.company.logo.markLightSm}
-                    alt={c.company.name}
-                    aria-hidden="true"
-                    width={c.company.logo.markSmSize.w}
-                    height={c.company.logo.markSmSize.h}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <dl className="mp-eng__plate-list">
-                    {e.plate.map((r) => (
-                      <div key={r.k}>
-                        <dt>{r.k}</dt>
-                        <dd>{r.v}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </div>
-              )}
-              {e.portrait ? (
-                <figcaption className="mp-eng__caption">
-                  <span>{e.name}</span>
-                  <span>{e.credential}</span>
-                </figcaption>
-              ) : null}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={e.portrait.src}
+                alt={e.portrait.alt}
+                width={e.portrait.w}
+                height={e.portrait.h}
+                loading="lazy"
+                decoding="async"
+              />
             </figure>
           </Reveal>
 
-          <div className="mp-eng__copy">
-            <Reveal delay={0.05}>
-              {/* His role, over his name. */}
-              <p className="mp-eng__role">
-                {e.role} · {e.credential}
-              </p>
-              <h2 id="mp-eng-title" className="mp-eng__title">
-                {e.name}
-              </h2>
-            </Reveal>
+          <Reveal delay={0.05} className="mp-eng__head">
+            {/* His role, over his name. Not the credential too: "PE." is in
+                the name, the biography's first words say Florida-licensed
+                Professional Engineer, and the license has its own column. */}
+            <p className="mp-eng__role">{e.role}</p>
+            <h2 id="mp-eng-title" className="mp-eng__title">
+              {e.name}
+            </h2>
+          </Reveal>
 
-            <Reveal delay={0.1} className="mp-eng__body">
-              {e.bio.map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
-            </Reveal>
+          <Reveal delay={0.1} className="mp-eng__body">
+            {e.bio.map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </Reveal>
 
-            <>
-                <Reveal delay={0.12}>
-                  <blockquote className="mp-eng__quote">
-                    <p>{e.approach}</p>
-                    <cite>— {e.firstName}</cite>
-                  </blockquote>
-                </Reveal>
-
-                <Reveal delay={0.14} className="mp-eng__meta">
-                  <div>
-                    <h3>{u.education}</h3>
-                    <ul>
-                      {e.education.map((x) => (
-                        <li key={x}>{x}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h3>{u.focus}</h3>
-                    <ul>
-                      {e.focus.map((x) => (
-                        <li key={x}>{x}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  {e.license ? (
-                    <div>
-                      <h3>{u.license}</h3>
-                      <ul>
-                        <li>{e.license.number}</li>
-                        <li>
-                          <a href={e.license.url} rel="noopener noreferrer" target="_blank">
-                            {u.verify}
-                          </a>
-                        </li>
-                        {/* The link opens the registry's search form, not the
-                            license: say what to do there. */}
-                        <li>{u.verifyHow}</li>
-                      </ul>
-                    </div>
-                  ) : null}
-                </Reveal>
-            </>
-
-            <Reveal delay={0.16}>
-              <h3 className="mp-eng__forlabel">{u.forYou}</h3>
-              <ul className="mp-pillars mp-eng__for">
-                {e.forYou.map((p) => (
-                  <li key={p.k}>
-                    <b>{p.k}</b>
-                    <span>{p.v}</span>
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
-
-            <Reveal delay={0.18} className="mp-cta-row">
-              <ButtonLink href={l('/contact')} variant="solid">
-                {c.ui.requestProposal}
-              </ButtonLink>
-            </Reveal>
-          </div>
+          <Reveal delay={0.12} className="mp-eng__quotewrap">
+            <blockquote className="mp-eng__quote">
+              <p>{e.approach}</p>
+              <cite>— {e.firstName}</cite>
+            </blockquote>
+          </Reveal>
         </div>
+
+        {/* Education, license, focus — in that order: the tablet layout
+            spans the LAST group (focus) across the row. */}
+        <Reveal delay={0.08} className="mp-eng__meta">
+          <div>
+            <h3>{u.education}</h3>
+            <ul>
+              {e.education.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+          </div>
+          {e.license ? (
+            <div>
+              <h3>{u.license}</h3>
+              <ul>
+                <li className="mp-eng__lic">{e.license.number}</li>
+                <li>
+                  <a href={e.license.url} rel="noopener noreferrer" target="_blank">
+                    {u.verify}
+                  </a>
+                </li>
+              </ul>
+            </div>
+          ) : null}
+          <div>
+            <h3>{u.focus}</h3>
+            <ul>
+              {e.focus.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.1} className="mp-eng__forwrap">
+          <h3 className="mp-eng__forlabel">{u.forYou}</h3>
+          <ul className="mp-pillars mp-pillars--strip mp-eng__for">
+            {e.forYou.map((p) => (
+              <li key={p.k}>
+                <b>{p.k}</b>
+                <span>{p.v}</span>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
       </div>
     </section>
   );
