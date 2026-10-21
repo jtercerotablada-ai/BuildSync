@@ -45,7 +45,6 @@ export function PageHero({
   photo,
   crumbs,
   children,
-  aside,
 }: {
   eyebrow: string;
   titleLines: React.ReactNode[];
@@ -56,10 +55,6 @@ export function PageHero({
   photo?: Photo;
   crumbs?: Crumb[];
   children?: React.ReactNode;
-  /** A full-width row on the hero's graphite, under the title and the
-   *  facts: the calculators catalogue's index of subjects. Only that page
-   *  passes it; without it the hero's markup is what it always was. */
-  aside?: React.ReactNode;
 }) {
   const c = useContent();
   const l = useL();
@@ -145,8 +140,6 @@ export function PageHero({
             </div>
           ) : null}
         </div>
-
-        {aside ? <div className="mp-phero__aside mp-enter mp-enter--d3">{aside}</div> : null}
       </div>
       <DarkHeroSentinel />
     </section>

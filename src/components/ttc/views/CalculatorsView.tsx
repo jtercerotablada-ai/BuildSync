@@ -11,6 +11,7 @@ import {
   type CalculatorFamily,
 } from '@/lib/ttc/calculators';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
+import { imagery } from '@/lib/ttc/site';
 import { CalcFolds } from '@/components/ttc/mp/CalcFolds';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 
@@ -21,18 +22,20 @@ import { PageHero } from '@/components/ttc/mp/PageHero';
  * calculator, with all of them written down and built one at a time
  * (calculators.ts has the request and the rules). Two parts:
  *
- *   1. the hero, which says how many there are and how many are open, and
- *      under it, on the same graphite, the index — the families as rows of
- *      his icons, each a link to its family further down;
+ *   1. the hero, over a photograph like the other pages' heroes, which says
+ *      how many there are and how many are open (the owner, October 21,
+ *      2026: no index of the families up here — they are the ledger);
  *   2. the ledger — the families in two columns, each a block with a header
  *      row (the icon on its tile, the family's name, how many it holds) and
  *      the calculators under it as hairline rows: the name, one line on what
  *      it computes, the design standards it is planned for.
  *
- * The first open calculator is on the first screen, on a desktop and on a
- * phone. On a phone the index is not shown: the subjects with no open
- * calculator start folded to their header (CalcFolds), and those seventeen
- * headers ARE the index. Every row is in the server's HTML, open.
+ * On a phone the subjects with no open calculator start folded to their
+ * header (CalcFolds), so the seventeen headers read as an index of their
+ * own. Every row is in the server's HTML, open.
+ *
+ * The page is out of the header since October 21, 2026 (site.ts): it is
+ * reached from the footer and from each calculator's breadcrumb.
  *
  * A calculator with an `href` is open: its row is in ink and its name is a
  * link to it, underlined in gold. One without is listed in a straw grey. No
@@ -89,25 +92,9 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
           { k: t.open, v: String(openCalculatorCount) },
           { k: t.families, v: String(calculatorFamilies.length) },
         ]}
-        aside={
-          <nav className="mp-calcnav" aria-label={t.index}>
-            <ul className="mp-calcnav__list">
-              {calculatorFamilies.map((family) => (
-                // Two drawings need the width of two cells (mp.css).
-                <li key={family.id} className={family.icons.length > 1 ? 'mp-calcnav__wide' : undefined}>
-                  <a href={`#${family.id}`}>
-                    <Icons family={family} lang={lang} className="mp-calcnav__icons" />
-                    <span className="mp-calcnav__name">{family.title[lang]}</span>
-                    {/* The family's own block says how many, in words. */}
-                    <span className="mp-calcnav__n" aria-hidden="true">
-                      {family.items.length}
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        }
+        // A photograph like the other pages' heroes; the families are the
+        // ledger right under it (the owner, 2026-10-21: no index up here).
+        photo={imagery.pages.resources}
       />
 
       <section className="mp-section mp-surface--paper mp-calcledger">
@@ -137,7 +124,7 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
                     className="mp-calc__count"
                     aria-label={`${family.title[lang]}, ${family.items.length} ${t.count}`}
                   >
-                    {/* On a phone the number alone is drawn, as in the index; the word stays for a screen reader.
+                    {/* On a phone the number alone is drawn; the word stays for a screen reader.
                         The number and its space are one text node, so the space is never dropped. */}
                     <span>
                       {`${family.items.length} `}

@@ -189,7 +189,6 @@ export const calculatorsPage: Record<
     count: string;
     /** The label of the count of open ones, in the hero. (No mark beside a name: an open one is the row in ink, with a link.) */
     open: string;
-    index: string;
     /** Read before each row's standards by a screen reader; on screen they are a mono line. */
     codes: string;
   }
@@ -205,7 +204,6 @@ export const calculatorsPage: Record<
     families: 'Subjects',
     count: 'calculators',
     open: 'Open',
-    index: 'Calculators by subject',
     codes: 'Standards',
   },
   es: {
@@ -219,7 +217,6 @@ export const calculatorsPage: Record<
     families: 'Temas',
     count: 'calculadoras',
     open: 'Abiertas',
-    index: 'Calculadoras por tema',
     codes: 'Normas',
   },
 };

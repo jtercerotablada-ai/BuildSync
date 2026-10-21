@@ -1416,7 +1416,7 @@ export const es: SiteContent = {
     { href: '/existing-buildings', label: 'Edificios existentes' },
     { href: '/projects', label: 'Trabajos típicos', inHeader: false },
     { href: '/guides', label: 'Guías' },
-    { href: '/resources', label: 'Recursos' },
+    { href: '/resources', label: 'Recursos', inHeader: false },
     { href: '/about', label: 'Nosotros' },
     { href: '/contact', label: 'Contacto' },
   ],

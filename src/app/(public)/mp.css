@@ -6646,18 +6646,9 @@ a.mp-menu__mail {
   }
 }
 
-/* The calculators catalogue (CalculatorsView, /resources). Two parts.
+/* The calculators catalogue (CalculatorsView, /resources): the ledger.
 
-   1. THE INDEX (.mp-calcnav), on the hero's own graphite, under the title
-      and the facts (PageHero's `aside`): the families as short rows of the
-      owner's icons — gold line drawings straight on the graphite, a
-      hairline over each cell. A cell is one link to its family further
-      down: the drawing, the family's name, and how many calculators it
-      holds in mono. Six across on a desktop, four on a tablet. At 900px and
-      narrower it is not shown: there the ledger's folded headers are the
-      same seventeen rows, one screen lower (CalcFolds).
-
-   2. THE LEDGER (.mp-calc): the families in two columns, each a block under
+   THE LEDGER (.mp-calc): the families in two columns, each a block under
       a strong hairline with one header row — the drawing on a graphite
       tile, the family's name, the count at the right end — and under it the
       calculators as hairline rows in the hand of the package list: the name
@@ -6667,71 +6658,6 @@ a.mp-menu__mail {
 
    The tile is square and graphite because the firm's own mark is: gold on
    the dark square. No radius (--mp-radius is 0). */
-.mp-phero__aside {
-  margin-block-start: var(--mp-8);
-}
-@media (min-width: 901px) {
-  .mp-phero:has(.mp-phero__aside) {
-    padding-block-end: var(--mp-8);
-  }
-}
-.mp-calcnav__list {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0 clamp(1rem, 2vw, 2rem);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.mp-calcnav__list a {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--mp-3);
-  height: 100%;
-  min-height: 3.25rem;
-  padding-block: 0.375rem;
-  border-block-start: 1px solid var(--mp-line);
-  color: var(--mp-snow);
-  text-decoration: none;
-  transition:
-    color var(--mp-dur) var(--mp-ease),
-    border-color var(--mp-dur) var(--mp-ease);
-}
-.mp-calcnav__icons {
-  display: flex;
-  gap: var(--mp-1);
-}
-.mp-calcnav__icons img {
-  display: block;
-  width: 2.5rem;
-  height: 2.5rem;
-}
-/* Two drawings beside a name (steel connections) would leave the name less
-   than its longest word in one cell: that cell takes two. It is the
-   thirteenth, so at six or four across it starts a row and leaves no gap. */
-.mp-calcnav__wide {
-  grid-column: span 2;
-}
-.mp-calcnav__name {
-  font-size: var(--mp-t-small);
-  font-weight: 500;
-  line-height: 1.25;
-  text-wrap: balance;
-}
-.mp-calcnav__n {
-  font-family: var(--mp-mono);
-  font-size: var(--mp-t-label);
-  letter-spacing: 0.04em;
-  color: var(--mp-snow-3);
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-calcnav__list a:hover {
-    color: var(--mp-gold);
-    border-color: var(--mp-gold);
-  }
-}
-
 /* The ledger sits right under the hero: the first open calculator is on
    the first screen (1280x800 and up, and a phone). */
 .mp-section.mp-calcledger {
@@ -6880,19 +6806,10 @@ a.mp-menu__mail {
 .mp-calc__list > li.is-open .mp-calc__codes {
   color: var(--mp-gold-ink);
 }
-@media (max-width: 1180px) {
-  .mp-calcnav__list {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
 /* One column, and the families with no open calculator folded to their
    header after the first paint (CalcFolds): the count turns into the
-   toggle, with the site's chevron. The headers are the index here, so the
-   hero's copy of it is not shown (its HTML stays). */
+   toggle, with the site's chevron. The headers read as the index. */
 @media (max-width: 900px) {
-  .mp-phero__aside:has(> .mp-calcnav) {
-    display: none;
-  }
   .mp-calc__families {
     columns: 1;
   }

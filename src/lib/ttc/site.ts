@@ -269,8 +269,11 @@ export type NavItem = { href: string; label: string; description?: string; inHea
    Removing an entry leaves its page with no label to read — hide it with
    `inHeader` instead.
 
-   /resources is the calculators catalogue (calculators.ts). The owner asked
-   for it in the header on October 9, 2026, the day it was made.
+   /resources is the calculators catalogue (calculators.ts). The owner put it
+   in the header on October 9, 2026, the day it was made, and moved it to
+   the footer on October 21, 2026: the header is for the owner holding a
+   notice; the calculators are reached from the footer and from each
+   calculator's own breadcrumb.
 
    /projects is hidden that way. It holds typical engagement profiles, not
    past jobs, and says so; as "Work", third in the main menu, it sent every
@@ -284,7 +287,7 @@ export const primaryNav: NavItem[] = [
   { href: '/existing-buildings', label: 'Existing Buildings' },
   { href: '/projects', label: 'Typical Engagements', inHeader: false },
   { href: '/guides', label: 'Guides' },
-  { href: '/resources', label: 'Resources' },
+  { href: '/resources', label: 'Resources', inHeader: false },
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
 ];
@@ -2568,6 +2571,11 @@ export const imagery = {
     work: photo.miamiCondoAerial,
     about: photo.concreteStair,
     contact: photo.miamiBrickell,
+    /* The calculators catalogue, since October 21, 2026 (the owner: a
+       background photograph like the other pages). A column's
+       reinforcement cage seen from below, the sky open on the left where
+       the headline sits. */
+    resources: photo.rebarCageTower,
   },
   /* One photograph per service, keyed by slug. The card, the service-page
      hero and — for the two county programs — the home-page section are one

@@ -380,9 +380,9 @@ describe('navigation: what the header leaves out', () => {
 
     // The calculators catalogue: in the header since the owner asked for it
     // there (October 9, 2026), and in the footer under the same name.
-    it(`${lang} shows the calculators catalogue in the header and in the footer`, () => {
+    it(`${lang} shows the calculators catalogue in the footer, not in the header (moved there October 21, 2026)`, () => {
       const item = c.primaryNav.find((i) => i.href === '/resources')!;
-      expect(item.inHeader).not.toBe(false);
+      expect(item.inHeader).toBe(false);
       const inFooter = c.footerNav.flatMap((group) => group.items).find((i) => i.href === '/resources');
       expect(inFooter?.label).toBe(item.label);
     });

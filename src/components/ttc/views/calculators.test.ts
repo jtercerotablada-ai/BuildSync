@@ -255,7 +255,6 @@ describe('calculators: the page', () => {
     const html = render(lang);
     const main = html.match(/<main\b[\s\S]*<\/main>/)?.[0] ?? '';
     const t = calculatorsPage[lang];
-    const nav = main.match(/<nav class="mp-calcnav[^"]*"[^>]*>[\s\S]*?<\/nav>/)?.[0] ?? '';
     const lists = [...main.matchAll(/<ul class="mp-calc__list">([\s\S]*?)<\/ul>/g)].map((m) => m[1]);
 
     it(`${lang}: one h1, one h2 per family, and no calculator set as a heading`, () => {
@@ -301,11 +300,12 @@ describe('calculators: the page', () => {
 
     // In the menu at the owner's request: the header's link is the current
     // page here, and the breadcrumb calls the page what the menu calls it.
-    it(`${lang}: the header's link to it is marked as the current page, and its breadcrumb carries the same name`, () => {
+    it(`${lang}: it is not in the header (the owner moved it to the footer); its breadcrumb carries the menu's name`, () => {
       const label = navLabelOf(getContent(lang), '/resources');
       const header = html.match(/<nav class="mp-header__nav"[\s\S]*?<\/nav>/)?.[0] ?? '';
       const current = [...header.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].filter((m) => attr(m[1], 'aria-current') === 'page');
-      expect(current.map((m) => [attr(m[1], 'href'), text(m[2])])).toEqual([[localePath('/resources', lang), label]]);
+      expect(current).toEqual([]);
+      expect(header).not.toContain(`href="${localePath('/resources', lang)}"`);
       const crumbs = main.match(/<ol class="mp-breadcrumbs">[\s\S]*?<\/ol>/)?.[0] ?? '';
       expect(text(crumbs.match(/<span aria-current="page">([\s\S]*?)<\/span>/)?.[1] ?? '')).toBe(label);
       const footer = html.match(/<footer\b[\s\S]*<\/footer>/)?.[0] ?? '';
@@ -358,30 +358,16 @@ describe('calculators: the page', () => {
       expect(html).not.toContain('mp-bar');
     });
 
-    // The index: one link per family, in the order of the page, each to a
-    // block that is on it — and to that block only.
-    it(`${lang}: the index has one link per family, and every link lands on its block`, () => {
-      expect(attr(nav.match(/<nav\b[^>]*>/)?.[0] ?? '', 'aria-label')).toBe(esc(t.index));
-      const links = [...nav.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map((m) => ({
-        href: attr(m[1], 'href'),
-        // What a screen reader says: the count is in the block itself.
-        said: text(m[2].replace(/<span[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/span>/g, '')),
-      }));
-      expect(links).toEqual(calculatorFamilies.map((g) => ({ href: `#${g.id}`, said: text(esc(g.title[lang])) })));
-      for (const g of calculatorFamilies) {
-        expect(html.split(` id="${g.id}"`).length - 1, g.id).toBe(1);
-      }
-    });
-
-    // Every drawing twice — in the index and on its family's tile — and each
+    // Every drawing once, on its family's tile — and each
     // time as the site's photographs are: described, and silent, because the
     // family's name is printed beside it.
     it(`${lang}: every icon is on the page with its description, silent, sized and lazy`, () => {
-      const tags = [...main.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+      // The hero's photograph is not an icon.
+      const tags = [...main.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]).filter((tag) => attr(tag, 'src')?.startsWith('/ttc/img/calc/'));
       const expected = calculatorFamilies.flatMap((g) => g.icons);
-      expect(tags.map((tag) => attr(tag, 'src'))).toEqual([...expected, ...expected].map((key) => calculatorIcons[key].src));
+      expect(tags.map((tag) => attr(tag, 'src'))).toEqual(expected.map((key) => calculatorIcons[key].src));
       tags.forEach((tag, i) => {
-        const key = [...expected, ...expected][i];
+        const key = expected[i];
         expect(attr(tag, 'alt'), tag).toBe(esc(calculatorIcons[key].alt[lang]));
         expect(attr(tag, 'aria-hidden'), tag).toBe('true');
         expect(attr(tag, 'width'), tag).toBe(String(CALCULATOR_ICON_PX));
@@ -498,12 +484,12 @@ describe('calculators: where the page is', () => {
     }
   });
 
-  it('is in the header and in the footer, in both languages — and nothing deeper than the page is linked', () => {
+  it('is in the footer and not in the header, in both languages — and nothing deeper than the page is linked', () => {
     for (const lang of LANGS) {
       const c = getContent(lang);
       const header = c.primaryNav.filter((n) => n.inHeader !== false).map((n) => n.href);
       const footer = c.footerNav.flatMap((g) => g.items.map((n) => n.href));
-      expect(header).toContain('/resources');
+      expect(header).not.toContain('/resources');
       expect(footer).toContain('/resources');
       // The menus lead to the catalogue; a calculator is reached from it.
       expect([...header, ...footer].filter((x) => x.startsWith('/resources/'))).toEqual([]);
