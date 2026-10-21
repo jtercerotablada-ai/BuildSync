@@ -309,6 +309,16 @@ const catalogue = {
     'Horizonte de Miami visto desde el agua bajo nubes en movimiento',
   ),
 
+  /* ── The legal pages ────────────────────────────────────────────────────
+     A judge's gavel on its sound block, dark wood and a brushed band, beside
+     two black binders. A still life: no person, no text, no brand. The hero
+     of the privacy policy, the terms and the image credits. */
+  legalGavel: p(
+    'legal-gavel', 2000, 1333,
+    'Dark wooden gavel on its sound block beside two black binders',
+    'Mazo de madera oscura sobre su base, junto a dos carpetas negras',
+  ),
+
   /* ── The two county programs ────────────────────────────────────────────
      One per program, white concrete against water in midday light, so the two
      home sections mirror each other. Both are views of SEVERAL buildings, on

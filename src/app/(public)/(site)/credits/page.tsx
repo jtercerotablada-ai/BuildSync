@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { company, contact, legal, ui } from '@/lib/ttc/site';
+import { company, contact, imagery, legal, ui } from '@/lib/ttc/site';
 import { marks } from '@/lib/ttc/municipalities';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { LegalDoc } from '@/components/ttc/mp/LegalDoc';
@@ -63,6 +63,7 @@ export default function CreditsPage() {
         crumbs={[{ href: '/', label: ui.home }, { label: TITLE }]}
         titleLines={[TITLE]}
         sub={`The photography on this site is licensed stock, shown to illustrate building types — never as a portfolio. None of it depicts a project by ${company.name}`}
+        photo={imagery.pages.legal}
       />
 
       {/* The layout of the privacy policy and the terms (LegalDoc): contents

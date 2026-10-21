@@ -2581,6 +2581,9 @@ export const imagery = {
     /* The guides hub (the owner, 2026-10-21: it had no photograph). The
        Miami towers across the bay: the buildings the guides are about. */
     guides: photo.miamiSkylineTeal,
+    /* The privacy policy, the terms and the image credits (the owner,
+       2026-10-21: a photograph with a legal theme). A gavel on its block. */
+    legal: photo.legalGavel,
   },
   /* One photograph per service, keyed by slug. The card, the service-page
      hero and — for the two county programs — the home-page section are one

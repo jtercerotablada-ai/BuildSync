@@ -1,5 +1,6 @@
 import React from 'react';
 import { getContent } from '@/lib/ttc/content';
+import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { LegalDoc } from '@/components/ttc/mp/LegalDoc';
@@ -33,6 +34,7 @@ export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms
         crumbs={[{ href: '/', label: c.ui.home }, { label: doc.title }]}
         titleLines={[doc.h1]}
         sub={doc.sub}
+        photo={imagery.pages.legal}
       />
       <LegalDoc
         label={doc.title}
