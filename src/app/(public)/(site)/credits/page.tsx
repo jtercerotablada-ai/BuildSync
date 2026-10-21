@@ -120,9 +120,10 @@ export default function CreditsPage() {
             h: 'Software marks',
             body: (
               <p>
-                Revit, Navisworks, Autodesk, CYPE, BCF and buildingSMART are trademarks of their
-                respective owners. Their logos appear unmodified, apart from a display filter, only
-                to identify the software used in our workflow.
+                Autodesk, Revit and Navisworks are trademarks of Autodesk, Inc. CYPE, BCF and
+                buildingSMART are trademarks or names of their respective owners. They are named
+                only to say which software the firm uses, and do not mean that any of those
+                companies sponsors, approves or is connected with this firm.
               </p>
             ),
           },

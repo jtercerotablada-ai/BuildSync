@@ -762,6 +762,15 @@ select.mp-num__input {
 .mp-appnotes__list li + li {
   border-block-start: 1px solid var(--mp-line);
 }
+/* The one line over each calculator and over the catalogue (legal.calcNotice):
+   body size, the second ink, with a text link to the Terms. */
+.mp-calcnote {
+  max-width: 46rem;
+  margin: 0 0 var(--mp-6);
+  font-size: var(--mp-t-body);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
 .mp-appnotes__terms {
   max-width: 46rem;
   margin-block-start: var(--mp-12);

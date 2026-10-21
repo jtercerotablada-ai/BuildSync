@@ -469,6 +469,11 @@ export const ui = {
     sendAnother: 'Send another request',
     successTitle: 'Request received.',
     successBody: 'Your request is in the engineer’s inbox. We usually reply within two hours.',
+    /* Said where the reader acts, not only in the Terms: sending the form
+       neither hires the firm nor moves a county deadline (the owner,
+       2026-10-21, from the legal audit). The confirmation email says it too
+       (api/contact/route.ts COPY). */
+    successNote: 'Sending this does not engage us or change your deadline. Nothing starts until you accept a written proposal.',
     successConfirmed: 'A confirmation has been sent to your email address.',
     successRef: 'Reference',
     whatNext: 'What happens next',
@@ -3306,6 +3311,15 @@ const privacyAds = {
 };
 
 export const legal = {
+  /* One line over every calculator and over the catalogue, at body size
+     (the owner: no small print) — where a reader is about to rely on a
+     result, not only in the Terms. Added October 21, 2026, from the legal
+     audit; the words are the assistant's, not counsel's. It claims no
+     warranty and no use: the Terms say the rest. */
+  calcNotice: {
+    text: 'A working aid, not a design, engineering opinion or sealed document. No warranty: check every result independently.',
+    link: 'Terms of Use',
+  },
   links: [
     { href: '/privacy', label: 'Privacy Policy' },
     { href: '/terms', label: 'Terms of Use' },
@@ -3437,10 +3451,30 @@ export const legal = {
          counsel's — he was told so. Still no cap on liability in figures. */
       { h: 'Calculators', p: 'The calculators under Resources are working aids for engineers and students. Each one states on its own page the method it uses, what it assumes and what it leaves out, and a result is only as good as the model and the values entered. Check it by independent means: a decision rests on that check, not on the calculator. A result is not a design, an engineering opinion or a sealed document, and using a calculator does not make us the engineer of your project. They are offered as they are, with no warranty, and the firm accepts no responsibility for the results obtained with them or for how those results are used.' },
       /* The site has no drawings, and every photo and video is licensed stock. */
-      { h: 'Intellectual property', p: 'The text and the firm’s name and logo on this site belong to Tercero Tablada Civil and Structural Engineering Inc. and may not be reproduced without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
+      { h: 'Intellectual property', p: 'The text, tables, design and code of this site, including the calculators, and the firm’s name and logo belong to Tercero Tablada Civil and Structural Engineering Inc. They may not be copied, resold or republished without permission. Photographs, video and third-party software marks belong to their respective owners (see Image Credits).' },
+      /* What a visitor may send, and what sending does not do (17 U.S.C.
+         106: only the owner of a drawing may share it; Fla. Stat. 90.502
+         protects only lawyer and client, so a request is not confidential in
+         that sense). The Privacy Policy says how files are kept. */
+      { h: 'Files you send', p: 'If you attach a file, you confirm that you may share it with us. We use it only to answer your request and keep it as the Privacy Policy says. A request sent before an engagement is not a confidential communication in the legal sense, so leave out anything you would not want us to read: the letter and the address are all we need to begin.' },
       { h: 'Pricing ranges', p: 'The fee ranges published on this website are indicative and are given by building size so that you can plan. They are not an offer. A fixed fee binds only when it is stated in a written proposal that you have accepted, for the scope that proposal describes. A building can fall outside a range because of its size, the number of structures, its electrical service or the documents available. Repairs, the permits they need and the fees charged by a county or a city are not part of a range unless the proposal says so.' },
       { h: 'Government names and marks', p: 'The names, seals and logos of counties, cities and other government offices shown on this website belong to those governments. They appear only to identify the office that sends a notice, and each is credited on the Image Credits page. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm. It is not affiliated with, endorsed by or acting for any government office, and nothing on this website is an official publication of one. If a government asks for its mark to be changed or removed, we will do it.' },
-      { h: 'Limitation of liability', p: 'To the fullest extent the law allows, Tercero Tablada Civil and Structural Engineering Inc. and the people who work for it are not liable for any loss or damage, direct or indirect, that arises from the use of this website, from the information, calculators and links on it, or from not being able to use it. Nothing here limits a liability that the law does not allow to be limited, and nothing here changes what a written engagement agreement signed with you provides for that engagement.' },
+      /* In capitals on purpose: Florida courts enforce a disclaimer of the
+         warranty of merchantability only if it names it and is conspicuous
+         (Fla. Stat. 672.316(2)), and a limit of liability that is easy to
+         miss is the one a court sets aside. Added October 21, 2026, from the
+         legal audit; the words are the assistant's, not counsel's. Still no
+         figure: a cap is the attorney's question. */
+      { h: 'Limitation of liability', p: [
+        'THIS WEBSITE, ITS CONTENT AND ITS CALCULATORS ARE PROVIDED “AS IS” AND “AS AVAILABLE”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING ANY WARRANTY OF MERCHANTABILITY OR OF FITNESS FOR A PARTICULAR PURPOSE. TO THE FULLEST EXTENT THE LAW ALLOWS, TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. AND THE PEOPLE WHO WORK FOR IT ARE NOT LIABLE, WHETHER IN CONTRACT, NEGLIGENCE OR OTHERWISE, FOR ANY LOSS OR DAMAGE, DIRECT OR INDIRECT, INCLUDING LOST PROFIT AND CONSEQUENTIAL DAMAGE, THAT ARISES FROM THE USE OF THIS WEBSITE, FROM THE INFORMATION, CALCULATORS AND LINKS ON IT, OR FROM NOT BEING ABLE TO USE IT.',
+        'Nothing here limits a liability that the law does not allow to be limited, and nothing here changes what a written engagement agreement signed with you provides for that engagement.',
+      ] },
+      /* Precision Source is a separate company (partner.* in this file; the
+         home page says "two licensed firms, one team"). Without this
+         clause a reader who trusts an apparent partner could look to either
+         firm for the other's work (Fla. Stat. 620.8308). Names no task and
+         no signer: the owner's rule. */
+      { h: 'Other companies', p: 'Precision Source Inc., the contractor we work with, is a separate company with its own licenses. Each firm contracts for, and answers for, its own work; neither is the agent, the employee or the partner of the other, and nothing on this website makes one answerable for the other.' },
       { h: 'Governing law', p: 'These terms, and any dispute about this website, are governed by the laws of the State of Florida, and the courts of Florida have jurisdiction over them.' },
       { h: 'General provisions', p: [
         'Use this website lawfully. Do not try to disrupt it, to reach parts of it that are not public or to copy it in bulk by automated means, and do not send through the form anything that is unlawful, misleading or harmful. The form is for real requests about real buildings.',
@@ -3451,7 +3485,7 @@ export const legal = {
     contact: 'Questions about these terms go to',
   },
   contactHeading: 'Contact',
-  updated: 'Last updated: October 16, 2026',
+  updated: 'Last updated: October 21, 2026',
   toc: 'On this page',
 } as const;
 
@@ -3578,7 +3612,7 @@ const pricing = {
   eyebrow: 'Fixed-fee pricing',
   titleLines: ['Know the cost', 'before you commit.'],
   accentWord: 'before you commit.',
-  lede: 'Every recertification and BSIP report is quoted as a fixed fee before any work starts. These are the ranges by building size; your proposal states the exact figure.',
+  lede: 'Every recertification and BSIP report is quoted as a fixed fee before any work starts. Most buildings fall in these ranges by size; your fixed figure is written in your proposal. Indicative, not an offer.',
   programs: [
     {
       id: 'price-miami-dade',

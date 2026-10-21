@@ -70,7 +70,7 @@ const en: CostPage = {
   tables: {
     label: 'The fee',
     title: 'The engineering fee, by building size.',
-    lede: 'One fixed figure, written in the proposal before any work starts: no hourly billing, and no charge for the proposal itself. These are the ranges that figure falls in.',
+    lede: 'One fixed figure, written in the proposal before any work starts: no hourly billing, and no charge for the proposal itself. Most buildings fall in these ranges; your fixed figure is written in the proposal. Indicative, not an offer.',
     cta: 'Ask for your fixed figure',
   },
   factors: {
@@ -141,7 +141,7 @@ const es: CostPage = {
   tables: {
     label: 'Los honorarios',
     title: 'Los honorarios de ingeniería, según el tamaño del edificio.',
-    lede: 'Una sola cifra fija, escrita en la propuesta antes de empezar: sin cobro por hora y sin costo por la propuesta. Estos son los rangos en los que cae esa cifra.',
+    lede: 'Una sola cifra fija, escrita en la propuesta antes de empezar: sin cobro por hora y sin costo por la propuesta. La mayoría de los edificios cae en estos rangos; su cifra fija consta en la propuesta. Orientativo, no es una oferta.',
     cta: 'Pida su cifra fija',
   },
   factors: {

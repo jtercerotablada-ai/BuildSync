@@ -1558,6 +1558,7 @@ export const es: SiteContent = {
       sendAnother: 'Enviar otra solicitud',
       successTitle: 'Solicitud recibida.',
       successBody: 'Su solicitud está en la bandeja del ingeniero. Normalmente respondemos en menos de dos horas.',
+      successNote: 'Enviar esto no nos contrata ni cambia su plazo. Nada comienza hasta que usted acepte una propuesta escrita.',
       successConfirmed: 'Se envió una confirmación a su correo electrónico.',
       successRef: 'Referencia',
       whatNext: 'Qué sigue',
@@ -2043,7 +2044,7 @@ export const es: SiteContent = {
     eyebrow: 'Precio fijo',
     titleLines: ['Conozca el costo', 'antes de comprometerse.'],
     accentWord: 'antes de comprometerse.',
-    lede: 'Cada reporte de recertificación y de BSIP se cotiza a precio fijo antes de empezar. Estos son los rangos según el tamaño del edificio; su propuesta indica la cifra exacta.',
+    lede: 'Cada reporte de recertificación y de BSIP se cotiza a precio fijo antes de empezar. La mayoría de los edificios cae en estos rangos según su tamaño; su cifra fija consta en su propuesta. Orientativo, no es una oferta.',
     programs: [
       {
         id: 'price-miami-dade',
@@ -2099,6 +2100,10 @@ export const es: SiteContent = {
     },
   },
   legal: {
+    calcNotice: {
+      text: 'Una ayuda de trabajo, no un diseño, opinión de ingeniería ni documento sellado. Sin garantía: compruebe cada resultado por su cuenta.',
+      link: 'Términos de uso',
+    },
     links: [
       { href: '/privacy', label: 'Política de privacidad' },
       { href: '/terms', label: 'Términos de uso' },
@@ -2168,10 +2173,17 @@ export const es: SiteContent = {
         { h: 'Enlaces a otros sitios', p: 'Este sitio enlaza a oficinas de los condados, a la búsqueda de licencias del DBPR de Florida, a leyes y códigos, y a WhatsApp. Esas páginas pertenecen a quien las publica y están fuera de nuestro control: pueden cambiar o trasladarse a otra dirección, y de lo que dicen y de cómo tratan su información responde quien las publica. Las oficinas de construcción de las ciudades se nombran, pero no se enlazan; debajo de cada lista indicamos la fecha en que se revisaron sus nombres por última vez.' },
         { h: 'Fotografías y ejemplos', p: 'Las fotografías y los videos de este sitio son imágenes con licencia que muestran tipos de edificios y de trabajos. Ninguna muestra un proyecto de la firma, y ninguna se eligió porque un edificio que aparece en ella haya recibido una notificación. Los perfiles de Trabajos típicos describen el trabajo que la firma realiza; no son proyectos pasados.' },
         { h: 'Calculadoras', p: 'Las calculadoras de Recursos son herramientas de trabajo para ingenieros y estudiantes. Cada una indica en su propia página el método que usa, lo que supone y lo que deja fuera, y un resultado vale lo que valgan el modelo y los valores introducidos. Compruébelo por medios independientes: una decisión se apoya en esa comprobación, no en la calculadora. Un resultado no es un diseño, ni una opinión de ingeniería, ni un documento sellado, y usar una calculadora no nos convierte en el ingeniero de su proyecto. Se ofrecen tal como son, sin garantía, y la firma no asume ninguna responsabilidad por los resultados que se obtengan con ellas ni por el uso que se haga de esos resultados.' },
-        { h: 'Propiedad intelectual', p: 'Los textos, el nombre y el logotipo de la firma que aparecen en este sitio pertenecen a Tercero Tablada Civil and Structural Engineering Inc. y no pueden reproducirse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
+        { h: 'Propiedad intelectual', p: 'Los textos, las tablas, el diseño y el código de este sitio, incluidas las calculadoras, y el nombre y el logotipo de la firma pertenecen a Tercero Tablada Civil and Structural Engineering Inc. No pueden copiarse, revenderse ni republicarse sin autorización. Las fotografías, los videos y las marcas de software de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
+        { h: 'Archivos que usted envía', p: 'Si adjunta un archivo, usted confirma que puede compartirlo con nosotros. Lo usamos solo para responder a su solicitud y lo conservamos como indica la Política de privacidad. Una solicitud enviada antes de un encargo no es una comunicación confidencial en el sentido legal, así que deje fuera lo que no quiera que leamos: la carta y la dirección bastan para empezar.' },
         { h: 'Rangos de precios', p: 'Los rangos de honorarios que se publican en este sitio web son orientativos y se dan según el tamaño del edificio para que usted pueda planificar. No son una oferta. Un precio fijo obliga solo cuando consta en una propuesta escrita que usted haya aceptado, para el alcance que esa propuesta describe. Un edificio puede quedar fuera de un rango por su tamaño, por el número de estructuras, por su servicio eléctrico o por los documentos disponibles. Las reparaciones, los permisos que requieran y las tasas que cobre un condado o una ciudad no forman parte de un rango, salvo que la propuesta lo indique.' },
         { h: 'Nombres y marcas de gobiernos', p: 'Los nombres, sellos y logotipos de condados, ciudades y otras oficinas de gobierno que aparecen en este sitio web pertenecen a esos gobiernos. Se muestran solo para identificar la oficina que envía una notificación, y cada uno tiene su crédito en la página de Créditos de imágenes. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente. No está afiliada a ninguna oficina de gobierno, no cuenta con su aval ni actúa en su nombre, y nada de este sitio web es una publicación oficial de una de ellas. Si un gobierno pide que se cambie o se retire su marca, lo haremos.' },
-        { h: 'Limitación de responsabilidad', p: 'En la máxima medida que permita la ley, Tercero Tablada Civil and Structural Engineering Inc. y las personas que trabajan en ella no responden por ninguna pérdida o daño, directo o indirecto, que surja del uso de este sitio web, de la información, las calculadoras y los enlaces que contiene, o de no poder usarlo. Nada de lo aquí dicho limita una responsabilidad que la ley no permita limitar, y nada de lo aquí dicho cambia lo que disponga, para ese encargo, un contrato de servicios por escrito firmado con usted.' },
+        /* En mayúsculas a propósito, como en inglés: una limitación que pasa
+           inadvertida es la que un tribunal deja sin efecto. */
+        { h: 'Limitación de responsabilidad', p: [
+          'ESTE SITIO WEB, SU CONTENIDO Y SUS CALCULADORAS SE OFRECEN “TAL COMO ESTÁN” Y “SEGÚN DISPONIBILIDAD”, SIN GARANTÍA DE NINGÚN TIPO, EXPRESA NI IMPLÍCITA, INCLUIDA CUALQUIER GARANTÍA DE COMERCIABILIDAD O DE IDONEIDAD PARA UN FIN PARTICULAR. EN LA MÁXIMA MEDIDA QUE PERMITA LA LEY, TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. Y LAS PERSONAS QUE TRABAJAN EN ELLA NO RESPONDEN, YA SEA POR CONTRATO, POR NEGLIGENCIA O DE OTRO MODO, POR NINGUNA PÉRDIDA O DAÑO, DIRECTO O INDIRECTO, INCLUIDO EL LUCRO CESANTE Y LOS DAÑOS CONSECUENTES, QUE SURJA DEL USO DE ESTE SITIO WEB, DE LA INFORMACIÓN, LAS CALCULADORAS Y LOS ENLACES QUE CONTIENE, O DE NO PODER USARLO.',
+          'Nada de lo aquí dicho limita una responsabilidad que la ley no permita limitar, y nada de lo aquí dicho cambia lo que disponga, para ese encargo, un contrato de servicios por escrito firmado con usted.',
+        ] },
+        { h: 'Otras empresas', p: 'Precision Source Inc., el contratista con el que trabajamos, es una empresa independiente, con sus propias licencias. Cada firma contrata y responde por su propio trabajo; ninguna es agente, empleada ni socia de la otra, y nada en este sitio hace que una responda por la otra.' },
         { h: 'Ley aplicable', p: 'Estos términos, y cualquier controversia sobre este sitio web, se rigen por las leyes del Estado de Florida, y los tribunales de Florida tienen jurisdicción sobre ellos.' },
         { h: 'Disposiciones generales', p: [
           'Use este sitio web de forma lícita. No intente interrumpirlo, acceder a partes que no son públicas ni copiarlo de forma masiva con medios automatizados, y no envíe por el formulario nada que sea ilícito, engañoso o dañino. El formulario es para solicitudes reales sobre edificios reales.',
@@ -2182,7 +2194,7 @@ export const es: SiteContent = {
       contact: 'Las preguntas sobre estos términos se dirigen a',
     },
     contactHeading: 'Contacto',
-    updated: 'Última actualización: 16 de octubre de 2026',
+    updated: 'Última actualización: 21 de octubre de 2026',
     toc: 'En esta página',
   },
 };

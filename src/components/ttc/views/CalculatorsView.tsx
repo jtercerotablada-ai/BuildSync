@@ -14,6 +14,7 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { imagery } from '@/lib/ttc/site';
 import { CalcFolds } from '@/components/ttc/mp/CalcFolds';
 import { PageHero } from '@/components/ttc/mp/PageHero';
+import { TextLink } from '@/components/ttc/mp/primitives';
 
 /**
  * The calculators catalogue: /resources and /es/resources.
@@ -99,6 +100,11 @@ export function CalculatorsView({ lang }: { lang: Lang }) {
 
       <section className="mp-section mp-surface--paper mp-calcledger">
         <div className="mp-shell">
+          {/* One line, at body size, over the whole list: what a result is not. */}
+          <p className="mp-calcnote">
+            {c.legal.calcNotice.text}{' '}
+            <TextLink href={l('/terms')}>{c.legal.calcNotice.link}</TextLink>
+          </p>
           <div className="mp-calc__families">
             {calculatorFamilies.map((family) => (
               <div key={family.id} id={family.id} className="mp-calc">

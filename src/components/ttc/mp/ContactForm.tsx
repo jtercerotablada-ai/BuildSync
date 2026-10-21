@@ -481,7 +481,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
     setConfirmed(didConfirm);
     // The focused heading reads the title; the region adds the rest.
     setAnnouncement(
-      [t.successBody, didConfirm ? t.successConfirmed : '', reference ? `${t.successRef}: ${reference}` : '']
+      [t.successBody, didConfirm ? t.successConfirmed : '', reference ? `${t.successRef}: ${reference}` : '', t.successNote]
         .filter(Boolean)
         .join(' '),
     );
@@ -608,6 +608,10 @@ export function ContactForm({ presetService }: { presetService?: string }) {
                 </span>
               </>
             ) : null}
+          </p>
+          {/* Body size, not small print: what sending does NOT do. */}
+          <p className="mp-body mp-form__successnote" style={{ maxWidth: '52ch' }}>
+            {t.successNote}
           </p>
           <div className="mp-form__next">
             <h4>{t.whatNext}</h4>

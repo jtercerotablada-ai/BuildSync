@@ -594,7 +594,7 @@ describe('single-span beam: one page for every calculator, with this one’s wor
       expect(ours.length).toBeGreaterThan(30);
       const s = spanPage[lang];
       const address = `ttcivilstructural.com${localePath(SPAN_PATH, lang)}`;
-      const legal = new Set([s.disclaimer.title, s.disclaimer.body, s.sheet.kind, s.sheet.credit.replace('{firm}', c.company.legalName).replace('{address}', address)]);
+      const legal = new Set([s.disclaimer.title, s.disclaimer.body, s.sheet.kind, c.legal.calcNotice.text, s.sheet.credit.replace('{firm}', c.company.legalName).replace('{address}', address)]);
       // Each of them is on the page, so the exemption exempts something.
       for (const words of legal) expect(ours, words.slice(0, 40)).toContain(words);
       expect(sharedRuns(ours.filter((p) => !legal.has(p)), first)).toEqual([]);

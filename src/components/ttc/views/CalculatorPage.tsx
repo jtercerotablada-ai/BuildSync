@@ -108,6 +108,11 @@ export function CalculatorPage({
               <p className="mp-sheet__site">{address}</p>
             </div>
           </div>
+          {/* One line over the tool, at body size: what a result is not. */}
+          <p className="mp-calcnote">
+            {c.legal.calcNotice.text}{' '}
+            <TextLink href={localePath('/terms', lang)}>{c.legal.calcNotice.link}</TextLink>
+          </p>
           <h2 id={toolId} className="mp-sr-only">
             {s.toolHeading}
           </h2>

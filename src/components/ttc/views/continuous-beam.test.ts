@@ -1588,7 +1588,7 @@ describe('continuous beam: one page for every calculator, with this one’s word
       expect(ours.length).toBeGreaterThan(40);
       const s = continuousPage[lang];
       const address = `ttcivilstructural.com${localePath(CONTINUOUS_PATH, lang)}`;
-      const legal = new Set([s.disclaimer.title, s.disclaimer.body, s.sheet.kind, s.sheet.credit.replace('{firm}', site.company.legalName).replace('{address}', address)]);
+      const legal = new Set([s.disclaimer.title, s.disclaimer.body, s.sheet.kind, site.legal.calcNotice.text, s.sheet.credit.replace('{firm}', site.company.legalName).replace('{address}', address)]);
       // Each of them is on the page, so the exemption exempts something.
       for (const words of legal) expect(ours, words.slice(0, 40)).toContain(words);
       for (const [path, page] of [[BEAM_PATH, beamStrings[lang].page], [SPAN_PATH, spanPage[lang]]] as const) {

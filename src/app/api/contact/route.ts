@@ -123,6 +123,8 @@ const COPY = {
     body: (service: string, ref: string) =>
       `Thank you. Your proposal request (${escapeHtml(service)}) has been received and will be read by Juan Tercero, PE., M.Sc. You will hear back by email, usually within two hours, with questions or with a written proposal. The proposal is free. Reference: ${ref}.`,
     files: (n: number) => `${n} file${n === 1 ? "" : "s"} attached.`,
+    // What sending does not do (the same sentence as the form's success panel).
+    note: "Sending this does not engage us or change your deadline. Nothing starts until you accept a written proposal.",
     footer: "This is an automatic confirmation. Replying to it reaches the office.",
   },
   es: {
@@ -131,6 +133,7 @@ const COPY = {
     body: (service: string, ref: string) =>
       `Gracias. Su solicitud de propuesta (${escapeHtml(service)}) fue recibida y será leída por Juan Tercero, PE., M.Sc. Recibirá respuesta por correo, normalmente en menos de dos horas, con preguntas o con una propuesta escrita. La propuesta es gratis. Referencia: ${ref}.`,
     files: (n: number) => `${n} archivo${n === 1 ? "" : "s"} adjunto${n === 1 ? "" : "s"}.`,
+    note: "Enviar esto no nos contrata ni cambia su plazo. Nada comienza hasta que usted acepte una propuesta escrita.",
     footer: "Esta es una confirmación automática. Si responde a este correo, su mensaje llegará a la oficina.",
   },
 } as const;
@@ -279,6 +282,7 @@ export async function POST(request: Request) {
           <h1 style="margin:0 0 12px;font-size:20px">${t.title}</h1>
           <p style="margin:0 0 12px">${t.body(service, ref)}</p>
           ${files.length ? `<p style="margin:0 0 12px;color:#62655f">${t.files(files.length)}</p>` : ""}
+          <p style="margin:0 0 12px">${t.note}</p>
           <p style="margin:20px 0 0;font-size:12px;color:#62655f">${t.footer}</p>
         `, lang),
       });
