@@ -297,10 +297,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           {cta}
         </ButtonLink>
       </div>
-      {/* Who answers: the name and the license number; how to verify them
-          is in the hero's copy of this block, and the same two lines twice
-          were a repeated paragraph. */}
-      {program ? <EngineerCredential lang={lang} brief /> : null}
+      {/* The firm's licenses are said once, under the hero; the same line
+          here again was a repeated paragraph. */}
     </div>
   );
   const whenList = (

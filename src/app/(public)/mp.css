@@ -357,18 +357,20 @@
     monospace;
   --mp-serif: var(--mp-font-serif), 'Iowan Old Style', Georgia, serif;
 
-  --mp-t-display: clamp(2.75rem, 6.4vw, 5.75rem);
-  --mp-t-h1: clamp(2.25rem, 4vw, 3.5rem);
-  --mp-t-h2: clamp(1.75rem, 2.9vw, 2.6rem);
-  --mp-t-h3: clamp(1.25rem, 1.8vw, 1.6rem);
+  /* 2026-10-23, the dark restyle (24): headlines a size up across the
+     board — large, confident, tightly tracked — over the same body sizes. */
+  --mp-t-display: clamp(2.75rem, 7.6vw, 7rem);
+  --mp-t-h1: clamp(2.4rem, 5.2vw, 4.75rem);
+  --mp-t-h2: clamp(2.25rem, 4.2vw, 4rem);
+  --mp-t-h3: clamp(1.35rem, 2.1vw, 1.9rem);
   --mp-t-h4: clamp(1.05rem, 1.3vw, 1.2rem);
   --mp-t-lead: clamp(1.1rem, 1.3vw, 1.3rem);
   --mp-t-body: clamp(1rem, 1.02vw, 1.0625rem);
   --mp-t-small: 0.9rem;
   --mp-t-label: 0.75rem;
 
-  --mp-track-tight: -0.03em;
-  --mp-track-label: 0.12em;
+  --mp-track-tight: -0.042em;
+  --mp-track-label: 0.14em;
 
   /* ── Space ───────────────────────────────────────────────────────────── */
   --mp-1: 0.25rem;
@@ -382,8 +384,8 @@
   --mp-24: 6rem;
   --mp-32: 8rem;
 
-  --mp-section-y: clamp(3rem, 5vw, 4.5rem);
-  --mp-section-y-lg: clamp(3.5rem, 6vw, 5.5rem);
+  --mp-section-y: clamp(4rem, 7vw, 6.25rem);
+  --mp-section-y-lg: clamp(4.75rem, 8.2vw, 7.5rem);
 
   /* ── Containers ──────────────────────────────────────────────────────── */
   /* One content width for everything, header included, so the monogram and
@@ -400,7 +402,7 @@
   --mp-ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
 
   /* ── Chrome ──────────────────────────────────────────────────────────── */
-  --mp-header-h: 76px;
+  --mp-header-h: 92px;
   --mp-radius: 0px;
   --mp-z-menu: 65;
   --mp-z-header: 70;
@@ -427,16 +429,16 @@ html:has(.mp) {
    #hash target, a focused link on Tab / Shift+Tab, PageDown — must stop below
    it, or the focused control lands under the bar (WCAG 2.4.11). The header
    height lives on .mp, which html cannot read, hence literal values: header +
-   12px, at every header height (76 → 68 at ≤1180 → 96 at ≥1500, below and in
+   12px, at every header height (92 → 76 at ≤1180 → 108 at ≥1500, below and in
    the large-display block at the end of the file). Lenis honours it too:
    handed an element, Lenis 1.3 subtracts the container's scroll-padding
    itself, so smooth-scroll.tsx passes NO extra header offset. */
 html:has(.mp) {
-  scroll-padding-top: 88px;
+  scroll-padding-top: 104px;
 }
 @media (max-width: 1180px) {
   html:has(.mp) {
-    scroll-padding-top: 80px;
+    scroll-padding-top: 88px;
   }
 }
 /* The same at the bottom while the phone bar is up (≤900px, the bar's own
@@ -761,10 +763,13 @@ html:has(.mp) {
    :focus-visible counterparts stay outside the query — a keyboard user on
    any device still gets them. */
 
+/* The solid face is the surface's ink and its label the surface's paper: a
+   snow button with a graphite label on the (dark) site, a graphite one on a
+   light island (the calculator's tool area, 24). */
 .mp-btn {
-  --btn-bg: var(--mp-graphite);
-  --btn-fg: var(--mp-snow);
-  --btn-line: var(--mp-graphite);
+  --btn-bg: var(--mp-ink);
+  --btn-fg: var(--mp-paper);
+  --btn-line: var(--mp-ink);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -1007,7 +1012,7 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open):has(:
    left by that much: the visible TT, not its transparent box, sits on the
    content edge. --hdr-mark-h is the one number the breakpoints change. */
 .mp-header__lockup {
-  --hdr-mark-h: clamp(36px, 4vw, 44px);
+  --hdr-mark-h: clamp(48px, 5vw, 64px);
   height: var(--hdr-mark-h);
   width: auto;
   /* The base img rule's max-width:100% would trim the mark by exactly the
@@ -1351,11 +1356,11 @@ a.mp-menu__mail {
 .mp-footer__brand-logo {
   margin-block-end: var(--mp-4);
 }
-/* 44px is the floor: the lockup's small line spells the full legal name and
-   is barely legible below it. */
+/* 56px is the floor (the owner, 2026-10-23: a bigger logo); the lockup's
+   small line spells the full legal name and needs the height. */
 .mp-footer__brand-logo img {
   width: auto;
-  height: clamp(44px, 3.4vw, 52px);
+  height: clamp(56px, 5vw, 76px);
   object-fit: contain;
 }
 .mp-footer__tag {
@@ -3791,7 +3796,7 @@ a.mp-menu__mail {
 
 @media (max-width: 1180px) {
   .mp {
-    --mp-header-h: 68px;
+    --mp-header-h: 76px;
   }
   .mp-header__nav {
     display: none;
@@ -4193,7 +4198,7 @@ a.mp-menu__mail {
     --mp-pad: 1rem;
   }
   .mp-header__lockup {
-    --hdr-mark-h: 32px;
+    --hdr-mark-h: 44px;
   }
   /* 'Última verificación: 4 de octubre de 2026' is within a few px of a
      320px screen's column: let it wrap there rather than risk a scrollbar. */
@@ -5856,17 +5861,17 @@ a.mp-menu__mail {
     top: calc(var(--mp-header-h) + 52px + var(--mp-6));
   }
   html:has(.mp .mp-jump) {
-    scroll-padding-top: 132px;
+    scroll-padding-top: 140px;
   }
 }
 @media (min-width: 1181px) {
   html:has(.mp .mp-jump) {
-    scroll-padding-top: 140px;
+    scroll-padding-top: 156px;
   }
 }
 @media (min-width: 1500px) {
   html:has(.mp .mp-jump) {
-    scroll-padding-top: 160px;
+    scroll-padding-top: 172px;
   }
 }
 
@@ -7388,26 +7393,26 @@ a.mp-menu__mail {
     --mp-w: 1640px;
     --mp-pad: clamp(3.5rem, 4.4vw, 6rem);
 
-    --mp-t-display: clamp(5.75rem, 5.4vw, 7.5rem);
-    --mp-t-h1: clamp(3.5rem, 3.3vw, 4.5rem);
-    --mp-t-h2: clamp(2.6rem, 2.4vw, 3.4rem);
-    --mp-t-h3: clamp(1.6rem, 1.5vw, 2.1rem);
+    --mp-t-display: clamp(7rem, 6.2vw, 9rem);
+    --mp-t-h1: clamp(4.75rem, 4.2vw, 5.75rem);
+    --mp-t-h2: clamp(4rem, 3.4vw, 4.75rem);
+    --mp-t-h3: clamp(1.9rem, 1.7vw, 2.4rem);
     --mp-t-h4: clamp(1.2rem, 1.02vw, 1.45rem);
     --mp-t-lead: clamp(1.3rem, 1.05vw, 1.5rem);
     --mp-t-body: clamp(1.0625rem, 0.86vw, 1.1875rem);
     --mp-t-small: clamp(0.9rem, 0.72vw, 1rem);
     --mp-t-label: clamp(0.75rem, 0.56vw, 0.85rem);
 
-    --mp-section-y: clamp(4.5rem, 4vw, 6rem);
-    --mp-section-y-lg: clamp(5.5rem, 5vw, 7.5rem);
-    --mp-header-h: 96px;
+    --mp-section-y: clamp(6.25rem, 5.4vw, 8.25rem);
+    --mp-section-y-lg: clamp(7.5rem, 6.6vw, 10rem);
+    --mp-header-h: 108px;
   }
-  /* header 96px + 12 (see scroll-padding in 00) */
+  /* header 108px + 12 (see scroll-padding in 00) */
   html:has(.mp) {
-    scroll-padding-top: 108px;
+    scroll-padding-top: 120px;
   }
   .mp-header__lockup {
-    --hdr-mark-h: clamp(46px, 3.2vw, 54px);
+    --hdr-mark-h: clamp(68px, 4.4vw, 80px);
   }
   .mp-close__title {
     font-size: clamp(3.1rem, 3vw, 4.2rem);
@@ -7454,10 +7459,10 @@ a.mp-menu__mail {
   .mp {
     --mp-w: 1880px;
     --mp-pad: 6.5rem;
-    --mp-t-display: 8.25rem;
-    --mp-t-h1: 5rem;
-    --mp-section-y: 7rem;
-    --mp-section-y-lg: 9rem;
+    --mp-t-display: 10rem;
+    --mp-t-h1: 6.25rem;
+    --mp-section-y: 9rem;
+    --mp-section-y-lg: 11.5rem;
   }
   .mp-close__title {
     font-size: 4.5rem;
@@ -8661,5 +8666,141 @@ a.mp-menu__mail {
   .mp-guides__split > :first-child {
     position: sticky;
     top: calc(var(--mp-header-h) + var(--mp-6));
+  }
+}
+
+/* ═══ 24 · DARK SITE (2026-10-23) ═════════════════════════════════════════
+   The owner's brief: the whole public site black, white type, gold only as
+   an accent — "negro, dorado y blanco". The palette in 00 is the light one
+   and stays there as the reference (the calculator's tool area and the
+   printed page still use it, below). Here the site-wide tokens are remapped
+   once, on .mp, so every component that reads --mp-ink*, --mp-line*,
+   --mp-paper, --mp-concrete or --mp-card is dark without knowing it:
+     paper     #0b0c0d  (graphite — the page)
+     concrete  #131517  (a lifted black, so alternating sections still read)
+     card      #16181a  (cards, tables, the register) with a snow hairline
+     ink ramp  #f6f4ef 17.8:1 · #c8c9c4 11.8 · #a3a5a0 7.9 · #8b8d88 5.8
+               (on paper; on the card 16.2 / 10.7 / 7.2 / 5.3 — all AA)
+     gold text --mp-gold #c99a38, 7.6:1 on paper, 6.9 on the card
+     error     #e07a66 mark / #ec8d7b text (6.7 / 8.1:1; the old #a63a2a
+               was ~2.6:1 on black)
+   Last in the file, so it wins over 00 at equal specificity; no media query
+   re-declares a colour token. The type, space and header-size changes of the
+   same restyle were made in place (00, 03, 04, 19, 22).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.mp {
+  --mp-paper: #0b0c0d;
+  --mp-concrete: #131517;
+  --mp-card: #16181a;
+  --mp-ink: #f6f4ef;
+  --mp-ink-2: #c8c9c4;
+  --mp-ink-3: #a3a5a0;
+  --mp-ink-faint: #8b8d88;
+  --mp-gold-ink: var(--mp-gold);
+  --mp-line: rgba(246, 244, 239, 0.16);
+  --mp-line-soft: rgba(246, 244, 239, 0.08);
+  --mp-line-strong: rgba(246, 244, 239, 0.32);
+  /* 4.5:1 on paper and on the card: a field's only edge (WCAG 1.4.11). */
+  --mp-line-input: rgba(246, 244, 239, 0.5);
+  --mp-error: #e07a66;
+  --mp-error-ink: #ec8d7b;
+  color-scheme: dark;
+}
+html:has(.mp) {
+  background: #0b0c0d;
+}
+
+/* Section furniture is quieter on black: the label a step dimmer than the
+   copy (5.8:1), the index keeps its gold. */
+.mp-eyebrow,
+.mp-sechead {
+  color: var(--mp-ink-faint);
+}
+
+/* ── Header: always the black bar and the white mark ─────────────────────
+   The solid state (scrolled, or a page without a dark hero) was paper with
+   the dark monogram; it is graphite with the white one, a snow CTA, and a
+   hairline under it. The overlay and floating states (04) are unchanged —
+   they were already dark. */
+.mp-header {
+  --hdr-bg: var(--mp-graphite);
+  --hdr-fg: var(--mp-snow);
+  --hdr-line: rgba(246, 244, 239, 0.12);
+  --hdr-border: rgba(246, 244, 239, 0.34);
+  --hdr-btn-bg: var(--mp-snow);
+  --hdr-btn-fg: var(--mp-graphite);
+  --hdr-btn-line: var(--mp-snow);
+  --hdr-mark-dark: none;
+  --hdr-mark-light: block;
+  --mp-gold-ink: var(--mp-gold);
+}
+
+/* ── Phone action bar: its main item is a snow face; the label was --mp-ink,
+   which is snow now. */
+.mp .mp-bar__item--main {
+  color: var(--mp-graphite);
+}
+
+/* ── Hover washes drawn in ink at 3% vanish on black. */
+@media (hover: hover) and (pointer: fine) {
+  .mp-more a:hover {
+    background: rgba(246, 244, 239, 0.04);
+  }
+}
+
+/* ── Company and county logos are dark ink on transparent: each sits on a
+   small light tile so it stays legible. */
+.mp-partner__logo {
+  box-sizing: content-box;
+  width: fit-content;
+  padding: clamp(0.6rem, 1.2vw, 0.9rem);
+  background: var(--mp-snow);
+}
+.mp-cost__seals li {
+  grid-template-rows: 4.25rem auto;
+}
+.mp-cost__seals li::before {
+  content: '';
+  grid-row: 1;
+  grid-column: 1;
+  background: var(--mp-snow);
+}
+.mp-cost__seals img {
+  position: relative;
+  mix-blend-mode: normal;
+}
+
+/* ── The calculator's tool area stays a light "paper island": its rule is in
+   src/components/ttc/calc/calc.css (24 · the light island), with the rest of
+   the calculator's styles. */
+
+/* ── Print: black on white, as before. The light tokens come back for the
+   whole page, so everything that reads them prints dark ink; section 21's
+   !important rules handle the rest. */
+@media print {
+  .mp {
+    --mp-paper: #f6f4ef;
+    --mp-concrete: #e8e4dc;
+    --mp-card: #ffffff;
+    --mp-ink: #0b0c0d;
+    --mp-ink-2: #3a3c3b;
+    --mp-ink-3: #52554f;
+    --mp-ink-faint: #62655f;
+    --mp-gold-ink: #7a5d1c;
+    --mp-line: rgba(11, 12, 13, 0.14);
+    --mp-line-soft: rgba(11, 12, 13, 0.07);
+    --mp-line-strong: rgba(11, 12, 13, 0.28);
+    --mp-line-input: rgba(11, 12, 13, 0.5);
+    --mp-error: #a63a2a;
+    --mp-error-ink: #8c2f21;
+    color-scheme: light;
+  }
+  html:has(.mp) {
+    background: #fff;
+  }
+  .mp-surface--paper,
+  .mp-surface--concrete {
+    background: #fff !important;
   }
 }

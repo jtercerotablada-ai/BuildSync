@@ -61,9 +61,8 @@ export function siteGraph(lang: Lang, image: { url: string; width: number; heigh
   // `contact.phone.href` is the E.164 number behind a `tel:` scheme, which is
   // exactly what `telephone` wants. One source for the number.
   const telephone = contact.phone?.href.replace(/^tel:/, '');
-  // "FL Engineering Business No. 40285" → "40285". The printed line stays
-  // the single source; the markup only lifts the number out of it.
-  const registryNumber = company.registry?.match(/\d+/)?.[0];
+  // The number is in the markup only; the pages print the license by name.
+  const registryNumber = company.registryNumber;
   const sameAs = Object.values(contact.social).filter((u): u is string => Boolean(u));
 
   return {

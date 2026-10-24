@@ -3,7 +3,7 @@ import { getContent, navLabelOf } from '@/lib/ttc/content';
 import { company, imagery } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
-import { EngineerSection } from '@/components/ttc/mp/EngineerSection';
+import { TeamSection } from '@/components/ttc/mp/TeamSection';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
@@ -11,16 +11,17 @@ import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
- * About: the one page that holds the engineer and the two firms, in order
+ * About: the one page that holds the team and the two firms, in order
  * (the owner, 2026-10-20: "not mixed in, everything ordered and as
- * professional as possible").
+ * professional as possible"; 2026-10-23: a firm with its people, not one
+ * engineer).
  *
- *   01 the engineer (paper, anchored #engineer) — portrait, name, biography,
- *      his own words, credentials, what that means for the client;
+ *   01 the team (paper, anchored #team; Juan's card keeps #engineer) —
+ *      one card per person, then what that means for the client;
  *   02 how the work is held (concrete) — the approach beside its title, then
  *      the five principles as one strip under their label;
  *   03 the two firms (paper, anchored #contractor) — what each company is
- *      and the four registrations, each license a link to the state's search;
+ *      and the four licenses, by name;
  *   then the closing band (graphite), the page's one action.
  *
  * The surfaces alternate, so no same-surface seam rule fires. The five-step
@@ -68,7 +69,7 @@ export function AboutView({ lang }: { lang: Lang }) {
         photo={imagery.pages.about}
       />
 
-      <EngineerSection n="01" />
+      <TeamSection n="01" lang={lang} />
 
       <section className="mp-section mp-surface--concrete mp-about-how" aria-labelledby="mp-about-how-title">
         <div className="mp-shell">
@@ -101,13 +102,12 @@ export function AboutView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      {/* The short form: what each firm is, and the four registrations as
-          one list, each license still a link to the state's search. The
-          block with the two cards is the home page's. Paper, so it does not
+      {/* The short form: what each firm is, and the four licenses, by name, as
+          one list. The block with the two cards is the home page's. Paper, so it does not
           sit concrete on concrete after section 02. */}
       <PartnerSection n="03" lang={lang} variant="about" surface="paper" />
 
-      {/* The default secondary ("Meet the engineer" → /about#engineer) would
+      {/* The default secondary ("Meet Our Team" → /about#team) would
           point back up this same page. */}
       <ContactCTA secondary={{ href: '/services', label: c.ui.seeAllServices }} notice={false} />
     </>

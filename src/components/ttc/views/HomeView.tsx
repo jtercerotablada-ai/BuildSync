@@ -5,15 +5,17 @@ import { ProgramsSection } from '@/components/ttc/mp/ProgramSection';
 import { PricingSection, JurisdictionsSection } from '@/components/ttc/mp/CostSection';
 import { NewBuildings } from '@/components/ttc/mp/NewBuildings';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
+import { Ribbon } from '@/components/ttc/mp/Ribbon';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { HomeAddress } from './meta';
 
 /**
- * Home: six sections, each with one job, each as short as its job allows.
+ * Home: seven sections, each with one job, each as short as its job allows.
  * Existing buildings come first — the reader with a deadline is the one
  * holding a county notice.
  *
  *   Hero                 what · where · one action · four links into the page
+ *   Ribbon               two moving rows: the buildings, the services
  *   ProgramsSection      the two county programs side by side, each opening
  *                        with what waiting costs (#miami-dade | #broward)
  *   PricingSection       fixed-fee ranges, both counties in one table
@@ -47,6 +49,7 @@ export function HomeView({ lang }: { lang: Lang }) {
     <>
       <HomeAddress lang={lang} />
       <Hero />
+      <Ribbon lang={lang} />
       <ProgramsSection n="01" />
       <PricingSection n="02" surface="concrete" />
       <JurisdictionsSection n="03" />

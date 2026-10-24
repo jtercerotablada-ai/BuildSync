@@ -180,7 +180,11 @@ export const company = {
    * would type into myfloridalicense.com to verify it. `null` removes the line
    * from the footer entirely.
    */
-  registry: 'FL Engineering Business No. 40285' as string | null,
+  registry: 'Florida Engineering Business' as string | null,
+  /* The business registry number, for the Organization schema only — never
+     printed on a page (the owner, 2026-10-23: real firms do not print
+     license numbers). */
+  registryNumber: '40285' as string | null,
 } as const;
 
 /**
@@ -304,7 +308,7 @@ export const footerNav: { title: string; items: NavItem[] }[] = [
       { href: '/guides', label: 'Guides' },
       { href: '/resources', label: 'Resources' },
       { href: '/about', label: 'About' },
-      { href: '/about#engineer', label: 'Meet the Engineer' },
+      { href: '/about#team', label: 'Our Team' },
       { href: '/contact', label: 'Request a Proposal' },
     ],
   },
@@ -403,7 +407,7 @@ export const ui = {
     imageCredits: 'Image Credits',
   },
   engineer: {
-    eyebrow: 'Meet the engineer',
+    eyebrow: 'Our team',
     role: 'Principal Engineer',
     credential: 'Florida Professional Engineer',
     license: 'Florida P.E. license',
@@ -416,7 +420,7 @@ export const ui = {
      * "Engineer", never "signed by": which report the firm signs is said by
      * the scope note on the same page, and nowhere else.
      */
-    label: 'Engineer',
+    label: 'Florida licenses',
     licensePrefix: 'Florida',
     education: 'Education',
     focus: 'Practice focus',
@@ -468,7 +472,7 @@ export const ui = {
     sending: 'Sending',
     sendAnother: 'Send another request',
     successTitle: 'Request received.',
-    successBody: 'Your request is in the engineer’s inbox. We usually reply within two hours.',
+    successBody: 'Your request is in. Our team will reply shortly.',
     /* Said where the reader acts, not only in the Terms: sending the form
        neither hires the firm nor moves a county deadline (the owner,
        2026-10-21, from the legal audit). The confirmation email says it too
@@ -588,7 +592,7 @@ export const hero = {
      already selected; the form takes the photo. "Request a Proposal" is
      still one tap away in the header, and Services stays in the menu and in
      the strip below. */
-  sub: 'On time or late: Miami-Dade recertification (still called the 40-year) or Broward’s Building Safety Inspection Program (BSIP). Free proposal; a structural engineer usually replies within two hours.',
+  sub: 'On time or late: Miami-Dade recertification (still called the 40-year) or Broward’s Building Safety Inspection Program (BSIP). Send us the notice; our team prepares your free, fixed-fee proposal.',
   primary: { href: '/contact?service=building-recertification', label: 'Send My Miami-Dade Notice' },
   secondary: { href: '/contact?service=broward-bsip', label: 'Send My Broward Notice' },
   /**
@@ -602,6 +606,20 @@ export const hero = {
     { label: 'Broward · BSIP', href: '#broward' },
     { label: 'Assessments & repair design', href: '/services/structural-condition-assessments' },
     { label: 'New-building design', href: '#new-buildings' },
+  ],
+} as const;
+
+/* The moving ribbon under the home hero (the owner, 2026-10-23, after
+   emxse.com: "esa cinta movible me gusta, con diferentes tamaños"). Two rows
+   that run in opposite directions: the buildings we work on, smaller and
+   grey, and what we do for them, larger and white. Words only, no claims:
+   every service named here has its own page under /services. */
+export const ribbon = {
+  label: 'What we do',
+  more: { href: '/services', label: 'All services' },
+  rows: [
+    ['Condominiums', 'Co-ops', 'Mid-Rise', 'Commercial', 'Houses', 'Townhouses'],
+    ['Recertification', 'BSIP', 'Condition Assessments', 'Repair Design', 'Concrete Design', 'Steel · Wood · Masonry', 'ADUs & Additions', 'BIM', 'Peer Review'],
   ],
 } as const;
 
@@ -2534,6 +2552,179 @@ export const services: Service[] = [
       keywords: ['structural peer review', 'independent structural review Florida', 'third party structural review Miami', 'structural due diligence'],
     },
   },
+  /* The two services added on 2026-10-23, after the owner compared the site
+     with emxse.com ("mi empresa es una firma de estructuras"). ENGINEERING
+     ONLY — the owner, the same day: "no construimos". Each page says that a
+     contractor of the client's choosing builds from the sealed drawings; no
+     line may suggest the firm builds, supplies or installs anything. */
+  {
+    slug: 'steel-wood-masonry-design',
+    n: '09',
+    title: 'Steel, Wood & Masonry Design',
+    shortTitle: 'Steel, Wood & Masonry',
+    track: 'new',
+    summary:
+      'Structures in structural steel, wood framing and reinforced concrete block — designed for South Florida’s hurricane winds and issued as sealed drawings for permit.',
+    card: {
+      when: 'A building, an addition or a single element is framed in steel, wood or concrete block rather than cast-in-place concrete.',
+      receive: 'Structural drawings and calculations for the permit, with the connections and details a contractor builds from.',
+      next: 'Send the architectural drawings or a sketch, the address, and what the structure is made of.',
+    },
+    heroSub:
+      'Steel frames, wood framing and reinforced block walls, engineered as one load path from the roof to the foundation and drawn so your contractor can build them.',
+    headings: {
+      faq: 'Questions about steel, wood and masonry design',
+      considerations: 'What this design covers, and what it does not.',
+    },
+    problemTitle: 'Not every structure is cast-in-place concrete.',
+    problem:
+      'Much of what is built in South Florida stands on concrete block walls with tie beams, carries a wood roof, or hangs from a steel frame. Each material has its own rules for wind, connections and fire, and the place where two of them meet is where most field questions start.',
+    audience: [
+      'Owners building a house, a warehouse or a small commercial building',
+      'Architects and designers who need the structure behind their drawings',
+      'Contractors who need sealed details for a canopy, a mezzanine or a stair',
+    ],
+    when: [
+      'The walls are reinforced concrete block and the roof is wood trusses or steel joists.',
+      'A steel frame, canopy, mezzanine, platform or stair needs its members and connections designed.',
+      'A wood-framed house, roof or floor has to resist High-Velocity Hurricane Zone wind loads.',
+    ],
+    capabilities: ['Structural steel', 'Wood framing', 'Reinforced masonry', 'Connections', 'Wind uplift'],
+    scope: [
+      'Structural steel frames, beams, columns, canopies, mezzanines and stairs',
+      'Wood roofs, floors and walls, with their hold-downs and uplift connections',
+      'Reinforced concrete block walls, tie beams, tie columns and lintels',
+      'Wind, gravity and uplift load paths from the roof down to the foundation',
+      'Connections between materials: steel to block, wood to block, steel to concrete',
+      'Foundations sized for the structure and the soil report',
+    ],
+    process: [
+      { step: 'Read the project', detail: 'Architectural drawings, the site and the materials chosen — or a recommendation when the material is still open.' },
+      { step: 'Design', detail: 'Loads under the Florida Building Code, members sized, and every connection checked.' },
+      { step: 'Draw', detail: 'Plans, sections, connection details and general notes, sealed for the permit.' },
+      { step: 'Support', detail: 'Answers to the plan reviewer’s comments and to the contractor’s questions during construction.' },
+    ],
+    deliverables: [
+      'Sealed structural drawings for the permit',
+      'Structural calculations',
+      'Connection and typical details',
+    ],
+    nextStep:
+      'Send the architectural drawings, or a sketch if there are none yet, with the address. You receive a fixed-fee proposal for the structural design.',
+    considerations: [
+      'We design and seal the structure; a licensed contractor of your choosing builds it.',
+      'Trusses, joists and other pre-engineered parts are designed by their manufacturer; we set the loads they carry and check how they connect.',
+      'The fee depends on the size of the structure and on how many materials meet in it.',
+    ],
+    faq: [
+      {
+        q: 'Do you build the structure or supply the materials?',
+        a: 'No. We are an engineering firm: we design the structure, calculate it and issue the sealed drawings for the permit. A licensed contractor of your choosing builds from those drawings, and we answer the plan reviewer’s comments and the contractor’s questions along the way.',
+      },
+      {
+        q: 'Concrete block, wood or steel: which one should we use?',
+        a: 'It depends on the span, the use, the budget and what the architect has drawn. Block walls with a concrete tie beam are the usual choice for houses here; steel suits long spans, canopies and mezzanines; wood keeps a roof or a floor light. When the choice is still open we say what each option means for the structure before anything is drawn.',
+      },
+      {
+        q: 'How do you handle hurricane wind in a wood or steel structure?',
+        a: 'By following the load from the roof to the ground. The wind pulls the roof up and pushes the walls sideways, so every connection on that path — straps, anchors, bolts and welds — is sized for it and shown on the drawings, under the High-Velocity Hurricane Zone rules that apply in Miami-Dade and Broward.',
+      },
+      {
+        q: 'Can you design just one element, such as a beam, a canopy or a stair?',
+        a: 'Yes. A single steel beam that replaces a wall, a canopy, a mezzanine or a stair gets its own calculation and sealed detail, with how it bears on what is already there. Send a photograph and the dimensions, and we tell you what the design needs.',
+      },
+    ],
+    seo: {
+      title: 'Steel, Wood & Masonry Design in Miami-Dade & Broward',
+      description:
+        'Structural design in steel, wood and reinforced concrete block for houses and commercial buildings in Miami-Dade and Broward.',
+      keywords: ['structural steel design Miami', 'masonry structural engineer Florida', 'wood frame structural engineer Miami', 'CMU wall design Broward'],
+    },
+  },
+  {
+    slug: 'adus-and-additions',
+    n: '10',
+    title: 'ADU & Home Addition Design',
+    shortTitle: 'ADUs & Additions',
+    track: 'new',
+    summary:
+      'Structural design for accessory dwelling units, room additions and second floors — the new structure, and how it bears on the house already there.',
+    card: {
+      when: 'You are adding a unit in the backyard, a room on the ground floor or a second floor on an existing house.',
+      receive: 'Structural drawings and calculations for the permit, including what the existing house must carry.',
+      next: 'Send the address, photographs of the house and the architectural drawings if you have them.',
+    },
+    heroSub:
+      'A backyard unit, a new room or a second floor: we design the new structure and check what the existing house has to carry, so your contractor builds from our drawings.',
+    headings: {
+      faq: 'Questions about ADUs and additions',
+      considerations: 'What the structural design covers, and what it does not.',
+    },
+    problemTitle: 'Adding to a house means engineering two structures.',
+    problem:
+      'An addition is new structure resting on, or beside, a house that was designed for something else. A second floor puts new weight on old walls and footings; a room addition has to tie into the existing roof and foundation; a backyard unit needs its own foundation and its own path for hurricane wind.',
+    audience: [
+      'Homeowners adding space or a unit for family or rent',
+      'Architects and designers drawing the addition',
+      'Contractors who need sealed structural drawings for the permit',
+    ],
+    when: [
+      'You want an accessory dwelling unit in the backyard or over a garage.',
+      'A room, a garage conversion or a porch enclosure is being added to the house.',
+      'A second floor is planned on top of an existing one-story house.',
+    ],
+    capabilities: ['New structure', 'Existing house check', 'Foundations', 'Wind design', 'Permit drawings'],
+    scope: [
+      'Structural design of the ADU or the addition: foundation, walls, floor and roof',
+      'Field check of the existing house where the new structure bears on it',
+      'Capacity check of existing walls, beams and footings for the new loads',
+      'Connections between the new and the existing structure',
+      'Wind and uplift design under the Florida Building Code',
+      'Sealed drawings and calculations for the permit',
+    ],
+    process: [
+      { step: 'Visit', detail: 'We look at the house, the foundation where we can reach it, and the place the addition will go.' },
+      { step: 'Check', detail: 'What the existing structure can carry, and what has to be reinforced.' },
+      { step: 'Design', detail: 'The new structure and its connections to the house, sized for gravity and hurricane wind.' },
+      { step: 'Permit', detail: 'Sealed drawings for the permit, and answers to the reviewer’s comments.' },
+    ],
+    deliverables: [
+      'Permit drawings, signed and sealed',
+      'Structural calculations, new and existing',
+      'Reinforcement details where the house needs them',
+    ],
+    nextStep:
+      'Send the address, a few photographs of the house and the architect’s drawings if there are any. You receive a fixed-fee proposal for the structural design.',
+    considerations: [
+      'Our work is the engineering: the drawings and calculations. The construction is done by a licensed contractor you hire.',
+      'Whether an ADU or an addition is allowed on a lot is a zoning question for your city; we design the structure once the use is settled.',
+      'A second floor is only possible if the house below can carry it, or can be reinforced to; the check comes first.',
+    ],
+    faq: [
+      {
+        q: 'Do you build the ADU or the addition?',
+        a: 'No. We are an engineering firm: we design the structure and issue the sealed drawings and calculations for the permit. A licensed contractor of your choosing builds it, and we stay available for the plan reviewer’s comments and the contractor’s questions.',
+      },
+      {
+        q: 'Can my house take a second floor?',
+        a: 'Sometimes as it is, often with reinforcement, and occasionally not at all. It depends on the walls, the beams and above all the footings under the house. We check them in the field and with the original drawings if they exist, and we tell you what the second floor would require before any design starts.',
+      },
+      {
+        q: 'Do we need drawings from an architect first?',
+        a: 'Not always. For an ADU or a larger addition an architect or designer usually draws the plans and we design the structure behind them. For a simple room addition or a structural change, we can start from photographs, measurements and a sketch of what you want.',
+      },
+      {
+        q: 'What does the permit office need from the engineer?',
+        a: 'Structural drawings and calculations, signed and sealed by a Florida Professional Engineer, showing the foundation, the framing, the connections and the wind design. Their comments come back to us, and we answer them until the structural part of the permit is approved.',
+      },
+    ],
+    seo: {
+      title: 'ADU & Home Addition Design in Miami-Dade & Broward',
+      description:
+        'Structural design for ADUs, room additions and second floors in Miami-Dade and Broward — the new structure and the existing house, sealed drawings for permit.',
+      keywords: ['ADU structural engineer Miami', 'home addition structural engineer', 'second floor addition engineer Florida', 'accessory dwelling unit structural design Broward'],
+    },
+  },
 ];
 
 export const serviceBySlug = (slug: string) =>
@@ -2614,6 +2805,8 @@ export const imagery = {
     'structural-analysis': photo.analysisTowersUp,
     'bim-coordination': photo.frameCraneSky,
     'peer-review': photo.peerTowerBw,
+    'steel-wood-masonry-design': photo.steelMasonryFrame,
+    'adus-and-additions': photo.aduBackyard,
   } as Record<string, Photo>,
   /* The hero aside, the only clip left is the model in the new-buildings
      section. The recertification band and its aerial clip are gone: the two
@@ -2660,7 +2853,7 @@ export const typologiesSection = {
   eyebrow: 'What we design',
   title: 'Do we design your kind of building?',
   accentWord: 'your kind',
-  lede: 'The same engineer and the same detailing standard, scaled to the building in front of us. If your project is not on this list, it is worth a conversation rather than an assumption.',
+  lede: 'The same team and the same detailing standard, scaled to the building in front of us. If your project is not on this list, it is worth a conversation rather than an assumption.',
 } as const;
 
 export const typologies: Typology[] = [
@@ -2714,7 +2907,7 @@ export const howWeWork = {
       n: '01',
       title: 'Initial consultation',
       youDo: 'Send the notice, or describe the building or the project, and share what you have — photos, drawings, prior reports.',
-      youGet: 'A direct conversation with the engineer and a first read on what is needed.',
+      youGet: 'A direct conversation with our team and a first read on what is needed.',
     },
     {
       n: '02',
@@ -2742,7 +2935,7 @@ export const howWeWork = {
       youDo: 'Forward the reviewer’s comments, the contractor’s RFIs or the reinspection request.',
       /* Existing buildings end in reinspection and close-out, not in
          "submission": both counties have the report filed before the repairs. */
-      youGet: 'Answers from the engineer who did the work — through permit comments, construction questions and, for existing buildings, reinspection and close-out.',
+      youGet: 'Answers from the team that did the work — through permit comments, construction questions and, for existing buildings, reinspection and close-out.',
     },
   ],
 } as const;
@@ -2907,9 +3100,9 @@ export const leadership = {
   approach:
     'I would rather explain a structural decision in plain language than hide it behind a code reference. A board should be able to read a findings report and know what to do next; a contractor should be able to build from the drawing without calling; and a reviewer should be able to follow the calculation from load to detail.',
   forYou: [
-    { k: 'Direct communication', v: 'You talk to the engineer who is doing the work — not to an account manager relaying questions.' },
+    { k: 'Direct communication', v: 'You talk to the people working on your building — one team, from the first call to the final report.' },
     { k: 'A scope you can read', v: 'Every proposal states what is included, what is not, what you receive and what it costs, before anything starts.' },
-    { k: 'One engineer’s judgment', v: 'The engineer who studies your building or sets the design basis is the one who answers for the result, to you and to the reviewer.' },
+    { k: 'Accountable engineering', v: 'Every report and drawing is reviewed by a Florida Professional Engineer before it leaves the office, and the firm answers for the result, to you and to the reviewer.' },
   ],
 } as const;
 
@@ -2937,7 +3130,7 @@ export const aboutPage = {
   /* The slogan opens it (seo.test). The written-down reasoning is the
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
-  sub: 'Built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward.',
+  sub: 'An engineering firm with one standard of work. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward.',
   /* Region stays: it is the only other place "South" is printed on /about,
      and every word of the H1 must be a word of the page (seo.test). Do not
      reword it to the two counties. */
@@ -2945,6 +3138,54 @@ export const aboutPage = {
     { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
     { k: 'Region', v: 'South Florida' },
   ],
+  /* THE TEAM (the owner, 2026-10-23: the site presents a firm with its
+     people, not one engineer). One card per person: photo or initials, role,
+     name, credential lines. Licenses are named, never numbered (the owner:
+     real firms do not print license numbers). Melvin is an EIT: he has
+     passed the PE Structural exam but is not yet licensed, so nothing here
+     may call him a Professional Engineer. `photo: null` draws initials
+     until their portraits arrive. Rudy holds the general and electrical
+     contractor licenses (2026-10-23). Juan's card keeps the #engineer anchor (the
+     Person JSON-LD @id). */
+  team: {
+    eyebrow: 'Our team',
+    title: 'The people behind your building.',
+    lede: 'A Florida engineering firm: engineers, structural designers and an office that keeps every project moving — from the first call to the final report.',
+    members: [
+      {
+        id: 'engineer',
+        name: 'Juan Tercero, PE., M.Sc.',
+        role: 'Principal Engineer · Founder',
+        lines: [
+          'Florida Professional Engineer',
+          'Master in Construction Project Management — Universidad de Barcelona',
+          'Civil Engineer — National University of Engineering',
+        ],
+        photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE., M.Sc., in a dark suit and tie', w: 800, h: 814 },
+      },
+      {
+        id: 'melvin',
+        name: 'Melvin Tercero, EIT',
+        role: 'Structural Design',
+        lines: [
+          'Passed the PE Structural exam',
+          'Master in Composite Structures — University of Barcelona',
+        ],
+        photo: null,
+      },
+      {
+        id: 'rudy',
+        name: 'Rudy Diaz, MBA',
+        role: 'General & Electrical Contractor',
+        lines: [
+          'Certified General Contractor',
+          'Certified Electrical Contractor',
+          'Master in Business Administration',
+        ],
+        photo: null,
+      },
+    ] as readonly { id: string; name: string; role: string; lines: readonly string[]; photo: { src: string; alt: string; w: number; h: number } | null }[],
+  },
   /* One section on /about: the two paragraphs beside the title, then the
      five principles under their own label (`principles.eyebrow`). */
   approach: {
@@ -3171,10 +3412,10 @@ export const contactPage = {
          20, 2026): they are told what to send, never turned away. The
          program pages' answer for that case says the same thing — the first
          step is still the inspection and the report — in other words. */
-      { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner the engineer reads what you received, the sooner you have a plan to put before your Building Official.' },
+      { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner our team reads what you received, the sooner you have a plan to put before your Building Official.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
       { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
-      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
+      { k: 'After you send it', v: 'When there is a notice, our team first reads what your Building Official is asking for. The answer is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
       { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],
   },
@@ -3218,9 +3459,9 @@ export const closingCta = {
      hours. They used to be a small grey line under the buttons (ReachRow
      `assure`); the owner's rule since October 20 is no small print under a
      button, so they are said here, at reading size, once per page. */
-  body: 'A county notice in your hand, a building that worries you or a new project — describe it and attach what you have. A phone photo of the letter is enough. You hear back from the engineer, usually within two hours, with questions or a free written proposal.',
+  body: 'A county notice in your hand, a building that worries you or a new project — describe it and attach what you have. A phone photo of the letter is enough. Our team gets back to you with questions or a free written proposal.',
   primary: { href: '/contact', label: 'Request a Proposal' },
-  secondary: { href: '/about#engineer', label: 'Meet the Engineer' },
+  secondary: { href: '/about#team', label: 'Meet Our Team' },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3483,7 +3724,7 @@ export const legal = {
  */
 export const reach = {
   /** aria-label of the bar on phones. */
-  label: 'Contact the engineer',
+  label: 'Contact us',
   call: 'Call',
   whatsapp: 'WhatsApp',
   whatsappNotice: 'Send the notice by WhatsApp',
@@ -3500,7 +3741,7 @@ export const reach = {
      Proposal": in the bar on a 360–390px screen that took two lines, and
      the header's button is hidden while the bar is up. Free is a fact. */
   formPlain: 'Free proposal',
-  reply: 'We usually reply within two hours.',
+  reply: 'Our team will reply shortly.',
 };
 
 /**
@@ -3542,6 +3783,11 @@ export const partner = {
     role: 'Structural engineering',
     licenseLabel: 'Professional Engineer',
     registryLabel: 'Engineering Business',
+    place: 'Miami, Florida',
+    licenses: [
+      { label: 'Professional Engineer (PE)' },
+      { label: 'Engineering Business — Certificate of Authorization' },
+    ],
   },
   construction: {
     role: 'General and electrical contractor',
@@ -3549,8 +3795,8 @@ export const partner = {
     place: 'Miami, Florida',
     logo: { src: '/ttc/img/partners/precision-source.png', w: 640, h: 935 },
     licenses: [
-      { label: 'Certified General Contractor', number: 'CGC061867' },
-      { label: 'Certified Electrical Contractor', number: 'EC13010175' },
+      { label: 'Certified General Contractor' },
+      { label: 'Certified Electrical Contractor' },
     ],
   },
   /* THE BLOCK IS PRINTED WHOLE ON THE HOME PAGE ONLY (`title`, `lede`, the
@@ -3571,7 +3817,7 @@ export const partner = {
      sentence the owner approved stays on the home page, in `lede`. */
   about: {
     title: 'Two firms, each under its own license.',
-    body: 'On Miami-Dade recertifications and Broward BSIP inspections we work as one team with Precision Source Inc., a separate company: a Florida-certified general and electrical contractor based in Miami. Together the two firms have more than 30 years of combined experience. The three license numbers below open the state’s license search, where you can check them yourself.',
+    body: 'On Miami-Dade recertifications and Broward BSIP inspections we work as one team with Precision Source Inc., a separate company: a Florida-certified general and electrical contractor based in Miami. Together the two firms have more than 30 years of combined experience.',
   },
   brief: {
     title: 'Two licensed firms, one team.',
@@ -3661,6 +3907,7 @@ export const en = {
   footerNav,
   ui,
   hero,
+  ribbon,
   services,
   contactServiceOptions,
   typologiesSection,

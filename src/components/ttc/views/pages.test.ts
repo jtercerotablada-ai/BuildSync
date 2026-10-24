@@ -310,7 +310,6 @@ describe('links out: the hosts the site may link', () => {
     'www.leg.state.fl.us', // the milestone page's timing row: the statute
     'www.linkedin.com', // the footer: the firm's LinkedIn page
     'www.miamidade.gov', // Miami-Dade's forms: the county's recertification page
-    'www.myfloridalicense.com', // "Verify with the Florida DBPR"
   ];
   const out = (html: string) =>
     links(html)
@@ -319,7 +318,7 @@ describe('links out: the hosts the site may link', () => {
       .map((href) => new URL(href))
       .filter((u) => !getContent('en').company.url.includes(u.hostname));
 
-  it('every outbound link on every page, in both languages, goes to one of nine hosts', () => {
+  it('every outbound link on every page, in both languages, goes to one of eight hosts', () => {
     const hosts = new Set<string>();
     for (const { html } of pages.values()) for (const u of out(html)) hosts.add(u.hostname);
     expect([...hosts].sort()).toEqual(MAY_LINK);
@@ -592,28 +591,17 @@ describe('county program pages: no paragraph is printed twice', () => {
         }
       });
 
-      // 4. The engineer's credential. Whole under the hero: name, license
-      //    number, the link that verifies it, the firm's registration.
-      //    "Next step" printed the same two lines again; it now prints who
-      //    reads the notice — the name and the number — and nothing else.
-      it(`${slug} (${lang}): the engineer's credential is whole under the hero and brief in "Next step"`, () => {
-        const e = c.leadership;
-        const number = esc(`${c.ui.engineer.licensePrefix} ${e.license!.number}`);
+      // 4. The firm's licenses, once, under the hero: by name, never by
+      //    number, and no link (the owner, 2026-10-23: real firms do not
+      //    print license numbers).
+      it(`${slug} (${lang}): the firm's licenses are named once, under the hero, with no number`, () => {
         const blocks = main.match(/<dl class="mp-cred[^"]*">[\s\S]*?<\/dl>/g) ?? [];
-        expect(blocks).toHaveLength(2);
-        const whole = blocks[0] ?? '';
-        const brief = blocks[1] ?? '';
-        for (const block of blocks) {
-          expect(block).toContain(esc(e.name));
-          expect(block).toContain(number);
-        }
-        expect(links(whole).map((a) => a.href)).toEqual([esc(e.license!.url)]);
-        expect(whole).toContain(esc(c.company.registry!));
-        expect(links(brief)).toEqual([]);
-        expect(brief).not.toContain(esc(c.company.registry!));
-        // The brief one is the one in the box, after the hero's.
-        expect(main.indexOf(brief)).toBeGreaterThan(main.indexOf('mp-callout--next'));
-        expect(main.indexOf(whole)).toBeLessThan(main.indexOf('mp-callout--next'));
+        expect(blocks).toHaveLength(1);
+        const block = blocks[0] ?? '';
+        for (const l of c.partner.engineering.licenses) expect(block).toContain(esc(l.label));
+        expect(block).not.toMatch(/\d{4,}/);
+        expect(links(block)).toEqual([]);
+        expect(main.indexOf(block)).toBeLessThan(main.indexOf('mp-callout--next'));
       });
 
       /* ZERO, with nothing set aside: counted over every <p>, <dd> and <li>
@@ -629,7 +617,7 @@ describe('county program pages: no paragraph is printed twice', () => {
 
   // Every closing band says the two facts in its text, at reading size, and
   // no page prints them as a small line under a button.
-  it('the closing band says the free proposal and the reply time in its text, on every page', () => {
+  it('the closing band says the free proposal in its text, and our team — not one engineer — replies, on every page', () => {
     const closed: string[] = [];
     for (const { lang, path, html } of pages.values()) {
       const c = getContent(lang);
@@ -643,15 +631,15 @@ describe('county program pages: no paragraph is printed twice', () => {
       expect(body, `${lang} ${path}`).toBe(esc(c.closingCta.body));
     }
     for (const [lang, free, reply] of [
-      ['en', 'free written proposal', 'usually within two hours'],
-      ['es', 'propuesta gratis', 'normalmente en menos de dos horas'],
+      ['en', 'free written proposal', 'Our team'],
+      ['es', 'propuesta gratis', 'Nuestro equipo'],
     ] as const) {
       expect(getContent(lang).closingCta.body).toContain(free);
       expect(getContent(lang).closingCta.body).toContain(reply);
     }
     // Home, Services, Existing Buildings, About, Typical Engagements and the
     // eight services, in each language — and every city page.
-    expect(closed).toHaveLength(26 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
+    expect(closed).toHaveLength(30 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
 });
 

@@ -22,7 +22,7 @@ import { WorkView } from './WorkView';
  * service pages shared a headline. None of that breaks a build or shows in
  * a browser, so the pages are rendered here and compared.
  *
- * What these tests cover is the listing pages and the six ordinary service
+ * What these tests cover is the listing pages and the eight ordinary service
  * pages. The two county-program pages are compared with each other and with
  * the home page elsewhere; here they appear only as the page a card opens.
  */
@@ -165,13 +165,8 @@ describe('who we work with: whole on the home page, short on the other two', () 
     const home = page(lang, '/');
     const about = page(lang, '/about');
     const hub = page(lang, '/existing-buildings');
-    const dbpr = esc(c.leadership.license!.url);
-    const licenses = [c.leadership.license!.number, ...p.construction.licenses.map((l) => l.number)];
-    /** The license numbers a page prints as links to the state's search. */
-    const linked = (html: string) =>
-      [...html.matchAll(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)]
-        .filter((m) => m[1] === dbpr)
-        .map((m) => text(m[2]));
+    /** Every license the two firms hold, by name. */
+    const licenses = [...p.engineering.licenses, ...p.construction.licenses].map((l) => esc(l.label));
 
     it(`${lang}: the lede and the cards' headline are the home page's alone`, () => {
       for (const line of [p.lede, p.title]) {
@@ -190,17 +185,14 @@ describe('who we work with: whole on the home page, short on the other two', () 
       }
     });
 
-    // The owner's condition: the three licenses stay checkable on the home
-    // page and on /about. The hub links to /about for them.
-    it(`${lang}: the three license numbers are links to the DBPR search on the home page and on /about`, () => {
-      const verify = text(esc(c.ui.engineer.verify));
-      for (const html of [home, about]) {
-        const found = linked(html);
-        for (const number of licenses) {
-          expect(found.filter((t) => t === `${number} — ${verify}`), number).toHaveLength(1);
-        }
+    // The owner, 2026-10-23: name every license, never its number — real
+    // firms do not print them. The home page's cards and /about's register
+    // name all four; the hub links to /about for them.
+    it(`${lang}: the home page and /about name every license, and no page prints a license number`, () => {
+      for (const html of [home, about]) for (const label of licenses) expect(html, label).toContain(label);
+      for (const html of [home, about, hub]) {
+        for (const no of ['105256', '40285', 'CGC061867', 'EC13010175']) expect(text(html), no).not.toContain(no);
       }
-      expect(linked(hub)).toEqual([]);
       expect(hub).toContain(`href="${localePath(p.brief.link.href, lang)}"`);
       expect(about).toContain('id="contractor"');
     });
@@ -276,8 +268,8 @@ describe('listing pages and ordinary service pages: no block of text on two page
     const names = new Set([c.company.name, ...c.services.map((s) => s.title)].map((n) => norm(text(esc(n)))));
     const mine = pages.filter((p) => p.lang === lang && !PROGRAMS.some((slug) => p.path === `/services/${slug}`));
 
-    it(`${lang}: reads the five listing pages and the six ordinary services`, () => {
-      expect(mine).toHaveLength(11);
+    it(`${lang}: reads the five listing pages and the eight ordinary services`, () => {
+      expect(mine).toHaveLength(13);
     });
 
     it(`${lang}: every block of six words or more is on one page`, () => {

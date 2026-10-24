@@ -188,9 +188,9 @@ describe('the ruler: Arial, as the check measures it', () => {
 describe('titles and descriptions: every page in the sitemap', () => {
   it('measures the pages the sitemap lists, and no others', () => {
     expect(pages.map((p) => p.url).sort()).toEqual(sitemap().map((e) => e.url).sort());
-    // Sixteen pages in each language, one more for every city page, and the
+    // Eighteen pages in each language, one more for every city page, and the
     // calculators: their catalogue and each one that is open.
-    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length + 1 + openCalculatorPaths.length + 1 + 1 + getGuides('en').length));
+    expect(pages).toHaveLength(2 * (18 + cityPagesEn.length + 1 + openCalculatorPaths.length + 1 + 1 + getGuides('en').length));
   });
 
   for (const p of pages) {
@@ -549,13 +549,13 @@ describe('H1: the subject and the place, where a slogan used to be', () => {
     en: {
       '/services': 'Organized by what you need, not by what we do.',
       '/existing-buildings': 'The building is already standing.',
-      '/about': 'Built around one accountable engineer.',
+      '/about': 'An engineering firm with one standard of work.',
       '/projects': 'The frame behind the project.',
     },
     es: {
       '/services': 'Organizados por lo que usted necesita, no por lo que hacemos.',
       '/existing-buildings': 'El edificio ya está en pie.',
-      '/about': 'Construida alrededor de un solo ingeniero responsable.',
+      '/about': 'Una firma de ingeniería con un solo estándar de trabajo.',
       '/projects': 'La estructura detrás del proyecto.',
     },
   };

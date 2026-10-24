@@ -543,7 +543,7 @@ describe('city pages: the page a visitor gets', () => {
         // Outside the site: the county row's source, the engineer's license
         // search, phone and WhatsApp. Never a city's website.
         for (const href of hrefs.filter((x) => /^https?:/.test(x))) {
-          expect(['library.municode.com', 'www.broward.org', 'www.myfloridalicense.com', 'api.whatsapp.com'], href).toContain(new URL(href).hostname);
+          expect(['library.municode.com', 'www.broward.org', 'api.whatsapp.com'], href).toContain(new URL(href).hostname);
         }
       });
 
@@ -599,7 +599,7 @@ describe('city pages: no block of text is printed on two pages', () => {
       // already share" — which also let through everything the two county
       // pages have in common, the free-proposal line among it.)
       const c = getContent(lang);
-      const already = new Set([norm(`${c.leadership.name} ${c.ui.engineer.licensePrefix} ${c.leadership.license!.number}`)]);
+      const already = new Set([norm(c.partner.engineering.licenses.map((l) => l.label).join(' · '))]);
       for (const [path, html] of cities.get(lang)!) add(path, html);
       const cityPaths = new Set(cities.get(lang)!.keys());
       const shared = [...where]

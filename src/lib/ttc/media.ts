@@ -139,6 +139,14 @@ const catalogue = {
     'Modern house of stacked rectangular volumes at different levels',
     'Casa moderna de volúmenes rectangulares apilados a distintos niveles',
   ),
+  /* ADUs & Additions — its card and its page's hero (added 2026-10-23). A
+     one-storey, flat-roofed backyard cottage in a planted garden: the scale
+     of an accessory dwelling, warm-climate, no people, no plates, no text. */
+  aduBackyard: p(
+    'adu-backyard', 2000, 1500,
+    'Small white flat-roofed cottage in a green garden, a gravel path leading to its door between tropical shrubs and trees',
+    'Pequeña casa blanca de techo plano en un jardín verde, con un camino de gravilla que lleva a su puerta entre arbustos y árboles tropicales',
+  ),
 
   /* ── Concrete as a material ─────────────────────────────────────────── */
   concreteBeamColumn: p(
@@ -275,6 +283,15 @@ const catalogue = {
     'frame-curved-balconies', 2000, 3000,
     'Curved white balcony slabs cantilevered from a residential tower',
     'Losas curvas de balcón, blancas, en voladizo desde una torre residencial',
+  ),
+  /* Steel, Wood & Masonry Design — its card and its page's hero (added
+     2026-10-23). The masonry is the subject: concrete-block walls laid up
+     between the frame's columns and slab edges, storey by storey, before any
+     render goes on. Not retouched; nothing readable in the frame. */
+  steelMasonryFrame: p(
+    'steel-masonry-frame', 2000, 1330,
+    'Mid-rise apartment building under construction: concrete-block walls laid between columns and floor slabs, with scaffolding and orange safety netting',
+    'Edificio de apartamentos de mediana altura en construcción: muros de bloques de concreto levantados entre columnas y losas, con andamios y malla de seguridad naranja',
   ),
 
   /* ── South Florida ──────────────────────────────────────────────────── */

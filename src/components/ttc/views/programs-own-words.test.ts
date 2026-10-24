@@ -117,16 +117,16 @@ describe('home page and county program pages: no block of text on two of them', 
   for (const lang of LANGS) {
     const c = getContent(lang);
     const u = c.ui;
-    const e = c.leadership;
     /* What these pages still share, and why each is left:
-         · the engineer's name and license — a credential is the same line
+         · the firm's licenses, by name — a credential is the same line
            wherever it is shown, and it is on both program pages on purpose;
          · the heading of the board's duties, six words in Spanish — a label,
            cited by name from the answers; its tag is another package's;
          · the day the office names were last checked — one date, one line,
            under "Who sent your notice?" on both pages. */
+    const licenses = norm(c.partner.engineering.licenses.map((l) => l.label).join(' · '));
     const left = (t: string) =>
-      t.includes(e.name) ||
+      norm(t) === licenses ||
       norm(t) === norm(u.boardDuties) ||
       norm(t).startsWith(norm(u.linksChecked));
 

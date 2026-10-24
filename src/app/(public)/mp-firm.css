@@ -1,0 +1,177 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   FIRM — the home ribbon and the /about team (2026-10-23)
+   ──────────────────────────────────────────────────────────────────────────
+   Loaded right after mp.css (PublicShell.tsx) and written only in its
+   tokens, so it follows whatever surface it sits on. Two blocks:
+     1  Ribbon  — Ribbon.tsx, the two moving rows under the home hero
+     2  Team    — TeamSection.tsx, one card per person on /about
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1 · Ribbon ──────────────────────────────────────────────────────────── */
+.mp .mp-ribbon {
+  overflow: hidden;
+}
+.mp .mp-ribbon__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mp-4);
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+}
+.mp .mp-ribbon__label {
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mp-ink);
+}
+.mp .mp-ribbon__rows {
+  display: grid;
+  gap: clamp(0.25rem, 1vw, 0.75rem);
+}
+.mp .mp-ribbon__row {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.mp .mp-ribbon__track {
+  display: inline-flex;
+  width: max-content;
+  animation: mp-ribbon 48s linear infinite;
+  will-change: transform;
+}
+.mp .mp-ribbon__row--2 .mp-ribbon__track {
+  animation-duration: 60s;
+  animation-direction: reverse;
+}
+.mp .mp-ribbon__set {
+  display: inline-flex;
+}
+.mp .mp-ribbon__word {
+  padding-right: clamp(1.5rem, 4vw, 4rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+/* Two sizes, two inks: the buildings smaller and grey, the services larger
+   and white — the size step is what makes it read as a ribbon, not a list. */
+.mp .mp-ribbon__row--1 .mp-ribbon__word {
+  font-size: clamp(2.25rem, 6vw, 5.25rem);
+  font-weight: 400;
+  color: var(--mp-ink-3);
+}
+.mp .mp-ribbon__row--2 .mp-ribbon__word {
+  font-size: clamp(2.75rem, 8vw, 7.25rem);
+  font-weight: 600;
+  color: var(--mp-ink);
+}
+/* A small gold dot between words on the large row, centred in the gap. */
+.mp .mp-ribbon__row--2 .mp-ribbon__word {
+  padding-right: 0;
+}
+.mp .mp-ribbon__row--2 .mp-ribbon__word::after {
+  content: '';
+  display: inline-block;
+  width: 0.12em;
+  height: 0.12em;
+  margin: 0 clamp(0.75rem, 2vw, 2rem);
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--mp-gold);
+}
+@keyframes mp-ribbon {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp .mp-ribbon__track {
+    animation: none;
+  }
+}
+@media print {
+  .mp .mp-ribbon {
+    display: none;
+  }
+}
+
+/* ── 2 · Team ────────────────────────────────────────────────────────────── */
+.mp .mp-team__grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  margin-top: clamp(2rem, 4vw, 3.5rem);
+}
+.mp .mp-team__card {
+  scroll-margin-top: calc(var(--mp-header-h) + 12px);
+}
+.mp .mp-team__photo {
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--mp-concrete);
+  border: 1px solid var(--mp-line);
+  margin-bottom: var(--mp-4);
+}
+.mp .mp-team__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  filter: grayscale(1);
+  transition: filter var(--mp-dur) var(--mp-ease);
+}
+.mp .mp-team__card:hover .mp-team__photo img {
+  filter: none;
+}
+.mp .mp-team__initials {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--mp-serif);
+  font-style: italic;
+  font-size: clamp(3.5rem, 7vw, 5.5rem);
+  color: var(--mp-gold-ink);
+}
+.mp .mp-team__role {
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-gold-ink);
+  margin-bottom: var(--mp-2);
+}
+.mp .mp-team__name {
+  font-size: var(--mp-t-h3);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--mp-ink);
+  margin-bottom: var(--mp-3);
+}
+.mp .mp-team__lines {
+  list-style: none;
+  display: grid;
+  gap: var(--mp-1);
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink-3);
+}
+.mp .mp-team__forwrap {
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+}
+/* One card per person, three across on a wide screen: the team is three
+   people, so the row is full rather than three cards and an empty slot. */
+@media (min-width: 560px) {
+  .mp .mp-team__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 900px) {
+  .mp .mp-team__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (hover: none) {
+  .mp .mp-team__photo img {
+    filter: none;
+  }
+}
