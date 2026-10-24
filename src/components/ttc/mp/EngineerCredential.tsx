@@ -8,10 +8,10 @@ import type { Lang } from '@/lib/ttc/i18n';
  * all: a board comparing engineers found the firm's proof on Home and About,
  * never on the page it landed on from a search.
  *
- * Nothing here is typed in: the name and the P.E. number are `leadership`'s,
- * the registry line is `company.registry`, and the link is the one /about
- * uses. The registry has no stable per-license URL, so it opens DBPR's search
- * page (see `leadership.license` in site.ts).
+ * Nothing here is typed in: the name and the credential are `leadership`'s
+ * and the registry line is `company.registry`. NO NUMBER AND NO LINK since
+ * 2026-10-24 (the owner: "como las grandes" — credentials in letters, the
+ * way the large structural firms print them; see `company.registry`).
  *
  * THE LABEL IS "ENGINEER", NOT "SIGNED BY". These two pages also print which
  * report the firm prepares and what it confirms for taller buildings (the
@@ -23,13 +23,13 @@ import type { Lang } from '@/lib/ttc/i18n';
  * the "Next step" box (paper). Its colours are the --mp-ink-* tokens, which
  * each surface remaps.
  *
- * `brief` is the second time a page prints it: the name and the license
- * number, without the link to the registry and without the firm's
- * registration line. The hero prints the block whole; "Next step", a few
- * screens down, used to print it whole again — the same two lines twice, on
- * pages the owner's on-page check kept listing for duplicate paragraphs
- * (it does not say which ones it counts). What the box needs to say is who
- * reads the notice; how to check him is said once, at the top of the page.
+ * `brief` is the second time a page prints it: the name alone, without the
+ * credential and the firm's registration line. The hero prints the block
+ * whole; "Next step", a few screens down, used to print it whole again — the
+ * same two lines twice, on pages the owner's on-page check kept listing for
+ * duplicate paragraphs (it does not say which ones it counts). What the box
+ * needs to say is who reads the notice; his credential is said once, at the
+ * top of the page.
  */
 export function EngineerCredential({
   lang,
@@ -38,7 +38,7 @@ export function EngineerCredential({
 }: {
   lang: Lang;
   className?: string;
-  /** Name and license number only: for a page that already printed the block whole. */
+  /** The name only: for a page that already printed the block whole. */
   brief?: boolean;
 }) {
   const c = getContent(lang);
@@ -52,25 +52,12 @@ export function EngineerCredential({
           END, so a narrow column breaks between parts and no line starts
           with a dot. */}
       <dd>
-        {e.license && brief ? (
-          <>
-            <span>{e.name} ·</span>{' '}
-            <span>
-              {u.licensePrefix} {e.license.number}
-            </span>
-          </>
-        ) : e.license ? (
-          <>
-            <span>{e.name} ·</span>{' '}
-            <span>
-              {u.licensePrefix} {e.license.number} ·
-            </span>{' '}
-            <a href={e.license.url} rel="noopener noreferrer" target="_blank">
-              {u.verify}
-            </a>
-          </>
-        ) : (
+        {brief ? (
           <span>{e.name}</span>
+        ) : (
+          <>
+            <span>{e.name} ·</span> <span>{e.credential}</span>
+          </>
         )}
       </dd>
       {c.company.registry && !brief ? (

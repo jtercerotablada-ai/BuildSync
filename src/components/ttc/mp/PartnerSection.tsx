@@ -19,17 +19,19 @@ import { SectionHeading, Reveal, TextLink } from './primitives';
  *
  * Both logos are the files each company supplied (never redrawn), dark ink on
  * the white card. Every fact on the engineering card comes from `company` and
- * `leadership`, so the P.E. number printed here is the one /about prints.
+ * `leadership`.
  *
- * EVERY LICENSE NUMBER IS A LINK to the state registry, so a board can check
- * it instead of taking the card's word. The registry (DBPR) has no stable
- * per-license URL — `leadership.license.url` is its search page — so all
- * three numbers open the same form; /about's sentence above the register
- * says that they open the state's search (no how-to line under them: the
- * owner, 2026-10-20, no small print). The business registry number stays
- * plain text for now: it
- * has no letter prefix (PE, CGC, EC), and nobody has checked that a bare
- * number finds one record on that form. Link it once that is confirmed.
+ * THE ENGINEERING LICENSES ARE NAMED, NOT NUMBERED (the owner, 2026-10-24:
+ * as the large structural firms print them; Florida does not require the
+ * number on a website — see `company.registry` in site.ts). The engineering
+ * card says "Licensed" / "Registered" where the contractor's card says a
+ * number. THE CONTRACTOR'S NUMBERS STAY (F.S. 489.119(5)(b): in every
+ * advertisement, websites included), and each is a link to the state
+ * registry, so a board can check it instead of taking the card's word. The
+ * registry (DBPR) has no stable per-license URL — `leadership.license.url`
+ * is its search page — so both numbers open the same form; /about's sentence
+ * above the register says that they open the state's search (no how-to line
+ * under them: the owner, 2026-10-20, no small print).
  *
  * THREE FORMS, ONE PER PAGE. The block above — headline, lede, the two
  * cards, the line about the registry — was printed whole on the home page,
@@ -37,7 +39,7 @@ import { SectionHeading, Reveal, TextLink } from './primitives';
  * first thing the on-page check listed as repeated. Now:
  *   • `full`  (home): everything above, unchanged.
  *   • `about` (/about): what each company is, and the four registrations as
- *     ONE list — firm, license, number — with the same three links. No
+ *     ONE list — firm, license, number or status — with the same links. No
  *     logos and no cards: the page is about the practice, and the list is
  *     what a board came to check.
  *   • `brief` (/existing-buildings): two sentences on who the reader deals
@@ -63,13 +65,9 @@ export function PartnerSection({
   const firm = c.company;
   const e = c.leadership;
   const build = p.construction;
-  /* `company.registry` is one printed line ("FL Engineering Business No.
-     40285"); the card wants the number on its own, in the same two-column
-     row as the P.E. licence, so the two cards' lists line up. */
-  const registryNo = firm.registry?.match(/No\.\s*\d+/)?.[0] ?? null;
   const dbprUrl = e.license?.url ?? null;
   /* The visible text is the number alone; the hidden suffix says where the
-     link goes, so three links to one page are told apart in a screen
+     link goes, so two links to one page are told apart in a screen
      reader's link list and each still starts with what is on screen. */
   const licenseNo = (number: string) =>
     dbprUrl ? (
@@ -85,17 +83,14 @@ export function PartnerSection({
     const short = variant === 'about' ? p.about : p.brief;
     /* One row per registration, the firm's own first and then in the order
        of the home page's cards. Each row is a single line of text — who,
-       which license, which number — so it reads as a register and is not
-       the home page's card cut into pieces. */
-    const rows =
+       which license, which number (or, for the engineering credentials,
+       which status) — so it reads as a register and is not the home page's
+       card cut into pieces. */
+    const rows: { who: string; label: string; value: React.ReactNode }[] =
       variant === 'about'
         ? [
-            ...(registryNo
-              ? [{ who: firm.name, label: p.engineering.registryLabel, value: registryNo as React.ReactNode }]
-              : []),
-            ...(e.license
-              ? [{ who: e.name, label: p.engineering.licenseLabel, value: licenseNo(e.license.number) }]
-              : []),
+            { who: firm.name, label: p.engineering.registryLabel, value: p.engineering.registered },
+            { who: e.name, label: p.engineering.licenseLabel, value: p.engineering.licensed },
             ...build.licenses.map((lic) => ({
               who: build.name,
               label: lic.label,
@@ -189,22 +184,15 @@ export function PartnerSection({
             <div className="mp-partner__lic">
               <p className="mp-partner__lic-label">{p.licensesLabel}</p>
               <dl>
-                {e.license ? (
-                  <div>
-                    <dt>{p.engineering.licenseLabel}</dt>
-                    <dd>{licenseNo(e.license.number)}</dd>
-                  </div>
-                ) : null}
-                {registryNo ? (
-                  <div>
-                    <dt>{p.engineering.registryLabel}</dt>
-                    <dd>{registryNo}</dd>
-                  </div>
-                ) : null}
+                <div>
+                  <dt>{p.engineering.licenseLabel}</dt>
+                  <dd>{p.engineering.licensed}</dd>
+                </div>
+                <div>
+                  <dt>{p.engineering.registryLabel}</dt>
+                  <dd>{p.engineering.registered}</dd>
+                </div>
               </dl>
-              {firm.registry && !registryNo ? (
-                <p className="mp-partner__reg">{firm.registry}</p>
-              ) : null}
             </div>
           </Reveal>
 
@@ -238,7 +226,7 @@ export function PartnerSection({
           </Reveal>
         </div>
         {/* No note under the cards (the owner, 2026-10-20: no small print).
-            The numbers are still links to the registry. */}
+            The contractor's numbers are still links to the registry. */}
       </div>
     </section>
   );

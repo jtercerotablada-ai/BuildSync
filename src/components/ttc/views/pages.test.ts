@@ -592,24 +592,25 @@ describe('county program pages: no paragraph is printed twice', () => {
         }
       });
 
-      // 4. The engineer's credential. Whole under the hero: name, license
-      //    number, the link that verifies it, the firm's registration.
+      // 4. The engineer's credential. Whole under the hero: name, the
+      //    credential in letters and the firm's registration — no number
+      //    and no link since 2026-10-24 (the owner: as the large firms do).
       //    "Next step" printed the same two lines again; it now prints who
-      //    reads the notice — the name and the number — and nothing else.
+      //    reads the notice — the name — and nothing else.
       it(`${slug} (${lang}): the engineer's credential is whole under the hero and brief in "Next step"`, () => {
         const e = c.leadership;
-        const number = esc(`${c.ui.engineer.licensePrefix} ${e.license!.number}`);
         const blocks = main.match(/<dl class="mp-cred[^"]*">[\s\S]*?<\/dl>/g) ?? [];
         expect(blocks).toHaveLength(2);
         const whole = blocks[0] ?? '';
         const brief = blocks[1] ?? '';
         for (const block of blocks) {
           expect(block).toContain(esc(e.name));
-          expect(block).toContain(number);
+          expect(text(block)).not.toMatch(/\d{4,}/);
+          expect(links(block)).toEqual([]);
         }
-        expect(links(whole).map((a) => a.href)).toEqual([esc(e.license!.url)]);
+        expect(whole).toContain(esc(e.credential));
         expect(whole).toContain(esc(c.company.registry!));
-        expect(links(brief)).toEqual([]);
+        expect(brief).not.toContain(esc(e.credential));
         expect(brief).not.toContain(esc(c.company.registry!));
         // The brief one is the one in the box, after the hero's.
         expect(main.indexOf(brief)).toBeGreaterThan(main.indexOf('mp-callout--next'));

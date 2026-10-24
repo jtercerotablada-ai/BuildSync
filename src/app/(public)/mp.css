@@ -4364,11 +4364,11 @@ a.mp-menu__mail {
   font-size: var(--mp-t-small);
   color: var(--mp-snow-2);
 }
+/* The firm's registration, named (no number since 2026-10-24): words, so
+   the sans, not the mono the number was set in. */
 .mp-footer__reg {
   display: inline-block;
-  font-family: var(--mp-mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
+  font-size: 0.82rem;
   color: var(--mp-snow-3);
 }
 .mp-footer__pe-mark {
@@ -5388,9 +5388,7 @@ a.mp-menu__mail {
 /* The firm's registration: the size of the line above it (16px on a phone,
    through the small token) — at 0.78rem it was a footnote under the name. */
 .mp-cred__reg {
-  font-family: var(--mp-mono);
   font-size: var(--mp-t-small);
-  letter-spacing: 0.02em;
   color: var(--mp-ink-3);
 }
 /* In "Next step" it sits under the button, behind its own hairline. */

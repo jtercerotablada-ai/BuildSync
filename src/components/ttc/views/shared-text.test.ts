@@ -166,7 +166,9 @@ describe('who we work with: whole on the home page, short on the other two', () 
     const about = page(lang, '/about');
     const hub = page(lang, '/existing-buildings');
     const dbpr = esc(c.leadership.license!.url);
-    const licenses = [c.leadership.license!.number, ...p.construction.licenses.map((l) => l.number)];
+    /* Since 2026-10-24 only the contractor's numbers are printed (F.S.
+       489.119(5)(b)); the engineering credentials are named, not numbered. */
+    const licenses = p.construction.licenses.map((l) => l.number);
     /** The license numbers a page prints as links to the state's search. */
     const linked = (html: string) =>
       [...html.matchAll(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)]
@@ -190,9 +192,14 @@ describe('who we work with: whole on the home page, short on the other two', () 
       }
     });
 
-    // The owner's condition: the three licenses stay checkable on the home
-    // page and on /about. The hub links to /about for them.
-    it(`${lang}: the three license numbers are links to the DBPR search on the home page and on /about`, () => {
+    // The contractor's two licenses stay checkable on the home page and on
+    // /about (the law wants its numbers in every advertisement); the
+    // engineering numbers are printed on no page (the owner, 2026-10-24).
+    // The hub links to /about for them.
+    it(`${lang}: the contractor's two license numbers are links to the DBPR search on the home page and on /about, and no engineering number is printed`, () => {
+      for (const html of [home, about, hub]) {
+        for (const no of ['105256', '40285']) expect(text(html), no).not.toContain(no);
+      }
       const verify = text(esc(c.ui.engineer.verify));
       for (const html of [home, about]) {
         const found = linked(html);

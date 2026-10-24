@@ -1382,7 +1382,9 @@ export const es: SiteContent = {
      * would type into myfloridalicense.com to verify it. `null` removes the line
      * from the footer entirely.
      */
-    registry: 'FL Engineering Business No. 40285' as string | null,
+    /* By name, without its number — see `company.registry` in site.ts. */
+    registry: 'Empresa de ingeniería registrada en Florida' as string | null,
+    registryNumber: '40285' as string | null,
   },
 
   contact: {
@@ -1508,11 +1510,10 @@ export const es: SiteContent = {
       eyebrow: 'Conozca al ingeniero',
       role: 'Ingeniero Principal',
       credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
-      license: 'Licencia P.E. de Florida',
+      license: 'Licencias en Florida',
       verify: 'Verificar en el DBPR de Florida',
       /* "Ingeniero", never "firmado por" — see the EN comment in site.ts. */
       label: 'Ingeniero',
-      licensePrefix: 'Licencia de Florida',
       education: 'Formación',
       focus: 'Áreas de especialidad',
       approach: 'Cómo trabajo',
@@ -1803,6 +1804,8 @@ export const es: SiteContent = {
       role: 'Ingeniería estructural',
       licenseLabel: 'Ingeniero Profesional',
       registryLabel: 'Empresa de Ingeniería',
+      licensed: 'Con licencia',
+      registered: 'Registrada',
     },
     construction: {
       role: 'Contratista general y eléctrico',
@@ -1819,7 +1822,7 @@ export const es: SiteContent = {
        palabras y las mismas reglas — ver el comentario en site.ts. */
     about: {
       title: 'Dos empresas, cada una con su propia licencia.',
-      body: 'En las recertificaciones de Miami-Dade y en las inspecciones BSIP de Broward trabajamos como un solo equipo con Precision Source Inc., una empresa aparte: un contratista general y eléctrico certificado en Florida, con sede en Miami. Juntas, las dos empresas reúnen más de 30 años de experiencia combinada. Los tres números de licencia de abajo abren la búsqueda de licencias del estado, donde usted mismo puede comprobarlos.',
+      body: 'En las recertificaciones de Miami-Dade y en las inspecciones BSIP de Broward trabajamos como un solo equipo con Precision Source Inc., una empresa aparte: un contratista general y eléctrico certificado en Florida, con sede en Miami. Juntas, las dos empresas reúnen más de 30 años de experiencia combinada. Los dos números de licencia del contratista, abajo, abren la búsqueda de licencias del estado, donde usted mismo puede comprobarlos.',
     },
     brief: {
       title: 'Dos empresas con licencia, un solo equipo.',

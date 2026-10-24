@@ -595,11 +595,11 @@ describe('city pages: no block of text is printed on two pages', () => {
       };
       for (const [path, html] of site.get(lang)!) add(path, html);
       // The one block every page repeats on purpose, BY NAME: the engineer's
-      // credential line. (It used to be measured — "whatever two other pages
+      // credential line, his name (no number since 2026-10-24). (It used to be measured — "whatever two other pages
       // already share" — which also let through everything the two county
       // pages have in common, the free-proposal line among it.)
       const c = getContent(lang);
-      const already = new Set([norm(`${c.leadership.name} ${c.ui.engineer.licensePrefix} ${c.leadership.license!.number}`)]);
+      const already = new Set([norm(c.leadership.name)]);
       for (const [path, html] of cities.get(lang)!) add(path, html);
       const cityPaths = new Set(cities.get(lang)!.keys());
       const shared = [...where]

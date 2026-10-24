@@ -90,19 +90,15 @@ export function EngineerSection({ n = '01' }: { n?: string }) {
               ))}
             </ul>
           </div>
-          {e.license ? (
-            <div>
-              <h3>{u.license}</h3>
-              <ul>
-                <li className="mp-eng__lic">{e.license.number}</li>
-                <li>
-                  <a href={e.license.url} rel="noopener noreferrer" target="_blank">
-                    {u.verify}
-                  </a>
-                </li>
-              </ul>
-            </div>
-          ) : null}
+          {/* The licenses by name, no number and no link (the owner,
+              2026-10-24: as the large firms print credentials). */}
+          <div>
+            <h3>{u.license}</h3>
+            <ul>
+              <li>{e.credential}</li>
+              {c.company.registry ? <li>{c.company.registry}</li> : null}
+            </ul>
+          </div>
           <div>
             <h3>{u.focus}</h3>
             <ul>

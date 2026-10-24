@@ -167,20 +167,24 @@ export const company = {
     markXsSize: { w: 144, h: 144 },
   },
   /**
-   * Florida Engineering Business Registry number (DBPR).
+   * The firm's Florida Engineering Business Registry (DBPR), as the pages
+   * print it: by name, without its number.
    *
-   * This is the FIRM's registration, not the engineer's personal P.E. license,
-   * and it is the one that belongs in public view: it says the COMPANY may
-   * legally offer engineering services in Florida, which is what a board or a
-   * developer is actually hiring. Verified 2026-09-12 in the DBPR registry —
-   * #40285, status Current, no expiry (the Certificate of Authorization was
-   * replaced by a free, non-renewing registry in October 2019).
+   * NO ENGINEERING LICENSE NUMBER IS PRINTED ON A PAGE (the owner,
+   * 2026-10-24: "quita los números de ingeniería como las grandes"). None of
+   * the five large structural firms he compared prints one; they write the
+   * credential in letters. Florida does not require the number on a website
+   * (Chapter 471 / 61G15: only sealed plans carry the engineer's number,
+   * FAC 61G15-23.001(4)(a)). The CONTRACTOR numbers are another matter —
+   * F.S. 489.119(5)(b) wants them in every advertisement, websites included —
+   * so Precision Source's stay (`partner.construction.licenses`).
    *
-   * Kept in English in both languages: it is the official designation someone
-   * would type into myfloridalicense.com to verify it. `null` removes the line
-   * from the footer entirely.
+   * `registryNumber` is the registration itself (verified 2026-09-12 in the
+   * DBPR registry: #40285, Current, no expiry), for the Organization schema
+   * only (structured-data.ts). `null` on `registry` removes the footer line.
    */
-  registry: 'FL Engineering Business No. 40285' as string | null,
+  registry: 'Registered Florida Engineering Business' as string | null,
+  registryNumber: '40285' as string | null,
 } as const;
 
 /**
@@ -406,18 +410,20 @@ export const ui = {
     eyebrow: 'Meet the engineer',
     role: 'Principal Engineer',
     credential: 'Florida Professional Engineer',
-    license: 'Florida P.E. license',
+    license: 'Florida licenses',
+    /* The hidden suffix of each contractor number's link (PartnerSection):
+       where the link goes. The engineering credentials carry no number and
+       no link (see `company.registry`). */
     verify: 'Verify with the Florida DBPR',
     /**
-     * The credential block on the two county-program pages
-     * (EngineerCredential): "<label> — <name> · <licensePrefix> <P.E. number>
-     * · <verify>", then the business registry line. Every fact in it is read
-     * from `leadership` and `company`; these two strings only frame them.
+     * The credential block on the service, city and guide pages
+     * (EngineerCredential): "<label> — <name> · <credential>", then the
+     * business registry line, in letters, no number. Every fact in it is
+     * read from `leadership` and `company`; this string only frames them.
      * "Engineer", never "signed by": which report the firm signs is said by
      * the scope note on the same page, and nowhere else.
      */
     label: 'Engineer',
-    licensePrefix: 'Florida',
     education: 'Education',
     focus: 'Practice focus',
     approach: 'How I work',
@@ -2879,8 +2885,10 @@ export const leadership = {
     h: 814,
   },
     /* Verified in the Florida DBPR registry on October 6, 2026: Professional
-     Engineer 105256, "Current, Active", expires 02/28/2027. The registry has
-     no stable per-licence URL, so the link opens its search page. */
+     Engineer 105256, "Current, Active", expires 02/28/2027. Printed on no
+     page since 2026-10-24 (see `company.registry`): the number feeds the
+     Person schema on /about, and `url` (DBPR's search page — the registry
+     has no stable per-licence URL) is where the contractor numbers link. */
   license: {
     number: 'PE 105256',
     url: 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=',
@@ -3542,6 +3550,10 @@ export const partner = {
     role: 'Structural engineering',
     licenseLabel: 'Professional Engineer',
     registryLabel: 'Engineering Business',
+    /* What the engineering card says in place of a number: the status, in
+       a word, as the big firms write credentials (no number, no link). */
+    licensed: 'Licensed',
+    registered: 'Registered',
   },
   construction: {
     role: 'General and electrical contractor',
@@ -3561,9 +3573,10 @@ export const partner = {
      own, in its own words, and every rule above still holds in both.
 
      `about` — /about, the page a board opens to check who the firms are:
-     what each company IS, and the four registrations as one list. The three
-     license numbers are still links to the DBPR search, as on the home page
-     (the owner asked that both pages keep them), and `body` says so.
+     what each company IS, and the four registrations as one list. Since
+     2026-10-24 only the contractor's two numbers are printed (the engineering
+     credentials are named, not numbered — see `company.registry`); they are
+     links to the DBPR search, as on the home page, and `body` says so.
 
      `brief` — /existing-buildings, right after the six steps: who the
      reader deals with while they run, and a link to the list on /about.
@@ -3571,7 +3584,7 @@ export const partner = {
      sentence the owner approved stays on the home page, in `lede`. */
   about: {
     title: 'Two firms, each under its own license.',
-    body: 'On Miami-Dade recertifications and Broward BSIP inspections we work as one team with Precision Source Inc., a separate company: a Florida-certified general and electrical contractor based in Miami. Together the two firms have more than 30 years of combined experience. The three license numbers below open the state’s license search, where you can check them yourself.',
+    body: 'On Miami-Dade recertifications and Broward BSIP inspections we work as one team with Precision Source Inc., a separate company: a Florida-certified general and electrical contractor based in Miami. Together the two firms have more than 30 years of combined experience. The contractor’s two license numbers below open the state’s license search, where you can check them yourself.',
   },
   brief: {
     title: 'Two licensed firms, one team.',

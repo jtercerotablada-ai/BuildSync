@@ -376,7 +376,7 @@ describe('guides: no block of text is printed on two pages', () => {
       for (const [path, html] of site.get(lang)!) add(path, html);
       for (const [path, html] of guides.get(lang)!) add(path, html);
       const c = getContent(lang);
-      const already = new Set([norm(`${c.leadership.name} ${c.ui.engineer.licensePrefix} ${c.leadership.license!.number}`)]);
+      const already = new Set([norm(c.leadership.name)]);
       const ours = new Set(guides.get(lang)!.keys());
       const shared = [...where]
         .filter(([k, v]) => v.pages.size > 1 && !already.has(k) && [...v.pages].some((x) => ours.has(x)))

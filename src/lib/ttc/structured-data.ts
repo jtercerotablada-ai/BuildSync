@@ -61,9 +61,9 @@ export function siteGraph(lang: Lang, image: { url: string; width: number; heigh
   // `contact.phone.href` is the E.164 number behind a `tel:` scheme, which is
   // exactly what `telephone` wants. One source for the number.
   const telephone = contact.phone?.href.replace(/^tel:/, '');
-  // "FL Engineering Business No. 40285" → "40285". The printed line stays
-  // the single source; the markup only lifts the number out of it.
-  const registryNumber = company.registry?.match(/\d+/)?.[0];
+  // The registration number is in the markup only: the pages name the
+  // license and print no engineering number (site.ts, `company.registry`).
+  const registryNumber = company.registryNumber;
   const sameAs = Object.values(contact.social).filter((u): u is string => Boolean(u));
 
   return {
@@ -92,7 +92,7 @@ export function siteGraph(lang: Lang, image: { url: string; width: number; heigh
         ...(telephone ? { telephone } : {}),
         description: c.company.description,
         // The firm's state registration: the one credential that belongs to
-        // the COMPANY, printed in the footer of every page. The engineer's
+        // the COMPANY, named in the footer of every page. The engineer's
         // own license stays on his Person node.
         ...(company.registry && registryNumber
           ? {
