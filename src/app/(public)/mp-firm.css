@@ -509,10 +509,6 @@
   line-height: 1.55;
   color: var(--mp-ink-3);
 }
-.mp .mp-fcred__team {
-  margin-top: var(--mp-4);
-  color: var(--mp-ink-3);
-}
 .mp .mp-fcontact__lede {
   max-width: 62ch;
   margin-bottom: clamp(1.5rem, 3vw, 2.5rem);

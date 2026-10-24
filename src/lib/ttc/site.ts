@@ -650,7 +650,7 @@ export const home = {
     label: 'ADUs & Additions',
     line: 'A backyard unit, a new room or a second floor, with the structure of the house checked before anything is added to it.',
   },
-  servicesLine: 'Inspections and reports for the buildings already standing; structural design for the ones still on paper.',
+  servicesLine: 'Inspections and reports for the buildings already standing in Miami-Dade and Broward; structural design for the houses, additions and buildings still on paper.',
   work: {
     label: 'Existing Buildings',
     more: { href: '/existing-buildings', label: 'View all' },
@@ -668,7 +668,6 @@ export const home = {
     label: 'Credentials',
     items: ['Professional Engineer', 'Engineering Business', 'General Contractor', 'Electrical Contractor'],
     title: 'Licensed by the State of Florida.',
-    team: 'Our team: Juan Tercero, PE, principal engineer; Melvin Tercero, EIT, structural design; and Rudy Diaz, MBA, general and electrical contractor.',
   },
   contact: {
     title: 'Get in touch.',

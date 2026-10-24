@@ -180,7 +180,6 @@ export function FirmCredentials() {
             {t.title}
           </h2>
           <p className="mp-fcred__body">{c.partner.lede}</p>
-          <p className="mp-fcred__body mp-fcred__team">{t.team}</p>
         </div>
       </div>
     </section>

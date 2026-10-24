@@ -1810,7 +1810,7 @@ export const es: SiteContent = {
       label: 'ADUs y ampliaciones',
       line: 'Una unidad en el patio, una habitación nueva o un segundo piso, con la estructura de la casa revisada antes de añadirle nada.',
     },
-    servicesLine: 'Inspecciones e informes para los edificios que ya están en pie; diseño estructural para los que todavía están en papel.',
+    servicesLine: 'Inspecciones e informes para los edificios que ya están en pie en Miami-Dade y Broward; diseño estructural para las casas, ampliaciones y edificios que todavía están en papel.',
     work: {
       label: 'Edificios existentes',
       more: { href: '/existing-buildings', label: 'Ver todo' },
@@ -1828,7 +1828,6 @@ export const es: SiteContent = {
       label: 'Credenciales',
       items: ['Ingeniero Profesional', 'Empresa de Ingeniería', 'Contratista General', 'Contratista Eléctrico'],
       title: 'Con licencia del Estado de Florida.',
-      team: 'Nuestro equipo: Juan Tercero, PE, ingeniero principal; Melvin Tercero, EIT, diseño estructural; y Rudy Diaz, MBA, contratista general y eléctrico.',
     },
     contact: {
       title: 'Contáctenos.',
