@@ -10,6 +10,7 @@ import {
   FirmStatement,
   FirmWork,
 } from '@/components/ttc/mp/FirmHome';
+import { FirmFx } from '@/components/ttc/mp/FirmFx';
 import { HomeAddress } from './meta';
 
 /**
@@ -46,6 +47,7 @@ export function HomeView({ lang }: { lang: Lang }) {
       <FirmBand />
       <FirmCredentials />
       <FirmContact />
+      <FirmFx />
     </>
   );
 }

@@ -528,3 +528,173 @@
   color: var(--mp-ink-3);
   font-size: var(--mp-t-body);
 }
+
+/* ── 5 · Motion, after emxse.com (FirmFx.tsx) ───────────────────────────────
+   Their curves: power2/power3 "out" — cubic-bezier(.215,.61,.355,1) is
+   power3.out, (.25,.46,.45,.94) power1/2.out. Everything here is off for
+   reduced motion (the block at the end). */
+.mp {
+  --fx-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --fx-soft: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Page load — the hero, in CSS so it starts at first paint (no JS). The
+   header drops in, "Get in touch" rises, the rule under it draws across,
+   and the film settles from 1.4×. */
+@keyframes mp-fx-drop {
+  from {
+    transform: translateY(-110%);
+    opacity: 0;
+  }
+}
+@keyframes mp-fx-rise {
+  from {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+}
+@keyframes mp-fx-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes mp-fx-settle {
+  from {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+.mp:has(.mp-fhero) .mp-header {
+  animation: mp-fx-drop 0.5s var(--fx-soft) 0.1s backwards;
+}
+.mp .mp-fhero__video {
+  animation: mp-fx-settle 1.6s var(--fx-soft) 0.15s backwards;
+}
+.mp .mp-fhero__foot {
+  position: relative;
+  border-bottom: 0;
+  overflow: hidden;
+}
+.mp .mp-fhero__cta {
+  animation: mp-fx-rise 1s var(--fx-soft) 0.6s backwards;
+}
+.mp .mp-fhero__rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: rgba(246, 244, 239, 0.32);
+  transform-origin: left center;
+  animation: mp-fx-draw 1.2s var(--fx-soft) 0.8s backwards;
+}
+
+/* Scroll — hidden states only once FirmFx has run (html.mp-fx-on), and only
+   on blocks still below the screen (FirmFx marks the rest .is-in first). */
+.mp-fx-on .mp [data-fx] {
+  transition:
+    transform 1s var(--fx-out),
+    opacity 1s var(--fx-out);
+  transition-delay: calc(var(--fx-i, 0) * 0.2s);
+}
+.mp-fx-on .mp [data-fx='up']:not(.is-in) {
+  transform: translateY(110%);
+  opacity: 0;
+}
+.mp-fx-on .mp [data-fx='left']:not(.is-in) {
+  transform: translateX(-110%);
+  opacity: 0;
+}
+/* A photograph: the frame fades up, the picture inside settles from 1.25×. */
+.mp-fx-on .mp [data-fx='zoom'] img {
+  transition: transform 1.4s var(--fx-soft);
+  transition-delay: calc(var(--fx-i, 0) * 0.2s);
+}
+.mp-fx-on .mp [data-fx='zoom']:not(.is-in) {
+  opacity: 0;
+}
+.mp-fx-on .mp [data-fx='zoom']:not(.is-in) img {
+  transform: scale(1.25);
+}
+/* A section's top rule draws across from the left. */
+.mp .mp-fstate__grid[data-fx='line'] {
+  border-top: 0;
+  position: relative;
+}
+.mp .mp-fstate__grid[data-fx='line']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--mp-line);
+  transform-origin: left center;
+  transition: transform 1.2s var(--fx-soft);
+}
+.mp-fx-on .mp .mp-fstate__grid[data-fx='line']:not(.is-in) {
+  transform: none;
+  opacity: 1;
+}
+.mp-fx-on .mp .mp-fstate__grid[data-fx='line']:not(.is-in)::before {
+  transform: scaleX(0);
+}
+/* The H1 slides out from behind its own left edge. */
+.mp .mp-fx-mask {
+  overflow: hidden;
+}
+.mp .mp-fintro__line {
+  display: block;
+}
+/* The credentials column clips its staircase so it slides out of nothing. */
+.mp .mp-fcred__list {
+  overflow: hidden;
+}
+
+/* The band's photograph is a little taller than its frame, so the parallax
+   (FirmFx) never shows an edge. */
+.mp-fx-on .mp .mp-fband img {
+  will-change: transform;
+}
+
+/* The ribbon on FirmFx's clock: the CSS loop steps aside; the pause toggle
+   holds it still either way. */
+.mp .mp-ribbon__row.is-js .mp-ribbon__track {
+  animation: none;
+}
+.mp .mp-ribbon__row.is-still .mp-ribbon__track {
+  animation-play-state: paused;
+}
+
+/* The menu drops from the top of the screen, as on emxse.com. */
+@keyframes mp-fx-menu-in {
+  from {
+    transform: translateY(-100%);
+  }
+}
+@keyframes mp-fx-menu-out {
+  to {
+    transform: translateY(-100%);
+  }
+}
+.mp .mp-menu {
+  animation: mp-fx-menu-in 0.45s var(--fx-soft) backwards;
+}
+.mp .mp-menu.is-closing {
+  animation: mp-fx-menu-out 0.35s var(--fx-soft) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp:has(.mp-fhero) .mp-header,
+  .mp .mp-fhero__video,
+  .mp .mp-fhero__cta,
+  .mp .mp-fhero__rule,
+  .mp .mp-menu,
+  .mp .mp-menu.is-closing {
+    animation: none;
+  }
+  .mp [data-fx],
+  .mp [data-fx] img {
+    transition: none;
+  }
+}
