@@ -119,14 +119,16 @@ describe('home page and county program pages: no block of text on two of them', 
     const u = c.ui;
     const e = c.leadership;
     /* What these pages still share, and why each is left:
-         · the engineer's name and license — a credential is the same line
-           wherever it is shown, and it is on both program pages on purpose;
+         · the engineer's name and credential, and the firm's registration
+           line under it — a credential is the same line wherever it is
+           shown, and it is on both program pages on purpose;
          · the heading of the board's duties, six words in Spanish — a label,
            cited by name from the answers; its tag is another package's;
          · the day the office names were last checked — one date, one line,
            under "Who sent your notice?" on both pages. */
     const left = (t: string) =>
       t.includes(e.name) ||
+      norm(t) === norm(c.company.registry ?? '') ||
       norm(t) === norm(u.boardDuties) ||
       norm(t).startsWith(norm(u.linksChecked));
 

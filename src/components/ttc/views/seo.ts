@@ -40,7 +40,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     home: {
       title: 'Structural Engineering for South Florida',
       description:
-        'Miami-Dade building recertification, Broward BSIP inspections and structural design for new buildings in South Florida, led by a Florida Professional Engineer.',
+        'Miami-Dade building recertification, Broward BSIP inspections and structural design for new buildings in South Florida, backed by a Florida Professional Engineer.',
       keywords: ['structural engineer Miami', 'structural engineer Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'building safety inspection program Broward', '40 year recertification Miami', 'structural engineering South Florida'],
     },
     services: {
@@ -77,7 +77,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       // check reports as word repetition.
       title: 'Juan Tercero, PE., M.Sc. — Structural Engineer, South Florida',
       description:
-        'Tercero Tablada Civil and Structural Engineering Inc. is led by Juan Tercero, PE., M.Sc.: one Florida P.E. responsible from the proposal to the sealed report.',
+        'Tercero Tablada Civil and Structural Engineering Inc.: one accountable team for structural design and building recertification in Miami-Dade and Broward.',
       keywords: ['Juan Tercero PE', 'structural engineer Miami', 'Florida professional engineer structural'],
     },
     contact: {
@@ -92,7 +92,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     home: {
       title: 'Ingeniería estructural para el Sur de Florida',
       description:
-        'Recertificación de edificios en Miami-Dade, BSIP en Broward y diseño estructural de edificios nuevos, a cargo de un Ingeniero Profesional (P.E.) de Florida.',
+        'Recertificación de edificios en Miami-Dade, BSIP en Broward y diseño estructural de edificios nuevos, con un Ingeniero Profesional (P.E.) de Florida.',
       // "BSIP" and "recertificación 40 años" are what people type; the page
       // says "Programa de Inspección de Seguridad de Edificios (BSIP)".
       keywords: ['ingeniero estructural Miami', 'ingeniero estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'recertificación 40 años Miami', 'ingeniería estructural Sur de Florida'],
@@ -123,7 +123,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       // Florida" this title is 578 px, and a result shows 580.
       title: 'Juan Tercero, PE., M.Sc. — Ingeniero estructural en Florida',
       description:
-        'Tercero Tablada Civil and Structural Engineering Inc. está dirigida por Juan Tercero, PE., M.Sc.: un solo P.E. de Florida, de la propuesta al informe sellado.',
+        'Tercero Tablada Civil and Structural Engineering Inc.: un solo equipo para el diseño estructural y la recertificación de edificios en Miami-Dade y Broward.',
       keywords: ['Juan Tercero PE', 'ingeniero estructural Miami', 'ingeniero profesional Florida estructural'],
     },
     contact: {

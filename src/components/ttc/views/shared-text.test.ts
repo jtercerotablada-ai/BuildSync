@@ -1,5 +1,6 @@
 import { createElement as h, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { existsSync, statSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { getContent } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
@@ -233,11 +234,15 @@ describe('who we work with: whole on the home page, short on the other two', () 
    /about alone — "not mixed in". The home page keeps the two firms' licence
    cards (PartnerSection), which name him as the firm's engineer, and nothing
    of his own account. */
-describe('the engineer: his account on /about, and none of it on the home page', () => {
+describe('the team: on /about alone, as equals, and none of it on the home page', () => {
+  const root = new URL('../../../../public/', import.meta.url);
   for (const lang of LANGS) {
-    const e = getContent(lang).leadership;
+    const c = getContent(lang);
+    const e = c.leadership;
+    const t = c.aboutPage.team;
     const home = page(lang, '/');
     const about = page(lang, '/about');
+    const aboutText = text(about);
 
     it(`${lang}: the three rows are explained on /about, and the home page prints none of them`, () => {
       for (const row of e.forYou) {
@@ -247,10 +252,56 @@ describe('the engineer: his account on /about, and none of it on the home page',
       }
     });
 
-    it(`${lang}: the engineer's section is on /about and not on the home page`, () => {
-      expect(about).toContain('id="engineer"');
-      expect(home).not.toContain('id="engineer"');
-      expect(home).not.toMatch(/class="mp-eng__/);
+    it(`${lang}: the team section and each person's anchor are on /about and not on the home page`, () => {
+      for (const id of ['team', 'engineer', 'melvin', 'rudy']) {
+        expect(about, id).toContain(`id="${id}"`);
+        expect(home, id).not.toContain(`id="${id}"`);
+      }
+      expect(home).not.toMatch(/class="mp-team/);
+    });
+
+    it(`${lang}: three equal tiles, each with its portrait on disk and a sensible weight`, () => {
+      expect(t.members.map((m) => m.id)).toEqual(['engineer', 'melvin', 'rudy']);
+      expect((about.match(/class="mp-team__member"/g) ?? []).length).toBe(3);
+      for (const m of t.members) {
+        expect(m.photo.alt.length, m.id).toBeGreaterThan(10);
+        expect(m.photo.w, m.id).toBeGreaterThan(0);
+        expect(m.photo.h, m.id).toBeGreaterThan(0);
+        const file = new URL(`.${m.photo.src}`, root);
+        expect(existsSync(file), m.photo.src).toBe(true);
+        expect(statSync(file).size, m.photo.src).toBeLessThan(150_000);
+      }
+    });
+
+    it(`${lang}: nobody is presented as the leader, and no university is named`, () => {
+      // The owner, 2026-10-24: "no me pongas como líder, soy parte igual" and
+      // "no menciones la universidad".
+      expect(aboutText).not.toMatch(/\bled by\b|\bleads?\b|\bleaders?\b|\bfounders?\b|principal engineer|dirigid[oa] por|\bdirige\b|líder|fundador|ingeniero principal/i);
+      expect(aboutText).not.toMatch(/universit|universidad|barcelona/i);
+    });
+
+    it(`${lang}: Melvin is M.Sc., EIT — never an engineer or a PE — and Rudy's company line is printed once`, () => {
+      const tile = (id: string) => about.match(new RegExp(`<li id="${id}"[\\s\\S]*?</li>`))?.[0] ?? '';
+      const melvin = text(tile('melvin'));
+      expect(melvin).toContain('EIT');
+      expect(melvin).not.toMatch(/engineer(?!ing)|ingenier|\bPE\b|licen|passed|aprob/i);
+      const rudy = t.members.find((m) => m.id === 'rudy')!;
+      expect(rudy.company).toBeTruthy();
+      // One company line on the page — the register further down names
+      // Precision Source in a sentence of its own, which is another text.
+      expect((about.match(/class="mp-team__company"/g) ?? []).length).toBe(1);
+      expect(about).toContain(`<p class="mp-team__company">${esc(rudy.company!)}</p>`);
+      expect(t.members.filter((m) => m.company).length).toBe(1);
+    });
+
+    it(`${lang}: every link to /about#… from the footer and the closing band lands on an id that exists`, () => {
+      const hrefs = [
+        ...c.footerNav.flatMap((g) => g.items.map((i) => i.href)),
+        c.closingCta.primary.href,
+        c.closingCta.secondary.href,
+      ].filter((h) => h.startsWith('/about#'));
+      expect(hrefs.length).toBeGreaterThan(0);
+      for (const href of hrefs) expect(about, href).toContain(`id="${href.split('#')[1]}"`);
     });
   }
 });

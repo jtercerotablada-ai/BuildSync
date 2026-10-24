@@ -34,8 +34,9 @@
      17  Credentials + leadership
      18  Contact & form
      19  Responsive
-     20  V3 additions (engineer, steps, service cards, service detail,
+     20  V3 additions (steps, service cards, service detail,
          attachments), with their own responsive rules
+     20b Team (/about's TeamGrid, after MKA), with its own responsive rules
      21  Reduced motion / print / forced colours
      22  Large displays (≥1500 / ≥2000) — last, so its overrides win
    (Reset, above 00, sits in its own cascade layer.)
@@ -2771,7 +2772,7 @@ a.mp-menu__mail {
   min-width: 1.75rem;
 }
 
-/* Key · value rows (About principles, the engineer's three rows on About,
+/* Key · value rows (About principles, the team's three rows on About,
    the practice-record pillars) */
 .mp-pillars {
   list-style: none;
@@ -3323,91 +3324,18 @@ a.mp-menu__mail {
   }
 }
 
-/* ═══ 17 · ABOUT: THE ENGINEER ════════════════════════════════════════════ */
-
-/* /about (AboutView, EngineerSection). The sealing statement that lived
-   here is deleted with its sentence (it named the signer); the engineer's
-   base rules are in section 20, "The engineer". Every rule below has two
-   classes or more, so it wins over those and over section 19's phone rules
-   wherever it sits in the file. */
-
-/* The engineer as a profile: the portrait beside his role, name, biography
-   and quote; then the credentials in one row; then the three rows of what
-   that means for the client. The columns are .mp-split's (0.42fr · 1fr,
-   same gap), so the portrait column lines up with the title column of
-   sections 02 and 03 under it. */
-.mp-eng--full {
-  --eng-gap: clamp(1.5rem, 4vw, 4rem);
-  /* The portrait column's width, for the rows under the grid. */
-  --eng-col1: calc((100% - var(--eng-gap)) * 0.42 / 1.42);
-}
-.mp-eng--full .mp-eng__grid {
-  grid-template-columns: minmax(0, 0.42fr) minmax(0, 1fr);
-  grid-template-areas: 'fig head' 'fig body' 'fig quote';
-  grid-template-rows: auto auto 1fr;
-  gap: 0 var(--eng-gap);
-}
-.mp-eng--full .mp-eng__fig {
-  grid-area: fig;
-}
-.mp-eng--full .mp-eng__head {
-  grid-area: head;
-}
-.mp-eng--full .mp-eng__body {
-  grid-area: body;
-}
-.mp-eng--full .mp-eng__quotewrap {
-  grid-area: quote;
-}
-.mp-eng--full .mp-eng__figure {
-  max-width: none;
-}
-.mp-eng--full .mp-eng__quote {
-  margin-block-start: var(--mp-8);
-  max-width: 62ch;
-}
-.mp-eng--full .mp-eng__quote p {
-  font-size: var(--mp-t-lead);
-  line-height: 1.5;
-}
-.mp-eng--full .mp-eng__meta {
-  margin-block-start: var(--mp-12);
-  grid-template-columns: var(--eng-col1) repeat(2, minmax(0, 1fr));
-  gap: var(--mp-6) var(--eng-gap);
-}
-/* The license number in the register's type, and its link with the
-   register's underline and a 44px tap target. */
-.mp-eng--full .mp-eng__lic {
-  font-family: var(--mp-mono);
-  letter-spacing: 0.04em;
-  color: var(--mp-ink);
-}
-.mp-eng--full .mp-eng__meta a {
-  position: relative;
-  display: inline-block;
-  text-decoration: underline;
-  text-decoration-color: var(--mp-gold);
-  text-underline-offset: 0.25em;
-}
-.mp-eng--full .mp-eng__meta a::before {
-  content: '';
-  position: absolute;
-  inset: -12px -4px;
-}
+/* ═══ 17 · ABOUT: PRINCIPLES STRIP ════════════════════════════════════════ */
 
 /* Key · value rows as a strip (.mp-pillars--strip): the five principles in
-   section 02, and the engineer's three rows. From 721px: columns, the key
-   over its sentence — three a row on a tablet (the principles in two rows),
-   the five principles in one row on a wide screen. Phone: run-in rows
-   ("Rigor. Every beam…"). The base .mp-pillars rules are shared with
-   Contact and the service pages and are not touched.
-   Both strips' headings ("Principles", "What that means for you") are the
-   same 12px caps label as the credentials' Education / License / Focus, with
-   the same space above and below: one rule, so they cannot drift apart. The
-   engineer's selector has two classes, so it beats the base
-   .mp-eng__forlabel (section 20) wherever that sits. */
-.mp-about-how__label,
-.mp-eng--full .mp-eng__forlabel {
+   section 02 of /about and the three "what that means for you" rows under
+   the team (TeamGrid). From 721px: columns, the key over its sentence —
+   three a row on a tablet (the principles in two rows), the five principles
+   in one row on a wide screen (the team's three rows keep three columns:
+   section 20b). Phone: run-in rows ("Rigor. Every beam…"). The base
+   .mp-pillars rules are shared with Contact and the service pages and are
+   not touched. The principles' heading is the same 12px caps label as the
+   team's rows (.mp-team__forlabel). */
+.mp-about-how__label {
   margin: var(--mp-12) 0 var(--mp-3);
   font-size: var(--mp-t-label);
   letter-spacing: var(--mp-track-label);
@@ -3443,49 +3371,8 @@ a.mp-menu__mail {
   .mp-pillars.mp-pillars--strip {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
-  /* The engineer's three rows on the credentials' three columns. Three
-     classes: it must beat the five-column rule above at any position. */
-  .mp-eng--full .mp-eng__for.mp-pillars--strip {
-    grid-template-columns: var(--eng-col1) repeat(2, minmax(0, 1fr));
-    column-gap: var(--eng-gap);
-  }
 }
-/* Tablet: education beside the license, the focus list across the row
-   under them in two columns (focus is the meta's last group). */
-@media (max-width: 1180px) {
-  .mp-eng--full .mp-eng__meta {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mp-eng--full .mp-eng__meta > :last-child {
-    grid-column: 1 / -1;
-  }
-  .mp-eng--full .mp-eng__meta > :last-child ul {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: var(--mp-6);
-  }
-}
-/* Phone: the portrait as a thumbnail beside the role and the name, so face
-   and name arrive together; biography and quote full width under them. */
 @media (max-width: 720px) {
-  .mp-eng--full .mp-eng__grid {
-    grid-template-columns: 9rem minmax(0, 1fr);
-    grid-template-areas: 'fig head' 'body body' 'quote quote';
-    grid-template-rows: auto;
-    gap: 0 var(--mp-4);
-  }
-  .mp-eng--full .mp-eng__head {
-    align-self: center;
-  }
-  .mp-eng--full .mp-eng__fig {
-    margin-block-end: var(--mp-6);
-  }
-  .mp-eng--full .mp-eng__title {
-    margin: 0;
-  }
-  .mp-eng--full .mp-eng__meta,
-  .mp-eng--full .mp-eng__meta > :last-child ul {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .mp-pillars.mp-pillars--strip li {
     display: block;
     padding-block: var(--mp-3);
@@ -4244,117 +4131,6 @@ a.mp-menu__mail {
 /* (The two client doors that lived here are gone; their service list became
    .mp-linklist, in 10.) */
 
-/* ── The engineer ────────────────────────────────────────────────────────── */
-.mp-eng__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: clamp(2rem, 5vw, 5.5rem);
-  align-items: start;
-}
-.mp-eng__figure {
-  position: relative;
-  margin: 0;
-  overflow: hidden;
-  background: var(--mp-graphite);
-  isolation: isolate;
-}
-.mp-eng__figure > img {
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
-  object-position: 50% 30%;
-  display: block;
-}
-/* No caption and no typographic plate any more: the portrait is always the
-   real photograph, with the role line and the name beside it (section 17
-   has the /about composition). */
-.mp-eng__role {
-  margin: 0 0 var(--mp-3);
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  color: var(--mp-gold-ink);
-  font-weight: 500;
-}
-.mp-eng__title {
-  font-size: var(--mp-t-h2);
-  margin: 0 0 var(--mp-6);
-}
-.mp-eng__body p {
-  color: var(--mp-ink-2);
-  line-height: 1.75;
-  max-width: 62ch;
-  font-size: var(--mp-t-lead);
-}
-.mp-eng--full .mp-eng__body p {
-  font-size: var(--mp-t-body);
-}
-.mp-eng__body p + p {
-  margin-block-start: var(--mp-4);
-}
-.mp-eng__quote {
-  margin: var(--mp-8) 0 0;
-  padding-inline-start: var(--mp-6);
-  border-inline-start: 2px solid var(--mp-gold);
-  max-width: 60ch;
-}
-.mp-eng__quote p {
-  margin: 0;
-  font-family: var(--mp-serif);
-  font-style: italic;
-  font-size: clamp(1.25rem, 1.7vw, 1.5rem);
-  line-height: 1.45;
-  color: var(--mp-ink);
-}
-.mp-eng__quote cite {
-  display: block;
-  margin-block-start: var(--mp-3);
-  font-style: normal;
-  font-size: var(--mp-t-small);
-  color: var(--mp-ink-3);
-}
-.mp-eng__meta {
-  margin-block-start: var(--mp-8);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--mp-6);
-}
-.mp-eng__meta h3 {
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--mp-ink-3);
-  margin: 0 0 var(--mp-3);
-  padding-block-end: var(--mp-2);
-  border-block-end: 1px solid var(--mp-line);
-}
-.mp-eng__meta ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.4rem;
-}
-.mp-eng__meta li {
-  font-size: var(--mp-t-small);
-  color: var(--mp-ink-2);
-  line-height: 1.5;
-}
-.mp-eng__meta a {
-  color: var(--mp-gold-ink);
-}
-.mp-eng__forlabel {
-  margin: var(--mp-8) 0 var(--mp-3);
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--mp-ink-3);
-}
-.mp-eng__for {
-  margin: 0;
-}
 /* ── Footer: signature line ──────────────────────────────────────────────── */
 .mp-footer__pe {
   display: flex;
@@ -5346,11 +5122,12 @@ a.mp-menu__mail {
   line-height: 1.65;
   color: var(--mp-ink-2);
 }
-/* The engineer's credential (EngineerCredential.tsx): name, P.E. number, the
-   registry link and the business registry line, on the two county-program
-   pages — under the hero facts (snow on graphite) and inside "Next step"
-   (ink on paper). It reads the ink tokens, which every dark surface remaps
-   (01), so it is right on both without knowing which one it is on. */
+/* The engineer's credential (EngineerCredential.tsx): name, the credential in
+   letters and the business registry line (no number and no link since
+   2026-10-24), on the two county-program pages — under the hero facts (snow
+   on graphite) and, name only, inside "Next step" (ink on paper). It reads
+   the ink tokens, which every dark surface remaps (01), so it is right on
+   both without knowing which one it is on. */
 .mp-cred {
   margin: var(--mp-4) 0 0;
   font-size: var(--mp-t-small);
@@ -7072,12 +6849,6 @@ a.mp-menu__mail {
 
 /* ── Responsive for the additions ────────────────────────────────────────── */
 @media (max-width: 1180px) {
-  .mp-eng__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .mp-eng__figure {
-    max-width: 520px;
-  }
   .mp-steps {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -7142,9 +6913,6 @@ a.mp-menu__mail {
   .mp-compare__title {
     margin-block-start: var(--mp-12);
   }
-  .mp-eng__meta {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .mp-files__item {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: 'name remove' 'meta meta' 'bar bar';
@@ -7207,6 +6975,117 @@ a.mp-menu__mail {
   }
 }
 
+/* ═══ 20b · TEAM (/about, 2026-10-24) ══════════════════════════════════════
+   TeamGrid.tsx, after MKA's people page: one grid of square portraits, the
+   same tile for everyone, touching edge to edge; the role, the name and the
+   letters on a dark band across the foot of each photograph (MKA shows it on
+   hover — here always, for phones and keyboards); the company and the
+   credentials under the tile. Three across from 640px, one under another
+   below. Base rules and their responsive rules together, after 20. */
+.mp-team__grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mp-8) 0;
+  margin-block-start: clamp(2rem, 4vw, 3rem);
+}
+.mp-team__member {
+  min-width: 0;
+}
+.mp-team__tile {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  background: var(--mp-graphite);
+}
+.mp-team__tile img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: 50% 22%;
+  transition: transform var(--mp-dur-slow) var(--mp-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-team__member:hover .mp-team__tile img {
+    transform: scale(1.03);
+  }
+}
+.mp-team__band {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: grid;
+  gap: 0.1rem;
+  padding: var(--mp-3) var(--mp-4);
+  background: rgba(11, 12, 13, 0.84);
+  color: var(--mp-snow);
+}
+.mp-team__role {
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.06em;
+  color: var(--mp-snow-2);
+}
+.mp-team__name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--mp-snow);
+}
+.mp-team__letters {
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.06em;
+  color: var(--mp-gold);
+}
+.mp-team__details {
+  padding: var(--mp-4) var(--mp-6) 0 0;
+}
+.mp-team__company {
+  margin: 0;
+  font-size: var(--mp-t-small);
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+.mp-team__forwrap {
+  margin-block-start: var(--mp-16);
+}
+.mp-team__forlabel {
+  margin: 0 0 var(--mp-3);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--mp-ink-3);
+}
+.mp-team__for {
+  margin: 0;
+}
+@media (min-width: 640px) {
+  .mp-team__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+/* From 640px the three tiles sit side by side. Under 900px they are only
+   ~195-270px wide, and a band laid over the photograph would cover the
+   chin (and, for the contractor's two-line role, half the face): there the
+   band sits UNDER the photograph, on graphite, with room for two lines of
+   role so the three keep one height. */
+@media (min-width: 640px) and (max-width: 899px) {
+  .mp-team__band {
+    position: static;
+    min-height: 6.9rem;
+    background: var(--mp-graphite);
+  }
+}
+/* Three rows, three columns: the strip's wide rule is for five. Same
+   weight as that rule and later in the file, so it wins. */
+@media (min-width: 721px) {
+  .mp-pillars.mp-pillars--strip.mp-team__for {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* ═══ 21 · REDUCED MOTION / PRINT / FORCED COLOURS ════════════════════════
    After every component rule, so equal-specificity overrides here win. */
 
@@ -7224,6 +7103,7 @@ a.mp-menu__mail {
   .mp-svc:hover .mp-svc__media img,
   .mp-svc:has(:focus-visible) .mp-svc__media img,
   .mp-work__item:hover .mp-work__photo img,
+  .mp-team__member:hover .mp-team__tile img,
   .mp-gal__cell:hover img {
     transform: none;
   }
@@ -7332,12 +7212,17 @@ a.mp-menu__mail {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* Solid buttons carry a snow label, printed light grey on white. The
-     engineer's portrait prints in a ruled box on white. */
-  .mp-eng__figure {
-    background: #fff !important;
-    border: 1px solid #000;
+  /* The team's band: light text on a dark overlay, which a print without
+     background graphics drops. It prints under the photograph, in black. */
+  .mp-team__band {
+    position: static;
+    background: none !important;
   }
+  .mp-team__band,
+  .mp-team__band * {
+    color: #000 !important;
+  }
+  /* Solid buttons carry a snow label, printed light grey on white. */
   .mp-btn--solid,
   .mp-btn--solid * {
     color: #000 !important;

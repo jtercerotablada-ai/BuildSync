@@ -549,13 +549,13 @@ describe('H1: the subject and the place, where a slogan used to be', () => {
     en: {
       '/services': 'Organized by what you need, not by what we do.',
       '/existing-buildings': 'The building is already standing.',
-      '/about': 'Built around one accountable engineer.',
+      '/about': 'Built around one accountable team.',
       '/projects': 'The frame behind the project.',
     },
     es: {
       '/services': 'Organizados por lo que usted necesita, no por lo que hacemos.',
       '/existing-buildings': 'El edificio ya está en pie.',
-      '/about': 'Construida alrededor de un solo ingeniero responsable.',
+      '/about': 'Construida alrededor de un solo equipo responsable.',
       '/projects': 'La estructura detrás del proyecto.',
     },
   };
@@ -590,6 +590,15 @@ describe('H1: the subject and the place, where a slogan used to be', () => {
       it(`${name}: the H1 is not the page title over again`, () => {
         expect(letters(h1)).not.toBe(letters(SEO[lang][key].title));
       });
+
+      if (path === '/about')
+        it(`${name}: the description does not make one person the leader`, () => {
+          // The owner, 2026-10-24: "no me pongas como líder, soy parte igual".
+          // The description is what Google and a link preview show for the page.
+          for (const key of ['about', 'home'] as const) {
+            expect(SEO[lang][key].description).not.toMatch(/\bled by\b|\bleads?\b|dirigid[oa] por|a cargo de|\bun solo P\.E\./i);
+          }
+        });
 
       it(`${name}: the line it replaced opens the lede`, () => {
         const sub = html.match(/<p class="mp-phero__sub[^>]*>(.*?)<\/p>/)?.[1] ?? '';

@@ -308,7 +308,7 @@ export const footerNav: { title: string; items: NavItem[] }[] = [
       { href: '/guides', label: 'Guides' },
       { href: '/resources', label: 'Resources' },
       { href: '/about', label: 'About' },
-      { href: '/about#engineer', label: 'Meet the Engineer' },
+      { href: '/about#team', label: 'Meet the Team' },
       { href: '/contact', label: 'Request a Proposal' },
     ],
   },
@@ -2873,7 +2873,7 @@ export const workSection = {
 export const leadership = {
   name: 'Juan Tercero, PE., M.Sc.',
   firstName: 'Juan',
-  role: 'Principal Engineer · Founder',
+  role: 'Structural Engineer',
   credential: 'Florida Professional Engineer',
   /* The owner's own portrait, from the firm's Instagram profile
      (@ttcivilstructural), October 18, 2026. 800 px, shown at 4:5. Always
@@ -2895,13 +2895,7 @@ export const leadership = {
   } as { number: string; url: string } | null,
   linkedin: null as string | null,
   bio: [
-    'Juan Tercero is a Florida-licensed Professional Engineer and the founder of Tercero Tablada Civil and Structural Engineering Inc. A civil engineer by training (National University of Engineering) with a Master in Construction Project Management from the Universidad de Barcelona, he leads every engagement personally — from the first conversation with an owner, board or architect to the sealed drawing set or the submitted report.',
-  ],
-  /* Degrees only: the Florida license has its own column beside these, with
-     its number and the link to the state registry. */
-  education: [
-    'Master in Construction Project Management — Universidad de Barcelona',
-    'Civil Engineer — National University of Engineering',
+    'Juan Tercero is a Florida-licensed Professional Engineer at Tercero Tablada Civil and Structural Engineering Inc. A civil engineer by training with a Master in Construction Project Management, he works with an owner, board or architect from the first conversation to the sealed drawing set or the submitted report.',
   ],
   /* In an owner's words, not the trade's ("BIM", "lateral", "frames"). The
      High-Velocity Hurricane Zone of the Florida Building Code is these two
@@ -2945,12 +2939,12 @@ export const aboutPage = {
   /* The slogan opens it (seo.test). The written-down reasoning is the
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
-  sub: 'Built around one accountable engineer. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward.',
+  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward.',
   /* Region stays: it is the only other place "South" is printed on /about,
      and every word of the H1 must be a word of the page (seo.test). Do not
      reword it to the two counties. */
   facts: [
-    { k: 'Principal', v: 'Juan Tercero, PE., M.Sc.' },
+    { k: 'Team', v: 'Juan Tercero · Melvin Tercero · Rudy Diaz' },
     { k: 'Region', v: 'South Florida' },
   ],
   /* One section on /about: the two paragraphs beside the title, then the
@@ -2972,6 +2966,69 @@ export const aboutPage = {
       { k: 'Documented reasoning', v: 'Assumptions, loads and code provisions are written down, so any reviewer can follow the argument.' },
       { k: 'Longevity', v: 'Designed for durability and service life in a coastal environment, not just for the first day of occupancy.' },
     ],
+  },
+  /* THE TEAM, AS EQUALS (the owner, 2026-10-24: "no me pongas como líder,
+     soy parte igual"; and, of MKA's people page, "me gusta"). One grid of
+     square portraits, the same tile for everyone: the role, the name and the
+     credential LETTERS on a dark band over the photograph. Nothing else on
+     the tile — no university and no study lines (the owner, the same day:
+     "no menciones la universidad, solo pon nombre con licencia, por ejemplo
+     PE, EIT, GC y EC, y másters"). Nothing here may present one person as
+     the others' leader.
+     The company line (`company`) is only for someone who works for ANOTHER
+     company — the lede already says, once, that the other two are the firm's
+     (a repeated paragraph is what the owner's on-page check flags). It keeps
+     the page from making the engineering firm look like a contractor (F.S.
+     489.127(1)(f), 489.103(11)):
+       · Juan Tercero — PE (Florida Professional Engineer), M.Sc.
+       · Melvin Tercero — M.Sc., EIT, the owner's words for his brother.
+         Never "engineer", "PE" or "passed the PE exam": an Engineer Intern
+         holds a certification, not a license, and "cannot call yourself an
+         engineer" (FBPE; F.S. 471.031(1)(b)). EIT says the opposite of
+         licensed; Florida's own term for it is "E.I.".
+       · Rudy Diaz — GC and EC (Certified General and Electrical Contractor)
+         of Precision Source Inc., a separate company, and an MBA. His
+         numbers are in the register at the foot of /about (`partner`), as
+         F.S. 489.119(5)(b) asks.
+     `id` is each tile's anchor; Juan's stays `engineer`, the @id of the
+     Person schema. Portraits supplied by the owner, square. */
+  team: {
+    eyebrow: 'Our team',
+    title: 'The people behind your building.',
+    lede: 'Two companies, one team: Juan Tercero and Melvin Tercero at Tercero Tablada Civil and Structural Engineering Inc., and Rudy Diaz at Precision Source Inc., the general and electrical contractor — a separate company — that works with us on recertifications and BSIP inspections.',
+    members: [
+      {
+        id: 'engineer',
+        name: 'Juan Tercero',
+        letters: 'PE, M.Sc.',
+        role: 'Structural Engineer',
+        company: null,
+        photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE, M.Sc., in a dark suit and navy tie', w: 800, h: 814 },
+      },
+      {
+        id: 'melvin',
+        name: 'Melvin Tercero',
+        letters: 'M.Sc., EIT',
+        role: 'Structural Design',
+        company: null,
+        photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, M.Sc., EIT, in a dark suit and navy tie', w: 800, h: 800 },
+      },
+      {
+        id: 'rudy',
+        name: 'Rudy Diaz',
+        letters: 'GC, EC, MBA',
+        role: 'General & Electrical Contractor',
+        company: 'Precision Source Inc., a separate company',
+        photo: { src: '/ttc/img/leadership/rudy-diaz.jpg', alt: 'Rudy Diaz, GC, EC, MBA, in a dark suit and navy tie', w: 800, h: 800 },
+      },
+    ] as readonly {
+      id: string;
+      name: string;
+      letters: string;
+      role: string;
+      company: string | null;
+      photo: { src: string; alt: string; w: number; h: number };
+    }[],
   },
 } as const;
 
@@ -3228,7 +3285,7 @@ export const closingCta = {
      button, so they are said here, at reading size, once per page. */
   body: 'A county notice in your hand, a building that worries you or a new project — describe it and attach what you have. A phone photo of the letter is enough. You hear back from the engineer, usually within two hours, with questions or a free written proposal.',
   primary: { href: '/contact', label: 'Request a Proposal' },
-  secondary: { href: '/about#engineer', label: 'Meet the Engineer' },
+  secondary: { href: '/about#team', label: 'Meet the Team' },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════

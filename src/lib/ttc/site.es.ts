@@ -1435,7 +1435,7 @@ export const es: SiteContent = {
         { href: '/guides', label: 'Guías' },
         { href: '/resources', label: 'Recursos' },
         { href: '/about', label: 'Nosotros' },
-        { href: '/about#engineer', label: 'Conozca al ingeniero' },
+        { href: '/about#team', label: 'Conozca al equipo' },
         { href: '/contact', label: 'Solicitar propuesta' },
       ],
     },
@@ -1751,7 +1751,7 @@ export const es: SiteContent = {
   leadership: {
     name: 'Juan Tercero, PE., M.Sc.',
     firstName: 'Juan',
-    role: 'Ingeniero Principal · Fundador',
+    role: 'Ingeniero Estructural',
     credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
     portrait: {
       src: '/ttc/img/leadership/juan-tercero.jpg',
@@ -1766,12 +1766,8 @@ export const es: SiteContent = {
     linkedin: null,
     bio: [
       /* The Master's keeps the program's own name ("…en Construction Project
-         Management", Universidad de Barcelona), the same in bio and education. */
-      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida y fundador de Tercero Tablada Civil and Structural Engineering Inc. Ingeniero civil de formación (Universidad Nacional de Ingeniería) con un Máster en Construction Project Management por la Universidad de Barcelona, dirige personalmente cada trabajo — desde la primera conversación con un propietario, una junta directiva o un arquitecto hasta el juego de planos sellado o el informe presentado.',
-    ],
-    education: [
-      'Máster en Construction Project Management — Universidad de Barcelona',
-      'Ingeniero Civil — Universidad Nacional de Ingeniería',
+         Management"). No university is named anywhere (the owner, 2026-10-24). */
+      'Juan Tercero es Ingeniero Profesional (P.E.) con licencia en Florida en Tercero Tablada Civil and Structural Engineering Inc. Ingeniero civil de formación con un Máster en Construction Project Management, trabaja con un propietario, una junta directiva o un arquitecto desde la primera conversación hasta el juego de planos sellado o el informe presentado.',
     ],
     focus: [
       'Recertificación en Miami-Dade, inspecciones del BSIP en Broward y evaluaciones de condición',
@@ -1856,11 +1852,11 @@ export const es: SiteContent = {
     eyebrow: 'Sobre la firma',
     titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
-    sub: 'Construida alrededor de un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward.',
+    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward.',
     /* "Región" se queda: es el único otro lugar de /es/about donde se lee
        "Sur", y cada palabra del H1 debe estar en la página (seo.test). */
     facts: [
-      { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
+      { k: 'Equipo', v: 'Juan Tercero · Melvin Tercero · Rudy Diaz' },
       { k: 'Región', v: 'Sur de Florida' },
     ],
     approach: {
@@ -1879,6 +1875,37 @@ export const es: SiteContent = {
         { k: 'Coordinación', v: 'La estructura se coordina con la arquitectura y las instalaciones desde el inicio, para que los conflictos se detecten en el modelo y no en sitio.' },
         { k: 'Razonamiento documentado', v: 'Hipótesis, cargas y disposiciones de código quedan escritas, para que cualquier revisor pueda seguir el argumento.' },
         { k: 'Durabilidad', v: 'Diseñado para durabilidad y vida útil en un entorno costero, no solo para el primer día de ocupación.' },
+      ],
+    },
+    team: {
+      eyebrow: 'Nuestro equipo',
+      title: 'Las personas detrás de su edificio.',
+      lede: 'Dos empresas, un solo equipo: Juan Tercero y Melvin Tercero en Tercero Tablada Civil and Structural Engineering Inc., y Rudy Diaz en Precision Source Inc., el contratista general y eléctrico — una empresa aparte — que trabaja con nosotros en las recertificaciones y en las inspecciones BSIP.',
+      members: [
+        {
+          id: 'engineer',
+          name: 'Juan Tercero',
+          letters: 'PE, M.Sc.',
+          role: 'Ingeniero Estructural',
+          company: null,
+          photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE, M.Sc., con traje oscuro y corbata azul marino', w: 800, h: 814 },
+        },
+        {
+          id: 'melvin',
+          name: 'Melvin Tercero',
+          letters: 'M.Sc., EIT',
+          role: 'Diseño Estructural',
+          company: null,
+          photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, M.Sc., EIT, con traje oscuro y corbata azul marino', w: 800, h: 800 },
+        },
+        {
+          id: 'rudy',
+          name: 'Rudy Diaz',
+          letters: 'GC, EC, MBA',
+          role: 'Contratista General y Eléctrico',
+          company: 'Precision Source Inc., una empresa aparte',
+          photo: { src: '/ttc/img/leadership/rudy-diaz.jpg', alt: 'Rudy Diaz, GC, EC, MBA, con traje oscuro y corbata azul marino', w: 800, h: 800 },
+        },
       ],
     },
   },
@@ -2026,7 +2053,7 @@ export const es: SiteContent = {
        buttons (see the EN comment). */
     body: 'Una notificación del condado en la mano, un edificio que le preocupa o un proyecto nuevo — descríbalo y adjunte lo que tenga. Basta una foto de la carta tomada con el teléfono. El ingeniero le responde, normalmente en menos de dos horas, con preguntas o con una propuesta gratis por escrito.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
-    secondary: { href: '/about#engineer', label: 'Conozca al ingeniero' },
+    secondary: { href: '/about#team', label: 'Conozca al equipo' },
   },
 
   pricing: {

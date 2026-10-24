@@ -195,10 +195,10 @@ describe('images: every <img> the public pages send', () => {
       const spoken = imgs(html)
         .filter((tag) => attr(tag, 'aria-hidden') !== 'true')
         .map((tag) => attr(tag, 'src'));
-      // The engineer's portrait (leadership.portrait) is content too: it is
-      // read out where EngineerSection renders it — /about, its only page.
+      // The team's portraits are content too: they are read out where
+      // TeamGrid renders them — /about, their only page.
       const c = getContent(lang);
-      const portrait = c.leadership.portrait && path === '/about' ? [c.leadership.portrait.src] : [];
+      const portrait = path === '/about' ? c.aboutPage.team.members.map((m) => m.photo.src) : [];
       expect(spoken).toEqual([...portrait, c.company.logo.lockupLightSm]);
     });
   }
