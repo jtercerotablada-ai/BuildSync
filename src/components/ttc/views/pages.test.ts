@@ -636,7 +636,7 @@ describe('county program pages: no paragraph is printed twice', () => {
       expect(getContent(lang).closingCta.body).toContain(reply);
     }
     // Home, Services, Existing Buildings, About, Typical Engagements and the
-    // eight services, in each language — and every city page.
+    // ten services, in each language — and every city page.
     expect(closed).toHaveLength(28 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
 });

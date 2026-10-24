@@ -2146,7 +2146,7 @@ export const es: SiteContent = {
        this page" text and no facts panel (see the English). Keep "servicios
        de ingeniería estructural" whole: it is the only place outside the H1
        that says "ingeniería" (seo.test.ts). */
-    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Ocho servicios de ingeniería estructural, para edificios que ya están en pie y para proyectos nuevos. La propuesta es gratis.',
+    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Diez servicios de ingeniería estructural, para edificios que ya están en pie y para proyectos nuevos. La propuesta es gratis.',
     cardMore: 'Detalles',
     tracks: {
       existing: {

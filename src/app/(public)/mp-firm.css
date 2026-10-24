@@ -694,3 +694,157 @@
     transition: none;
   }
 }
+
+/* ── 6 · Inner pages, after emxse.com's inner pages (2026-10-23) ───────────
+   The owner: "aplica el diseño a las diferentes ventanas con un poco de
+   variación". The home page is its own layout (3); every other page shares
+   PageHero, the section language and the closing band, so the EMX look
+   reaches them here, in CSS, with one variation per surface:
+
+     PageHero    a big headline on black and, from 901px, the photograph as
+                 a wide band UNDER the copy (EMX's inner pages) instead of a
+                 dimmed backdrop; the facts panel loses its box and becomes a
+                 hairline list. Phones keep the photo strip on top.
+     Close band  the "We're here to help." scale: a large headline over a
+                 hairline.
+     Motion      the site's reveal engine (reveal.ts) plays EMX's moves:
+                 blocks rise further and slower, section headings slide in
+                 from the left, photographs settle from 1.2x, stagger lists
+                 step 0.12s apart. Below-the-fold only, no-preference only. */
+
+/* PageHero — from 901px the photo leaves the backdrop. */
+@media (min-width: 901px) {
+  .mp .mp-phero:has(.mp-phero__photo) {
+    min-height: 0;
+    justify-content: flex-start;
+    padding-block-end: 0;
+  }
+  .mp .mp-phero__photo {
+    position: relative;
+    inset: auto;
+    z-index: 0;
+    order: 2;
+    width: calc(min(100%, var(--mp-w)) - 2 * var(--mp-pad));
+    height: clamp(260px, 30vw, 460px);
+    margin: clamp(2rem, 4vw, 3.5rem) auto 0;
+  }
+  .mp .mp-phero__photo img {
+    object-position: 50% 45%;
+    filter: grayscale(1) contrast(1.06) brightness(0.92);
+    animation: mp-fx-settle-in 1.4s var(--fx-soft) 0.3s backwards;
+  }
+  .mp .mp-phero__photo::after {
+    background: none;
+  }
+  .mp .mp-phero__title {
+    font-size: clamp(3rem, 5.4vw, 5.75rem);
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    font-weight: 600;
+  }
+  .mp .mp-phero__sub {
+    padding-block-start: var(--mp-6);
+    margin-block-start: var(--mp-8);
+    border-block-start: 1px solid var(--mp-line-dark);
+    color: var(--mp-snow);
+  }
+}
+@keyframes mp-fx-settle-in {
+  from {
+    transform: scale(1.4);
+  }
+}
+@media (min-width: 1024px) {
+  .mp .mp-phero__side {
+    padding: 0;
+    background: none;
+    border: 0;
+    border-block-start: 1px solid var(--mp-line-dark);
+    padding-block-start: var(--mp-4);
+  }
+}
+
+/* Close band — the EMX contact headline scale. */
+.mp .mp-close__title {
+  font-size: clamp(2.5rem, 5vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  font-weight: 600;
+  padding-block-end: clamp(1.25rem, 2.5vw, 2rem);
+  border-block-end: 1px solid var(--mp-line-dark);
+}
+.mp .mp-close__inner {
+  align-items: end;
+}
+
+/* Motion — the reveal engine's states, re-timed (same attributes, same
+   rules as mp.css 06: nothing is hidden before reveal.ts says so). */
+@keyframes mp-fx-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rv-y, 64px));
+  }
+}
+@keyframes mp-fx-reveal-left {
+  from {
+    opacity: 0;
+    transform: translateX(-80px);
+  }
+}
+@keyframes mp-fx-photo-in {
+  from {
+    transform: scale(1.2);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mp .mp-reveal[data-rv='wait'] {
+    transform: translateY(var(--rv-y, 64px));
+  }
+  .mp .mp-reveal[data-rv='in'] {
+    animation: mp-fx-reveal 1s var(--fx-out) var(--rv-delay, 0s) backwards;
+  }
+  /* A block that opens with a section heading slides in from the left. */
+  .mp .mp-reveal[data-rv='wait']:has(> .mp-split__title, > h2:first-child) {
+    transform: translateX(-80px);
+  }
+  .mp .mp-reveal[data-rv='in']:has(> .mp-split__title, > h2:first-child) {
+    animation-name: mp-fx-reveal-left;
+  }
+  /* Photographs inside a revealed block settle as it arrives. */
+  .mp .mp-reveal[data-rv='in'] img {
+    animation: mp-fx-photo-in 1.4s var(--fx-soft) var(--rv-delay, 0s) backwards;
+  }
+  .mp [data-rv='in'] > .mp-reveal--line {
+    animation-duration: 1s;
+    animation-timing-function: var(--fx-out);
+  }
+  .mp [data-rv='wait'] > .mp-reveal--item {
+    transform: translateY(48px);
+  }
+  .mp [data-rv='in'] > .mp-reveal--item {
+    animation: mp-fx-reveal 0.9s var(--fx-out) backwards;
+  }
+  .mp [data-rv='in'] > .mp-reveal--item:nth-child(2) {
+    animation-delay: 0.12s;
+  }
+  .mp [data-rv='in'] > .mp-reveal--item:nth-child(3) {
+    animation-delay: 0.24s;
+  }
+  .mp [data-rv='in'] > .mp-reveal--item:nth-child(4) {
+    animation-delay: 0.36s;
+  }
+  .mp [data-rv='in'] > .mp-reveal--item:nth-child(5) {
+    animation-delay: 0.48s;
+  }
+  .mp [data-rv='in'] > .mp-reveal--item:nth-child(6) {
+    animation-delay: 0.6s;
+  }
+  .mp [data-rv='in'] > .mp-reveal--item:nth-child(n + 7) {
+    animation-delay: 0.72s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp .mp-phero__photo img {
+    animation: none;
+  }
+}
