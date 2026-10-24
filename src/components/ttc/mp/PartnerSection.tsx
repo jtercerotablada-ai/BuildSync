@@ -18,13 +18,18 @@ import { SectionHeading, Reveal, TextLink } from './primitives';
  * site.ts).
  *
  * Both logos are the files each company supplied (never redrawn), dark ink on
- * the card.
+ * the white card. Every fact on the engineering card comes from `company` and
+ * `leadership`, so the P.E. number printed here is the one /about prints.
  *
- * LICENSES BY NAME, NEVER BY NUMBER (the owner, 2026-10-23: real firms do
- * not print license numbers). Each card lists what its firm holds —
- * `partner.engineering.licenses` and `partner.construction.licenses` — and
- * /about's register lists the same four. Do not bring the numbers or the
- * links to the state's search back.
+ * EVERY LICENSE NUMBER IS A LINK to the state registry, so a board can check
+ * it instead of taking the card's word. The registry (DBPR) has no stable
+ * per-license URL — `leadership.license.url` is its search page — so all
+ * three numbers open the same form; /about's sentence above the register
+ * says that they open the state's search (no how-to line under them: the
+ * owner, 2026-10-20, no small print). The business registry number stays
+ * plain text for now: it
+ * has no letter prefix (PE, CGC, EC), and nobody has checked that a bare
+ * number finds one record on that form. Link it once that is confirmed.
  *
  * THREE FORMS, ONE PER PAGE. The block above — headline, lede, the two
  * cards, the line about the registry — was printed whole on the home page,
@@ -32,7 +37,7 @@ import { SectionHeading, Reveal, TextLink } from './primitives';
  * first thing the on-page check listed as repeated. Now:
  *   • `full`  (home): everything above, unchanged.
  *   • `about` (/about): what each company is, and the four registrations as
- *     ONE list — firm and license. No
+ *     ONE list — firm, license, number — with the same three links. No
  *     logos and no cards: the page is about the practice, and the list is
  *     what a board came to check.
  *   • `brief` (/existing-buildings): two sentences on who the reader deals
@@ -56,18 +61,46 @@ export function PartnerSection({
   const c = getContent(lang);
   const p = c.partner;
   const firm = c.company;
+  const e = c.leadership;
   const build = p.construction;
+  /* `company.registry` is one printed line ("FL Engineering Business No.
+     40285"); the card wants the number on its own, in the same two-column
+     row as the P.E. licence, so the two cards' lists line up. */
+  const registryNo = firm.registry?.match(/No\.\s*\d+/)?.[0] ?? null;
+  const dbprUrl = e.license?.url ?? null;
+  /* The visible text is the number alone; the hidden suffix says where the
+     link goes, so three links to one page are told apart in a screen
+     reader's link list and each still starts with what is on screen. */
+  const licenseNo = (number: string) =>
+    dbprUrl ? (
+      <a href={dbprUrl} rel="noopener noreferrer" target="_blank">
+        {number}
+        <span className="mp-sr-only"> — {c.ui.engineer.verify}</span>
+      </a>
+    ) : (
+      number
+    );
+
   if (variant !== 'full') {
     const short = variant === 'about' ? p.about : p.brief;
     /* One row per registration, the firm's own first and then in the order
        of the home page's cards. Each row is a single line of text — who,
-       which license — so it reads as a register and is not
+       which license, which number — so it reads as a register and is not
        the home page's card cut into pieces. */
     const rows =
       variant === 'about'
         ? [
-            ...p.engineering.licenses.map((lic) => ({ who: firm.name, label: lic.label })),
-            ...build.licenses.map((lic) => ({ who: build.name, label: lic.label })),
+            ...(registryNo
+              ? [{ who: firm.name, label: p.engineering.registryLabel, value: registryNo as React.ReactNode }]
+              : []),
+            ...(e.license
+              ? [{ who: e.name, label: p.engineering.licenseLabel, value: licenseNo(e.license.number) }]
+              : []),
+            ...build.licenses.map((lic) => ({
+              who: build.name,
+              label: lic.label,
+              value: licenseNo(lic.number),
+            })),
           ]
         : [];
 
@@ -93,7 +126,8 @@ export function PartnerSection({
                   {rows.map((row) => (
                     <li key={`${row.who} ${row.label}`}>
                       <span className="mp-partner__register-who">{row.who}</span>{' '}
-                      <span className="mp-partner__register-label">{row.label}</span>
+                      <span className="mp-partner__register-label">{row.label}</span>{' '}
+                      <span className="mp-partner__register-no">{row.value}</span>
                     </li>
                   ))}
                 </ul>
@@ -151,14 +185,26 @@ export function PartnerSection({
             </div>
             <p className="mp-partner__role">{p.engineering.role}</p>
             <h3 className="mp-partner__name">{firm.name}</h3>
-            <p className="mp-partner__who">{p.engineering.place}</p>
+            <p className="mp-partner__who">{e.name}</p>
             <div className="mp-partner__lic">
               <p className="mp-partner__lic-label">{p.licensesLabel}</p>
-              <ul>
-                {p.engineering.licenses.map((l) => (
-                  <li key={l.label}>{l.label}</li>
-                ))}
-              </ul>
+              <dl>
+                {e.license ? (
+                  <div>
+                    <dt>{p.engineering.licenseLabel}</dt>
+                    <dd>{licenseNo(e.license.number)}</dd>
+                  </div>
+                ) : null}
+                {registryNo ? (
+                  <div>
+                    <dt>{p.engineering.registryLabel}</dt>
+                    <dd>{registryNo}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              {firm.registry && !registryNo ? (
+                <p className="mp-partner__reg">{firm.registry}</p>
+              ) : null}
             </div>
           </Reveal>
 
@@ -180,15 +226,19 @@ export function PartnerSection({
             <p className="mp-partner__who">{build.place}</p>
             <div className="mp-partner__lic">
               <p className="mp-partner__lic-label">{p.licensesLabel}</p>
-              <ul>
+              <dl>
                 {build.licenses.map((l) => (
-                  <li key={l.label}>{l.label}</li>
+                  <div key={l.number}>
+                    <dt>{l.label}</dt>
+                    <dd>{licenseNo(l.number)}</dd>
+                  </div>
                 ))}
-              </ul>
+              </dl>
             </div>
           </Reveal>
         </div>
-        {/* No note under the cards (the owner, 2026-10-20: no small print). */}
+        {/* No note under the cards (the owner, 2026-10-20: no small print).
+            The numbers are still links to the registry. */}
       </div>
     </section>
   );

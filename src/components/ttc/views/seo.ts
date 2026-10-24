@@ -46,7 +46,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     services: {
       title: 'Structural Engineering Services — Miami-Dade & Broward',
       description:
-        'Ten structural services in Miami-Dade and Broward: recertification, BSIP, inspections and repairs; design, ADUs, steel and masonry, BIM and peer review.',
+        'Eight structural services in Miami-Dade and Broward: recertification, BSIP, inspections and repairs; design, analysis, BIM and peer review for new projects.',
       keywords: ['structural engineering services Miami', 'structural design Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'milestone inspection', 'BIM coordination'],
     },
     existing: {
@@ -100,7 +100,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     services: {
       title: 'Servicios de ingeniería estructural — Miami-Dade y Broward',
       description:
-        'Diez servicios estructurales en Miami-Dade y Broward: recertificación, BSIP, inspecciones y reparaciones; diseño, ADUs, acero, BIM y revisión por pares.',
+        'Ocho servicios estructurales en Miami-Dade y Broward: recertificación, BSIP, inspecciones y reparaciones; diseño, análisis, BIM y revisión por pares.',
       // People search "inspección milestone"; the page says "inspección de hito".
       keywords: ['servicios ingeniería estructural Miami', 'diseño estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección milestone', 'inspección de hito', 'coordinación BIM'],
     },

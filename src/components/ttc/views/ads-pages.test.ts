@@ -209,7 +209,7 @@ describe('measurement off (no variable set): the site is what it was', () => {
 
   // Sixteen pages a language — the thirty-two of the sitemap — and the 404.
   it('every public page is rendered, in both states', () => {
-    expect(off.pages).toHaveLength(38);
+    expect(off.pages).toHaveLength(34);
     expect(on.pages.map((p) => `${p.lang} ${p.path}`)).toEqual(off.pages.map((p) => `${p.lang} ${p.path}`));
   });
 
@@ -487,7 +487,7 @@ describe('measurement on: what the earlier releases settled still holds', () => 
 
   // Nine since October 17, 2026: the footer links the firm's Facebook,
   // Instagram and LinkedIn pages (contact.social).
-  it('the site links the same eight outside hosts and no other', () => {
+  it('the site links the same nine outside hosts and no other', () => {
     const hosts = (s: Site) => [...new Set(s.pages.flatMap((p) => outboundHosts(p.html)))].sort();
     expect(hosts(on)).toEqual([
       'api.whatsapp.com',
@@ -498,6 +498,7 @@ describe('measurement on: what the earlier releases settled still holds', () => 
       'www.leg.state.fl.us',
       'www.linkedin.com',
       'www.miamidade.gov',
+      'www.myfloridalicense.com',
     ]);
     expect(hosts(on)).toEqual(hosts(off));
   });

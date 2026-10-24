@@ -1311,178 +1311,6 @@ const services: SiteContent['services'] = [
       keywords: ['revisión estructural por pares', 'revisión estructural independiente Florida', 'revisión estructural de terceros Miami', 'due diligence estructural'],
     },
   },
-  /* Los dos servicios añadidos el 2026-10-23. SOLO INGENIERÍA ("no
-     construimos"): ver el comentario en site.ts. */
-  {
-    slug: 'steel-wood-masonry-design',
-    n: '09',
-    title: 'Diseño en acero, madera y mampostería',
-    shortTitle: 'Acero, madera y mampostería',
-    track: 'new',
-    summary:
-      'Estructuras de acero estructural, madera y bloque de concreto reforzado — diseñadas para los vientos huracanados del Sur de Florida y entregadas en planos sellados para el permiso.',
-    coverage: 'Miami-Dade y Broward, Florida',
-    card: {
-      when: 'Un edificio, una ampliación o un solo elemento se construye en acero, madera o bloque de concreto en lugar de concreto vaciado en sitio.',
-      receive: 'Planos estructurales y cálculos para el permiso, con las conexiones y los detalles con los que construye el contratista.',
-      next: 'Envíe los planos de arquitectura o un croquis, la dirección y de qué material es la estructura.',
-    },
-    heroSub:
-      'Marcos de acero, estructuras de madera y muros de bloque reforzado, diseñados como una sola trayectoria de carga desde el techo hasta la cimentación y dibujados para que su contratista los construya.',
-    headings: {
-      faq: 'Preguntas sobre el diseño en acero, madera y mampostería',
-      considerations: 'Qué cubre este diseño, y qué no.',
-    },
-    problemTitle: 'No toda estructura es de concreto vaciado en sitio.',
-    problem:
-      'Buena parte de lo que se construye en el Sur de Florida se apoya en muros de bloque de concreto con vigas de amarre, lleva un techo de madera o cuelga de un marco de acero. Cada material tiene sus propias reglas de viento, de conexiones y de fuego, y el punto donde se encuentran dos de ellos es donde empiezan casi todas las preguntas en obra.',
-    audience: [
-      'Propietarios que construyen una casa, una nave o un pequeño edificio comercial',
-      'Arquitectos y diseñadores que necesitan la estructura detrás de sus planos',
-      'Contratistas que necesitan detalles sellados para una marquesina, un entrepiso o una escalera',
-    ],
-    when: [
-      'Los muros son de bloque de concreto reforzado y el techo es de cerchas de madera o viguetas de acero.',
-      'Un marco de acero, una marquesina, un entrepiso, una plataforma o una escalera necesita el diseño de sus miembros y conexiones.',
-      'Una casa, un techo o un entrepiso de madera tiene que resistir las cargas de viento de la Zona de Huracanes de Alta Velocidad.',
-    ],
-    capabilities: ['Acero estructural', 'Estructuras de madera', 'Mampostería reforzada', 'Conexiones', 'Succión de viento'],
-    scope: [
-      'Marcos, vigas, columnas, marquesinas, entrepisos y escaleras de acero estructural',
-      'Techos, entrepisos y muros de madera, con sus anclajes y conexiones contra succión',
-      'Muros de bloque de concreto reforzado, vigas de amarre, columnas de amarre y dinteles',
-      'Trayectorias de carga de viento, gravedad y succión desde el techo hasta la cimentación',
-      'Conexiones entre materiales: acero a bloque, madera a bloque, acero a concreto',
-      'Cimentaciones dimensionadas para la estructura y el estudio de suelos',
-    ],
-    process: [
-      { step: 'Leer el proyecto', detail: 'Planos de arquitectura, el sitio y los materiales elegidos — o una recomendación si el material aún está abierto.' },
-      { step: 'Diseñar', detail: 'Cargas según el Código de Construcción de Florida, miembros dimensionados y cada conexión verificada.' },
-      { step: 'Dibujar', detail: 'Plantas, cortes, detalles de conexión y notas generales, sellados para el permiso.' },
-      { step: 'Acompañar', detail: 'Respuestas a los comentarios del revisor del permiso y a las preguntas del contratista durante la obra.' },
-    ],
-    deliverables: [
-      'Planos estructurales sellados para el permiso',
-      'Cálculos estructurales',
-      'Detalles de conexión y detalles típicos',
-    ],
-    nextStep:
-      'Envíe los planos de arquitectura, o un croquis si todavía no los hay, con la dirección. Recibirá una propuesta con honorarios fijos para el diseño estructural.',
-    considerations: [
-      'Nosotros diseñamos y sellamos la estructura; la construye un contratista con licencia que usted elija.',
-      'Las cerchas, viguetas y demás piezas prediseñadas las diseña su fabricante; nosotros fijamos las cargas que soportan y verificamos cómo se conectan.',
-      'Los honorarios dependen del tamaño de la estructura y de cuántos materiales se encuentran en ella.',
-    ],
-    faq: [
-      {
-        q: '¿Ustedes construyen la estructura o suministran los materiales?',
-        a: 'No. Somos una firma de ingeniería: diseñamos la estructura, la calculamos y emitimos los planos sellados para el permiso. La construye un contratista con licencia que usted elija a partir de esos planos, y nosotros respondemos los comentarios del revisor y las preguntas del contratista en el camino.',
-      },
-      {
-        q: 'Bloque de concreto, madera o acero: ¿cuál conviene?',
-        a: 'Depende de la luz, del uso, del presupuesto y de lo que dibujó el arquitecto. Los muros de bloque con viga de amarre de concreto son la opción habitual para casas aquí; el acero conviene para luces largas, marquesinas y entrepisos; la madera mantiene liviano un techo o un entrepiso. Si la elección sigue abierta, le decimos qué significa cada opción para la estructura antes de dibujar nada.',
-      },
-      {
-        q: '¿Cómo se resuelve el viento de huracán en una estructura de madera o de acero?',
-        a: 'Siguiendo la carga desde el techo hasta el suelo. El viento levanta el techo y empuja los muros de lado, así que cada conexión de ese camino — flejes, anclajes, pernos y soldaduras — se dimensiona para ello y queda en los planos, bajo las reglas de la Zona de Huracanes de Alta Velocidad que rigen en Miami-Dade y Broward.',
-      },
-      {
-        q: '¿Pueden diseñar un solo elemento, como una viga, una marquesina o una escalera?',
-        a: 'Sí. Una viga de acero que reemplaza un muro, una marquesina, un entrepiso o una escalera tiene su propio cálculo y su detalle sellado, incluido cómo se apoya en lo que ya existe. Envíe una foto y las medidas, y le decimos qué necesita el diseño.',
-      },
-    ],
-    seo: {
-      title: 'Acero, madera y mampostería en Miami-Dade y Broward',
-      description:
-        'Diseño estructural en acero, madera y bloque de concreto reforzado para casas y edificios comerciales en Miami-Dade y Broward.',
-      keywords: ['diseño de acero estructural Miami', 'ingeniero estructural mampostería Florida', 'ingeniero estructural madera Miami', 'diseño de muros de bloque Broward'],
-    },
-  },
-  {
-    slug: 'adus-and-additions',
-    n: '10',
-    title: 'Diseño de ADUs y ampliaciones de vivienda',
-    shortTitle: 'ADUs y ampliaciones',
-    track: 'new',
-    summary:
-      'Diseño estructural de unidades de vivienda adicionales (ADU), ampliaciones y segundos pisos — la estructura nueva, y cómo se apoya en la casa que ya existe.',
-    coverage: 'Miami-Dade y Broward, Florida',
-    card: {
-      when: 'Va a añadir una unidad en el patio, una habitación en la planta baja o un segundo piso sobre una casa existente.',
-      receive: 'Planos estructurales y cálculos para el permiso, incluido lo que debe soportar la casa existente.',
-      next: 'Envíe la dirección, fotos de la casa y los planos de arquitectura si los tiene.',
-    },
-    heroSub:
-      'Una unidad en el patio, una habitación nueva o un segundo piso: diseñamos la estructura nueva y verificamos lo que tiene que soportar la casa existente, para que su contratista construya con nuestros planos.',
-    headings: {
-      faq: 'Preguntas sobre ADUs y ampliaciones',
-      considerations: 'Qué cubre el diseño estructural, y qué no.',
-    },
-    problemTitle: 'Ampliar una casa es diseñar dos estructuras.',
-    problem:
-      'Una ampliación es estructura nueva que se apoya sobre una casa, o junto a ella, que fue diseñada para otra cosa. Un segundo piso pone peso nuevo sobre muros y zapatas viejos; una habitación nueva tiene que amarrarse al techo y a la cimentación existentes; una unidad en el patio necesita su propia cimentación y su propio camino para el viento de huracán.',
-    audience: [
-      'Propietarios que añaden espacio o una unidad para la familia o para alquilar',
-      'Arquitectos y diseñadores que dibujan la ampliación',
-      'Contratistas que necesitan planos estructurales sellados para el permiso',
-    ],
-    when: [
-      'Quiere una unidad de vivienda adicional en el patio o sobre un garaje.',
-      'Se añade a la casa una habitación, se convierte un garaje o se cierra un porche.',
-      'Se planea un segundo piso sobre una casa existente de una planta.',
-    ],
-    capabilities: ['Estructura nueva', 'Verificación de la casa existente', 'Cimentaciones', 'Diseño por viento', 'Planos de permiso'],
-    scope: [
-      'Diseño estructural de la ADU o de la ampliación: cimentación, muros, entrepiso y techo',
-      'Revisión en sitio de la casa existente donde se apoya la estructura nueva',
-      'Verificación de la capacidad de muros, vigas y zapatas existentes para las cargas nuevas',
-      'Conexiones entre la estructura nueva y la existente',
-      'Diseño por viento y succión según el Código de Construcción de Florida',
-      'Planos y cálculos sellados para el permiso',
-    ],
-    process: [
-      { step: 'Visitar', detail: 'Vemos la casa, la cimentación donde se puede alcanzar y el lugar donde irá la ampliación.' },
-      { step: 'Verificar', detail: 'Lo que la estructura existente puede soportar, y lo que hay que reforzar.' },
-      { step: 'Diseñar', detail: 'La estructura nueva y sus conexiones con la casa, dimensionadas para gravedad y viento de huracán.' },
-      { step: 'Permiso', detail: 'Planos sellados para el permiso, y respuestas a los comentarios del revisor.' },
-    ],
-    deliverables: [
-      'Planos para el permiso, firmados y sellados',
-      'Cálculos estructurales, de lo nuevo y de lo existente',
-      'Detalles de refuerzo donde la casa los necesita',
-    ],
-    nextStep:
-      'Envíe la dirección, algunas fotos de la casa y los planos del arquitecto si los hay. Recibirá una propuesta con honorarios fijos para el diseño estructural.',
-    considerations: [
-      'Nuestro trabajo es la ingeniería: los planos y los cálculos. La obra la hace un contratista con licencia que usted contrata.',
-      'Si en un lote se permite una ADU o una ampliación es una cuestión de zonificación de su ciudad; diseñamos la estructura una vez definido el uso.',
-      'Un segundo piso solo es posible si la casa de abajo puede soportarlo, o puede reforzarse para ello; la verificación va primero.',
-    ],
-    faq: [
-      {
-        q: '¿Ustedes construyen la ADU o la ampliación?',
-        a: 'No. Somos una firma de ingeniería: diseñamos la estructura y emitimos los planos y cálculos sellados para el permiso. La construye un contratista con licencia que usted elija, y nosotros seguimos disponibles para los comentarios del revisor y las preguntas del contratista.',
-      },
-      {
-        q: '¿Mi casa aguanta un segundo piso?',
-        a: 'A veces tal como está, a menudo con refuerzo y en ocasiones no. Depende de los muros, de las vigas y sobre todo de las zapatas bajo la casa. Las revisamos en sitio y con los planos originales si existen, y le decimos qué exigiría el segundo piso antes de empezar cualquier diseño.',
-      },
-      {
-        q: '¿Necesitamos primero los planos de un arquitecto?',
-        a: 'No siempre. Para una ADU o una ampliación grande, normalmente un arquitecto o diseñador dibuja los planos y nosotros diseñamos la estructura detrás de ellos. Para una habitación sencilla o un cambio estructural, podemos empezar con fotos, medidas y un croquis de lo que usted quiere.',
-      },
-      {
-        q: '¿Qué necesita la oficina de permisos del ingeniero?',
-        a: 'Planos y cálculos estructurales, firmados y sellados por un Ingeniero Profesional de Florida, con la cimentación, la estructura, las conexiones y el diseño por viento. Sus comentarios vuelven a nosotros, y los respondemos hasta que se aprueba la parte estructural del permiso.',
-      },
-    ],
-    seo: {
-      title: 'ADUs y ampliaciones en Miami-Dade y Broward',
-      description:
-        'Diseño estructural de ADUs, ampliaciones y segundos pisos en Miami-Dade y Broward — la estructura nueva y la casa existente, planos sellados para el permiso.',
-      keywords: ['ingeniero estructural ADU Miami', 'ingeniero para ampliación de casa', 'ingeniero segundo piso Florida', 'diseño estructural unidad de vivienda adicional Broward'],
-    },
-  },
 ];
 
 const caseStudies: SiteContent['caseStudies'] = [];
@@ -1554,8 +1382,7 @@ export const es: SiteContent = {
      * would type into myfloridalicense.com to verify it. `null` removes the line
      * from the footer entirely.
      */
-    registry: 'Empresa de ingeniería con licencia en Florida' as string | null,
-    registryNumber: '40285' as string | null,
+    registry: 'FL Engineering Business No. 40285' as string | null,
   },
 
   contact: {
@@ -1606,7 +1433,7 @@ export const es: SiteContent = {
         { href: '/guides', label: 'Guías' },
         { href: '/resources', label: 'Recursos' },
         { href: '/about', label: 'Nosotros' },
-        { href: '/about#team', label: 'Nuestro equipo' },
+        { href: '/about#engineer', label: 'Conozca al ingeniero' },
         { href: '/contact', label: 'Solicitar propuesta' },
       ],
     },
@@ -1678,13 +1505,13 @@ export const es: SiteContent = {
       imageCredits: 'Créditos de imágenes',
     },
     engineer: {
-      eyebrow: 'Nuestro equipo',
+      eyebrow: 'Conozca al ingeniero',
       role: 'Ingeniero Principal',
       credential: 'Ingeniero Profesional (P.E.) con licencia en Florida',
       license: 'Licencia P.E. de Florida',
       verify: 'Verificar en el DBPR de Florida',
       /* "Ingeniero", never "firmado por" — see the EN comment in site.ts. */
-      label: 'Licencias de Florida',
+      label: 'Ingeniero',
       licensePrefix: 'Licencia de Florida',
       education: 'Formación',
       focus: 'Áreas de especialidad',
@@ -1730,7 +1557,7 @@ export const es: SiteContent = {
       sending: 'Enviando',
       sendAnother: 'Enviar otra solicitud',
       successTitle: 'Solicitud recibida.',
-      successBody: 'Recibimos su solicitud. Nuestro equipo se pondrá en contacto con usted en breve.',
+      successBody: 'Su solicitud está en la bandeja del ingeniero. Normalmente respondemos en menos de dos horas.',
       successNote: 'Enviar esto no nos contrata ni cambia su plazo. Nada comienza hasta que usted acepte una propuesta escrita.',
       successConfirmed: 'Se envió una confirmación a su correo electrónico.',
       successRef: 'Referencia',
@@ -1794,46 +1621,6 @@ export const es: SiteContent = {
     },
   },
 
-  ribbon: {
-    label: 'Nuestros servicios',
-    more: { href: '/services', label: 'Ver más' },
-    rows: [
-      ['Condominios', 'Cooperativas', 'Edificios medianos', 'Comercial', 'Casas', 'Townhouses'],
-      ['Recertificación', 'BSIP', 'Evaluaciones', 'Diseño de reparaciones', 'Diseño en concreto', 'Acero · Madera · Mampostería', 'ADUs y ampliaciones', 'BIM', 'Revisión por pares'],
-    ],
-  },
-  home: {
-    getInTouch: 'Contáctenos',
-    firm: 'Tercero Tablada Civil and Structural Engineering Inc. es una firma de ingeniería estructural en el Sur de Florida: inspecciones de recertificación y BSIP para los edificios que ya están en pie, y el diseño estructural de casas nuevas, ampliaciones y edificios de concreto en Miami-Dade y Broward.',
-    feature: {
-      slug: 'adus-and-additions',
-      label: 'ADUs y ampliaciones',
-      line: 'Una unidad en el patio, una habitación nueva o un segundo piso, con la estructura de la casa revisada antes de añadirle nada.',
-    },
-    servicesLine: 'Inspecciones e informes para los edificios que ya están en pie en Miami-Dade y Broward; diseño estructural para las casas, ampliaciones y edificios que todavía están en papel.',
-    work: {
-      label: 'Edificios existentes',
-      more: { href: '/existing-buildings', label: 'Ver todo' },
-      items: [
-        { slug: 'building-recertification', sub: 'Condado de Miami-Dade', line: 'La recertificación de 40 años y cada una de las siguientes: la inspección estructural y eléctrica, el informe y su presentación ante su Building Official.' },
-        { slug: 'broward-bsip', sub: 'Condado de Broward', line: 'El Programa de Inspección de Seguridad de Edificios de Broward: inspección estructural y eléctrica, el informe y su presentación, a tiempo o con atraso.' },
-        { slug: 'structural-condition-assessments', sub: 'Evaluaciones y diseño de reparaciones', line: 'Grietas, concreto desprendido o un informe lleno de reparaciones: qué significa la condición para la estructura, y los planos de reparación que la corrigen.' },
-      ],
-    },
-    statement: {
-      strong: 'Primero la precisión:',
-      soft: 'respuestas claras, honorarios fijos y un solo equipo desde la primera llamada hasta el informe final.',
-    },
-    credentials: {
-      label: 'Credenciales',
-      items: ['Ingeniero Profesional', 'Empresa de Ingeniería', 'Contratista General', 'Contratista Eléctrico'],
-      title: 'Con licencia del Estado de Florida.',
-    },
-    contact: {
-      title: 'Contáctenos.',
-      lede: 'Envíenos la notificación, la dirección o los planos, lo que tenga. Basta una foto de la carta tomada con el teléfono. Nuestro equipo la lee y le responde con preguntas o con una propuesta gratis, a precio fijo.',
-    },
-  },
   hero: {
     eyebrow: 'Ingeniería estructural para el Sur de Florida',
     title: '¿Le llegó la carta? Basta una foto.',
@@ -1847,7 +1634,7 @@ export const es: SiteContent = {
        answers the question for the reader who is already late. No
        regulatory number in the hero, as in English; "normalmente" stays in
        front of the reply time. */
-    sub: 'Si llegó ayer o si ya pasó la fecha: recertificación de Miami-Dade (aún llamada “de 40 años”) o BSIP de Broward. Envíenos la notificación; nuestro equipo prepara su propuesta gratis, a precio fijo.',
+    sub: 'Si llegó ayer o si ya pasó la fecha: recertificación de Miami-Dade (aún llamada “de 40 años”) o BSIP de Broward. Propuesta gratis; un ingeniero estructural normalmente responde en menos de dos horas.',
     primary: { href: '/contact?service=building-recertification', label: 'Enviar mi carta de Miami-Dade' },
     secondary: { href: '/contact?service=broward-bsip', label: 'Enviar mi carta de Broward' },
     /* Four links — same hrefs as English; the hash ones are anchors on the
@@ -1875,7 +1662,7 @@ export const es: SiteContent = {
     eyebrow: 'Qué diseñamos',
     title: '¿Diseñamos su tipo de edificio?',
     accentWord: 'su tipo',
-    lede: 'El mismo equipo y el mismo estándar de detallado, a la escala del edificio que tenemos enfrente. Si su proyecto no está en esta lista, vale más una conversación que una suposición.',
+    lede: 'El mismo ingeniero y el mismo estándar de detallado, a la escala del edificio que tenemos enfrente. Si su proyecto no está en esta lista, vale más una conversación que una suposición.',
   },
 
   typologies: [
@@ -1909,7 +1696,7 @@ export const es: SiteContent = {
         n: '01',
         title: 'Consulta inicial',
         youDo: 'Envíe la notificación, o describa el edificio o el proyecto, y comparta lo que tenga — fotos, planos, informes previos.',
-        youGet: 'Una conversación directa con nuestro equipo y una primera lectura de lo que se necesita.',
+        youGet: 'Una conversación directa con el ingeniero y una primera lectura de lo que se necesita.',
       },
       {
         n: '02',
@@ -1935,7 +1722,7 @@ export const es: SiteContent = {
         youDo: 'Reenvíe los comentarios del revisor, los RFIs del contratista o la solicitud de reinspección.',
         /* "El cierre", not "la presentación": the report is filed before the
            repairs in both counties — see the EN step. */
-        youGet: 'Respuestas del equipo que hizo el trabajo — durante los comentarios del permiso, las preguntas de construcción y, en edificios existentes, la reinspección y el cierre.',
+        youGet: 'Respuestas del ingeniero que hizo el trabajo — durante los comentarios del permiso, las preguntas de construcción y, en edificios existentes, la reinspección y el cierre.',
       },
     ],
   },
@@ -1994,9 +1781,9 @@ export const es: SiteContent = {
     approach:
       'Prefiero explicar una decisión estructural en lenguaje claro antes que esconderla detrás de una referencia de código. Una junta directiva debe poder leer un informe de hallazgos y saber qué hacer a continuación; un contratista debe poder construir desde el plano sin llamar; y un revisor debe poder seguir el cálculo desde la carga hasta el detalle.',
     forYou: [
-      { k: 'Comunicación directa', v: 'Usted habla con las personas que trabajan en su edificio — un solo equipo, desde la primera llamada hasta el informe final.' },
+      { k: 'Comunicación directa', v: 'Usted habla con el ingeniero que está haciendo el trabajo — no con un ejecutivo de cuentas que transmite preguntas.' },
       { k: 'Una propuesta que se entiende', v: 'Cada propuesta establece qué se incluye, qué no, qué recibe y cuánto cuesta, antes de que empiece cualquier cosa.' },
-      { k: 'Ingeniería responsable', v: 'Cada informe y cada plano los revisa un Ingeniero Profesional con licencia en Florida antes de salir de la oficina, y la firma responde por el resultado, ante usted y ante el revisor.' },
+      { k: 'El criterio de un solo ingeniero', v: 'El ingeniero que estudia su edificio o fija la base de diseño es quien responde por el resultado, ante usted y ante el revisor.' },
     ],
   },
 
@@ -2016,11 +1803,6 @@ export const es: SiteContent = {
       role: 'Ingeniería estructural',
       licenseLabel: 'Ingeniero Profesional',
       registryLabel: 'Empresa de Ingeniería',
-      place: 'Miami, Florida',
-      licenses: [
-        { label: 'Ingeniero Profesional (PE)' },
-        { label: 'Empresa de Ingeniería — Certificado de Autorización' },
-      ],
     },
     construction: {
       role: 'Contratista general y eléctrico',
@@ -2028,8 +1810,8 @@ export const es: SiteContent = {
       place: 'Miami, Florida',
       logo: { src: '/ttc/img/partners/precision-source.png', w: 640, h: 935 },
       licenses: [
-        { label: 'Contratista General Certificado' },
-        { label: 'Contratista Eléctrico Certificado' },
+        { label: 'Contratista General Certificado', number: 'CGC061867' },
+        { label: 'Contratista Eléctrico Certificado', number: 'EC13010175' },
       ],
     },
     /* El bloque completo va solo en la página de inicio. /about y
@@ -2037,7 +1819,7 @@ export const es: SiteContent = {
        palabras y las mismas reglas — ver el comentario en site.ts. */
     about: {
       title: 'Dos empresas, cada una con su propia licencia.',
-      body: 'En las recertificaciones de Miami-Dade y en las inspecciones BSIP de Broward trabajamos como un solo equipo con Precision Source Inc., una empresa aparte: un contratista general y eléctrico certificado en Florida, con sede en Miami. Juntas, las dos empresas reúnen más de 30 años de experiencia combinada.',
+      body: 'En las recertificaciones de Miami-Dade y en las inspecciones BSIP de Broward trabajamos como un solo equipo con Precision Source Inc., una empresa aparte: un contratista general y eléctrico certificado en Florida, con sede en Miami. Juntas, las dos empresas reúnen más de 30 años de experiencia combinada. Los tres números de licencia de abajo abren la búsqueda de licencias del estado, donde usted mismo puede comprobarlos.',
     },
     brief: {
       title: 'Dos empresas con licencia, un solo equipo.',
@@ -2051,7 +1833,7 @@ export const es: SiteContent = {
      `closingCta.body`; `reply` sigue siendo el de /contact. "Normalmente":
      no convertirlo en promesa. */
   reach: {
-    label: 'Contáctenos',
+    label: 'Contactar al ingeniero',
     call: 'Llamar',
     whatsapp: 'WhatsApp',
     whatsappNotice: 'Enviar la notificación por WhatsApp',
@@ -2060,7 +1842,7 @@ export const es: SiteContent = {
     whatsappPlain: 'Escríbanos por WhatsApp',
     whatsappTextPlain: 'Hola, quisiera una propuesta para un proyecto.',
     formPlain: 'Propuesta gratis',
-    reply: 'Nuestro equipo se pondrá en contacto con usted en breve.',
+    reply: 'Normalmente respondemos en menos de dos horas.',
   },
 
   /* The H1 of these four pages names what the page is about and where, and
@@ -2071,52 +1853,13 @@ export const es: SiteContent = {
     eyebrow: 'Sobre la firma',
     titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
-    sub: 'Una firma de ingeniería con un solo estándar de trabajo. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward.',
+    sub: 'Construida alrededor de un solo ingeniero responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward.',
     /* "Región" se queda: es el único otro lugar de /es/about donde se lee
        "Sur", y cada palabra del H1 debe estar en la página (seo.test). */
     facts: [
       { k: 'Director', v: 'Juan Tercero, PE., M.Sc.' },
       { k: 'Región', v: 'Sur de Florida' },
     ],
-    team: {
-      eyebrow: 'Nuestro equipo',
-      title: 'Las personas detrás de su edificio.',
-      lede: 'Una firma de ingeniería de Florida: ingenieros, diseñadores estructurales y una oficina que mantiene cada proyecto en marcha — desde la primera llamada hasta el informe final.',
-      members: [
-        {
-          id: 'engineer',
-          name: 'Juan Tercero, PE., M.Sc.',
-          role: 'Ingeniero Principal · Fundador',
-          lines: [
-            'Ingeniero Profesional con licencia en Florida',
-            'Máster en Dirección de Proyectos de Construcción — Universidad de Barcelona',
-            'Ingeniero Civil — Universidad Nacional de Ingeniería',
-          ],
-          photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE., M.Sc., con traje oscuro y corbata', w: 800, h: 814 },
-        },
-        {
-          id: 'melvin',
-          name: 'Melvin Tercero, EIT',
-          role: 'Diseño Estructural',
-          lines: [
-            'Aprobó el examen PE Structural',
-            'Máster en Estructuras Mixtas — Universidad de Barcelona',
-          ],
-          photo: null,
-        },
-        {
-          id: 'rudy',
-          name: 'Rudy Diaz, MBA',
-          role: 'Contratista General y Eléctrico',
-          lines: [
-            'Contratista General Certificado',
-            'Contratista Eléctrico Certificado',
-            'Máster en Administración de Empresas',
-          ],
-          photo: null,
-        },
-      ],
-    },
     approach: {
       eyebrow: 'Enfoque',
       title: 'Revisado línea por línea, antes de salir.',
@@ -2146,7 +1889,7 @@ export const es: SiteContent = {
        this page" text and no facts panel (see the English). Keep "servicios
        de ingeniería estructural" whole: it is the only place outside the H1
        that says "ingeniería" (seo.test.ts). */
-    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Diez servicios de ingeniería estructural, para edificios que ya están en pie y para proyectos nuevos. La propuesta es gratis.',
+    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Ocho servicios de ingeniería estructural, para edificios que ya están en pie y para proyectos nuevos. La propuesta es gratis.',
     cardMore: 'Detalles',
     tracks: {
       existing: {
@@ -2262,10 +2005,10 @@ export const es: SiteContent = {
       title: 'Qué enviar y qué pasa después.',
       items: [
         { k: 'Si ya tiene la carta', v: 'Para empezar basta una foto de la carta tomada con el teléfono. Adjúntela en este formulario o envíela por WhatsApp; no hace falta escanearla ni copiar lo que dice. Si la carta tiene varias páginas, tómele una foto a cada una. Lo primero que buscamos es qué oficina la envió y qué fechas indica.' },
-        { k: 'Si la fecha ya pasó', v: 'Escríbanos de todos modos y adjunte la carta junto con cualquier aviso o citación que haya llegado después. La inspección todavía puede hacerse y el informe presentarse; cuanto antes lea nuestro equipo lo que recibió, antes tendrá usted un plan que presentar a su Building Official (el funcionario de construcción).' },
+        { k: 'Si la fecha ya pasó', v: 'Escríbanos de todos modos y adjunte la carta junto con cualquier aviso o citación que haya llegado después. La inspección todavía puede hacerse y el informe presentarse; cuanto antes lea el ingeniero lo que recibió, antes tendrá usted un plan que presentar a su Building Official (el funcionario de construcción).' },
         { k: 'Si todavía no le ha llegado', v: 'Envíe la dirección del edificio y un dato: en Miami-Dade, el año de construcción; en Broward, el año del certificado de ocupación. Cada condado cuenta la antigüedad del edificio a partir de ese registro, y con él podemos decirle qué le corresponde al suyo antes de que llegue la carta.' },
         { k: 'Para cualquier otro edificio o proyecto', v: 'Cuéntenos del edificio, dónde está y qué necesita: una evaluación, el diseño de una reparación, la estructura de un edificio nuevo o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio. La propuesta para este trabajo también es gratis.' },
-        { k: 'Después de enviarlo', v: 'Si hay una carta, nuestro equipo lee primero lo que pide su Building Official. Después le enviamos preguntas o una propuesta escrita con el alcance: qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta — en una recertificación o un BSIP, un precio fijo. Nada comienza hasta que usted la acepte.' },
+        { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official. Después le enviamos preguntas o una propuesta escrita con el alcance: qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta — en una recertificación o un BSIP, un precio fijo. Nada comienza hasta que usted la acepte.' },
         { k: 'Dónde y en qué idioma', v: 'Trabajamos en Miami-Dade y Broward, en todas las ciudades de ambos condados: de Miami, Hialeah y Coral Gables a Fort Lauderdale, Hollywood y Pompano Beach. Indíquenos la ciudad, o si el edificio está fuera de los límites de una ciudad: de eso depende qué oficina envía la carta y recibe el informe. El formulario y este sitio están en español y en inglés; escríbanos en el idioma que le resulte más cómodo.' },
       ],
     },
@@ -2278,9 +2021,9 @@ export const es: SiteContent = {
     /* Leads with the notice, as in English: notice, existing building, new
        project. It ends on the two facts that were the small line under the
        buttons (see the EN comment). */
-    body: 'Una notificación del condado en la mano, un edificio que le preocupa o un proyecto nuevo — descríbalo y adjunte lo que tenga. Basta una foto de la carta tomada con el teléfono. Nuestro equipo le responde con preguntas o con una propuesta gratis por escrito.',
+    body: 'Una notificación del condado en la mano, un edificio que le preocupa o un proyecto nuevo — descríbalo y adjunte lo que tenga. Basta una foto de la carta tomada con el teléfono. El ingeniero le responde, normalmente en menos de dos horas, con preguntas o con una propuesta gratis por escrito.',
     primary: { href: '/contact', label: 'Solicitar propuesta' },
-    secondary: { href: '/about#team', label: 'Conozca al equipo' },
+    secondary: { href: '/about#engineer', label: 'Conozca al ingeniero' },
   },
 
   pricing: {

@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { getContent } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
+import { JUMP_ID } from '@/components/ttc/mp/JumpLinks';
+import { firstSentence, keepHyphens } from '@/components/ttc/mp/text';
 import { AboutView } from './AboutView';
 import { ContactView } from './ContactView';
 import { ExistingView } from './ExistingView';
@@ -115,16 +117,16 @@ describe('home page and county program pages: no block of text on two of them', 
   for (const lang of LANGS) {
     const c = getContent(lang);
     const u = c.ui;
+    const e = c.leadership;
     /* What these pages still share, and why each is left:
-         · the firm's licenses, by name — a credential is the same line
+         · the engineer's name and license — a credential is the same line
            wherever it is shown, and it is on both program pages on purpose;
          · the heading of the board's duties, six words in Spanish — a label,
            cited by name from the answers; its tag is another package's;
          · the day the office names were last checked — one date, one line,
            under "Who sent your notice?" on both pages. */
-    const licenses = norm(c.partner.engineering.licenses.map((l) => l.label).join(' · '));
     const left = (t: string) =>
-      norm(t) === licenses ||
+      t.includes(e.name) ||
       norm(t) === norm(u.boardDuties) ||
       norm(t).startsWith(norm(u.linksChecked));
 
@@ -153,17 +155,76 @@ describe('home page and county program pages: no block of text on two of them', 
   }
 });
 
-/* The home page's two county sections were removed on 2026-10-23 (the home
-   page after emxse.com: HomeView.tsx). What their tests held about the
-   program pages themselves still holds: no small print under the hero
-   button (the owner, 2026-10-20). */
-describe('program pages: no line under the hero button', () => {
+describe('home page: each program section is a summary of its page', () => {
   for (const lang of LANGS) {
+    const c = getContent(lang);
+    const home = html.get(lang)!.get('/')!;
+
     for (const slug of ['building-recertification', 'broward-bsip']) {
-      it(`${slug} (${lang}): no line under the program page's hero button`, () => {
-        expect(html.get(lang)!.get(`/services/${slug}`)!).not.toContain('mp-phero__note');
+      const service = c.services.find((s) => s.slug === slug)!;
+      const program = service.program!;
+      const row = service.timing!.rows[0];
+      const section = home.match(new RegExp(`<section id="${program.id}"[\\s\\S]*?</section>`))![0];
+      const page = html.get(lang)!.get(`/services/${slug}`)!;
+
+      // Label and first sentence, one item: cut from the row, never retyped.
+      // The scope fact ("Applies to") first, then the `home` facts.
+      it(`${slug} (${lang}): prints the scope and the flagged rows, each as its label and first sentence`, () => {
+        const items = [...section.matchAll(/<ul class="mp-prog__facts">([\s\S]*?)<\/ul>/g)].flatMap((m) =>
+          [...m[1].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((li) => text(li[1])),
+        );
+        const printed = row.facts.filter((f) => f.scope || f.home);
+        const want = printed.map((f) => text(esc(`${f.k}: ${f.homeWhole ? f.v : firstSentence(f.v)}`)));
+        expect(items).toEqual(want);
+        // One scope fact, printed first; it is not a deadline, so it carries
+        // no `home` flag (the city pages print the `home` facts only).
+        const scope = row.facts.filter((f) => f.scope);
+        expect(scope).toHaveLength(1);
+        expect(printed[0]).toBe(scope[0]);
+        expect(scope[0].home).toBeFalsy();
+        // Still a summary: the scope's exemptions stay on the program's page.
+        expect(firstSentence(scope[0].v)).not.toBe(scope[0].v);
+      });
+
+      // The whole value of a row is the program page's to print.
+      it(`${slug} (${lang}): prints no row whole that has more to say`, () => {
+        for (const f of row.facts.filter((x) => !x.homeWhole && firstSentence(x.v) !== x.v)) {
+          expect(section, f.k).not.toContain(esc(f.v));
+          expect(page, f.k).toContain(esc(f.v));
+        }
+      });
+
+      // The owner, 2026-10-20: no small print under a button — on the home
+      // page and, since the same day, under the program page's hero button
+      // too (the line went from site.ts; "Next step" says what to send).
+      it(`${slug} (${lang}): no line under its button, here or under the program page's hero button`, () => {
+        expect(section).not.toContain('mp-prog__ctanote');
+        expect(page).not.toContain('mp-phero__note');
+      });
+
+      it(`${slug} (${lang}): one link to the whole table, on the program's page`, () => {
+        const href = esc(localePath(`/services/${slug}#${JUMP_ID.applies}`, lang));
+        const links = [...section.matchAll(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].filter((m) => m[1] === href);
+        expect(links).toHaveLength(1);
+        expect(text(links[0][2])).toContain(text(esc(program.timingLink)));
+        // The anchor exists on the page it points at.
+        expect(page).toContain(`id="${JUMP_ID.applies}"`);
+      });
+
+      // Every number in the section answers to this line, as before.
+      it(`${slug} (${lang}): still names the authority and the date beside its rows`, () => {
+        // As Source prints it: a hyphenated part kept whole (`keepHyphens`).
+        expect(section).toContain(renderToStaticMarkup(h('i', null, keepHyphens(row.source))).slice(3, -4));
+        expect(section).toContain(esc(service.timing!.checked));
       });
     }
+
+    it(`${lang}: the two sections print no paragraph in common`, () => {
+      const sections = ['miami-dade', 'broward'].map(
+        (id) => new Set(blocks(`<main>${home.match(new RegExp(`<section id="${id}"[\\s\\S]*?</section>`))![0]}</main>`).filter((b) => words(b) >= 6).map(norm)),
+      );
+      expect([...sections[0]].filter((b) => sections[1].has(b))).toEqual([]);
+    });
   }
 });
 

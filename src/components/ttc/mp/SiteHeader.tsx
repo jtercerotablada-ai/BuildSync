@@ -22,9 +22,8 @@ import { addressNow, refreshSearch, useCarriedHash, useContent, useLang, useSear
  *  be worth an exit (the panel is about nine tenths in by then). */
 const ENTRANCE_SHOWN_MS = 100;
 
-/** The burger shows at every width since 2026-10-23 (the header after emxse.com,
- *  mp-firm.css 4), so the menu may stay open at any width. */
-const MENU_MQ = 'all';
+/** The burger shows at ≤1180px (mp.css); the menu has no reason to exist past it. */
+const MENU_MQ = '(max-width: 1180px)';
 
 /**
  * Header state is deliberately NOT React state.

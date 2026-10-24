@@ -39,9 +39,8 @@ describe('site-wide graph: the firm', () => {
     it(`(${lang}) identifies the firm by its state registry number`, () => {
       const org = organization(lang);
       expect(org.identifier?.value).toBe('40285');
-      // The number is in the markup only; the footer names the license.
-      expect(company.registryNumber).toBe(org.identifier?.value);
-      expect(company.registry).not.toContain(org.identifier?.value);
+      // The number is lifted out of the line the footer prints.
+      expect(company.registry).toContain(org.identifier?.value);
       expect(org.identifier?.name).toBe(company.registry);
     });
 

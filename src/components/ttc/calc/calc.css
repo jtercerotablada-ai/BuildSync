@@ -23,32 +23,6 @@
 
    The drawings use the site's two colours and nothing else: ink for the
    beam and the curves, gold for the loads and for what is being pointed at. */
-/* THE LIGHT ISLAND (2026-10-23). The public site is dark (mp.css, 24 · DARK
-   SITE), but the calculator's tool area stays light.
-   Its diagrams (SVG drawn for paper), its fields and its printed sheet were
-   all built on the light palette, so the section that holds the tool
-   (CalculatorPage.tsx, .mp-appsec) re-declares the light tokens from 00.
-   The page around it — hero, method notes, header, footer — is dark. */
-.mp-section.mp-appsec {
-  --mp-paper: #f6f4ef;
-  --mp-concrete: #e8e4dc;
-  --mp-card: #ffffff;
-  --mp-ink: #0b0c0d;
-  --mp-ink-2: #3a3c3b;
-  --mp-ink-3: #52554f;
-  --mp-ink-faint: #62655f;
-  --mp-gold-ink: #7a5d1c;
-  --mp-line: rgba(11, 12, 13, 0.14);
-  --mp-line-soft: rgba(11, 12, 13, 0.07);
-  --mp-line-strong: rgba(11, 12, 13, 0.28);
-  --mp-line-input: rgba(11, 12, 13, 0.5);
-  --mp-error: #a63a2a;
-  --mp-error-ink: #8c2f21;
-  color-scheme: light;
-  background: var(--mp-paper);
-  color: var(--mp-ink);
-}
-
 .mp-section.mp-appsec {
   padding-block-start: var(--mp-12);
 }

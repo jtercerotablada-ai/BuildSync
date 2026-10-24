@@ -8,7 +8,6 @@ import { OG_IMAGE, brandedTitle } from '@/components/ttc/views/meta';
 import { ADS } from '@/lib/ttc/ads';
 import { absoluteUrl, company } from '@/lib/ttc/site';
 import '@/app/(public)/mp.css';
-import '@/app/(public)/mp-firm.css';
 
 /* ── The public site's shell ──────────────────────────────────────────────
    Fonts, the stylesheet, structured data, smooth scroll and the chrome — and

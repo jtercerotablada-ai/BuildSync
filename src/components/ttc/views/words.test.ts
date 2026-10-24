@@ -62,12 +62,9 @@ describe('/contact: the section under the form is its own', () => {
     // is the headline the closing band prints on every other page, and
     // changing an H1 is the owner's call.
     it(`${lang}: no block of six or more words is also on the home page`, () => {
-      // The form itself is on both pages since 2026-10-23 (the home page
-      // ends on it, as on emxse.com): its labels are left out.
-      const noForm = (html: string) => html.replace(/<form\b[\s\S]*?<\/form>/g, '');
-      const onHome = new Set(blocks(noForm(home)));
+      const onHome = new Set(blocks(home));
       const h1 = blocks(contact.match(/<h1\b[\s\S]*?<\/h1>/)?.[0] ?? '')[0];
-      const shared = blocks(noForm(contact)).filter((b) => b !== h1 && wordCount(b) >= 6 && onHome.has(b));
+      const shared = blocks(contact).filter((b) => b !== h1 && wordCount(b) >= 6 && onHome.has(b));
       expect(shared).toEqual([]);
     });
 
