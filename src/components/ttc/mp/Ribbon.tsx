@@ -15,7 +15,8 @@ import { TextLink } from './primitives';
  * screen reader gets. Reduced motion stops both rows (mp-firm.css).
  */
 export function Ribbon({ lang }: { lang: Lang }) {
-  const r = getContent(lang).ribbon;
+  const c = getContent(lang);
+  const r = c.ribbon;
 
   return (
     <section className="mp-section mp-surface--paper mp-ribbon" aria-labelledby="mp-ribbon-title">
@@ -25,6 +26,7 @@ export function Ribbon({ lang }: { lang: Lang }) {
         </h2>
         <TextLink href={localePath(r.more.href, lang)}>{r.more.label}</TextLink>
       </div>
+      <p className="mp-shell mp-ribbon__line">{c.home.servicesLine}</p>
       <div className="mp-ribbon__rows" aria-hidden="true">
         {r.rows.map((row, i) => (
           <div key={i} className={`mp-ribbon__row mp-ribbon__row--${i + 1}`}>

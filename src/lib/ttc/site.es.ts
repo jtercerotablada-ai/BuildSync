@@ -1795,12 +1795,45 @@ export const es: SiteContent = {
   },
 
   ribbon: {
-    label: 'Lo que hacemos',
-    more: { href: '/services', label: 'Todos los servicios' },
+    label: 'Nuestros servicios',
+    more: { href: '/services', label: 'Ver más' },
     rows: [
       ['Condominios', 'Cooperativas', 'Edificios medianos', 'Comercial', 'Casas', 'Townhouses'],
       ['Recertificación', 'BSIP', 'Evaluaciones', 'Diseño de reparaciones', 'Diseño en concreto', 'Acero · Madera · Mampostería', 'ADUs y ampliaciones', 'BIM', 'Revisión por pares'],
     ],
+  },
+  home: {
+    getInTouch: 'Contáctenos',
+    firm: 'Tercero Tablada Civil and Structural Engineering Inc. es una firma de ingeniería estructural en el Sur de Florida: inspecciones de recertificación y BSIP para los edificios que ya están en pie, y el diseño estructural de casas nuevas, ampliaciones y edificios de concreto en Miami-Dade y Broward.',
+    feature: {
+      slug: 'adus-and-additions',
+      label: 'ADUs y ampliaciones',
+      line: 'Una unidad en el patio, una habitación nueva o un segundo piso, con la estructura de la casa revisada antes de añadirle nada.',
+    },
+    servicesLine: 'Inspecciones e informes para los edificios que ya están en pie; diseño estructural para los que todavía están en papel.',
+    work: {
+      label: 'Edificios existentes',
+      more: { href: '/existing-buildings', label: 'Ver todo' },
+      items: [
+        { slug: 'building-recertification', sub: 'Condado de Miami-Dade', line: 'La recertificación de 40 años y cada una de las siguientes: la inspección estructural y eléctrica, el informe y su presentación ante su Building Official.' },
+        { slug: 'broward-bsip', sub: 'Condado de Broward', line: 'El Programa de Inspección de Seguridad de Edificios de Broward: inspección estructural y eléctrica, el informe y su presentación, a tiempo o con atraso.' },
+        { slug: 'structural-condition-assessments', sub: 'Evaluaciones y diseño de reparaciones', line: 'Grietas, concreto desprendido o un informe lleno de reparaciones: qué significa la condición para la estructura, y los planos de reparación que la corrigen.' },
+      ],
+    },
+    statement: {
+      strong: 'Primero la precisión:',
+      soft: 'respuestas claras, honorarios fijos y un solo equipo desde la primera llamada hasta el informe final.',
+    },
+    credentials: {
+      label: 'Credenciales',
+      items: ['Ingeniero Profesional', 'Empresa de Ingeniería', 'Contratista General', 'Contratista Eléctrico'],
+      title: 'Con licencia del Estado de Florida.',
+      team: 'Nuestro equipo: Juan Tercero, PE, ingeniero principal; Melvin Tercero, EIT, diseño estructural; y Rudy Diaz, MBA, contratista general y eléctrico.',
+    },
+    contact: {
+      title: 'Contáctenos.',
+      lede: 'Envíenos la notificación, la dirección o los planos, lo que tenga. Basta una foto de la carta tomada con el teléfono. Nuestro equipo la lee y le responde con preguntas o con una propuesta gratis, a precio fijo.',
+    },
   },
   hero: {
     eyebrow: 'Ingeniería estructural para el Sur de Florida',

@@ -615,12 +615,65 @@ export const hero = {
    grey, and what we do for them, larger and white. Words only, no claims:
    every service named here has its own page under /services. */
 export const ribbon = {
-  label: 'What we do',
-  more: { href: '/services', label: 'All services' },
+  label: 'Our Services',
+  more: { href: '/services', label: 'See more' },
   rows: [
     ['Condominiums', 'Co-ops', 'Mid-Rise', 'Commercial', 'Houses', 'Townhouses'],
     ['Recertification', 'BSIP', 'Condition Assessments', 'Repair Design', 'Concrete Design', 'Steel · Wood · Masonry', 'ADUs & Additions', 'BIM', 'Peer Review'],
   ],
+} as const;
+
+/* THE HOME PAGE, laid out after emxse.com (the owner, 2026-10-23: "el home
+   de él está mejor, cópialo al 100%"). Their layout and order, OUR words
+   and photographs — never their copy or images. In order:
+     hero        full-screen video, "Get in touch" under it
+     intro       the H1 (`hero.titleLines`) left, `hero.sub` right
+     ribbon      `ribbon`
+     work        a featured service left, three staggered cards right
+     statement   one sentence, its first words white, the rest grey, and a
+                 square photograph
+     band        a full-width black-and-white photograph
+     credentials the licenses as a staggered list, a heading and the
+                 partner lede (`partner.lede`, the owner's approved sentence)
+     contact     "Get in touch." and the form
+   The work cards are services, never projects: stock photographs are never
+   captioned as the firm's work (media.ts). */
+export const home = {
+  getInTouch: 'Get in touch',
+  /* Under the lede: what the firm is, in one sentence (the EMX intro is
+     about the firm). */
+  firm: 'Tercero Tablada Civil and Structural Engineering Inc. is a structural engineering firm in South Florida: recertification and BSIP inspections for the buildings already standing, and the structural design of new houses, additions and concrete buildings across Miami-Dade and Broward. Every report and drawing is reviewed by a Florida Professional Engineer before it leaves the office.',
+  /* Each card's `line` is the home page's own: the services hub prints
+     `card.when`, and a block may live on one page only (shared-text.test). */
+  feature: {
+    slug: 'adus-and-additions',
+    label: 'ADUs & Additions',
+    line: 'A backyard unit, a new room or a second floor, with the structure of the house checked before anything is added to it.',
+  },
+  servicesLine: 'Inspections and reports for the buildings already standing; structural design for the ones still on paper.',
+  work: {
+    label: 'Existing Buildings',
+    more: { href: '/existing-buildings', label: 'View all' },
+    items: [
+      { slug: 'building-recertification', sub: 'Miami-Dade County', line: 'The 40-year recertification and every one after it: the structural and electrical inspection, the report, and the filing with your Building Official.' },
+      { slug: 'broward-bsip', sub: 'Broward County', line: 'The Building Safety Inspection Program for Broward buildings: structural and electrical inspection, the report and its filing, on time or late.' },
+      { slug: 'structural-condition-assessments', sub: 'Assessments & repair design', line: 'Cracks, spalling or a report full of repairs: what the condition means for the structure, and the repair drawings that fix it.' },
+    ],
+  },
+  statement: {
+    strong: 'We put precision first:',
+    soft: 'clear answers, fixed fees and one team from the first call to the final report.',
+  },
+  credentials: {
+    label: 'Credentials',
+    items: ['Professional Engineer', 'Engineering Business', 'General Contractor', 'Electrical Contractor'],
+    title: 'Licensed by the State of Florida.',
+    team: 'Our team: Juan Tercero, PE, principal engineer; Melvin Tercero, EIT, structural design; and Rudy Diaz, MBA, general and electrical contractor.',
+  },
+  contact: {
+    title: 'Get in touch.',
+    lede: 'Send us the notice, the address or the drawings, whatever you have. A phone photo of the letter is enough. Our team reads it and replies with questions or a free, fixed-fee proposal. Write in English or in Spanish, whichever is easier for you.',
+  },
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2759,6 +2812,13 @@ export const contactServiceOptions = [
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const imagery = {
+  /* The home page's two photographs of its own (the EMX layout, see `home`):
+     the square beside the statement, and the full-width band, shown in
+     black and white by CSS. Both were spares. */
+  home: {
+    statement: photo.midriseClean,
+    band: photo.frameUnderConstruction,
+  },
   hero: video.heroMiami,
   pages: {
     services: photo.concreteBeamColumn,
@@ -3908,6 +3968,7 @@ export const en = {
   ui,
   hero,
   ribbon,
+  home,
   services,
   contactServiceOptions,
   typologiesSection,

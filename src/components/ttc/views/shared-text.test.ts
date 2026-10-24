@@ -168,8 +168,10 @@ describe('who we work with: whole on the home page, short on the other two', () 
     /** Every license the two firms hold, by name. */
     const licenses = [...p.engineering.licenses, ...p.construction.licenses].map((l) => esc(l.label));
 
-    it(`${lang}: the lede and the cards' headline are the home page's alone`, () => {
-      for (const line of [p.lede, p.title]) {
+    // Since 2026-10-23 the home page prints the lede under its credentials
+    // (the EMX layout) and no longer the two cards or their headline.
+    it(`${lang}: the lede is the home page's alone`, () => {
+      for (const line of [p.lede]) {
         expect(count(home, line), line).toBe(1);
         expect(count(about, line), line).toBe(0);
         expect(count(hub, line), line).toBe(0);
@@ -189,7 +191,9 @@ describe('who we work with: whole on the home page, short on the other two', () 
     // firms do not print them. The home page's cards and /about's register
     // name all four; the hub links to /about for them.
     it(`${lang}: the home page and /about name every license, and no page prints a license number`, () => {
-      for (const html of [home, about]) for (const label of licenses) expect(html, label).toContain(label);
+      for (const label of licenses) expect(about, label).toContain(label);
+      // The home page names them short, in its credentials list.
+      for (const label of c.home.credentials.items) expect(home, label).toContain(esc(label));
       for (const html of [home, about, hub]) {
         for (const no of ['105256', '40285', 'CGC061867', 'EC13010175']) expect(text(html), no).not.toContain(no);
       }

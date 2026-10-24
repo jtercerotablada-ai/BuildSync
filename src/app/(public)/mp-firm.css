@@ -175,3 +175,356 @@
     filter: none;
   }
 }
+
+/* ── 3 · Home, laid out after emxse.com (FirmHome.tsx) ─────────────────────
+   Their layout, our palette: black, white type, gold for the accent word,
+   the arrows and the labels (the owner, 2026-10-23: "usando nuestros
+   colores"). */
+
+/* Hero: the clip fills the screen; "Get in touch" sits at its foot over a
+   hairline, with the motion toggle (WCAG 2.2.2). */
+.mp .mp-fhero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  isolation: isolate;
+  overflow: clip;
+}
+.mp .mp-fhero__video {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.mp .mp-fhero__video video,
+.mp .mp-fhero__video img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.6) contrast(1.06) brightness(0.7);
+}
+.mp .mp-fhero__video::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(11, 12, 13, 0.55) 0,
+    rgba(11, 12, 13, 0) 22%,
+    rgba(11, 12, 13, 0) 62%,
+    rgba(11, 12, 13, 0.8) 100%
+  );
+}
+.mp .mp-fhero__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mp-4);
+  padding-block: var(--mp-8) var(--mp-6);
+  margin-bottom: var(--mp-8);
+  border-bottom: 1px solid rgba(246, 244, 239, 0.28);
+}
+.mp .mp-fhero__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  min-height: 44px;
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--mp-snow);
+}
+.mp .mp-fhero__arrow {
+  color: var(--mp-gold);
+  transition: transform var(--mp-dur) var(--mp-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp .mp-fhero__cta:hover .mp-fhero__arrow {
+    transform: translate(3px, -3px);
+  }
+}
+
+/* Intro: the H1 left, the lede right. */
+.mp .mp-fintro__grid {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .mp .mp-fintro__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.mp .mp-fintro__title {
+  font-size: clamp(2.75rem, 5.6vw, 5.5rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  color: var(--mp-ink);
+}
+.mp .mp-fintro__lede {
+  font-size: clamp(1.15rem, 1.6vw, 1.45rem);
+  line-height: 1.5;
+  color: var(--mp-ink);
+}
+.mp .mp-fintro__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2) var(--mp-8);
+  margin-top: var(--mp-8);
+}
+
+/* Work: a featured service left, three cards right, each a step lower. */
+.mp .mp-fwork__grid {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3rem);
+}
+@media (min-width: 900px) {
+  .mp .mp-fwork__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  }
+}
+.mp .mp-fwork__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mp-4);
+}
+.mp .mp-fwork__label {
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mp-ink);
+  margin-bottom: clamp(1.25rem, 2.5vw, 2rem);
+}
+.mp .mp-fwork__list {
+  list-style: none;
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 640px) {
+  .mp .mp-fwork__list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--mp-4);
+  }
+  .mp .mp-fwork__list > li:nth-child(2) {
+    margin-top: clamp(0.75rem, 1.5vw, 1.25rem);
+  }
+  .mp .mp-fwork__list > li:nth-child(3) {
+    margin-top: clamp(3rem, 5vw, 4.5rem);
+  }
+}
+.mp .mp-fwork__card {
+  display: grid;
+  gap: var(--mp-1);
+  color: var(--mp-ink);
+}
+.mp .mp-fwork__photo {
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  margin-bottom: var(--mp-3);
+  background: var(--mp-concrete);
+}
+.mp .mp-fwork__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--mp-dur-slow) var(--mp-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp .mp-fwork__card:hover .mp-fwork__photo img {
+    transform: scale(1.04);
+  }
+}
+.mp .mp-fwork__name {
+  font-size: var(--mp-t-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.mp .mp-fwork__sub {
+  font-size: var(--mp-t-small);
+  color: var(--mp-gold-ink);
+}
+
+/* Statement: white words, then grey, beside a square photograph. */
+.mp .mp-fstate__grid {
+  display: grid;
+  gap: clamp(2rem, 5vw, 5rem);
+  align-items: start;
+  border-top: 1px solid var(--mp-line);
+  padding-top: clamp(1.5rem, 2vw, 1.75rem);
+}
+@media (min-width: 900px) {
+  .mp .mp-fstate__grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+}
+.mp .mp-fstate__text {
+  font-size: clamp(2.25rem, 4.6vw, 4.5rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+}
+.mp .mp-fstate__strong {
+  color: var(--mp-ink);
+}
+.mp .mp-fstate__soft {
+  color: var(--mp-ink-3);
+}
+.mp .mp-fstate__photo {
+  aspect-ratio: 1 / 1.05;
+  overflow: hidden;
+}
+.mp .mp-fstate__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.05);
+}
+
+/* Band: a full-width photograph, black and white. */
+.mp .mp-fband {
+  height: clamp(300px, 52vw, 680px);
+  overflow: hidden;
+}
+.mp .mp-fband img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.08) brightness(0.9);
+}
+
+/* Credentials: the licenses as a staircase, a heading, the two-firm line. */
+.mp .mp-fcred__grid {
+  display: grid;
+  gap: clamp(2.5rem, 5vw, 5rem);
+}
+@media (min-width: 900px) {
+  .mp .mp-fcred__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    align-items: start;
+  }
+}
+.mp .mp-fcred__label {
+  font-size: var(--mp-t-h4);
+  font-weight: 500;
+  color: var(--mp-ink);
+  margin-bottom: clamp(2rem, 5vw, 5rem);
+}
+.mp .mp-fcred__list {
+  list-style: none;
+}
+.mp .mp-fcred__list li {
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--mp-ink-3);
+  padding-block: var(--mp-4);
+  border-top: 1px solid var(--mp-line);
+}
+.mp .mp-fcred__list li:last-child {
+  border-bottom: 1px solid var(--mp-line);
+}
+.mp .mp-fcred__list li:nth-child(1) {
+  margin-left: 24%;
+}
+.mp .mp-fcred__list li:nth-child(2) {
+  margin-left: 18%;
+}
+.mp .mp-fcred__list li:nth-child(3) {
+  margin-left: 10%;
+}
+.mp .mp-fcred__title {
+  font-size: clamp(2.5rem, 5vw, 4.75rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  color: var(--mp-ink);
+  margin-bottom: var(--mp-8);
+}
+.mp .mp-fcred__title::after {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin-top: var(--mp-6);
+  background: var(--mp-gold);
+}
+.mp .mp-fcred__body {
+  font-size: clamp(1.05rem, 1.3vw, 1.25rem);
+  line-height: 1.6;
+  color: var(--mp-ink);
+  max-width: 60ch;
+}
+
+/* Contact: "Get in touch." over a hairline, then the form. */
+.mp .mp-fcontact__title {
+  font-size: clamp(2.75rem, 5.6vw, 5.5rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: var(--mp-ink);
+  padding-bottom: clamp(1.5rem, 3vw, 2.5rem);
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+  border-bottom: 1px solid var(--mp-line);
+}
+
+/* ── 4 · Header, after emxse.com: the logo, the language and the burger,
+   at every width (the owner, 2026-10-23). The links live in the menu,
+   which SiteHeader now allows at every width (MENU_MQ). */
+.mp .mp-header__nav,
+.mp .mp-header__lang,
+.mp .mp-header__cta {
+  display: none;
+}
+.mp .mp-header__actions {
+  margin-inline-start: auto;
+}
+.mp .mp-burger {
+  display: inline-flex;
+}
+.mp .mp-lang.mp-header__lang-compact {
+  display: inline-flex;
+}
+
+/* The accent words of the home H1 in gold, as in the old hero. */
+.mp .mp-fintro__title .mp-serif {
+  color: var(--mp-gold);
+}
+
+/* The lines added under the EMX blocks so the page still says what the firm
+   does (the on-page check counts the words). */
+.mp .mp-fintro__firm {
+  margin-top: var(--mp-6);
+  color: var(--mp-ink-3);
+  font-size: var(--mp-t-body);
+  line-height: 1.6;
+}
+.mp .mp-fwork__when {
+  margin-top: var(--mp-2);
+  font-size: var(--mp-t-small);
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+.mp .mp-fcred__team {
+  margin-top: var(--mp-4);
+  color: var(--mp-ink-3);
+}
+.mp .mp-fcontact__lede {
+  max-width: 62ch;
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+  font-size: var(--mp-t-lead);
+  line-height: 1.55;
+  color: var(--mp-ink-2);
+}
+
+/* The ribbon's one line of words a reader (and the on-page check) can read. */
+.mp .mp-ribbon__line {
+  margin-top: calc(-1 * clamp(0.75rem, 1.5vw, 1.5rem));
+  margin-bottom: clamp(1.25rem, 2.5vw, 2rem);
+  color: var(--mp-ink-3);
+  font-size: var(--mp-t-body);
+}

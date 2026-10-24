@@ -214,8 +214,6 @@ describe('images: every <img> the public pages send', () => {
       const firm = esc(c.company.name);
       expect(altOf(c.company.logo.markDarkXs)).toEqual([firm]);
       expect(altOf(c.company.logo.markLightXs)).toEqual([firm]);
-      expect(altOf(c.company.logo.markDarkSm)).toEqual([firm]);
-      expect(altOf(c.partner.construction.logo.src)).toEqual([esc(c.partner.construction.name)]);
     }
   });
 });
@@ -639,7 +637,7 @@ describe('county program pages: no paragraph is printed twice', () => {
     }
     // Home, Services, Existing Buildings, About, Typical Engagements and the
     // eight services, in each language — and every city page.
-    expect(closed).toHaveLength(30 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
+    expect(closed).toHaveLength(28 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
 });
 
