@@ -182,6 +182,25 @@
     will-change: transform;
   }
 }
+/* Without a script the rows run on CSS (home.css) and the pause switch, a
+   button that only a script can answer, is not shown; the pointer on a row
+   holds it instead, as it does when the script is running. */
+html:not(.js) .mp-home .mp-motion-toggle {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  html:not(.js) .mp-home .h-rib__row:hover .h-rib__track {
+    animation-play-state: paused;
+  }
+}
+/* Under reduced motion the rows are plain wrapped lists (home.css); a list
+   that has stopped running needs the page's gutter, which a running row,
+   cut by the screen's edge, never did. */
+@media (prefers-reduced-motion: reduce) {
+  .mp-home .h-rib__row {
+    padding-inline: var(--h-pad);
+  }
+}
 
 /* ═══ 03 · THE BUILDING-TYPES RAIL ════════════════════════════════════════
    TypesRail.tsx adds the two ring buttons, mouse drag, the counter and the

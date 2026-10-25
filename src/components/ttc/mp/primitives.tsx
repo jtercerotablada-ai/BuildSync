@@ -110,7 +110,8 @@ function vars(
 export type RevealFx = 'words' | 'up' | 'left' | 'line' | 'img';
 
 type RevealProps = {
-  children: React.ReactNode;
+  /** Absent for a block that is only a rule (`fx="line"`). */
+  children?: React.ReactNode;
   delay?: number;
   /** Rise distance in px; mp.css defaults to 14 (34 for `fx="up"`). */
   y?: number;

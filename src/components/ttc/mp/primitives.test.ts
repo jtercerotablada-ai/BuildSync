@@ -29,6 +29,54 @@ const html = renderToStaticMarkup(
   ),
 );
 
+/**
+ * The home page's variants (`fx`, spec E8 to E12). Same promise as above: the
+ * server HTML hides nothing. What is new is the attribute that selects each
+ * look (`data-fx`, styled in home-motion.css under `.mp-home`) and that these
+ * blocks do NOT carry the `mp-reveal` class, whose 14 px fade in mp.css would
+ * fight them.
+ */
+const fxHtml = renderToStaticMarkup(
+  h(
+    'main',
+    null,
+    h(Reveal, { fx: 'up', delay: 0.1, children: 'block' }),
+    h(Reveal, { fx: 'words', as: 'h2', id: 'x-h', className: 'h-h2', children: 'Heading' }),
+    h(Reveal, { fx: 'line', className: 'h-pause__line' }),
+    h(Reveal, { fx: 'left', as: 'li', delay: 0.2, children: 'row' }),
+    h(Reveal, { fx: 'img', className: 'h-ph', children: 'photo' }),
+  ),
+);
+
+describe('Reveal fx: the server HTML', () => {
+  it('writes the variant as data-fx and nothing hidden', () => {
+    expect(fxHtml).not.toMatch(/opacity/);
+    expect(fxHtml).not.toMatch(/transform/);
+    expect(fxHtml).not.toMatch(/data-rv/);
+    for (const fx of ['up', 'words', 'line', 'left', 'img']) {
+      expect(fxHtml).toContain(`data-fx="${fx}"`);
+    }
+  });
+
+  it('does not take the mp-reveal class', () => {
+    expect(fxHtml).not.toMatch(/mp-reveal/);
+  });
+
+  it('keeps the element type, the id, the classes and the timing', () => {
+    expect(fxHtml).toContain('<h2 id="x-h" class="h-h2" data-fx="words">Heading</h2>');
+    expect(fxHtml).toContain('<div data-fx="up" style="--rv-delay:100ms">block</div>');
+    expect(fxHtml).toContain('<li data-fx="left" style="--rv-delay:200ms">row</li>');
+  });
+
+  it('lets a rule have no children', () => {
+    expect(fxHtml).toContain('<div class="h-pause__line" data-fx="line"></div>');
+  });
+
+  it('leaves a block without fx exactly as it was', () => {
+    expect(html).not.toMatch(/data-fx/);
+  });
+});
+
 describe('scroll reveals: the server HTML', () => {
   it('hides nothing: no opacity, no transform, no data-rv', () => {
     expect(html).not.toMatch(/opacity/);
