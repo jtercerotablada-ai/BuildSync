@@ -87,27 +87,70 @@ function vars(
 
 /* ── Reveal ─────────────────────────────────────────────────────────────── */
 
+/**
+ * The home page's own reveals (spec E8 to E12), chosen with `fx`. The element
+ * carries `data-fx` and the same `data-rv` states as every other reveal; the
+ * look of each variant is in home-motion.css, under `.mp-home`, so on any
+ * other page the attribute selects nothing:
+ *
+ *   words  E8   a heading: each word rises out of its own mask. The masks are
+ *               rendered by `Words` (React, on the server); this only arms them.
+ *   up     E9   a block: 34 px up and in, slower than the default.
+ *   left   E10  a block slides in from the left (and a county's rule draws).
+ *   line   E11  a hairline draws across from the left: the block's own rule
+ *               (a card's `::before`) or the block itself, when it is one.
+ *   img    E12  a photograph: revealed from the bottom edge while it settles
+ *               from a closer scale.
+ *
+ * An `fx` element does NOT take the `mp-reveal` marker class: mp.css puts a
+ * 14 px fade on every `.mp-reveal[data-rv]`, which would fight these. The
+ * print and reduced-motion cases are covered by home-motion.css itself (its
+ * hidden states exist only for screens that have not asked for less motion).
+ */
+export type RevealFx = 'words' | 'up' | 'left' | 'line' | 'img';
+
 type RevealProps = {
   children: React.ReactNode;
   delay?: number;
-  /** Rise distance in px; mp.css defaults to 14. */
+  /** Rise distance in px; mp.css defaults to 14 (34 for `fx="up"`). */
   y?: number;
   className?: string;
-  as?: 'div' | 'span' | 'li' | 'p';
+  as?: 'div' | 'span' | 'li' | 'p' | 'h2' | 'h3' | 'ul';
+  /** One of the home page's variants (see above). */
+  fx?: RevealFx;
+  id?: string;
+  /** Extra inline style (custom properties), merged under the timing ones. */
+  style?: React.CSSProperties;
 };
 
-export function Reveal({ children, delay = 0, y, className, as = 'div' }: RevealProps) {
-  const ref = useReveal<HTMLDivElement>(40);
+export function Reveal({
+  children,
+  delay = 0,
+  y,
+  className,
+  as = 'div',
+  fx,
+  id,
+  style,
+}: RevealProps) {
+  // A headline is armed a little earlier than a block (60 px, like
+  // RevealText's lines): its words rise as it clears the foot of the screen.
+  const ref = useReveal<HTMLDivElement>(fx === 'words' ? 60 : 40);
   // One element type for the checker; the node is whatever `as` says.
   const Tag = as as 'div';
   return (
     <Tag
       ref={ref}
-      className={cx(REVEAL, className)}
-      style={vars({
-        '--rv-delay': delay ? ms(delay) : undefined,
-        '--rv-y': y === undefined ? undefined : `${y}px`,
-      })}
+      id={id}
+      className={cx(fx ? undefined : REVEAL, className) || undefined}
+      data-fx={fx}
+      style={vars(
+        {
+          '--rv-delay': delay ? ms(delay) : undefined,
+          '--rv-y': y === undefined ? undefined : `${y}px`,
+        },
+        style,
+      )}
     >
       {children}
     </Tag>

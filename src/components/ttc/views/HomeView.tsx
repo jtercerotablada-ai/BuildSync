@@ -11,8 +11,10 @@ import { HomeStatement } from '@/components/ttc/mp/home/HomeStatement';
 import { HomeTools } from '@/components/ttc/mp/home/HomeTools';
 import { HomeTypes } from '@/components/ttc/mp/home/HomeTypes';
 import { HomeWhere } from '@/components/ttc/mp/home/HomeWhere';
+import { Parallax } from '@/components/ttc/mp/home/Parallax';
 import '@/app/(public)/home.css';
 import '@/app/(public)/home-lower.css';
+import '@/app/(public)/home-motion.css';
 import { HomeAddress } from './meta';
 
 /**
@@ -53,13 +55,20 @@ import { HomeAddress } from './meta';
  * the owner's ceiling of 23).
  *
  * Styles: home.css (tokens, the hero, the ribbon, the services, the statement,
- * the BIM block) and home-lower.css (the rest), both imported here so the home
- * is the only route that loads them; mp.css is untouched.
+ * the BIM block), home-lower.css (the rest) and home-motion.css (everything
+ * that moves: the reveals, the ribbon, the rail, the slide-over stack, the
+ * header's drop-in and progress line), in that order, all imported here so
+ * the home is the only route that loads them; mp.css is untouched.
+ *
+ * MOTION. The reveals are `Reveal fx=…` (primitives.tsx) on the sections'
+ * elements; the islands are `RibbonRows` (in HomeRibbon), `TypesRail` (in
+ * HomeTypes) and `Parallax` (here, once). Everything else that moves is CSS.
  */
 export function HomeView({ lang }: { lang: Lang }) {
   return (
     <div className="mp-home" data-lang={lang}>
       <HomeAddress lang={lang} />
+      <Parallax />
       <HomeHero lang={lang} />
       <HomeRibbon lang={lang} />
       <HomeServices lang={lang} />

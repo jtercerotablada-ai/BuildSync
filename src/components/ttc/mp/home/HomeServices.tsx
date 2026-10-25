@@ -78,21 +78,21 @@ export function HomeServices({ lang }: { lang: Lang }) {
       <div className="h-wrap">
         <header className="h-head">
           <div className="h-head__top">
-            <Reveal>
+            <Reveal fx="up">
               <p className="h-label">{h.label}</p>
             </Reveal>
-            <Reveal>
+            <Reveal fx="up" delay={0.1}>
               <p className="h-tag">{h.tag}</p>
             </Reveal>
           </div>
-          <h2 id="h-svc-title" className="h-h2" data-fx="words">
+          <Reveal as="h2" fx="words" id="h-svc-title" className="h-h2">
             <Words text={h.title} accent={h.accentWord} />
-          </h2>
+          </Reveal>
           <div className="h-head__foot">
-            <Reveal className="h-head__lede">
+            <Reveal fx="up" className="h-head__lede">
               <p className="h-lede">{h.lede}</p>
             </Reveal>
-            <Reveal>
+            <Reveal fx="up" delay={0.1}>
               <Link className="h-link" href={l('/services')}>
                 <span>{h.all}</span>
                 <Arrow />
@@ -104,13 +104,18 @@ export function HomeServices({ lang }: { lang: Lang }) {
         <div className="h-svc__cols">
           {columns.map((col) => (
             <div key={col.track} className="h-svc__col" data-track={col.track}>
-              <div className="h-svc__legend" data-fx="left" style={{ '--o': 0 } as React.CSSProperties}>
+              <Reveal
+                fx="left"
+                delay={col.track === 'new' ? 0 : 0.2}
+                className="h-svc__legend"
+                style={{ '--o': 0 } as React.CSSProperties}
+              >
                 <p className="h-track">
                   <Diamond />
                   {col.legend.k}
                 </p>
                 <p className="h-svc__legend-v">{col.legend.v}</p>
-              </div>
+              </Reveal>
 
               {col.cards.map(({ s, i, photo, line }, k) => {
                 /* 3/2 and 4/5 alternate down each column, and the two columns
@@ -123,11 +128,11 @@ export function HomeServices({ lang }: { lang: Lang }) {
                     className="h-card h-svc"
                     style={{ '--ar': tall ? '4 / 5' : '3 / 2', '--o': i + 1 } as React.CSSProperties}
                   >
-                    <div className="h-ph" data-fx="img">
+                    <Reveal fx="img" className="h-ph">
                       <div className="h-ph__in">
                         <Img photo={photo} sizes="(min-width: 900px) 44vw, 92vw" />
                       </div>
-                    </div>
+                    </Reveal>
                     <div className="h-card__meta">
                       <p className="h-track">
                         <Diamond />

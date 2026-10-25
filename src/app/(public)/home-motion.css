@@ -1,0 +1,406 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   HOME — everything that moves, below the hero
+   ──────────────────────────────────────────────────────────────────────────
+   Imported by HomeView after home.css and home-lower.css, so a rule here wins
+   over a rule of the same weight there. Scoped under `.mp-home`, except the
+   header's two effects (the header is outside the page's root and is keyed on
+   `body:has(.mp-home)`, so no other page sees them).
+
+   The hero's own entrance (E2 to E6) is in home.css, next to the hero.
+
+     01  Reveals: the `Reveal fx=…` variants, E8 to E12
+     02  The ribbon, E7 (the rest is in home.css and RibbonRows.tsx)
+     03  The building-types rail, E13
+     04  Parallax, E14
+     05  The slide-over stack, E15
+     06  The header: the drop-in (E1) and the progress line (E16)
+     07  Hover on the snow plate (E18)
+
+   THE RULE OF THIS FILE, the one reveal.ts keeps: NOTHING IS HIDDEN UNLESS
+   `data-rv` SAYS SO, and `data-rv` is written only by the browser's script,
+   after hydration, only on a block that is still below the fold. The server
+   HTML, a visitor without scripts, a script that failed and a block already on
+   screen therefore never meet a hidden state. Every hidden state below is a
+   `[data-rv='wait']` selector, and every one sits inside
+   `@media screen and (prefers-reduced-motion: no-preference)`: a visitor who
+   asked for less motion has no hidden state to undo (reveal.ts does not even
+   watch for them), and paper never gets one.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ 01 · REVEALS ════════════════════════════════════════════════════════ */
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  /* E9 · a block fades up: 34 px, 1.1 s. `--rv-delay` is the stagger
+     (Reveal's `delay`); `--rv-y` is Reveal's `y`. */
+  .mp-home [data-fx='up'][data-rv='wait'] {
+    opacity: 0;
+    transform: translateY(var(--rv-y, 34px));
+  }
+  .mp-home [data-fx='up'][data-rv='in'] {
+    animation: h-rv-up 1.1s var(--h-ease) var(--rv-delay, 0s) backwards;
+  }
+
+  /* E10 · a block slides in from the left: 72 px, 1.3 s (28 px on a phone,
+     where 72 px is more than the gutter and the move would cross the
+     screen's edge). */
+  .mp-home [data-fx='left'] {
+    --h-x: -72px;
+  }
+  .mp-home [data-fx='left'][data-rv='wait'] {
+    opacity: 0;
+    transform: translateX(var(--h-x));
+  }
+  .mp-home [data-fx='left'][data-rv='in'] {
+    animation: h-rv-left 1.3s var(--h-ease) var(--rv-delay, 0s) backwards;
+  }
+
+  /* E11 · a hairline draws across from the left, 1.5 s. Three kinds:
+     the block IS the rule (the pause photograph's gold line), the block's
+     `::before` is its rule (a credential card, a county), or the rule is a
+     label's (the 34 px gold stroke before every section label). */
+  .mp-home [data-fx='line'].h-pause__line[data-rv='wait'] {
+    transform: scaleX(0);
+  }
+  .mp-home [data-fx='line'].h-pause__line[data-rv='in'] {
+    animation: h-draw 1.5s var(--h-ease) var(--rv-delay, 0s) backwards;
+  }
+  .mp-home .h-cred__card[data-fx='line'][data-rv='wait']::before,
+  .mp-home .h-where__county[data-rv='wait']::before {
+    transform: scaleX(0);
+  }
+  .mp-home .h-cred__card[data-fx='line'][data-rv='in']::before {
+    animation: h-draw 1.5s var(--h-ease) var(--rv-delay, 0s) backwards;
+  }
+  /* A county's rule starts a beat after its block begins to slide. */
+  .mp-home .h-where__county[data-rv='in']::before {
+    animation: h-draw 1.5s var(--h-ease) calc(var(--rv-delay, 0s) + 0.25s) backwards;
+  }
+  .mp-home .h-label[data-rv='wait']::before,
+  .mp-home [data-rv='wait'] .h-label::before {
+    transform: scaleX(0);
+  }
+  .mp-home .h-label[data-rv='in']::before,
+  .mp-home [data-rv='in'] .h-label::before {
+    animation: h-draw 1.4s var(--h-ease) calc(var(--rv-delay, 0s) + 0.3s) backwards;
+  }
+
+  /* E12 · a photograph: revealed from its foot edge upward in 1.7 s while it
+     settles from 1.34 times its size in 2.4 s. The clip and the scale are on
+     the <img> itself (and a loop's <video>), not on a box around it: the
+     browser's lazy loading and VideoLoop's own observer read the image's
+     geometry, and a clipped ANCESTOR would count as "not on screen" and hold
+     them back until the reveal had begun. */
+  .mp-home [data-fx='img'][data-rv='wait'] :is(img, video) {
+    clip-path: inset(100% 0 0 0);
+    transform: scale(1.34);
+  }
+  .mp-home [data-fx='img'][data-rv='in'] img {
+    animation:
+      h-rv-clip 1.7s var(--h-ease) backwards,
+      h-rv-settle 2.4s var(--h-ease) backwards;
+  }
+  /* The BIM frame's four gold corner ticks come in once the picture has. */
+  .mp-home .h-bim__frame[data-rv='wait']::after {
+    opacity: 0;
+  }
+  .mp-home .h-bim__frame[data-rv='in']::after {
+    animation: h-rv-fade 1s var(--h-ease) 1.3s backwards;
+  }
+
+  /* E8 · a heading's words rise out of their masks (Words.tsx): 1.25 s, 55 ms
+     apart (`--wi` is a word's index in the whole heading). Opacity is 0 while
+     a word waits and comes up in the first third of its rise: the mask's ink
+     slack (padding under the line box) would otherwise show the top of a
+     parked word as a row of slivers. */
+  .mp-home [data-fx='words'][data-rv='wait'] .h-w > span {
+    opacity: 0;
+    transform: translateY(130%);
+  }
+  .mp-home [data-fx='words'][data-rv='in'] .h-w > span {
+    animation: h-rv-word 1.25s var(--h-ease) calc(var(--rv-delay, 0s) + var(--wi, 0) * 55ms) backwards;
+  }
+}
+
+@media screen and (prefers-reduced-motion: no-preference) and (max-width: 720px) {
+  .mp-home [data-fx='left'] {
+    --h-x: -28px;
+  }
+}
+
+@keyframes h-rv-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rv-y, 34px));
+  }
+}
+@keyframes h-rv-left {
+  from {
+    opacity: 0;
+    transform: translateX(var(--h-x, -72px));
+  }
+}
+@keyframes h-rv-clip {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes h-rv-settle {
+  from {
+    transform: scale(1.34);
+  }
+}
+@keyframes h-rv-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes h-rv-word {
+  from {
+    opacity: 0;
+    transform: translateY(130%);
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ═══ 02 · THE RIBBON ═════════════════════════════════════════════════════
+   The rows are moved by RibbonRows.tsx (`translate3d` on each track). The
+   layout, the no-script keyframes and the reduced-motion list are in
+   home.css. A layer of its own for the track, so the type is not repainted
+   as it moves. */
+
+@media (prefers-reduced-motion: no-preference) {
+  html.js .mp-home .h-rib__track {
+    will-change: transform;
+  }
+}
+
+/* ═══ 03 · THE BUILDING-TYPES RAIL ════════════════════════════════════════
+   TypesRail.tsx adds the two ring buttons, mouse drag, the counter and the
+   bar to the native scroller. */
+
+/* The buttons' place is kept while the script starts, so they do not push the
+   heading down when they arrive; without a script it stays hidden (home-lower.css). */
+html.js .mp-home .h-types__ctl:empty {
+  display: flex;
+  min-width: 104px;
+  min-height: 46px;
+}
+.mp-home .h-types__btn {
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mp-home .h-types__btn--prev svg {
+  transform: scaleX(-1);
+}
+.mp-home .h-types__btn:focus-visible {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: 4px;
+  border-color: var(--mp-gold);
+  color: var(--mp-gold);
+}
+/* At an end the button stays in the tab order (it would take the focus with
+   it if it disabled itself) and only looks spent. */
+.mp-home .h-types__btn[aria-disabled='true'] {
+  opacity: 0.32;
+  cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-home .h-types__btn:not([aria-disabled='true']):hover {
+    border-color: var(--mp-gold);
+    color: var(--mp-gold);
+  }
+  .mp-home .h-types__btn:not([aria-disabled='true']):hover svg {
+    transform: translateX(3px);
+  }
+  .mp-home .h-types__btn--prev:not([aria-disabled='true']):hover svg {
+    transform: scaleX(-1) translateX(3px);
+  }
+}
+
+/* Dragging with a mouse. While it lasts the snap is off (it would pull the
+   rail back under the pointer) and so is text selection. The browser's own
+   picture and link dragging are switched off as well: they start a
+   drag-and-drop that ends the pointer events. */
+@media (hover: hover) and (pointer: fine) {
+  html.js .mp-home .h-types__rail {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  html.js .mp-home .h-types__rail :is(a, img) {
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+}
+.mp-home .h-types__rail.is-dragging {
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+  cursor: grabbing;
+}
+.mp-home .h-types__rail.is-dragging * {
+  cursor: grabbing;
+}
+/* The bar follows the scroll frame by frame: no transition. */
+.mp-home .h-types__bar i {
+  transition: none;
+}
+
+/* ═══ 04 · PARALLAX ═══════════════════════════════════════════════════════
+   Parallax.tsx shifts the hero's film box and the pause photograph's frame by
+   transform; this only gives them a layer to move on, where it runs. */
+
+@media (min-width: 900px) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .mp-home [data-parallax] {
+    will-change: transform;
+  }
+}
+
+/* ═══ 05 · THE SLIDE-OVER STACK (E15) ═════════════════════════════════════
+   Three plates, one pinned under the next: the pause photograph holds the
+   screen while the credentials plate slides up over it, and the snow plate
+   slides up over both. Pure CSS, no script, no per-frame writes.
+
+   ONLY AT (min-width: 900px) and (min-height: 720px), and without reduced
+   motion. Anywhere else the plates are three blocks in a column (the rules
+   in home-lower.css). A zoomed or short window that falls below the media
+   query turns the pinning off by itself, so a plate taller than the screen is
+   never pinned with its foot out of reach.
+
+   Order in the page, and what covers what:
+     .h-pause   sticky at the top, one screen tall, z auto: lowest
+     .h-cred    sticky at the top, at least one screen tall, z 2: over the pause
+     .h-where   in the flow, z 3: over both, and the plate the stack ends on */
+
+@media (min-width: 900px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
+  .mp-home .h-stack .h-pause {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
+  }
+  /* Pinned, the plate is one screen with the fixed header over its top: its
+     content is centred in what is left under the header (the padding below is
+     the header's height plus a little, then a smaller one at the foot). */
+  .mp-home .h-stack .h-cred {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100svh;
+    padding-block-start: calc(var(--mp-header-h, 76px) + clamp(4px, 1.2svh, 24px));
+    padding-block-end: clamp(16px, 3.5svh, 72px);
+  }
+  .mp-home .h-stack .h-where {
+    position: relative;
+    z-index: 3;
+  }
+}
+
+/* The plate being covered dims and swells as the one over it rises, where the
+   browser can tie an animation to the scroll position. The timeline is the
+   COVERING plate's view progress (`entry`: from its top meeting the foot of the
+   screen to its top meeting the head of the screen — one screen of scrolling),
+   and the covered plate, which sits pinned and so never moves through the
+   view itself, is animated by it. `timeline-scope` on the stack lets an
+   earlier sibling read a later sibling's timeline. Elsewhere: plain overlap. */
+@supports (animation-timeline: view()) and (timeline-scope: --h-a) {
+  @media (min-width: 900px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
+    .mp-home .h-stack {
+      timeline-scope: --h-over-cred, --h-over-where;
+    }
+    .mp-home .h-stack .h-cred {
+      view-timeline: --h-over-cred block;
+      animation: h-covered linear both;
+      animation-timeline: --h-over-where;
+      animation-range: entry 0% entry 100%;
+    }
+    .mp-home .h-stack .h-where {
+      view-timeline: --h-over-where block;
+    }
+    .mp-home .h-stack .h-pause {
+      animation: h-covered linear both;
+      animation-timeline: --h-over-cred;
+      animation-range: entry 0% entry 100%;
+    }
+  }
+}
+@keyframes h-covered {
+  to {
+    opacity: 0.78;
+    transform: scale(1.07);
+  }
+}
+
+/* ═══ 06 · THE HEADER ═════════════════════════════════════════════════════
+   The header belongs to the shell, not to the page, so these are keyed on the
+   page being the home: `body:has(.mp-home)`. */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* E1 · it drops in: 1 s, after a tenth of a second. `backwards`: the
+     from-state holds through the delay and the animation lets go when it
+     ends, so it leaves no transform behind (a transform on a fixed header
+     would become the containing block of its menu). */
+  body:has(.mp-home) .mp-header {
+    animation: h-header-drop 1s var(--mp-ease) 0.1s backwards;
+  }
+}
+@keyframes h-header-drop {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+/* E16 · a 1 px gold line under the header grows with the page's scroll, from
+   nothing at the top to the full width at the bottom. Only where the browser
+   has scroll-driven animations; elsewhere there is no line. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    body:has(.mp-home) .mp-header::after {
+      content: '';
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 1px;
+      background: var(--mp-gold, #c99a38);
+      pointer-events: none;
+      transform: scaleX(0);
+      transform-origin: left;
+      animation: h-header-progress linear both;
+      animation-timeline: scroll(root);
+    }
+  }
+}
+@keyframes h-header-progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ═══ 07 · HOVER ON THE SNOW PLATE (E18) ══════════════════════════════════
+   The other hovers (a service card's photograph, ring and arrow; the ribbon's
+   words; a tool row; a contact line; the types cards) are with their
+   sections, each also on :focus-visible. A city is not a link, so it has no
+   focus state: the name the pointer rests on takes the full ink. */
+
+@media (hover: hover) and (pointer: fine) {
+  .mp-home .h-where__list li {
+    transition: color 0.4s var(--h-ease);
+  }
+  .mp-home .h-where__list li:hover {
+    color: var(--mp-ink);
+  }
+}

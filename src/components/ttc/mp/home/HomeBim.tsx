@@ -45,16 +45,16 @@ export function HomeBim({ lang }: { lang: Lang }) {
       <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap h-bim__grid">
         <div className="h-bim__text">
-          <Reveal>
+          <Reveal fx="up">
             <p className="h-label">{b.label}</p>
           </Reveal>
-          <h2 id="h-bim-title" className="h-h2 h-h2--m" data-fx="words">
+          <Reveal as="h2" fx="words" id="h-bim-title" className="h-h2 h-h2--m">
             <Words text={b.title} accent={b.accentWord} />
-          </h2>
-          <Reveal>
+          </Reveal>
+          <Reveal fx="up" delay={0.1}>
             <p className="h-body h-bim__body">{b.body}</p>
           </Reveal>
-          <Reveal>
+          <Reveal fx="up" delay={0.2}>
             <Link className="h-link" href={localePath(`/services/${service.slug}`, lang)}>
               <span>{service.title}</span>
               <Arrow />
@@ -63,10 +63,10 @@ export function HomeBim({ lang }: { lang: Lang }) {
         </div>
 
         <div className="h-bim__media">
-          <div className="h-bim__frame" data-fx="img">
+          <Reveal fx="img" className="h-bim__frame">
             <VideoLoop clip={imagery.clips.bim} />
-          </div>
-          <Reveal className="h-bim__cap">
+          </Reveal>
+          <Reveal fx="up" className="h-bim__cap">
             <p className="h-mono">{b.caption}</p>
             <MotionToggle className="h-bim__toggle" />
           </Reveal>

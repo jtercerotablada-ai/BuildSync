@@ -1,6 +1,7 @@
 import React from 'react';
 import { getContent, type SiteContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
+import { Reveal } from '../primitives';
 
 /**
  * The contractor's card of the home page's credentials plate: Precision
@@ -67,9 +68,10 @@ export function PartnerCard({ lang }: { lang: Lang }) {
   const build = p.construction;
 
   return (
-    /* `data-fx="line"`: the card's gold top rule draws on scroll (E11), like
-       the two cards beside it; the motion slice arms it. */
-    <div className="mp-partner__card h-cred__card h-cred__card--partner" data-fx="line">
+    /* The card's gold top rule draws on scroll (E11), last of the three.
+       `Reveal fx` puts no class in front of the list: the tests find the
+       card by `<div class="mp-partner__card`. */
+    <Reveal fx="line" delay={0.4} className="mp-partner__card h-cred__card h-cred__card--partner">
       <div className="mp-partner__logo">
         {/* The mark is named by its alt, for whoever reads the image and not
             the page (a search engine, a saved picture). It is `aria-hidden`
@@ -100,6 +102,6 @@ export function PartnerCard({ lang }: { lang: Lang }) {
           ))}
         </dl>
       </div>
-    </div>
+    </Reveal>
   );
 }

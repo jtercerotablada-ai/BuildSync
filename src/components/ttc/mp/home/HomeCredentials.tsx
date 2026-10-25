@@ -1,6 +1,7 @@
 import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
+import { Reveal } from '../primitives';
 import { PartnerCard } from './PartnerCard';
 import { Words } from './Words';
 
@@ -74,13 +75,14 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
     >
       <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap">
-        <p className="h-label">{h.label}</p>
+        <Reveal as="p" fx="up" className="h-label">
+          {h.label}
+        </Reveal>
 
         <div className="h-cred__head">
-          {/* MOTION HOOK: the words rise out of their masks (E8) —
-              `data-fx="words"`. One span per line, a space between them so
-              the heading reads in a line. */}
-          <h2 id="h-cred-h" className="h-h2 h-cred__h" data-fx="words">
+          {/* The words rise out of their masks (E8). One span per line, a
+              space between them so the heading reads in a line. */}
+          <Reveal as="h2" fx="words" id="h-cred-h" className="h-h2 h-cred__h">
             {h.titleLines.map((line, i) => (
               <React.Fragment key={line}>
                 {i > 0 ? ' ' : null}
@@ -98,23 +100,24 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
                 </span>
               </React.Fragment>
             ))}
-          </h2>
-          <p className="h-lede h-cred__lede">{p.lede}</p>
+          </Reveal>
+          <Reveal as="p" fx="up" delay={0.3} className="h-lede h-cred__lede">
+            {p.lede}
+          </Reveal>
         </div>
 
-        {/* MOTION HOOK: each card's gold top rule draws across, 0.2 s apart
-            (E11) — `data-fx="line"` on each card; the rules are the cards'
-            `::before`. */}
+        {/* Each card's gold top rule draws across, 0.2 s apart (E11): the
+            rules are the cards' `::before`. */}
         <div className="h-cred__row">
-          <div className="h-cred__card h-cred__card--eng" data-fx="line">
+          <Reveal fx="line" className="h-cred__card h-cred__card--eng">
             <p className="h-cred__kind">{h.engineers.k}</p>
             <p className="h-cred__name">{h.engineers.name}</p>
             <p className="h-cred__scope">{h.engineers.scope}</p>
             <p className="h-cred__status">{p.engineering.licensed}</p>
-          </div>
+          </Reveal>
 
           {firm.registry ? (
-            <div className="h-cred__card h-cred__card--firm" data-fx="line">
+            <Reveal fx="line" delay={0.2} className="h-cred__card h-cred__card--firm">
               <div className="h-cred__mark">
                 {/* The firm's own white monogram. `aria-hidden`: its name is
                     the card's own line, and a screen reader would say it
@@ -133,7 +136,7 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
               <p className="h-cred__kind">{h.firm.k}</p>
               <p className="h-cred__name">{firm.registry}</p>
               <p className="h-cred__status">{p.engineering.registered}</p>
-            </div>
+            </Reveal>
           ) : null}
 
           <PartnerCard lang={lang} />

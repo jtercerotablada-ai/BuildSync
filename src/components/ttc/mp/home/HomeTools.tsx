@@ -5,6 +5,7 @@ import { getContent } from '@/lib/ttc/content';
 import { GUIDES_PATH, guideSlugs } from '@/lib/ttc/guides';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { withNumberWord } from '@/lib/ttc/number-words';
+import { Reveal } from '../primitives';
 import { Arrow } from './glyphs';
 import { Words } from './Words';
 
@@ -53,17 +54,16 @@ export function HomeTools({ lang }: { lang: Lang }) {
     <section id="tools" className="h-plate h-tools mp-surface--graphite" aria-labelledby="h-tools-h">
       <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap">
-        <p className="h-label">{h.label}</p>
-        {/* MOTION HOOK: the words rise out of their masks (E8) —
-            `data-fx="words"`. */}
-        <h2 id="h-tools-h" className="h-h2 h-tools__h" data-fx="words">
+        <Reveal as="p" fx="up" className="h-label">
+          {h.label}
+        </Reveal>
+        <Reveal as="h2" fx="words" id="h-tools-h" className="h-h2 h-tools__h">
           <Words text={h.title} accent={h.accentWord} />
-        </h2>
+        </Reveal>
 
-        {/* MOTION HOOK: the rows slide in from the left, 0.2 s apart (E10) —
-            `data-fx="left"` on each. */}
+        {/* The rows slide in from the left, 0.2 s apart (E10). */}
         <ul className="h-tools__list">
-          <li className="h-tools__row" data-fx="left">
+          <Reveal as="li" fx="left" className="h-tools__row">
             <span className="h-tools__num" aria-hidden="true">
               {pad(calcCount)}
             </span>
@@ -82,9 +82,9 @@ export function HomeTools({ lang }: { lang: Lang }) {
             <span className="h-ring h-tools__go" aria-hidden="true">
               <Arrow up />
             </span>
-          </li>
+          </Reveal>
 
-          <li className="h-tools__row" data-fx="left">
+          <Reveal as="li" fx="left" delay={0.2} className="h-tools__row">
             <span className="h-tools__num" aria-hidden="true">
               {pad(guideCount)}
             </span>
@@ -99,7 +99,7 @@ export function HomeTools({ lang }: { lang: Lang }) {
             <span className="h-ring h-tools__go" aria-hidden="true">
               <Arrow up />
             </span>
-          </li>
+          </Reveal>
         </ul>
       </div>
     </section>

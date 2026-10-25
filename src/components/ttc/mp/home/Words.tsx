@@ -13,13 +13,13 @@ import React from 'react';
  * AT REST THE WORDS SIT IN PLACE. Nothing here is hidden and nothing moves:
  * the static page, a visitor with no JavaScript and a visitor who asked for
  * less motion all read the heading as a heading. The rise of each word out
- * of its mask (spec E8: 1.25 s, 55 ms per word, from 118 %) belongs to the
- * motion slice and is driven only by `data-rv` on an element `reveal.ts`
- * watches, exactly like the other below-the-fold reveals:
+ * of its mask (spec E8: 1.25 s, 55 ms per word, from 130 %) is driven only by
+ * `data-rv` on the heading, which is a `Reveal fx="words"` that `reveal.ts`
+ * watches like every other below-the-fold reveal (home-motion.css):
  *
- *   MOTION HOOK: [data-rv='wait'] .h-w > span { transform: translateY(125%) }
- *   MOTION HOOK: [data-rv='in']   .h-w > span { animation: …
- *                                  calc(var(--wi) * 55ms) backwards }
+ *   [data-fx='words'][data-rv='wait'] .h-w > span { opacity: 0; translateY(130%) }
+ *   [data-fx='words'][data-rv='in']   .h-w > span { animation: h-rv-word …
+ *                                       calc(var(--wi) * 55ms) backwards }
  *
  * `--wi` is the word's index in the whole heading (the accent included), so
  * the stagger runs left to right, line after line.

@@ -2,6 +2,7 @@ import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { ContactForm } from '../ContactForm';
+import { Reveal } from '../primitives';
 import { Arrow } from './glyphs';
 import { Words } from './Words';
 
@@ -59,22 +60,23 @@ export function HomeContact({ lang }: { lang: Lang }) {
     <section id="contact" className="h-plate h-contact mp-surface--graphite" aria-labelledby="h-contact-h">
       <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap">
-        <p className="h-label">{h.label}</p>
-        {/* MOTION HOOK: the words rise out of their masks (E8) —
-            `data-fx="words"`. */}
-        <h2 id="h-contact-h" className="h-h2 h-contact__h" data-fx="words">
+        <Reveal as="p" fx="up" className="h-label">
+          {h.label}
+        </Reveal>
+        <Reveal as="h2" fx="words" id="h-contact-h" className="h-h2 h-contact__h">
           <Words text={h.title} accent={h.accentWord} />
-        </h2>
-        <p className="h-lede h-contact__sub">{h.sub}</p>
+        </Reveal>
+        <Reveal as="p" fx="up" delay={0.3} className="h-lede h-contact__sub">
+          {h.sub}
+        </Reveal>
 
         <div className="h-contact__grid">
-          <div className="h-contact__form">
+          <Reveal fx="up" className="h-contact__form">
             <ContactForm variant="home" />
-          </div>
+          </Reveal>
 
-          {/* MOTION HOOK: the lines fade up (E9: a plain `Reveal`), 0.2 s after
-              the form. */}
-          <ul className="h-contact__lines">
+          {/* The lines fade up (E9), 0.2 s after the form. */}
+          <Reveal as="ul" fx="up" delay={0.2} className="h-contact__lines">
             {lines.map((line) => (
               <li key={line.key}>
                 <a
@@ -90,7 +92,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
                 </a>
               </li>
             ))}
-          </ul>
+          </Reveal>
         </div>
       </div>
     </section>

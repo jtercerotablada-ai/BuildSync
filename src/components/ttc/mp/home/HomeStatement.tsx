@@ -45,23 +45,23 @@ export function HomeStatement({ lang }: { lang: Lang }) {
       <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap h-stmt__grid">
         <div className="h-stmt__text">
-          <h2 id="h-stmt-title" className="h-stmt__title" data-fx="words">
+          <Reveal as="h2" fx="words" id="h-stmt-title" className="h-stmt__title">
             {lines.map((node, i) => (
               <React.Fragment key={i}>
                 {i > 0 ? ' ' : null}
                 <span className="h-l">{node}</span>
               </React.Fragment>
             ))}
-          </h2>
-          <Reveal>
+          </Reveal>
+          <Reveal fx="up" delay={0.15}>
             <p className="h-stmt__dim">{accent(s.dim, s.accentWord)}</p>
           </Reveal>
         </div>
-        <div className="h-ph h-stmt__photo" data-fx="img">
+        <Reveal fx="img" className="h-ph h-stmt__photo">
           <div className="h-ph__in">
             <Img photo={photo.miamiTowersUp} sizes="(min-width: 1100px) 26vw, 92vw" />
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );

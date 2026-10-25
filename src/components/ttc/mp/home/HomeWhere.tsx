@@ -2,6 +2,7 @@ import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { marks } from '@/lib/ttc/municipalities';
+import { Reveal } from '../primitives';
 import { Words } from './Words';
 
 /* The two logo files' own sizes (public/ttc/img/jurisdictions/), so the
@@ -59,25 +60,26 @@ export function HomeWhere({ lang }: { lang: Lang }) {
       data-motion="stack-where"
     >
       <div className="h-wrap">
-        <p className="h-label">{h.label}</p>
+        <Reveal as="p" fx="up" className="h-label">
+          {h.label}
+        </Reveal>
 
         <div className="h-where__head">
-          {/* MOTION HOOK: the words rise out of their masks (E8) —
-              `data-fx="words"`. */}
-          <h2 id="h-where-h" className="h-h2 h-where__h" data-fx="words">
+          <Reveal as="h2" fx="words" id="h-where-h" className="h-h2 h-where__h">
             <Words text={h.title} accent={h.accentWord} />
-          </h2>
-          <p className="h-lede h-where__lede">{h.lede}</p>
+          </Reveal>
+          <Reveal as="p" fx="up" delay={0.25} className="h-lede h-where__lede">
+            {h.lede}
+          </Reveal>
         </div>
 
         <div className="h-where__counties">
-          {k.lists.map((list) => {
+          {k.lists.map((list, index) => {
             const mark = marks[list.mark];
             return (
-              /* MOTION HOOK: each county block slides in from the left,
-                 0.2 s apart (E10) — `data-fx="left"` — and its top rule
-                 draws (E11). */
-              <div key={list.title} className="h-where__county" data-fx="left">
+              /* Each county block slides in from the left, 0.2 s apart (E10),
+                 and its top rule draws (E11). */
+              <Reveal key={list.title} fx="left" delay={index * 0.2} className="h-where__county">
                 <div className="h-where__top">
                   {mark ? (
                     /* The county's own logo, from its own website, on the
@@ -101,7 +103,7 @@ export function HomeWhere({ lang }: { lang: Lang }) {
                     <li key={name}>{name}</li>
                   ))}
                 </ul>
-              </div>
+              </Reveal>
             );
           })}
         </div>

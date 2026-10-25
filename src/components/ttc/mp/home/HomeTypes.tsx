@@ -4,8 +4,10 @@ import { getContent } from '@/lib/ttc/content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { photo, type Photo } from '@/lib/ttc/media';
 import { Img } from '../media';
+import { Reveal } from '../primitives';
 import { Arrow } from './glyphs';
 import { Words } from './Words';
+import { TypesRail } from './TypesRail';
 
 /**
  * S6 · BUILDING TYPES — the kinds of building the firm engineers, honestly
@@ -52,20 +54,20 @@ export function HomeTypes({ lang }: { lang: Lang }) {
       <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap h-types__head">
         <div className="h-head__top">
-          <p className="h-label">{h.label}</p>
+          <Reveal as="p" fx="up" className="h-label">
+            {h.label}
+          </Reveal>
           <div className="h-types__aside">
             <p className="h-tag">{h.tag}</p>
-            {/* MOTION HOOK: the `TypesRail` island mounts the two ring
-                buttons here (aria-labels `home.types.prev` / `.next`,
-                disabled at the ends; hidden under html:not(.js)). */}
-            <div className="h-types__ctl" data-motion="rail-ctl" />
+            {/* The island: the two ring buttons (aria-labels `home.types.prev`
+                / `.next`), once the script has run; the container is empty,
+                and hidden, before it and without it. */}
+            <TypesRail prev={h.prev} next={h.next} />
           </div>
         </div>
-        {/* MOTION HOOK: the words rise out of their masks (E8) —
-            `data-fx="words"`, armed by the motion slice. */}
-        <h2 id="h-types-h" className="h-h2 h-h2--m h-types__h" data-fx="words">
+        <Reveal as="h2" fx="words" id="h-types-h" className="h-h2 h-h2--m h-types__h">
           <Words text={h.title} accent={h.accentWord} />
-        </h2>
+        </Reveal>
       </div>
 
       {/* The scroller. `role="region"` + `tabIndex={0}`: a keyboard user can
@@ -77,13 +79,12 @@ export function HomeTypes({ lang }: { lang: Lang }) {
         <ul className="h-types__list">
           {cards.map((card) => (
             <li key={card.title} className="h-types__card" data-motion="rail-card">
-              {/* MOTION HOOK: photograph reveal (E12) — `data-fx="img"`:
-                  clip-path on `.h-ph__in`, settle on its image. */}
-              <div className="h-ph h-types__ph" data-fx="img">
+              {/* The photograph reveals from its foot while it settles (E12). */}
+              <Reveal fx="img" className="h-ph h-types__ph">
                 <div className="h-ph__in">
                   <Img photo={card.photo} sizes="(min-width: 900px) 27vw, 76vw" />
                 </div>
-              </div>
+              </Reveal>
               <p className="h-types__cap">{lang === 'es' ? card.photo.altEs : card.photo.alt}</p>
               <p className="h-types__t">
                 <Link href={localePath(card.href, lang)} className="h-types__link">

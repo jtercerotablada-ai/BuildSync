@@ -3,6 +3,7 @@ import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { photo } from '@/lib/ttc/media';
 import { Img } from '../media';
+import { Reveal } from '../primitives';
 import { Words } from './Words';
 
 /**
@@ -50,14 +51,12 @@ export function HomeStack({ lang, children }: { lang: Lang; children?: React.Rea
           <Img photo={photo.southFloridaAerial} className="h-pause__img" sizes="100vw" />
         </div>
         <div className="h-pause__copy">
-          {/* MOTION HOOK: the gold hairline draws across (E11) —
-              `data-fx="line"`. */}
-          <div className="h-pause__line" aria-hidden="true" data-fx="line" />
-          {/* MOTION HOOK: the words rise out of their masks (E8) —
-              `data-fx="words"`. */}
-          <h2 id="h-pause-h" className="h-pause__h" data-fx="words">
+          {/* The gold hairline draws across (E11), then the words rise out of
+              their masks (E8). */}
+          <Reveal fx="line" className="h-pause__line" />
+          <Reveal as="h2" fx="words" id="h-pause-h" className="h-pause__h">
             <Words text={h.title} accent={h.accentWord} />
-          </h2>
+          </Reveal>
         </div>
       </section>
       {children}
