@@ -1151,6 +1151,21 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   .mp-home .h-rib__list {
     flex-wrap: wrap;
     width: 100%;
+    row-gap: 0.14em;
+  }
+  /* A name is allowed to wrap inside the screen. Left at `flex: none` each
+     one kept its one-line width and was cut off by the screen's edge: at 390
+     px "Reinforced Concrete Design" ended at "Reinforced Concrete D", and
+     "Structural Analysis & Foundations" lost 39 px even at 1440 (QA, Spanish
+     worse). */
+  .mp-home .h-rib__list li {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .mp-home .h-rib__list li > a {
+    min-width: 0;
+    overflow-wrap: break-word;
   }
   .mp-home .h-rib__list[aria-hidden='true'] {
     display: none;

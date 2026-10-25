@@ -328,6 +328,17 @@ html.js .mp-home .h-types__ctl:empty {
   .mp-home .h-stack .h-where {
     position: relative;
     z-index: 3;
+    /* A pause before the snow plate rises: the credentials plate stays
+       pinned and whole for 40 % of a screen of scrolling (320 px at the
+       least: the browser's own scroll to a link lands about 240 px past the
+       plate's pinning). Without it the plate was whole at one scroll position
+       only, and the snow plate began to cover it with the first wheel notch:
+       a keyboard visitor tabbing to the two license links (at the foot of the
+       plate) had the browser scroll to them and land them UNDER the snow
+       plate (QA: 1440 × 900, 1440 × 760, 900 × 720). With the pause, the
+       scroll the browser makes to reach a link ends with the plate whole. */
+    margin-top: 40vh;
+    margin-top: max(40svh, 320px);
   }
 }
 
