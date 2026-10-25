@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -134,6 +136,12 @@ const NOT_ON_THE_HOME: readonly (readonly [says: string, pattern: RegExp])[] = [
   ['urgency', words('urgen\\p{L}*', 'hurry', 'rush', 'prisa', 'asap', 'immediately', 'inmediatamente')],
   ['a fine, a lien, a vacate order or a hearing', words('fines?', 'fined', 'multas?', 'liens?', 'vacat\\p{L}*', 'desaloj\\p{L}*', 'hearings?', 'audiencias?', 'penalt\\p{L}*', 'penalidad\\p{L}*', 'sanci\\p{L}*')],
   ['a day count', words('days?', 'd[ií]as?', '90', '180')],
+  // The old home's hero was "Send us a photo", and the owner's rules name the
+  // free offer and the push to act: new words for the same things are still
+  // the same things.
+  ['a send-a-photo ask', words('send\\s+(?:us\\s+)?(?:a\\s+)?(?:photos?|pictures?)', 'env[ií]\\p{L}*\\s+(?:una\\s+)?fotos?')],
+  ['a free offer', words('free\\s+(?:estimates?|consultations?|assessments?|inspections?)', '(?:estimado|consulta|evaluaci[oó]n)\\s+gratuit[oa]s?', 'no\\s+obligation', 'sin\\s+compromiso')],
+  ['a call to act now', words('don[\'’]?t\\s+wait', 'act\\s+now', 'call\\s+today', 'no\\s+espere', 'act[uú]e\\s+ahora', 'll[aá]me\\s+hoy')],
   ['a reply time', words('hours?', 'horas?', 'reply', 'replies', 'respond\\p{L}*', 'respuestas?')],
   ['a proposal', words('proposals?', 'propuestas?', 'quotes?', 'cotizaci\\p{L}*', 'presupuestos?')],
   ['a currency sign', /[$€£]/u],
@@ -149,6 +157,7 @@ const NOT_A_PERSON: readonly (readonly [says: string, pattern: RegExp])[] = [
   ['an SE license, said in words', words('licensed\\s+structural', 'structural\\s+engineers?\\s+licensed', 'estructurales?\\s+con\\s+licencia', 'licenciad[oa]s?\\s+estructural\\p{L}*')],
   ['a headcount', new RegExp(`(?:\\d+|(?<![\\p{L}\\p{N}])(?:${ENGLISH_COUNTS}|${SPANISH_COUNTS})(?![\\p{L}\\p{N}]))\\s+(?:engineers|ingenieros|professionals|profesionales|people|personas|employees|empleados|staff)(?![\\p{L}\\p{N}])`, 'iu')],
   ['a team size', words('team of', 'equipo de')],
+  ['one engineer', words('the\\s+engineer', 'el\\s+ingeniero')],
   ['an ampersand', /&/u],
   ['the firm building', words('we build', 'we construct', 'construimos', 'edificamos', 'nuestras obras', 'nuestros proyectos', 'our projects', 'our portfolio', 'builders?', 'constructor\\p{L}*')],
   ['the contractor', words('contractors?', 'contratistas?', 'Precision', 'partners?', 'aliad[oa]s?', 'socios?')],
@@ -275,6 +284,22 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       'Precio fijo',
       'Si ya pasó el plazo',
       'Llegó tarde',
+      'Send us a photo of the building',
+      'Envíenos una foto',
+      'Free estimate',
+      'Estimado gratuito',
+      'Free consultation',
+      'No obligation',
+      'Sin compromiso',
+      'Don’t wait',
+      'Act now',
+      'Call today',
+      'No espere',
+      'Llame hoy',
+      // What the page form says after a send, said in the page's words.
+      'Your request is in the engineer’s inbox. We usually reply within two hours.',
+      'Sending this does not engage us or change your deadline. Nothing starts until you accept a written proposal.',
+      'A phone photo of the letter is enough',
     ]) expect(find(NOT_ON_THE_HOME, bad), bad).toBe(true);
     for (const bad of [
       'Juan Tercero founded the firm',
@@ -284,6 +309,9 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       'Ingenieros estructurales con licencia',
       'Our team of eight engineers',
       'Tres ingenieros',
+      'The engineer reads your description',
+      'Your request is in the engineer’s inbox',
+      'El ingeniero lee su descripción',
       'We build foundations',
       'Tercero Tablada & Associates',
       'The contractor builds it',
@@ -299,6 +327,10 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       'Engineering you can use',
       'Photographs, drawings or reports',
       'Se diseña para todo eso',
+      'Free to use',
+      'De uso gratuito',
+      'Nine free engineering calculators',
+      'Thank you. We will write back by email.',
     ]) {
       expect(find(NOT_ON_THE_HOME, fine), fine).toBe(false);
       expect(find(NOT_A_PERSON, fine), fine).toBe(false);
@@ -708,7 +740,7 @@ function found(re: RegExp, body: string): string[] {
 /** What a reader is told by each attribute that carries words (a photograph's
     description, a button's name). */
 const attributeWords = (markup: string) =>
-  [...markup.matchAll(/ (?:alt|aria-label|title)="([^"]*)"/g)].map((m) => unescape(m[1]));
+  [...markup.matchAll(/ (?:alt|aria-label|title|placeholder)="([^"]*)"/g)].map((m) => unescape(m[1]));
 
 for (const lang of LANGS) {
   const c = getContent(lang);
@@ -801,11 +833,18 @@ for (const lang of LANGS) {
         c.contact.phone!.display,
         ...c.partner.construction.licenses.map((l) => l.number),
       ]) rest = rest.split(a).join(' ');
+      // The numerals the page prints are the counts, not typed: the tool rows
+      // (the open calculators, the guides) and the rail's counter ("01 / NN",
+      // NN the cards it holds). A new calculator changes the first, a new
+      // card the last; neither makes this test cry wolf.
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const cards = (markup.match(/data-motion="rail-card"/g) ?? []).length;
+      expect(cards).toBeGreaterThanOrEqual(1);
       for (const a of [
         /\b30\b/g,
         /\b25 MB\b/g,
-        /\b0[79]\b/g, // the tool rows' numerals: nine calculators, seven guides
-        /\b01 \/ 06\b/g, // the rail's counter
+        new RegExp(`\\b(?:${pad(openCalculatorCount)}|${pad(guideSlugs.length)})\\b`, 'g'),
+        new RegExp(`\\b01 / ${pad(cards)}\\b`, 'g'),
       ]) rest = rest.replace(a, ' ');
       expect(found(/\d/, rest)).toEqual([]);
     });
@@ -1010,5 +1049,157 @@ for (const lang of LANGS) {
         '/ttc/img/jurisdictions/miami-dade.webp',
       ]);
     });
+
+    // QA finding F1: the form lists the services in the order of the ribbon
+    // and the cards, where the two county programs are the 4th and the 6th,
+    // not first. The same options as every other form, only the order.
+    it('lists the form’s services in home.order, the county programs 4th and 6th, "other" last', () => {
+      const select = section(markup, 'contact').match(/<select\b[\s\S]*?<\/select>/)![0];
+      const options = [...select.matchAll(/<option\b[^>]*>([\s\S]*?)<\/option>/g)].map((m) => unescape(m[1]));
+      expect(options[0]).toBe(c.ui.form.selectService);
+      const title = (slug: string) => c.services.find((s) => s.slug === slug)!.shortTitle;
+      expect(options.slice(1, 9)).toEqual(c.home.order.map(title));
+      expect(options[4]).toBe(title('building-recertification'));
+      expect(options[6]).toBe(title('broward-bsip'));
+      expect(options.slice(9)).toEqual([c.contactServiceOptions[c.contactServiceOptions.length - 1]]);
+    });
+  });
+
+  // QA findings A3 / F3 (WCAG 1.3.2, 2.4.3): what a keyboard and a screen
+  // reader meet is the order of the markup, so the markup is in the order a
+  // phone shows it. (home-order.test below holds that no stylesheet rule
+  // moves these blocks with `order` again.)
+  describe(`${lang}: the order of the markup is the order of the page`, () => {
+    it('contact: the form, then the four direct lines', () => {
+      const contact = section(markup, 'contact');
+      const form = contact.indexOf('<form');
+      const lines = contact.indexOf('class="h-contact__lines"');
+      expect(form).toBeGreaterThan(-1);
+      expect(lines).toBeGreaterThan(form);
+    });
+
+    it('BIM: the heading and the link, then the frame and its pause switch', () => {
+      const bim = markup.slice(markup.indexOf('aria-labelledby="h-bim-title"'));
+      const text = bim.indexOf('class="h-bim__text"');
+      const media = bim.indexOf('class="h-bim__media"');
+      expect(text).toBeGreaterThan(-1);
+      expect(media).toBeGreaterThan(text);
+    });
+
+    it('services: each track in turn, the cards of one track in home.order (the phone shows them that way)', () => {
+      const cards = [...section(markup, 'services').matchAll(/<article\b[\s\S]*?href="[^"]*\/services\/([a-z-]+)"/g)].map((m) => m[1]);
+      const track = (slug: string) => c.services.find((s) => s.slug === slug)!.track;
+      expect(cards).toEqual([
+        ...c.home.order.filter((slug) => track(slug) === 'new'),
+        ...c.home.order.filter((slug) => track(slug) === 'existing'),
+      ]);
+    });
+  });
+
+  // QA finding F2 / A8: the long credential closes its own line in the
+  // heading's accessible name, and no mark runs into the next discipline.
+  describe(`${lang}: the credentials heading, as it is read out`, () => {
+    it('closes each mark with a spoken full stop, outside the visible tag', () => {
+      const h2 = section(markup, 'credentials').match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/)![1];
+      const marks = c.home.credentials.marks;
+      for (const m of marks) {
+        expect(h2, m).toContain(`${esc(m)}</span><span class="mp-sr-only">. </span>`);
+      }
+      expect(h2.match(/class="mp-sr-only"/g)).toHaveLength(marks.length);
+    });
   });
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   3 · WHAT HAPPENS AFTER A SEND (QA finding F1)
+   ═══════════════════════════════════════════════════════════════════════
+   The success block and its live region are client state, so the render
+   guards above never see them: the home form reads its own three texts
+   (`ui.form.home.successBody`, `successNote`, `nextSteps`), which the
+   data-level guards at the top already hold against the owner's vocabulary
+   (`homeStrings` reads every key of `ui.form.home`). What is pinned here is
+   that they exist, that they ARE NOT the page form's (which promise a reply
+   within two hours and speak of a deadline, a proposal, a fee and the
+   engineer), and that the form takes them.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+describe('what the home form says after a send, in the firm’s voice', () => {
+  for (const lang of LANGS) {
+    const c = getContent(lang);
+    const home = c.ui.form.home;
+
+    it(`${lang}: has its own success body, note and next steps`, () => {
+      for (const t of [home.successBody, home.successNote, ...home.nextSteps]) expect(t.trim(), t).not.toBe('');
+      expect(home.successBody).not.toBe(c.ui.form.successBody);
+      expect(home.successNote).not.toBe(c.ui.form.successNote);
+      expect([...home.nextSteps]).not.toEqual([...c.ui.form.nextSteps]);
+      expect(home.nextSteps.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it(`${lang}: the page form’s three texts WOULD be refused, so the patterns do see them`, () => {
+      const refused = (t: string) =>
+        NOT_ON_THE_HOME.some(([, re]) => re.test(t)) || NOT_A_PERSON.some(([, re]) => re.test(t));
+      // The body (a reply time, the engineer) and the note (a deadline, a
+      // proposal) are each refused; so is at least one of the next steps
+      // (the engineer reads, a fee).
+      expect(refused(c.ui.form.successBody), c.ui.form.successBody).toBe(true);
+      expect(refused(c.ui.form.successNote), c.ui.form.successNote).toBe(true);
+      expect(c.ui.form.nextSteps.some(refused)).toBe(true);
+      for (const t of [home.successBody, home.successNote, ...home.nextSteps]) {
+        expect(NOT_ON_THE_HOME.filter(([, re]) => re.test(t)).map(([says]) => says), t).toEqual([]);
+        expect(NOT_A_PERSON.filter(([, re]) => re.test(t)).map(([says]) => says), t).toEqual([]);
+      }
+    });
+
+    it(`${lang}: keeps the legal substance: sending does not engage the firm, and nothing starts until a written scope`, () => {
+      expect(home.successNote).toMatch(lang === 'en' ? /does not engage us/ : /no nos contrata/);
+      expect(home.successNote).toMatch(lang === 'en' ? /written scope/ : /alcance por escrito/);
+    });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   4 · THE STYLESHEETS AND THE CLIENT BOUNDARY (QA findings A3, F6)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function stripComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+/** [selector, body] of every rule of a stylesheet, nested ones (@media) too. */
+function rules(css: string): { selector: string; body: string }[] {
+  return [...stripComments(css).matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+    selector: m[1].trim(),
+    body: m[2],
+  }));
+}
+
+describe('home-order: no stylesheet rule moves the cards, the BIM frame or the contact lines with `order`', () => {
+  const dir = join(process.cwd(), 'src/app/(public)');
+  for (const file of ['home.css', 'home-lower.css', 'home-motion.css']) {
+    it(`${file}`, () => {
+      const moved = rules(readFileSync(join(dir, file), 'utf8'))
+        .filter(({ selector }) => /h-svc|h-card|h-bim__media|h-bim__text|h-contact__lines|h-contact__form/.test(selector))
+        .filter(({ body }) => /(?:^|[;\s])order\s*:/.test(body))
+        .map(({ selector }) => selector);
+      expect(moved).toEqual([]);
+    });
+  }
+});
+
+describe('the client boundary of the home (spec §5.2: only the islands are client components)', () => {
+  const dir = join(process.cwd(), 'src/components/ttc/mp/home');
+  const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'));
+
+  it('has client code only in the four islands', () => {
+    const client = files.filter((f) => /^\s*['"]use client['"]/.test(readFileSync(join(dir, f), 'utf8'))).sort();
+    expect(client).toEqual(['Parallax.tsx', 'RibbonRows.tsx', 'StackFocus.tsx', 'TypesRail.tsx']);
+  });
+
+  it('reads no language from the browser: no section uses useContent or useLang', () => {
+    for (const f of files) {
+      const src = readFileSync(join(dir, f), 'utf8');
+      expect(src, f).not.toMatch(/\buse(?:Content|Lang)\b/);
+    }
+  });
+});
