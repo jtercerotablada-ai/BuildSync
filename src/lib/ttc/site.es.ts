@@ -1326,10 +1326,10 @@ const homeForm = {
   /* What the visitor reads after sending, said by the firm (the Spanish twin
      of `ui.form.home` in site.ts: read the comment there). */
   successBody: 'Gracias. Le escribiremos por correo electrónico.',
-  successNote: 'Enviar esto no nos contrata. Nada comienza hasta que usted acepte un alcance por escrito.',
+  successNote: 'Enviar esto no nos contrata. Nada comienza hasta que usted acepte un alcance de trabajo por escrito.',
   nextSteps: [
     'Leemos su descripción y los archivos que haya adjuntado.',
-    'Le escribimos por correo electrónico, con preguntas o con un alcance por escrito.',
+    'Le escribimos por correo electrónico, con preguntas o con un alcance de trabajo por escrito.',
   ],
 };
 
@@ -1723,7 +1723,7 @@ export const es: SiteContent = {
       title: 'La estructura, modelada.',
       accentWord: 'modelada.',
       body: 'Modelamos la estructura y la verificamos contra el modelo del arquitecto y los sistemas del edificio, para resolver los conflictos en pantalla y no en obra.',
-      caption: 'Un modelo estructural que se arma piso por piso',
+      caption: 'Un modelo estructural ilustrativo que se arma piso por piso',
     },
     types: {
       label: 'Tipos de edificio',

@@ -1153,7 +1153,7 @@ describe('what the home form says after a send, in the firm’s voice', () => {
 
     it(`${lang}: keeps the legal substance: sending does not engage the firm, and nothing starts until a written scope`, () => {
       expect(home.successNote).toMatch(lang === 'en' ? /does not engage us/ : /no nos contrata/);
-      expect(home.successNote).toMatch(lang === 'en' ? /written scope/ : /alcance por escrito/);
+      expect(home.successNote).toMatch(lang === 'en' ? /written scope/ : /alcance de trabajo por escrito/);
     });
   }
 });

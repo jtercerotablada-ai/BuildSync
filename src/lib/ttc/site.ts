@@ -2791,7 +2791,7 @@ export const home = {
     title: 'The structure, modeled.',
     accentWord: 'modeled.',
     body: 'We model the structure and check it against the architect’s model and the building’s systems, so conflicts are settled on screen, not on site.',
-    caption: 'A structural model, assembling floor by floor',
+    caption: 'An illustrative structural model, assembling floor by floor',
   },
   types: {
     label: 'Building types',

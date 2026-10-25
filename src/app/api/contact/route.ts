@@ -167,9 +167,9 @@ const COPY_HOME = {
     subject: "Recibimos su mensaje",
     title: "Su mensaje ha sido recibido.",
     body: (service: string, ref: string) =>
-      `Gracias. Su mensaje (${escapeHtml(service)}) fue recibido y será leído por nuestros ingenieros. Le escribiremos por correo electrónico, con preguntas o con un alcance por escrito. Referencia: ${ref}.`,
+      `Gracias. Su mensaje (${escapeHtml(service)}) fue recibido y será leído por nuestros ingenieros. Le escribiremos por correo electrónico, con preguntas o con un alcance de trabajo por escrito. Referencia: ${ref}.`,
     files: COPY.es.files,
-    note: "Enviar esto no nos contrata. Nada comienza hasta que usted acepte un alcance por escrito.",
+    note: "Enviar esto no nos contrata. Nada comienza hasta que usted acepte un alcance de trabajo por escrito.",
     footer: COPY.es.footer,
   },
 } as const;
