@@ -229,11 +229,18 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       expect(c.home.credentials.engineers.scope).toMatch(lang === 'en' ? /structural and electrical/i : /estructural y eléctrica/i);
     });
 
-    it(`${lang}: no "SE" license is claimed anywhere on the home`, () => {
+    // The owner, 2026-10-25: "SE" for the structural engineers. Florida has
+    // no SE license; it has the board's recognition, FRSE (Florida Board
+    // Recognized Structural Engineer, s. 471.055 F.S.), which its holders "may
+    // identify ... in marketing and advertising". So the structural line
+    // carries "FRSE" as its mark, and "SE" itself is printed nowhere.
+    it(`${lang}: the Structural Engineers line carries FRSE, and "SE" is printed nowhere`, () => {
       const c = getContent(lang);
+      expect(c.home.credentials.marks).toEqual(['PE', 'FRSE', 'PE']);
+      expect(c.home.credentials.titleLines[1]).toMatch(lang === 'en' ? /^Structural Engineers\.$/ : /^Ingenieros Estructurales\.$/);
       const texts = JSON.stringify(c.home);
       expect(texts).not.toMatch(/\bSE\b|\bS\.E\./);
-      expect(texts).not.toMatch(/licensed structural engineer|ingenieros? estructurales? con licencia/i);
+      expect(texts).not.toMatch(/licensed structural engineer|ingenieros? estructurales? con licencia|florida SE|SE (?:license|licen)/i);
     });
   }
 
@@ -518,6 +525,9 @@ describe('the Spanish mirror has the English home’s shape (spec item 9)', () =
       'home.hero.counties[1]',
       'home.ribbon.types[1]', // "Townhouses", the word Miami uses
       'home.contact.whatsapp',
+      'home.credentials.marks[0]', // "PE", "FRSE", "PE": credential marks
+      'home.credentials.marks[1]',
+      'home.credentials.marks[2]',
     ]);
     const english = new Map(entries(en, 'home').map((e) => [e.path, e.text]));
     const same = entries(es, 'home')

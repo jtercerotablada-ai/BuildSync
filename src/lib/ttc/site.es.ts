@@ -1762,11 +1762,12 @@ export const es: SiteContent = {
     credentials: {
       label: 'Credenciales',
       titleLines: ['Ingenieros Profesionales.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
+      marks: ['PE', 'FRSE', 'PE'],
       accentWord: 'Estructurales',
       engineers: {
         k: 'Ingenieros',
         name: 'Licencia de Ingeniero Profesional de Florida',
-        scope: 'Ingeniería estructural y eléctrica, según lo requiera cada proyecto.',
+        scope: 'Ingeniería civil, estructural y eléctrica, según lo requiera cada proyecto.',
       },
       firm: { k: 'La firma' },
     },
